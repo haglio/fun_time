@@ -17,7 +17,7 @@ from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
 
-from fun_time.command_dispatch import notice_source, said_to_the_hosted_app
+from fun_time.aiming import notice_source
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -25,7 +25,12 @@ from fun_time.event_log import (
     SOURCE_SYSTEM,
     notice,
 )
-from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary, with_when_said
+from fun_time.hosted_contract import (
+    NO_HOSTED_VOCABULARY,
+    HostedVocabulary,
+    said_to_the_hosted_app,
+    with_when_said,
+)
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_commands import (
     GENAU_SAID,

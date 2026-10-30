@@ -115,7 +115,7 @@ LET_GO_TIMEOUT_S = 3.0
 
 class Homecoming:
     """Satellites on their way back from the hosted app: by when each lands,
-    and which of its hosted panels was up when it was sent for."""
+    and which of its hosted HUDs was up when it was sent for."""
 
     def __init__(self) -> None:
         self._coming: dict[RoomFunestra, tuple[float, HudStamp]] = {}

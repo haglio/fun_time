@@ -543,7 +543,7 @@ The audio companion and the Python dispatch loop both read this file as the auth
 
 ### `genau_cmd.txt`
 
-Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
+Written by `fun_time/genau_commands.py` and `fun_time/osr2_commands.py` when Genau or Robot Hand commands are dispatched.
 
 The verbs it may carry are the registry in `../funestra`'s `funestra/genau_controls.py`.
 

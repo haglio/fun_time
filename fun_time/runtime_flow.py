@@ -5,7 +5,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from funestra.console import OSR2_DRIVING
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
 from funestra.modes import SatellitesMode
@@ -13,7 +12,6 @@ from funestra.modes import SatellitesMode
 logger = logging.getLogger(__name__)
 
 from .bridge_records import SatelliteChannel
-from .broker_control import write_broker_command
 from .funestra_handover import keep_aside
 from .main_list import MainList, MainListSettings
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
@@ -27,7 +25,6 @@ from .modes import (
     scripted_item,
     write_playlist_file,
 )
-from .omnipause import build_omnipause_plan
 from .origenerator_switches import CLOSE_SLIDESHOW, KINO_MODE, OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
@@ -317,86 +314,3 @@ def apply_satellite_switch(
     return SatelliteSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
         log_message=f"{side} switched to {target_mode} mode")
-
-
-@dataclass(frozen=True)
-class OmniPauseFlowResult:
-    next_omni_paused: bool
-    log_message: str
-
-
-def apply_enter_omnipause(
-    *,
-    omni_paused: bool,
-    main_mode: str,
-    portrait_paused_file: str | Path,
-    landscape_paused_file: str | Path,
-    genau_paused_file: str | Path,
-    audio_paused_file: str | Path,
-    main_funestra_paused_file: str | Path,
-    broker_cmd_file: str | Path | None = None,
-    origenerator_paused_file: str | Path | None = None,
-) -> OmniPauseFlowResult:
-    """Freeze the whole session, and send the OSR2 home."""
-    plan = build_omnipause_plan(
-        "enter",
-        omni_paused=omni_paused,
-        main_mode=main_mode,
-    )
-    write_flag_file(genau_paused_file, True)
-    write_flag_file(audio_paused_file, True)
-    write_flag_file(main_funestra_paused_file, True)
-    # The satellites obey their paused flag file each tick, so freezing playback
-    # is a single flag write per side.  A paused native satellite simply cannot
-    # auto-advance (its advance() returns early while paused), so OmniPause is a
-    # settled state: one write holds it, with nothing to police afterwards.
-    write_flag_file(portrait_paused_file, True)
-    write_flag_file(landscape_paused_file, True)
-    if origenerator_paused_file is not None:
-        # The hosted Origenerator obeys the same flag idiom: its shows stop
-        # their dwell clocks and playing clips until the room resumes.
-        write_flag_file(origenerator_paused_file, True)
-    if broker_cmd_file is not None:
-        write_broker_command(broker_cmd_file, plan.broker_command)
-    return OmniPauseFlowResult(
-        next_omni_paused=plan.next_omni_paused,
-        log_message=plan.log_message,
-    )
-
-
-def apply_leave_omnipause(
-    *,
-    omni_paused: bool,
-    main_mode: str,
-    portrait_paused_file: str | Path,
-    landscape_paused_file: str | Path,
-    genau_paused_file: str | Path,
-    audio_paused_file: str | Path,
-    main_funestra_paused_file: str | Path,
-    broker_cmd_file: str | Path | None = None,
-    origenerator_paused_file: str | Path | None = None,
-    osr2_control: str = OSR2_DRIVING,
-) -> OmniPauseFlowResult:
-    plan = build_omnipause_plan(
-        "leave",
-        omni_paused=omni_paused,
-        main_mode=main_mode,
-        osr2_control=osr2_control,
-    )
-    write_flag_file(genau_paused_file, False)
-    write_flag_file(audio_paused_file, False)
-    if plan.resume_main_funestra_playback:
-        write_flag_file(main_funestra_paused_file, False)
-    if broker_cmd_file is not None:
-        write_broker_command(broker_cmd_file, plan.broker_command)
-    # Unfreeze both satellites; a locked one holds its clip (its lock is
-    # independent of the pause flag), an unlocked one resumes auto-advancing --
-    # whichever of the session and the hosted app is handing it what to play.
-    write_flag_file(portrait_paused_file, False)
-    write_flag_file(landscape_paused_file, False)
-    if origenerator_paused_file is not None:
-        write_flag_file(origenerator_paused_file, False)
-    return OmniPauseFlowResult(
-        next_omni_paused=plan.next_omni_paused,
-        log_message=plan.log_message,
-    )

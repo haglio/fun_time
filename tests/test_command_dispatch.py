@@ -24,13 +24,7 @@ from funestra.modes import LengthMode, MainMode, SatellitesMode
 from fun_time import genaumacher_save
 from fun_time.aiming import resolve_active_funestra_command
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
-from fun_time.command_dispatch import (
-    _discard,
-    _toggle_lock,
-    dispatch_command,
-    hosted_satellites,
-    routes_to_origenerator,
-)
+from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
@@ -48,8 +42,9 @@ from fun_time.media_metadata import (
     normalize_path_key,
 )
 from fun_time.modes import write_playlist_file
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbSlot, hosted_satellites
 from fun_time.room_funestras import RoomFunestra
+from fun_time.satellite_commands import _discard, _toggle_lock
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
@@ -462,8 +457,8 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     now_playing = "C:\\clips\\advanced_to.mp4"
     _set_current(config, 2, now_playing)
     with (
-        patch("fun_time.command_dispatch.unfavorite") as favs,
-        patch("fun_time.command_dispatch.move_to_weird") as weird,
+        patch("fun_time.satellite_commands.unfavorite") as favs,
+        patch("fun_time.satellite_commands.move_to_weird") as weird,
     ):
         dispatch_command("portrait_trash", state, config, target_path=meant)
 
@@ -483,8 +478,8 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
-        patch("fun_time.command_dispatch.unfavorite"),
-        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.satellite_commands.unfavorite"),
+        patch("fun_time.satellite_commands.move_to_weird"),
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
@@ -501,8 +496,8 @@ def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
-        patch("fun_time.command_dispatch.unfavorite") as favs,
-        patch("fun_time.command_dispatch.move_to_weird") as weird,
+        patch("fun_time.satellite_commands.unfavorite") as favs,
+        patch("fun_time.satellite_commands.move_to_weird") as weird,
     ):
         dispatch_command("portrait_trash", state, config)
 
@@ -1077,8 +1072,8 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
 
     _set_current(config, 3, "C:\\clips\\landscape.mp4")
     with (
-        patch("fun_time.command_dispatch.unfavorite"),
-        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.satellite_commands.unfavorite"),
+        patch("fun_time.satellite_commands.move_to_weird"),
     ):
         new_state, _ops = dispatch_command("landscape_trash", state, config)
 
@@ -1280,7 +1275,7 @@ def _fmode_result(**kwargs):
 def _dispatch_fmode(command: str, state: BridgeState, config: BridgeConfig):
     """Run *command* with the playlist rebuild stubbed out, and hand back the mock
     so a caller can look at what the flow was asked for."""
-    with patch("fun_time.command_dispatch.apply_fmode", side_effect=_fmode_result) as mock_fmode:
+    with patch("fun_time.f_mode.apply_fmode", side_effect=_fmode_result) as mock_fmode:
         new_state, ops = dispatch_command(command, state, config)
     return new_state, ops, mock_fmode
 
@@ -1462,7 +1457,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     )
     state = _make_state()
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         new_state, ops = dispatch_command("filter_portrait_alpha", state, config)
 
@@ -1734,7 +1729,7 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("filter_both_beta_gamma", state, config)
 
@@ -1749,7 +1744,7 @@ def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(t
     config = _make_config(tmp_path)
     state = _make_state()
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         _new_state, ops = dispatch_command("filter_both_beta_gamma", state, config)
 
@@ -1763,7 +1758,7 @@ def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=0, applied=False)
         new_state, _ops = dispatch_command("filter_portrait_alpha", state, config)
 
@@ -1778,7 +1773,7 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(filter="twirling"), portrait=SatelliteState(filter="alpha"))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
@@ -1806,7 +1801,7 @@ def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
     )
     state = _make_state(landscape=SatelliteState(filter="twirling"), portrait=SatelliteState(filter="alpha"))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         dispatch_command("portrait_latest", state, config)
 
@@ -1820,7 +1815,7 @@ def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
     sided reorder reloads that satellite and leaves the other one alone."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         state, ops = dispatch_command("portrait_latest", _make_state(), config)
 
@@ -1836,7 +1831,7 @@ def test_shuffle_puts_one_side_back_without_touching_the_other(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(latest=True), portrait=SatelliteState(latest=True))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("landscape_shuffle", state, config)
 
@@ -1851,7 +1846,7 @@ def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True, loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4"))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("portrait_latest", state, config)
 
@@ -1868,7 +1863,7 @@ def test_a_reorder_starts_the_side_at_the_top_of_the_new_order(tmp_path: Path):
     never reached."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         dispatch_command("portrait_latest", _make_state(), config)
 
@@ -1880,7 +1875,7 @@ def test_a_filter_leaves_the_clip_on_screen_where_it_is(tmp_path: Path):
     survives the new list."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         dispatch_command("filter_portrait_alpha", _make_state(), config)
 
@@ -1894,7 +1889,7 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True, filter="alpha", latest=True, favorites_filter=True, loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4", nav_anchor="C:/v/a.mp4"))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
@@ -1920,7 +1915,7 @@ def test_reset_rebuilds_the_side_wide_rather_than_still_in_f_mode(tmp_path: Path
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(favorites_filter=True))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         dispatch_command("portrait_reset", state, config)
 
@@ -1934,7 +1929,7 @@ def test_reset_leaves_a_side_that_is_already_at_its_defaults_alone(tmp_path: Pat
     back" was the quickest way to keep changing what was playing."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         state, ops = dispatch_command("portrait_reset", _make_state(), config)
 
@@ -1948,7 +1943,7 @@ def test_a_side_whose_own_sound_was_turned_up_has_nothing_to_reset(tmp_path: Pat
     config = _make_config(tmp_path)
     heard = _make_state().with_satellite(RoomFunestra.PORTRAIT, volume=40, muted=False)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         _state, ops = dispatch_command("portrait_reset", heard, config)
 
@@ -1973,7 +1968,7 @@ def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
     something to undo."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         _state, ops = dispatch_command(
             "portrait_reset", _make_state(portrait=narrowed), config)
@@ -1998,7 +1993,7 @@ def test_reset_puts_the_sides_speed_back_to_normal_as_the_main_funestras_does(tm
     _publish_speed(config, RoomFunestra.PORTRAIT, 1.0)
     state = _make_state(portrait=SatelliteState(locked=True))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         dispatch_command("portrait_reset", state, config)
 
@@ -2013,7 +2008,7 @@ def test_a_side_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_path:
     _publish_speed(config, RoomFunestra.PORTRAIT, 1.5)
     remembering_the_rate = _make_state().with_satellite(RoomFunestra.PORTRAIT, speed=1.5)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         _state, ops = dispatch_command("portrait_reset", remembering_the_rate, config)
 
@@ -2028,7 +2023,7 @@ def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(filter="alpha"))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         state, portrait_ops = dispatch_command("portrait_reset", state, config)
         state, landscape_ops = dispatch_command("landscape_reset", state, config)
@@ -2042,7 +2037,7 @@ def test_reset_leaves_the_other_side_alone(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True, filter="alpha", latest=True, favorites_filter=True))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
@@ -2058,7 +2053,7 @@ def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(filter="alpha", latest=True))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
@@ -2559,7 +2554,7 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     # Already in Latest: asking again must keep newest-first, never toggle off.
     state = _make_state(portrait=SatelliteState(latest=True, locked=True))
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("portrait_latest", state, config)
 
@@ -3842,7 +3837,7 @@ def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
     sub-playlist — so the loop (and any widened row) is gone."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         state, _ops = dispatch_command(
             "filter_portrait_alpha",
@@ -3858,7 +3853,7 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
     was running — and its widened row — survives it."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=False)
         state, _ops = dispatch_command(
             "filter_portrait_alpha",
@@ -4132,7 +4127,7 @@ def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
     other Funestra, which was not rebuilt, keeps looping."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         state, _ops = dispatch_command(
             "portrait_latest",
@@ -4177,7 +4172,7 @@ def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
     })
 
     _set_current(config, 2, paths["clip"])
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
 
@@ -4205,7 +4200,7 @@ def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_
     })
 
     _set_current(config, 2, paths["advanced_to"])
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         dispatch_command("portrait_lock_action", _make_state(), config,
                          target_path=paths["meant"])
@@ -4218,7 +4213,7 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _set_current(config, 3, "C:/v/clip.mp4")  # a clip with no sidecar at all
-    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
 
     mock_filter.assert_not_called()
@@ -4887,7 +4882,7 @@ class TestEachSatellitesOwnMode:
             self, tmp_path):
         config = _origenerator_config(tmp_path)
 
-        with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as rebuild:
             rebuild.return_value = _filter_result(count=10)
             state, _ = dispatch_command("filter_both_scene_one",
                                         _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
@@ -4979,7 +4974,7 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
-        with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as rebuild:
             state, _ = dispatch_command("filter_portrait_scene_one", state, config)
 
         rebuild.assert_not_called()
@@ -4992,7 +4987,7 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
-        with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as rebuild:
             state, _ = dispatch_command("filter_both_scene_one", state, config)
 
         rebuild.assert_not_called()
@@ -5018,7 +5013,7 @@ class TestOrigeneratorTransport:
             publish_the_show(config, funestra, f_mode=False)
         state = _in_origenerator_mode()
 
-        with patch("fun_time.command_dispatch.apply_fmode") as fmode:
+        with patch("fun_time.f_mode.apply_fmode") as fmode:
             fmode.return_value = SimpleNamespace(funestras=(RoomFunestra.MAIN,), log_message="")
             state, _ = dispatch_command("fmode_toggle", state, config)
 
@@ -5088,7 +5083,7 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]
         assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"     # the blacked Funestra's own is left alone
 
-        with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
             mock_filter.return_value = _filter_result(count=10)
             funestra_state, _ = dispatch_command(
                 "portrait_no_filter", BridgeState(portrait=SatelliteState(filter="alpha")), config)
@@ -5242,7 +5237,7 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
     _set_current(config, 3, "clip.mp4")
 
-    with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
+    with caplog.at_level(logging.INFO, logger="fun_time.satellite_commands"):
         state, _ops = _toggle_lock(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
     assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
@@ -5296,9 +5291,9 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
     _set_current(config, 3, "odd.mp4")
 
     with (
-        patch("fun_time.command_dispatch.unfavorite") as favs,
-        patch("fun_time.command_dispatch.move_to_weird") as weird,
-        caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
+        patch("fun_time.satellite_commands.unfavorite") as favs,
+        patch("fun_time.satellite_commands.move_to_weird") as weird,
+        caplog.at_level(logging.INFO, logger="fun_time.satellite_commands"),
     ):
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
@@ -5319,8 +5314,8 @@ def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
     _set_current(config, 3, "odd.mp4")
 
     with (
-        patch("fun_time.command_dispatch.unfavorite"),
-        patch("fun_time.command_dispatch.move_to_weird"),
+        patch("fun_time.satellite_commands.unfavorite"),
+        patch("fun_time.satellite_commands.move_to_weird"),
     ):
         state, _ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
@@ -5346,7 +5341,7 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     video = _favorite_clip(tmp_path, config, "kept.mp4")
     _set_current(config, 3, str(video))
 
-    with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
+    with caplog.at_level(logging.INFO, logger="fun_time.satellite_commands"):
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
     assert state.satellite(RoomFunestra.LANDSCAPE).locked is False

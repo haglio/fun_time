@@ -113,7 +113,7 @@ def test_no_module_reaches_into_another_ones_privates():
     )
 
 
-MAX_PROSE_LINES = 5597
+MAX_PROSE_LINES = 5594
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
@@ -303,3 +303,50 @@ def test_the_dispatch_loops_glue_stays_on_its_collaborators():
         "glue goes on the collaborator that holds it; a count that came down is "
         "one to lower here in the same commit."
     )
+
+
+# The command registry's complexity, a ceiling that only comes down: every handler
+# written into it since the first pass had a domain module of its own to go in.
+MAX_DISPATCHER_COMPLEXITY = 59
+MAX_DISPATCH_COMMAND_COMPLEXITY = 9
+
+
+def _decisions(function: ast.AST) -> int:
+    count = 0
+    pending = list(ast.iter_child_nodes(function))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if isinstance(node, (ast.If, ast.IfExp, ast.Assert)):
+            count += 1
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+            count += 1 + bool(node.orelse)
+        elif isinstance(node, ast.Try):
+            count += len(node.handlers) + bool(node.orelse)
+        elif isinstance(node, ast.BoolOp):
+            count += len(node.values) - 1
+        elif isinstance(node, ast.comprehension):
+            count += 1 + len(node.ifs)
+        pending.extend(ast.iter_child_nodes(node))
+    return count
+
+
+def _complexity(tree: ast.AST) -> dict[str, int]:
+    """Each function's cyclomatic complexity, as radon counts it: one, plus a
+    point per branch, loop, handler, boolean operand and comprehension."""
+    return {node.name: 1 + _decisions(node) for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+
+
+def test_the_command_registry_holds_the_registry_and_the_guards():
+    complexity = _complexity(ast.parse(
+        (ROOT / "fun_time" / "command_dispatch.py").read_text(encoding="utf-8")))
+    total = sum(complexity.values())
+    assert total <= MAX_DISPATCHER_COMPLEXITY, (
+        f"command_dispatch.py's functions sum to a complexity of {total} (ceiling "
+        f"{MAX_DISPATCHER_COMPLEXITY}).  A command's handler belongs in its domain's "
+        "module, registered from there; lower the ceiling when it comes down."
+    )
+    assert complexity["dispatch_command"] <= MAX_DISPATCH_COMMAND_COMPLEXITY
+
