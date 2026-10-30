@@ -19,6 +19,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
+from fun_time.bridge_records import BridgeConfig
 from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
@@ -46,7 +48,11 @@ from fun_time.funestra_settings import read_funestra_reports
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import put_the_headset_to_sleep
-from fun_time.hosted_origenerator import bring_up_the_hosted_app, what_it_answers_by_voice_in
+from fun_time.hosted_origenerator import (
+    HostedApp,
+    bring_up_the_hosted_app,
+    what_it_answers_by_voice_in,
+)
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.manifest import (
     LaunchManifest,
@@ -120,6 +126,7 @@ from fun_time.single_instance import (
     show_already_running_message,
 )
 from fun_time.state_file_names import take_up_the_retired_state_file_names
+from fun_time.voice_control import VoiceController
 from fun_time.vr_videos import shapes_verb
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
@@ -128,6 +135,7 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
+    PreparedVoice,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     finish_under_the_cover,
@@ -455,7 +463,39 @@ def _closing_cover(
         ready_file.unlink(missing_ok=True)
 
 
-def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -> int:
+@dataclass(frozen=True)
+class _Launch:
+    state_dir: Path
+    manifest_path: Path
+    manifest: LaunchManifest
+    bridge_config: BridgeConfig
+    pids_file: Path
+    ahk_cmd_file: Path
+    prepared_voice: PreparedVoice | None
+    cover: _Cover
+
+    @property
+    def commands(self):
+        return self.manifest.commands
+
+    @property
+    def progress(self) -> ProgressReporter:
+        return self.cover.progress
+
+    @property
+    def dashboard_cmd_file(self) -> Path:
+        return Path(self.commands.dashboard_cmd_file)
+
+    @property
+    def main_funestra_status_file(self) -> Path:
+        return Path(self.commands.main_funestra_status_file)
+
+    @property
+    def room_ready_file(self) -> Path:
+        return scene_ready_file(self.state_dir)
+
+
+def _prepare_the_launch(config, env: SessionEnvironment, *, cancelable: bool) -> _Launch:
     state_dir = config.paths.state_dir
     manifest_path = write_manifest_data(
         build_vr_manifest(config, dashboard_enabled=env.dashboard_enabled),
@@ -468,302 +508,372 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     # set_up_logging wired for fun_time_vr.orchestrator alone.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)
-    commands = manifest.commands
     pids_file = state_dir / "bridge_pids.ini"
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
-    dashboard_cmd_file = Path(commands.dashboard_cmd_file)
+    dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     clear_last_sessions_leftovers(
-        state_dir, commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
+        state_dir, manifest.commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
     prepared_voice = prepare_voice_control(
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator_cmd_file,
         hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
         ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
+    return _Launch(
+        state_dir=state_dir, manifest_path=manifest_path, manifest=manifest,
+        bridge_config=bridge_config, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file,
+        prepared_voice=prepared_voice, cover=_Cover(state_dir, cancelable=cancelable),
+    )
 
-    cover = _Cover(state_dir, cancelable=cancelable)
-    progress = cover.progress
-    children: dict[str, ChildProcess] = {}
-    hosted_taken_over = False
-    # Nothing of ours has touched the VR runtime yet, so there is nothing to put
-    # back if the paths below bail before the Funestra is launched.
-    runtime_was_up = True
+
+@dataclass
+class _Launched:
+    """What the launch has brought up so far, exact at every cancellation checkpoint."""
+
+    children: dict[str, ChildProcess] = field(default_factory=dict)
+    hosted: HostedApp | None = None
+    funestra: subprocess.Popen | None = None
+    runtime_was_up: bool = True  # nothing of ours touches the runtime before the headset's phase
+
+    @property
+    def hosted_taken_over(self) -> bool:
+        return self.hosted is not None and self.hosted.taken_over
+
+    def record(self, name: str, pid: int) -> None:
+        self.children[name] = ChildProcess(
+            pid=pid, created_at=get_process_creation_time(pid) or 0)
+
+
+@dataclass(frozen=True)
+class _Running:
+    dispatch_runner: DispatchLoopRunner
+    dispatch_thread: threading.Thread
+    voice_controller: VoiceController | None
+    voice_thread: threading.Thread | None
+
+
+def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -> int:
+    launch = _prepare_the_launch(config, env, cancelable=cancelable)
+    launched = _Launched()
+    progress = launch.progress
 
     # --- The hotkey script, up before the session it drives ---
     ahk_proc = launch_hotkey_script(
         ahk_exe=config.paths.ahk_exe, script=config.project_dir / HOTKEY_SCRIPT_NAME,
-        manifest_path=manifest_path, pids_file=pids_file, project_dir=config.project_dir)
+        manifest_path=launch.manifest_path, pids_file=launch.pids_file,
+        project_dir=config.project_dir)
 
-    # --- The core-session bootstrap, minus the windows ---
-    try:  # every ``advance`` below is a cancellation checkpoint too
-        progress.advance("services")
-        write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
-        ensure_broker(
-            commands.broker_state_dir or None,
-            Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
-        )
-        reset_satellite_paused_states(
-            commands.portrait_paused_file, commands.landscape_paused_file,
-        )
-        # A desktop session's stranded satellites hold the same files this session
-        # is claiming; so would a stranded headset (matched by the manifest on
-        # its command line).
-        reap_orphaned_satellites(
-            manifest.modules.satellite_module,
-            [commands.portrait_status_file, commands.landscape_status_file],
-        )
-        reap_orphaned_satellites(VR_FUNESTRAS_MODULE, [str(manifest_path)])
-        release_the_headset(state_dir)  # after the reap: a Funestra let go could stop the runtime
-
-        portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
-        landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
-        main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
-        portrait_status = read_satellite_status(Path(commands.portrait_status_file))
-        landscape_status = read_satellite_status(Path(commands.landscape_status_file))
-        resumed = resume_playlists([
-            (portrait_playlist, portrait_status.video),
-            (landscape_playlist, landscape_status.video),
-        ])
-        # And the state that session was in: F-mode, each side's filter, order and
-        # lock, any group loop, the sound level.  The dispatch loop opens on this
-        # file, so resuming the files without it leaves every HUD describing a
-        # different session.  Read before the flags below are seeded, because two of
-        # them are what those flags have to be seeded to.
-        carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed,
-                                      last_reported=read_funestra_reports(bridge_config))
-        carried = stock_the_playlists(
-            manifest,
-            state_dir=state_dir,
-            metadata_root=bridge_config.regen_metadata_root,
-            resumed=resumed,
-            carried=carried,
-            main_video=main_funestra_status.video,
-        )
-        # The mode comes across with the rest: the headset hosts Genau too.
-        seed_startup_states(
-            commands.genau_paused_file, commands.audio_paused_file,
-            commands.main_funestra_paused_file, commands.audio_volume_file,
-            commands.genau_cmd_file, main_funestra_cmd_file=commands.main_funestra_cmd_file,
-            volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
-            satellite_cmd_files=(commands.portrait_cmd_file, commands.landscape_cmd_file),
-            main_list=MainListSettings.of(carried), mode=carried.main_mode,
-        )
-        # A lock lives in the Funestra process, so it has to be re-sent; the roles read
-        # the satellites' own command files, and the headset is not up yet.
-        resume_satellite_locks([
-            (Path(commands.portrait_cmd_file), carried.satellite(RoomFunestra.PORTRAIT).locked),
-            (Path(commands.landscape_cmd_file), carried.satellite(RoomFunestra.LANDSCAPE).locked),
-        ])
-        resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
-        resume_what_lives_in_a_funestra(
-            carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-            satellite_cmd_files={RoomFunestra.PORTRAIT: Path(commands.portrait_cmd_file),
-                                 RoomFunestra.LANDSCAPE: Path(commands.landscape_cmd_file)},
-            genau_cmd_file=Path(commands.genau_cmd_file),
-        )
-        resume_main_loop(Path(commands.main_funestra_cmd_file), carried,
-                         bridge_config.main_list.file)
-
-        # --- The children: the audio companion, then the headset ---
-        # The companion first, as on the desktop, so it is listening when Genau's
-        # role says which flick is up; on the headset's output, like every sound here.
-        progress.advance("companions")
-        # First of them, as on the desktop: the slowest boot, waited on by nothing.
-        hosted = bring_up_the_hosted_app(
-            manifest, sibling_checkouts=manifest.runtime.sibling_checkouts,
-            in_a_headset=True)
-        if hosted is not None:
-            hosted_taken_over = hosted.taken_over
-            children["origenerator_pid"] = ChildProcess(
-                pid=hosted.pid, created_at=get_process_creation_time(hosted.pid) or 0,
-            )
-        audio = launch_audio_companion(
-            python_exe=manifest.executables.python_exe,
-            audio_module=manifest.modules.audio_module,
-            config_path=manifest.runtime.config_path,
-            audio_folder=manifest.media.genau_audio,
-            audio_device=config.vr.audio_device,
-            sibling_checkouts=manifest.runtime.sibling_checkouts,
-        )
-        logger.info("Audio companion launched (pid=%d)", audio.pid)
-        children["audio_pid"] = ChildProcess(
-            pid=audio.pid, created_at=get_process_creation_time(audio.pid) or 0
-        )
-
-        # The long phase, and the only one the headset shows: the cover is a
-        # surface of the process launched here, so it covers the rest of it.
-        progress.advance("funestras")
-        runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
-        if not runtime_was_up:
-            vr_runtime.remember_the_sound_devices(state_dir)
-        main_funestra_status_file = Path(commands.main_funestra_status_file)
-        main_funestra_status_file.unlink(missing_ok=True)
-        room_ready_file = scene_ready_file(state_dir)
-        room_ready_file.unlink(missing_ok=True)  # a previous session's vouches
-        funestra = launch_vr_funestras(
-            python_exe=manifest.executables.python_exe,
-            manifest_path=manifest_path,
-            log_file=state_dir / "vr_funestras.log",
-            sibling_checkouts=manifest.runtime.sibling_checkouts,
-        )
-        logger.info("headset launched (pid=%d)", funestra.pid)
-        children["vr_funestras_pid"] = ChildProcess(
-            pid=funestra.pid, created_at=get_process_creation_time(funestra.pid) or 0
-        )
-
-        if not _wait_for_funestra(main_funestra_status_file, funestra, progress):
-            # The script too: one left running swallows every key it binds.
-            stop_hotkey_script(ahk_proc, ahk_cmd_file)
-            with cover.progress.cover_kept_up():
-                for child in children.values():
-                    kill_recorded_child(child)
-            _release_vr_runtime(runtime_was_up, state_dir)
-            cover.clear()
-            return 1
-        _wait_for_the_room(room_ready_file, funestra, progress)
-
-        hud_publisher, _hud_primed = start_hud_priming(bridge_config, manifest, enabled=True)
+    try:  # every ``advance`` in the phases is a cancellation checkpoint too
+        carried = _resume_the_room(launch)
+        _launch_the_children(launch, config, launched)
+        if not _wait_for_funestra(launch.main_funestra_status_file, launched.funestra, progress):
+            return _end_a_launch_the_headset_never_joined(launch, launched, ahk_proc)
+        _wait_for_the_room(launch.room_ready_file, launched.funestra, progress)
+        hud_publisher, _hud_primed = start_hud_priming(
+            launch.bridge_config, launch.manifest, enabled=True)
         # Esc can land after the last checkpoint, the launch finished but the
         # flag set: do not reveal a session the user asked to abort.
         if progress.cancelled:
             raise StartupCancelled()
     except StartupCancelled:
-        # The checkpoint raised before its phase ran, so *children* is exact.
+        # The checkpoint raised before its phase ran, so *launched* is exact.
         return _cancel_vr_startup(
-            state_dir=state_dir, children=children, ahk_proc=ahk_proc,
-            ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
-            origenerator_cmd_file=Path(manifest.commands.origenerator_cmd_file),
-            taken_over=hosted_taken_over,
+            state_dir=launch.state_dir, children=launched.children, ahk_proc=ahk_proc,
+            ahk_cmd_file=launch.ahk_cmd_file, cover=launch.cover,
+            runtime_was_up=launched.runtime_was_up,
+            origenerator_cmd_file=Path(launch.commands.origenerator_cmd_file),
+            taken_over=launched.hosted_taken_over,
         )
 
     try:
-        dispatch_runner = DispatchLoopRunner(
-            config=bridge_config,
-            dashboard_cmd_file=dashboard_cmd_file,
-            shared_state_file=shared_state_path(state_dir),
-            ahk_cmd_file=ahk_cmd_file,
-            # Every role pid stays 0: the roles are surfaces of the headset, and
-            # unresolved HWNDs are what make the window ops no-ops.
-            windows=WindowRoles(pids=ChildPids()),
-            # There IS a dashboard now, hanging in the scene; this publishes what
-            # its bar reads.
-            dashboard_enabled=True,
-            hud_publisher=hud_publisher,
-            origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else (),
-        )
-        voice_controller, voice_thread = start_voice_control(
-            prepared_voice, dispatch_runner=dispatch_runner)
-        finish_under_the_cover(dispatch_runner, voice_controller, progress=progress)
-        progress.advance("finalizing")  # the last line, after any wait under the cover
-
-        # --- The reveal ---
-        # DONE first, then the Funestras: released before it, the first seconds of a
-        # video play under a panel nobody can see through (release_the_funestras).
-        # The Funestra takes the cover down within a poll of this line.
-        progress.finish()
-        release_the_funestras(manifest, carried.main_mode)
-        # The headset is showing the session: the monitors' cover can go.
-        drop_crossing_cover(state_dir)
-        # Records the children for teardown and hands the keyboard over: the hotkey
-        # script takes its startup hold off, so Esc now means omnipause.
-        write_pids_file(pids_file, children)
-        cover.clear()
-        room_ready_file.unlink(missing_ok=True)
-
-        dispatch_thread = threading.Thread(
-            target=dispatch_runner.run, daemon=True, name="dispatch-loop")
-        dispatch_thread.start()
+        running = _open_the_room(launch, launched, carried, hud_publisher)
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",
-                    len(children))
+                    len(launched.children))
         _take_down_the_launch(
-            state_dir=state_dir, children=children, ahk_proc=ahk_proc,
-            ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
+            state_dir=launch.state_dir, children=launched.children, ahk_proc=ahk_proc,
+            ahk_cmd_file=launch.ahk_cmd_file, cover=launch.cover,
+            runtime_was_up=launched.runtime_was_up,
         )
-        drop_crossing_cover(state_dir)  # nothing is coming to do it for us
+        drop_crossing_cover(launch.state_dir)  # nothing is coming to do it for us
         raise
+    return _hold_the_session(launch, launched, running, ahk_proc)
 
+
+def _resume_the_room(launch: _Launch) -> BridgeState:
+    manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
+    bridge_config, progress = launch.bridge_config, launch.progress
+    progress.advance("services")
+    write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
+    ensure_broker(
+        commands.broker_state_dir or None,
+        Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
+    )
+    reset_satellite_paused_states(
+        commands.portrait_paused_file, commands.landscape_paused_file,
+    )
+    # A desktop session's stranded satellites hold the same files this session
+    # is claiming; so would a stranded headset (matched by the manifest on
+    # its command line).
+    reap_orphaned_satellites(
+        manifest.modules.satellite_module,
+        [commands.portrait_status_file, commands.landscape_status_file],
+    )
+    reap_orphaned_satellites(VR_FUNESTRAS_MODULE, [str(launch.manifest_path)])
+    release_the_headset(state_dir)  # after the reap: a Funestra let go could stop the runtime
+
+    portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
+    landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
+    main_funestra_status = read_main_funestra_status(launch.main_funestra_status_file)
+    portrait_status = read_satellite_status(Path(commands.portrait_status_file))
+    landscape_status = read_satellite_status(Path(commands.landscape_status_file))
+    resumed = resume_playlists([
+        (portrait_playlist, portrait_status.video),
+        (landscape_playlist, landscape_status.video),
+    ])
+    # And the state that session was in: F-mode, each side's filter, order and
+    # lock, any group loop, the sound level.  The dispatch loop opens on this
+    # file, so resuming the files without it leaves every HUD describing a
+    # different session.  Read before the flags below are seeded, because two of
+    # them are what those flags have to be seeded to.
+    carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed,
+                                  last_reported=read_funestra_reports(bridge_config))
+    carried = stock_the_playlists(
+        manifest,
+        state_dir=state_dir,
+        metadata_root=bridge_config.regen_metadata_root,
+        resumed=resumed,
+        carried=carried,
+        main_video=main_funestra_status.video,
+    )
+    # The mode comes across with the rest: the headset hosts Genau too.
+    seed_startup_states(
+        commands.genau_paused_file, commands.audio_paused_file,
+        commands.main_funestra_paused_file, commands.audio_volume_file,
+        commands.genau_cmd_file, main_funestra_cmd_file=commands.main_funestra_cmd_file,
+        volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
+        satellite_cmd_files=(commands.portrait_cmd_file, commands.landscape_cmd_file),
+        main_list=MainListSettings.of(carried), mode=carried.main_mode,
+    )
+    # A lock lives in the Funestra process, so it has to be re-sent; the roles read
+    # the satellites' own command files, and the headset is not up yet.
+    resume_satellite_locks([
+        (Path(commands.portrait_cmd_file), carried.satellite(RoomFunestra.PORTRAIT).locked),
+        (Path(commands.landscape_cmd_file), carried.satellite(RoomFunestra.LANDSCAPE).locked),
+    ])
+    resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
+    resume_what_lives_in_a_funestra(
+        carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
+        satellite_cmd_files={RoomFunestra.PORTRAIT: Path(commands.portrait_cmd_file),
+                             RoomFunestra.LANDSCAPE: Path(commands.landscape_cmd_file)},
+        genau_cmd_file=Path(commands.genau_cmd_file),
+    )
+    resume_main_loop(Path(commands.main_funestra_cmd_file), carried,
+                     bridge_config.main_list.file)
+    return carried
+
+
+def _launch_the_children(launch: _Launch, config, launched: _Launched) -> None:
+    manifest, state_dir, progress = launch.manifest, launch.state_dir, launch.progress
+    progress.advance("companions")
+    # First of them, as on the desktop: the slowest boot, waited on by nothing.
+    hosted = bring_up_the_hosted_app(
+        manifest, sibling_checkouts=manifest.runtime.sibling_checkouts,
+        in_a_headset=True)
+    if hosted is not None:
+        launched.hosted = hosted
+        launched.record("origenerator_pid", hosted.pid)
+    # The companion before the headset, as on the desktop, so it is listening when
+    # Genau's role says which flick is up; on the headset's output, like every sound here.
+    audio = launch_audio_companion(
+        python_exe=manifest.executables.python_exe,
+        audio_module=manifest.modules.audio_module,
+        config_path=manifest.runtime.config_path,
+        audio_folder=manifest.media.genau_audio,
+        audio_device=config.vr.audio_device,
+        sibling_checkouts=manifest.runtime.sibling_checkouts,
+    )
+    logger.info("Audio companion launched (pid=%d)", audio.pid)
+    launched.record("audio_pid", audio.pid)
+
+    # The long phase, and the only one the headset shows: the cover is a
+    # surface of the process launched here, so it covers the rest of it.
+    progress.advance("funestras")
+    launched.runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
+    if not launched.runtime_was_up:
+        vr_runtime.remember_the_sound_devices(state_dir)
+    launch.main_funestra_status_file.unlink(missing_ok=True)
+    launch.room_ready_file.unlink(missing_ok=True)  # a previous session's vouches
+    launched.funestra = launch_vr_funestras(
+        python_exe=manifest.executables.python_exe,
+        manifest_path=launch.manifest_path,
+        log_file=state_dir / "vr_funestras.log",
+        sibling_checkouts=manifest.runtime.sibling_checkouts,
+    )
+    logger.info("headset launched (pid=%d)", launched.funestra.pid)
+    launched.record("vr_funestras_pid", launched.funestra.pid)
+
+
+def _end_a_launch_the_headset_never_joined(
+    launch: _Launch, launched: _Launched, ahk_proc: subprocess.Popen,
+) -> int:
+    # The script too: one left running swallows every key it binds.
+    stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
+    with launch.progress.cover_kept_up():
+        for child in launched.children.values():
+            kill_recorded_child(child)
+    _release_vr_runtime(launched.runtime_was_up, launch.state_dir)
+    launch.cover.clear()
+    return 1
+
+
+def _open_the_room(
+    launch: _Launch, launched: _Launched, carried: BridgeState, hud_publisher,
+) -> _Running:
+    manifest, state_dir, progress = launch.manifest, launch.state_dir, launch.progress
+    hosted = launched.hosted
+    dispatch_runner = DispatchLoopRunner(
+        config=launch.bridge_config,
+        dashboard_cmd_file=launch.dashboard_cmd_file,
+        shared_state_file=shared_state_path(state_dir),
+        ahk_cmd_file=launch.ahk_cmd_file,
+        # Every role pid stays 0: the roles are surfaces of the headset, and
+        # unresolved HWNDs are what make the window ops no-ops.
+        windows=WindowRoles(pids=ChildPids()),
+        # There IS a dashboard now, hanging in the scene; this publishes what
+        # its bar reads.
+        dashboard_enabled=True,
+        hud_publisher=hud_publisher,
+        origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else (),
+    )
+    voice_controller, voice_thread = start_voice_control(
+        launch.prepared_voice, dispatch_runner=dispatch_runner)
+    finish_under_the_cover(dispatch_runner, voice_controller, progress=progress)
+    progress.advance("finalizing")  # the last line, after any wait under the cover
+
+    # DONE first, then the Funestras: released before it, the first seconds of a
+    # video play under a panel nobody can see through (release_the_funestras).
+    # The Funestra takes the cover down within a poll of this line.
+    progress.finish()
+    release_the_funestras(manifest, carried.main_mode)
+    # The headset is showing the session: the monitors' cover can go.
+    drop_crossing_cover(state_dir)
+    # Records the children for teardown and hands the keyboard over: the hotkey
+    # script takes its startup hold off, so Esc now means omnipause.
+    write_pids_file(launch.pids_file, launched.children)
+    launch.cover.clear()
+    launch.room_ready_file.unlink(missing_ok=True)
+
+    dispatch_thread = threading.Thread(
+        target=dispatch_runner.run, daemon=True, name="dispatch-loop")
+    dispatch_thread.start()
+    return _Running(dispatch_runner, dispatch_thread, voice_controller, voice_thread)
+
+
+def _hold_the_session(
+    launch: _Launch, launched: _Launched, running: _Running, ahk_proc: subprocess.Popen,
+) -> int:
+    """Hold the session open, then take it down: an interrupt ends it as a quit does."""
+    state_dir, funestra = launch.state_dir, launched.funestra
+    parts = {key: child for key, child in launched.children.items() if key != "vr_funestras_pid"}
     asked = False
     closed = None
-    parts = {key: child for key, child in children.items() if key != "vr_funestras_pid"}
     try:
         ended_by = _wait_for_session_end(ahk_proc, funestra, state_dir=state_dir, parts=parts)
         asked = ended_by == "asked"
-        if ended_by == "funestras":
-            logger.info("headset exited with code %s -- ending the session", funestra.returncode)
-            ahk_proc.terminate()
-            ahk_proc.wait()
-            exit_code = 0
-        elif ended_by == "part":
-            closed = the_part_that_closed(parts)
-            logger.error("The session ended because %s closed itself", closed)
-            exit_code = 1
-        elif ended_by == "asked":
-            logger.info("The session was asked to end -- ending it")
-            session_end_marker_path(state_dir).unlink(missing_ok=True)
-            exit_code = 0
-        else:
-            logger.info("AHK exited -- ending the session")
-            exit_code = ahk_proc.wait()
+        exit_code, closed = _the_sessions_end(ended_by, ahk_proc, funestra, state_dir, parts)
     except KeyboardInterrupt:
         logger.info("Interrupted -- shutting down")
         exit_code = 1
     finally:
-        stop_everything(commands, (dispatch_runner, dispatch_thread))
-        # This teardown's cover hangs in the headset (docs/entering-vr.md).
-        held = back_to_vr = False
-        if (crossing := pending_handoff(state_dir)) is not None:
-            launch_crossing_cover(state_dir, crossing,
-                                  sibling_checkouts=manifest.runtime.sibling_checkouts)
-        # Up first and up through everything below.  A session that ended
-        # BECAUSE the Funestra went has nothing left to draw with, and nothing to
-        # hide: the cut to the runtime's environment already came.
-        esc_cancels = (crossing.crossing_hint if crossing is not None
-                       else CANCEL_CLOSING_FUN_TIME_VR if asked else "")
-        with _closing_cover(
-            state_dir, funestra, enabled=funestra.poll() is None, esc_cancels=esc_cancels,
-        ) as shutdown:
-            if crossing is not None:
-                hold_the_headset(state_dir, stop_runtime=not runtime_was_up)
-            if voice_controller is not None:
-                voice_controller.stop()
-            if voice_thread is not None:
-                voice_thread.join(timeout=2.0)
-            dispatch_runner.close()
-            shutdown.advance("companions")
-            with shutdown.cover_kept_up():
-                kill_recorded_child(children["audio_pid"])
-            shutdown.advance("funestras")
-            back_to_vr = (crossing is None and esc_cancels != ""
-                          and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
-            if back_to_vr:
-                logger.info("Esc called the quit off; opening Fun Time VR again")
-                launch_the_way_back_cover(
-                    state_dir, sibling_checkouts=manifest.runtime.sibling_checkouts,
-                )
-                request_handoff(state_dir, VR, cancelable=False)
-                hold_the_headset(state_dir, stop_runtime=False)
-            # Before the Funestra, which goes last of all.
-            hosted_app = children.get("origenerator_pid")
-            if hosted_app is not None and not see_the_hosted_app_out(
-                    state_dir, hosted_app, Path(commands.origenerator_cmd_file),
-                    keep=crossing is not None or back_to_vr,
-                    taken_over=hosted_taken_over):
-                with shutdown.cover_kept_up():
-                    kill_recorded_child(hosted_app)
-            held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
-                state_dir, funestra,
-            )
-            if not held:
-                with shutdown.cover_kept_up():
-                    kill_recorded_child(children["vr_funestras_pid"])  # last: it wears the cover
-            if crossing is None:  # else it hears Esc until the relay has read the flag
-                stop_hotkey_script(ahk_proc, ahk_cmd_file)
-        if not held and not back_to_vr:
-            _release_vr_runtime(runtime_was_up, state_dir)  # after the Funestra: it held an XR session
+        _close_the_session(launch, launched, running, ahk_proc, asked=asked)
     if closed is not None:
         show_funestra_died_alert(part_closed_message(closed))
     return exit_code
 
+
+def _the_sessions_end(
+    ended_by: str, ahk_proc: subprocess.Popen, funestra: subprocess.Popen, state_dir: Path,
+    parts: dict[str, ChildProcess],
+) -> tuple[int, str | None]:
+    if ended_by == "funestras":
+        logger.info("headset exited with code %s -- ending the session", funestra.returncode)
+        ahk_proc.terminate()
+        ahk_proc.wait()
+        return 0, None
+    if ended_by == "part":
+        closed = the_part_that_closed(parts)
+        logger.error("The session ended because %s closed itself", closed)
+        return 1, closed
+    if ended_by == "asked":
+        logger.info("The session was asked to end -- ending it")
+        session_end_marker_path(state_dir).unlink(missing_ok=True)
+        return 0, None
+    logger.info("AHK exited -- ending the session")
+    return ahk_proc.wait(), None
+
+
+def _close_the_session(
+    launch: _Launch, launched: _Launched, running: _Running, ahk_proc: subprocess.Popen, *,
+    asked: bool,
+) -> None:
+    manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
+    funestra = launched.funestra
+    stop_everything(commands, (running.dispatch_runner, running.dispatch_thread))
+    # This teardown's cover hangs in the headset (docs/entering-vr.md).
+    held = back_to_vr = False
+    if (crossing := pending_handoff(state_dir)) is not None:
+        launch_crossing_cover(state_dir, crossing,
+                              sibling_checkouts=manifest.runtime.sibling_checkouts)
+    # Up first and up through everything below.  A session that ended
+    # BECAUSE the Funestra went has nothing left to draw with, and nothing to
+    # hide: the cut to the runtime's environment already came.
+    esc_cancels = (crossing.crossing_hint if crossing is not None
+                   else CANCEL_CLOSING_FUN_TIME_VR if asked else "")
+    with _closing_cover(
+        state_dir, funestra, enabled=funestra.poll() is None, esc_cancels=esc_cancels,
+    ) as shutdown:
+        if crossing is not None:
+            hold_the_headset(state_dir, stop_runtime=not launched.runtime_was_up)
+        _stop_the_controls(running)
+        shutdown.advance("companions")
+        with shutdown.cover_kept_up():
+            kill_recorded_child(launched.children["audio_pid"])
+        shutdown.advance("funestras")
+        back_to_vr = (crossing is None and esc_cancels != ""
+                      and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
+        if back_to_vr:
+            logger.info("Esc called the quit off; opening Fun Time VR again")
+            launch_the_way_back_cover(
+                state_dir, sibling_checkouts=manifest.runtime.sibling_checkouts,
+            )
+            request_handoff(state_dir, VR, cancelable=False)
+            hold_the_headset(state_dir, stop_runtime=False)
+        # Before the Funestra, which goes last of all.
+        hosted_app = launched.children.get("origenerator_pid")
+        if hosted_app is not None and not see_the_hosted_app_out(
+                state_dir, hosted_app, Path(commands.origenerator_cmd_file),
+                keep=crossing is not None or back_to_vr,
+                taken_over=launched.hosted_taken_over):
+            with shutdown.cover_kept_up():
+                kill_recorded_child(hosted_app)
+        held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
+            state_dir, funestra,
+        )
+        if not held:
+            with shutdown.cover_kept_up():
+                kill_recorded_child(launched.children["vr_funestras_pid"])  # last: it wears the cover
+        if crossing is None:  # else it hears Esc until the relay has read the flag
+            stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
+    if not held and not back_to_vr:
+        _release_vr_runtime(launched.runtime_was_up, state_dir)  # after the Funestra: it held an XR session
+
+
+def _stop_the_controls(running: _Running) -> None:
+    if running.voice_controller is not None:
+        running.voice_controller.stop()
+    if running.voice_thread is not None:
+        running.voice_thread.join(timeout=2.0)
+    running.dispatch_runner.close()
 
 def _wait_for_the_headset_hold(state_dir: Path, funestra: subprocess.Popen) -> bool:
     """Whether the Funestra took the hold; one that has exited never will."""
