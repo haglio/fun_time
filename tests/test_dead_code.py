@@ -402,7 +402,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # funestra, and its notes went with it.
 # 5691 the same day: the Broker button, its press and the reader of the
 # broker's contract moved to funestra, and their notes went with them.
-MAX_PROSE_LINES = 5691
+# 5660 the same day: Skip ahead's two moves and the notice writer left the Main
+# Funestra for funestra, which answers them on every Funestra.
+MAX_PROSE_LINES = 5660
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
