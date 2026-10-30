@@ -506,6 +506,7 @@ one routine (`fun_time.lock.a_lock_holds`), however it was asked for:
 - a satellite's lock key, its padlock button, or "lock" said to it
 - a double-click on a thumbnail in a satellite's HUD, locked or not
 - a loop button on a video with no siblings, which locks it
+- the loop key (E, or Home on the portrait side), whose first stop is the lock
 - the Main Funestra's lock in Kino mode, and Genau's in Genau mode
 
 The Main Funestra and Genau decide what a press holds, so their item is the one

@@ -562,7 +562,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Loop the act's other seeds — repeat that family", (), _sided("seed_loop")),
             # The loop cycle is the keys' own command, like the lock toggle above.
             _Row(
-                "Step the loop on — seeds, then actions, then off",
+                "Step the loop on — lock, then seeds, then actions, then off",
                 ("Home",),
                 ("portrait_loop", "landscape_loop"),
                 hotkeys_alt=("E",),
