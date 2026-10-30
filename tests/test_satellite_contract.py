@@ -67,9 +67,12 @@ class TestNothingHasDrifted:
     """Each table below is the one place its group is written down, so the
     checks here are what stop a fourth declaration growing back."""
 
+    _OFFERED_BEFORE_A_SATELLITE_IS_GIVEN_IT = frozenset({"notice"})
+
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
         assert tuple(field for field, _flag, _kind in CHANNELS) == tuple(
-            field.name for field in fields(SatelliteChannels))
+            field.name for field in fields(SatelliteChannels)
+            if field.name not in self._OFFERED_BEFORE_A_SATELLITE_IS_GIVEN_IT)
         assert tuple(field for field, _flag in PLACEMENT) == tuple(
             field.name for field in fields(WindowPlacement))
 
