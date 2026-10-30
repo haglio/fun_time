@@ -19,7 +19,7 @@ from .shared_state import BridgeState
 _MINIMIZE_ROLES: dict[str, str] = {
     "portrait_minimize": "portrait",
     "landscape_minimize": "landscape",
-    "main_minimize": "main_player",
+    "main_minimize": "main_funestra",
 }
 
 

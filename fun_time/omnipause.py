@@ -211,7 +211,7 @@ def _dispatch_leave_omnipause(
 def _main_focus_ops() -> list[WindowOp]:
     """Re-activate the main slot's one window (omnipause leave): Kino and Genau
     both run on the Main Funestra's window, whichever of them has it."""
-    return [WindowOp(op="activate_role", key="main_player")]
+    return [WindowOp(op="activate_role", key="main_funestra")]
 
 
 def _omnipause_toggle(state: BridgeState, config: BridgeConfig,

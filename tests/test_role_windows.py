@@ -56,9 +56,9 @@ def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
     map over; hidden windows are invisible to the pid/title lookups, so that
     seed is the only way back to one.  Nothing else is needed to answer for a
     role, which is what lets these windows be reasoned about on their own."""
-    windows = WindowRoles(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), role_hwnds={"main_player": MAIN_FUNESTRA_HWND})
+    windows = WindowRoles(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), role_hwnds={"main_funestra": MAIN_FUNESTRA_HWND})
 
-    assert windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
+    assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
 
 class TestResolveRole:
@@ -76,7 +76,7 @@ class TestResolveRole:
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=title_lookup):
-            hwnd = windows.hwnd("main_player")
+            hwnd = windows.hwnd("main_funestra")
 
         assert ("Main Funestra", True) in title_calls, "must try the exact-title fallback"
         assert hwnd == 2002
@@ -148,12 +148,12 @@ class TestParking:
         the frame or two that takes and the thumbnail keeps the video frame the
         Funestra was sitting on, which is the whole thing the blanking is for."""
         clock = FakeClock()
-        windows = make_windows(clock=clock, role_hwnds={"main_player": MAIN_FUNESTRA_HWND})
+        windows = make_windows(clock=clock, role_hwnds={"main_funestra": MAIN_FUNESTRA_HWND})
 
         minimized: list[int] = []
         with patch("fun_time.role_windows.minimize_window",
                    side_effect=lambda h, **kw: minimized.append(h)):
-            windows.hide_after_settle("main_player")
+            windows.hide_after_settle("main_funestra")
             windows.flush_pending_hides()
             assert minimized == [], "the Main Funestra minimized before it could paint the black"
 
@@ -374,12 +374,12 @@ def test_a_window_nobody_has_found_yet_is_not_placed():
 
 
 def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_room():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_FUNESTRA_HWND})
+    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND})
     now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.role_windows.window_rect", side_effect=now.get), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
          patch("fun_time.role_windows.place_window") as place:
-        windows.place([("main_player", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
+        windows.place([("main_funestra", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
 
     assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]

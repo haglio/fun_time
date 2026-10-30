@@ -3707,7 +3707,7 @@ def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back
     with patch("fun_time.role_windows.window_rect", return_value=None), \
          patch("fun_time.role_windows.is_window_minimized", return_value=False), \
          patch("fun_time.role_windows.place_window") as place:
-        seat_the_secondary_monitor(manifest, {"portrait": 3001, "main_player": 2001})
+        seat_the_secondary_monitor(manifest, {"portrait": 3001, "main_funestra": 2001})
 
     assert sorted(call.args for call in place.call_args_list) == [
         (2001, 2560, 940, 1440, 2500), (3001, 2560, 0, 1440, 940)]

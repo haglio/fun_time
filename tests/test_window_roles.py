@@ -30,9 +30,9 @@ class TestRoleTopmost:
         and Genau both run on it, so the main slot has no hidden half to keep
         out of the band."""
         assert set(MANAGED_ROLES) == {
-            "rfb", "portrait", "landscape", "main_player", "dashboard", "origenerator",
+            "rfb", "portrait", "landscape", "main_funestra", "dashboard", "origenerator",
         }
-        assert set(FIXED_TOPMOST_ROLES) == {"portrait", "landscape", "dashboard", "main_player"}
+        assert set(FIXED_TOPMOST_ROLES) == {"portrait", "landscape", "dashboard", "main_funestra"}
         assert set(RFB_SLOT_ROLES) == {"rfb", ORIGENERATOR_ROLE}
         groups = [set(FIXED_TOPMOST_ROLES), set(RFB_SLOT_ROLES)]
         assert sum(len(group) for group in groups) == len(MANAGED_ROLES)
@@ -42,7 +42,7 @@ class TestRoleTopmost:
 class TestVisibleRoles:
     def test_the_browser_in_its_place_shows_every_window_but_the_hosted_apps(self):
         assert set(visible_roles(RfbSlot.RFB)) == {
-            "portrait", "landscape", "dashboard", "main_player", "rfb"}
+            "portrait", "landscape", "dashboard", "main_funestra", "rfb"}
 
     def test_origenerator_in_the_browsers_place_counts_the_browser_under_it(self):
         """Covered, not parked: omniminimize takes the browser down with the rest,

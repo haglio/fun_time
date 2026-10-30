@@ -715,7 +715,7 @@ def start_hud_priming(
             **{funestra.label: Path(manifest.commands.funestra_file(funestra.label, "hud"))
                for funestra in RoomFunestra.SATELLITES},
             # The Main Funestra's console rides the same publisher as the satellites' maps.
-            "main_player": Path(manifest.commands.main_funestra_console_file),
+            "main_funestra": Path(manifest.commands.main_funestra_console_file),
             DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
         },
         cache_dir,
@@ -836,7 +836,7 @@ def _reveal_the_room(
         _funestras_to_settle(
             portrait_hwnd=role_hwnds.get("portrait", 0),
             landscape_hwnd=role_hwnds.get("landscape", 0),
-            main_funestra_hwnd=role_hwnds.get("main_player", 0),
+            main_funestra_hwnd=role_hwnds.get("main_funestra", 0),
         ),
         passes=3, wait_s=0.4,
     )
@@ -1331,7 +1331,7 @@ def run_session(
         )
 
     logger.info(
-        "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d audio=%d "
+        "Startup complete: main_funestra=%d portrait=%d landscape=%d dashboard=%d audio=%d "
         "origenerator=%d",
         result.main_funestra_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.audio_pid, result.origenerator_pid,
