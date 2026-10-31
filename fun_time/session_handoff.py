@@ -31,6 +31,7 @@ from fun_time.overlay_progress import (
 )
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.session_end import session_end_asked
 from fun_time.single_instance import (
     MUTEX_ORCHESTRATOR,
     claim_the_session,
@@ -474,3 +475,17 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def request_a_crossing(target: HandoffTarget, state_dir: str | Path, *,
+                       vr_main_funestra: bool) -> str:
+    """Ask for the crossing to *target*, leaving word of where to go next
+    (docs/entering-vr.md); or the reason it is refused: this session already is
+    *target*, or is already crossing."""
+    if target is this_session(vr_main_funestra=vr_main_funestra):
+        return f"Already running {target.app_name}"
+    if session_end_asked(state_dir):
+        return f"Already crossing to {target.app_name}"
+    logger.info("Handing this session over to %s", target.app_name)
+    request_handoff(state_dir, target)
+    return ""

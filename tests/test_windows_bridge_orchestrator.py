@@ -2946,8 +2946,12 @@ class TestOpenEventLog:
     @pytest.mark.parametrize(("command", "said"), [
         ("portrait_lock", "Locked portrait satellite"),
         ("origenerator_activate", "Origenerator in the Random Favs Browser's place"),
+        ("genau_activate", "Switched to genau mode"),
+        ("main_latest", "Latest: the Main Funestra"),
     ])
     def test_what_a_dispatched_command_says_reaches_the_bridge_log(self, tmp_path, command, said):
+        """Whichever module answers the command: a handler moved to its domain's
+        module must not fall silent in the bridge log."""
         config = replace(make_config(tmp_path), origenerator_enabled=True,
                          origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         before = {name: (list(logging.getLogger(name).handlers), logging.getLogger(name).level)

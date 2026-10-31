@@ -12,7 +12,7 @@ from pathlib import Path
 
 from funestra.on_screen_history import OnScreenHistory
 
-from .command_dispatch import command_funestra
+from .aiming import command_funestra
 from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
 from .watch_stats import WatchTracker, record_watch_event

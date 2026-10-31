@@ -17,7 +17,7 @@ from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
 
-from fun_time.command_dispatch import notice_source, said_to_the_hosted_app
+from fun_time.aiming import notice_source
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -25,7 +25,12 @@ from fun_time.event_log import (
     SOURCE_SYSTEM,
     notice,
 )
-from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary, with_when_said
+from fun_time.hosted_contract import (
+    NO_HOSTED_VOCABULARY,
+    HostedVocabulary,
+    said_to_the_hosted_app,
+    with_when_said,
+)
 from fun_time.unlogged_notices import flash_unlogged
 from fun_time.voice_commands import (
     GENAU_SAID,
@@ -405,3 +410,61 @@ class VoiceController:
             logger.exception("Voice control thread crashed")
         finally:
             self.done_starting.set()
+
+
+class RoomVoice:
+    """The room's hold on voice control: muted on command, suspended while the
+    room is paused or the headset is off, the doubted phrase accepted on Enter."""
+
+    def __init__(self) -> None:
+        self.controller: VoiceController | None = None
+        self.headset_off = False
+
+    @property
+    def active(self) -> bool:
+        return self.controller is not None and not self.controller.is_muted
+
+    def hold(self, *, paused: bool) -> VoiceHold | None:
+        if self.headset_off:
+            return WHILE_NOT_WEARING_HEADSET
+        if paused:
+            return DURING_OMNIPAUSE
+        return None
+
+    def suspend_as_the_room_is(self, *, paused: bool) -> None:
+        if self.controller is None:
+            return
+        hold = self.hold(paused=paused)
+        if hold is None:
+            self.controller.unsuspend()
+        else:
+            self.controller.suspend(hold)
+
+    def headset_is(self, *, off: bool) -> bool:
+        if off == self.headset_off:
+            return False
+        self.headset_off = off
+        return True
+
+    def toggle(self, command: str) -> bool | None:
+        if self.controller is None:
+            return None
+        if command == "voice_off":
+            self.controller.mute()
+        elif self.controller.is_muted:
+            self.controller.unmute()
+        else:
+            self.controller.mute()
+        return self.controller.is_muted
+
+    def request_news(self, side: str, opened: bool) -> None:
+        if self.controller is None:
+            return
+        if opened:
+            self.controller.request_opened(side)
+        else:
+            self.controller.request_closed(side)
+
+    def accept(self) -> bool:
+        return (self.controller is not None
+                and self.controller.accept_what_it_was_not_sure_of())

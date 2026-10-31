@@ -7,10 +7,15 @@ in is ``docs/resuming-a-session.md``.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from funestra.modes import SatellitesMode
 
 from .room_funestras import RoomFunestra
+
+if TYPE_CHECKING:
+    from .bridge_records import BridgeConfig
+    from .shared_state import BridgeState
 
 
 class RfbSlot(StrEnum):
@@ -56,3 +61,20 @@ BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode | None] = {
     "satellites_origenerator_activate": ORIGENERATOR_MODE,
     "satellites_toggle": None,
 }
+
+
+def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
+    """Whether the hosted app holds *funestra*: a Satellite Funestra in its
+    Origenerator mode, in a session hosting the app."""
+    return (funestra in RoomFunestra.SATELLITES and config.hosts_origenerator
+            and origenerator_shows(state.satellite(funestra).mode))
+
+
+def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:
+    return frozenset(funestra.label for funestra in RoomFunestra.SATELLITES
+                     if hosts(funestra, state, config))
+
+
+def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
+    return config.hosts_origenerator and state.origenerator_holds_a_satellite()
+

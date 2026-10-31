@@ -10,13 +10,12 @@ from funestra.modes import MainMode
 
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.media_metadata import metadata_path_for
+from fun_time.omnipause import apply_enter_omnipause, apply_leave_omnipause
 from fun_time.room_funestras import RoomFunestra
 from fun_time.runtime_flow import (
     FMODE_FUNESTRAS,
     SatelliteFmodeInputs,
-    apply_enter_omnipause,
     apply_fmode,
-    apply_leave_omnipause,
     apply_mode_switch,
     apply_satellite_filter,
     rebuild_main_list,

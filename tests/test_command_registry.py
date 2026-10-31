@@ -8,21 +8,20 @@ literal, and nothing failed when one was missed — a phrase mapped to a
 misspelled id was a dead phrase, a handler no surface reached was dead code,
 and a new command's forgotten reference row just never showed up.
 
-The handler map (``_build_handlers`` in command_dispatch) is the definition
-site: every command id is bound to its handler exactly once there.  These
-tests close the loop in both directions across all five surfaces, so missing
-any of them fails by name.
+Each domain's ``HANDLERS`` table is the definition site, and command_dispatch
+merges them once, refusing an id bound in two.  These tests close the loop in
+both directions across all five surfaces, so missing any of them fails by name.
 """
 from __future__ import annotations
 
-import ast
 import itertools
 from pathlib import Path
 
+import pytest
 from funestra.console import osr2_controls
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
-from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
+from fun_time import command_dispatch, dashboard_actions, hud_moves, windows_bridge_dispatch_loop
 from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.console_buttons import MainSlot, console_rows
@@ -66,9 +65,9 @@ _NAV_IDS = frozenset(
 
 #: Where each HUD sits, and whether it is collapsed: read off the dispatch's own
 #: tables, so a side or a verb added there needs nothing added here.
-_HUD_PLACE_IDS = (frozenset(command_dispatch._HUD_MOVES)
-                  | frozenset(command_dispatch.MAIN_HUD_TURNS)
-                  | frozenset(command_dispatch._HUD_COLLAPSES))
+_HUD_PLACE_IDS = (frozenset(hud_moves._HUD_MOVES)
+                  | frozenset(hud_moves.MAIN_HUD_TURNS)
+                  | frozenset(hud_moves._HUD_COLLAPSES))
 
 
 def _handler_ids() -> frozenset[str]:
@@ -76,48 +75,10 @@ def _handler_ids() -> frozenset[str]:
 
 
 def _loop_branch_ids() -> frozenset[str]:
-    """The ids _handle_command branches on, read from its source.
-
-    The loop's if/elif IS the definition of what it intercepts; a parallel
-    hand-kept list would be one more surface to miss.  Every comparison in it is
-    a literal or a named table of ids the loop imports (HELP_REFERENCE_COMMANDS,
-    HANDOFF_COMMANDS), so the parse is exact — a new branch shape, or a name
-    that is not a collection of ids, fails an assert below.
-    """
-    source = (_REPO_ROOT / "fun_time" / "windows_bridge_dispatch_loop.py").read_text(
-        encoding="utf-8"
-    )
-    tree = ast.parse(source)
-    handle = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "_handle_command"
-    )
-    ids: set[str] = set()
-    for node in ast.walk(handle):
-        if not isinstance(node, ast.Compare):
-            continue
-        left, comparator = node.left, node.comparators[0]
-        if not (isinstance(left, ast.Name) and left.id == "cmd"):
-            continue
-        if isinstance(node.ops[0], ast.NotIn):
-            continue  # the omnipause suspend-exempt guard, not a dispatch branch
-        if isinstance(comparator, ast.Constant):
-            ids.add(comparator.value)
-        elif isinstance(comparator, ast.Tuple):
-            ids.update(element.value for element in comparator.elts)
-        elif isinstance(comparator, ast.Name):
-            # A branch that reaches for a constant rather than repeating a
-            # literal — one spelling, two files.  dashboard_actions holds the
-            # ids the bar posts; the loop's own module holds the tables that
-            # group several of them under one branch.
-            named = getattr(dashboard_actions, comparator.id,
-                            getattr(windows_bridge_dispatch_loop, comparator.id, None))
-            assert named is not None, ast.dump(node)
-            ids.update({named} if isinstance(named, str) else named)
-        else:  # pragma: no cover - a new branch shape must be classified here
-            raise AssertionError(f"unrecognized _handle_command comparison: {ast.dump(node)}")
-    return frozenset(ids)
+    """The ids the loop answers itself: its own command table, and the headset's
+    two signals, which it takes ahead of the table."""
+    return (frozenset(windows_bridge_dispatch_loop._LOOP_COMMANDS)
+            | dashboard_actions.HEADSET_SIGNALS)
 
 
 def _reference_ids() -> frozenset[str]:
@@ -192,7 +153,7 @@ def test_every_verb_the_console_posts_lands_on_a_handler():
     # Minimize is answered before the handler map, by name; browse and the
     # broker panel are the loop's own branches.
     answered = (_handler_ids() | _loop_branch_ids()
-                | frozenset(command_dispatch._MINIMIZE_ROLES))
+                | frozenset(hud_moves._MINIMIZE_ROLES))
     posted = _console_verbs()
     assert posted, "no console button posts anything"
     assert answered >= posted, sorted(posted - answered)
@@ -203,7 +164,7 @@ def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
     HUD: each side's own verbs, its mode pair among them, and the minimize the
     loop answers by name."""
     answered = (_handler_ids() | _loop_branch_ids()
-                | frozenset(command_dispatch._MINIMIZE_ROLES))
+                | frozenset(hud_moves._MINIMIZE_ROLES))
     posted = _satellite_verbs()
     assert posted, "no satellite button posts anything"
     assert answered >= posted, sorted(posted - answered)
@@ -316,3 +277,14 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
                     "speed_min", "speed_max", "take_osr2", "kino_activate",
                     "origenerator_activate", "lock", "lock_on", "lock_off")
     } & side_commands, sorted(kept)
+
+
+def test_a_command_bound_in_two_domains_is_refused_at_import():
+    """One id, one handler: a domain that binds an id another already has would
+    silently win or lose by the order the tables are merged in."""
+    def first(state, _config, _target_path):
+        return state, []
+
+    with pytest.raises(ValueError, match="bound twice.*portrait_next"):
+        command_dispatch._bound_once([{"portrait_next": first}, {"portrait_next": first}])
+

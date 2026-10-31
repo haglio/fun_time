@@ -35,7 +35,6 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
-from fun_time.command_dispatch import genau_flick_shapes
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.event_log import open_event_log
 from fun_time.funestra_deaths import (
@@ -54,6 +53,7 @@ from fun_time.hosted_origenerator import (
     what_it_answers_by_voice_in,
 )
 from fun_time.main_list import MainList, MainListSettings
+from fun_time.main_list_commands import genau_flick_shapes
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,

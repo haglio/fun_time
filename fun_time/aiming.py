@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT, SOURCE_SYSTEM
 from .room_funestras import RoomFunestra
 
 MAIN_EQUIVALENTS = {
@@ -41,3 +42,26 @@ def resolve_active_funestra_command(command: str, active_funestra: int) -> str:
         return on_the_main_funestra(action) or command
     side = "portrait" if active_funestra == RoomFunestra.PORTRAIT else "landscape"
     return f"{side}_{action}"
+
+
+_NAMED_BY = {"portrait_": RoomFunestra.PORTRAIT, "landscape_": RoomFunestra.LANDSCAPE,
+             "main_": RoomFunestra.MAIN, "genau_": RoomFunestra.MAIN}
+
+
+def command_funestra(command: str) -> RoomFunestra | None:
+    """The Funestra a command addresses, or None if it addresses no Funestra."""
+    return next((funestra for prefix, funestra in _NAMED_BY.items()
+                 if command.startswith(prefix)), None)
+
+
+FUNESTRA_SOURCES = {
+    RoomFunestra.MAIN: SOURCE_MAIN,
+    RoomFunestra.PORTRAIT: SOURCE_PORTRAIT,
+    RoomFunestra.LANDSCAPE: SOURCE_LANDSCAPE,
+}
+
+
+def notice_source(command: str, active_funestra: int | None) -> str:
+    funestra = active_funestra if command.startswith("active_") else command_funestra(command)
+    return FUNESTRA_SOURCES.get(funestra, SOURCE_SYSTEM)
+

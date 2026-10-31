@@ -92,3 +92,8 @@ def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
         return line
     said_at = time.time() - (time.monotonic() - spoken_at)
     return line + suffix.replace(placeholder, f"{said_at:.3f}")
+
+
+def said_to_the_hosted_app(side: str, words: str) -> str:
+    return f"{side.upper()}_SAY:{words}"
+

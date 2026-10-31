@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 from app_support import osr2_device
@@ -20,23 +21,15 @@ from app_support.win32 import force_foreground_window, window_exists
 from funestra import broker
 from funestra.console import BROKER_PRESS
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, play_file
-from funestra.modes import NoticeLevel, read_mode
+from funestra.funestra_verbs import play_file
 from funestra.playlist import PlaylistItem
 
-from .aiming import resolve_active_funestra_command
+from .aiming import notice_source, resolve_active_funestra_command
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
-from .command_dispatch import (
-    dispatch_command,
-    every_funestra_in_f_mode,
-    hosts,
-    notice_source,
-    room_at_defaults,
-    routes_to_origenerator,
-)
-from .crown import majority_now
+from .command_dispatch import dispatch_command, room_at_defaults, routes_to_origenerator
+from .crown import Seating
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
     ENTER_OMNIPAUSE,
@@ -45,28 +38,17 @@ from .dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
     LIBRARY_OPEN_FILENAME,
-    ORIGENERATOR_ACTIVATE,
     REFERENCE_OPEN_FILENAME,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
-from .device_arbiter import DeviceArbiter, SatelliteLine
-from .event_log import (
-    FAVORITE,
-    NOTICE,
-    SOURCE_LANDSCAPE,
-    SOURCE_MAIN,
-    SOURCE_PORTRAIT,
-    SOURCE_SYSTEM,
-    notice,
-)
-from .funestra_handover import HudStamp, hand_back, hud_stamp, let_go_since
-from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
-from .funestra_status import (
-    origenerator_has_published,
-    read_genau_status,
-    read_main_funestra_status,
-)
-from .genaumacher_save import save_clip_session
+from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
+from .event_log import NOTICE, SOURCE_SYSTEM, notice
+from .f_mode import every_funestra_in_f_mode
+from .funestra_handover import Homecoming
+from .funestra_notices import FunestraNotices
+from .funestra_settings import FunestraReporting
+from .funestra_status import read_genau_status, read_main_funestra_status
+from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
 from .hosted_contract import said_at_suffix_of
 from .hud_feed import HudFeed
@@ -80,66 +62,29 @@ from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
-from .origenerator_switches import (
-    KINO_MODE,
-    ORIGENERATOR_MODE,
-    RfbSlot,
-    mode_command,
-    origenerator_shows,
-)
-from .osr2_section import funestra_with_the_osr2
+from .origenerator_opening import OrigeneratorOpening, holding_nothing
+from .origenerator_switches import RfbSlot, hosts
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
-from .session_end import mark_session_end, session_end_asked
+from .session_end import mark_session_end
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
-from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
+from .session_handoff import DESKTOP, VR, HandoffTarget, request_a_crossing
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
-from .text_field_clicks import Seen, Sightings, TextFieldClicks
+from .text_field_clicks import Sightings, TypingWatch
 from .voice_commands import CommandLine, parse_command_line
-from .voice_control import (
-    DURING_OMNIPAUSE,
-    NOTHING_TO_ACCEPT,
-    WHILE_NOT_WEARING_HEADSET,
-    VoiceController,
-    VoiceHold,
-)
+from .voice_control import NOTHING_TO_ACCEPT, RoomVoice
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
-from .win32 import (
-    find_window_for_process,
-    set_always_on_top,
-    window_process,
-    window_rect,
-)
+from .win32 import find_window_for_process, set_always_on_top, window_rect
 from .window_layout import SecondaryMonitorRects
-from .window_roles import ORIGENERATOR_ROLE, visible_roles
+from .window_roles import visible_roles
 from .windows_bridge_random_favs_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
-
-
-_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
-
-
-def read_funestra_notice(path) -> tuple[float, NoticeLevel, str]:
-    """A Funestra's latest one-shot notice as (sequence, level, message); the
-    Funestra bumps the sequence whenever it raises one, and (0, "", "") means
-    there is nothing to read."""
-    try:
-        values = dict(
-            line.split("=", 1)
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if "=" in line
-        )
-        return (float(values.get("seq", "0")),
-                read_mode(NoticeLevel, values.get("level", ""), NoticeLevel.NOTICE),
-                values.get("message", ""))
-    except (OSError, ValueError):
-        return 0, "", ""
 
 
 def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
@@ -197,13 +142,6 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
     return gap if gap >= threshold_s else None
 
 
-# How long the hosted app is given to let go of the Funestras when origenerator
-# mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
-LET_GO_TIMEOUT_S = 3.0
-
-RECORD_EVERY_S = 1.0
-
-
 class DispatchLoopRunner:
     """Runs dashboard polling and genau sync in-process."""
 
@@ -240,7 +178,9 @@ class DispatchLoopRunner:
         # Every window the session manages, and the one cache of their HWNDs:
         # the tick and the library browser's own thread both go through here.
         self.windows = windows
-        self.secondary_rects = secondary_rects
+        self.seating = Seating(secondary_rects,
+                               main_funestra_status_file=config.main_funestra_status_file,
+                               genau_status_file=config.genau_status_file)
         self.dashboard_enabled = dashboard_enabled
         self.env = env
         # This loop holds the state each Funestra's own HUD is drawn from (locks,
@@ -248,13 +188,14 @@ class DispatchLoopRunner:
         self.hud = HudFeed(config=config, publisher=hud_publisher)
         self.rfb_shortcut = rfb_shortcut or Shortcut()
         self.rfb_slideshow = rfb_slideshow
-        self.press_and_caret_watch = press_and_caret_watch
-        self.text_field_clicks = TextFieldClicks(watched=self._watches_for_typing)
+        self.typing = TypingWatch(press_and_caret_watch, typed_into=lambda seen: self.windows.takes_typing(
+            seen.window, seen.process, hosted_app=self.config.origenerator_enabled))
         self.sync_interval_s = sync_interval_ms / 1000
         left_in = read_shared_state(shared_state_file) or BridgeState()
-        self.state = _with_origenerator_holding_nothing(left_in)
+        self.state = holding_nothing(left_in)
+        self.opening = OrigeneratorOpening(config, left_in, already_open=origenerator_already_open,
+                                           slideshow_on=origenerator_slideshow_on)
         self._last_sync = 0.0
-        self._last_recorded = float("-inf")
         self._last_dashboard_warning = float("-inf")
         self._stop = threading.Event()
         self._browse_lock = threading.Lock()
@@ -264,29 +205,18 @@ class DispatchLoopRunner:
         self._browser_process: subprocess.Popen | None = None
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
-        # Latch whatever is already on disk, so a notice left over from a
-        # previous session does not flash the moment this one opens.
-        self._last_notice_seq = {source: read_funestra_notice(path)[0]
-                                 for source, path in self._notice_channels().items()}
-        self.voice_controller: VoiceController | None = None
-        self.headset_off = False
+        self.notices = FunestraNotices(config)
+        self.reporting = FunestraReporting()
+        self.voice = RoomVoice()
         self._answers = 0
         self._ignored_because = ""
-        # Satellites on their way back from the hosted app: by when they land,
-        # and which of their hosted HUDs was up when they were sent for.
-        self._coming_home: dict[RoomFunestra, tuple[float, HudStamp]] = {}
+        self.homecoming = Homecoming()
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={2: config.portrait_status_file,
                                     3: config.landscape_status_file},
             stats_file=watch_stats_path(config.state_dir),
         )
-        # Latched: the hosted app runs for the whole session, so this is a few
-        # reads at the start of one and nothing after.
-        self._origenerator_is_up = origenerator_already_open
-        self._owed_to_origenerator = (
-            _what_origenerator_held(left_in, slideshow_on=origenerator_slideshow_on)
-            if config.origenerator_enabled else ())
         self.arbiter = DeviceArbiter(
             main_funestra_status_file=config.main_funestra_status_file,
             main_funestra_cmd_file=config.main_funestra_cmd_file,
@@ -304,72 +234,29 @@ class DispatchLoopRunner:
         self.lock_follower = LockFollower(what_the_main_slot_holds(config))
         self.latest_arrivals = LatestArrivals(config)
 
-    def _record_what_the_funestras_hold(self) -> None:
-        now = time.monotonic()
-        if now - self._last_recorded < RECORD_EVERY_S:
-            return
-        self._last_recorded = now
-        self.state = with_what_the_funestras_report(self.state, read_funestra_reports(self.config))
-
-    def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
-        """*state* corrected to the room this session is really in -- Origenerator
-        holding nothing while no hosted app has answered -- and that read onto it."""
-        state = replace(state, origenerator_ready=self._the_hosted_app_has_answered())
-        if self.config.origenerator_enabled and state.origenerator_ready:
-            return state
-        return _with_origenerator_holding_nothing(state)
-
-    @property
-    def activates_origenerator(self) -> bool:
-        return bool(self._owed_to_origenerator)
-
     def activate_origenerator(self, *, wait_for_the_app) -> None:
-        """Through the switches' own commands, while *wait_for_the_app* holds the
-        room under its cover for that app, and given up on if it never answers."""
-        owed, self._owed_to_origenerator = self._owed_to_origenerator, ()
-        if not owed:
-            return
-        if not wait_for_the_app(self._the_hosted_app_has_answered):
-            logger.info("Origenerator did not finish starting, so the room opens in kino mode")
-            left_in = read_shared_state(self.shared_state_file)
-            if left_in is not None:
-                write_shared_state(self.shared_state_file,
-                                   _with_origenerator_holding_nothing(left_in))
-            return
-        self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
+        owed = self.opening.take_what_is_owed(wait_for_the_app, self.shared_state_file)
+        if owed:
+            self.state = self.opening.room_as_it_is(self.state)
         for command in owed:
             self._dispatch(command)
 
-    def _the_hosted_app_has_answered(self) -> bool:
-        """Whether the hosted Origenerator has published a status: a side
-        entering its mode asks it for a show, which an app answering at all takes.
-        """
-        if self._origenerator_is_up:
-            return True
-        if not self.config.origenerator_enabled or self.config.origenerator_status_file is None:
-            return False
-        self._origenerator_is_up = origenerator_has_published(
-            self.config.origenerator_status_file)
-        if self._origenerator_is_up:
-            logger.info("Origenerator is up; its mode is open")
-        return self._origenerator_is_up
-
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
-        self._flash_funestra_notices()
+        self.notices.flash_new()
 
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
             self.state = shared
         # File or no file: this corrects a reading of the room, not the file.
-        self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
-        self._record_what_the_funestras_hold()
+        self.state = self.opening.room_as_it_is(self.state)
+        self.state = self.reporting.recorded(self.state, self.config, now=time.monotonic())
         if shared is not None and shared != self.state:
             # Nothing else writes the file until a command is dispatched, which on
             # a session nobody is touching may be never.
             write_shared_state(self.shared_state_file, self.state)
 
-        self._state_who_drives_the_osr2()
+        self.arbiter.follow(self.state)
 
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance
@@ -386,9 +273,12 @@ class DispatchLoopRunner:
         # After the batch, so a switch and a switch straight back inside one
         # batch cancel rather than minimize the Funestra they just brought back.
         self.windows.flush_pending_hides()
-        self._seat_the_secondary_monitor()
+        seated = self.seating.seat(self.state, self.windows)
+        if seated is not self.state:
+            self.state = seated
+            write_shared_state(self.shared_state_file, self.state)
 
-        self._sync_voice_suspension()
+        self.voice.suspend_as_the_room_is(paused=self.state.omni_paused)
 
         # Periodic sync: z-order enforcement, the satellites' rate, the dashboard
         now = time.monotonic()
@@ -398,8 +288,8 @@ class DispatchLoopRunner:
             self.satellite_speeds.take_the_main_funestras_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        self.bring_the_funestras_home(now=now)
-        self.latest_arrivals.deliver(self.state, coming_home=self._coming_home)
+        self.homecoming.bring(self.state, self.config, now=now)
+        self.latest_arrivals.deliver(self.state, coming_home=self.homecoming.funestras)
         held = self.lock_follower.held()
         if held:
             self._take(*a_lock_holds(held, self.state, self.config))
@@ -411,114 +301,15 @@ class DispatchLoopRunner:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
                                     or self.state.rfb_slot is RfbSlot.ORIGENERATOR)
 
-    def _state_who_drives_the_osr2(self) -> None:
-        main_mode, paused, control, holder = _who_drives_the_osr2_from(self.state)
-        self.arbiter.sync(main_mode, paused=paused, control=control, holder=holder)
-
     def _pause_for_a_click_into_a_text_field(self) -> None:
-        if self.press_and_caret_watch is None:
-            return
-        for seen in self.press_and_caret_watch.take():
-            self.text_field_clicks.saw(seen)
-        if self.text_field_clicks.clicked_into(now=time.monotonic()) is None:
+        if not self.typing.clicked_into_a_text_field(now=time.monotonic()):
             return
         if not self.state.omni_paused:
             logger.info("A click into a text field enters OmniPause")
             self._handle_command(ENTER_OMNIPAUSE)
 
-    def _watches_for_typing(self, seen: Seen) -> bool:
-        if self.windows.rfb_hwnd and seen.window == self.windows.rfb_hwnd:
-            return True
-        return bool(seen.process) and seen.process == self._the_hosted_apps_process()
-
-    def _the_hosted_apps_process(self) -> int:
-        if not self.config.origenerator_enabled:
-            return 0
-        hwnd = self.windows.hwnd(ORIGENERATOR_ROLE)
-        return window_process(hwnd) if hwnd else 0
-
-    def _seat_the_secondary_monitor(self) -> None:
-        if self.secondary_rects is None:
-            return
-        most = majority_now(self.state, self.config.main_funestra_status_file,
-                            self.config.genau_status_file)
-        self.windows.seat(self.secondary_rects(majority=most))
-        if most is not self.state.majority:
-            self.state = replace(self.state, majority=most)
-            write_shared_state(self.shared_state_file, self.state)
-
     def hear_as_a_lock(self, phrases: frozenset[str]) -> None:
         self.config = replace(self.config, origenerator_lock_phrases=phrases)
-
-    def expect_the_funestras_home(self, funestras: tuple[RoomFunestra, ...], *,
-                                  now: float) -> None:
-        """*funestras* are on their way back from the hosted app."""
-        for funestra in funestras:
-            self._coming_home[funestra] = (
-                now + LET_GO_TIMEOUT_S, hud_stamp(self.config.satellite(funestra)))
-
-    def bring_the_funestras_home(self, *, now: float) -> None:
-        """Hand each satellite its own list again once the hosted app has let
-        go of it, or has had long enough to -- never before, when a list the app
-        wrote after it would take the Funestra straight back.
-        """
-        for funestra, (deadline, stamp) in list(self._coming_home.items()):
-            if origenerator_shows(self.state.satellite(funestra).mode):
-                del self._coming_home[funestra]
-                continue
-            channel = self.config.satellite(funestra)
-            if now < deadline and not let_go_since(channel, stamp):
-                continue
-            del self._coming_home[funestra]
-            hand_back(channel)
-            # The session's own hold stands again, whatever the app left.
-            append_command(channel.cmd_file,
-                           LOCK_ON if self.state.satellite(funestra).locked else LOCK_OFF)
-
-    def _sync_voice_suspension(self) -> None:
-        """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
-
-        The suspend_hotkeys WindowOp only reaches AHK; voice lives in this
-        process, so it is driven off ``omni_paused`` itself — the one authority
-        both the dashboard and the shared state file agree on.
-        """
-        if self.voice_controller is None:
-            return
-        hold = self._voice_hold()
-        if hold is None:
-            self.voice_controller.unsuspend()
-        else:
-            self.voice_controller.suspend(hold)
-
-    def _voice_hold(self) -> VoiceHold | None:
-        if self.headset_off:
-            return WHILE_NOT_WEARING_HEADSET
-        if self.state.omni_paused:
-            return DURING_OMNIPAUSE
-        return None
-
-    def _notice_channels(self) -> dict[str, Path]:
-        """Where each Funestra publishes its one-shot notices, by the source
-        its notices flash over."""
-        channels = ((SOURCE_MAIN, self.config.main_funestra_notice_file),
-                    *((source, self.config.satellite(funestra).notice_file)
-                      for source, funestra in ((SOURCE_PORTRAIT, RoomFunestra.PORTRAIT),
-                                               (SOURCE_LANDSCAPE, RoomFunestra.LANDSCAPE))))
-        return {source: path for source, path in channels if path is not None}
-
-    def _flash_funestra_notices(self) -> None:
-        """Surface anything a Funestra has raised since the last tick, once, over
-        that Funestra.  A Funestra names the kind rather than the color: a
-        warning for a request with nowhere to go, a highlight for one about a
-        funscript -- which is what green is kept for here -- and anything else
-        is an ordinary white notice."""
-        for source, path in self._notice_channels().items():
-            seq, level, message = read_funestra_notice(path)
-            if seq <= self._last_notice_seq.get(source, 0):
-                continue
-            self._last_notice_seq[source] = seq
-            if message:
-                notice(logger, message, source=source, level=_NOTICE_LEVELS.get(level, NOTICE))
 
     def _handle_line(self, line: CommandLine) -> None:
         source = notice_source(line.command, self.state.active_funestra)
@@ -539,15 +330,6 @@ class DispatchLoopRunner:
         self._answers += 1
         notice(logger, message, source=source, level=level)
 
-    def _headset(self, signal: str) -> None:
-        off = signal == HEADSET_OFF
-        if off == self.headset_off:
-            return
-        self.headset_off = off
-        logger.info("The headset is %s", "off: only quit is heard" if off else "back on")
-        append_command(self.ahk_cmd_file, signal)
-        self._sync_voice_suspension()
-
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
 
@@ -555,92 +337,14 @@ class DispatchLoopRunner:
         the instantaneous hotkey and dashboard presses.
         """
         if cmd in HEADSET_SIGNALS:
-            self._headset(cmd)
+            _headset(self, cmd)
             return
         self._send_press(cmd)
-        if cmd == "quit":
-            # Said, because a mis-heard word otherwise reads exactly like a
-            # deliberate click.
-            mark_session_end(
-                self.config.state_dir,
-                "the quit command, spoken" if spoken_at is not None
-                else "the quit command, pressed",
-            )
-            self.ahk_cmd_file.write_text("end_session", encoding="utf-8")
-            return
-        if cmd in HANDOFF_COMMANDS:
-            self._handle_handoff(cmd)
-            return
-        if cmd in HELP_REFERENCE_COMMANDS:
-            # A dashboard-UI action: the press above tells a desktop dashboard,
-            # the flag tells a headset, and there is nothing to dispatch.
-            self._publish_panel(REFERENCE_OPEN_FILENAME, toggling=cmd == HELP_REFERENCE)
-            return
-        if cmd == "omniminimize":
-            self._handle_omniminimize()
-        elif cmd == "omnirestore":
-            self._handle_omnirestore()
-        elif cmd == "omnipause_toggle":
-            self._handle_omnipause_toggle()
-        elif cmd == ENTER_OMNIPAUSE:
-            if not self.state.omni_paused:
-                self._handle_enter_omnipause(ENTER_OMNIPAUSE)
-        elif cmd == "relief_omnipause":
-            # No already-paused guard, unlike Space above: a session can be paused
-            # with the device still on the user, which is the case relief exists
-            # for, so the retract must go out even from inside omnipause.
-            self._handle_enter_omnipause("relief_omnipause")
-        elif cmd == "browse_library":
-            if self.config.vr_main_funestra:
-                self._publish_panel(LIBRARY_OPEN_FILENAME, toggling=True)
-            else:
-                threading.Thread(
-                    target=self._handle_browse_library,
-                    daemon=True,
-                    name="library-browser",
-                ).start()
-        elif cmd == BROWSE_LIBRARY_CLOSE:
-            self._publish_panel(LIBRARY_OPEN_FILENAME, toggling=False)
-        elif cmd == BROKER_PRESS:
-            broker.press(self.config.broker_state, self.config.broker_tray_launcher)
-        # -- idempotent voice commands --
-        elif cmd == "pause":
-            if not self.state.omni_paused:
-                self._handle_omnipause_toggle()
-        elif cmd == "play":
-            if self.state.omni_paused:
-                self._handle_omnipause_toggle()
-        elif cmd == "broker_start":
-            self._handle_broker_start()
-        elif cmd == "broker_stop":
-            self._handle_broker_stop()
-        elif cmd in ("voice_off", "voice_toggle"):
-            self._handle_voice_toggle(cmd)
-        elif cmd == "voice_accept":
-            self._accept_what_voice_was_not_sure_of()
-        elif cmd in REQUEST_NEWS:
-            self._pass_on_request_news(*REQUEST_NEWS[cmd])
-        else:
+        answer = _LOOP_COMMANDS.get(cmd)
+        if answer is None:
             self._dispatch(cmd, spoken_at)
-
-    def _handle_handoff(self, cmd: str) -> None:
-        """Cross to the other session, ending this one as "quit" does and
-        leaving word of where to go next (docs/entering-vr.md).  Asked for the
-        session already running it says so and stays put."""
-        target = HANDOFF_COMMANDS[cmd]
-        if target is this_session(vr_main_funestra=self.config.vr_main_funestra):
-            self._flash(f"Already running {target.app_name}", source=SOURCE_SYSTEM,
-                        level=logging.WARNING)
-            return
-        if session_end_asked(self.config.state_dir):
-            self._flash(f"Already crossing to {target.app_name}", source=SOURCE_SYSTEM,
-                        level=logging.WARNING)
-            return
-        logger.info("Handing this session over to %s", target.app_name)
-        request_handoff(self.config.state_dir, target)
-        mark_session_end(
-            self.config.state_dir, f"a crossing to {target.app_name}")
-        self.ahk_cmd_file.write_text("end_session", encoding="utf-8")
+        else:
+            answer(self, spoken_at)
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
@@ -656,8 +360,8 @@ class DispatchLoopRunner:
 
     def _take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:
         before, self.state = self.state, new_state
-        if _who_drives_the_osr2_from(before) != _who_drives_the_osr2_from(new_state):
-            self._state_who_drives_the_osr2()
+        if who_drives_the_osr2(before) != who_drives_the_osr2(new_state):
+            self.arbiter.follow(new_state)
         for op in ops:
             handler = _OP_HANDLERS.get(op.op)
             if handler is None:
@@ -723,12 +427,11 @@ class DispatchLoopRunner:
         bug of ours that the loop's per-tick exception log must show.
         """
         try:
-            voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
                 DashboardSnapshot(
                     omni_paused=self.state.omni_paused,
-                    voice_active=voice_active,
+                    voice_active=self.voice.active,
                     f_mode=every_funestra_in_f_mode(self.state, self.config),
                     in_vr=self.config.vr_main_funestra,
                     nothing_to_reset=room_at_defaults(
@@ -757,94 +460,9 @@ class DispatchLoopRunner:
         path = Path(self.config.state_dir) / filename
         write_flag_file(path, toggling and not read_flag(path, default=False))
 
-    def _handle_voice_toggle(self, cmd: str) -> None:
-        """Mute or toggle voice control, then refresh the dashboard."""
-        if self.voice_controller is None:
-            return
-        if cmd == "voice_off":
-            self.voice_controller.mute()
-        elif self.voice_controller.is_muted:
-            self.voice_controller.unmute()
-        else:
-            self.voice_controller.mute()
-        self.state = replace(self.state, mic_muted=self.voice_controller.is_muted)
-        write_shared_state(self.shared_state_file, self.state)
-        if self.dashboard_enabled:
-            self._update_dashboard()
-
-    def _pass_on_request_news(self, side: str, opened: bool) -> None:
-        if self.voice_controller is None:
-            return
-        if opened:
-            self.voice_controller.request_opened(side)
-        else:
-            self.voice_controller.request_closed(side)
-
-    def _accept_what_voice_was_not_sure_of(self) -> None:
-        if (self.voice_controller is None
-                or not self.voice_controller.accept_what_it_was_not_sure_of()):
-            self._flash(NOTHING_TO_ACCEPT, source=SOURCE_SYSTEM, level=logging.WARNING)
-
-    def _handle_genaumacher_save(self) -> None:
-        """Run the genaumacher save and flash its notice — from the genaumacher-save thread."""
-        message = save_clip_session(self.config)
-        if message:
-            notice(logger, message, source=SOURCE_MAIN)
-
-    def _handle_broker_start(self) -> None:
-        """Start the broker if none is running: a start, never a restart."""
-        if not broker.is_running(self.config.broker_state):
-            broker.start(self.config.broker_tray_launcher)
-
-    def _handle_broker_stop(self) -> None:
-        if broker.is_running(self.config.broker_state):
-            broker.stop(self.config.broker_state, self.config.broker_tray_launcher)
-
-    def _handle_omniminimize(self) -> None:
-        """Minimize the windows the modes show — the "omniminimize" command.
-
-        Only those are minimized (SW_MINIMIZE would drag a parked window back
-        into view), each with ``activate=False`` so
-        minimizing one never yanks focus to the next.  The minimized set is
-        remembered so omnirestore brings back exactly these windows.
-        """
-        self.windows.minimize_all(visible_roles(self.state.rfb_slot))
-
-    def _handle_omnirestore(self) -> None:
-        """Un-minimize exactly the windows omniminimize minimized.
-
-        That set is every window the mode had on screen, so it covers any that a
-        HUD button had already parked — they are up again, and the parked list is
-        dropped so a later resume does not "restore" windows already restored.
-        """
-        self.windows.restore_minimized()
-
     def _log_topmost_state(self, label: str) -> None:
         logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode,
                     self.windows.topmost_report())
-
-    def _handle_omnipause_toggle(self) -> None:
-        """Toggle omnipause with topmost management for all windows.
-
-        Topmost removal (enter) and restoration (leave) are driven by
-        the disable_all_topmost / restore_all_topmost WindowOps that
-        command_dispatch emits — _dispatch handles them automatically.
-        """
-        was_paused = self.state.omni_paused
-        self._dispatch("omnipause_toggle")
-        self._log_topmost_state("post-leave" if was_paused else "post-enter")
-
-    def _handle_enter_omnipause(self, command: str) -> None:
-        """Enter omnipause with topmost management — enter only, no leave.
-
-        *command* is the way in: ``enter_omnipause`` (Space) parks the OSR2,
-        ``relief_omnipause`` (Shift+Esc) retracts it instead.  Everything else
-        about the entry is the same, topmost removal included — that is driven by
-        the disable_all_topmost WindowOp command_dispatch emits, which _dispatch
-        handles automatically.
-        """
-        self._dispatch(command)
-        self._log_topmost_state("post-enter")
 
     def _handle_browse_library(self) -> None:
         """Browse the library and play the pick in the Main Funestra, one browse at a time.
@@ -902,8 +520,7 @@ class DispatchLoopRunner:
         # after launch" report can be pinned to the exact window that missed its
         # startup promotion.
         self._log_topmost_state("startup")
-        if self.press_and_caret_watch is not None:
-            self.press_and_caret_watch.start()
+        self.typing.start()
         start_daemon_thread(target=keep_looking, args=(self.latest_arrivals.look, self._stop),
                             name="latest-arrivals")
         last_wall = time.time()
@@ -938,30 +555,168 @@ class DispatchLoopRunner:
     def close(self) -> None:
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.stop()
-        if self.press_and_caret_watch is not None:
-            self.press_and_caret_watch.stop()
+        self.typing.stop()
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
 
 
-def _who_drives_the_osr2_from(state: BridgeState) -> tuple[str, bool, str, RoomFunestra]:
-    return state.main_mode, state.omni_paused, state.osr2_control, funestra_with_the_osr2(state)
+# --- the loop's own commands --------------------------------------------------
+# What needs the loop's live objects -- its windows, its voice, the browse, the
+# broker, the hotkey script -- is answered here by name; everything else is
+# command_dispatch's, a state in and window ops out.
+
+def _quit(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
+    # Said, because a mis-heard word otherwise reads exactly like a
+    # deliberate click.
+    mark_session_end(
+        runner.config.state_dir,
+        "the quit command, spoken" if spoken_at is not None else "the quit command, pressed",
+    )
+    runner.ahk_cmd_file.write_text("end_session", encoding="utf-8")
 
 
-def _what_origenerator_held(left_in: BridgeState, *,
-                            slideshow_on: tuple[RoomFunestra, ...]) -> tuple[str, ...]:
-    satellites = tuple(
-        mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
-        if funestra in slideshow_on or origenerator_shows(left_in.satellite(funestra).mode))
-    in_the_rfb_slot = bool(slideshow_on) or left_in.rfb_slot is RfbSlot.ORIGENERATOR
-    return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
+def _cross(target: HandoffTarget, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    """Cross to the other session, ending this one as "quit" does."""
+    refused = request_a_crossing(target, runner.config.state_dir,
+                                 vr_main_funestra=runner.config.vr_main_funestra)
+    if refused:
+        runner._flash(refused, source=SOURCE_SYSTEM, level=logging.WARNING)
+        return
+    mark_session_end(runner.config.state_dir, f"a crossing to {target.app_name}")
+    runner.ahk_cmd_file.write_text("end_session", encoding="utf-8")
 
 
-def _with_origenerator_holding_nothing(state: BridgeState) -> BridgeState:
-    for funestra in RoomFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=KINO_MODE)
-    return replace(state, rfb_slot=RfbSlot.RFB)
+def _show_the_reference(toggling: bool, runner: DispatchLoopRunner,
+                        _spoken_at: float | None) -> None:
+    # A dashboard-UI action: the press tells a desktop dashboard, the flag tells
+    # a headset, and there is nothing to dispatch.
+    runner._publish_panel(REFERENCE_OPEN_FILENAME, toggling=toggling)
+
+
+def _omniminimize(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    """Minimize the windows the modes show, and only those (SW_MINIMIZE would
+    drag a parked window back into view); the set is remembered so omnirestore
+    brings back exactly these windows."""
+    runner.windows.minimize_all(visible_roles(runner.state.rfb_slot))
+
+
+def _omnirestore(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    runner.windows.restore_minimized()
+
+
+def _toggle_omnipause(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    was_paused = runner.state.omni_paused
+    runner._dispatch("omnipause_toggle")
+    runner._log_topmost_state("post-leave" if was_paused else "post-enter")
+
+
+def _enter_omnipause(command: str, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    """*command* is the way in: ``enter_omnipause`` (Space) parks the OSR2,
+    ``relief_omnipause`` (Shift+Esc) retracts it instead."""
+    runner._dispatch(command)
+    runner._log_topmost_state("post-enter")
+
+
+def _enter_omnipause_unless_paused(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
+    if not runner.state.omni_paused:
+        _enter_omnipause(ENTER_OMNIPAUSE, runner, spoken_at)
+
+
+def _pause(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
+    if not runner.state.omni_paused:
+        _toggle_omnipause(runner, spoken_at)
+
+
+def _play(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
+    if runner.state.omni_paused:
+        _toggle_omnipause(runner, spoken_at)
+
+
+def _browse_the_library(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    if runner.config.vr_main_funestra:
+        runner._publish_panel(LIBRARY_OPEN_FILENAME, toggling=True)
+    else:
+        threading.Thread(
+            target=runner._handle_browse_library,
+            daemon=True,
+            name="library-browser",
+        ).start()
+
+
+def _close_the_browse(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    runner._publish_panel(LIBRARY_OPEN_FILENAME, toggling=False)
+
+
+def _press_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    broker.press(runner.config.broker_state, runner.config.broker_tray_launcher)
+
+
+def _start_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    """Start the broker if none is running: a start, never a restart."""
+    if not broker.is_running(runner.config.broker_state):
+        broker.start(runner.config.broker_tray_launcher)
+
+
+def _stop_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    if broker.is_running(runner.config.broker_state):
+        broker.stop(runner.config.broker_state, runner.config.broker_tray_launcher)
+
+
+def _toggle_voice(command: str, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
+    """Mute or toggle voice control, then refresh the dashboard."""
+    muted = runner.voice.toggle(command)
+    if muted is None:
+        return
+    runner.state = replace(runner.state, mic_muted=muted)
+    write_shared_state(runner.shared_state_file, runner.state)
+    if runner.dashboard_enabled:
+        runner._update_dashboard()
+
+
+def _accept_what_voice_was_not_sure_of(runner: DispatchLoopRunner,
+                                       _spoken_at: float | None) -> None:
+    if not runner.voice.accept():
+        runner._flash(NOTHING_TO_ACCEPT, source=SOURCE_SYSTEM, level=logging.WARNING)
+
+
+def _pass_on_request_news(side: str, opened: bool, runner: DispatchLoopRunner,
+                          _spoken_at: float | None) -> None:
+    runner.voice.request_news(side, opened)
+
+
+def _headset(runner: DispatchLoopRunner, signal: str) -> None:
+    off = signal == HEADSET_OFF
+    if not runner.voice.headset_is(off=off):
+        return
+    logger.info("The headset is %s", "off: only quit is heard" if off else "back on")
+    append_command(runner.ahk_cmd_file, signal)
+    runner.voice.suspend_as_the_room_is(paused=runner.state.omni_paused)
+
+
+_LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = {
+    "quit": _quit,
+    **{command: partial(_cross, target) for command, target in HANDOFF_COMMANDS.items()},
+    **{command: partial(_show_the_reference, command == HELP_REFERENCE)
+       for command in HELP_REFERENCE_COMMANDS},
+    "omniminimize": _omniminimize,
+    "omnirestore": _omnirestore,
+    "omnipause_toggle": _toggle_omnipause,
+    ENTER_OMNIPAUSE: _enter_omnipause_unless_paused,
+    "relief_omnipause": partial(_enter_omnipause, "relief_omnipause"),
+    "browse_library": _browse_the_library,
+    BROWSE_LIBRARY_CLOSE: _close_the_browse,
+    BROKER_PRESS: _press_the_broker,
+    "pause": _pause,
+    "play": _play,
+    "broker_start": _start_the_broker,
+    "broker_stop": _stop_the_broker,
+    "voice_off": partial(_toggle_voice, "voice_off"),
+    "voice_toggle": partial(_toggle_voice, "voice_toggle"),
+    "voice_accept": _accept_what_voice_was_not_sure_of,
+    **{command: partial(_pass_on_request_news, side, opened)
+       for command, (side, opened) in REQUEST_NEWS.items()},
+}
 
 
 # --- the window-op interpreter ----------------------------------------------
@@ -1018,7 +773,8 @@ def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # result when the save lands.
     runner._answers += 1
     threading.Thread(
-        target=runner._handle_genaumacher_save,
+        target=save_and_say,
+        args=(runner.config,),
         daemon=True,
         name="genaumacher-save",
     ).start()
@@ -1037,7 +793,8 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    runner.expect_the_funestras_home((RoomFunestra[op.key.upper()],), now=time.monotonic())
+    runner.homecoming.expect((RoomFunestra[op.key.upper()],), runner.config,
+                             now=time.monotonic())
 
 
 def _run_follow_the_lock(runner: DispatchLoopRunner, op: WindowOp) -> None:

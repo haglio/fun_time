@@ -35,7 +35,6 @@ from .append_only import append_line
 from .broker_control import write_broker_command
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
-from .command_dispatch import hosted_satellites
 from .config import load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
@@ -57,7 +56,7 @@ from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
-from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot
+from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot, hosted_satellites
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
@@ -517,18 +516,14 @@ class _AppendOnWriteHandler(logging.Handler):
 
 
 def add_dispatch_file_handler(log_path: Path) -> None:
-    """Add a file handler to bridge-related loggers.
-
-    This ensures log messages from Python-dispatched commands appear in the
-    windows bridge log file — the same file AHK writes to.  Public because the
-    VR session runs the same dispatch loop and voice controller and needs the
-    same durable record.
+    """Put what every fun_time module and the family's listener log into the
+    windows bridge log file — the same file AHK writes to, so a command's path
+    reads in one place.  Public because the VR session runs the same dispatch
+    loop and voice controller and needs the same durable record.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
-    for name in ("fun_time.command_dispatch", "fun_time.satellite_groups", "fun_time.rfb_slot",
-                  "fun_time.windows_bridge_dispatch_loop", "fun_time.voice_control",
-                  "fun_time.windows_bridge_orchestrator", *THE_LISTENERS_LOGGERS):
+    for name in ("fun_time", *THE_LISTENERS_LOGGERS):
         lg = logging.getLogger(name)
         lg.setLevel(logging.DEBUG)
         lg.addHandler(handler)
@@ -954,7 +949,7 @@ def start_voice_control(
         voice_controller = prepared.controller.result(timeout=ASKING_BUDGET_S)
     except Exception:
         return None, None
-    dispatch_runner.voice_controller = voice_controller
+    dispatch_runner.voice.controller = voice_controller
     dispatch_runner.hear_as_a_lock(voice_controller.hosted.lock_phrases)
     voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
     voice_controller.hosted_sides = lambda: hosted_satellites(dispatch_runner.state,
@@ -989,7 +984,7 @@ def activate_origenerator_under_the_cover(
     *,
     progress: ProgressReporter,
 ) -> RfbSlot:
-    if not runner.activates_origenerator:
+    if not runner.opening.activates:
         return runner.state.rfb_slot
     started = time.monotonic()
 

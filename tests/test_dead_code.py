@@ -113,7 +113,7 @@ def test_no_module_reaches_into_another_ones_privates():
     )
 
 
-MAX_PROSE_LINES = 5624
+MAX_PROSE_LINES = 5593
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
@@ -282,3 +282,71 @@ def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
         "ctypes.windll instead of asking fun_time.win32 or fun_time.monitors; "
         "a count that came down is one to lower here in the same commit."
     )
+
+
+# The dispatch loop's own methods, held as an equality: every feature since the
+# first pass cut it to 26 landed as glue on the loop, each with a module of its
+# own standing beside it.  A count that came down is one to lower here in the
+# same commit; one that went up is glue to move onto its collaborator.
+DISPATCH_LOOP_METHODS = 22
+
+
+def test_the_dispatch_loops_glue_stays_on_its_collaborators():
+    tree = ast.parse(
+        (ROOT / "fun_time" / "windows_bridge_dispatch_loop.py").read_text(encoding="utf-8"))
+    runner = next(node for node in tree.body
+                  if isinstance(node, ast.ClassDef) and node.name == "DispatchLoopRunner")
+    methods = [node.name for node in runner.body
+               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    assert len(methods) == DISPATCH_LOOP_METHODS, (
+        f"DispatchLoopRunner has {len(methods)} methods: {methods}.  A feature's "
+        "glue goes on the collaborator that holds it; a count that came down is "
+        "one to lower here in the same commit."
+    )
+
+
+# The command registry's complexity, a ceiling that only comes down: every handler
+# written into it since the first pass had a domain module of its own to go in.
+MAX_DISPATCHER_COMPLEXITY = 59
+MAX_DISPATCH_COMMAND_COMPLEXITY = 9
+
+
+def _decisions(function: ast.AST) -> int:
+    count = 0
+    pending = list(ast.iter_child_nodes(function))
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if isinstance(node, (ast.If, ast.IfExp, ast.Assert)):
+            count += 1
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+            count += 1 + bool(node.orelse)
+        elif isinstance(node, ast.Try):
+            count += len(node.handlers) + bool(node.orelse)
+        elif isinstance(node, ast.BoolOp):
+            count += len(node.values) - 1
+        elif isinstance(node, ast.comprehension):
+            count += 1 + len(node.ifs)
+        pending.extend(ast.iter_child_nodes(node))
+    return count
+
+
+def _complexity(tree: ast.AST) -> dict[str, int]:
+    """Each function's cyclomatic complexity, as radon counts it: one, plus a
+    point per branch, loop, handler, boolean operand and comprehension."""
+    return {node.name: 1 + _decisions(node) for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+
+
+def test_the_command_registry_holds_the_registry_and_the_guards():
+    complexity = _complexity(ast.parse(
+        (ROOT / "fun_time" / "command_dispatch.py").read_text(encoding="utf-8")))
+    total = sum(complexity.values())
+    assert total <= MAX_DISPATCHER_COMPLEXITY, (
+        f"command_dispatch.py's functions sum to a complexity of {total} (ceiling "
+        f"{MAX_DISPATCHER_COMPLEXITY}).  A command's handler belongs in its domain's "
+        "module, registered from there; lower the ceiling when it comes down."
+    )
+    assert complexity["dispatch_command"] <= MAX_DISPATCH_COMMAND_COMPLEXITY
+

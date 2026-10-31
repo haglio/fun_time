@@ -18,13 +18,6 @@ from funestra.modes import MainMode, Osr2State
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
-from .command_dispatch import (
-    genau_flick_shapes,
-    hosts,
-    main_funestra_at_defaults,
-    main_video_shapes,
-    satellite_at_defaults,
-)
 from .crown import Crown
 from .funestra_status import (
     MainFunestraStatus,
@@ -34,8 +27,14 @@ from .funestra_status import (
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_satellite_hud
 from .main_funestra_console import MainSlotInputs, console_model, osr2_state
+from .main_list_commands import (
+    genau_flick_shapes,
+    main_funestra_at_defaults,
+    main_video_shapes,
+)
 from .media_metadata import load_metadata, metadata_path_for
 from .media_renditions import renditions
+from .origenerator_switches import hosts
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
@@ -43,6 +42,7 @@ from .osr2_section import (
     osr2_part,
 )
 from .room_funestras import RoomFunestra
+from .satellite_commands import satellite_at_defaults
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
 from .ten_second_steps import longer_than_a_step
