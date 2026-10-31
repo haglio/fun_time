@@ -18,15 +18,6 @@ def _json_object(path: str | Path | None) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def _genau_section(config_path: str | Path | None) -> object:
-    config = _json_object(config_path)
-    paths = config.get("paths")
-    old_settings_file = paths.get("genau_config_path") if isinstance(paths, dict) else None
-    if old_settings_file:
-        config = _json_object(Path(config_path).parent / old_settings_file)
-    return config.get("genau")
-
-
 @dataclass(frozen=True)
 class GenauSettings:
     beats_per_loop: float = 1.0
@@ -40,7 +31,7 @@ class GenauSettings:
 
     @classmethod
     def read(cls, config_path: str | Path | None) -> GenauSettings:
-        section = _genau_section(config_path)
+        section = _json_object(config_path).get("genau")
         if not isinstance(section, dict):
             return cls()
         defaults = cls()

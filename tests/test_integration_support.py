@@ -538,11 +538,8 @@ def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
 
 def test_a_runs_genau_plays_on_the_machines_numbers_off_a_port_of_its_own(tmp_path, monkeypatch):
     machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine")
-    old_settings_file = tmp_path / "machine" / "genau_config.json"
-    old_settings_file.write_text(json.dumps(
-        {"genau": {"beats_per_loop": 2.0, "udp_port": GENAU_INBOUND_PORT}}), encoding="utf-8")
     raw = json.loads(machine.read_text(encoding="utf-8"))
-    raw["paths"]["genau_config_path"] = str(old_settings_file)
+    raw["genau"] = {"beats_per_loop": 2.0, "udp_port": GENAU_INBOUND_PORT}
     machine.write_text(json.dumps(raw), encoding="utf-8")
     monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
     try:

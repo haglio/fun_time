@@ -874,8 +874,6 @@ def build_integration_config(tmp_path: Path) -> Path:
 
     point_the_main_funestra_at(config, primary_dir)
     config.setdefault("regen", {})["metadata_root"] = str(metadata_root)
-    config["genau"] = dataclasses.asdict(GenauSettings.read(real.config_path))
-    config["paths"].pop("genau_config_path", None)
     isolate_shared_resources(config)
 
     config_path = integration_root / INTEGRATION_CONFIG_NAME
