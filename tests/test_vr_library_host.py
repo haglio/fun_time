@@ -442,7 +442,7 @@ def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_s
     monkeypatch.setattr(library_host, "application", application)
     monkeypatch.setenv("QT_QPA_FONTDIR", str(tmp_path))
     for name in ("load_browser_config", "load_flick_browser_config", "FrameWriter",
-                 "HeadsetBrowse", "start_daemon_thread"):
+                 "HeadsetBrowse", "start_daemon_thread", "dress_application"):
         monkeypatch.setattr(library_host, name, MagicMock())
 
     ran = library_host.main([str(tmp_path / "manifest.ini"), "--input", str(tmp_path / "in.txt"),
@@ -451,3 +451,4 @@ def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_s
 
     assert ran == 7
     assert made == [[sys.argv[0], "-platform", "offscreen"]]
+    library_host.dress_application.assert_called_once()
