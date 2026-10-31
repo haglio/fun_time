@@ -14,7 +14,7 @@ from funestra.device_panel import DevicePanel
 from PIL import Image, ImageDraw
 from shared_ui.button_pil import button, slab
 from shared_ui.dropdown_pil import paint_field, paint_list
-from shared_ui.icons_pil import glyph_image
+from shared_ui.icons_pil import pil_icon
 from shared_ui.lettering import WORDMARK_FACE, load_font, wrap_text
 from shared_ui.loading_panel import icon_image
 from shared_ui.palette import (
@@ -231,7 +231,7 @@ def paint_dash(state: DashState, records,
         button(draw, rect, control.lit or BG_BUTTON, lit=not control.dim and _on(rect, hover))
         size = mark_side(rect)
         panel.alpha_composite(
-            glyph_image(control.mark, size, control.ink),
+            pil_icon(control.mark, size, control.ink),
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
         )
 

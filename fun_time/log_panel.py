@@ -37,7 +37,7 @@ from shared_ui.colors import (
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, SIZE_TINY, make_font
-from shared_ui.icons import glyph_pixmap
+from shared_ui.icons import icon_pixmap
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
@@ -115,12 +115,12 @@ def _copy_icon(size: int, color: QColor) -> QIcon:
     button wears the same one.  Each app drew its own before, at its own
     proportions, and the two sit on screen together.
     """
-    return QIcon(glyph_pixmap("copy", size, color))
+    return QIcon(icon_pixmap("copy", size, color))
 
 
 def _copied_icon(size: int, color: QColor) -> QIcon:
     """A tick — what the copy button shows for a moment after a successful copy."""
-    return QIcon(glyph_pixmap("check", size, color))
+    return QIcon(icon_pixmap("check", size, color))
 
 
 _DIAL_ARROW = 10
@@ -129,7 +129,7 @@ _DIAL_ARROW = 10
 class _LevelDial(QComboBox):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._arrow = glyph_pixmap("chevron_right", _DIAL_ARROW, TEXT_MUTED).transformed(
+        self._arrow = icon_pixmap("chevron_right", _DIAL_ARROW, TEXT_MUTED).transformed(
             QTransform().rotate(90))
 
     def paintEvent(self, event: object) -> None:
