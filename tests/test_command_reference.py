@@ -321,7 +321,8 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
     # The raw sound-alikes must never leak into any Say column.
     for row in rows:
         for phrase in row.voice:
-            assert "now mode" not in phrase and "go now" not in phrase, phrase
+            assert "now mode" not in phrase, phrase
+            assert "go now" not in phrase, phrase
             assert "aura generator" not in phrase, phrase
 
 
@@ -362,7 +363,8 @@ def test_the_quit_row_no_longer_offers_the_exit_synonym():
     recognizer now reads as the crossing."""
     rows = _all_rows()
     quit_rows = [r for r in rows if "quit" in r.commands]
-    assert quit_rows and set(quit_rows[0].voice) == {"quit"}
+    assert quit_rows
+    assert set(quit_rows[0].voice) == {"quit"}
 
 
 def test_reference_popup_row_shows_toggle_and_close_names():
@@ -473,7 +475,8 @@ def test_voice_phrases_are_derived_from_voice_commands():
 def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_spellings():
     assert VOICE_COMMANDS["genau"] == VOICE_COMMANDS["go now"] == "genau_activate"
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
-    assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
+    assert genau_rows
+    assert genau_rows[0].voice == ("genau", "genau mode")
 
 
 def test_the_reference_names_genaus_flicks_in_the_overlays_word():
@@ -525,7 +528,8 @@ def test_the_library_browser_has_the_key_the_retired_mode_had():
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
     browser =[r for r in by_title["Main Funestra"].rows if "browse_library" in r.commands]
-    assert len(browser) == 1 and _keys(browser[0]) == ("N",)
+    assert len(browser) == 1
+    assert _keys(browser[0]) == ("N",)
     assert "browse" in browser[0].voice
 
 
@@ -538,11 +542,14 @@ def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
     for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode"):
         assert retired not in VOICE_COMMANDS, retired
     main_rows = [r for r in _all_rows() if "main_kino_activate" in r.commands]
-    assert main_rows and main_rows[0].voice == ("kino mode main", "main kino mode")
+    assert main_rows
+    assert main_rows[0].voice == ("kino mode main", "main kino mode")
     both_rows = [r for r in _all_rows() if "kino_activate" in r.commands]
-    assert both_rows and both_rows[0].voice == ("kino mode",)
+    assert both_rows
+    assert both_rows[0].voice == ("kino mode",)
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
-    assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
+    assert genau_rows
+    assert genau_rows[0].voice == ("genau", "genau mode")
 
 
 def test_loop_control_row_consolidates_record_and_cancel():
@@ -564,10 +571,12 @@ def test_previous_shape_is_a_separate_keyless_line():
     rows = _all_rows()
     next_rows = [r for r in rows if "robot_hand_cycle_shape" in r.commands]
     prev_rows = [r for r in rows if "robot_hand_cycle_shape_prev" in r.commands]
-    assert next_rows and _keys(next_rows[0]) == ("I",)
+    assert next_rows
+    assert _keys(next_rows[0]) == ("I",)
     # The "I" key does next only — it must not claim previous.
     assert "robot_hand_cycle_shape_prev" not in next_rows[0].commands
-    assert prev_rows and _keys(prev_rows[0]) == ()
+    assert prev_rows
+    assert _keys(prev_rows[0]) == ()
     assert "previous shape" in prev_rows[0].voice
 
 
@@ -589,7 +598,8 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
         at = next(i for i, d in enumerate(descs) if d.startswith(updown))
         assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
     set_amp = next(r for r in genau_rows if r.description == "Set amplitude")
-    assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
+    assert "min amp" in set_amp.voice
+    assert "max amp" in set_amp.voice
 
 
 def test_human_inspired_motion_follows_the_waveform_and_lists_its_voice_on_before_off():

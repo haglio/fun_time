@@ -603,8 +603,10 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
 
     portrait_written = _lines(tmp_path / "state" / "portrait_playlist.tsv")
     landscape_written = _lines(tmp_path / "state" / "landscape_playlist.tsv")
-    assert p_cum in portrait_written and p_twirl not in portrait_written
-    assert l_twirl in landscape_written and l_cum not in landscape_written
+    assert p_cum in portrait_written
+    assert p_twirl not in portrait_written
+    assert l_twirl in landscape_written
+    assert l_cum not in landscape_written
 
 
 # --- collapse axis: filtered views group by seed family (params) -------------

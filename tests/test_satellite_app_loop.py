@@ -184,7 +184,8 @@ def test_each_pass_hands_it_the_windows_size_until_it_stops_then_closes_it(tmp_p
 
     assert code == 0
     assert opens.funestra.ticks == [WINDOW, WINDOW, WINDOW]
-    assert opens.funestra.closed and fake.quit_called
+    assert opens.funestra.closed
+    assert fake.quit_called
 
 
 def _press(pos, button=1):

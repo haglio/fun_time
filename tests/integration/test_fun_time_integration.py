@@ -757,7 +757,8 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
                      description="the Portrait Funestra to reach a stretch with no funscript")
         let_seconds_pass(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
-        assert resting and RoomFunestra.PORTRAIT.label not in resting, resting
+        assert resting, resting
+        assert RoomFunestra.PORTRAIT.label not in resting, resting
 
 
 def test_fun_time_the_osr2_taken_back_under_omnipause_hears_only_the_robot_hand_after_it(

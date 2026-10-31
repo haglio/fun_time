@@ -183,7 +183,8 @@ def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_mo
     assert main_verifier.cycle(ledger, bench) == "flaky"
 
     assert bench.recorded[0]["kind"] == "flaky"
-    assert bench.released == ["c3"] and bench.taken_back == []
+    assert bench.released == ["c3"]
+    assert bench.taken_back == []
 
 
 def test_a_run_that_fails_without_naming_a_test_waits_for_main_to_move_and_is_recorded(tmp_path):
@@ -281,7 +282,8 @@ def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_tha
     assert command[1:] == ["-m", "tests.integration.hidden_desktop", "tests/integration/test_x.py::test_y"]
     assert cwd == place
     assert asked_to_restart == bench.asked_to_restart
-    assert result.exit_code == 1 and result.failed == ["tests/integration/test_x.py::test_y"]
+    assert result.exit_code == 1
+    assert result.failed == ["tests/integration/test_x.py::test_y"]
     assert "test_x.py::test_y" in result.log.read_text(encoding="utf-8")
 
 
@@ -386,7 +388,8 @@ def test_a_restart_is_asked_for_with_a_file_in_the_production_checkouts_state(tm
 
     assert bench.asked_to_restart()
     assert bench.take_restart_request()
-    assert not bench.asked_to_restart() and not bench.take_restart_request()
+    assert not bench.asked_to_restart()
+    assert not bench.take_restart_request()
 
 
 def test_a_suite_running_when_a_restart_is_asked_for_ends_with_everything_it_started(tmp_path, monkeypatch):
@@ -443,7 +446,8 @@ def test_the_runner_ends_without_checking_main_once_it_is_asked_to_restart(tmp_p
 
     main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=never_naps)
 
-    assert bench.events == [] and bench.restart_asked is False
+    assert bench.events == []
+    assert bench.restart_asked is False
 
 
 def test_a_run_cut_short_by_a_restart_request_ends_the_runner_without_judging_main(tmp_path):
@@ -458,7 +462,8 @@ def test_a_run_cut_short_by_a_restart_request_ends_the_runner_without_judging_ma
     main_verifier.keep_verifying(ledger, bench, nap=never_naps)
 
     assert (ledger.verified, ledger.failed_head) == ("a1", None)
-    assert bench.recorded == [] and bench.restart_asked is False
+    assert bench.recorded == []
+    assert bench.restart_asked is False
 
 
 def test_a_check_that_could_not_reach_main_is_logged_and_tried_again_next_time(tmp_path, caplog):
@@ -500,7 +505,8 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
 
     assert main_verifier.cycle(ledger, bench) == "broken run"
 
-    assert bench.taken_back == [] and ledger.failed_head == "c3"
+    assert bench.taken_back == []
+    assert ledger.failed_head == "c3"
 
 
 def test_a_rerun_that_could_not_start_where_main_last_passed_is_no_pass_and_takes_nothing_back(tmp_path):
@@ -516,7 +522,8 @@ def test_a_rerun_that_could_not_start_where_main_last_passed_is_no_pass_and_take
 
     assert main_verifier.cycle(ledger, bench) == "could not judge"
 
-    assert bench.taken_back == [] and bench.released == []
+    assert bench.taken_back == []
+    assert bench.released == []
     assert ledger.failed_head == "e5"
     assert bench.recorded == [{"kind": "could not judge", "commit": "e5", "no_verdict_on": "a1",
                                "tests": ["tests/integration/test_x.py::test_y"], "log": Path("a1-run.txt")}]
@@ -588,7 +595,8 @@ def test_tests_that_do_not_fail_every_run_with_the_change_and_pass_every_run_wit
 
     assert main_verifier.cycle(ledger, bench) == "unreliable check"
 
-    assert bench.taken_back == [] and bench.released == []
+    assert bench.taken_back == []
+    assert bench.released == []
     assert ledger.failed_head == "e5"
     [fix] = bench.fixing
     assert "tests/integration/test_x.py::test_y" in fix.brief
@@ -618,7 +626,8 @@ def test_a_new_session_starts_for_unreliable_tests_once_the_last_one_on_them_has
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
-    assert len(bench.fixing) == 1 and bench.recorded[0]["fix_session"] == "812181fb"
+    assert len(bench.fixing) == 1
+    assert bench.recorded[0]["fix_session"] == "812181fb"
 
 
 TAKEN_BACK = {"kind": "broke main", "commit": "c3", "tests": ["tests/integration/test_x.py::test_y"],
@@ -633,7 +642,8 @@ def test_tests_that_had_a_change_taken_back_and_fail_again_without_it_ship_it_ag
 
     assert main_verifier.cycle(ledger, bench) == "unreliable check"
 
-    assert bench.shipped_again == [(41, ["d4"])] and bench.taken_back == []
+    assert bench.shipped_again == [(41, ["d4"])]
+    assert bench.taken_back == []
     assert bench.stopped == ["1a2b3c4d"]
     assert ledger.failed_head == "d4"
     [fix] = bench.fixing
@@ -660,7 +670,8 @@ def test_a_taken_back_change_is_shipped_again_only_when_its_tests_alone_fail_on_
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
 
-    assert bench.shipped_again == [] and bench.stopped == []
+    assert bench.shipped_again == []
+    assert bench.stopped == []
 
 
 def test_a_change_that_could_not_be_shipped_again_leaves_the_session_fixing_it_running(tmp_path):
@@ -980,7 +991,8 @@ def test_a_fix_session_starts_in_a_checkout_of_its_own_and_is_told_what_broke(tm
     assert (["git", "worktree", "add", "-B", "claude/fix-41", str(place), "origin/main"], primary) in shell.commands
     assert (place / "state" / "sibling_checkouts.txt").read_text(encoding="utf-8") == ""
     command, cwd = next((command, cwd) for command, cwd in shell.commands if "--bg" in command)
-    assert command[0] == "claude.exe" and cwd == place
+    assert command[0] == "claude.exe"
+    assert cwd == place
     assert command[command.index("--permission-mode") + 1] == "auto"
     assert command[command.index("--name") + 1] == "Fix #41: Loop the row on the Main Funestra"
     brief = command[-1]
@@ -1060,7 +1072,8 @@ def test_a_fix_session_that_stopped_on_an_error_from_the_claude_service_is_start
 
     steps = fix_sessions.fix_session_steps([FIX], [stopped], told={}, restarts={}, died=lambda session: True)
 
-    assert steps.start_again == [stopped] and steps.notices == []
+    assert steps.start_again == [stopped]
+    assert steps.notices == []
 
 
 @pytest.mark.parametrize("waiting_for, needs", [(None, "answer"), ("input needed", "answer"),
@@ -1080,7 +1093,8 @@ def test_a_fix_session_that_failed_is_started_again_like_one_that_stopped_on_an_
 
     steps = fix_sessions.fix_session_steps([FIX], [failed], told={}, restarts={}, died=lambda session: False)
 
-    assert steps.start_again == [failed] and steps.notices == []
+    assert steps.start_again == [failed]
+    assert steps.notices == []
 
 
 def test_he_is_told_a_fix_session_stopped_on_an_error_once_starting_it_again_has_not_helped():
