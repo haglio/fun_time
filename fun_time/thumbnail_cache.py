@@ -52,6 +52,9 @@ def cached_thumbnail(
     return dest if dest.is_file() else None
 
 
+_FIFTHS = 5
+
+
 def _read_representative_frame(video_path: str | Path):
     """A frame ~20% into the clip (skipping fade-ins), or the first readable one."""
     capture = cv2.VideoCapture(str(video_path))
@@ -59,7 +62,7 @@ def _read_representative_frame(video_path: str | Path):
         if not capture.isOpened():
             return None
         total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        target = total // 5 if total > 5 else 0
+        target = total // _FIFTHS if total > _FIFTHS else 0
         if target:
             capture.set(cv2.CAP_PROP_POS_FRAMES, target)
         ok, frame = capture.read()

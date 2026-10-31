@@ -85,7 +85,7 @@ def banner_placement(banner: Image.Image, width: int, height: int) -> tuple[int,
 
 def banner_bgra(message: str, level: int, *, width: int, height: int):
     """``(x, y, bgra)`` for one overlay call, or None when it would not fit."""
-    if width < 2 or height < 2:
+    if width <= 1 or height <= 1:
         return None
     banner = paint_banner(
         message, level, max_width=round(width * WIDTH_FRACTION), size=font_px(height),
