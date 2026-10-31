@@ -13,7 +13,8 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
 
 INTEGRATION_TESTS = "tests/integration/test_*.py"
-NEVER_SHIPPED = ("tests/*", "docs/*", "*.md", ".github/*", ".claude/*", "tools/*")
+NEVER_SHIPPED = ("tests/*", "docs/*", "*.md", ".github/*", ".claude/*", "tools/*", "ruff.toml",
+                 "vulture_whitelist.py")
 MAP_NAME = "integration_coverage_map.json"
 
 
