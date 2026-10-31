@@ -48,7 +48,7 @@ def test_a_flash_of_something_said_arrives_with_when_it_was_said(tmp_path: Path)
     finally:
         notices.stop()
 
-    assert flashed.spoken_at == 12.5  # noqa: PLR2004
+    assert flashed.spoken_at == 12.5
 
 
 def test_a_long_run_of_words_arrives_whole_and_the_next_flash_after_it(tmp_path: Path):
