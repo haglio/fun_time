@@ -734,7 +734,7 @@ def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
         raise OSError("the rename was refused")
 
     monkeypatch.setattr(os, "replace", refuse)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="could not replace"):
         reject_action(paths["clip"], metadata_root)
     assert sidecar.read_text(encoding="utf-8") == before
 

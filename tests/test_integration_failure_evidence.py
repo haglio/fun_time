@@ -129,7 +129,7 @@ def test_keeping_a_failed_runs_records_forgets_those_kept_more_than_two_weeks_be
     for name, age in (("old", timedelta(days=15)), ("recent", timedelta(days=13))):
         (kept_in / name / "01-a-session").mkdir(parents=True)
         (kept_in / name / "01-a-session" / "main_funestra.log").write_text("a log", encoding="utf-8")
-        then = (datetime.now() - age).timestamp()
+        then = (datetime.now().astimezone() - age).timestamp()
         os.utime(kept_in / name, (then, then))
     _a_session_root(tmp_path, "one")
 

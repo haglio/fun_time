@@ -89,7 +89,7 @@ class TestSurfaceVertices:
         assert np.linalg.matrix_rank(verts - verts[0], tol=1e-5) == 2
 
     def test_degenerate_aspect_is_rejected(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="aspect must be positive, got 0.0"):
             surface_vertices(Placement(0.0, 0.0, 36.0), aspect=0.0)
 
 
@@ -144,7 +144,7 @@ class TestQuadLayerPlacement:
         assert math.hypot(y, w) == pytest.approx(1.0, rel=1e-9)
 
     def test_degenerate_aspect_is_rejected(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="aspect must be positive, got -1.0"):
             quad_layer_placement(Placement(0.0, 0.0, 36.0), aspect=-1.0)
 
     def test_tilting_lifts_the_quad_and_keeps_it_facing_the_viewer(self):

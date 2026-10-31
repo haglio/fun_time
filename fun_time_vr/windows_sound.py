@@ -4,6 +4,7 @@ import logging
 from ctypes import POINTER, Structure, byref, c_uint, c_ushort, c_void_p, wstring_at
 from ctypes.wintypes import DWORD, LPCWSTR
 from dataclasses import dataclass
+from typing import ClassVar
 
 import comtypes
 from comtypes import CLSCTX_ALL, COMMETHOD, GUID, HRESULT, IUnknown
@@ -49,7 +50,7 @@ _POLICY_CONFIG_CLIENT = GUID("{870af99c-171d-4f9e-af0d-e63df40c2bc9}")
 
 class _IPropertyStore(IUnknown):
     _iid_ = GUID("{886d8eeb-8cf2-4446-8d02-cdba1dbdcf99}")
-    _methods_ = [
+    _methods_: ClassVar[list] = [
         COMMETHOD([], HRESULT, "GetCount", (["out"], POINTER(DWORD))),
         COMMETHOD([], HRESULT, "GetAt", (["in"], DWORD), (["out"], POINTER(_PropertyKey))),
         COMMETHOD([], HRESULT, "GetValue",
@@ -59,7 +60,7 @@ class _IPropertyStore(IUnknown):
 
 class _IMMDevice(IUnknown):
     _iid_ = GUID("{D666063F-1587-4E43-81F1-B948E807363F}")
-    _methods_ = [
+    _methods_: ClassVar[list] = [
         COMMETHOD([], HRESULT, "Activate", (["in"], POINTER(GUID)), (["in"], DWORD),
                   (["in"], c_void_p), (["out"], POINTER(c_void_p))),
         COMMETHOD([], HRESULT, "OpenPropertyStore",
@@ -70,7 +71,7 @@ class _IMMDevice(IUnknown):
 
 class _IMMDeviceEnumerator(IUnknown):
     _iid_ = GUID("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
-    _methods_ = [
+    _methods_: ClassVar[list] = [
         COMMETHOD([], HRESULT, "EnumAudioEndpoints",
                   (["in"], c_uint), (["in"], DWORD), (["out"], POINTER(c_void_p))),
         COMMETHOD([], HRESULT, "GetDefaultAudioEndpoint",
@@ -87,7 +88,7 @@ _SLOTS_BEFORE_SET_DEFAULT_ENDPOINT = (
 
 class _IPolicyConfig(IUnknown):
     _iid_ = GUID("{f8679f50-850a-41cf-9c72-430f290290c8}")
-    _methods_ = [
+    _methods_: ClassVar[list] = [
         *(COMMETHOD([], HRESULT, name) for name in _SLOTS_BEFORE_SET_DEFAULT_ENDPOINT),
         COMMETHOD([], HRESULT, "SetDefaultEndpoint", (["in"], LPCWSTR), (["in"], c_uint)),
     ]

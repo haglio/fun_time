@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -397,7 +398,7 @@ class TestTheWholeSurfaceFunTimeLaunchesThrough:
 class TestTheConfigsOwnDefaults:
     """The main_player section of the config stands in for flags nobody passes."""
 
-    CONFIG = {
+    CONFIG: ClassVar[dict] = {
         "main_player": {
             "videos_dir": "C:/example/library/videos",
             "metadata_dir": "C:/example/library/metadata",

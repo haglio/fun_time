@@ -66,7 +66,7 @@ def test_a_switch_either_way_leaves_the_main_funestra_up_and_frontmost(
         s.wait_for_new_log(f"Switched to {mode} mode")
         assert _stays_up(main_funestra, seconds=1.0), f"the Main Funestra was parked switching to {mode} mode"
         s.wait_until(lambda: not _over(main_funestra),
-                     description=lambda: f"the Main Funestra to be frontmost in {mode} mode, "
+                     description=lambda mode=mode: f"the Main Funestra to be frontmost in {mode} mode, "
                                          f"with over it: {describe_windows(_over(main_funestra))}")
         assert find_window_by_title("Genau") == 0, "a second window took the main slot"
 
