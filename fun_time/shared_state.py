@@ -73,6 +73,7 @@ class SatelliteState:
     # re-homes the satellite, or the satellite drifts off the map.
     nav_anchor: str = ""
     mode: SatellitesMode = KINO_MODE
+    handed_over: bool = False
     speed: float = 1.0
     volume: int = MAX_VOLUME
     muted: bool = True

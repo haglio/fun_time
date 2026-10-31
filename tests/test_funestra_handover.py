@@ -51,6 +51,20 @@ def test_coming_home_lands_the_funestra_on_the_clip_it_left(tmp_path):
     assert consume_command_file(channel.cmd_file, uppercase=False) == ["RELOAD_PLAYLIST"]
 
 
+def test_coming_home_lands_on_the_clip_it_had_moved_on_to_before_the_app_took_it(tmp_path):
+    """The app takes seconds to fill the side, and the Funestra plays on meanwhile."""
+    channel = _channel(tmp_path)
+    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / name)
+                                        for name in ("one.mp4", "two.mp4", "three.mp4")])
+    _playing(channel, str(tmp_path / "one.mp4"))
+    keep_aside(channel)
+    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
+
+    assert hand_back(channel, onto=str(tmp_path / "two.mp4")) is True
+
+    assert _paths(channel.playlist_file) == ["two.mp4", "three.mp4", "one.mp4"]
+
+
 def test_the_kept_list_is_spent_by_handing_it_back(tmp_path):
     """A side handed back twice must not be handed a stale list the second
     time — over one the session has rebuilt since."""
