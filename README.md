@@ -442,7 +442,7 @@ Every Funestra carries its own F button in the first row of icons on its own HUD
 
 At startup a session with nothing to resume writes the satellites' playlists with F-Mode off (`build_satellite_playlists`), and every session writes the Main Funestra's list from the F-Mode and the other buttons it carries (`fun_time.main_list`); `apply_fmode` rebuilds the named Funestras after that.
 
-Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the Main Funestra's mode HUD carries it beside the length mode or compilation — the Main Funestra is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that Funestra's panel.
+Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the Main Funestra's mode HUD carries it beside the length mode or compilation — the Main Funestra is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that Funestra's HUD.
 
 F-Mode is also one of the things a **reset** drops — see below.
 

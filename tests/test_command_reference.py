@@ -302,6 +302,13 @@ def test_the_reference_calls_the_mode_kino_and_never_video():
         "Kino mode on both sides at once"]
 
 
+def test_the_reference_calls_a_funestras_hud_its_hud_and_never_its_panel():
+    said = [phrase for row in _all_rows() for phrase in (row.description, *row.voice)
+            if "panel" in phrase.lower()]
+
+    assert said == []
+
+
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
     """The Kino/Genau nav rows surface the mode-named phrases under their friendly
     names ("kino next", "genau next") — never the raw vosk sound-alike ("go
