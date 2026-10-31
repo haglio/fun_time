@@ -240,10 +240,10 @@ class VoiceController:
         return said[0] if said and said[0] in self.hosted_sides() else None
 
     def _side_a_request_opens_on(self, text: str | None) -> str | None:
-        said = _words(text)
-        if len(said) < 2 or said[1] not in self.hosted.openers:
-            return None
-        return self._hosted_side_leading(text)
+        match _words(text):
+            case [_, opener, *_] if opener in self.hosted.openers:
+                return self._hosted_side_leading(text)
+        return None
 
     def wants_words(self, heard: Heard) -> bool:
         if not self._listened_to_when(heard.spoken_at):

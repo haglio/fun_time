@@ -488,7 +488,7 @@ def action_label(index: GroupIndex, path: str) -> str:
         for item in index.action_items[group]
         if index.act_of(item) == action
     ]
-    if len(twins) < 2:
+    if len(twins) <= 1:
         return action
     position = next(
         (slot for slot, item in enumerate(twins) if normalize_path_key(item) == key), 0

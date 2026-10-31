@@ -1051,7 +1051,7 @@ class TestDispatchLoopRunner:
 
             with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
                  patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-                 patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+                 patch("fun_time.role_windows.minimize_window", side_effect=lambda h, minimized=minimized, **kw: minimized.append(h)):
                 runner.tick()
 
             assert minimized == wanted, mode
@@ -3506,7 +3506,8 @@ def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
         monkeypatch.undo()
 
         assert _presses_until(recv_sock, "pause") == ["pause"]
-    assert opened and all(sender.fileno() == -1 for sender in opened)
+    assert opened
+    assert all(sender.fileno() == -1 for sender in opened)
 
 
 class TestASessionThatHostsNoOrigenerator:

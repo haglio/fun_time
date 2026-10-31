@@ -335,7 +335,7 @@ class FunTimeIntegrationSession:
                     raise AssertionError(
                         f"Orchestrator did not exit within {timeout:g}s after it was told to quit"
                         f"\n{self._log_tail()}"
-                    )
+                    ) from None
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
         return exit_code
@@ -921,7 +921,7 @@ def where_failed_runs_are_kept(checkout: Path) -> Path:
 def keep_what_the_run_logged(keep_in: Path) -> Path | None:
     if not RUN_ROOTS:
         return None
-    now = datetime.now()
+    now = datetime.now().astimezone()
     forget_what_was_kept_before(keep_in.glob("*"), now - KEPT_FOR)
     name = f"{now:%Y%m%d-%H%M%S}"
     if run := this_run():

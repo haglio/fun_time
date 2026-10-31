@@ -1157,7 +1157,8 @@ class TestTheConsoleUnderTheSlot:
         hanging, = (one for one in p.unit.hangings() if one.screen.name == CONSOLE)
 
         assert hanging.screen.name == CONSOLE
-        assert hanging.screen.pressable and not hanging.screen.movable
+        assert hanging.screen.pressable
+        assert not hanging.screen.movable
         assert hanging.docked_to == MAIN
 
     def test_before_the_main_funestra_has_drawn_it_there_is_nothing_to_hang(self):
@@ -1747,11 +1748,12 @@ class TestTheShellsWordsForTheRoom:
             if not isinstance(node, ast.Attribute):
                 continue
             chain = []
-            while isinstance(node, ast.Attribute):
-                chain.append(node.attr)
-                node = node.value
-            if isinstance(node, ast.Name):
-                reads.append((node.id, *reversed(chain)))
+            reached = node
+            while isinstance(reached, ast.Attribute):
+                chain.append(reached.attr)
+                reached = reached.value
+            if isinstance(reached, ast.Name):
+                reads.append((reached.id, *reversed(chain)))
         return reads
 
     def test_every_name_the_shell_reads_off_the_room_is_one_it_answers(
@@ -1786,7 +1788,7 @@ class TestWatchingTheCover:
         """The cover reads the same whether or not anyone is at the lenses, and
         waiting for a WORN headset spent the whole 25s grace in 26 of his last 40
         sessions -- so the reveal counts the frames the cover was drawn on."""
-        cover, scene_ready, watch = self._watch()
+        _cover, scene_ready, watch = self._watch()
 
         watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
         watch.frame_began(blank=(), focused=False, views_tracked=True)
@@ -1794,7 +1796,7 @@ class TestWatchingTheCover:
         scene_ready.note.assert_called_with(blank=(), read=True)
 
     def test_a_blank_screen_is_named_to_the_reveal(self):
-        cover, scene_ready, watch = self._watch()
+        _cover, scene_ready, watch = self._watch()
 
         watch.frame_began(blank=("portrait",), focused=False, views_tracked=True)
 
@@ -2230,9 +2232,11 @@ class TestTheBannerOverAWrappedFrame:
         unit = self._floating(wraps=True, banner=notice)
 
         (hanging,) = _BannerUnit.hangings(unit)
-        assert hanging.in_front and hanging.blend
+        assert hanging.in_front
+        assert hanging.blend
         assert hanging.screen.name == BANNER
-        assert not hanging.screen.pressable and not hanging.screen.movable
+        assert not hanging.screen.pressable
+        assert not hanging.screen.movable
         assert unit._image is not None
         assert unit.screen.placement.width_deg == pytest.approx(
             unit._image.width / funestras.BANNER_PX_PER_DEG)
@@ -3069,23 +3073,28 @@ class TestWhatThePointerCanReach:
         it is pressed and never dragged -- it rides on what is above it."""
         screens = self._screens(tmp_path)
 
-        assert screens[DASH].pressable and screens[DASH].movable
-        assert screens[CONSOLE].pressable and not screens[CONSOLE].movable
+        assert screens[DASH].pressable
+        assert screens[DASH].movable
+        assert screens[CONSOLE].pressable
+        assert not screens[CONSOLE].movable
 
     def test_the_reference_is_pressed_but_offers_no_handles_of_its_own(self, tmp_path):
         """It moves with the dashboard it hangs from."""
         reference = self._screens(tmp_path, reference_showing=True)[REFERENCE]
 
         assert reference.pressable
-        assert not reference.movable and not reference.resizable
+        assert not reference.movable
+        assert not reference.resizable
 
     def test_the_dashboard_keeps_the_only_handle_when_it_carries_the_console(self, tmp_path):
         """It is the top of the pair then, so its bar is above both of them --
         a bar on the console would sit between them instead."""
         screens = self._screens(tmp_path, wrapped=True)
 
-        assert screens[DASH].movable and not screens[DASH].resizable
-        assert screens[CONSOLE].pressable and not screens[CONSOLE].movable
+        assert screens[DASH].movable
+        assert not screens[DASH].resizable
+        assert screens[CONSOLE].pressable
+        assert not screens[CONSOLE].movable
 
 
 def _a_satellite(funestra: str, *, hud: bool = False):
@@ -3237,7 +3246,8 @@ class TestWhereTheDashboardHangs:
         the room carrying the buttons a controller can press."""
         screens = TestWhatThePointerCanReach()._screens(tmp_path)
 
-        assert screens[DASH].pressable and screens[DASH].movable
+        assert screens[DASH].pressable
+        assert screens[DASH].movable
 
     def test_it_takes_the_pairs_place_while_it_carries_the_console(self, tmp_path):
         assert self._placed(tmp_path, wrapped=True).screen.placement == SPOTS[CONSOLE]
@@ -3372,7 +3382,8 @@ class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
     def test_it_is_dragged_and_pressed_like_the_players(self):
         screen = self._hanging()
 
-        assert screen.movable and screen.pressable
+        assert screen.movable
+        assert screen.pressable
 
     def test_it_is_resized_by_the_squares_in_its_lower_corners(self):
         """The room draws those on any screen that says it can be resized, and

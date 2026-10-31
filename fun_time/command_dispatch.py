@@ -1432,7 +1432,7 @@ def _said_to_sides_in_two_modes(command: str, state: BridgeState,
     """*command* as said to each side, where one of the two sides it reaches is
     the hosted app's and the other the session's; empty otherwise."""
     said = _said_to_each_side(command)
-    if len(said) < 2 or not all(_about_a_satellite(each) for each in said):
+    if len(said) <= 1 or not all(_about_a_satellite(each) for each in said):
         return ()
     hosted = {hosts(_side_said_to(each), state, config) for each in said}
     return said if len(hosted) > 1 else ()

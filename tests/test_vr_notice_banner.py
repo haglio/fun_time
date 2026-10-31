@@ -130,7 +130,8 @@ class TestWhatTheOverlayGets:
         assert placed is not None
         x, y, bgra = placed
         assert bgra.shape[2] == 4
-        assert x >= 0 and y >= 0
+        assert x >= 0
+        assert y >= 0
 
     def test_the_banner_stays_inside_the_frame(self):
         x, _y, bgra = banner_bgra("landscape shuffle please", NOTICE, width=1152, height=2048)

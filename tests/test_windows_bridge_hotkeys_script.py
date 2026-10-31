@@ -157,7 +157,8 @@ class TestTheSessionEndsButTheScriptStays:
         exit_branch = body[body.index('(action = "exit")'):]
         guard = exit_branch[:exit_branch.index("MarkSessionEnd(")]
 
-        assert "StartupPhase" in guard and "EndingPhase" in guard
+        assert "StartupPhase" in guard
+        assert "EndingPhase" in guard
 
 
 class TestStartupPhase:
@@ -262,4 +263,5 @@ class TestWithTheHeadsetOff:
 def test_the_keys_let_go_within_a_twentieth_of_a_second_of_a_pause():
     interval = re.search(r"SetTimer\(ProcessAhkCommand, (\d+)\)", script_text())
 
-    assert interval is not None and int(interval.group(1)) <= 50
+    assert interval is not None
+    assert int(interval.group(1)) <= 50

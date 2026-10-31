@@ -545,7 +545,8 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     pids = session.read_child_pids()
     portrait = await_window("Portrait AI Funestra", 10, exact=True)
     landscape = await_window("Landscape AI Funestra", 10, exact=True)
-    assert portrait and landscape
+    assert portrait
+    assert landscape
 
     # Every band read here is waited for rather than taken once: a Funestra
     # reloading its own list after a mode switch takes no messages for a

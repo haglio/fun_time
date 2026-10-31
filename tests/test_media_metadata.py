@@ -266,7 +266,8 @@ def test_the_index_holds_one_record_per_clip(tmp_path: Path):
     assert entry.action == "Alpha"
     assert entry.weight == 4.0
     assert entry.from_image
-    assert entry.action_key is not None and entry.seed_key is not None
+    assert entry.action_key is not None
+    assert entry.seed_key is not None
     bare = index.entry(paths["no_metadata"])
     assert (bare.path, bare.action, bare.weight, bare.from_image) == (
         paths["no_metadata"], "", 1.0, False
@@ -734,7 +735,7 @@ def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
         raise OSError("the rename was refused")
 
     monkeypatch.setattr(os, "replace", refuse)
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="could not replace"):
         reject_action(paths["clip"], metadata_root)
     assert sidecar.read_text(encoding="utf-8") == before
 

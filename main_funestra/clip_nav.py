@@ -52,6 +52,7 @@ def _size(video: Path) -> int:
 
 # Words too common to identify a movie ("Best of Times", "A for Ambrose").
 _STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", "it", "on"})
+_LONGEST_FRAGMENT = 2
 
 
 def _distinctive(source: str, performer: str) -> set[str]:
@@ -62,7 +63,7 @@ def _distinctive(source: str, performer: str) -> set[str]:
     library on her name alone. Stopwords and one/two-letter fragments go too.
     """
     perf = _tokens(performer)
-    return {t for t in _tokens(source) - perf if len(t) > 2 and t not in _STOPWORDS}
+    return {t for t in _tokens(source) - perf if len(t) > _LONGEST_FRAGMENT and t not in _STOPWORDS}
 
 
 def _matches(meta: dict, text: set[str]) -> bool:

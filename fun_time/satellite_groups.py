@@ -127,7 +127,7 @@ def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
     if group_key is None:
         return None
     items = [m for m in index.action_items[group_key] if Path(m).exists()]
-    if len(items) < 2:
+    if len(items) <= 1:
         return None
     current_key = normalize_path_key(current)
     for position, item in enumerate(items):
@@ -313,7 +313,7 @@ def group_loop(
     if not current:
         return state, ops
     items, widened = _loop_items(funestra, axis, state, config, current)
-    if len(items) < 2:
+    if len(items) <= 1:
         return _locked_by_a_loop_control(funestra, clear_side_grouping(state, funestra), config,
                                          current)
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
@@ -344,7 +344,7 @@ def lock_a_loop_left_with_one_clip(
     if not axis:
         return state, []
     items, _widened = _loop_items(funestra, axis, state, config, clip_that_left)
-    if len(items) >= 2:
+    if len(items) > 1:
         return state, []
     send_satellite(config, funestra, LOCK_ON)
     state = clear_side_grouping(state.with_satellite(funestra, locked=True), funestra)
@@ -367,7 +367,7 @@ def loop_cycle(
         return state, []
     side = state.satellite(funestra)
     stop = next_stop(standing_at(loop=side.loop, locked=side.locked),
-                     lambda axis: len(_loop_items(funestra, axis, state, config, current)[0]) >= 2)
+                     lambda axis: len(_loop_items(funestra, axis, state, config, current)[0]) > 1)
     if stop == LOCK:
         return _locked_by_a_loop_control(funestra, state, config, current)
     if stop:

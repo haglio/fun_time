@@ -107,7 +107,7 @@ class TestNotice:
                level=logging.WARNING, flashes=False, spoken_at=12.5)
 
         [record], _offset = read_events(log_path)
-        assert record.spoken_at == 12.5  # noqa: PLR2004
+        assert record.spoken_at == 12.5
 
 
 class TestReadEvents:

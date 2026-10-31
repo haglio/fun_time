@@ -974,7 +974,8 @@ def test_help_reference_close_press_closes_reference_dialog(dashboard_window, da
     window = dashboard_window
 
     window._apply_presses(["help_reference"])  # a popup is open...
-    assert window._reference.dialog is not None and window._reference.dialog.isVisible()
+    assert window._reference.dialog is not None
+    assert window._reference.dialog.isVisible()
 
     window._apply_presses(["help_reference_close"])  # ...and the close dismisses it
 

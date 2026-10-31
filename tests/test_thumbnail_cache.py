@@ -94,7 +94,8 @@ def test_thumbnail_for_extracts_a_frame_scaled_within_bounds(tmp_path: Path):
 
     thumb = thumbnail_for(video, cache, max_size=32)
 
-    assert thumb is not None and thumb.is_file()
+    assert thumb is not None
+    assert thumb.is_file()
     with Image.open(thumb) as img:
         assert max(img.size) <= 32
         assert img.size[0] / img.size[1] == pytest.approx(64 / 48, abs=0.2)
@@ -106,7 +107,8 @@ def test_thumbnail_for_makes_a_still_of_an_image(tmp_path: Path):
 
     thumb = thumbnail_for(image, tmp_path / "cache", max_size=32)
 
-    assert thumb is not None and thumb.is_file()
+    assert thumb is not None
+    assert thumb.is_file()
     with Image.open(thumb) as img:
         assert max(img.size) <= 32
         assert img.size[0] / img.size[1] == pytest.approx(64 / 96, abs=0.2)
