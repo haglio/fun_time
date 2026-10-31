@@ -65,7 +65,7 @@ def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
     Origenerator mode."""
     for funestra in funestras or ("portrait", "landscape"):
         state = state.with_satellite(RoomFunestra[funestra.upper()],
-                                     mode=SatellitesMode.ORIGENERATOR)
+                                     mode=SatellitesMode.ORIGENERATOR, handed_over=True)
     return state
 
 
@@ -218,9 +218,8 @@ class TestHudPublishing:
         assert parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8")).foot == foot
 
     def test_a_side_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
-        """Between the switch and the app's first HUD -- and after it lets a
-        Funestra go -- there is nothing of the app's to draw: the Funestra names the
-        mode, with the way back on it, and no map of the videos it left."""
+        """A side the app holds with nothing of its own on it -- a slideshow over and
+        none after it -- names the mode, with the way back on it, and no map."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         (tmp_path / "origenerator_landscape_hud.json").write_text("", encoding="utf-8")
@@ -236,6 +235,59 @@ class TestHudPublishing:
             assert [[button.command for button in row] for row in published.rows] == [
                 [f"{funestra}_kino_activate", f"{funestra}_origenerator_activate",
                  f"{funestra}_minimize", *crown]]
+
+    def test_a_side_switched_to_origenerator_keeps_its_whole_kino_hud_until_the_app_takes_it(
+            self, tmp_path):
+        """Filling a side takes Origenerator seconds, and the side plays its own
+        videos meanwhile: it goes on wearing their HUD whole, Kino lit, and
+        changes in one step once the app has it (2026-10-29)."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
+        asked = BridgeState(origenerator_ready=True).with_satellite(
+            RoomFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
+
+        feed.publish(asked)
+
+        portrait = hud(tmp_path, "portrait")
+        assert portrait["corner"]["path"] == "C:/v/p.mp4"
+        assert [(button["command"], bool(button.get("lit"))) for button in portrait["rows"][0][:2]] == [
+            ("portrait_kino_activate", True), ("portrait_origenerator_activate", False)]
+
+    def test_a_side_handed_back_wears_the_kino_hud_of_the_video_it_comes_home_to_at_once(
+            self, tmp_path):
+        """Its Funestra goes on naming the app's picture until it has opened the
+        video it was handed back on, and a Kino HUD built around that picture
+        has no map (2026-10-29)."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        status = tmp_path / "portrait_status.txt"
+        publish_satellite_status(status, "C:/v/p.mp4")
+        feed.publish(BridgeState())
+        away = _hosted(BridgeState(), "portrait")
+        publish_satellite_status(status, "C:/g/scene one.png")
+        feed.publish(away)
+
+        comes_home_to = feed.the_video_it_comes_home_to(RoomFunestra.PORTRAIT)
+        feed.publish(BridgeState())
+
+        assert comes_home_to == "C:/v/p.mp4"
+        assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
+        publish_satellite_status(status, "C:/v/p.mp4")
+        feed.publish(BridgeState(active_funestra=2))
+        assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
+
+    def test_a_side_on_its_way_home_keeps_the_apps_last_hud_once_the_app_lets_go(
+            self, tmp_path):
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        hosted_file = tmp_path / "origenerator_portrait_hud.json"
+        hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
+                               encoding="utf-8")
+        away = _hosted(BridgeState(), "portrait")
+        feed.publish(away)
+        hosted_file.write_text("", encoding="utf-8")
+
+        feed.publish(away.with_satellite(RoomFunestra.PORTRAIT, mode=SatellitesMode.KINO))
+
+        assert hud(tmp_path, "portrait")["title"] == "Locked"
 
     def test_a_side_in_kino_mode_beside_a_hosted_one_keeps_its_own_map(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))

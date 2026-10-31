@@ -1442,7 +1442,7 @@ def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfi
     """Whether the hosted app holds *funestra*: a Satellite Funestra in its
     Origenerator mode, in a session hosting the app."""
     return (funestra in RoomFunestra.SATELLITES and config.hosts_origenerator
-            and origenerator_shows(state.satellite(funestra).mode))
+            and state.satellite(funestra).handed_over)
 
 
 def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:
@@ -1486,9 +1486,10 @@ def _switch_satellite(funestra: RoomFunestra, target: SatellitesMode, state: Bri
     )
     logger.info(result.log_message)
     state = state.with_satellite(funestra, mode=result.next_mode)
-    if result.is_transition and not origenerator_shows(result.next_mode):
-        return state, [WindowOp(op="take_back_funestras", key=funestra.label)]
-    return state, []
+    if not result.is_transition:
+        return state, []
+    way = "hand_over_funestras" if origenerator_shows(result.next_mode) else "take_back_funestras"
+    return state, [WindowOp(op=way, key=funestra.label)]
 
 
 def _dispatch_mode_switch(
@@ -1788,7 +1789,8 @@ def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
                             config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if target is None:
-        held = all(hosts(funestra, state, config) for funestra in RoomFunestra.SATELLITES)
+        held = all(origenerator_shows(state.satellite(funestra).mode)
+                   for funestra in RoomFunestra.SATELLITES)
         target = KINO_MODE if held else ORIGENERATOR_MODE
     refused = origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:

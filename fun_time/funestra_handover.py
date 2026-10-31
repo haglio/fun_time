@@ -44,6 +44,15 @@ def show_f_mode(channel: SatelliteChannel) -> bool | None:
                  if button.command == f"{hud.funestra}_fmode"), None)
 
 
+def taken_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
+    if hud_stamp(channel) == stamp:
+        return False
+    try:
+        return bool(channel.origenerator_hud_file.read_text(encoding="utf-8").strip())
+    except OSError:
+        return False
+
+
 def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
     """Whether the hosted app has published *channel*'s HUD empty since *stamp* --
     its close, which only reading the way out makes it do.  An empty one already
@@ -79,7 +88,7 @@ def keep_aside(channel: SatelliteChannel) -> None:
     write_playlist(kept, rotated_onto(entries, video))
 
 
-def take_back_the_list(playlist_file: Path) -> bool:
+def take_back_the_list(playlist_file: Path, *, onto: str = "") -> bool:
     """Put the list kept aside for *playlist_file* back in it; ``False`` with none kept.
 
     The kept list is spent by it: a stale one would be dealt over whatever the
@@ -89,13 +98,13 @@ def take_back_the_list(playlist_file: Path) -> bool:
     entries = read_playlist(kept)
     if not entries:
         return False
-    write_playlist(playlist_file, entries)
+    write_playlist(playlist_file, rotated_onto(entries, onto) if onto else entries)
     kept.unlink(missing_ok=True)
     return True
 
 
-def hand_back(channel: SatelliteChannel) -> bool:
-    if not take_back_the_list(channel.playlist_file):
+def hand_back(channel: SatelliteChannel, *, onto: str = "") -> bool:
+    if not take_back_the_list(channel.playlist_file, onto=onto):
         return False
     append_command(channel.cmd_file, RELOAD_PLAYLIST)
     return True
