@@ -1748,11 +1748,12 @@ class TestTheShellsWordsForTheRoom:
             if not isinstance(node, ast.Attribute):
                 continue
             chain = []
-            while isinstance(node, ast.Attribute):
-                chain.append(node.attr)
-                node = node.value
-            if isinstance(node, ast.Name):
-                reads.append((node.id, *reversed(chain)))
+            reached = node
+            while isinstance(reached, ast.Attribute):
+                chain.append(reached.attr)
+                reached = reached.value
+            if isinstance(reached, ast.Name):
+                reads.append((reached.id, *reversed(chain)))
         return reads
 
     def test_every_name_the_shell_reads_off_the_room_is_one_it_answers(
@@ -1787,7 +1788,7 @@ class TestWatchingTheCover:
         """The cover reads the same whether or not anyone is at the lenses, and
         waiting for a WORN headset spent the whole 25s grace in 26 of his last 40
         sessions -- so the reveal counts the frames the cover was drawn on."""
-        cover, scene_ready, watch = self._watch()
+        _cover, scene_ready, watch = self._watch()
 
         watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
         watch.frame_began(blank=(), focused=False, views_tracked=True)
@@ -1795,7 +1796,7 @@ class TestWatchingTheCover:
         scene_ready.note.assert_called_with(blank=(), read=True)
 
     def test_a_blank_screen_is_named_to_the_reveal(self):
-        cover, scene_ready, watch = self._watch()
+        _cover, scene_ready, watch = self._watch()
 
         watch.frame_began(blank=("portrait",), focused=False, views_tracked=True)
 

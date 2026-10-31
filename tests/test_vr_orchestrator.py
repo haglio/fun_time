@@ -680,7 +680,7 @@ class TestStockingThePlaylists:
         assert self._main_list(tmp_path) == [str(vr_clip)]
 
     def test_2d_only_holds_every_2d_video_and_no_vr_one(self, config, tmp_path):
-        vr_clip, flat = self._library(tmp_path)
+        _vr_clip, flat = self._library(tmp_path)
         arrived = tmp_path / "library" / "2D" / "scene three.mp4"
         arrived.write_bytes(b"")
 
