@@ -215,13 +215,6 @@ def test_read_genau_status_names_the_flick_on_screen(tmp_path: Path):
     assert read_genau_status(status_file).flick == "C:\\flicks\\alpha.mp4"
 
 
-def test_read_genau_status_reads_the_flick_a_genau_from_before_the_rename_names_as_clip(tmp_path: Path):
-    status_file = tmp_path / "genau_status.txt"
-    status_file.write_text("clip=C:\\flicks\\alpha.mp4\n", encoding="utf-8")
-
-    assert read_genau_status(status_file).flick == "C:\\flicks\\alpha.mp4"
-
-
 def test_read_genau_status_reads_no_flick_before_one_is_up(tmp_path: Path):
     """Genau publishes from its refresh loop, which can run before the first flick
     is decoded — and an older Genau does not publish the key at all."""

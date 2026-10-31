@@ -187,7 +187,7 @@ def _genau_status_from(values: dict) -> GenauStatus:
         learned_active=_status_bool(values, "learned"),
         locked=_status_bool(values, "locked", default=True),
         shape=values.get("shape", "sine").strip(),
-        flick=(values.get("flick") or values.get("clip") or "").strip(),
+        flick=values.get("flick", "").strip(),
         flipped=_status_bool(values, "flipped"),
         portrait=_status_flag_or_none(values, "portrait"),
     )
