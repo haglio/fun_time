@@ -128,7 +128,8 @@ class TestWhatItSays:
         _hung(toggle)
 
         button, tip = toggle.hangings()
-        assert button.screen.pressable and not tip.screen.pressable
+        assert button.screen.pressable
+        assert not tip.screen.pressable
 
     def test_it_is_painted_once_while_nothing_about_it_changes(self):
         texture = _Texture()

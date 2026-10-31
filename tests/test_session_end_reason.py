@@ -97,12 +97,14 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     assert chord.index('MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")') < chord.index(
         "EndTheSession()")
     ending = function_source("EndTheSession")
-    assert "MarkSessionEnd(" not in ending and "ExitApp" not in ending
+    assert "MarkSessionEnd(" not in ending
+    assert "ExitApp" not in ending
     mailbox = function_source("ProcessAhkCommand")
     asked = mailbox[mailbox.index('(action = "end_session")'):mailbox.index('(action = "exit")')]
     assert asked.index("KeepOrMarkSessionEnd(") < asked.index("EndTheSession()")
     exit_branch = mailbox[mailbox.index('(action = "exit")'):]
-    assert "KeepOrMarkSessionEnd(" in exit_branch and "ExitApp()" in exit_branch
+    assert "KeepOrMarkSessionEnd(" in exit_branch
+    assert "ExitApp()" in exit_branch
 
 
 def test_the_command_channel_keeps_the_phrase_whatever_asked_left():
@@ -186,7 +188,8 @@ def test_a_crossing_to_the_headset_names_itself(tmp_path):
     make_runner(tmp_path)._handle_command("enter_vr")
 
     reason = (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
-    assert "crossing" in reason and "FunTimeVR" in reason
+    assert "crossing" in reason
+    assert "FunTimeVR" in reason
 
 
 def test_a_marker_from_a_session_that_was_cut_off_is_not_worn_by_the_next(

@@ -3505,7 +3505,8 @@ def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
         monkeypatch.undo()
 
         assert _presses_until(recv_sock, "pause") == ["pause"]
-    assert opened and all(sender.fileno() == -1 for sender in opened)
+    assert opened
+    assert all(sender.fileno() == -1 for sender in opened)
 
 
 class TestASessionThatHostsNoOrigenerator:

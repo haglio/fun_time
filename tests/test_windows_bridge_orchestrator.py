@@ -391,7 +391,8 @@ class TestFixPostLoadingWindows:
                     if name.startswith("origenerator")]
         # And each satellite rect is watched for its own Funestra, always.
         watched = [call.args[1] for call in obstruction.call_args_list]
-        assert 111 in watched and 222 in watched
+        assert 111 in watched
+        assert 222 in watched
 
     def test_it_hands_back_the_windows_it_resolved(self):
         """The reveal re-asserts the bands once the overlay is gone, and does

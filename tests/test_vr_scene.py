@@ -140,7 +140,8 @@ class TestQuadLayerPlacement:
         # quads, or a lifted satellite would lean back.
         _position, orientation, _size = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
         x, y, z, w = orientation
-        assert x == 0.0 and z == 0.0
+        assert x == 0.0
+        assert z == 0.0
         assert math.hypot(y, w) == pytest.approx(1.0, rel=1e-9)
 
     def test_degenerate_aspect_is_rejected(self):

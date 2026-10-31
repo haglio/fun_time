@@ -74,20 +74,25 @@ def test_the_states_light_and_nothing_else_does():
     band = _band(locked=True, favorites_filter=True, latest=True)
     lit = dict(zip(_names(band), band, strict=True))
 
-    assert lit["lock"].lit and lit["lock"].favorite
-    assert lit["fmode"].lit and lit["fmode"].favorite
-    assert lit["latest"].lit and not lit["shuffle"].lit
+    assert lit["lock"].lit
+    assert lit["lock"].favorite
+    assert lit["fmode"].lit
+    assert lit["fmode"].favorite
+    assert lit["latest"].lit
+    assert not lit["shuffle"].lit
     assert not any(lit[name].lit for name in (
         "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "trash", "reset",
         "cycle_version", "minimize"))
     shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False), strict=True))
-    assert shuffled["shuffle"].lit and not shuffled["latest"].lit
+    assert shuffled["shuffle"].lit
+    assert not shuffled["latest"].lit
 
 
 def test_the_order_pair_is_declared_only_where_the_order_can_be_switched():
     """The origenerator-mode HUD has an order but no way to change it from
     here, and two buttons nothing answers are two dead buttons."""
-    assert "shuffle" not in _names(_band()) and "latest" not in _names(_band())
+    assert "shuffle" not in _names(_band())
+    assert "latest" not in _names(_band())
     assert "shuffle" in _names(_band(latest=False))
 
 
@@ -113,7 +118,8 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
         "Origenerator mode — this Funestra plays Origenerator's slideshows")
     assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
-    assert rows[0][2].group_break and rows[0][2].glyph == MINIMIZE_ICON
+    assert rows[0][2].group_break
+    assert rows[0][2].glyph == MINIMIZE_ICON
     assert "minimize" not in _names(rows[1])
     assert len(funestra_rows("portrait")) == 1
 
@@ -174,7 +180,9 @@ def test_skip_ahead_rides_the_transport_as_the_main_funestras_does():
 
     assert shared_mark_name(jump.glyph) == "funscript_jump"
     assert jump.tooltip == "Skip ahead to where this clip's scripting starts up again"
-    assert not jump.group_break and not jump.lit and not jump.dim
+    assert not jump.group_break
+    assert not jump.lit
+    assert not jump.dim
 
 
 @pytest.mark.parametrize(("has_osr2", "has_funscript", "why"), [
@@ -208,8 +216,10 @@ def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
     longer = {b.command: b for b in _band(longer_than_a_step=True)}
 
     for step in ("portrait_nudge_prev", "portrait_nudge_next"):
-        assert short[step].dim and "this clip is 10s or shorter" in short[step].tooltip
-        assert not longer[step].dim and "shorter" not in longer[step].tooltip
+        assert short[step].dim
+        assert "this clip is 10s or shorter" in short[step].tooltip
+        assert not longer[step].dim
+        assert "shorter" not in longer[step].tooltip
 
 
 def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
@@ -218,8 +228,10 @@ def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
     alone = {b.command: b for b in _band()}["portrait_cycle_version"]
     paired = {b.command: b for b in _band(has_other_versions=True)}["portrait_cycle_version"]
 
-    assert alone.dim and "none for this one" in alone.tooltip
-    assert not paired.dim and "none" not in paired.tooltip
+    assert alone.dim
+    assert "none for this one" in alone.tooltip
+    assert not paired.dim
+    assert "none" not in paired.tooltip
     assert shared_mark_name(_faces()["cycle_version"]) == "versions"
 
 

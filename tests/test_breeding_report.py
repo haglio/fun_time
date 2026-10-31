@@ -53,14 +53,18 @@ def test_build_breeding_rows_ranks_by_the_stamped_weight_with_metadata_identity(
     assert [row.weight for row in rows] == sorted((row.weight for row in rows), reverse=True)
     assert [row.path for row in rows] == [paths["loved"], paths["wide_meh"], paths["hated_bare"]]
     first_row = rows[0]
-    assert first_row.completions == 6 and first_row.locks == 1 and first_row.skips == 0
+    assert first_row.completions == 6
+    assert first_row.locks == 1
+    assert first_row.skips == 0
     assert first_row.orientation == "P"
     assert first_row.action == "Alpha"
     assert first_row.seed == "111"
     assert first_row.prompt == "two cute dolls, rainbow bedroom"
     assert rows[1].orientation == "L"
     last_row = rows[-1]
-    assert last_row.action == "" and last_row.seed == "" and last_row.prompt == ""
+    assert last_row.action == ""
+    assert last_row.seed == ""
+    assert last_row.prompt == ""
 
 
 def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path):
@@ -79,10 +83,13 @@ def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path)
     assert "L=locks" in first_line
     assert "S=skips" in first_line
     assert "O=orientation (P/L)" in first_line
-    assert "Rising" in report and "Fading" in report
+    assert "Rising" in report
+    assert "Fading" in report
     lines = report.splitlines()
     loved_line = next(line for line in lines if "loved.mp4" in line)
-    assert "x8.00" in loved_line and "Alpha" in loved_line and "111" in loved_line
+    assert "x8.00" in loved_line
+    assert "Alpha" in loved_line
+    assert "111" in loved_line
     assert "p" * 100 not in report, "long prompts must be truncated"
     hated_line = next(line for line in lines if "hated.mp4" in line)
     assert "x0.12" in hated_line
@@ -123,5 +130,6 @@ def test_main_prints_the_leaderboard_for_the_configured_library(cfg_factory, tmp
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "1 clips tracked" in out
-    assert "loved.mp4" in out and "Alpha" in out
+    assert "loved.mp4" in out
+    assert "Alpha" in out
     assert "unwatched.mp4" not in out

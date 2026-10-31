@@ -917,7 +917,8 @@ def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
                                   config)
 
     assert state.main_length_mode is LengthMode.MIXED
-    assert builds.asked == [] and not config.main_funestra_cmd_file.exists()
+    assert builds.asked == []
+    assert not config.main_funestra_cmd_file.exists()
     assert [op.op for op in ops] == [Op.IGNORED]
 
 
@@ -1621,7 +1622,8 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
 
     assert _cmds(config, 2) == []  # an empty axis: nothing switched
     dead_end = [op for op in ops if op.op == "notice"]
-    assert dead_end and dead_end[0].level == logging.WARNING
+    assert dead_end
+    assert dead_end[0].level == logging.WARNING
 
 
 def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
@@ -1659,7 +1661,8 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
     assert _cmds(config, 2) == []
     assert new_state.satellite(RoomFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
     dead_end = [op for op in ops if op.op == "notice"]
-    assert dead_end and dead_end[0].level == logging.WARNING
+    assert dead_end
+    assert dead_end[0].level == logging.WARNING
 
 
 def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
@@ -2176,7 +2179,8 @@ def test_a_successful_cycle_action_notice_is_an_ordinary_white_notice(tmp_path: 
     _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     notices = [op for op in ops if op.op == "notice"]
-    assert notices and all(op.level == NOTICE for op in notices)
+    assert notices
+    assert all(op.level == NOTICE for op in notices)
 
 
 def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
@@ -4407,7 +4411,8 @@ def test_an_orientation_press_in_genau_mode_tells_genau_on_the_main_funestras_ch
     assert (state.main_plays_portrait, state.main_plays_landscape) == (True, True)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
         "SET_GENAU_ORIENTATIONS landscape"]
-    assert builds.asked == [] and ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
+    assert builds.asked == []
+    assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
 
 def test_neither_orientation_holds_genaus_flick_as_neither_shape_does(tmp_path, monkeypatch):
@@ -4466,7 +4471,8 @@ def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
 
     _state, ops = dispatch_command("main_projection_both", _make_state(), config)
 
-    assert builds.asked == [] and ops == []
+    assert builds.asked == []
+    assert ops == []
 
 
 @pytest.mark.parametrize(("command", "state"), [
@@ -4504,8 +4510,10 @@ def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path):
 
     state, ops = dispatch_command("main_projection_vr", _make_state(), config)
 
-    assert state.main_plays_vr is True and state.main_plays_flat is True
-    assert builds.asked == [] and ops == []
+    assert state.main_plays_vr is True
+    assert state.main_plays_flat is True
+    assert builds.asked == []
+    assert ops == []
 
 
 def _genau_vr_config(tmp_path):
@@ -4574,7 +4582,8 @@ def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path)
     _state, ops = dispatch_command(
         "main_projection_both", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert ops == [] and not config.genau_cmd_file.exists()
+    assert ops == []
+    assert not config.genau_cmd_file.exists()
 
 
 def test_a_genau_with_only_flat_flicks_ignores_the_filter(tmp_path):
@@ -4585,7 +4594,8 @@ def test_a_genau_with_only_flat_flicks_ignores_the_filter(tmp_path):
         "main_projection_vr", _make_state(main_mode=MainMode.GENAU), config)
 
     assert (state.genau_plays_vr, state.genau_plays_flat) == (True, True)
-    assert ops == [] and not config.genau_cmd_file.exists()
+    assert ops == []
+    assert not config.genau_cmd_file.exists()
 
 
 def test_main_reset_puts_back_the_defaults_the_main_funestra_holds_itself(tmp_path):
@@ -4966,7 +4976,8 @@ class TestOrigeneratorTransport:
         for command in presses:
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == list(presses)
-        assert _cmds(config, 2) == [] and _cmds(config, 3) == []
+        assert _cmds(config, 2) == []
+        assert _cmds(config, 3) == []
 
     def test_a_side_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path):
         """A rebuild would write the session's own list over the one the hosted

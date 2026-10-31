@@ -91,4 +91,5 @@ def test_joining_the_line_forgets_runs_older_than_two_weeks(tmp_path):
 
     _join(tmp_path, session="", what=[], short=False).leave()
 
-    assert not old.exists() and recent.exists()
+    assert not old.exists()
+    assert recent.exists()

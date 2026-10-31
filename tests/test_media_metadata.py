@@ -266,7 +266,8 @@ def test_the_index_holds_one_record_per_clip(tmp_path: Path):
     assert entry.action == "Alpha"
     assert entry.weight == 4.0
     assert entry.from_image
-    assert entry.action_key is not None and entry.seed_key is not None
+    assert entry.action_key is not None
+    assert entry.seed_key is not None
     bare = index.entry(paths["no_metadata"])
     assert (bare.path, bare.action, bare.weight, bare.from_image) == (
         paths["no_metadata"], "", 1.0, False

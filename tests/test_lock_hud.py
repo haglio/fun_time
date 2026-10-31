@@ -448,7 +448,8 @@ def test_the_lock_word_stands_down_while_a_loop_runs():
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", map_anchor=CUR,
     )
 
-    assert "Locked" not in hud.title and "Unlocked" not in hud.title
+    assert "Locked" not in hud.title
+    assert "Unlocked" not in hud.title
     assert "Shuffle" in hud.title
 
 
@@ -844,11 +845,14 @@ def test_a_satellites_hud_indexes_its_own_side_and_carries_the_lock(tmp_path: Pa
                    filter_query="beta gamma"), metadata_root, "")
     landscape = build_satellite_hud(SatelliteInputs("landscape"), metadata_root, "")
 
-    assert portrait.funestra == "portrait" and portrait.locked is True
+    assert portrait.funestra == "portrait"
+    assert portrait.locked is True
     assert portrait.action_siblings == [sibling]
     assert portrait.filter_query == "beta gamma"
-    assert landscape.funestra == "landscape" and landscape.locked is False
-    assert landscape.action_siblings == [] and landscape.seed_siblings == []
+    assert landscape.funestra == "landscape"
+    assert landscape.locked is False
+    assert landscape.action_siblings == []
+    assert landscape.seed_siblings == []
     assert landscape.filter_query == ""
 
 

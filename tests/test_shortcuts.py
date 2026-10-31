@@ -84,6 +84,7 @@ class TestResolveShortcut:
             assert resolve_shortcut(r"C:\fake\s.lnk") == Shortcut()
 
         said = " ".join(record.getMessage() for record in caplog.records)
-        assert "COM" in said and "PowerShell" in said
+        assert "COM" in said
+        assert "PowerShell" in said
         assert any(record.exc_info for record in caplog.records), (
             "the fall-through has to carry what was raised, or it explains nothing")
