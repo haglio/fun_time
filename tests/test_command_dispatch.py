@@ -680,7 +680,7 @@ def test_marking_genaus_flick_weird_takes_it_out_of_the_favorites_as_a_satellite
 def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    dispatch_command("main_player_lock", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_lock", _make_state(main_mode=MainMode.KINO), config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
     assert not config.genau_cmd_file.exists()
@@ -688,7 +688,7 @@ def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tm
 
 @pytest.mark.parametrize(("key_command", "main_mode"), [
     ("genau_lock", MainMode.KINO),
-    ("main_player_lock", MainMode.GENAU),
+    ("main_funestra_lock", MainMode.GENAU),
 ])
 def test_a_lock_key_does_nothing_while_the_other_funestra_is_on_the_main_screen(
         tmp_path: Path, key_command, main_mode):
@@ -702,7 +702,7 @@ def test_a_lock_key_does_nothing_while_the_other_funestra_is_on_the_main_screen(
 
 @pytest.mark.parametrize(("command", "main_mode"), [
     ("main_lock", MainMode.KINO),
-    ("main_player_lock", MainMode.KINO),
+    ("main_funestra_lock", MainMode.KINO),
     ("genau_lock", MainMode.GENAU),
 ])
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
@@ -773,7 +773,7 @@ def test_main_funestra_cycle_version_writes_main_funestra_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    dispatch_command("main_player_cycle_version", state, config)
+    dispatch_command("main_funestra_cycle_version", state, config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
 
@@ -782,7 +782,7 @@ def test_main_funestra_cycle_version_back_writes_the_other_way(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="kino")
 
-    dispatch_command("main_player_cycle_version_back", state, config)
+    dispatch_command("main_funestra_cycle_version_back", state, config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
 
@@ -853,9 +853,9 @@ def _on_screen(config: BridgeConfig, video: str, **status: str) -> None:
 
 
 @pytest.mark.parametrize(("command", "length"), [
-    ("main_player_length_clips", LengthMode.CLIPS),
-    ("main_player_length_full", LengthMode.FULL),
-    ("main_player_length_mixed", LengthMode.MIXED),
+    ("main_funestra_length_clips", LengthMode.CLIPS),
+    ("main_funestra_length_full", LengthMode.FULL),
+    ("main_funestra_length_mixed", LengthMode.MIXED),
 ])
 def test_a_length_button_narrows_the_one_main_list_from_the_video_on_screen(
         tmp_path: Path, command, length):
@@ -878,7 +878,7 @@ def test_the_length_key_walks_mixed_clips_full_and_round_again(tmp_path: Path):
     walked = []
 
     for _ in range(3):
-        state, _ops = dispatch_command("main_player_toggle_length", state, config)
+        state, _ops = dispatch_command("main_funestra_toggle_length", state, config)
         walked.append(state.main_length_mode)
 
     assert walked == [LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
@@ -887,7 +887,7 @@ def test_the_length_key_walks_mixed_clips_full_and_round_again(tmp_path: Path):
 def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
     config, builds = _recording(_make_config(tmp_path))
 
-    _state, ops = dispatch_command("main_player_length_mixed", _make_state(), config)
+    _state, ops = dispatch_command("main_funestra_length_mixed", _make_state(), config)
 
     assert (builds.asked, ops) == ([], [])
 
@@ -898,7 +898,7 @@ def test_inside_a_compilation_naming_the_length_running_is_the_way_back_out(tmp_
     config, builds = _recording(_make_config(tmp_path))
     _on_screen(config, "C:/v/clip one.mp4", compilation="Vol6")
 
-    dispatch_command("main_player_length_mixed", _make_state(), config)
+    dispatch_command("main_funestra_length_mixed", _make_state(), config)
 
     assert [build.settings.length for build in builds.asked] == [LengthMode.MIXED]
 
@@ -909,7 +909,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    dispatch_command("main_player_end_compilation", state, config)
+    dispatch_command("main_funestra_end_compilation", state, config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
@@ -918,7 +918,7 @@ def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
     """Length/version actions are inert in genau mode, where Genau owns the display."""
     config, builds = _recording(_make_config(tmp_path))
 
-    state, ops = dispatch_command("main_player_length_clips", _make_state(main_mode=MainMode.GENAU),
+    state, ops = dispatch_command("main_funestra_length_clips", _make_state(main_mode=MainMode.GENAU),
                                   config)
 
     assert state.main_length_mode is LengthMode.MIXED
@@ -931,25 +931,25 @@ def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
 
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_compilation", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_compilation", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_full_vid", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_full_vid", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
 
 
 def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_clip_jump", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_clip_jump", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_funscript_jump", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_funscript_jump", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
@@ -957,7 +957,7 @@ def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO, osr2_funestra=RoomFunestra.PORTRAIT)
 
-    _, ops = dispatch_command("main_player_funscript_jump", state, config)
+    _, ops = dispatch_command("main_funestra_funscript_jump", state, config)
 
     assert not config.main_funestra_cmd_file.exists()
     assert ops == [WindowOp(op="notice", key="The Main Funestra doesn't have the OSR2",
@@ -986,13 +986,13 @@ def test_a_satellites_skip_ahead_is_refused_while_another_funestra_has_the_osr2(
 
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_next_funscripted", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
 
 
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_compilation", _make_state(main_mode=MainMode.GENAU), config)
+    dispatch_command("main_funestra_compilation", _make_state(main_mode=MainMode.GENAU), config)
     assert not config.main_funestra_cmd_file.exists()
 
 
@@ -1000,18 +1000,18 @@ def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
     """Genau owns the display and the device there; the Main Funestra's playlist and script are
     not what the room is watching, so a jump into them would be invisible."""
     config = _make_config(tmp_path)
-    dispatch_command("main_player_next_funscripted", _make_state(main_mode=MainMode.GENAU), config)
+    dispatch_command("main_funestra_next_funscripted", _make_state(main_mode=MainMode.GENAU), config)
     assert not config.main_funestra_cmd_file.exists()
 
 
 def test_clip_nav_voice_phrases():
-    assert VOICE_COMMANDS["compilation"] == "main_player_compilation"
-    assert VOICE_COMMANDS["full video"] == "main_player_full_vid"
+    assert VOICE_COMMANDS["compilation"] == "main_funestra_compilation"
+    assert VOICE_COMMANDS["full video"] == "main_funestra_full_vid"
     # The clip-jump phrases are overlay content, so take them from whichever
     # overlay is loaded rather than naming one.
 
     for phrase in load_content()["clip_jump_phrases"]:
-        assert VOICE_COMMANDS[phrase] == "main_player_clip_jump"
+        assert VOICE_COMMANDS[phrase] == "main_funestra_clip_jump"
 
 
 def test_funscript_nav_voice_phrases_are_split_for_vosk():
@@ -1021,8 +1021,8 @@ def test_funscript_nav_voice_phrases_are_split_for_vosk():
     Funestra's own, under the ids its console posts."""
     assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert VOICE_COMMANDS["next fun scripted"] == "active_next_funscripted"
-    assert VOICE_COMMANDS["main jump to fun script"] == "main_player_funscript_jump"
-    assert VOICE_COMMANDS["next fun scripted main"] == "main_player_next_funscripted"
+    assert VOICE_COMMANDS["main jump to fun script"] == "main_funestra_funscript_jump"
+    assert VOICE_COMMANDS["next fun scripted main"] == "main_funestra_next_funscripted"
     assert VOICE_COMMANDS["portrait jump to fun script"] == "portrait_funscript_jump"
     assert VOICE_COMMANDS["both next fun scripted"] == "both_next_funscripted"
     assert "jump to funscript" not in VOICE_COMMANDS
@@ -1070,7 +1070,7 @@ def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
 
 
 def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: Path):
-    """Same player-mix-up pin for the destructive sibling: a swapped Funestra here
+    """Same Funestra-mix-up pin for the destructive sibling: a swapped Funestra here
     would condemn whatever the Portrait Funestra happened to be showing."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
@@ -1122,7 +1122,7 @@ def test_a_fresh_session_starts_with_the_primary_active():
 
 def test_portrait_command_sets_active_funestra_to_portrait(tmp_path: Path):
     """A portrait command marks portrait as the active Funestra, so a later
-    player-agnostic command ('lock', 'next', ...) knows which Funestra to hit."""
+    command that names none ('lock', 'next', ...) knows which Funestra to hit."""
     config = _make_config(tmp_path)
     state = _make_state(active_funestra=3)  # currently on landscape
 
@@ -1170,7 +1170,7 @@ def test_naming_a_funestras_f_mode_makes_it_the_active_one(tmp_path: Path):
 def test_naming_a_funestras_playback_speed_makes_it_the_active_one(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    for command in ("main_player_speed_up", "main_player_speed_down", "main_player_speed_150"):
+    for command in ("main_funestra_speed_up", "main_funestra_speed_down", "main_funestra_speed_150"):
         new_state, _ops = dispatch_command(command, _make_state(active_funestra=3), config)
         assert new_state.active_funestra == 1, command
     new_state, _ops = dispatch_command("portrait_speed_50", _make_state(active_funestra=1), config)
@@ -1228,7 +1228,7 @@ def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Pat
     for mode in ("genau", "kino"):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
-        assert ops == [WindowOp(op="minimize_role", key="main_player")], mode
+        assert ops == [WindowOp(op="minimize_role", key="main_funestra")], mode
 
 
 # --- omnipause_toggle ---
@@ -2589,8 +2589,8 @@ def test_a_switch_brings_the_main_funestras_window_back_and_hands_it_the_focus(t
 
         assert new_state.main_mode is to_mode
         assert ops == [
-            WindowOp(op="show_role", key="main_player"),
-            WindowOp(op="activate_role", key="main_player"),
+            WindowOp(op="show_role", key="main_funestra"),
+            WindowOp(op="activate_role", key="main_funestra"),
         ]
 
 
@@ -2710,29 +2710,29 @@ def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: 
 
 def test_the_main_funestras_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_min", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_speed_min", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_max", _make_state(main_mode=MainMode.GENAU), config)
+    dispatch_command("main_funestra_speed_max", _make_state(main_mode=MainMode.GENAU), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
 
 
 def test_main_funestra_multiplier_sets_main_funestra_speed(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_150", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_speed_150", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
 
 
 def test_main_funestra_speed_up_down_nudge_the_video_rate_where_main_funestra_is_on_screen(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_up", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_speed_up", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
 
 @pytest.mark.parametrize("command", [
-    "main_player_speed_up", "main_player_speed_down", "main_player_speed_150"])
+    "main_funestra_speed_up", "main_funestra_speed_down", "main_funestra_speed_150"])
 def test_the_main_funestras_video_rate_is_ignored_in_genau_mode(tmp_path: Path, command: str):
     config = _make_config(tmp_path)
 
@@ -2751,7 +2751,7 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
     _set_main_funestra_driving(config, driving=False)
     state = _make_state(main_mode=MainMode.KINO)
 
-    dispatch_command("main_player_speed_down", state, config)
+    dispatch_command("main_funestra_speed_down", state, config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.genau_cmd_file.exists()
@@ -2765,7 +2765,7 @@ def test_absolute_speed_reaches_main_funestra_video_in_kino_mode_even_when_genau
     _set_main_funestra_driving(config, driving=False)  # Genau owns the OSR2 this stretch
     state = _make_state(main_mode=MainMode.KINO)
 
-    dispatch_command("main_player_speed_150", state, config)
+    dispatch_command("main_funestra_speed_150", state, config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
     assert not config.genau_cmd_file.exists()
 
@@ -2773,13 +2773,13 @@ def test_absolute_speed_reaches_main_funestra_video_in_kino_mode_even_when_genau
 def test_the_main_funestras_max_sets_its_video_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=False)
-    dispatch_command("main_player_speed_max", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_speed_max", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("main_player_speed_100", _make_state(main_mode=MainMode.KINO), config)
+    dispatch_command("main_funestra_speed_100", _make_state(main_mode=MainMode.KINO), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
 
 
@@ -3388,10 +3388,10 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
 
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert any(op.op == "activate_role" and op.key == "main_player" for op in ops)
+    assert any(op.op == "activate_role" and op.key == "main_funestra" for op in ops)
 
 
-# --- main-player nudge ---
+# --- Main Funestra nudge ---
 
 
 @pytest.mark.parametrize("main_mode", list(MainMode))
@@ -3491,10 +3491,10 @@ def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_
     state = _make_state(main_mode=MainMode.KINO)
 
     for command, expected in [
-        ("main_player_record_down", "RECORD_DOWN"),
-        ("main_player_record_up", "RECORD_UP"),
-        ("main_player_record_tap", "RECORD_TAP"),
-        ("main_player_loop_cancel", "LOOP_CANCEL"),
+        ("main_funestra_record_down", "RECORD_DOWN"),
+        ("main_funestra_record_up", "RECORD_UP"),
+        ("main_funestra_record_tap", "RECORD_TAP"),
+        ("main_funestra_loop_cancel", "LOOP_CANCEL"),
     ]:
         new_state, ops = dispatch_command(command, state, config)
         assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == expected + "\n"
@@ -3507,7 +3507,7 @@ def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    new_state, ops = dispatch_command("main_player_record_tap", state, config)
+    new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
     assert ops == []
@@ -3517,7 +3517,7 @@ def test_main_funestra_record_commands_are_ignored_in_genau_mode(tmp_path: Path)
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("main_player_record_tap", state, config)
+    new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
 
     assert not config.main_funestra_cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
@@ -4381,12 +4381,12 @@ def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path):
 def test_a_length_press_hands_the_rebuild_what_it_left_to_say(tmp_path):
     config, builds = _recording(_make_config(tmp_path))
 
-    state, ops = dispatch_command("main_player_length_clips", _make_state(), config)
+    state, ops = dispatch_command("main_funestra_length_clips", _make_state(), config)
 
     assert builds.asked[-1].says == "Clips only"
     assert ops == [WindowOp(op=Op.NARROWING_ANSWERS)]
 
-    dispatch_command("main_player_length_mixed", state, config)
+    dispatch_command("main_funestra_length_mixed", state, config)
 
     assert builds.asked[-1].says == "Clips + Full"
 
@@ -4476,8 +4476,8 @@ def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
 
 @pytest.mark.parametrize(("command", "state"), [
     ("main_projection_none", BridgeState()),
-    ("main_player_length_none", BridgeState()),
-    ("main_player_length_clips", BridgeState(main_plays_flat=False)),
+    ("main_funestra_length_none", BridgeState()),
+    ("main_funestra_length_clips", BridgeState(main_plays_flat=False)),
 ])
 def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, command, state):
     """Both shapes off, both lengths off, or a mix no video passes -- VR only with
@@ -5607,7 +5607,7 @@ class TestNamingAFunestraAddressesIt:
         ("main_latest", RoomFunestra.MAIN),
         ("main_shuffle", RoomFunestra.MAIN),
         ("main_kino_activate", RoomFunestra.MAIN),
-        ("main_player_cycle_version", RoomFunestra.MAIN),
+        ("main_funestra_cycle_version", RoomFunestra.MAIN),
         ("genau_next_flick", RoomFunestra.MAIN),
     ])
     def test_it_becomes_the_funestra_a_bare_phrase_reaches(self, tmp_path, command, funestra):

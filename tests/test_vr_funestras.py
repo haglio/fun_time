@@ -1509,8 +1509,8 @@ def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
 
 
 def test_the_headset_builds_kino_with_the_desktops_own_builder():
-    """The Main player's Kino in the headset comes off the very function the
-    desktop's Main player builds its own with, so a change to one cannot miss
+    """The Main Funestra's Kino in the headset comes off the very function the
+    desktop's Main Funestra builds its own with, so a change to one cannot miss
     the other: the headset's own copy went on asking the library for Genau's
     clips after the desktop had stopped playing them."""
     tree = ast.parse(inspect.getsource(funestras._TheLibrary.kino).lstrip())
@@ -3313,7 +3313,7 @@ class TestTheSpotEachScreenStartsIn:
         assert portrait.elevation_deg == landscape.elevation_deg
 
     def test_the_satellites_tuck_inside_the_flush_position(self):
-        # First headset run: flush-beside-the-main-player put both satellites in
+        # First headset run: flush-beside-the-Main-Funestra put both satellites in
         # the peripheral vision, so they overlap the Main Funestra's edges instead --
         # they draw over it, so overlap costs nothing.
         landscape = _SatelliteUnit.SPOTS[LANDSCAPE]
@@ -3328,9 +3328,9 @@ class TestTheSpotEachScreenStartsIn:
         assert _SatelliteUnit.SPOTS[LANDSCAPE].elevation_deg > 0
 
     def test_the_gallery_hangs_clear_of_the_player_beside_it(self):
-        """In that mode the player next to it is showing one of the hosted
+        """In that mode the Funestra next to it is showing one of the hosted
         app's own shows, so the screen wide enough for a whole desktop reaches
-        out to the empty left of the room rather than over that player."""
+        out to the empty left of the room rather than over that Funestra."""
         gallery = _GalleryUnit.SPOTS[GALLERY]
         landscape = _SatelliteUnit.SPOTS[LANDSCAPE]
 
@@ -3376,7 +3376,7 @@ class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
 
     def test_it_is_resized_by_the_squares_in_its_lower_corners(self):
         """The room draws those on any screen that says it can be resized, and
-        the players have had them all along.  There is no monitor's worth of
+        the Funestras have had them all along.  There is no monitor's worth of
         room to fit here: a whole desktop window hangs on it, so how big it
         should be is his to say."""
         assert self._hanging().resizable

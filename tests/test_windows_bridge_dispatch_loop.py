@@ -109,7 +109,7 @@ def _neutralise_topmost_reads():
     These tests are about dispatch, not z-order, and a real read would land on
     whichever window answers on this machine — so the flag read is neutralised
     (nothing is ever found topmost).  The native satellites publish their
-    playback to status files, so a tick's satellite/main-player sampling is inert
+    playback to status files, so a tick's satellite/Main Funestra sampling is inert
     here (no status files written).  A test asserting on topmost state patches
     is_window_topmost itself."""
     with patch("fun_time.role_windows.is_window_topmost", return_value=False):
@@ -472,8 +472,8 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
 
     def test_the_funscript_moves_follow_the_funestra_last_navigated_the_main_under_its_own_ids(self):
-        for action, main in (("funscript_jump", "main_player_funscript_jump"),
-                             ("next_funscripted", "main_player_next_funscripted")):
+        for action, main in (("funscript_jump", "main_funestra_funscript_jump"),
+                             ("next_funscripted", "main_funestra_next_funscripted")):
             assert resolve_active_funestra_command(f"active_{action}", 1) == main
             assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
             assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
@@ -493,7 +493,7 @@ class TestResolveActiveSideCommand:
         """A side-agnostic phrase may mean a different thing on each Funestra: on a
         satellite "end loop" ends a group loop, on the Main Funestra it cancels the Main Funestra's A-B
         loop.  The resolution is where that translation belongs."""
-        assert resolve_active_funestra_command("active_no_loop", 1) == "main_player_loop_cancel"
+        assert resolve_active_funestra_command("active_no_loop", 1) == "main_funestra_loop_cancel"
         assert resolve_active_funestra_command("active_no_loop", 2) == "portrait_no_loop"
         assert resolve_active_funestra_command("active_no_loop", 3) == "landscape_no_loop"
 
@@ -534,7 +534,7 @@ class TestResolveActiveSideCommand:
 
     def test_a_bare_playback_speed_reaches_whichever_funestra_is_active(self):
         for action in ("speed_up", "speed_down", "speed_150"):
-            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_player_{action}"
+            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_funestra_{action}"
             assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
             assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
 
@@ -1391,7 +1391,7 @@ class TestWhatASpokenCommandFlashes:
         self, tmp_path,
     ):
         flashed = self._run_for_real(
-            tmp_path, "main_player_compilation", "compilation", main_mode=MainMode.GENAU)
+            tmp_path, "main_funestra_compilation", "compilation", main_mode=MainMode.GENAU)
 
         assert flashed == [("ignored in Genau mode: compilation", "main", logging.WARNING)]
 
@@ -1421,14 +1421,14 @@ class TestWhatASpokenCommandFlashes:
 
     def test_a_jump_the_headsets_main_funestra_cannot_answer_says_what_was_heard(self, tmp_path):
         flashed = self._run_for_real(
-            tmp_path, "main_player_compilation", "compilation",
+            tmp_path, "main_funestra_compilation", "compilation",
             config=make_config(tmp_path, vr_main_funestra=True), main_mode=MainMode.KINO)
 
         assert flashed == [("compilation", "main", 25)]
 
     @pytest.mark.parametrize("command", [
-        "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
-        "main_player_funscript_jump", "main_player_next_funscripted",
+        "main_funestra_compilation", "main_funestra_full_vid", "main_funestra_clip_jump",
+        "main_funestra_funscript_jump", "main_funestra_next_funscripted",
     ])
     def test_a_jump_the_main_funestra_answers_itself_says_nothing_now(self, tmp_path, command):
         flashed = self._run_for_real(
@@ -1443,7 +1443,7 @@ class TestWhatASpokenCommandFlashes:
             assert self._flashed(tmp_path, spoken, [WindowOp(op="save_clip")]) == []
 
     def test_a_narrowing_that_says_its_words_where_it_is_done_says_nothing_now(self, tmp_path):
-        spoken = format_spoken_command("main_player_length_clips", spoken_at=1.0, said="clips")
+        spoken = format_spoken_command("main_funestra_length_clips", spoken_at=1.0, said="clips")
 
         assert self._flashed(tmp_path, spoken, [WindowOp(op=Op.NARROWING_ANSWERS)]) == []
 
@@ -1953,20 +1953,20 @@ class TestResolveRole:
         # The Main Funestra is visible: the pid lookup finds it once, populating the cache.
         with patch("fun_time.role_windows.find_window_by_pid",
                    side_effect=lookup_pid):
-            assert runner.windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
+            assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
         # The Main Funestra is now minimized: the pid/title lookups are mocked to fail, but
         # the cache still answers, and a show_role op reaches the cached hwnd
         # (show_role restores rather than SW_SHOWs — the idle Funestra is parked
         # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
-        show_op = WindowOp(op="show_role", key="main_player")
+        show_op = WindowOp(op="show_role", key="main_funestra")
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
-            assert runner.windows.hwnd("main_player") == MAIN_FUNESTRA_HWND
+            assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
             runner._dispatch("main_kino_activate")
 
         assert shown == [MAIN_FUNESTRA_HWND]
@@ -2147,7 +2147,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_player": MAIN_FUNESTRA_HWND}.get(role, 0)), \
+             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_funestra": MAIN_FUNESTRA_HWND}.get(role, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect",
                    side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_FUNESTRA_HWND else None), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -2295,7 +2295,7 @@ class TestBrowseLibrary:
     def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
         """With no Main Funestra window to stand over, the browser picks its own place.
 
-        find_window_by_title is stubbed too: _resolve_role("main_player") falls back to it
+        find_window_by_title is stubbed too: _resolve_role("main_funestra") falls back to it
         when the pid lookup misses, and left live it would enumerate the real
         desktop and return a stray HWND (a running Fun Time's the Main Funestra window) — a flake.
         """
@@ -3029,13 +3029,13 @@ class TestSeededRoleHwnds:
         could never bring the Main Funestra's window back."""
         runner = make_runner(
             tmp_path,
-            role_hwnds={"main_player": 2001},
+            role_hwnds={"main_funestra": 2001},
         )
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         shown: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
-            assert runner.windows.hwnd("main_player") == 2001
+            assert runner.windows.hwnd("main_funestra") == 2001
             runner._dispatch("main_kino_activate")
 
         assert shown == [2001]
@@ -3936,7 +3936,7 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
-        role_hwnds={"portrait": PORTRAIT_HWND, "main_player": MAIN_FUNESTRA_HWND},
+        role_hwnds={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND},
         secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
                                 load_config(cfg_path).layout))
 

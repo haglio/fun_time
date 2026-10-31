@@ -1,4 +1,4 @@
-"""The Main player's one list: the library's videos its buttons let through, in
+"""The Main Funestra's one list: the library's videos its buttons let through, in
 the order they ask for, written where the Main Funestra reads it."""
 from __future__ import annotations
 

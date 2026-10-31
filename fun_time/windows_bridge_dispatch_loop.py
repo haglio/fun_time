@@ -175,7 +175,7 @@ _FUNESTRA_GROUPS = {
 
 
 def expand_group_command(command: str) -> list[str]:
-    """A ``both_``/``all_`` command as the per-player commands it stands for,
+    """A ``both_``/``all_`` command as the per-Funestra commands it stands for,
     each then handled exactly as if said alone; anything else as itself."""
     for group, funestras in _FUNESTRA_GROUPS.items():
         if command.startswith(group):
@@ -877,7 +877,7 @@ class DispatchLoopRunner:
             # Over the main slot's window: the pick plays there, so the browse
             # stands where it will, and covers nothing else on either monitor.
             genau = not kino_shows(self.state.main_mode)
-            funestra_hwnd = self.windows.hwnd("main_player")
+            funestra_hwnd = self.windows.hwnd("main_funestra")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,

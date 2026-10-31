@@ -1,6 +1,6 @@
 """The modes Kino is in, and what it is told about the list it plays.
 
-The list is Fun Time's: it narrows and orders the Main player's one list and
+The list is Fun Time's: it narrows and orders the Main Funestra's one list and
 tells Kino what the buttons built it under, since a narrowed list looks like any
 other.  What Kino keeps of its own is the compilation, the one place it swaps
 the list for a set of its own.

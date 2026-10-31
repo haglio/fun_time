@@ -1,4 +1,4 @@
-"""The library Kino knows the Main player's videos by: which files are versions
+"""The library Kino knows the Main Funestra's videos by: which files are versions
 of one video, and the clips a compilation was carved into."""
 from __future__ import annotations
 

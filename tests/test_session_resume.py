@@ -706,7 +706,7 @@ class TestResumeGenau:
 
 
 class TestOpeningTheMainList:
-    """Every session builds the Main player's list from the buttons it was left
+    """Every session builds the Main Funestra's list from the buttons it was left
     on, whatever list the last session left behind: nothing reopens it."""
 
     def _library(self, tmp_path: Path) -> tuple[MainList, list[str], list[str]]:

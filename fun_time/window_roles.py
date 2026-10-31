@@ -19,7 +19,7 @@ from .origenerator_switches import RfbSlot
 # irrelevant because they never overlap.  The log stream is a child widget of the
 # dashboard window, not a role of its own, so it rides the dashboard's band.
 # Kino and Genau both run on the Main Funestra's one window.
-FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_player")
+FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_funestra")
 
 # The hosted Origenerator's one window.  Its shows play on the Satellite
 # Funestras, not in windows of its own (fun_time.funestra_handover).

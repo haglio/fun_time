@@ -489,13 +489,13 @@ def test_fun_time_the_satellites_take_the_main_funestras_playback_speed(
         description="the Main Funestra to be playing at normal speed",
     )
 
-    s.write_dashboard_command("main_player_speed_150")
+    s.write_dashboard_command("main_funestra_speed_150")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.5 for status in statuses),
         description="both satellites to take the Main Funestra's one and a half speed",
     )
 
-    s.write_dashboard_command("main_player_speed_100")
+    s.write_dashboard_command("main_funestra_speed_100")
     s.wait_until(
         lambda: all(read_satellite_status(status).speed == 1.0 for status in statuses),
         description="both satellites back at normal speed with the Main Funestra",
@@ -645,19 +645,19 @@ def test_fun_time_main_funestra_record_loop_cancel_cycle(shared_integration_sess
     with _main_funestra_held_still(s):
         assert s.read_main_funestra_status().loop_state is LoopState.NORMAL
 
-        s.write_dashboard_command("main_player_record_tap")
+        s.write_dashboard_command("main_funestra_record_tap")
         s.wait_until(
             lambda: s.read_main_funestra_status().loop_state is LoopState.RECORDING,
             description="the Main Funestra to enter recording state",
         )
 
-        s.write_dashboard_command("main_player_record_tap")
+        s.write_dashboard_command("main_funestra_record_tap")
         s.wait_until(
             lambda: s.read_main_funestra_status().loop_state is LoopState.LOOPING,
             description="the Main Funestra to enter looping state",
         )
 
-        s.write_dashboard_command("main_player_loop_cancel")
+        s.write_dashboard_command("main_funestra_loop_cancel")
         s.wait_until(
             lambda: s.read_main_funestra_status().loop_state is LoopState.NORMAL,
             description="the Main Funestra to return to normal state",
@@ -1034,8 +1034,8 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
             lambda: _loaded_and_playing(first.read_main_funestra_status()),
             description="the Main Funestra to be playing",
         )
-        first.write_dashboard_command("main_player_speed_150")
-        first.write_dashboard_command("main_player_lock")
+        first.write_dashboard_command("main_funestra_speed_150")
+        first.write_dashboard_command("main_funestra_lock")
         first.wait_until(
             lambda: (first.read_main_funestra_status().speed == 1.5
                      and not first.read_main_funestra_status().locked),
