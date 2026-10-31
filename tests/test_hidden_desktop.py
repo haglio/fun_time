@@ -316,7 +316,7 @@ def test_a_run_whose_tests_could_not_be_started_still_writes_down_that_it_ended(
         raise OSError("the hidden desktop's tests could not be started")
 
     with (_runs_launched_into([]), patch.object(hidden_desktop, "_launch_on_desktop", refuse),
-          pytest.raises(OSError)):
+          pytest.raises(OSError, match="the hidden desktop's tests could not be started")):
         hidden_desktop.run_on_hidden_desktop(["-k", "test_x"])
 
     [written] = read_runs(tmp_path)

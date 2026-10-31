@@ -218,16 +218,16 @@ def watch_for_a_timeout(seconds: float, on_timeout: Callable[[], None], *,
     return cancel
 
 
-_clock: Clock = WALL
+class _TheRun:
+    clock: Clock = WALL
 
 
 def keep_time_by(clock: Clock) -> None:
-    global _clock
-    _clock = clock
+    _TheRun.clock = clock
 
 
 def now() -> float:
-    return _clock.seconds()
+    return _TheRun.clock.seconds()
 
 
 class Budget:

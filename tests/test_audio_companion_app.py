@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import types
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pygame
@@ -390,7 +391,7 @@ class TestTheOutputItPlaysOn:
 
     STREAMING = "Speakers (Example AirLink)"
     HEADSET = "Headphones (Example Headset)"
-    NAMES = ["Speakers (Example Audio)", HEADSET, "Digital Output"]
+    NAMES: ClassVar[list[str]] = ["Speakers (Example Audio)", HEADSET, "Digital Output"]
 
     def test_the_mixer_opens_on_the_output_the_session_named(self):
         with patch("fun_time.audio_companion_app.get_audio_device_names", return_value=self.NAMES), \

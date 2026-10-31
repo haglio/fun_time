@@ -506,7 +506,7 @@ class _AppendOnWriteHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ts = datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
             lines = [f"{ts} {record.getMessage()}"]
             if record.exc_info:
                 lines += logging.Formatter().formatException(record.exc_info).splitlines()

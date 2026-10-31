@@ -21,6 +21,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 from app_support import ports
@@ -295,7 +296,7 @@ class _VideoUnit:
     """What every Funestra here shares: a video thread, a texture target and a
     screen to hang it on."""
 
-    SPOTS: dict[str, Placement] = {}
+    SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def put_back(self) -> None:
         self.screen.placement = self.SPOTS[self.screen_name]
@@ -481,7 +482,7 @@ class _MainUnit(_VideoUnit):
     desktop, and the headset's own verbs beside them."""
 
     screen_name = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
-    SPOTS = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
+    SPOTS: ClassVar[dict[str, Placement]] = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
@@ -702,7 +703,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
 class _SatelliteUnit(_VideoUnit):
     # Tuned on the first headset run: flush beside the main screen put both of them
     # in the peripheral vision.
-    SPOTS = {
+    SPOTS: ClassVar[dict[str, Placement]] = {
         LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
         PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
     }
@@ -856,7 +857,7 @@ class _ConsoleUnit:
     fills the main slot -- or, while that item wraps the viewer and there is
     nothing to dock to, under the dashboard."""
 
-    SPOTS: dict[str, Placement] = {}
+    SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, main_unit: _MainUnit, dash) -> None:
         self._main_unit = main_unit
@@ -947,7 +948,7 @@ def _at_the_dashs_own_width(placement: Placement) -> Placement:
 class _DashUnit:
     # Painted like the console; the pair's handle while it carries one, and a spot for that.
 
-    SPOTS = {
+    SPOTS: ClassVar[dict[str, Placement]] = {
         DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
                         width_deg=_DASH_WIDTH_DEG),
         # Carrying the console, the video having wrapped the viewer: lower, under it.
@@ -1067,7 +1068,7 @@ class _DashUnit:
 class _ReferenceUnit:
     """The hotkeys and voice reference, hanging from the dashboard while it is up."""
 
-    SPOTS: dict[str, Placement] = {}
+    SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, dash: _DashUnit, console: _ConsoleUnit, *, flag: Path) -> None:
         self._dash = dash
@@ -1132,7 +1133,7 @@ class _ReferenceUnit:
 
 class _LibraryUnit:
     # A browse to read and press: dead ahead and wide, over the frame while it is up.
-    SPOTS = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
+    SPOTS: ClassVar[dict[str, Placement]] = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
 
     def __init__(
         self, *, remembered: Mapping[str, Placement], flag: Path, host,
@@ -1264,7 +1265,7 @@ BANNER_MAX_WIDTH_PX = 1600
 class _BannerUnit:
     """The main screen's banner, floating in front of a frame wrapped round the viewer."""
 
-    SPOTS: dict[str, Placement] = {}
+    SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, main_unit, notices) -> None:
         self._main_unit = main_unit
@@ -1316,7 +1317,7 @@ class _BannerUnit:
 
 
 class _GalleryUnit:  # the hosted app's window
-    SPOTS = {GALLERY: Placement(azimuth_deg=-100.0, elevation_deg=2.0, width_deg=95.0)}
+    SPOTS: ClassVar[dict[str, Placement]] = {GALLERY: Placement(azimuth_deg=-100.0, elevation_deg=2.0, width_deg=95.0)}
 
     def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
                  shared_state_file: Path) -> None:
@@ -1402,7 +1403,7 @@ class _GalleryUnit:  # the hosted app's window
 
 
 class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
-    SPOTS: dict[str, Placement] = {}
+    SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir

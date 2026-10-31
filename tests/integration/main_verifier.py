@@ -290,7 +290,7 @@ class MachineBench:
         return [str(self.python), "-m", "tests.integration.hidden_desktop", *arguments]
 
     def _log_for(self, commit: str) -> Path:
-        log = self.state / "main_verifier_runs" / f"{datetime.now():%Y%m%d-%H%M%S}-{commit[:10]}.txt"
+        log = self.state / "main_verifier_runs" / f"{datetime.now().astimezone():%Y%m%d-%H%M%S}-{commit[:10]}.txt"
         log.parent.mkdir(parents=True, exist_ok=True)
         return log
 
@@ -372,7 +372,7 @@ class MachineBench:
     def record(self, incident: dict) -> None:
         self.state.mkdir(parents=True, exist_ok=True)
         with (self.state / INCIDENTS_NAME).open("a", encoding="utf-8") as sink:
-            sink.write(json.dumps({"at": datetime.now().isoformat(timespec="seconds"), **incident}, default=str) + "\n")
+            sink.write(json.dumps({"at": datetime.now().astimezone().isoformat(timespec="seconds"), **incident}, default=str) + "\n")
 
     def incidents(self) -> list[dict]:
         return _incidents(self.state)

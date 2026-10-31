@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import fields, replace
 from pathlib import Path
+from typing import ClassVar
 
 from funestra import funestra_verbs
 from funestra.console import OSR2_PARKED, OSR2_RETRACTED
@@ -569,7 +570,7 @@ class TestResumeMainLock:
 
 
 class TestWhatARestartBringsBackOfEachFunestra:
-    _KEPT_IN_THE_ROOMS_STATE = {
+    _KEPT_IN_THE_ROOMS_STATE: ClassVar[dict] = {
         "SET_SPEED": {"main_speed", "speed"}, "SPEED_UP": {"main_speed", "speed"},
         "SPEED_DOWN": {"main_speed", "speed"}, "LOCK_ON": {"main_locked", "locked"},
         "LOCK_OFF": {"main_locked", "locked"}, "TOGGLE_LOCK": {"main_locked", "locked"},
@@ -661,7 +662,7 @@ class TestResumeGenau:
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
-    _KEPT_IN_THE_ROOMS_STATE = {
+    _KEPT_IN_THE_ROOMS_STATE: ClassVar[dict] = {
         "speed": "genau_speed", "amplitude": "genau_amplitude", "center": "genau_center",
         "shape": "genau_shape", "flick_seconds": "genau_flick_seconds",
         "learned": "genau_learned", "lock": "genau_locked", "max_intensity": "max_intensity",
@@ -694,7 +695,7 @@ class TestResumeGenau:
     def test_what_the_rooms_state_keeps_for_genau_is_remembered(self):
         assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
 
-    _KEPT_FOR_ITS_LAUNCH = {"f_mode": ("genau_favorites_filter",),
+    _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"f_mode": ("genau_favorites_filter",),
                             "orientations": ("genau_plays_portrait", "genau_plays_landscape")}
 
     def test_every_verb_genau_answers_on_the_main_funestras_channel_comes_back_at_its_launch(self):

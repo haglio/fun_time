@@ -57,12 +57,12 @@ def test_a_run_on_the_hidden_desktop_keeps_time_by_a_clock_of_its_own(monkeypatc
     monkeypatch.setattr(integration_conftest, "on_hidden_desktop", lambda: True)
     integration_conftest.pytest_configure(_a_config(cleanups))
     try:
-        assert isinstance(run_clock._clock, RunClock)
+        assert isinstance(run_clock._TheRun.clock, RunClock)
     finally:
         for cleanup in cleanups:
             cleanup()
 
-    assert run_clock._clock is run_clock.WALL
+    assert run_clock._TheRun.clock is run_clock.WALL
 
 
 def test_a_run_says_how_much_of_its_time_it_could_run_before_its_process_is_ended(monkeypatch, capsys):
@@ -86,4 +86,4 @@ def test_a_run_off_the_hidden_desktop_keeps_the_walls_time(monkeypatch):
 
     integration_conftest.pytest_configure(_a_config([]))
 
-    assert run_clock._clock is run_clock.WALL
+    assert run_clock._TheRun.clock is run_clock.WALL
