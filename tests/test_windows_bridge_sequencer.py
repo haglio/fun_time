@@ -5,6 +5,7 @@ import contextlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -944,7 +945,7 @@ class TestTheRoomIsBandedUnderTheCover:
     window is ever over the cover waiting for the cover to take the top back --
     which, on a loaded machine, it does late."""
 
-    ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
+    ROLE_HWNDS: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
                   "main_player": 55}
     COVER = 999
 

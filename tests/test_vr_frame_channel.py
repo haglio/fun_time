@@ -73,7 +73,7 @@ def test_a_reader_that_looks_before_anything_draws_sees_nothing_until_it_does(tm
 def test_a_frame_bigger_than_the_channel_is_refused(channel):
     writer, _reader = channel
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="a 10x10 frame does not fit this channel"):
         writer.write(1, 10, 10, _pixels(10, 10, 1))
 
 
