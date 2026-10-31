@@ -21,11 +21,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from app_support.launcher import (
-    assert_launchers_match_their_specs,
-    dry_run,
-    run_under_script_host,
-)
+from app_support.launcher import dry_run, run_under_script_host
 from app_support.production_update import TURN, UPKEEP_MARK
 
 from fun_time.branch_session import (
@@ -45,10 +41,6 @@ on_windows = pytest.mark.skipif(sys.platform != "win32", reason="the Windows scr
 def test_the_launchers_are_where_their_shortcuts_point():
     for name in ("launch.vbs", "launch_vr.vbs", LAUNCHER_NAME):
         assert (PROJECT_DIR / name).is_file(), name
-
-
-def test_the_launchers_are_what_their_specs_render():
-    assert_launchers_match_their_specs(PROJECT_DIR)
 
 
 def test_shell_wrapper_starts_the_orchestrator_on_the_project_venv():

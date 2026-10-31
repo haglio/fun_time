@@ -1,11 +1,8 @@
-"""This repo's dead-code gate, and the three gates that are its own.
-
-The dead-code checks are `app_support.dead_code` and `app_support.unread`, the
-family's one shape; the packages are scanned one at a time, since scanned
-together they hide each other's corpses. Below them, what only this repo asks:
-that no module reaches into another's privates, that prose does not outgrow the
-code it explains, and that nothing new binds Win32 under the layer that exists
-to."""
+"""The three gates that are this repo's own: no module reaches into another's
+privates, prose does not outgrow the code it explains, and nothing new binds
+Win32 under the layer that exists to. The dead-code checks that sat beside them
+are app_support's gates, which every repo names once in its pytest options.
+"""
 from __future__ import annotations
 
 import ast
@@ -14,73 +11,15 @@ import tokenize
 from pathlib import Path
 
 import pytest
-from app_support import unread
-from app_support.dead_code import (
-    assert_every_package_is_scanned,
-    assert_no_dead_code,
-    assert_no_function_takes_an_argument_it_never_reads,
-    assert_nothing_is_imported_or_assigned_and_left_unread,
-    assert_whitelist_is_live,
-)
 
 pytestmark = pytest.mark.repo_check
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = (ROOT / "fun_time", ROOT / "main_funestra", ROOT / "satellite", ROOT / "fun_time_vr")
-SCANNED = PACKAGES
-WHITELIST = ROOT / "vulture_whitelist.py"
 
 
 def _package_sources():
     return sorted(p for pkg in PACKAGES for p in pkg.rglob("*.py"))
-
-
-def test_no_dead_code():
-    assert_no_dead_code(*SCANNED, whitelist=WHITELIST, each_alone=True)
-
-
-def test_the_whitelist_still_suppresses_what_it_claims_to():
-    assert_whitelist_is_live(*SCANNED, whitelist=WHITELIST, each_alone=True)
-
-
-def test_every_package_in_the_tree_is_scanned():
-    assert_every_package_is_scanned(ROOT, ("fun_time", "main_funestra", "satellite", "fun_time_vr"))
-
-
-def test_nothing_is_imported_or_assigned_and_left_unread():
-    assert_nothing_is_imported_or_assigned_and_left_unread(ROOT, *SCANNED, ROOT / "tools", ROOT / "tests")
-
-
-def test_no_function_takes_an_argument_it_never_reads():
-    # ARG001 alone, as before: a framework override (Qt's paintEvent, the Satellite
-    # Funestra's pump) is handed arguments it is free to ignore.
-    assert_no_function_takes_an_argument_it_never_reads(ROOT, *SCANNED, ROOT / "tools")
-
-
-def test_no_module_level_constant_goes_unread():
-    unread.assert_no_module_constant_goes_unread(ROOT, SCANNED)
-
-
-def test_no_constructor_parameter_is_stored_and_never_read():
-    unread.assert_no_constructor_parameter_is_stored_and_never_read(ROOT, SCANNED)
-
-
-def test_no_dataclass_field_goes_unread():
-    # CommandFiles.funestra_file asks for a side's file by kind, so the two the
-    # satellites' channels now take that way are read by getattr rather than by
-    # name. Their four neighbors escape this only because other modules happen
-    # to spell them out.
-    unread.assert_no_dataclass_field_goes_unread(
-        ROOT, SCANNED,
-        allowing=("CommandFiles.portrait_hud_file", "CommandFiles.landscape_hud_file"))
-
-
-def test_every_declared_command_line_option_is_read():
-    unread.assert_every_argparse_option_is_read(ROOT, SCANNED)
-
-
-def test_no_test_helper_is_written_and_never_called():
-    unread.assert_no_test_helper_is_written_and_never_called(ROOT, ROOT / "tests")
 
 
 def test_no_module_reaches_into_another_ones_privates():
