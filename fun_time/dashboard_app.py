@@ -26,7 +26,7 @@ from shared_ui.find_bar import FindBar
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.foreground import bring_to_front
 from shared_ui.icon_geometry import tooltip_for
-from shared_ui.icons import glyph_pixmap
+from shared_ui.icons import icon_pixmap
 from shared_ui.preview import Preview
 from shared_ui.preview_icon import app_icon
 from shared_ui.spacing import BUTTON_RADIUS_HUD, MARGIN_STANDARD
@@ -205,7 +205,7 @@ class MarkCache:
         ink = color or COLOR_TEXT
         key = (name, rect.width, rect.height, ink.rgba())
         if key not in self._marks:
-            self._marks[key] = glyph_pixmap(name, mark_side(rect), ink)
+            self._marks[key] = icon_pixmap(name, mark_side(rect), ink)
         return self._marks[key]
 
 

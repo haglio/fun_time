@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from shared_ui.palette import BLUE, GREEN, MAGENTA, TEXT_MUTED, TEXT_PRIMARY
-from shared_ui.spacing import BUTTON_MARK_INSET
+from shared_ui.spacing import BUTTON_ICON_INSET
 
 from fun_time.dashboard_actions import (
     ENTER_VR,
@@ -32,7 +32,7 @@ class BarControl:
 
 
 def mark_side(rect: Rect) -> int:
-    return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET
+    return min(rect.width, rect.height) - 2 * BUTTON_ICON_INSET
 
 
 def bar_controls(

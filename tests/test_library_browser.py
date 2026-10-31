@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QStyleOptionViewItem,
 )
 from shared_ui.colors import TEXT_MUTED, TEXT_PRIMARY
-from shared_ui.icons import glyph_icon
+from shared_ui.icons import qt_icon
 from shared_ui.spacing import BUTTON_ICON
 
 from fun_time import library_browser, load_config
@@ -775,7 +775,7 @@ def _mark_on(index, letter: str) -> str | None:
         return None
     drawn = icon.pixmap(BUTTON_ICON).toImage()
     return next(name for name in ("chevron_down", "chevron_right")
-                if glyph_icon(name).pixmap(BUTTON_ICON).toImage() == drawn)
+                if qt_icon(name).pixmap(BUTTON_ICON).toImage() == drawn)
 
 
 def test_a_letter_wears_its_mark_after_it_in_its_own_ink(browser, tmp_path: Path):
