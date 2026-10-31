@@ -61,6 +61,7 @@ from fun_time.windows_bridge_sequencer import (
     run_startup_sequence,
 )
 from fun_time.windows_bridge_startup import HandedFunestra
+from tests.git_checkouts import a_worktree_of
 from tests.sleeps import sleeps_in
 
 FAKE_MONITORS = [
@@ -1493,8 +1494,8 @@ class TestOrigeneratorLaunch:
     def test_a_session_hosting_a_worktree_takes_over_the_everyday_copy_open_on_its_library(
         self, cfg_factory, tmp_path
     ):
-        worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "some-branch"
-        worktree.mkdir(parents=True)
+        worktree = a_worktree_of(tmp_path / "origenerator",
+                                 tmp_path / "origenerator" / ".claude" / "worktrees" / "some-branch")
         cfg, manifest_path, everyday, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, hosting=worktree)
 

@@ -9,6 +9,7 @@ from fun_time.standalone_origenerator import (
     claim_the_osr2,
     the_open_origenerator,
 )
+from tests.git_checkouts import a_worktree_of
 
 
 def _offer(checkout, *, starting=False):
@@ -60,8 +61,7 @@ def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp
     takes over the everyday copy rather than opening a second (his call,
     2026-09-25, in origenerator's CLAUDE.md)."""
     everyday = tmp_path / "origenerator"
-    worktree = everyday / ".claude" / "worktrees" / "my-branch"
-    worktree.mkdir(parents=True)
+    worktree = a_worktree_of(everyday, everyday / ".claude" / "worktrees" / "my-branch")
     _offer(everyday)
 
     assert the_open_origenerator(worktree) == OpenOrigenerator(
@@ -70,7 +70,7 @@ def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp
 
 def test_a_session_hosting_a_worktree_claims_the_osr2_in_its_primary_checkout_too(tmp_path):
     primary = tmp_path / "origenerator"
-    worktree = primary / ".claude" / "worktrees" / "my-branch"
+    worktree = a_worktree_of(primary, primary / ".claude" / "worktrees" / "my-branch")
 
     claim_the_osr2(worktree)
 
