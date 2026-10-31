@@ -2,7 +2,7 @@
 
 Same config, broker, playlists, dispatch loop, voice and AHK hotkeys -- the
 difference is what gets launched: instead of the Main Funestra, Genau and two
-satellite windows, ONE headset process (fun_time_vr.funestras) hosts every visual
+satellite windows, ONE headset process (fun_time_vr.app) hosts every visual
 role, with the audio companion on the headset's output.  Everything else runs on
 the state files it always did.
 
@@ -168,7 +168,7 @@ from .cover import (
 )
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
-VR_FUNESTRAS_MODULE = "fun_time_vr.funestras"
+VR_FUNESTRAS_MODULE = "fun_time_vr.app"
 
 # How long startup waits for the headset's first status: a cold PimaxXR
 # auto-start alone may take 45s, though a healthy launch answers in seconds.

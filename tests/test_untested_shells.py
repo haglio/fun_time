@@ -15,26 +15,18 @@ import importlib
 import inspect
 from pathlib import Path
 
-from funestra.funestra import Funestra
 from funestra.render_engine import MpvRenderEngine
 
-from fun_time_vr.headset_engine import HeadsetEngine
-from fun_time_vr.headset_verbs import HeadsetVerbs
-from fun_time_vr.surfaces import HudBitmap, LatestFrame
 from tests.test_coverage import NOT_UNIT_TESTED
 
 ROOT = Path(__file__).resolve().parent.parent
 
 HELD_BY_THE_SHELLS: dict[str, dict[str, type]] = {
     "fun_time_vr/video_thread.py": {"engine": MpvRenderEngine},
-    "fun_time_vr/funestras.py": {
-        "engine": HeadsetEngine, "funestra": Funestra, "verbs": HeadsetVerbs,
-        "hud": HudBitmap, "users_frames": LatestFrame,
-    },
 }
 
 CALLS_NOTHING_RUNS = ("main_funestra/app.py", "satellite/app.py",
-                      "fun_time_vr/funestras.py", "fun_time_vr/video_thread.py")
+                      "fun_time_vr/app.py", "fun_time_vr/video_thread.py")
 
 
 def _called_on(module: Path, field: str) -> set[str]:

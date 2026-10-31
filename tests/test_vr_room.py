@@ -6,7 +6,7 @@ import inspect
 
 import pytest
 
-from fun_time_vr import funestras, layout, room
+from fun_time_vr import app, funestras, layout, room
 from fun_time_vr import room as under_test
 from fun_time_vr.pointer import Screen
 from fun_time_vr.room import Hanging
@@ -218,7 +218,7 @@ class TestTheGatesOnTheRoomsAssembly:
         assert len(self._screen_names()) >= 7
 
     def test_the_eye_pass_names_no_kind_of_screen(self):
-        assert self._kinds_of_screen() & self._names_in(self._source(funestras._draw_eyes)) == set()
+        assert self._kinds_of_screen() & self._names_in(self._source(funestras.draw_eyes)) == set()
 
     def test_the_assembly_names_no_kind_of_screen_and_no_screen(self):
         """It is handed what each thing hangs, and walks that."""
@@ -228,7 +228,7 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._screen_names() & named == set()
 
     @pytest.mark.parametrize("step", [
-        funestras._show_the_room, funestras._frame, funestras._quad_layers,
+        app._show_the_room, app._frame, app._quad_layers,
         funestras.Arrangement.arrange, funestras.Arrangement._move,
     ])
     def test_the_frame_loop_names_no_screen_of_its_own(self, step):

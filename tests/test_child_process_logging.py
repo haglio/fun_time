@@ -23,7 +23,7 @@ ENTRY_POINTS = (
     "fun_time.audio_companion_app",
     "fun_time.orchestrator",
     "fun_time_vr.orchestrator",
-    "fun_time_vr.funestras",
+    "fun_time_vr.app",
     "satellite.app",
 )
 
