@@ -35,6 +35,7 @@ from .room_funestras import RoomFunestra
 # threads of that same process.
 _SPOKEN_AT_SEP = " @"
 _SAID_SEP = "\t"
+_MOST_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -422,7 +423,7 @@ def build_voice_commands(
         words = {**_SPOKEN_ONES, **_SPOKEN_TEENS}
         for _tens_word, _tens in _SPOKEN_TENS.items():
             words[_tens_word] = _tens
-            if _tens < 60:
+            if _tens < _MOST_SECONDS:
                 for _ones_word, _ones in _SPOKEN_ONES.items():
                     words[f"{_tens_word} {_ones_word}"] = _tens + _ones
         return words

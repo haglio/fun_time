@@ -603,10 +603,9 @@ def _generated_shortcuts(folder: Path) -> dict[Path, Path]:
     owned: dict[Path, Path] = {}
     found = read_shortcuts(folder, pattern=f"{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}")
     for path, shortcut in found.items():
-        tokens = [token.strip('"')
-                  for token in shlex.split(shortcut.arguments or "", posix=False)]
-        if len(tokens) >= 2 and Path(tokens[0]).name.lower() == LAUNCHER_NAME:
-            owned[path] = Path(tokens[1])
+        match [token.strip('"') for token in shlex.split(shortcut.arguments or "", posix=False)]:
+            case [launcher, worktree, *_] if Path(launcher).name.lower() == LAUNCHER_NAME:
+                owned[path] = Path(worktree)
     return owned
 
 

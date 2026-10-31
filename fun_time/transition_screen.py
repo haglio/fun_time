@@ -6,10 +6,7 @@ raised by the session leaving and taken down by the one arriving
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-from .overlay_progress import ready_file_for
+from .overlay_progress import progress_file_argument, ready_file_for
 from .overlay_window import OverlayWindow
 from .session_handoff import COVER_STALE_S
 
@@ -18,11 +15,7 @@ STALE_TIMEOUT_S = COVER_STALE_S  # a crossing that never arrives; 180 read as de
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: python -m fun_time.transition_screen <progress_file>", file=sys.stderr)
-        sys.exit(1)
-
-    progress_file = Path(sys.argv[1])
+    progress_file = progress_file_argument("fun_time.transition_screen")
     OverlayWindow.over_every_monitor(
         progress_file,
         title=WINDOW_TITLE,

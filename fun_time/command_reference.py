@@ -39,6 +39,7 @@ from shared_ui.type_scale import FONT_UI, SIZE_BODY, SIZE_HEADING
 
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
+from fun_time.room_funestras import RoomFunestra
 from fun_time.voice_commands import (
     FAVORITES_PHRASE,
     VOICE_COMMANDS,
@@ -663,11 +664,15 @@ def _display_voice(row: _Row, *, merge_scopes: bool) -> tuple[str, ...]:
     return _voice_for(row.commands, fold=fold) + row.literal_voice
 
 
+def _a_key_column_per_satellite(key_headers: tuple[str, ...]) -> bool:
+    return len(key_headers) == len(RoomFunestra.SATELLITES)
+
+
 def build_reference_sections() -> tuple[ReferenceSection, ...]:
     """Build the display reference, deriving voice phrases from VOICE_COMMANDS."""
     sections: list[ReferenceSection] = []
     for section in _SECTIONS:
-        two_column = len(section.key_headers) == 2
+        two_column = _a_key_column_per_satellite(section.key_headers)
         refs = tuple(
             CommandRef(
                 description=row.description,
@@ -744,7 +749,7 @@ def render_reference_html() -> str:
             )
         # A two-sided section spends its width on a key column per side, so the
         # remaining columns give some back.
-        two_column = len(section.key_headers) == 2
+        two_column = _a_key_column_per_satellite(section.key_headers)
         key_width = "15%" if two_column else "22%"
         say_width = "32%" if two_column else "34%"
         parts.append('<table width="100%" cellspacing="0" cellpadding="0">')

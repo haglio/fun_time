@@ -38,7 +38,7 @@ def find_tab_strip(window: AccessibleNode) -> AccessibleNode | None:
 
 
 def tab_after_the_active_one(tabs: Sequence[AccessibleNode]) -> AccessibleNode | None:
-    if len(tabs) < 2:
+    if len(tabs) <= 1:
         return None
     active = next((index for index, tab in enumerate(tabs) if tab.is_active), -1)
     return tabs[(active + 1) % len(tabs)]

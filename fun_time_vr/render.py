@@ -36,6 +36,8 @@ from .projection import (
     RECTILINEAR_SBS,
 )
 
+_RGBA_CHANNELS = 4
+
 _QUAD_VERTEX_SHADER = """
 #version 330 core
 layout(location = 0) in vec3 pos;
@@ -319,7 +321,7 @@ class FrameTexture:
         if width <= 0 or height <= 0:
             return
         rows = np.ascontiguousarray(pixels[::-1])
-        source = GL.GL_RGBA if channels == 4 else GL.GL_RGB
+        source = GL.GL_RGBA if channels == _RGBA_CHANNELS else GL.GL_RGB
         GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
         if (width, height) != (self.width, self.height):

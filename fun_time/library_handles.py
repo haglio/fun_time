@@ -295,7 +295,7 @@ def handles_by_shape(
         for name, spec in ((_VR_FOLDER, vr_sources), (_FLAT_FOLDER, flat_sources))
         if (handles := build_library_handles(spec, metadata_root, listing=listing))
     ]
-    if len(shelves) < 2:
+    if len(shelves) <= 1:
         return [handle for _name, handles in shelves for handle in handles]
     return [
         replace(handle, section="/".join(part for part in (name, handle.section) if part))

@@ -142,6 +142,9 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
     return gap if gap >= threshold_s else None
 
 
+_DASHBOARD_WARNING_EVERY_S = 60.0
+
+
 class DispatchLoopRunner:
     """Runs dashboard polling and genau sync in-process."""
 
@@ -445,7 +448,7 @@ class DispatchLoopRunner:
             )
         except OSError as exc:
             now = time.monotonic()
-            if now - self._last_dashboard_warning >= 60.0:
+            if now - self._last_dashboard_warning >= _DASHBOARD_WARNING_EVERY_S:
                 self._last_dashboard_warning = now
                 logger.warning("dashboard snapshot write failed: %s", exc)
 
