@@ -166,7 +166,7 @@ class TestHudPublishing:
 
         portrait = hud(tmp_path, "portrait")
         landscape = hud(tmp_path, "landscape")
-        assert portrait["player"] == "portrait"
+        assert portrait["funestra"] == "portrait"
         assert portrait["locked"] is True
         # The title composes the lot — lock, order, and the filter unlabeled.
         assert portrait["title"] == "Locked · Shuffle · alpha"

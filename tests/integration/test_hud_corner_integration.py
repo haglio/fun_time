@@ -47,7 +47,7 @@ def test_a_click_in_a_corner_its_hud_is_not_in_asks_for_the_hud_there():
     sat = a_lone_satellite()
     with sat.launched(library_clips_of("portrait", 2), width=WIDTH, height=HEIGHT, hud=True):
         sat.wait_until_playing()
-        sat.hud.write_text(json.dumps({"player": "portrait"}), encoding="utf-8")
+        sat.hud.write_text(json.dumps({"funestra": "portrait"}), encoding="utf-8")
         hwnd = await_window("Portrait AI Funestra", 30.0)
 
         def asked_after_a_click() -> bool:
