@@ -46,14 +46,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from shared_ui.application import application
-from shared_ui.chrome import family_stylesheet
+from shared_ui.chrome import picked_item_rules
 from shared_ui.colors import (
     BG_BUTTON,
     BG_PRIMARY,
     BG_SECONDARY,
-    BLUE,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    dress_application,
     hovered,
 )
 from shared_ui.folder_path import FolderPath
@@ -173,7 +173,7 @@ class LibraryGrid(BrowseList):
             f" color: {TEXT_PRIMARY.name()}; border: none; }}"
             f" QListWidget::item {{ background-color: {BG_SECONDARY.name()};"
             f" border-radius: {BUTTON_RADIUS}px; padding: {GAP_SMALL}px; }}"
-            f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
+            + picked_item_rules("QListWidget")
         )
 
         # One entry per widget row: the handle a video tile plays, the SubFolder
@@ -354,7 +354,7 @@ class FolderIndex(BrowseList):
             f" color: {TEXT_PRIMARY.name()};"
             f" border: none; border-right: 1px solid {BG_PRIMARY.name()}; }}"
             f" QListWidget::item {{ padding: {GAP_SMALL}px {MARGIN_STANDARD}px; }}"
-            f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
+            + picked_item_rules("QListWidget")
         )
 
         # One line per widget row: a letter, or a name and the grid row it opens.
@@ -885,7 +885,7 @@ def main(argv: list[str] | None = None) -> int:
     with application([]) as app:
         # The family's chrome, on the application: a tooltip is a top-level popup,
         # and only a sheet set here reaches it.
-        app.setStyleSheet(family_stylesheet())
+        dress_application(app)
 
         config = (load_flick_browser_config if args.genau else load_browser_config)(args.manifest_path)
         result_file = Path(args.result_file)

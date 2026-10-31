@@ -1455,10 +1455,13 @@ def test_the_dashboard_runs_on_an_application_made_where_it_is_let_go_of_safely(
     monkeypatch.setattr(dashboard_app, "set_up_logging", lambda: None)
     monkeypatch.setattr(dashboard_app, "set_app_user_model_id", lambda _identity: None)
     monkeypatch.setattr(dashboard_app, "build_dashboard_window", lambda *_args, **_kwargs: None)
+    dressed = []
+    monkeypatch.setattr(dashboard_app, "dress_application", dressed.append)
     manifest = write_windows_bridge_manifest(load_config(cfg_path))
 
     assert dashboard_app.main([str(manifest)]) == 7
     assert made == [[]]
+    assert len(dressed) == 1
 
 
 # --- the notice feed ---------------------------------------------------------
