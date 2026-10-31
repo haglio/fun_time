@@ -168,7 +168,7 @@ def _matching_group(
     """
     if not toks:
         return None
-    for group, gtoks in zip(groups, group_tokens):
+    for group, gtoks in zip(groups, group_tokens, strict=True):
         if gtoks and _is_prefix(gtoks, toks):
             return group
     return None

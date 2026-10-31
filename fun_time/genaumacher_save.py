@@ -69,6 +69,7 @@ def save_clip_session(config: BridgeConfig) -> str:
             text=True,
             timeout=10,
             cwd=str(_genaumacher_project_dir()),
+            check=False,
             **hidden_subprocess_kwargs(),
         )
         if result.returncode == 0:

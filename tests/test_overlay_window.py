@@ -200,6 +200,7 @@ def test_a_cover_process_loads_no_qt():
          "print(any(m.startswith('PyQt6') for m in sys.modules))\n"],
         capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent),
         env=environment_with_this_checkouts_siblings(),
+        check=False,
     )
 
     assert loaded.stdout.strip() == "False", loaded.stdout + loaded.stderr

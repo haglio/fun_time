@@ -77,6 +77,7 @@ def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:
         cwd=PROJECT_DIR,
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -109,7 +110,7 @@ def test_the_launch_loads_nothing_the_cover_does_not_need():
         [sys.executable, "-c",
          "import fun_time.orchestrator, sys;"
          f"print([m for m in {_NOT_BEFORE_THE_COVER!r} if m in sys.modules])"],
-        cwd=PROJECT_DIR, capture_output=True, text=True,
+        cwd=PROJECT_DIR, capture_output=True, text=True, check=False,
     )
 
     assert result.returncode == 0, result.stderr

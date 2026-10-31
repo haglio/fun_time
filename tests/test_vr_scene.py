@@ -55,7 +55,7 @@ class TestSurfaceVertices:
 
     def test_columns_span_the_angular_width_around_the_center(self):
         verts = surface_vertices(Placement(54.0, 0.0, 36.0), aspect=16 / 9)
-        azimuths = [_azimuth_deg(x, z) for x, z in zip(verts[::2, 0], verts[::2, 2])]
+        azimuths = [_azimuth_deg(x, z) for x, z in zip(verts[::2, 0], verts[::2, 2], strict=True)]
         assert azimuths[0] == pytest.approx(36.0, abs=1e-4)
         assert azimuths[-1] == pytest.approx(72.0, abs=1e-4)
 

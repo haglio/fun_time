@@ -74,5 +74,6 @@ def test_a_launcher_s_module_imports_the_way_it_is_run(launcher, module):
         capture_output=True,
         text=True,
         timeout=180,
+        check=False,
     )
     assert result.returncode == 0, f"{launcher} runs {module}:\n{result.stderr}"

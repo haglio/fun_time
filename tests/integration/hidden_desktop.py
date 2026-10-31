@@ -47,6 +47,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from itertools import pairwise
 from pathlib import Path
 from time import monotonic
 
@@ -119,7 +120,7 @@ _LEAVES_OUT_THE_TEST_IT_NAMES = frozenset({"--deselect", "--ignore", "--ignore-g
 
 def _names_its_tests(extra_args: list[str]) -> bool:
     return any(_is_in_the_suite(arg) and option not in _LEAVES_OUT_THE_TEST_IT_NAMES
-               for option, arg in zip(["", *extra_args], extra_args))
+               for option, arg in pairwise(["", *extra_args]))
 
 
 def _is_in_the_suite(arg: str) -> bool:
@@ -502,7 +503,7 @@ def _line_records() -> Path:
 
 def _branch_of(checkout: Path) -> str:
     done = subprocess.run(["git", "-C", str(checkout), "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True,
-                          text=True, **hidden_subprocess_kwargs())
+                          text=True, check=False, **hidden_subprocess_kwargs())
     return done.stdout.strip()
 
 

@@ -46,7 +46,7 @@ def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit
     prewarm has not produced yet is simply not on the map this publish, and appears
     on a later one.
     """
-    by_path = dict(zip(paths, labels))
+    by_path = dict(zip(paths, labels, strict=False))
     return tuple(
         _cell(path, thumb, by_path.get(path, ""))
         for path, thumb in panel_thumbnails(
@@ -65,7 +65,7 @@ def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
     rather than renumber the cells after it and slide the window off the clip
     playing.
     """
-    by_path = dict(zip(paths, labels))
+    by_path = dict(zip(paths, labels, strict=False))
     return tuple(_cell(path, cached_thumbnail(path, cache_dir, listings), by_path.get(path, ""))
                  for path in paths)
 

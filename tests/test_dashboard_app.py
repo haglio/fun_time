@@ -1703,6 +1703,7 @@ def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
             capture_output=True, text=True,
             cwd=str(Path(__file__).resolve().parent.parent),
             env=environment_with_this_checkouts_siblings(),
+            check=False,
         )
         assert result.returncode == 0, result.stderr
         return result.stdout.strip() == "True"

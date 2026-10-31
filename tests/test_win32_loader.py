@@ -62,7 +62,7 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
     return subprocess.run(
         [sys.executable, "-c", _STRIP_WIN32_FROM_CTYPES + body],
         cwd=str(REPO_DIR), env=environment_with_this_checkouts_siblings(),
-        capture_output=True, text=True, timeout=180,
+        capture_output=True, text=True, timeout=180, check=False,
     )
 
 

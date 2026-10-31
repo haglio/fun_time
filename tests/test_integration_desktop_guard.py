@@ -92,6 +92,7 @@ def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
         errors="replace",
         timeout=180,
         env={**os.environ, "PYTEST_ADDOPTS": "", "PYTHONIOENCODING": "utf-8"},
+        check=False,
     )
 
     # The wording, not just the code: pytest spends exit 4 on any usage error, so
