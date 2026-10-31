@@ -17,7 +17,7 @@ NOT_UNIT_TESTED = (
     NotUnitTested("fun_time/win32_events.py", "listens to the presses and carets of a real desktop"),
     NotUnitTested("satellite/app.py", "a Funestra's shell: needs the playback engine's library"),
     NotUnitTested("fun_time_vr/gl_contexts.py", "needs a graphics context"),
-    NotUnitTested("fun_time_vr/funestras.py", "the headset's shell: needs a headset"),
+    NotUnitTested("fun_time_vr/app.py", "the headset's shell: needs a headset"),
     NotUnitTested("fun_time_vr/render.py", "needs a graphics context"),
     NotUnitTested("fun_time_vr/video_thread.py", "needs a graphics context"),
     NotUnitTested("fun_time_vr/vr_session.py", "needs a headset and a graphics context"),

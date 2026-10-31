@@ -62,7 +62,7 @@ from fun_time.shared_state import (
 )
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
-from fun_time_vr import funestras, orchestrator, vr_runtime
+from fun_time_vr import app, orchestrator, vr_runtime
 from fun_time_vr.cover import (
     CLOSING_STATUS,
     SHUTDOWN_STALE_TIMEOUT_S,
@@ -1053,7 +1053,7 @@ class TestTheOnePin:
     def test_the_vr_funestra_claims_fun_times_own_identity(self):
         """The claim is made before any window exists, so the id it names is
         what every window of the session ends up grouped under."""
-        source = inspect.getsource(funestras.main)
+        source = inspect.getsource(app.main)
         claimed = [
             ast.unparse(node.args[0])
             for node in ast.walk(ast.parse(source.lstrip()))

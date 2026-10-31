@@ -58,7 +58,8 @@ from fun_time.overlay_progress import (
 )
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
-from fun_time_vr import funestras, room
+from fun_time_vr import app, funestras, room
+from fun_time_vr.app import build_parser
 from fun_time_vr.console_hud import DEG_PER_PX, HUD_WIDTH_PX
 from fun_time_vr.cover import (
     VR_SHUTDOWN_PHASES,
@@ -79,6 +80,7 @@ from fun_time_vr.dash_panel import (
 from fun_time_vr.funestras import (
     MAIN_TICK_HZ,
     OFF_THE_HUD,
+    Arranged,
     Arrangement,
     CoverUnit,
     CoverWatch,
@@ -87,7 +89,6 @@ from fun_time_vr.funestras import (
     _ConsoleUnit,
     _ControllerPosts,
     _DashUnit,
-    _draw_eyes,
     _GalleryUnit,
     _hands_for_the_funestras,
     _HangingScreen,
@@ -100,7 +101,7 @@ from fun_time_vr.funestras import (
     _still_blank,
     _users,
     _VideoUnit,
-    build_parser,
+    draw_eyes,
     hang_the_room,
 )
 from fun_time_vr.headset_verbs import AngleRequest, HeadsetVerbs, HostRequest
@@ -1482,7 +1483,7 @@ class TestWhenTheRoomIsUp:
 def test_the_cover_goes_up_before_the_funestras_are_built():
     """Built first and shown after, it was on screen for the tail of a launch
     that had already finished -- which is why none of it was ever seen."""
-    tree = ast.parse(inspect.getsource(funestras._run))
+    tree = ast.parse(inspect.getsource(app._run))
     calls = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
@@ -1493,15 +1494,15 @@ def test_the_cover_goes_up_before_the_funestras_are_built():
 
 def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it():
     assert "the_room.note_the_wearer(session.focused, now=time.monotonic())" in (
-        inspect.getsource(funestras._show_the_room))
+        inspect.getsource(app._show_the_room))
 
 
 def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
     """One arrangement goes to the pointer and to the eye pass, so what a squeeze
     lands on is what was in front."""
-    tree = ast.parse(inspect.getsource(funestras._frame))
+    tree = ast.parse(inspect.getsource(app._frame))
     (drawn,) = [n for n in ast.walk(tree)
-                if isinstance(n, ast.Call) and ast.unparse(n.func) == "_draw_eyes"]
+                if isinstance(n, ast.Call) and ast.unparse(n.func) == "draw_eyes"]
 
     assert {k.arg: ast.unparse(k.value) for k in drawn.keywords} == {
         "screens": "arranged.screens", "as_quads": "as_quads"}
@@ -1531,7 +1532,7 @@ def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records(
 
 
 def test_the_headset_session_runs_ahead_of_background_work():
-    tree = ast.parse(inspect.getsource(funestras.main))
+    tree = ast.parse(inspect.getsource(app.main))
     (scheduled,) = [n for n in ast.walk(tree)
                     if isinstance(n, ast.With)
                     and [ast.unparse(item.context_expr) for item in n.items]
@@ -1594,6 +1595,27 @@ class TestHangingTheRoom:
 
         assert the_room.cover is cover
         assert cover in the_room.units
+
+    def test_every_unit_is_asked_for_its_latest_frame_each_frame(
+            self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+        asked: list = []
+        for unit in the_room.units:
+            unit.render_latest_frame = partial(asked.append, unit)
+
+        the_room.render_latest_frames()
+
+        assert asked == the_room.units
+
+    def test_the_sound_goes_live_on_every_video_at_once(self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+        routed: list = []
+        for unit in the_room.videos:
+            unit.route_audio = partial(routed.append, unit)
+
+        the_room.route_audio()
+
+        assert routed == [the_room.main_unit, *the_room.satellites]
 
     def test_it_is_the_one_list_everything_is_read_off(self, tmp_path, faked_collaborators):
         """One registration per screen: the same list is what is closed, what is
@@ -1700,6 +1722,55 @@ class TestHangingTheRoom:
         the_room.note_the_wearer(True, now=10.0)
 
         assert posted == [HEADSET_ON]
+
+
+class TestTheShellsWordsForTheRoom:
+    """fun_time_vr/app.py runs only on a headset, so no suite reaches the lines
+    that read the room, the arrangement and the cover; a name renamed under it
+    would leave a broken call with both suites green.  Each name it reads off
+    them is held against what a room built here answers."""
+
+    def _answers(self, tmp_path):
+        the_room = _hang_a_room(tmp_path)
+        return {
+            "the_room": the_room,
+            "arranging": Arrangement(the_room),
+            "arranged": Arranged([], [], np.eye(4, dtype=np.float32), 0.0, 0.0),
+            "cover": the_room.cover,
+        }
+
+    @staticmethod
+    def _reads(tree) -> list[tuple[str, ...]]:
+        """Every dotted read off a name, deepest first, as ("the_room", "cover", "showing")."""
+        reads = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute):
+                continue
+            chain = []
+            while isinstance(node, ast.Attribute):
+                chain.append(node.attr)
+                node = node.value
+            if isinstance(node, ast.Name):
+                reads.append((node.id, *reversed(chain)))
+        return reads
+
+    def test_every_name_the_shell_reads_off_the_room_is_one_it_answers(
+            self, tmp_path, faked_collaborators):
+        answers = self._answers(tmp_path)
+        unanswered = set()
+        for root, *attrs in self._reads(ast.parse(inspect.getsource(app))):
+            if root not in answers:
+                continue
+            found = answers[root]
+            for attr in attrs:
+                if not hasattr(found, attr):
+                    unanswered.add(".".join([root, *attrs]))
+                    break
+                found = getattr(found, attr)
+
+        assert unanswered == set(), (
+            "the shell reads these off the room and nothing there answers them: "
+            f"{sorted(unanswered)}")
 
 
 # --- The cover's time in front of the eyes ---
@@ -2407,7 +2478,7 @@ class TestEveryHangingScreenIsDrawn:
         library.showing = browsing
         hangings = room.what_hangs([main_unit, console, dash, reference, library])
         screens = room.arranged(stacking or Stacking(), hangings)
-        _draw_eyes(
+        draw_eyes(
             session, renderer, hangings,
             SimpleNamespace(draw=lambda *_a: None), self._views(), np.eye(4, dtype=np.float64),
             screens=screens, as_quads=set(),

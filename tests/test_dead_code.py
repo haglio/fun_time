@@ -408,7 +408,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # by the rule funestra keeps for every app, and the notes on its three stops went.
 # 5627 the same day: Genau's numbers moved into this config's genau section,
 # and the notes on the settings file Genau's checkout kept went with them.
-MAX_PROSE_LINES = 5627
+# 5624 on 2026-10-31: the headset session's phases got names in place of their
+# banners.
+MAX_PROSE_LINES = 5624
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 #: The shells fun_time's CLAUDE.md names as untested on purpose, and the only
 #: ones whose calls nothing else can catch.
 SHELLS = (
-    "fun_time_vr/funestras.py",
+    "fun_time_vr/app.py",
     "fun_time_vr/render.py",
     "fun_time_vr/vr_session.py",
     "fun_time_vr/video_thread.py",

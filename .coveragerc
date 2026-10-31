@@ -15,7 +15,7 @@ omit =
     # needs a graphics context
     fun_time_vr/gl_contexts.py
     # the headset's shell: needs a headset
-    fun_time_vr/funestras.py
+    fun_time_vr/app.py
     # needs a graphics context
     fun_time_vr/render.py
     # needs a graphics context
@@ -28,7 +28,7 @@ relative_files = true
 
 [report]
 precision = 2
-fail_under = 94.9
+fail_under = 96.4
 exclude_also =
     if TYPE_CHECKING:
     if __name__ == "__main__":
