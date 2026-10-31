@@ -136,7 +136,8 @@ def test_the_shortcut_line_names_the_sibling_checkouts_the_launch_will_run(check
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
     assert line.startswith("sibling_checkouts: ")
-    assert "funestra" in line and "shared_ui" in line
+    assert "funestra" in line
+    assert "shared_ui" in line
 
 
 def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
@@ -503,7 +504,8 @@ def test_both_flavours_of_one_branch_come_back_out_together(primary_with_launche
     )
 
     assert sorted(removed) == sorted([desktop, headset])
-    assert not desktop.exists() and not headset.exists()
+    assert not desktop.exists()
+    assert not headset.exists()
 
 
 @pytestmark_shortcut

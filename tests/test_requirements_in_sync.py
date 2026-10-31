@@ -65,11 +65,13 @@ def test_requirements_matches_pyproject():
 
     missing = pyproject - requirements
     extra = requirements - pyproject
-    assert not missing and not extra, (
+    out_of_sync = (
         "requirements.txt is out of sync with pyproject.toml.\n"
         f"  declared in pyproject.toml but missing from requirements.txt: {sorted(missing)}\n"
         f"  in requirements.txt but not declared in pyproject.toml: {sorted(extra)}"
     )
+    assert not missing, out_of_sync
+    assert not extra, out_of_sync
 
 
 def test_requirements_names_the_same_sibling_tags():

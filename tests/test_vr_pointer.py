@@ -154,7 +154,8 @@ class TestWhereOnAScreenAPointLands:
         far = screen_uv(_on_the_cylinder(38.0 + 28.0, -5.0), _A_SCREEN, aspect=16 / 9)
 
         assert far[0] > near[0] > 1.0
-        assert far[1] < 0 and near[1] < 0
+        assert far[1] < 0
+        assert near[1] < 0
 
     def test_a_spot_on_the_far_side_of_the_viewer_is_nowhere_on_the_screen(self):
         """Carried on round past the viewer, a flat screen's plane lands this spot in
@@ -164,7 +165,8 @@ class TestWhereOnAScreenAPointLands:
         u, v = screen_uv(far_side, _A_SCREEN, aspect=16 / 9)
 
         assert handle_at(u, v, _A_SCREEN, aspect=16 / 9) is None
-        assert math.isfinite(u) and math.isfinite(v)
+        assert math.isfinite(u)
+        assert math.isfinite(v)
 
     def test_a_screen_hanging_across_the_seam_still_reads_whole(self):
         across_the_seam = Placement(azimuth_deg=170.0, elevation_deg=0.0, width_deg=40.0)
@@ -563,7 +565,8 @@ class TestThePointerOverTheScene:
                                               right_trigger=1.0))
 
         assert held.taken == "landscape"
-        assert hovered.taken is None and dragged.taken is None
+        assert hovered.taken is None
+        assert dragged.taken is None
 
     def test_pressing_a_screen_takes_hold_of_it_too(self):
         frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_CONSOLE, 0.5, 0.5), right_trigger=1.0))
@@ -692,7 +695,8 @@ class TestThePointerOverTheScene:
                            screens=scene)
         released = self._frame(pointer, away, screens=scene)
 
-        assert resting.hover is None and held.hover is None
+        assert resting.hover is None
+        assert held.hover is None
         assert resting.events == held.events == ()
         assert released.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
                                    PressEvent(RELEASE, "primary"))
@@ -744,7 +748,8 @@ class TestThePointerOverTheScene:
         pointer.spend_the_squeeze()
         let_go = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6)), screens=scene)
 
-        assert squeezing and not pointer.squeezing
+        assert squeezing
+        assert not pointer.squeezing
         assert let_go.events == ()
 
     def test_a_squeeze_over_the_wrap_that_carries_it_never_presses_it(self):
@@ -856,8 +861,10 @@ class TestThePointerOverTheScene:
                                            right_trigger=1.0))
         let_go_blind = self._frame(pointer, _hands())
 
-        assert skyward.moved == {} and skyward.hover.handle == MOVE
-        assert untracked.ray is None and untracked.moved == {}
+        assert skyward.moved == {}
+        assert skyward.hover.handle == MOVE
+        assert untracked.ray is None
+        assert untracked.moved == {}
         assert back.moved["landscape"].azimuth_deg == pytest.approx(43.0, abs=1e-4)
         assert let_go_blind.settled
 

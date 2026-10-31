@@ -447,7 +447,7 @@ def test_a_word_button_still_lightens_under_the_pointer(panel_factory):
     # The Qt spelling of each color, not the palette's raw triple beside it.
     sheet = panel_factory(["Clip state"])._source_buttons["system"].styleSheet()
 
-    assert (hovered(colors.BG_BUTTON).name() in sheet
-            and hovered(colors.BLUE).name() in sheet)
+    assert (hovered(colors.BG_BUTTON).name() in sheet)
+    assert (hovered(colors.BLUE).name() in sheet)
 
 

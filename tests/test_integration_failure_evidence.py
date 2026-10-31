@@ -135,7 +135,8 @@ def test_keeping_a_failed_runs_records_forgets_those_kept_more_than_two_weeks_be
 
     keep_what_the_run_logged(kept_in)
 
-    assert not (kept_in / "old").exists() and (kept_in / "recent").exists()
+    assert not (kept_in / "old").exists()
+    assert (kept_in / "recent").exists()
 
 
 def test_two_failed_runs_keep_their_logs_apart(tmp_path: Path):

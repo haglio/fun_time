@@ -108,9 +108,12 @@ def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an
         shuffled = _band(hud_model(_hud(latest=False), Path("C:/t")))
         unswitchable = _band(hud_model(_hud(), Path("C:/t")))
 
-    assert newest["latest"].lit and not newest["shuffle"].lit
-    assert shuffled["shuffle"].lit and not shuffled["latest"].lit
-    assert "shuffle" not in unswitchable and "latest" not in unswitchable
+    assert newest["latest"].lit
+    assert not newest["shuffle"].lit
+    assert shuffled["shuffle"].lit
+    assert not shuffled["latest"].lit
+    assert "shuffle" not in unswitchable
+    assert "latest" not in unswitchable
 
 
 def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
@@ -119,7 +122,9 @@ def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         band = _band(hud_model(_hud(locked=True, favorites_filter=True), Path("C:/t")))
 
-    assert band["lock"].lit and band["fmode"].lit and not band["trash"].lit
+    assert band["lock"].lit
+    assert band["fmode"].lit
+    assert not band["trash"].lit
     assert all(button.command.startswith("portrait_") for button in band.values())
 
 

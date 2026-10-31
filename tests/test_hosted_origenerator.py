@@ -200,7 +200,8 @@ class TestTellingAKeptAppWhereItsWindowGoes:
                       return_value=44)
         with looking, alive:
             app = bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
-        assert app is not None and app.already_open
+        assert app is not None
+        assert app.already_open
         return config, consume_command_file(config.origenerator_cmd_file, uppercase=False)
 
     def test_a_headset_session_asks_for_the_frame(self, cfg_factory, tmp_path):
@@ -329,7 +330,9 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         _config, app, launched = self._bring_up(
             cfg_factory, tmp_path, it_reads_the_takeover=False)
 
-        assert app is not None and app.pid == 91 and not app.taken_over
+        assert app is not None
+        assert app.pid == 91
+        assert not app.taken_over
         assert launched, "the room was left with no Origenerator at all"
         assert "never read the takeover" in caplog.text
 
@@ -360,7 +363,9 @@ class TestWhenTheAppWeTookOverNeverAnswers:
             cfg_factory, tmp_path, it_reads_the_takeover=True)
 
         assert not launched, "a second copy was launched beside the one we took over"
-        assert app is not None and app.taken_over and app.pid == 6060
+        assert app is not None
+        assert app.taken_over
+        assert app.pid == 6060
 
 
 class TestWhatTheHostedAppAnswersByVoice:
