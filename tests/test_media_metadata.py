@@ -24,7 +24,6 @@ from fun_time.media_metadata import (
     recorded_for,
     reject_action,
     seed_family_items,
-    version_group_of,
     video_title,
     watch_weight_of,
     widened_seed_items,
@@ -195,14 +194,6 @@ def test_a_video_kept_on_another_drive_is_read_through_its_outlying_folder(tmp_p
     record.write_text(json.dumps(VIDEO_ONLY_META), encoding="utf-8")
 
     assert recorded_for(away / "scene one.mp4", metadata_root, outlying_dirs=[away]) == VIDEO_ONLY_META
-
-
-# --- version_group_of ---
-
-
-def test_a_videos_version_family_is_the_group_evolver_recorded():
-    assert version_group_of({"version": {"group": "y", "processed": True}}) == "y"
-    assert version_group_of({"clip": {"compilation": "Vol6"}}) == ""
 
 
 # --- build_group_index ---
