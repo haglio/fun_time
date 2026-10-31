@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 import threading
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -90,6 +91,14 @@ def ready_file_for(progress_file: str | Path) -> Path:
     """The ready flag pairing with a shutdown *progress_file*, derived the way
     the cancel flag is."""
     return Path(progress_file).with_name(SHUTDOWN_READY_FILENAME)
+
+
+def progress_file_argument(module: str) -> Path:
+    match sys.argv:
+        case [_, progress_file, *_]:
+            return Path(progress_file)
+    print(f"Usage: python -m {module} <progress_file>", file=sys.stderr)
+    sys.exit(1)
 
 
 class StartupCancelled(Exception):

@@ -72,9 +72,9 @@ def read_shortcuts(folder: Path, *, pattern: str) -> dict[Path, Shortcut]:
     )
     found: dict[Path, Shortcut] = {}
     for line in run_powershell(script).splitlines():
-        fields = line.split(FIELD_SEPARATOR)
-        if len(fields) == 4:
-            found[Path(fields[0])] = Shortcut(fields[1], fields[2], fields[3])
+        match line.split(FIELD_SEPARATOR):
+            case [path, target, work_dir, arguments]:
+                found[Path(path)] = Shortcut(target, work_dir, arguments)
     return found
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,7 @@ from fun_time.overlay_progress import (
     StartupCancelled,
     cancel_file_for,
     parse_progress,
+    progress_file_argument,
     ready_file_for,
     startup_still_building,
     what_the_flag_asks,
@@ -238,6 +240,24 @@ class TestReadyFileFor:
     def test_places_the_flag_beside_the_progress_file(self, tmp_path: Path):
         progress_file = tmp_path / "state" / "shutdown_progress.txt"
         assert ready_file_for(progress_file) == tmp_path / "state" / SHUTDOWN_READY_FILENAME
+
+
+class TestProgressFileArgument:
+    def test_a_cover_screen_covers_the_progress_file_it_was_started_with(self, tmp_path: Path,
+                                                                      monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["screen", str(tmp_path / "progress.txt")])
+
+        assert progress_file_argument("fun_time.closing_screen") == tmp_path / "progress.txt"
+
+    def test_a_cover_screen_started_without_one_says_how_to_start_it_and_stops(self, monkeypatch,
+                                                                              capsys):
+        monkeypatch.setattr(sys, "argv", ["screen"])
+
+        with pytest.raises(SystemExit) as stopped:
+            progress_file_argument("fun_time.closing_screen")
+
+        assert stopped.value.code == 1
+        assert "python -m fun_time.closing_screen <progress_file>" in capsys.readouterr().err
 
 
 class TestPhaseProgressCancellation:

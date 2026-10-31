@@ -361,7 +361,7 @@ def _resolve_anchor(
     walk landed off the map."""
     if inputs.loop_axis in ("seed", "action"):
         group = _looping_group(index, inputs, widened_pool, pool_keys)
-        if len(group) >= 2:
+        if len(group) > 1:
             return _MapHold(_map_anchor_in(group, inputs.map_anchor), inputs.loop_axis, held=True)
     elif inputs.map_anchor and _axis_holding(index, inputs.map_anchor, inputs.current, widened_pool):
         return _MapHold(inputs.map_anchor, held=True)

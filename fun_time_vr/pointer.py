@@ -26,6 +26,8 @@ Quat = tuple[float, float, float, float]
 AimPose = tuple[Vec3, Quat]
 
 _FORWARD = np.array([0.0, 0.0, -1.0], dtype=np.float64)
+_ALONG_THE_AXIS = 1e-12
+_NO_LENGTH = 1e-9
 
 
 @dataclass(frozen=True)
@@ -97,7 +99,7 @@ def cylinder_hit(ray: Ray, radius: float = RADIUS_M) -> SurfacePoint | None:
     ox, oy, oz = ray.origin
     dx, dy, dz = ray.direction
     a = dx * dx + dz * dz
-    if a < 1e-12:
+    if a < _ALONG_THE_AXIS:
         return None
     b = 2.0 * (ox * dx + oz * dz)
     c = ox * ox + oz * oz - radius * radius
@@ -164,10 +166,10 @@ def laser_vertices(ray: Ray, *, length: float) -> np.ndarray:
     direction = np.array(ray.direction, dtype=np.float64)
     far = origin + direction * length
     across = np.cross(direction, (origin + far) / 2.0)
-    if np.linalg.norm(across) < 1e-9:
-        across = np.cross(direction, (0.0, 1.0, 0.0))
-    if np.linalg.norm(across) < 1e-9:
-        across = np.cross(direction, (1.0, 0.0, 0.0))
+    for fallback in ((0.0, 1.0, 0.0), (1.0, 0.0, 0.0)):
+        if np.linalg.norm(across) >= _NO_LENGTH:
+            break
+        across = np.cross(direction, fallback)
     across /= np.linalg.norm(across)
     rows = [
         (*(origin - across * LASER_NEAR_HALF_WIDTH), 0.0, 0.0),
