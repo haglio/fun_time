@@ -395,7 +395,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_player_cycle_version_back", "main_player_cycle_version"),
             ),
             _Row(
-                "Move this Funestra's panel — one key each way round the corners "
+                "Move this Funestra's HUD — one key each way round the corners "
                 "of the Funestra, or round the sides of the Funestra in the headset. "
                 "A click in a corner of the Funestra sends it there and opens it, "
                 "and so does a squeeze beside a side of the Funestra in the headset",
@@ -403,7 +403,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_hud_counterclockwise", "main_hud_clockwise"),
             ),
             _Row(
-                "Minimize this Funestra's panel — it collapses to a square with a "
+                "Minimize this Funestra's HUD — it collapses to a square with a "
                 "plus on it, and the plus brings it back",
                 (),
                 ("main_hud_minimize", "main_hud_restore"),
