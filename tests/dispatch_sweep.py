@@ -12,6 +12,7 @@ from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
 from fun_time.manifest import LaunchManifest, write_manifest_data, write_windows_bridge_manifest
 from fun_time.mode_plan import MAIN_MODES
+from fun_time.origenerator_switches import origenerator_shows
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
@@ -138,7 +139,9 @@ def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[st
             for command in every_command():
                 state = BridgeState(main_mode=main_mode, origenerator_ready=True)
                 for funestra in RoomFunestra.SATELLITES:
-                    state = state.with_satellite(funestra, mode=satellites_mode)
+                    state = state.with_satellite(
+                        funestra, mode=satellites_mode,
+                        handed_over=origenerator_shows(satellites_mode))
                 _state, ops = dispatch_command(command, state, config, target_path="")
                 written = drain(config)
                 written["__ops__"] = sorted({op.op for op in ops})

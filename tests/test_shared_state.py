@@ -408,6 +408,7 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
     "main_mode": "kino", "portrait_mode": "kino", "landscape_mode": "kino",
+    "portrait_handed_over": "0", "landscape_handed_over": "0",
     "rfb_slot": "rfb",
     "origenerator_ready": "0",
     "main_scripted_filter": "0", "portrait_favorites_filter": "0", "landscape_favorites_filter": "0",

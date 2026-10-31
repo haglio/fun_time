@@ -67,7 +67,7 @@ def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfi
     """Whether the hosted app holds *funestra*: a Satellite Funestra in its
     Origenerator mode, in a session hosting the app."""
     return (funestra in RoomFunestra.SATELLITES and config.hosts_origenerator
-            and origenerator_shows(state.satellite(funestra).mode))
+            and state.satellite(funestra).handed_over)
 
 
 def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:
