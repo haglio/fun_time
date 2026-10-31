@@ -982,10 +982,13 @@ def test_the_browser_runs_on_an_application_made_where_it_is_let_go_of_safely(
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
 
-    with patch("fun_time.library_browser.LibraryBrowserWindow"),          patch("fun_time.library_browser.bring_to_front"):
+    with (patch("fun_time.library_browser.LibraryBrowserWindow"),
+          patch("fun_time.library_browser.bring_to_front"),
+          patch("fun_time.library_browser.dress_application") as dressed):
         assert main([str(manifest), str(tmp_path / "pick.txt")]) == 7
 
     assert made == [[]]
+    dressed.assert_called_once()
 
 
 def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path, cfg_factory):

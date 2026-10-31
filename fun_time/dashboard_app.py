@@ -13,13 +13,13 @@ from app_support.logging_utils import install_exception_logging
 from funestra.file_channel import append_command
 from PyQt6.QtGui import QColor, QFont, QImage
 from shared_ui.application import application
-from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
     BG_PRIMARY,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    dress_application,
     hovered,
 )
 from shared_ui.find_bar import FindBar
@@ -986,7 +986,7 @@ def main(argv: list[str] | None = None) -> int:
     with application([]) as app:
         # The family's chrome, on the application: a tooltip is a top-level popup,
         # and only a sheet set here reaches it.
-        app.setStyleSheet(family_stylesheet())
+        dress_application(app)
 
         app_config = load_dashboard_app_config(Path(args.manifest_path))
         record_source_checkout(app_config.state_dir)
