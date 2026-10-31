@@ -69,10 +69,35 @@ windows = [
 ]
 
 # The family checkouts this one is installed beside. None is published, so none
-# can go in [project.dependencies]; tests/test_dependency_completeness.py holds
-# this list against the tree, counting what a declared sibling needs in turn.
+# can go in [project.dependencies]; the family's dependency gate holds this
+# list against the tree, counting what a declared sibling needs in turn.
 [tool.haglio]
 siblings = ["app_support", "funestra", "shared_ui", "voice_core"]
+
+# What the family's gates (app_support.gates) let stand here, each for the
+# reason beside it. An entry nothing is reported for any more fails the gate.
+[tool.haglio.dead-code]
+# The packages are scanned one at a time: scanned together they hide each
+# other's dead code, vulture matching by bare name across all it is handed.
+each-package-alone = true
+# CommandFiles.funestra_file asks for a side's file by kind, so the two the
+# satellites' channels take that way are read by getattr rather than by name.
+unread-dataclass-fields = ["CommandFiles.portrait_hud_file", "CommandFiles.landscape_hud_file"]
+
+# What this repo does not unit-test, with the reason it gives. One place, never
+# a pragma scattered through the tree.
+[tool.haglio.coverage]
+not-unit-tested = [
+    { path = "fun_time/chrome_accessibility.py", because = "reaches a real Chrome's tabs: needs a browser" },
+    { path = "fun_time/win32_events.py", because = "listens to the presses and carets of a real desktop" },
+    { path = "satellite/app.py", because = "a Funestra's shell: needs the playback engine's library" },
+    { path = "fun_time_vr/gl_contexts.py", because = "needs a graphics context" },
+    { path = "fun_time_vr/app.py", because = "the headset's shell: needs a headset" },
+    { path = "fun_time_vr/render.py", because = "needs a graphics context" },
+    { path = "fun_time_vr/video_thread.py", because = "needs a graphics context" },
+    { path = "fun_time_vr/vr_session.py", because = "needs a headset and a graphics context" },
+    { path = "fun_time_vr/windows_sound.py", because = "sets Windows' default sound devices: a test would change the machine's" },
+]
 
 # What Fun Time's three launchers start: launch.vbs, the file the pinned shortcut
 # runs; launch_vr.vbs, FunTimeVR's; and launch_branch.vbs, which a
@@ -170,7 +195,7 @@ include = ["fun_time*", "main_funestra*", "satellite*", "fun_time_vr*"]
 
 # Only the syntax level, so a ruff run outside the suite reads the code the way
 # the venv and CI do.  The rules are not configured here on purpose: the
-# dead-code gate in tests/test_dead_code.py names the ones it enforces, so
+# family's dead-code gate in app_support.gates names the ones it enforces, so
 # a bare `ruff check` cannot quietly become the gate.
 
 # The pytest settings live HERE, not in a pytest.ini beside it, because pytest
@@ -194,8 +219,8 @@ include = ["fun_time*", "main_funestra*", "satellite*", "fun_time_vr*"]
 # --timeout-method=thread is the half that pays for itself: it dumps the stack
 # of the test that stopped, which turns a stalled required check into a
 # one-line diagnosis.
-# app_support.clocks holds all three halves of it.
-addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin -p app_support.clocks.pytest_plugin -p app_support.coverage_gate --cov --cov-report="
+# app_support.gates holds all three halves of it.
+addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin -p app_support.gates.pytest_plugin -p app_support.coverage_gate --cov --cov-report="
 testpaths = ["tests"]
 markers = [
     "real_startup_waits: this test is about a startup wait, so it gets the real window lookup and the real timeouts instead of the conftest stubs.",

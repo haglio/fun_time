@@ -2,7 +2,7 @@
 
 Each entry tells vulture the name is used, suppressing the report.  Vulture
 matches by bare name, so an entry that suppresses nothing keeps covering
-whatever is given that name next: tests/test_dead_code.py asserts every entry
+whatever is given that name next: the family's dead-code gate asserts every entry
 here still answers a report, and an entry may only be added with the reason it
 answers one.
 """
