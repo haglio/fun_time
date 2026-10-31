@@ -181,11 +181,9 @@ def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(che
     assert branch.loopback_port == live.loopback_port
 
 
-def test_a_branch_session_plays_genau_on_the_live_sessions_numbers(checkouts, tmp_path):
-    old_settings_file = tmp_path / "genau_config.json"
-    old_settings_file.write_text(json.dumps({"genau": {"beats_per_loop": 2.0}}), encoding="utf-8")
+def test_a_branch_session_plays_genau_on_the_live_sessions_numbers(checkouts):
     live = json.loads(checkouts.config_path.read_text(encoding="utf-8"))
-    live["paths"]["genau_config_path"] = str(old_settings_file)
+    live["genau"] = {"beats_per_loop": 2.0}
     checkouts.config_path.write_text(json.dumps(live), encoding="utf-8")
 
     branch_config = branch_session.build_branch_config(
@@ -194,11 +192,10 @@ def test_a_branch_session_plays_genau_on_the_live_sessions_numbers(checkouts, tm
         primary=checkouts.primary,
     )
 
-    assert GenauSettings.read(branch_config) == GenauSettings.read(checkouts.config_path)
     assert GenauSettings.read(branch_config).beats_per_loop == 2.0
 
 
-@pytest.mark.parametrize("key", ["genau_dir", "genau_python_exe"])
+@pytest.mark.parametrize("key", ["genau_dir", "genau_python_exe", "genau_config_path"])
 def test_a_genau_key_no_session_reads_stays_out_of_the_branch_config(checkouts, key):
     branch_config = branch_session.build_branch_config(
         checkouts.worktree,

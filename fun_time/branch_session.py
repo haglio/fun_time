@@ -90,7 +90,8 @@ RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
-_SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir", "genau_dir", "genau_python_exe")
+_SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir", "genau_dir", "genau_python_exe",
+                         "genau_config_path")
 
 
 def _git(args: list[str], cwd: Path, *, stdin: str | None = None) -> str:

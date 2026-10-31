@@ -49,15 +49,13 @@ class TestReadingTheGenauSection:
         assert settings.bpm_smoothing == GenauSettings().bpm_smoothing
         assert settings.udp_port == GenauSettings().udp_port
 
-    def test_a_config_still_naming_genaus_old_settings_file_is_read_from_that_file(self, tmp_path):
-        """Until a config holds the numbers itself, they are where Genau's checkout
-        kept them, so a session plays on what it played on before they moved."""
+    def test_the_settings_file_genaus_checkout_kept_is_never_read(self, tmp_path):
         old = tmp_path / "genau_config.json"
         old.write_text(json.dumps({"genau": {"beats_per_loop": 2.0}}), encoding="utf-8")
         path = _write(tmp_path, {"paths": {"genau_config_path": str(old)},
                                  "genau": {"beats_per_loop": 3.0}})
 
-        assert GenauSettings.read(path).beats_per_loop == 2.0
+        assert GenauSettings.read(path).beats_per_loop == 3.0
 
     @pytest.mark.parametrize("payload", [{}, {"genau": "not a section"}, [1, 2]])
     def test_a_config_with_no_genau_section_is_the_defaults(self, tmp_path, payload):

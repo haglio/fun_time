@@ -436,11 +436,8 @@ class TestRunStartupSequence:
     def test_the_main_funestra_reads_every_setting_from_fun_times_own_config(
             self, cfg_factory, tmp_path):
         """Its library folders, its T-Code port and Genau's numbers all live in
-        Fun Time's config, so that is the one file it is handed -- even by a
-        config that still names the settings file Genau's checkout kept."""
-        genau_config = tmp_path / "genau_config.json"
-        genau_config.write_text("{}", encoding="utf-8")
-        cfg = load_config(cfg_factory({"paths": {"genau_config_path": str(genau_config)}}))
+        Fun Time's config, so that is the one file it is handed."""
+        cfg = load_config(cfg_factory({}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
@@ -455,7 +452,6 @@ class TestRunStartupSequence:
 
         assert main_funestra_kwargs["config_path"] == str(cfg.config_path)
         assert main_funestra_kwargs["flicks_dir"] == str(cfg.paths.flicks_dir)
-        assert str(genau_config) not in main_funestra_kwargs.values()
 
     def test_the_main_funestra_starts_with_the_named_checkouts(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

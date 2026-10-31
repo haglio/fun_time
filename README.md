@@ -88,7 +88,7 @@ Example:
 }
 ```
 
-Genau's playback settings — `shuffle_on_load` among them — are this config's `genau` section, or, while a config still names `paths.genau_config_path`, the `genau` section of the file it names, which is where they were kept before. Where Genau's folder and the folder of its sounds are is not in this config either: `genau_dir` and `genau_audio_dir` in the settings all of Haglio shares, `~/.haglio/settings.json`, say so for every app.
+Genau's playback settings — `shuffle_on_load` among them — are this config's `genau` section. Where Genau's folder and the folder of its sounds are is not in this config either: `genau_dir` and `genau_audio_dir` in the settings all of Haglio shares, `~/.haglio/settings.json`, say so for every app.
 
 The layout values that used to be hard-coded in AutoHotkey now live under `layout`.
 
