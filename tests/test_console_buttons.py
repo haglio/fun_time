@@ -20,7 +20,7 @@ from funestra.hud_marks import (
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
-from shared_ui.icon_geometry import RENAMED_MARKS, glyph_names
+from shared_ui.icon_geometry import icon_names
 
 from fun_time import console_buttons
 from fun_time.console_buttons import (
@@ -662,13 +662,7 @@ class TestFaces:
                  if b.glyph.startswith(SHARED_MARK)}
 
         assert {"trash", "reset", "wave", "crown", "folder", "chevron_left", "lock"} <= named
-        assert not named - set(glyph_names())
-
-    def test_no_button_asks_for_a_mark_by_a_name_the_family_has_retired(self):
-        named = {shared_mark_name(b.glyph) for b in _every_button()
-                 if b.glyph.startswith(SHARED_MARK)}
-
-        assert not named & set(RENAMED_MARKS)
+        assert not named - set(icon_names())
 
     def test_the_bin_takes_something_away(self):
         assert _button(MainSlot(main_mode=MainMode.GENAU), "genau_weird_flick").danger is True
@@ -686,7 +680,7 @@ class TestOrientationPair:
     def test_they_wear_the_familys_portrait_and_landscape_marks(self):
         assert (shared_mark_name(PORTRAIT_ICON), shared_mark_name(LANDSCAPE_ICON)) == (
             "portrait", "landscape")
-        assert {"portrait", "landscape"} <= set(glyph_names())
+        assert {"portrait", "landscape"} <= set(icon_names())
 
     def test_both_lit_and_each_press_asks_for_the_other_alone(self):
         portrait, landscape = self._pair()

@@ -20,11 +20,11 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.find_bar import FindBar
-from shared_ui.icon_geometry import GLYPHS, tooltip_for
-from shared_ui.icons import glyph_pixmap
+from shared_ui.icon_geometry import ICONS, tooltip_for
+from shared_ui.icons import icon_pixmap
 from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
 from shared_ui.preview import Preview
-from shared_ui.spacing import BUTTON_MARK_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
+from shared_ui.spacing import BUTTON_ICON_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -302,8 +302,8 @@ def test_the_pause_button_says_which_way_it_will_go():
         return next(i.pixmap for i in scene.images if i.rect == layout.omnipause_button)
 
     side = _mark_side(layout.omnipause_button)
-    assert mark(False).toImage() == glyph_pixmap("pause", side, TEXT_PRIMARY).toImage()
-    assert mark(True).toImage() == glyph_pixmap("play", side, TEXT_PRIMARY).toImage()
+    assert mark(False).toImage() == icon_pixmap("pause", side, TEXT_PRIMARY).toImage()
+    assert mark(True).toImage() == icon_pixmap("play", side, TEXT_PRIMARY).toImage()
 
 
 def test_pausing_everything_does_not_paint_the_button_a_state_color():
@@ -341,7 +341,7 @@ def test_the_microphone_is_the_one_the_family_shares():
     panel = compute_dashboard_bar_layout().voice_panel
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
-    expected = glyph_pixmap("mic", _mark_side(panel), TEXT_PRIMARY)
+    expected = icon_pixmap("mic", _mark_side(panel), TEXT_PRIMARY)
     assert drawn[panel].toImage() == expected.toImage()
 
 
@@ -353,7 +353,7 @@ def test_every_control_names_itself_on_hover():
 
 
 def test_a_control_whose_mark_this_version_lacks_says_why_on_hover(monkeypatch):
-    monkeypatch.delitem(GLYPHS, "power")
+    monkeypatch.delitem(ICONS, "power")
 
     hover = dict(_scene().hover_texts)[compute_dashboard_bar_layout().quit_button]
 
@@ -1239,7 +1239,7 @@ def test_every_control_on_the_bar_wears_a_drawn_mark():
                        (layout.help_button, "question"),
                        (layout.voice_panel, "mic")):
         side = _mark_side(rect)
-        assert drawn[rect].toImage() == glyph_pixmap(name, side, TEXT_PRIMARY).toImage(), name
+        assert drawn[rect].toImage() == icon_pixmap(name, side, TEXT_PRIMARY).toImage(), name
 
     assert [item.text for item in scene.texts] == ["Fun Time"]
 
@@ -1291,7 +1291,7 @@ def test_a_pressed_control_keeps_the_edge_its_state_gave_it():
 
 
 def _mark_side(rect) -> int:
-    return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET
+    return min(rect.width, rect.height) - 2 * BUTTON_ICON_INSET
 
 
 class TestMarkCache:
