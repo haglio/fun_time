@@ -70,7 +70,7 @@ class TestCommandRules:
 
     def test_the_configured_bar_is_the_one_a_scored_reading_has_to_reach(self):
         assert command_rules(VOICE_COMMANDS, confidence_threshold=0.6, confirm_commands=True
-                             ).confidence_threshold == 0.6  # noqa: PLR2004
+                             ).confidence_threshold == 0.6
 
     def test_with_commands_confirmed_only_relief_acts_on_the_first_listeners_word_alone(self):
         """The sensation emergency must not wait half a second for a second
