@@ -15,86 +15,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.video_names import normalize_title
 from funestra.playlist import PlaylistItem
-
-# Tunable heuristic: tokens dropped anywhere in a title because they mark a
-# quality/upscaler/codec/resolution/container variant rather than content.
-# This is deliberately conservative — the list can over-group (folding two
-# genuinely different videos) or under-group (missing an unlisted tag), and is
-# meant to be edited as new tags show up in the library.
-_QUALITY_TOKENS = frozenset({
-    # upscalers / restoration
-    "topaz", "iris2", "old_iris2", "upscale", "upscaled", "remux",
-    # codecs
-    "x264", "x265", "hevc", "av1",
-    # frame rates
-    "60fps", "30fps", "24fps",
-    # resolutions
-    "480p", "540", "540p", "720p", "1080p", "1440p", "2160p", "4k",
-    # containers / sources
-    "mp4", "mkv", "web", "webrip",
-})
-
-# "old_iris2" contains an underscore, so it must be matched before the
-# separator collapse splits it. Keep the multi-part quality tokens here.
-_MULTIPART_QUALITY = tuple(t for t in _QUALITY_TOKENS if "_" in t)
-
-_SEPARATORS = re.compile(r"[-_ .]+")
-_HASH_TOKEN = re.compile(r"[a-z0-9]{6,12}")
-
-
-def _is_hash_token(token: str) -> bool:
-    """A short alnum token that mixes letters and digits (e.g. ``ehwgjw62``).
-
-    Requiring both classes keeps pure words (``compilation``) and pure
-    numbers (a scene index like ``1``) from being mistaken for hashes.
-    """
-    if not _HASH_TOKEN.fullmatch(token):
-        return False
-    return any(c.isalpha() for c in token) and any(c.isdigit() for c in token)
-
-
-def normalize_title(stem: str) -> str:
-    text = stem.lower()
-    for token in _MULTIPART_QUALITY:
-        text = text.replace(token, " ")
-    tokens = [t for t in _SEPARATORS.split(text) if t and t not in _QUALITY_TOKENS]
-    while tokens and _is_hash_token(tokens[-1]):
-        tokens.pop()
-    return " ".join(tokens)
-
-
-# Evolver names an enhanced file by appending the models that made it, so
-# "scene_apo8_iris2" is "scene".  normalize_title knows some of these as quality
-# tokens but not all, and a suffix missing from both lists makes a scene and its
-# own upscale look like two different scenes.
-_PROCESSING_SUFFIXES = (
-    "_topaz_cfr", "_topaz", "_gcg5", "_prob4", "_ghq5",
-    "_iris3", "_iris2", "_apf2", "_apo8", "_enh",
-)
-
-
-def _strip_processing(stem: str) -> str:
-    """*stem* with every trailing processing suffix removed."""
-    changed = True
-    while changed:
-        changed = False
-        for suffix in _PROCESSING_SUFFIXES:
-            if stem.endswith(suffix):
-                stem, changed = stem[: -len(suffix)], True
-    return stem
-
-
-def stable_title(stem: str) -> str:
-    """*stem* reduced to what stays the same across versions of one video.
-
-    Where :func:`normalize_title` drops the tags a name may carry, this also
-    drops the ones Evolver appends, leaving two files equal exactly when they
-    are one video re-encoded. Unlike the prefix test :func:`group_versions`
-    falls back on, that equality does not fold a performer's longer-named
-    second scene into their first.
-    """
-    return normalize_title(_strip_processing(stem))
 
 
 @dataclass(frozen=True)

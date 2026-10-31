@@ -25,9 +25,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from fun_time.media_metadata import recorded_for, version_group_of
+from app_support.video_names import clip_title, stable_title, version_group_of
 
-from .library import stable_title
+from fun_time.media_metadata import recorded_for
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -36,11 +36,6 @@ def _tokens(text: str) -> set[str]:
     return set(_TOKEN.findall(text.lower()))
 
 
-def clip_title(meta: dict) -> str:
-    """What a clip record calls its scene -- "performer - movie", or "" for neither."""
-    performer = str(meta.get("performer", "") or "").strip()
-    source = str(meta.get("source", "") or "").strip()
-    return " - ".join(part for part in (performer, source) if part)
 
 
 def _size(video: Path) -> int:
@@ -123,7 +118,7 @@ class ClipNav:
         meta = self._clips.get(video)
         return (
             self._titles.get(video)
-            or (clip_title(meta) if meta is not None else "")
+            or (clip_title({"clip": meta}) if meta is not None else "")
             or self._groups.get(video)
             or video.stem
         )

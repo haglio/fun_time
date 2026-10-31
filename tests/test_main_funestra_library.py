@@ -9,7 +9,6 @@ from main_funestra.library import (
     VersionGroup,
     collapse_playlist_versions,
     group_versions,
-    normalize_title,
     version_index_from_groups,
 )
 
@@ -20,22 +19,6 @@ def _entry(name: str, size: int, funscript: str | None = None) -> LibraryEntry:
         funscript=Path(funscript) if funscript else None,
         size=size,
     )
-
-
-class TestNormalizeTitle:
-    def test_lowercases(self):
-        assert normalize_title("Jane-Doe") == "jane doe"
-
-    def test_strips_quality_and_upscaler_tokens(self):
-        assert normalize_title("scene-three-upscale-mp4-1080p_60fps") == "scene three"
-        assert normalize_title("Jane-Doe-&-John-Roe-old_iris2") == "jane doe & john roe"
-
-    def test_strips_trailing_hash_tokens(self):
-        # 6-12 char alnum tokens mixing letters+digits, when trailing.
-        assert normalize_title("redacted_540-EhWGJW62") == "redacted"
-        assert normalize_title("Jane-Doe-&-John-Roe-ab12cd34-old_iris2") == "jane doe & john roe"
-        # A trailing hash exposed only after a quality token is stripped.
-        assert normalize_title("example_video-7c4d9e21_topaz") == "example video"
 
 
 class TestGroupVersions:
