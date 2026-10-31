@@ -19,7 +19,7 @@ from funestra.hud_marks import (
     shared_mark_name,
 )
 from funestra.modes import SatellitesMode
-from shared_ui.icon_geometry import glyph_names
+from shared_ui.icon_geometry import icon_names
 
 from fun_time.satellite_buttons import funestra_rows
 
@@ -158,7 +158,7 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
              if face.startswith(SHARED_MARK)}
 
     assert named["trash"] == "trash" and named["reset"] == "reset"
-    assert not set(named.values()) - set(glyph_names())
+    assert not set(named.values()) - set(icon_names())
     assert faces["fmode"] == FMODE_ICON
 
 

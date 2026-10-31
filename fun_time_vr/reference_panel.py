@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from PIL import Image, ImageDraw
-from shared_ui.icons_pil import glyph_image
+from shared_ui.icons_pil import pil_icon
 from shared_ui.lettering import fit_text, load_font
 from shared_ui.palette import (
     BG_BUTTON,
@@ -16,7 +16,7 @@ from shared_ui.palette import (
     TEXT_MUTED,
     TEXT_PRIMARY,
 )
-from shared_ui.spacing import BUTTON_MARK, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_DIALOG
+from shared_ui.spacing import BUTTON_FILLING_ICON, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_DIALOG
 from shared_ui.type_scale import SIZE_HEADING, SIZE_SMALL, in_pixels
 
 from fun_time.command_reference import build_reference_sections
@@ -96,9 +96,9 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         )
         mark = "chevron_right" if action == NEXT_PAGE else "chevron_left"
         panel.alpha_composite(
-            glyph_image(mark, BUTTON_MARK, TEXT_PRIMARY),
-            (rect.x + (rect.width - BUTTON_MARK) // 2,
-             rect.y + (rect.height - BUTTON_MARK) // 2),
+            pil_icon(mark, BUTTON_FILLING_ICON, TEXT_PRIMARY),
+            (rect.x + (rect.width - BUTTON_FILLING_ICON) // 2,
+             rect.y + (rect.height - BUTTON_FILLING_ICON) // 2),
         )
 
     y = _HEAD_H

@@ -23,7 +23,7 @@ from shared_ui.preview import Preview
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
-    BUTTON_MARK_INSET,
+    BUTTON_ICON_INSET,
     BUTTON_PAD_H_TIGHT,
     BUTTON_SIZE_HUD,
 )
@@ -230,18 +230,18 @@ class TestItIsTheDesktopsBar:
     def test_a_control_is_the_huds_square_with_its_mark_inset_as_a_huds_is(
             self, monkeypatch):
         asked: list[tuple[str, int]] = []
-        drawn = dash_panel.glyph_image
+        drawn = dash_panel.pil_icon
 
         def recording(name: str, size: int, color):
             asked.append((name, size))
             return drawn(name, size, color)
 
-        monkeypatch.setattr(dash_panel, "glyph_image", recording)
+        monkeypatch.setattr(dash_panel, "pil_icon", recording)
         paint_dash(DashState(), [])
         rect = dash_actions()[QUIT_BUTTON]
 
         assert rect.width == rect.height == BUTTON_SIZE_HUD
-        assert ("power", BUTTON_SIZE_HUD - 2 * BUTTON_MARK_INSET) in asked
+        assert ("power", BUTTON_SIZE_HUD - 2 * BUTTON_ICON_INSET) in asked
 
 
 class TestTheLogWrapsAsTheDesktopsDoes:

@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QApplication, QToolButton
 from shared_ui import colors
 from shared_ui.colors import TEXT_PRIMARY, hovered
 from shared_ui.fonts import SIZE_TINY
-from shared_ui.icons import glyph_pixmap
+from shared_ui.icons import icon_pixmap
 from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
 from shared_ui.spacing import (
     BUTTON_GAP,
@@ -230,10 +230,10 @@ class TestHoverCopyButton:
         button = _copy_button(panel)
         size = QSize(_COPY_ICON_SIZE, _COPY_ICON_SIZE)
 
-        assert button.icon().pixmap(size).toImage() ==             glyph_pixmap("copy", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
+        assert button.icon().pixmap(size).toImage() ==             icon_pixmap("copy", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
         button.click()  # and the tick it shows for a moment afterwards
-        assert button.icon().pixmap(size).toImage() ==             glyph_pixmap("check", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
+        assert button.icon().pixmap(size).toImage() ==             icon_pixmap("check", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
     def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
         panel = panel_factory(["Clip state"])
