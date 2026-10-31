@@ -59,7 +59,7 @@ from .event_log import (
     SOURCE_SYSTEM,
     notice,
 )
-from .funestra_handover import HudStamp, hand_back, hud_stamp, let_go_since
+from .funestra_handover import HudStamp, hand_back, hud_stamp, let_go_since, taken_since
 from .funestra_settings import read_funestra_reports, with_what_the_funestras_report
 from .funestra_status import (
     origenerator_has_published,
@@ -275,6 +275,7 @@ class DispatchLoopRunner:
         # Satellites on their way back from the hosted app: by when they land,
         # and which of their hosted HUDs was up when they were sent for.
         self._coming_home: dict[RoomFunestra, tuple[float, HudStamp]] = {}
+        self._going_out: dict[RoomFunestra, HudStamp] = {}
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={2: config.portrait_status_file,
@@ -398,6 +399,7 @@ class DispatchLoopRunner:
             self.satellite_speeds.take_the_main_funestras_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
+        self.take_what_the_app_has_taken()
         self.bring_the_funestras_home(now=now)
         self.latest_arrivals.deliver(self.state, coming_home=self._coming_home)
         held = self.lock_follower.held()
@@ -450,6 +452,22 @@ class DispatchLoopRunner:
     def hear_as_a_lock(self, phrases: frozenset[str]) -> None:
         self.config = replace(self.config, origenerator_lock_phrases=phrases)
 
+    def expect_the_app_to_take(self, funestras: tuple[RoomFunestra, ...]) -> None:
+        for funestra in funestras:
+            self._going_out[funestra] = hud_stamp(self.config.satellite(funestra))
+
+    def take_what_the_app_has_taken(self) -> None:
+        for funestra, stamp in list(self._going_out.items()):
+            if not taken_since(self.config.satellite(funestra), stamp):
+                continue
+            del self._going_out[funestra]
+            self._hand_the_side_over(funestra, to_the_app=True)
+
+    def _hand_the_side_over(self, funestra: RoomFunestra, *, to_the_app: bool) -> None:
+        self.state = self.state.with_satellite(funestra, handed_over=to_the_app)
+        write_shared_state(self.shared_state_file, self.state)
+        self.hud.publish(self.state)
+
     def expect_the_funestras_home(self, funestras: tuple[RoomFunestra, ...], *,
                                   now: float) -> None:
         """*funestras* are on their way back from the hosted app."""
@@ -470,10 +488,12 @@ class DispatchLoopRunner:
             if now < deadline and not let_go_since(channel, stamp):
                 continue
             del self._coming_home[funestra]
-            hand_back(channel)
+            self._going_out.pop(funestra, None)
+            hand_back(channel, onto=self.hud.the_video_it_comes_home_to(funestra))
             # The session's own hold stands again, whatever the app left.
             append_command(channel.cmd_file,
                            LOCK_ON if self.state.satellite(funestra).locked else LOCK_OFF)
+            self._hand_the_side_over(funestra, to_the_app=False)
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -1036,6 +1056,10 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
 
+def _run_hand_over_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner.expect_the_app_to_take((RoomFunestra[op.key.upper()],))
+
+
 def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.expect_the_funestras_home((RoomFunestra[op.key.upper()],), now=time.monotonic())
 
@@ -1067,6 +1091,7 @@ _OP_HANDLERS = {
     Op.MAIN_FUNESTRA_ANSWERS: _run_an_answer_given_elsewhere,
     Op.NARROWING_ANSWERS: _run_an_answer_given_elsewhere,
     Op.IGNORED: _run_ignored,
+    Op.HAND_OVER_FUNESTRAS: _run_hand_over_funestras,
     Op.TAKE_BACK_FUNESTRAS: _run_take_back_funestras,
     Op.FOLLOW_THE_LOCK: _run_follow_the_lock,
 }

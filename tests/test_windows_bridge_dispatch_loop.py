@@ -21,6 +21,7 @@ from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
+from funestra.satellite_hud import HudModel, hud_text, parse_hud
 from funestra.status import StatusWriter
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
@@ -35,6 +36,7 @@ from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FIL
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import FAVORITE
 from fun_time.funestra_handover import keep_aside
+from fun_time.hud_transport import HudPublisher
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -3551,7 +3553,8 @@ def _hosting(tmp_path, **overrides):
 def _in_origenerator_mode(state: BridgeState, *funestras: RoomFunestra) -> BridgeState:
     """*state* with *funestras* in their Origenerator mode -- both, with none named."""
     for funestra in funestras or RoomFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
+        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR,
+                                     handed_over=True)
     return state
 
 
@@ -3843,6 +3846,40 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
         assert config.satellite(RoomFunestra.PORTRAIT).notice_file == (
             tmp_path / "elsewhere" / "portrait_notice.txt")
         assert config.landscape_notice_file == tmp_path / "elsewhere" / "landscape_notice.txt"
+
+
+class TestTheAppTakesAFunestra:
+    """A side switched to Origenerator mode is the app's from the first HUD the
+    app publishes for it after the switch, and wears that HUD at once."""
+
+    def _switched(self, tmp_path):
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
+            {"portrait": tmp_path / "portrait_hud.json"}, tmp_path / "thumbs", ()))
+        runner.state = replace(runner.state, origenerator_ready=True)
+        channel = config.satellite(RoomFunestra.PORTRAIT)
+        write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])
+        publish_whole(channel.origenerator_hud_file, "")
+        runner._dispatch("portrait_origenerator_activate")
+        return runner, channel
+
+    def test_the_side_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
+        runner, _channel = self._switched(tmp_path)
+
+        runner.take_what_the_app_has_taken()
+
+        assert runner.state.portrait.handed_over is False
+
+    def test_the_apps_first_hud_hands_the_side_over_and_goes_up_at_once(self, tmp_path):
+        runner, channel = self._switched(tmp_path)
+        publish_whole(channel.origenerator_hud_file,
+                      hud_text(HudModel(funestra="portrait", title="Stub slideshow")))
+
+        runner.take_what_the_app_has_taken()
+
+        assert runner.state.portrait.handed_over is True
+        published = (tmp_path / "portrait_hud.json").read_text(encoding="utf-8")
+        assert parse_hud(published).title == "Stub slideshow"
 
 
 class TestTheFunestrasComeHome:
