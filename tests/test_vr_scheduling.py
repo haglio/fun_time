@@ -90,7 +90,7 @@ def test_a_real_headset_process_runs_above_normal_priority_inside_the_block():
     result = subprocess.run(
         [sys.executable, "-c", _PRIORITY_CLASS_INSIDE_THE_BLOCK],
         cwd=str(Path(__file__).resolve().parents[1]), capture_output=True, text=True,
-        timeout=180,
+        timeout=180, check=False,
     )
 
     assert result.returncode == 0, result.stderr

@@ -14,7 +14,7 @@ class CommandFailed(Exception):
 def run_command(command: Sequence[str], cwd: Path | None = None) -> str:
     try:
         done = subprocess.run(list(command), cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", **hidden_subprocess_kwargs())
+                              errors="replace", check=False, **hidden_subprocess_kwargs())
     except OSError as error:
         raise CommandFailed(f"{' '.join(command)} could not start: {error}") from None
     if done.returncode:

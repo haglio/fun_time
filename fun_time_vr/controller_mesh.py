@@ -64,7 +64,7 @@ def controller_faces(origin: np.ndarray, rotation: np.ndarray) -> list[Face]:
     faces = []
     for part, normals in nearer_part_last:
         corners = part @ rotation.T + origin
-        for face, normal in zip(_FACES, normals @ rotation.T):
+        for face, normal in zip(_FACES, normals @ rotation.T, strict=True):
             quad = corners[list(face)]
             if np.dot(normal, quad[0]) < 0.0:  # turned toward the eye at the scene's center
                 faces.append(Face(quad, _shade(normal)))

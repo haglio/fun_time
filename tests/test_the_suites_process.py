@@ -74,6 +74,7 @@ def _run_pytest_on(test_file: Path, **env: str) -> subprocess.CompletedProcess[s
         cwd=ROOT, capture_output=True, text=True, timeout=180,
         env={**os.environ, "PYTEST_ADDOPTS": "", **env},
         creationflags=subprocess.CREATE_NO_WINDOW,
+        check=False,
     )
 
 

@@ -409,7 +409,7 @@ def libraries_older_than_the_pin(worktree: Path) -> list[LibraryOlderThanThePin]
 def _carries(checkout: Path, commit: str) -> bool:
     return subprocess.run(
         ["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=str(checkout),
-        capture_output=True, **hidden_subprocess_kwargs()).returncode == 0
+        capture_output=True, check=False, **hidden_subprocess_kwargs()).returncode == 0
 
 
 @dataclass(frozen=True)

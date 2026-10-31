@@ -863,7 +863,7 @@ class TestThePointerOverTheScene:
 
 
 def _column_azimuths(strip: np.ndarray) -> list[float]:
-    return [math.degrees(math.atan2(x, -z)) for x, z in zip(strip[::2, 0], strip[::2, 2])]
+    return [math.degrees(math.atan2(x, -z)) for x, z in zip(strip[::2, 0], strip[::2, 2], strict=True)]
 
 
 class TestWhatIsDrawnForThePointer:

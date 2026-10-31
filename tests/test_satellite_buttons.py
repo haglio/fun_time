@@ -34,7 +34,7 @@ def _names(buttons: tuple[Button, ...]) -> list[str]:
 
 def _faces() -> dict[str, str]:
     band = _band(latest=False)
-    return dict(zip(_names(band), (button.glyph for button in band)))
+    return dict(zip(_names(band), (button.glyph for button in band), strict=True))
 
 
 def test_the_band_is_the_funestras_own_controls_in_the_consoles_order():
@@ -72,7 +72,7 @@ def test_the_states_light_and_nothing_else_does():
     exactly one of the order pair is lit, saying which order the browse is in;
     a step, the bin, reset and minimize are things done, never lit."""
     band = _band(locked=True, favorites_filter=True, latest=True)
-    lit = dict(zip(_names(band), band))
+    lit = dict(zip(_names(band), band, strict=True))
 
     assert lit["lock"].lit and lit["lock"].favorite
     assert lit["fmode"].lit and lit["fmode"].favorite
@@ -80,7 +80,7 @@ def test_the_states_light_and_nothing_else_does():
     assert not any(lit[name].lit for name in (
         "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "trash", "reset",
         "cycle_version", "minimize"))
-    shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False)))
+    shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False), strict=True))
     assert shuffled["shuffle"].lit and not shuffled["latest"].lit
 
 

@@ -704,7 +704,8 @@ def test_reference_does_not_import_voice_runtime():
         "bad = [m for m in sys.modules if m in ('fun_time.voice_control', 'vosk', 'sounddevice')]; "
         "assert not bad, bad"
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                            check=False)
     assert result.returncode == 0, result.stderr
 
 

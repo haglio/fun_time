@@ -29,14 +29,14 @@ def _fake_repo(tmp_path: Path, *, with_hook: bool = True) -> Path:
 def _run_installer(repo: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(_INSTALLER), *args],
-        cwd=repo, capture_output=True, text=True,
+        cwd=repo, capture_output=True, text=True, check=False,
     )
 
 
 def _hooks_path(repo: Path) -> str:
     got = subprocess.run(
         ["git", "config", "--local", "core.hooksPath"],
-        cwd=repo, capture_output=True, text=True,
+        cwd=repo, capture_output=True, text=True, check=False,
     )
     return got.stdout.strip()
 
