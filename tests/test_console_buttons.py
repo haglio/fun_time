@@ -531,7 +531,7 @@ class TestTheOsr2Button:
         assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=True),),)
 
     def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
-        slot = MainSlot(main_mode=MainMode.VIDEO, has_osr2=False)
+        slot = MainSlot(main_mode=MainMode.KINO, has_osr2=False)
 
         assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=False),),)
         assert osr2_button(RoomFunestra.MAIN, has_it=False) not in [b for row in console_rows(slot) for b in row]
