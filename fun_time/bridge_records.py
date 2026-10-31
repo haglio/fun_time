@@ -189,6 +189,7 @@ class Op(StrEnum):
     MAIN_FUNESTRA_ANSWERS = "main_funestra_answers"
     NARROWING_ANSWERS = "narrowing_answers"
     IGNORED = "ignored"
+    HAND_OVER_FUNESTRAS = "hand_over_funestras"
     TAKE_BACK_FUNESTRAS = "take_back_funestras"
     FOLLOW_THE_LOCK = "follow_the_lock"
 

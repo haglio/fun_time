@@ -53,7 +53,7 @@ NOT_RESUMED = frozenset({
     "majority",
 })
 
-NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor"})
+NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor", "handed_over"})
 
 DESCRIBES_THE_PLAYLIST = frozenset({
     "locked", "filter", "favorites_filter", "latest", "loop", "map_anchor", "widen_clip",

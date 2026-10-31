@@ -143,7 +143,7 @@ def _each_satellites_own_mode_buttons(room: BridgeConfig) -> None:
 
 
 def _both_shows_hosted() -> BridgeState:
-    hosted = SatelliteState(mode=ORIGENERATOR_MODE)
+    hosted = SatelliteState(mode=ORIGENERATOR_MODE, handed_over=True)
     return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
 
 
