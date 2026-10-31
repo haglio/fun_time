@@ -503,7 +503,7 @@ class TestHudPublishing:
 
         with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 200.0
-            feed.publish(BridgeState(main_mode=MainMode.VIDEO))
+            feed.publish(BridgeState(main_mode=MainMode.KINO))
 
         assert console(tmp_path)["osr2"] == Osr2State.OFF
 
