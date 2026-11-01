@@ -8,12 +8,17 @@ from funestra.main_hud import osr2_controls
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, hud_moves, windows_bridge_dispatch_loop
-from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
+from fun_time.aiming import (
+    FUNESTRA_GROUPS,
+    MAIN_EQUIVALENTS,
+    expand_group_command,
+    resolve_active_funestra_command,
+)
 from fun_time.command_reference import build_reference_sections
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
 from fun_time.satellite_buttons import HudState, funestra_rows
-from fun_time.voice_commands import VOICE_COMMANDS
-from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
+from fun_time.voice_commands import VOICE_COMMANDS, said_to_a_satellite
+from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
     _ahk_ids,
@@ -40,7 +45,7 @@ _NAV_IDS = frozenset(
 )
 
 _HUD_PLACE_IDS = (frozenset(hud_moves._HUD_MOVES)
-                  | frozenset(hud_moves.MAIN_HUD_TURNS)
+                  | frozenset(hud_moves._HUD_PLACEMENTS)
                   | frozenset(hud_moves._HUD_COLLAPSES))
 
 
@@ -185,7 +190,8 @@ def test_the_reference_and_the_handlers_agree():
         | _NAV_IDS
         | _HUD_PLACE_IDS
         | frozenset(c for c in reference
-                    if c.startswith(("active_", *windows_bridge_dispatch_loop._FUNESTRA_GROUPS)))
+                    if c.startswith(("active_", *FUNESTRA_GROUPS)))
+        | frozenset(c for c in reference if said_to_a_satellite(c))
     )
     ghosts = reference - real
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
@@ -204,6 +210,8 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
         f"{satellite}_{own}"
         for satellite in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
+                    "enhancement_enhanced", "enhancement_original", "enhancement_both",
+                    "mute", "unmute", "volume_down", "volume_up",
                     "speed_min", "speed_max", "take_osr2", "kino_activate",
                     "origenerator_activate", "lock", "lock_on", "lock_off")
     } & satellite_commands, sorted(kept)

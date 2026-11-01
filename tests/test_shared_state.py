@@ -22,6 +22,7 @@ from fun_time.shared_state import (
     SHARED_STATE_FILENAME,
     BridgeState,
     SatelliteState,
+    main_loop_bounds,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -346,6 +347,7 @@ _EXPECTED_STATE_KEYS = {
     "omni_paused": "0",
     "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",
     "main_shuffle_seed": "0", "main_length_mode": "mixed",
+    "main_enhancement": "both", "portrait_enhancement": "both", "landscape_enhancement": "both",
     "main_plays_vr": "1", "main_plays_flat": "1",
     "main_plays_portrait": "1", "main_plays_landscape": "1",
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
@@ -364,7 +366,7 @@ _EXPECTED_STATE_KEYS = {
     "main_speed": "1", "portrait_speed": "1", "landscape_speed": "1",
     "portrait_volume": "100", "landscape_volume": "100", "portrait_muted": "1",
     "landscape_muted": "1",
-    "main_locked": "1", "main_loop_video": "", "main_loop_in_ms": "0", "main_loop_out_ms": "0",
+    "main_locked": "1", "main_loop_video": "", "main_loop_bounds_ms": "",
     "genau_speed": "50", "genau_amplitude": "100",
     "genau_center": "50", "genau_shape": "sine",
     "mic_muted": "0",
@@ -392,3 +394,12 @@ def test_a_number_a_hand_edit_spoiled_reads_as_that_fields_default(tmp_path):
 
     assert loaded is not None
     assert loaded.volume == BridgeState().volume
+
+
+def test_main_loop_bounds_read_back_off_the_remembered_value():
+    assert main_loop_bounds(BridgeState(main_loop_bounds_ms="1000 5000")) == (1000, 5000)
+
+
+def test_main_loop_bounds_are_none_when_the_value_is_empty_or_hand_edited():
+    assert main_loop_bounds(BridgeState()) == (0, 0)
+    assert main_loop_bounds(BridgeState(main_loop_bounds_ms="soon")) == (0, 0)

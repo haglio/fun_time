@@ -43,10 +43,9 @@ SATELLITE_MODE_COMMANDS: dict[str, tuple[FunTimeFunestra, SatellitesMode]] = {
     for mode in (KINO_MODE, ORIGENERATOR_MODE)
 }
 
-BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode | None] = {
+BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode] = {
     "satellites_kino_activate": KINO_MODE,
     "satellites_origenerator_activate": ORIGENERATOR_MODE,
-    "satellites_toggle": None,
 }
 
 

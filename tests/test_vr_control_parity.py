@@ -214,6 +214,11 @@ _VERBS_THAT_TAKE_A_VALUE = frozenset(
 )
 
 
+class _NoSound:
+    def set(self, volume, muted):
+        pass
+
+
 class TestTheSatellites:
     def test_every_verb_they_are_sent_is_one_the_session_answers(self, landed, tmp_path):
         videos = tmp_path / "sat"
@@ -228,6 +233,7 @@ class TestTheSatellites:
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, videos[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
+                                     volume=_NoSound(),
                                      funscript_jumps=FunscriptJumps(
                                          session, MessageWriter(None))),
                 )

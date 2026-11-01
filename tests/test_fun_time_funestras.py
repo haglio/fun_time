@@ -19,9 +19,9 @@ def test_labels_are_the_lowercase_names():
     assert FunTimeFunestra.LANDSCAPE.label == "landscape"
 
 
-def test_satellites_are_the_scope_both_means():
+def test_the_satellites_scope_is_the_two_satellites():
     assert FunTimeFunestra.SATELLITES == (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
-    assert FunTimeFunestra.for_scope("both") == FunTimeFunestra.SATELLITES
+    assert FunTimeFunestra.for_scope("satellites") == FunTimeFunestra.SATELLITES
     assert FunTimeFunestra.for_scope("portrait") == (FunTimeFunestra.PORTRAIT,)
     assert FunTimeFunestra.for_scope("landscape") == (FunTimeFunestra.LANDSCAPE,)
 

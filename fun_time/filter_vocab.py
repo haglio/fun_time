@@ -27,7 +27,7 @@ def load_camera_words(
     return tuple(load_content(local_path, example_path)["cameras"])
 
 
-_SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
+_SCOPE_TOKENS: tuple[str, ...] = ("satellites", "portrait", "landscape")
 
 
 def _slug(query: str) -> str:
@@ -59,7 +59,7 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
     out: dict[str, str] = {}
     for query, forms in acts.items():
         for form in forms:
-            out[form] = set_command("both", query)
+            out[form] = set_command("satellites", query)
             for satellite in _SCOPE_TOKENS:
                 out.update(named_first_or_last(satellite, form, set_command(satellite, query)))
     return out
