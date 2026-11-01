@@ -39,6 +39,7 @@ from fun_time.funestra_status import (
     read_main_funestra_status,
 )
 from fun_time.genau_config import GenauSettings
+from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.media_metadata import is_favorite, mark_favorite
 from fun_time.modes import (
     build_mirrored_funscript_path,
@@ -107,6 +108,7 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
 # It is also what tells an integration orchestrator apart from the user's on a
 # command line, so the two uses share the constant rather than the spelling.
 INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
+_MACHINES_OWN_PORTS = frozenset({50555, 50556, 50558, LOOPBACK_PORT})
 
 
 # The images the apps a session leaves actually run as: the two
@@ -605,18 +607,26 @@ class FunTimeIntegrationSession:
 
 
 
+def _free_port(socket_kind: int) -> int:
+    """A loopback port the OS says is free, for something else to bind.
+
+    The machine's fixed ports sit inside the range the OS hands out, and being
+    free this moment says only that the user's session has not bound one yet.
+    """
+    while True:
+        with socket.socket(socket.AF_INET, socket_kind) as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        if port not in _MACHINES_OWN_PORTS:
+            return port
+
+
 def _free_udp_port() -> int:
-    """A loopback port the OS says is free, for something else to bind."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+    return _free_port(socket.SOCK_DGRAM)
 
 
 def _free_tcp_port() -> int:
-    """A loopback TCP port the OS says is free, for the run's own server to bind."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+    return _free_port(socket.SOCK_STREAM)
 
 
 class TheRunsOsr2:
@@ -650,6 +660,9 @@ _the_runs_osr2s: dict[int, TheRunsOsr2] = {}
 
 def _a_slot_of_the_runs_own() -> int:
     osr2 = TheRunsOsr2()
+    while osr2.port in _MACHINES_OWN_PORTS:
+        osr2.close()
+        osr2 = TheRunsOsr2()
     _the_runs_osr2s[osr2.port] = osr2
     return osr2.port
 
