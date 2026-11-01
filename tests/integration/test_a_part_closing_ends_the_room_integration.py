@@ -42,9 +42,9 @@ def test_a_funestra_closing_mid_session_closes_the_whole_room():
         children = session.read_child_processes()
         kill_process_tree(children["landscape_pid"].pid)
 
-        session._wait_for_own_log(
+        session.wait_for_new_log(
             "The session ended because the Landscape Funestra closed itself",
-            after=session._log_pos, timeout=ROOM_CLOSES_WITHIN_S)
+            timeout=ROOM_CLOSES_WITHIN_S)
         budget = Budget(ROOM_CLOSES_WITHIN_S)
         while not budget.expired() and any(map(_still_up, children.values())):
             time.sleep(0.5)
