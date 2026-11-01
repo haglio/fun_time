@@ -39,6 +39,7 @@ from fun_time.monitors import enumerate_monitors
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from main_funestra.cli import build_parser
+from main_funestra.library import LibraryEntry, group_versions, version_index_from_groups
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
@@ -54,6 +55,7 @@ from tests.integration.integration_support import (
     joined_within,
     let_seconds_pass,
     library_clips,
+    one_clip_per_video,
     point_the_main_funestra_at,
     published_status,
     readable_at_speed,
@@ -787,6 +789,15 @@ def test_a_sample_skips_the_clips_the_drive_cannot_serve_at_speed(monkeypatch, c
     assert len(chosen) == 2 and "b.mp4" not in chosen
     assert "skipped one not readable at speed" in capsys.readouterr().out
     assert "b.mp4" not in capsys.readouterr().out
+
+
+def test_two_versions_of_one_video_count_once_towards_a_draw():
+    scene, upscale, other = Path("scene.mp4"), Path("scene_topaz.mp4"), Path("other.mp4")
+    version_index = version_index_from_groups(group_versions(
+        [LibraryEntry(video, None, 1) for video in (scene, upscale, other)]))
+
+    assert len(one_clip_per_video([scene, upscale], version_index)) == 1
+    assert len(one_clip_per_video([scene, upscale, other], version_index)) == 2
 
 
 def test_a_sample_fails_saying_so_when_too_few_clips_read_at_speed():
