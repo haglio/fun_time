@@ -19,9 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-from fun_time import win32_loader
+from fun_time import win32
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -66,16 +64,10 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
     )
 
 
-@pytest.fixture
-def unavailable(monkeypatch):
-    """Answer as an interpreter whose ctypes carries no Windows half would."""
-    monkeypatch.setattr(win32_loader, "WIN32_AVAILABLE", False)
-
-
 def test_the_win32_wrapper_imports_where_ctypes_has_no_windll():
     result = _run_without_the_win32_ctypes_surface(
         "import fun_time.win32\n"
-        "from fun_time.win32_loader import WIN32_AVAILABLE\n"
+        "from app_support.win32_loader import WIN32_AVAILABLE\n"
         "assert WIN32_AVAILABLE is False, WIN32_AVAILABLE\n"
     )
     assert result.returncode == 0, result.stderr
@@ -134,7 +126,7 @@ def test_our_own_rect_carries_win32s_own_memory_layout():
     reads garbage without saying so.
     """
     theirs = ctypes.wintypes.RECT
-    ours = win32_loader.Win32Rect
+    ours = win32.Win32Rect
 
     assert [name for name, _ in ours._fields_] == ["left", "top", "right", "lower"]
     assert ctypes.sizeof(ours) == ctypes.sizeof(theirs)
@@ -144,52 +136,3 @@ def test_our_own_rect_carries_win32s_own_memory_layout():
         == [(getattr(theirs, name).offset, getattr(theirs, name).size)
             for name, _ in theirs._fields_]
     )
-
-
-def test_the_flag_says_whether_this_ctypes_can_bind_a_dll():
-    assert win32_loader.WIN32_AVAILABLE is hasattr(ctypes, "windll")
-
-
-def test_a_call_that_reaches_an_unbound_entry_point_names_it(unavailable):
-    """The stand-in must never pass for a call that worked."""
-    user32 = win32_loader.load_dll("user32")
-
-    with pytest.raises(win32_loader.Win32Unavailable, match=r"user32\.SetWindowPos"):
-        user32.SetWindowPos(0, 0, 0, 0, 0, 0, 0)
-
-
-def test_an_unbound_entry_point_still_takes_the_argtypes_declared_on_it(unavailable):
-    """The wrappers declare argtypes at import; that has to survive too."""
-    kernel32 = win32_loader.load_dll("kernel32")
-
-    kernel32.OpenProcess.argtypes = [ctypes.wintypes.DWORD]
-    kernel32.OpenProcess.restype = ctypes.wintypes.HANDLE
-
-    assert kernel32.OpenProcess.argtypes == [ctypes.wintypes.DWORD]
-    assert kernel32.OpenProcess.restype is ctypes.wintypes.HANDLE
-
-
-def test_an_unbound_entry_point_is_the_same_object_every_time(unavailable):
-    """A test that patches one has to be patching what the code will call."""
-    user32 = win32_loader.load_dll("user32")
-
-    assert user32.ShowWindow is user32.ShowWindow
-
-
-def test_an_error_saving_handle_stands_in_the_same_way(unavailable):
-    kernel32 = win32_loader.load_dll("kernel32", use_last_error=True)
-
-    with pytest.raises(win32_loader.Win32Unavailable, match=r"kernel32\.CreateMutexW"):
-        kernel32.CreateMutexW(None, False, "name")
-
-
-def test_reading_the_last_error_without_a_windows_ctypes_says_so(unavailable):
-    with pytest.raises(win32_loader.Win32Unavailable, match="get_last_error"):
-        win32_loader.get_last_error()
-
-
-def test_an_unbound_callback_prototype_refuses_to_be_made(unavailable):
-    prototype = win32_loader.win_functype(ctypes.wintypes.BOOL, ctypes.wintypes.HWND)
-
-    with pytest.raises(win32_loader.Win32Unavailable):
-        prototype(lambda hwnd: True)

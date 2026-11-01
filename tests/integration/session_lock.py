@@ -37,7 +37,7 @@ from enum import Enum, auto
 from time import sleep
 from typing import NamedTuple
 
-from fun_time.win32_loader import load_dll
+from app_support.win32_loader import load_dll
 
 # The one machine-wide name every integration run contends on.  ``Global\`` puts
 # it in the system-wide namespace so runs in different login sessions still

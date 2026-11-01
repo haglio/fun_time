@@ -19,8 +19,7 @@ from funestra.funestra_verbs import play_file
 from funestra.playlist import PlaylistItem
 
 from fun_time.crown import Crown
-from fun_time.win32 import window_rect
-from fun_time.win32_loader import Win32Rect
+from fun_time.win32 import Win32Rect, window_rect
 from fun_time.window_layout import WindowRect, secondary_monitor_rects
 from fun_time.windows_bridge_startup import SATELLITE_PORTRAIT_TITLE
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at

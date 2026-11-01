@@ -6,9 +6,8 @@ import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from app_support.win32_loader import get_last_error, load_dll
 from funestra.funestra_priority import ahead_on_the_processor
-
-from fun_time.win32_loader import get_last_error, load_dll
 
 logger = logging.getLogger(__name__)
 
