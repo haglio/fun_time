@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 from funestra.hud_placement import HudEdge
-from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
 from fun_time.event_log import FAVORITE, NOTICE
 
@@ -17,7 +17,7 @@ HUD_WIDTH_PX = 560
 _LEVEL_COLORS: dict[int, tuple[int, int, int]] = {
     NOTICE: TEXT_PRIMARY,
     FAVORITE: GREEN,
-    logging.WARNING: AMBER,
+    logging.WARNING: YELLOW,
     logging.ERROR: RED,
 }
 
