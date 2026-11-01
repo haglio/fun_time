@@ -448,12 +448,14 @@ class TestPaceRows:
 
     def test_the_video_rate_has_controls_where_main_funestra_is_on_screen(self):
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
-        assert "main_funestra_speed_down" in actions and "main_funestra_speed_up" in actions
+        assert "main_funestra_speed_down" in actions
+        assert "main_funestra_speed_up" in actions
         assert "genau_flick_seconds_down" not in actions
 
     def test_genau_has_the_pace_and_no_video_rate(self):
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
-        assert "genau_flick_seconds_down" in actions and "genau_flick_seconds_up" in actions
+        assert "genau_flick_seconds_down" in actions
+        assert "genau_flick_seconds_up" in actions
         assert "main_funestra_speed_down" not in actions
 
     def test_the_rate_is_a_read_out_between_the_arrows_that_the_funestra_fills(self):
