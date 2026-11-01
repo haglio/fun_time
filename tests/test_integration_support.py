@@ -1210,3 +1210,36 @@ def test_no_check_links_a_file_or_dates_any_but_a_clip_it_made():
         "a hard link to a library clip shares that clip's dates, so a date set through one "
         "rewrites his library; date only a clip the check made with clip_of_a_test_pattern: "
         f"{reaches}")
+
+
+def test_a_run_takes_a_free_port_the_os_offers_only_if_it_is_none_of_the_machines():
+    offered = iter([OSR2_SLOT_PORT, 49999])
+
+    class Probe:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def bind(self, _address):
+            pass
+
+        def getsockname(self):
+            return ("127.0.0.1", next(offered))
+
+    with patch.object(integration_support.socket, "socket", lambda *_args: Probe()):
+        assert integration_support._free_udp_port() == 49999
+
+
+def test_a_runs_osr2_slot_lands_on_none_of_the_machines_ports():
+    closed = []
+    slots = iter([SimpleNamespace(port=AUDIO_COMPANION_PORT, close=lambda: closed.append(True)),
+                  SimpleNamespace(port=49998, close=lambda: None)])
+
+    with patch.object(integration_support, "TheRunsOsr2", lambda: next(slots)):
+        port = integration_support._a_slot_of_the_runs_own()
+
+    integration_support._the_runs_osr2s.pop(port)
+    assert port == 49998
+    assert closed == [True]
