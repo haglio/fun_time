@@ -97,3 +97,6 @@ def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
 def said_to_the_hosted_app(satellite: str, words: str) -> str:
     return f"{satellite.upper()}_SAY:{words}"
 
+
+ENHANCED_ONLY = "enhanced only"
+

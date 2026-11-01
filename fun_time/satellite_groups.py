@@ -25,7 +25,7 @@ from .media_metadata import (
     widened_seed_items,
 )
 from .media_renditions import renditions
-from .modes import collect_video_files, scripted_item, write_playlist_file
+from .modes import SatelliteBuild, collect_video_files, scripted_item, write_playlist_file
 from .runtime_flow import satellite_browse_paths
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
@@ -305,10 +305,14 @@ def no_loop(
     current = satellite_current(config, funestra)
     satellite = state.satellite(funestra)
     browse = satellite_browse_paths(
-        query=satellite.filter,
-        favorites_filter=satellite.favorites_filter,
-        recent=satellite.latest,
-        sources=config.satellite(funestra).sources,
+        SatelliteBuild(
+            sources=config.satellite(funestra).sources,
+            favorites_filter=satellite.favorites_filter,
+            recent=satellite.latest,
+            filter_query=satellite.filter,
+            enhancement=satellite.enhancement,
+            media_root=config.regen_media_root,
+        ),
         regen_metadata_root=config.regen_metadata_root,
     )
     if browse:

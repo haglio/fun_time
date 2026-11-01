@@ -13,7 +13,6 @@ from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
 from .origenerator_switches import (
     BOTH_SATELLITES_MODE_COMMANDS,
     KINO_MODE,
-    ORIGENERATOR_MODE,
     SATELLITE_MODE_COMMANDS,
     RfbMode,
     origenerator_shows,
@@ -96,13 +95,9 @@ def _satellite_switch(funestra: FunTimeFunestra, target: SatellitesMode, state: 
     return _switch_satellite(funestra, target, state, config)
 
 
-def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
+def _both_satellites_switch(target: SatellitesMode, state: BridgeState,
                             config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if target is None:
-        held = all(origenerator_shows(state.satellite(funestra).mode)
-                   for funestra in FunTimeFunestra.SATELLITES)
-        target = KINO_MODE if held else ORIGENERATOR_MODE
     refused = origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:
         return state, refused

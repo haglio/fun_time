@@ -2,6 +2,7 @@
 # so a preview shows the original.
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 _UPSCALED_ROOT = ("2_outbox", "upscaled_by_orientation")
@@ -32,3 +33,7 @@ def original_rendition(video_path: str | Path, media_root: str | Path | None) ->
 def renditions(video_path: str | Path, media_root: str | Path | None) -> list[str]:
     original = original_rendition(video_path, media_root)
     return [str(video_path), original] if original else []
+
+
+def has_an_upscale(media_root: str | Path | None) -> Callable[[str], bool]:
+    return lambda video_path: bool(renditions(video_path, media_root))

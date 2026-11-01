@@ -13,7 +13,7 @@ class TestParsingWhatWasSaid:
         ("main_next", Scope.SESSION, "main_next", ""),
         ("portrait_next", Scope.PORTRAIT, "next", ""),
         ("landscape_lock_on", Scope.LANDSCAPE, "lock_on", ""),
-        ("both_trash", Scope.BOTH, "trash", ""),
+        ("satellites_trash", Scope.SATELLITES, "trash", ""),
         ("all_reset", Scope.ALL, "reset", ""),
         ("active_cycle_action", Scope.ACTIVE, "cycle_action", ""),
         ("portrait_nav_up", Scope.PORTRAIT, "nav_up", ""),
@@ -53,7 +53,7 @@ class TestParsingWhatWasSaid:
             Scope.PORTRAIT, "say", "fix teeth", "portrait_say_fix_teeth")
 
     @pytest.mark.parametrize(("text", "said_to", "query"), [
-        ("filter_both_beta_gamma", Scope.BOTH, "beta gamma"),
+        ("filter_satellites_beta_gamma", Scope.SATELLITES, "beta gamma"),
         ("filter_portrait_alpha", Scope.PORTRAIT, "alpha"),
         ("filter_landscape_delta", Scope.LANDSCAPE, "delta"),
     ])
@@ -79,8 +79,8 @@ class TestWhichFunestraItAddresses:
         ("genau_pause", FunTimeFunestra.MAIN),
         ("omnipause_toggle", None),
         ("active_next", None),
-        ("both_next", None),
-        ("filter_both_alpha", None),
+        ("satellites_next", None),
+        ("filter_satellites_alpha", None),
     ])
     def test_a_command_addresses_the_funestra_it_names_or_none(self, text, funestra):
         assert parse_command(text).funestra is funestra
@@ -90,8 +90,8 @@ class TestWhichFunestraItAddresses:
         ("filter_landscape_alpha", FunTimeFunestra.LANDSCAPE),
         ("landscape_say_fix_teeth", FunTimeFunestra.LANDSCAPE),
         ("main_next", None),
-        ("both_next", None),
-        ("filter_both_alpha", None),
+        ("satellites_next", None),
+        ("filter_satellites_alpha", None),
     ])
     def test_a_filter_is_said_to_its_satellite_though_it_addresses_no_funestra(self, text, satellite):
         assert parse_command(text).satellite is satellite
@@ -142,10 +142,10 @@ class TestOneCommandForEachFunestraOfAGroup:
         assert parse_command("portrait_next").each() == (parse_command("portrait_next"),)
         assert parse_command("quit").each() == (parse_command("quit"),)
 
-    def test_both_is_the_portrait_then_the_landscape_funestra(self):
-        assert parse_command("both_next").each() == (
+    def test_satellites_is_the_portrait_then_the_landscape_funestra(self):
+        assert parse_command("satellites_next").each() == (
             parse_command("portrait_next"), parse_command("landscape_next"))
-        assert parse_command("both_lock_on").each() == (
+        assert parse_command("satellites_lock_on").each() == (
             parse_command("portrait_lock_on"), parse_command("landscape_lock_on"))
 
     def test_all_reaches_the_main_funestra_and_both_satellites(self):
@@ -153,11 +153,15 @@ class TestOneCommandForEachFunestraOfAGroup:
             parse_command("main_reset"), parse_command("portrait_reset"),
             parse_command("landscape_reset"))
 
-    def test_a_filter_said_to_both_shows_stays_one_command(self):
-        assert parse_command("filter_both_alpha").each() == (parse_command("filter_both_alpha"),)
+    def test_the_satellites_mode_switches_are_said_of_the_pair_as_a_whole(self):
+        for whole in ("satellites_kino_activate", "satellites_origenerator_activate"):
+            assert parse_command(whole).each() == (parse_command(whole),)
 
-    def test_a_filter_said_to_both_shows_has_a_half_for_each_satellite(self):
-        assert parse_command("filter_both_beta_gamma").halves() == (
+    def test_a_filter_said_to_the_satellites_stays_one_command(self):
+        assert parse_command("filter_satellites_alpha").each() == (parse_command("filter_satellites_alpha"),)
+
+    def test_a_filter_said_to_the_satellites_has_a_half_for_each_satellite(self):
+        assert parse_command("filter_satellites_beta_gamma").halves() == (
             parse_command("filter_portrait_beta_gamma"),
             parse_command("filter_landscape_beta_gamma"))
         assert parse_command("filter_portrait_alpha").halves() == (
@@ -184,10 +188,10 @@ class TestTheKeyARouteIsBoundUnder:
 
 
 class TestResolveActiveSideCommand:
-    def test_group_commands_ride_the_same_active_and_both_plumbing(self):
+    def test_group_commands_ride_the_same_active_and_satellites_plumbing(self):
         assert parse_command("active_action_loop").aimed_at_the_active(3).text == "landscape_action_loop"
         assert parse_command("active_lock_action").aimed_at_the_active(2).text == "portrait_lock_action"
-        assert [each.text for each in parse_command("both_seed_loop").each()] == ["portrait_seed_loop", "landscape_seed_loop"]
+        assert [each.text for each in parse_command("satellites_seed_loop").each()] == ["portrait_seed_loop", "landscape_seed_loop"]
 
     def test_rewrites_to_portrait_when_active_funestra_is_portrait(self):
         assert parse_command("active_lock_on").aimed_at_the_active(2).text == "portrait_lock_on"
@@ -209,8 +213,22 @@ class TestResolveActiveSideCommand:
             assert parse_command(f"active_{action}").aimed_at_the_active(1).text == main
             assert parse_command(f"active_{action}").aimed_at_the_active(2).text == f"portrait_{action}"
             assert parse_command(f"active_{action}").aimed_at_the_active(3).text == f"landscape_{action}"
-            assert [each.text for each in parse_command(f"both_{action}").each()] == [
+            assert [each.text for each in parse_command(f"satellites_{action}").each()] == [
                 f"portrait_{action}", f"landscape_{action}"]
+
+    def test_the_enhancement_level_follows_the_funestra_last_navigated(self):
+        for level in ("enhanced", "original", "both"):
+            assert parse_command(f"active_enhancement_{level}").aimed_at_the_active(1).text == f"main_enhancement_{level}"
+            assert parse_command(f"active_enhancement_{level}").aimed_at_the_active(2).text == f"portrait_enhancement_{level}"
+            assert [each.text for each in parse_command(f"satellites_enhancement_{level}").each()] == [
+                f"portrait_enhancement_{level}", f"landscape_enhancement_{level}"]
+
+    def test_a_hosted_apps_phrase_said_bare_reaches_the_satellite_last_navigated(self):
+        assert parse_command("active_say_fix_face").aimed_at_the_active(2).text == "portrait_say_fix_face"
+        assert parse_command("active_say_fix_face").aimed_at_the_active(3).text == "landscape_say_fix_face"
+        assert parse_command("active_say_fix_face").aimed_at_the_active(1).text == "active_say_fix_face"
+        assert [each.text for each in parse_command("satellites_say_fix_face").each()] == [
+            "portrait_say_fix_face", "landscape_say_fix_face"]
 
     def test_reset_on_the_primary_means_the_main_funestras_own_reset(self):
         assert parse_command("active_reset").aimed_at_the_active(1).text == "main_reset"
@@ -260,22 +278,22 @@ class TestResolveActiveSideCommand:
 
 
 class TestExpandGroupCommand:
-    def test_passes_through_non_both_commands(self):
+    def test_passes_through_non_satellites_commands(self):
         assert [each.text for each in parse_command("portrait_next").each()] == ["portrait_next"]
         assert [each.text for each in parse_command("quit").each()] == ["quit"]
 
     def test_expands_to_portrait_then_landscape(self):
-        assert [each.text for each in parse_command("both_next").each()] == ["portrait_next", "landscape_next"]
-        assert [each.text for each in parse_command("both_prev").each()] == ["portrait_prev", "landscape_prev"]
-        assert [each.text for each in parse_command("both_trash").each()] == ["portrait_trash", "landscape_trash"]
+        assert [each.text for each in parse_command("satellites_next").each()] == ["portrait_next", "landscape_next"]
+        assert [each.text for each in parse_command("satellites_prev").each()] == ["portrait_prev", "landscape_prev"]
+        assert [each.text for each in parse_command("satellites_trash").each()] == ["portrait_trash", "landscape_trash"]
 
     def test_expands_multiword_suffixes(self):
-        assert [each.text for each in parse_command("both_lock_on").each()] == ["portrait_lock_on", "landscape_lock_on"]
-        assert [each.text for each in parse_command("both_lock_off").each()] == ["portrait_lock_off", "landscape_lock_off"]
-        assert [each.text for each in parse_command("both_cycle_action").each()] == [
+        assert [each.text for each in parse_command("satellites_lock_on").each()] == ["portrait_lock_on", "landscape_lock_on"]
+        assert [each.text for each in parse_command("satellites_lock_off").each()] == ["portrait_lock_off", "landscape_lock_off"]
+        assert [each.text for each in parse_command("satellites_cycle_action").each()] == [
             "portrait_cycle_action", "landscape_cycle_action",
         ]
-        assert [each.text for each in parse_command("both_cycle_seed").each()] == [
+        assert [each.text for each in parse_command("satellites_cycle_seed").each()] == [
             "portrait_cycle_seed", "landscape_cycle_seed",
         ]
 

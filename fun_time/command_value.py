@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 
+from funestra.hud_placement import HudCorner
+
 from .event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
+from .mode_plan import EnhancementLevel
 
 
 class Scope(StrEnum):
@@ -13,7 +16,7 @@ class Scope(StrEnum):
     MAIN = "main"
     PORTRAIT = "portrait"
     LANDSCAPE = "landscape"
-    BOTH = "both"
+    SATELLITES = "satellites"
     ALL = "all"
     ACTIVE = "active"
 
@@ -23,7 +26,7 @@ class Scope(StrEnum):
 
 
 _GROUPS: dict[Scope, tuple[Scope, ...]] = {
-    Scope.BOTH: (Scope.PORTRAIT, Scope.LANDSCAPE),
+    Scope.SATELLITES: (Scope.PORTRAIT, Scope.LANDSCAPE),
     Scope.ALL: (Scope.MAIN, Scope.PORTRAIT, Scope.LANDSCAPE),
 }
 
@@ -32,9 +35,11 @@ _SATELLITE_SCOPES: dict[Scope, FunTimeFunestra] = {
     Scope.LANDSCAPE: FunTimeFunestra.LANDSCAPE,
 }
 
-_SCOPE_WORDS = (Scope.PORTRAIT, Scope.LANDSCAPE, Scope.BOTH, Scope.ALL, Scope.ACTIVE)
+_SCOPE_WORDS = (Scope.PORTRAIT, Scope.LANDSCAPE, Scope.SATELLITES, Scope.ALL, Scope.ACTIVE)
 
 _THE_MAIN_FUNESTRAS_OWN = ("main_", "genau_")
+
+_SAID_OF_THE_SATELLITES_AS_A_WHOLE = frozenset({"kino_activate", "origenerator_activate"})
 
 FILTER = "filter"
 SAY = "say"
@@ -60,6 +65,12 @@ MAIN_EQUIVALENTS = MappingProxyType({
     "shuffle": "main_shuffle",
     "hud_minimize": "main_hud_minimize",
     "hud_restore": "main_hud_restore",
+    **{f"hud_{corner}": f"main_hud_{corner}" for corner in HudCorner},
+    **{f"enhancement_{level}": f"main_enhancement_{level}" for level in EnhancementLevel},
+    "mute": "audio_mute",
+    "unmute": "audio_unmute",
+    "volume_down": "audio_volume_down",
+    "volume_up": "audio_volume_up",
 })
 
 FUNESTRA_SOURCES = MappingProxyType({
@@ -114,9 +125,13 @@ class Command:
         return main_funestras_own(self._rest())
 
     def each(self) -> tuple[Command, ...]:
-        if self.action == FILTER or self.said_to not in _GROUPS:
+        if self.action == FILTER or self.said_to not in _GROUPS or self._said_as_a_whole():
             return (self,)
         return tuple(self._aimed_at(scope) for scope in self.said_to.funestras)
+
+    def _said_as_a_whole(self) -> bool:
+        return (self.said_to is Scope.SATELLITES
+                and self.action in _SAID_OF_THE_SATELLITES_AS_A_WHOLE)
 
     def halves(self) -> tuple[Command, ...]:
         if self.action != FILTER or self.said_to not in _GROUPS:
@@ -174,7 +189,7 @@ def parse_command(text: str) -> Command:
 
 def _parse_filter(text: str) -> Command | None:
     rest = text.removeprefix(f"{FILTER}_")
-    for scope in (Scope.BOTH, Scope.PORTRAIT, Scope.LANDSCAPE):
+    for scope in (Scope.SATELLITES, Scope.PORTRAIT, Scope.LANDSCAPE):
         if rest.startswith(f"{scope}_"):
             return Command(scope, FILTER, _unslug(rest.removeprefix(f"{scope}_")), text)
     return None

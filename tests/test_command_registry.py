@@ -191,6 +191,9 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
         "lock", "lock_on", "lock_off",
         "speed", "speed_up", "speed_down", "speed_min", "speed_max",
         "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
+        "hud_upper_left", "hud_upper_right", "hud_lower_left", "hud_lower_right",
+        "mute", "unmute", "volume_down", "volume_up",
+        "enhancement_enhanced", "enhancement_original", "enhancement_both",
     }
 
     assert own == satellite_commands.THE_FUNESTRAS_OWN
@@ -203,3 +206,4 @@ def test_a_command_bound_in_two_domains_is_refused_at_import():
     with pytest.raises(ValueError, match=r"bound twice.*portrait_next"):
         command_dispatch._bound_once([SimpleNamespace(HANDLERS={"portrait_next": first}),
                                       SimpleNamespace(SATELLITE_ACTIONS={"next": first})])
+

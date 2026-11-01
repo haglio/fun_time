@@ -16,7 +16,7 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
-from .mode_plan import STARTUP_MAIN_MODE
+from .mode_plan import STARTUP_MAIN_MODE, EnhancementLevel
 from .origenerator_switches import KINO_MODE, RfbMode, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
@@ -31,6 +31,7 @@ class SatelliteState:
     hud_minimized: bool = False
     filter: str = ""
     favorites_filter: bool = False
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
     latest: bool = False
     loop: str = ""
     nav_map_anchor: str = ""
@@ -62,6 +63,7 @@ class BridgeState:
     main_latest: bool = False
     main_shuffle_seed: int = 0
     main_length_mode: LengthMode = LengthMode.MIXED
+    main_enhancement: EnhancementLevel = EnhancementLevel.BOTH
     main_plays_vr: bool = True
     main_plays_flat: bool = True
     main_plays_portrait: bool = True
@@ -79,8 +81,7 @@ class BridgeState:
     main_speed: float = 1.0
     main_locked: bool = True
     main_loop_video: str = ""
-    main_loop_in_ms: int = 0
-    main_loop_out_ms: int = 0
+    main_loop_bounds_ms: str = ""
     genau_speed: int = RobotHandState().speed
     genau_amplitude: int = RobotHandState().amplitude
     genau_center: int = RobotHandState().center
@@ -130,6 +131,14 @@ def _written(value: bool | int | float | str) -> str:
     if isinstance(value, float):
         return f"{value:g}"
     return str(value)
+
+
+def main_loop_bounds(state: BridgeState) -> tuple[int, int]:
+    try:
+        in_ms, out_ms = state.main_loop_bounds_ms.split()
+        return int(in_ms), int(out_ms)
+    except ValueError:
+        return 0, 0
 
 
 def _session_fields():

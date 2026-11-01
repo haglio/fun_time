@@ -371,8 +371,7 @@ class TestResumeMainLoop:
         return playlist
 
     def _looping(self, tmp_path: Path, video: str) -> BridgeState:
-        return BridgeState(main_loop_video=str(tmp_path / video), main_loop_in_ms=2000,
-                           main_loop_out_ms=4000)
+        return BridgeState(main_loop_video=str(tmp_path / video), main_loop_bounds_ms="2000 4000")
 
     def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"

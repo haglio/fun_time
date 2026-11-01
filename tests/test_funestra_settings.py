@@ -26,17 +26,16 @@ class TestTheRoomRecordsWhatEachFunestraReports:
             main=MainFunestraStatus(video="C:/v/a.mp4", locked=False, loop_state=LoopState.LOOPING,
                                     loop_in_ms=1000, loop_out_ms=5000, read_at=PUBLISHED_AT)))
 
-        assert (state.main_locked, state.main_loop_video, state.main_loop_in_ms,
-                state.main_loop_out_ms) == (False, "C:/v/a.mp4", 1000, 5000)
+        assert (state.main_locked, state.main_loop_video,
+                state.main_loop_bounds_ms) == (False, "C:/v/a.mp4", "1000 5000")
 
     def test_a_loop_let_go_of_is_forgotten(self):
-        looping = BridgeState(main_loop_video="C:/v/a.mp4", main_loop_in_ms=1000,
-                              main_loop_out_ms=5000)
+        looping = BridgeState(main_loop_video="C:/v/a.mp4", main_loop_bounds_ms="1000 5000")
 
         state = with_what_the_funestras_report(looping, FunestraReports(
             main=MainFunestraStatus(video="C:/v/a.mp4", read_at=PUBLISHED_AT)))
 
-        assert (state.main_loop_video, state.main_loop_in_ms, state.main_loop_out_ms) == ("", 0, 0)
+        assert (state.main_loop_video, state.main_loop_bounds_ms) == ("", "")
 
     def test_genaus_bars_shape_flick_seconds_and_switches(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(
