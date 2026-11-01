@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 from app_support.threading_utils import wait_until
+from app_support.win32_loader import load_dll
 
-from fun_time.win32_loader import load_dll
 from tests.integration import session_lock
 from tests.integration.session_lock import (
     Place,

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import ctypes
 
-from fun_time.win32_loader import WIN32_AVAILABLE, load_dll
+from app_support.win32_loader import WIN32_AVAILABLE, load_dll
 
 _INTERACTIVE_DESKTOP_NAME = "Default"
 _UOI_NAME = 2

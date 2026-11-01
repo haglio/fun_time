@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 import comtypes
+from app_support.win32_loader import load_dll
 from comtypes import CLSCTX_ALL, COMMETHOD, GUID, HRESULT, IUnknown
-
-from fun_time.win32_loader import load_dll
 
 logger = logging.getLogger(__name__)
 

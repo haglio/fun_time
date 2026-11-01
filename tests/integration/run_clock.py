@@ -16,8 +16,7 @@ from collections.abc import Callable
 from typing import Protocol
 
 from app_support.win32 import busy_seconds_of_the_job_this_process_runs_in
-
-from fun_time.win32_loader import load_dll
+from app_support.win32_loader import load_dll
 
 _kernel32 = load_dll("kernel32", use_last_error=True)
 _kernel32.GetSystemTimes.argtypes = [ctypes.POINTER(wt.FILETIME)] * 3

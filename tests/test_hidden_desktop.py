@@ -25,9 +25,9 @@ from unittest.mock import patch
 import pytest
 from app_support.integration_runs import read_runs
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.win32_loader import load_dll
 
 from fun_time.process_tree import kill_process_tree
-from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import (
     A_STARVED_CHILDS_START_S,
