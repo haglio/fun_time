@@ -14,6 +14,7 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.main_list_builds import BUILDS_HERE, MainListBuild
 from fun_time.media_metadata import metadata_path_for
+from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import SatelliteBuild
 from fun_time.omnipause import PausedFiles, apply_enter_omnipause, apply_leave_omnipause
 from fun_time.runtime_flow import (
@@ -432,6 +433,28 @@ def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: 
     assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]
 
 
+def test_apply_satellite_filter_narrows_to_the_clips_with_an_enhanced_version(tmp_path: Path):
+    upscaled = tmp_path / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider"
+    upscaled.mkdir(parents=True)
+    paired, alone = upscaled / "abc_topaz.mp4", upscaled / "xyz_topaz.mp4"
+    original = tmp_path / "1_sorted" / "provider" / "portrait" / "abc.mp4"
+    original.parent.mkdir(parents=True)
+    for clip in (paired, alone, original):
+        clip.write_text("x", encoding="utf-8")
+
+    def narrowed(level: EnhancementLevel, media_root: Path | None):
+        return apply_satellite_filter(
+            2, _channel(tmp_path, "portrait", upscaled, tmp_path / "portrait_cmd.txt"),
+            SatelliteBuild(str(upscaled), recent=True, enhancement=level, media_root=media_root))
+
+    assert narrowed(EnhancementLevel.ENHANCED, tmp_path).count == 1
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(paired)]
+    assert narrowed(EnhancementLevel.ORIGINAL, tmp_path).count == 1
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(alone)]
+    assert narrowed(EnhancementLevel.ENHANCED, None).applied is False
+    assert _satellite_lines(tmp_path / "state", "portrait") == [str(alone)]
+
+
 def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -500,10 +523,7 @@ def test_a_satellites_browse_is_the_filter_applied_to_the_library(tmp_path: Path
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
 
     paths = satellite_browse_paths(
-        query="alpha",
-        favorites_filter=False,
-        recent=True,
-        sources=str(portrait_root),
+        SatelliteBuild(sources=str(portrait_root), recent=True, filter_query="alpha"),
         regen_metadata_root=metadata_root,
     )
 

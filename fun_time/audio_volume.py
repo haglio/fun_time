@@ -23,11 +23,15 @@ def read_volume(path: Path) -> int:
         return MAX_VOLUME
 
 
+def volume_verb(volume: int, muted: bool) -> str:
+    return f"{SET_VOLUME} {volume} {int(muted)}"
+
+
 def publish_audio_level(
     *, main_funestra_cmd_file: Path, genau_cmd_file: Path, audio_volume_file: Path,
     volume: int, muted: bool,
 ) -> None:
-    verb = f"{SET_VOLUME} {volume} {int(muted)}"
+    verb = volume_verb(volume, muted)
     append_command(main_funestra_cmd_file, verb)
     append_command(genau_cmd_file, verb)
     write_volume(audio_volume_file, MIN_VOLUME if muted else volume)

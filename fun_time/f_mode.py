@@ -110,6 +110,8 @@ def _dispatch_fmode(
                 config.satellite(funestra),
                 recent=state.satellite(funestra).latest,
                 filter_query=state.satellite(funestra).filter,
+                enhancement=state.satellite(funestra).enhancement,
+                media_root=config.regen_media_root,
             )
             for funestra in FunTimeFunestra.SATELLITES
         },

@@ -40,7 +40,7 @@ _GENAUS_FLICK_SECONDS = "genau_flick_seconds"
 
 
 _GENAUS_FLICK_COMMANDS = frozenset({
-    "genau_prev_flick", "genau_next_flick", "genau_trash_flick", "genau_lock", "genau_flip_ends",
+    "genau_prev_flick", "genau_next_flick", "genau_trash_flick", "genau_flip_ends",
     _GENAUS_FLICK_SECONDS, f"{_GENAUS_FLICK_SECONDS}_down", f"{_GENAUS_FLICK_SECONDS}_up",
 })
 

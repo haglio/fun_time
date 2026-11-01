@@ -12,8 +12,6 @@ from .fun_time_funestras import FunTimeFunestra
 from .origenerator_switches import hosts
 from .shared_state import BridgeState
 
-MAIN_HUD_TURNS = {"main_hud_clockwise": True, "main_hud_counterclockwise": False}
-
 _DIRECTIONS = ("left", "right", "up", "down")
 
 
@@ -24,23 +22,52 @@ def _restored_at(funestra: FunTimeFunestra, place: str, state: BridgeState,
     return _opened_in(funestra, place, state, config)
 
 
+def _hud_corner_of(funestra: FunTimeFunestra, state: BridgeState) -> HudCorner:
+    if funestra is FunTimeFunestra.MAIN:
+        return state.main_hud_corner
+    return state.satellite(funestra).hud_corner
+
+
+def _hud_edge_of(funestra: FunTimeFunestra, state: BridgeState) -> HudEdge:
+    if funestra is FunTimeFunestra.MAIN:
+        return state.main_hud_edge
+    return state.satellite(funestra).hud_edge
+
+
+def _hung_against(funestra: FunTimeFunestra, edge: HudEdge, state: BridgeState) -> BridgeState:
+    if funestra is FunTimeFunestra.MAIN:
+        return replace(state, main_hud_edge=edge)
+    return state.with_satellite(funestra, hud_edge=edge)
+
+
 def _hung_open_against(funestra: FunTimeFunestra, edge: str, state: BridgeState) -> BridgeState:
     if edge not in HudEdge:
         return state
+    return _opened(funestra, _hung_against(funestra, HudEdge(edge), state), None)
+
+
+def _put_in(funestra: FunTimeFunestra, corner: HudCorner, state: BridgeState,
+            config: BridgeConfig) -> BridgeState:
     if funestra is FunTimeFunestra.MAIN:
-        return replace(state, main_hud_edge=HudEdge(edge), main_hud_minimized=False)
-    return state.with_satellite(funestra, hud_edge=HudEdge(edge), hud_minimized=False)
+        return replace(state, main_hud_corner=corner)
+    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
+    return state.with_satellite(funestra, hud_corner=corner)
+
+
+def _opened(funestra: FunTimeFunestra, state: BridgeState,
+            hosted_app_told_through: BridgeConfig | None) -> BridgeState:
+    if funestra is FunTimeFunestra.MAIN:
+        return replace(state, main_hud_minimized=False)
+    if hosted_app_told_through is not None:
+        _tell_the_hosted_app(funestra, "hud_minimized|0", state, hosted_app_told_through)
+    return state.with_satellite(funestra, hud_minimized=False)
 
 
 def _opened_in(funestra: FunTimeFunestra, corner: str, state: BridgeState,
                config: BridgeConfig) -> BridgeState:
     if corner not in HudCorner:
         return state
-    if funestra is FunTimeFunestra.MAIN:
-        return replace(state, main_hud_corner=HudCorner(corner), main_hud_minimized=False)
-    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
-    _tell_the_hosted_app(funestra, "hud_minimized|0", state, config)
-    return state.with_satellite(funestra, hud_corner=HudCorner(corner), hud_minimized=False)
+    return _opened(funestra, _put_in(funestra, HudCorner(corner), state, config), config)
 
 
 def _collapsed_hud(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, *,
@@ -51,20 +78,18 @@ def _collapsed_hud(funestra: FunTimeFunestra, state: BridgeState, config: Bridge
     return state.with_satellite(funestra, hud_minimized=minimized)
 
 
-def _main_hud_turned(clockwise: bool, state: BridgeState, config: BridgeConfig) -> BridgeState:
+def _hud_moved(direction: str, funestra: FunTimeFunestra, state: BridgeState,
+               config: BridgeConfig) -> BridgeState:
     if config.vr_main_funestra:
-        return replace(state, main_hud_edge=state.main_hud_edge.turned(clockwise=clockwise))
-    return replace(state, main_hud_corner=state.main_hud_corner.turned(clockwise=clockwise))
+        return _hung_against(funestra, _hud_edge_of(funestra, state).toward(direction), state)
+    return _put_in(funestra, _hud_corner_of(funestra, state).toward(direction), state, config)
 
 
-def _satellite_hud_moved(direction: str, funestra: FunTimeFunestra, state: BridgeState,
-                         config: BridgeConfig) -> BridgeState:
-    satellite = state.satellite(funestra)
+def _hud_placed(corner: HudCorner, funestra: FunTimeFunestra, state: BridgeState,
+                config: BridgeConfig) -> BridgeState:
     if config.vr_main_funestra:
-        return state.with_satellite(funestra, hud_edge=satellite.hud_edge.toward(direction))
-    corner = satellite.hud_corner.toward(direction)
-    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
-    return state.with_satellite(funestra, hud_corner=corner)
+        return _hung_against(funestra, HudEdge.LOWER if corner.lower else HudEdge.UPPER, state)
+    return _put_in(funestra, corner, state, config)
 
 
 def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, state: BridgeState,
@@ -112,8 +137,10 @@ HANDLERS: dict[str, Handler] = {
     "main_minimize": partial(_parked, "main_funestra"),
     "main_hud_minimize": _main_hud(partial(_collapsed_hud, FunTimeFunestra.MAIN, minimized=True)),
     "main_hud_restore": _main_hud(partial(_collapsed_hud, FunTimeFunestra.MAIN, minimized=False)),
-    **{command: _main_hud(partial(_main_hud_turned, clockwise))
-       for command, clockwise in MAIN_HUD_TURNS.items()},
+    **{f"main_hud_{direction}": _main_hud(partial(_hud_moved, direction, FunTimeFunestra.MAIN))
+       for direction in _DIRECTIONS},
+    **{f"main_hud_{corner}": _main_hud(partial(_hud_placed, corner, FunTimeFunestra.MAIN))
+       for corner in HudCorner},
 }
 
 VALUED: dict[str, Route] = {"main_hud_restore_at": _main_hud_restored_at}
@@ -122,8 +149,9 @@ SATELLITE_ACTIONS: dict[str, SatelliteHandler] = {
     "minimize": _parked_satellite,
     "hud_minimize": _satellite_hud(partial(_collapsed_hud, minimized=True)),
     "hud_restore": _satellite_hud(partial(_collapsed_hud, minimized=False)),
-    **{f"hud_{direction}": _satellite_hud(partial(_satellite_hud_moved, direction))
+    **{f"hud_{direction}": _satellite_hud(partial(_hud_moved, direction))
        for direction in _DIRECTIONS},
+    **{f"hud_{corner}": _satellite_hud(partial(_hud_placed, corner)) for corner in HudCorner},
 }
 
 SATELLITE_VALUED: dict[str, Route] = {"hud_restore_at": _satellite_hud_restored_at}

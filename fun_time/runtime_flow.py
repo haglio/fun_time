@@ -13,7 +13,7 @@ from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import keep_aside
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
-from .mode_plan import build_mode_switch_plan
+from .mode_plan import EnhancementLevel, build_mode_switch_plan
 from .modes import (
     SatelliteBuild,
     build_one_satellite_playlist,
@@ -80,6 +80,8 @@ class SatelliteFmodeInputs:
     channel: SatelliteChannel
     recent: bool = False
     filter_query: str = ""
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
+    media_root: Path | None = None
 
 
 def apply_satellite_fmode(
@@ -87,7 +89,8 @@ def apply_satellite_fmode(
 ) -> None:
     build = SatelliteBuild(
         satellite.channel.sources, favorites_filter=enabled, recent=satellite.recent,
-        filter_query=satellite.filter_query,
+        filter_query=satellite.filter_query, enhancement=satellite.enhancement,
+        media_root=satellite.media_root,
     )
     build_one_satellite_playlist(build, satellite.channel.playlist_file, metadata_root=metadata_root)
     append_command(satellite.channel.cmd_file, RELOAD_PLAYLIST)
@@ -120,18 +123,11 @@ def apply_fmode(
 
 
 def satellite_browse_paths(
+    browse: SatelliteBuild,
     *,
-    query: str,
-    favorites_filter: bool,
-    recent: bool,
-    sources: str,
     regen_metadata_root: Path | None = None,
 ) -> list[str]:
-    return build_satellite_playlist_paths(
-        SatelliteBuild(sources, favorites_filter=favorites_filter, recent=recent,
-                       filter_query=query),
-        metadata_root=regen_metadata_root,
-    )
+    return build_satellite_playlist_paths(browse, metadata_root=regen_metadata_root)
 
 
 @dataclass(frozen=True)
@@ -151,9 +147,11 @@ def apply_satellite_filter(
 ) -> SatelliteFilterFlowResult:
     label = FunTimeFunestra(funestra).label
     query = build.filter_query
-    paths = build_satellite_playlist_paths(build, metadata_root=regen_metadata_root)
-    if query and not paths:
-        return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
+    enhancement = build.enhancement
+    paths = satellite_browse_paths(build, regen_metadata_root=regen_metadata_root)
+    if (query or enhancement is not EnhancementLevel.BOTH) and not paths:
+        return SatelliteFilterFlowResult(
+            0, False, f"Filter {label}: no matches for '{query or f'{enhancement} only'}'")
     write_playlist_file(channel.playlist_file, paths, metadata_root=regen_metadata_root)
     append_command(channel.cmd_file, RELOAD_PLAYLIST)
     if start_at_top and paths:

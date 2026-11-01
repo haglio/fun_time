@@ -119,7 +119,7 @@ def _file_controls(facts: MainFunestraFacts) -> tuple[Button, ...]:
                else "Record loop",
                warn=facts.loop_state is LoopState.RECORDING,
                hold=facts.loop_state is LoopState.LOOPING, group_break=True),
-        Button("genaumacher_save", SAVE_ICON, "Save clip"),
+        Button("genaumacher_save", SAVE_ICON, "Save loop"),
     )
 
 

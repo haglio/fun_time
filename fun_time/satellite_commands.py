@@ -7,16 +7,18 @@ from pathlib import Path
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRASH
+from funestra.hud_placement import HudCorner
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 
 from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
 from .command_value import FILTER, Command
 from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
+from .funestra_handover import slideshows_enhancement
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
-from .modes import SatelliteBuild
+from .mode_plan import EnhancementLevel
 from .origenerator_switches import hosts
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
@@ -25,7 +27,7 @@ from .osr2_commands import (
     percent_rate,
     skip_ahead_refused,
 )
-from .runtime_flow import SatelliteFilterFlowResult, apply_satellite_filter
+from .runtime_flow import SatelliteBuild, SatelliteFilterFlowResult, apply_satellite_filter
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
     cancel_lock,
@@ -179,7 +181,8 @@ def _reset(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
     if not _browse_at_defaults(state.satellite(funestra)):
         state = cancel_lock(funestra, state, config)
         state = state.with_satellite(
-            funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
+            funestra, latest=False, filter="", favorites_filter=False,
+            enhancement=EnhancementLevel.BOTH, nav_anchor="")
         state = clear_satellite_grouping(state, funestra)
         result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
         logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
@@ -197,7 +200,9 @@ def _rebuild_satellite(
         funestra=funestra,
         channel=channel,
         build=SatelliteBuild(channel.sources, favorites_filter=satellite.favorites_filter,
-                             recent=satellite.latest, filter_query=query),
+                             recent=satellite.latest, filter_query=query,
+                             enhancement=satellite.enhancement,
+                             media_root=config.regen_media_root),
         start_at_top=start_at_top,
         regen_metadata_root=config.regen_metadata_root,
     )
@@ -213,6 +218,23 @@ def _set_filter(query: str, funestra: FunTimeFunestra, state: BridgeState,
     level = MESSAGE if result.applied else logging.WARNING
     return state, [WindowOp(op="message", key=result.log_message,
                             source=satellite_source(funestra), level=level)]
+
+
+def _dispatch_enhancement(
+    funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    if hosts(funestra, state, config):
+        return slideshows_enhancement(funestra, level, state, config)
+    if state.satellite(funestra).enhancement is level:
+        return state, []
+    narrowed = state.with_satellite(funestra, enhancement=level)
+    result = _rebuild_satellite(funestra, narrowed.satellite(funestra).filter, narrowed, config)
+    logger.info(result.log_message)
+    if not result.applied:
+        return state, [WindowOp(op="message", key=result.log_message,
+                                source=satellite_source(funestra), level=logging.WARNING)]
+    return narrowed, [WindowOp(op="message", key=level.flash, source=satellite_source(funestra),
+                               level=MESSAGE)]
 
 
 def _lock_action(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
@@ -282,11 +304,19 @@ def _speed(command: Command, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
+def _enhancement(level: EnhancementLevel, funestra: FunTimeFunestra, state: BridgeState,
+                 config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enhancement(funestra, level, state, config)
+
+
 THE_FUNESTRAS_OWN = frozenset({
     "minimize", "crown", "take_osr2", "kino_activate", "origenerator_activate",
     "lock", "lock_on", "lock_off",
     "speed", *PLAYBACK_RATE_ACTS,
     "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
+    *(f"hud_{corner}" for corner in HudCorner),
+    "mute", "unmute", "volume_down", "volume_up",
+    *(f"enhancement_{level}" for level in EnhancementLevel),
 })
 
 
@@ -315,6 +345,7 @@ SATELLITE_ACTIONS: dict[str, SatelliteHandler] = {
     "reset": _reset,
     "no_filter": partial(_set_filter, ""),
     **{f"nav_{direction}": partial(_nav, direction) for direction in _NAV_DIRECTIONS},
+    **{f"enhancement_{level}": partial(_enhancement, level) for level in EnhancementLevel},
 }
 
 SATELLITE_VALUED: dict[str, Route] = {

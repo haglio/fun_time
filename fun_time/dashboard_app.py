@@ -14,12 +14,17 @@ from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 from funestra.file_channel import append_command
 from PyQt6.QtCore import QEvent, QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from PyQt6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QPainter,
+    QPen,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
-    QDialog,
     QHBoxLayout,
     QMainWindow,
-    QTextBrowser,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -34,7 +39,6 @@ from shared_ui.colors import (
     dress_application,
     hovered,
 )
-from shared_ui.find_bar import FindBar
 from shared_ui.fonts import FONT_UI, SIZE_BODY
 from shared_ui.foreground import bring_to_front
 from shared_ui.icon_geometry import tooltip_for
@@ -42,10 +46,9 @@ from shared_ui.icons import icon_pixmap
 from shared_ui.pressable_drawing import PressableDrawing
 from shared_ui.preview import Preview
 from shared_ui.preview_icon import app_icon
-from shared_ui.spacing import BUTTON_RADIUS_HUD, MARGIN_STANDARD
+from shared_ui.spacing import BUTTON_RADIUS_HUD
 
 from fun_time import preview_marker
-from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
 from fun_time.dashboard_actions import (
     ENTER_OMNIPAUSE,
@@ -83,6 +86,7 @@ from fun_time.message_feed import MessageFeed, screens_if_known
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.reference_dialog import REFERENCE_WINDOW_TITLE, ReferenceDialog
 from fun_time.rfb_mode_selector import RfbModeSelector
 from fun_time.session_end import mark_session_end
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
@@ -206,7 +210,6 @@ class IconCache:
         return self._family_icons[key]
 
 
-REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 
 _BUTTON_RADIUS = BUTTON_RADIUS_HUD
 
@@ -215,8 +218,8 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
-    FMODE_TOGGLE: "F-Mode on every Funestra",
-    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-Mode, "
+    FMODE_TOGGLE: "F-mode on every Funestra",
+    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-mode, "
                 "normal speed, shuffled from the top"),
     ENTER_VR: "Enter VR — end this session and open Fun Time VR",
     EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
@@ -383,39 +386,6 @@ class RfbModeSelectorWidget(PressableDrawing):
 
     def _post(self, command: str) -> None:
         self.action_triggered.emit(command)
-
-
-class ReferenceDialog(QDialog):
-    typing_invited = pyqtSignal()
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(REFERENCE_WINDOW_TITLE)
-        self.setWindowFlags(
-            Qt.WindowType.Window
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.WindowTitleHint
-            | Qt.WindowType.WindowCloseButtonHint
-        )
-        self.setWindowIcon(app_icon(PROJECT_ICON, preview_marker.shown_as()))
-        self._browser = QTextBrowser(self)
-        self._browser.setOpenExternalLinks(False)
-        self._browser.setHtml(render_reference_html())
-        self._find_bar = FindBar("Find:", "a key or a word…")
-        self._find_bar.setContentsMargins(MARGIN_STANDARD, 0, MARGIN_STANDARD, MARGIN_STANDARD)
-        self._find_bar.typing_invited.connect(self.typing_invited)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._browser)
-        layout.addWidget(self._find_bar)
-        QShortcut(QKeySequence.StandardKey.Find, self).activated.connect(self.open_find)
-
-    def open_find(self) -> None:
-        self._find_bar.open_find([self._browser])
-
-    def sync_topmost(self, omni_paused: bool) -> None:
-        # winId() is read fresh: Qt may recreate the native window across a hide/show.
-        keep_in_topmost_band(int(self.winId()), topmost=not omni_paused)
 
 
 class ReferencePopup:

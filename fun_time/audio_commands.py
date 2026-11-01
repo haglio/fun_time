@@ -3,16 +3,25 @@ from __future__ import annotations
 from dataclasses import replace
 from functools import partial
 
-from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
-from .bridge_records import BridgeConfig, Handler, Route, WindowOp
-from .command_value import Command
+from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level, volume_verb
+from .bridge_records import BridgeConfig, Handler, Route, SatelliteHandler, WindowOp
+from .command_value import FUNESTRA_SOURCES, Command
 from .event_log import SOURCE_MAIN
+from .fun_time_funestras import FunTimeFunestra
+from .satellite_groups import send_satellite
 from .shared_state import BridgeState
 
-_VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
+_STEP_BY = {"volume_down": -VOLUME_STEP, "volume_up": VOLUME_STEP}
+_MUTED_BY = {"mute": True, "unmute": False}
+_VOLUME_STEPS = {f"audio_{change}": step for change, step in _STEP_BY.items()}
+_MUTE_COMMANDS = {f"audio_{change}": muted for change, muted in _MUTED_BY.items()}
 
 
 SET_VOLUME_COMMAND = "audio_set_volume"
+
+
+def _level_moved(volume: int, step: int) -> int:
+    return max(MIN_VOLUME, min(MAX_VOLUME, volume + step))
 
 
 def _dispatch_set_volume(
@@ -22,16 +31,15 @@ def _dispatch_set_volume(
         level = int(argument)
     except ValueError:
         return state, []
-    volume = max(MIN_VOLUME, min(MAX_VOLUME, level))
-    return _dispatch_audio(replace(state, volume=volume, muted=False), config)
-
-
-_MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
+    return _dispatch_audio(replace(state, volume=_level_moved(level, 0), muted=False), config)
 
 
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
-    volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
-    return replace(state, volume=volume, muted=False)
+    return replace(state, volume=_level_moved(state.volume, step), muted=False)
+
+
+def _sound_notice(volume: int, muted: bool, source: str) -> WindowOp:
+    return WindowOp(op="message", key="Muted" if muted else f"Volume {volume}%", source=source)
 
 
 def _dispatch_audio(
@@ -44,8 +52,7 @@ def _dispatch_audio(
         volume=state.volume,
         muted=state.muted,
     )
-    message = "Muted" if state.muted else f"Volume {state.volume}%"
-    return state, [WindowOp(op="message", key=message, source=SOURCE_MAIN)]
+    return state, [_sound_notice(state.volume, state.muted, SOURCE_MAIN)]
 
 
 def _set_muted(muted: bool, state: BridgeState, config: BridgeConfig,
@@ -63,9 +70,25 @@ def _set_volume(command: Command, state: BridgeState, config: BridgeConfig,
     return _dispatch_set_volume(command.argument, state, config)
 
 
+def _satellite_sound(change: str, funestra: FunTimeFunestra, state: BridgeState,
+                     config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    satellite = state.satellite(funestra)
+    if change in _MUTED_BY:
+        volume, muted = satellite.volume, _MUTED_BY[change]
+    else:
+        volume, muted = _level_moved(satellite.volume, _STEP_BY[change]), False
+    send_satellite(config, funestra, volume_verb(volume, muted))
+    return (state.with_satellite(funestra, volume=volume, muted=muted),
+            [_sound_notice(volume, muted, FUNESTRA_SOURCES[funestra])])
+
+
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_set_muted, muted) for cmd, muted in _MUTE_COMMANDS.items()},
     **{cmd: partial(_volume_step, step) for cmd, step in _VOLUME_STEPS.items()},
+}
+
+SATELLITE_ACTIONS: dict[str, SatelliteHandler] = {
+    change: partial(_satellite_sound, change) for change in (*_MUTED_BY, *_STEP_BY)
 }
 
 VALUED: dict[str, Route] = {SET_VOLUME_COMMAND: _set_volume}

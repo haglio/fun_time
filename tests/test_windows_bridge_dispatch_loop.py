@@ -1233,10 +1233,10 @@ class TestWhatASpokenCommandFlashes:
     def test_a_pressed_command_flashes_only_what_it_says_itself(self, tmp_path):
         assert self._flashed(tmp_path, "landscape_next") == []
 
-    def test_a_spoken_both_command_says_what_was_heard_once(self, tmp_path):
-        spoken = format_spoken_command("both_next", spoken_at=1.0, said="both next")
+    def test_a_spoken_satellites_command_says_what_was_heard_once(self, tmp_path):
+        spoken = format_spoken_command("satellites_next", spoken_at=1.0, said="satellites next")
 
-        assert self._flashed(tmp_path, spoken) == [("both next", "system", 25)]
+        assert self._flashed(tmp_path, spoken) == [("satellites next", "system", 25)]
 
     def test_a_named_command_flashes_over_its_funestra_whichever_is_active(self, tmp_path):
         spoken = format_spoken_command("landscape_next", spoken_at=1.0, said="landscape next")
@@ -1405,7 +1405,7 @@ class TestOpenRfbTab:
 
         assert calls == []
 
-    def test_lock_both_opens_both_videos_in_one_launch(self, tmp_path):
+    def test_lock_satellites_opens_both_videos_in_one_launch(self, tmp_path):
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
@@ -1415,7 +1415,7 @@ class TestOpenRfbTab:
                 arguments='--profile-directory="Profile 2"'),
         )
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path="", spoken_at=None, hosted=None):
             if cmd.text == "portrait_lock_on":
@@ -2325,11 +2325,11 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with(parse_command("portrait_fmode_on"), None)
 
-    def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
+    def test_satellites_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("both_fmode", encoding="utf-8")
+            cmd_file.write_text("satellites_fmode", encoding="utf-8")
             runner.tick()
         assert [call.args[0].text for call in mock_d.call_args_list] == [
             "portrait_fmode", "landscape_fmode",
@@ -2717,10 +2717,10 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
             assert [verb for verb in sent if verb.startswith("SET_SPEED")] == ["SET_SPEED 0.5"], satellite
 
 
-class TestBothSatelliteCommands:
-    def test_both_next_dispatches_to_each_satellite(self, tmp_path):
+class TestSatellitesCommands:
+    def test_satellites_next_dispatches_to_each_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
-        (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.side_effect = lambda cmd, state, config, target_path="", spoken_at=None, hosted=None: (state, [])
@@ -2729,20 +2729,20 @@ class TestBothSatelliteCommands:
         commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_next", "landscape_next"]
 
-    def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
+    def test_lock_satellites_locks_each_unlocked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         runner.tick()
 
         assert [_told(runner, funestra) for funestra in FunTimeFunestra.SATELLITES] == [[], ["LOCK_ON"]]
         assert runner.state.satellite(FunTimeFunestra.LANDSCAPE).locked is True
 
-    def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
+    def test_unlock_satellites_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=True), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
+        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_off", encoding="utf-8")
 
         runner.tick()
 
@@ -2834,12 +2834,11 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
                                rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
         return runner
 
-    @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])
-    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path, press):
+    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
-        runner._dispatch(parse_command(press))
+        runner._dispatch(parse_command("main_lock"))
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 
