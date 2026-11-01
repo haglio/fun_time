@@ -39,7 +39,7 @@ from pathlib import Path
 from app_support.dependencies import pinned_siblings
 from app_support.siblings import RENAMED_SIBLINGS
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import TaskbarApp, describe_taskbar_app
+from app_support.win32 import TaskbarApp, describe_taskbar_app, write_shortcut
 
 # PROJECT_DIR names whichever checkout imported the package, and this module is
 # the one place that has to tell two checkouts apart — so it is read through the
@@ -63,7 +63,7 @@ from .project_paths import (
     override_lines,
     sibling_checkouts_named_in,
 )
-from .shortcuts import read_shortcuts, write_shortcut
+from .shortcuts import read_shortcuts
 
 # Written into the worktree's own state dir, which is git-ignored — this file
 # holds the machine's real library paths and must never be committable.
@@ -706,12 +706,12 @@ def write_launch_shortcut(
     if vr:
         arguments.append(VR_LAUNCH_FLAG)
     write_shortcut(
-        destination,
+        str(destination),
         # wscript rather than the .vbs itself: a shortcut's target has to be an
         # executable for arguments to reach the script.
         target=str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wscript.exe"),
         arguments=subprocess.list2cmdline(arguments),
-        working_dir=str(primary),
+        working_directory=str(primary),
         icon=str(primary / (VR_ICON_NAME if vr else DESKTOP_ICON_NAME)),
         description=f"Run Fun Time{' VR' if vr else ''} on {branch}",
     )
