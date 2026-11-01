@@ -285,6 +285,6 @@ def test_a_command_bound_in_two_domains_is_refused_at_import():
     def first(state, _config, _target_path):
         return state, []
 
-    with pytest.raises(ValueError, match="bound twice.*portrait_next"):
+    with pytest.raises(ValueError, match=r"bound twice.*portrait_next"):
         command_dispatch._bound_once([{"portrait_next": first}, {"portrait_next": first}])
 
