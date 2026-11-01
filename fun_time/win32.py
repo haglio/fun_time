@@ -22,13 +22,23 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from fun_time.win32_loader import Win32Rect, load_dll, win_functype
+from app_support.win32_loader import load_dll, win_functype
+
 from fun_time.win32_process import list_child_pids
 
 logger = logging.getLogger(__name__)
 
 _user32 = load_dll("user32")
 _kernel32 = load_dll("kernel32")
+
+
+class Win32Rect(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("lower", ctypes.c_long),
+    ]
 
 
 # Constants

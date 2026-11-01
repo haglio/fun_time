@@ -7,8 +7,9 @@ import time
 from collections import deque
 from collections.abc import Callable
 
+from app_support.win32_loader import load_dll, win_functype
+
 from fun_time.text_field_clicks import Seen, Sighting
-from fun_time.win32_loader import load_dll, win_functype
 
 _user32 = load_dll("user32", use_last_error=True)
 _kernel32 = load_dll("kernel32", use_last_error=True)

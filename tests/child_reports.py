@@ -9,7 +9,8 @@ from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import NamedTuple
 
-from fun_time.win32_loader import load_dll
+from app_support.win32_loader import load_dll
+
 from fun_time.win32_process import creation_time_of, get_process_creation_time, list_child_pids
 from tests.integration.run_clock import Budget
 

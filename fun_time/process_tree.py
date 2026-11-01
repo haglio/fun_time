@@ -6,7 +6,8 @@ import ctypes.wintypes
 import time
 from typing import NamedTuple
 
-from fun_time.win32_loader import load_dll
+from app_support.win32_loader import load_dll
+
 from fun_time.win32_process import creation_time_of, process_parents
 
 _kernel32 = load_dll("kernel32")

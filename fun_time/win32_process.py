@@ -10,7 +10,7 @@ import ctypes
 import ctypes.wintypes
 from typing import NamedTuple
 
-from fun_time.win32_loader import load_dll
+from app_support.win32_loader import load_dll
 
 _kernel32 = load_dll("kernel32")
 _ntdll = load_dll("ntdll")

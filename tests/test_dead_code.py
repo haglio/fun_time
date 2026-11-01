@@ -113,7 +113,7 @@ def test_prose_does_not_outgrow_the_code_it_explains():
 
 
 # Every module that reaches ``ctypes``' Windows binding surface directly rather
-# than through ``fun_time.win32_loader``, and how many times.  Held as an
+# than through ``app_support.win32_loader``, and how many times.  Held as an
 # EQUALITY per file: a count that has come down means a reach was consolidated
 # and this table was not lowered with it, and a file that is absent must have
 # none at all.  This is the number no length or coverage gate can see — the
@@ -121,9 +121,6 @@ def test_prose_does_not_outgrow_the_code_it_explains():
 # GWL_STYLE written as a bare -16 and the style bits as inline hex, while
 # fun_time/win32.py existed to be the place that names them.
 _WIN32_REACHES = {
-    # The loader itself: this IS the binding, and the thing it exists to be
-    # asked instead.
-    "fun_time/win32_loader.py": 5,
     # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
     # these want the AttributeError ctypes.windll gives off Windows, and every
     # caller catches it to fall back rather than to fail.  monitors.py is the
