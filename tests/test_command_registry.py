@@ -26,7 +26,7 @@ from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.console_buttons import MainSlot, console_rows
 from fun_time.satellite_buttons import funestra_rows
-from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time.voice_commands import VOICE_COMMANDS, said_to_a_side
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
@@ -66,7 +66,7 @@ _NAV_IDS = frozenset(
 #: Where each HUD sits, and whether it is collapsed: read off the dispatch's own
 #: tables, so a side or a verb added there needs nothing added here.
 _HUD_PLACE_IDS = (frozenset(hud_moves._HUD_MOVES)
-                  | frozenset(hud_moves.MAIN_HUD_TURNS)
+                  | frozenset(hud_moves._HUD_PLACEMENTS)
                   | frozenset(hud_moves._HUD_COLLAPSES))
 
 
@@ -248,6 +248,9 @@ def test_the_reference_and_the_handlers_agree():
         # The reference documents the side-agnostic and group forms as such.
         | frozenset(c for c in reference
                     if c.startswith(("active_", *windows_bridge_dispatch_loop._FUNESTRA_GROUPS)))
+        # The hosted app's own words, said to a side: a parsed form, handed to
+        # the app or refused as "in Kino mode", never an exact id.
+        | frozenset(c for c in reference if said_to_a_side(c))
     )
     ghosts = reference - real
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
@@ -260,11 +263,14 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
     """The routing guard runs ahead of the handler map, so what it may shadow is
     pinned by rule: every side command about what the Funestra plays goes to the
     hosted app, and the session keeps only what is about the Funestra itself --
-    parking its window, the rate it plays at, and its mode, which is how it is
-    taken back -- and its lock, which locks the Funestra the moment it is asked
-    for, since a slideshow moves on while the app has yet to read a press.  A side
-    command the session must go on answering while the app has the Funestra has
-    to be argued here."""
+    parking its window, the rate it plays at, its sound, and its mode, which is
+    how it is taken back -- and its lock, which locks the Funestra the moment it
+    is asked for, since a slideshow moves on while the app has yet to read a
+    press.  A side command the session must go on answering while the app has
+    the Funestra has to be argued here: the enhancement level, because the
+    session says it to a slideshow in the app's own words (enhanced only) or as
+    its switch pressed off, and refuses the one level a slideshow has nothing
+    for."""
     side_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
     kept = {command for command in side_commands
@@ -274,6 +280,8 @@ def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode(
         f"{side}_{own}"
         for side in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
+                    "enhancement_enhanced", "enhancement_original", "enhancement_both",
+                    "mute", "unmute", "volume_down", "volume_up",
                     "speed_min", "speed_max", "take_osr2", "kino_activate",
                     "origenerator_activate", "lock", "lock_on", "lock_off")
     } & side_commands, sorted(kept)

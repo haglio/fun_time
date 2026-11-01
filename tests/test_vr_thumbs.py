@@ -54,7 +54,7 @@ def test_with_the_trigger_held_the_stick_brings_the_funestras_nearer_instead():
     assert thumb.nearer == pytest.approx(2.0 ** (0.5 * DOUBLINGS_PER_S))
 
 
-def test_b_skips_forward_and_a_skips_back_once_per_press():
+def test_a_or_x_skips_forward_and_b_or_y_skips_back_once_per_press():
     thumbs = Thumbs()
 
     pressed = thumbs.frame(_hands(right=HandInput(forward=True)), _Squeeze(), elapsed_s=0.01)
@@ -66,7 +66,7 @@ def test_b_skips_forward_and_a_skips_back_once_per_press():
     assert back.commands == ("main_nudge_prev",)
 
 
-def test_with_the_trigger_held_b_and_a_jump_between_scenes_instead():
+def test_with_the_trigger_held_the_skip_buttons_jump_between_scenes_instead():
     thumbs = Thumbs()
     held = _Squeeze(squeezing=True)
 

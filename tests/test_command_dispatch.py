@@ -27,7 +27,7 @@ from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
-from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
+from fun_time.event_log import FAVORITE, NOTICE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
@@ -41,6 +41,7 @@ from fun_time.media_metadata import (
     metadata_path_for,
     normalize_path_key,
 )
+from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import write_playlist_file
 from fun_time.origenerator_switches import RfbSlot, hosted_satellites
 from fun_time.room_funestras import RoomFunestra
@@ -560,15 +561,18 @@ def test_primary_next_in_main_funestra_mode_writes_main_funestra_cmd(tmp_path: P
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_primary_prev_in_genau_mode_writes_main_funestra_cmd(tmp_path: Path):
-    """Outside kino mode, the Main Funestra is the Main Funestra — even while Genau mode is
-    active, [ and ] navigate the paused Main Funestra in the background."""
+def test_primary_prev_and_next_step_genaus_flick_in_genau_mode(tmp_path: Path):
+    """M and . step whatever is on the Main Funestra, the way the comma holds
+    it: the video in Kino mode, Genau's flick in Genau mode.  They used to step
+    the paused video behind the flick, which nothing on screen showed."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
     dispatch_command("main_prev", state, config)
+    dispatch_command("main_next", state, config)
 
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "PREV\nNEXT\n"
+    assert not config.main_funestra_cmd_file.exists()
 
 
 # --- main_lock ---
@@ -622,17 +626,6 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
-def test_the_comma_holds_genaus_flick_while_genau_is_on_the_main_screen(tmp_path: Path):
-    """The comma sits under K in Genau's own cluster of keys, the way S and Down
-    sit under W and Up in the satellites'."""
-    config = _make_config(tmp_path)
-
-    dispatch_command("genau_lock", _make_state(main_mode=MainMode.GENAU), config)
-
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.main_funestra_cmd_file.exists()
-
-
 def _show_on_genau(config: BridgeConfig, flick: Path, *, locked: bool) -> None:
     config.genau_status_file.write_text(
         f"flick={flick}\nlocked={'1' if locked else '0'}\n", encoding="utf-8")
@@ -672,33 +665,9 @@ def test_marking_genaus_flick_weird_takes_it_out_of_the_favorites_as_a_satellite
     assert not is_favorite(flick, config.regen_metadata_root)
 
 
-def test_the_apostrophe_holds_the_video_while_the_video_is_on_the_main_screen(tmp_path: Path):
-    config = _make_config(tmp_path)
-
-    dispatch_command("main_funestra_lock", _make_state(main_mode=MainMode.KINO), config)
-
-    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.genau_cmd_file.exists()
-
-
-@pytest.mark.parametrize(("key_command", "main_mode"), [
-    ("genau_lock", MainMode.KINO),
-    ("main_funestra_lock", MainMode.GENAU),
-])
-def test_a_lock_key_does_nothing_while_the_other_funestra_is_on_the_main_screen(
-        tmp_path: Path, key_command, main_mode):
-    config = _make_config(tmp_path)
-
-    dispatch_command(key_command, _make_state(main_mode=main_mode), config)
-
-    assert not config.main_funestra_cmd_file.exists()
-    assert not config.genau_cmd_file.exists()
-
-
 @pytest.mark.parametrize(("command", "main_mode"), [
     ("main_lock", MainMode.KINO),
-    ("main_funestra_lock", MainMode.KINO),
-    ("genau_lock", MainMode.GENAU),
+    ("main_lock", MainMode.GENAU),
 ])
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
         tmp_path: Path, command, main_mode):
@@ -718,8 +687,6 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(
 @pytest.mark.parametrize("command, verb", [
     ("projection_cycle", "CYCLE_PROJECTION"),
     ("projection_cycle_back", "CYCLE_PROJECTION_BACK"),
-    ("projection_wider", "WIDEN_PROJECTION"),
-    ("projection_narrower", "NARROW_PROJECTION"),
     ("recenter_view", "RECENTER"),
     ("tilt_up", "TILT_UP"),
     ("tilt_down", "TILT_DOWN"),
@@ -740,9 +707,8 @@ def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Pa
 
 @pytest.mark.parametrize(
     "command",
-    ["projection_cycle", "projection_cycle_back", "projection_wider", "projection_narrower",
-     "recenter_view", "tilt_up", "tilt_down", "tilt_reset", "main_scene_prev",
-     "main_scene_next", "vr_reset"],
+    ["projection_cycle", "projection_cycle_back", "recenter_view", "tilt_up", "tilt_down",
+     "tilt_reset", "main_scene_prev", "main_scene_next", "vr_reset"],
 )
 @pytest.mark.parametrize("main_mode", ["kino", "genau"])
 def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_path: Path):
@@ -865,18 +831,6 @@ def test_a_length_button_narrows_the_one_main_list_from_the_video_on_screen(
     assert [(build.settings.length, build.on_screen) for build in builds.asked] == [
         (length, "C:/v/scene one.mp4")]
     assert not config.main_funestra_cmd_file.exists()
-
-
-def test_the_length_key_walks_mixed_clips_full_and_round_again(tmp_path: Path):
-    config, _builds = _recording(_make_config(tmp_path))
-    state = _make_state()
-    walked = []
-
-    for _ in range(3):
-        state, _ops = dispatch_command("main_funestra_toggle_length", state, config)
-        walked.append(state.main_length_mode)
-
-    assert walked == [LengthMode.CLIPS, LengthMode.FULL, LengthMode.MIXED]
 
 
 def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
@@ -1019,7 +973,7 @@ def test_funscript_nav_voice_phrases_are_split_for_vosk():
     assert VOICE_COMMANDS["main jump to fun script"] == "main_funestra_funscript_jump"
     assert VOICE_COMMANDS["next fun scripted main"] == "main_funestra_next_funscripted"
     assert VOICE_COMMANDS["portrait jump to fun script"] == "portrait_funscript_jump"
-    assert VOICE_COMMANDS["both next fun scripted"] == "both_next_funscripted"
+    assert VOICE_COMMANDS["satellites next fun scripted"] == "satellites_next_funscripted"
     assert "jump to funscript" not in VOICE_COMMANDS
 
 
@@ -1731,7 +1685,7 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
-        new_state, _ops = dispatch_command("filter_both_beta_gamma", state, config)
+        new_state, _ops = dispatch_command("filter_satellites_beta_gamma", state, config)
 
     assert new_state.satellite(RoomFunestra.PORTRAIT).filter == "beta gamma"
     assert new_state.satellite(RoomFunestra.LANDSCAPE).filter == "beta gamma"
@@ -1746,7 +1700,7 @@ def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(t
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
-        _new_state, ops = dispatch_command("filter_both_beta_gamma", state, config)
+        _new_state, ops = dispatch_command("filter_satellites_beta_gamma", state, config)
 
     notices = [op for op in ops if op.op == "notice"]
     assert [op.source for op in notices] == ["portrait", "landscape"]
@@ -3124,7 +3078,6 @@ def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_slot(tmp_
     "genau_prev_flick",
     "genau_next_flick",
     "genau_weird_flick",
-    "genau_lock",
     "genau_flip_ends",
     "genau_flick_seconds_down",
     "genau_flick_seconds_up",
@@ -4828,16 +4781,6 @@ class TestEachSatellitesOwnMode:
         assert state.rfb_slot is RfbSlot.RFB
         assert _origenerator_cmds(config) == ["portrait_open_slideshow", "landscape_open_slideshow"]
 
-    def test_the_toggle_puts_both_in_origenerator_mode_unless_both_already_are(self, tmp_path):
-        """The F key's own rule for a toggle over several Funestras: it completes
-        the switch or lifts it, never leaving the two halfway."""
-        config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("satellites_toggle",
-                                    _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        state, _ = dispatch_command("satellites_toggle", state, config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-
     def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
@@ -4853,7 +4796,7 @@ class TestEachSatellitesOwnMode:
         """
         config = _origenerator_config(tmp_path)
 
-        for command in ("portrait_origenerator_activate", "satellites_toggle"):
+        for command in ("portrait_origenerator_activate", "satellites_origenerator_activate"):
             state, ops = dispatch_command(command, BridgeState(), config)
             assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
             assert [(op.op, op.key) for op in ops] == [
@@ -4884,7 +4827,7 @@ class TestEachSatellitesOwnMode:
 
         with patch("fun_time.satellite_commands.apply_satellite_filter") as rebuild:
             rebuild.return_value = _filter_result(count=10)
-            state, _ = dispatch_command("filter_both_scene_one",
+            state, _ = dispatch_command("filter_satellites_scene_one",
                                         _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
 
         assert _origenerator_cmds(config) == ["filter_portrait_scene_one"]
@@ -4988,7 +4931,7 @@ class TestOrigeneratorTransport:
         state = _in_origenerator_mode()
 
         with patch("fun_time.satellite_commands.apply_satellite_filter") as rebuild:
-            state, _ = dispatch_command("filter_both_scene_one", state, config)
+            state, _ = dispatch_command("filter_satellites_scene_one", state, config)
 
         rebuild.assert_not_called()
         assert _origenerator_cmds(config) == [
@@ -5475,25 +5418,40 @@ class TestWhereEachHudSits:
         assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
 
-    def test_the_main_funestras_pair_of_keys_walks_its_hud_round(self, tmp_path):
+    def test_the_main_funestras_keys_move_its_hud_toward_a_side_as_a_satellites_do(self, tmp_path):
+        """Four directions, not a ring: the same step the satellites' keys take,
+        on the Main Funestra's own corner."""
         config = _make_config(tmp_path)
 
-        state, _ops = dispatch_command("main_hud_clockwise", BridgeState(), config)
-        assert state.main_hud_corner is HudCorner.UPPER_RIGHT
-
-        state, _ops = dispatch_command("main_hud_counterclockwise", state, config)
+        state, _ops = dispatch_command("main_hud_right", BridgeState(), config)
+        state, _ops = dispatch_command("main_hud_down", state, config)
+        assert state.main_hud_corner is HudCorner.LOWER_RIGHT
+        state, _ops = dispatch_command("main_hud_left", state, config)
+        assert state.main_hud_corner is HudCorner.LOWER_LEFT
+        state, _ops = dispatch_command("main_hud_up", state, config)
         assert state.main_hud_corner is HudCorner.UPPER_LEFT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.UPPER_LEFT
+
+    def test_the_ring_the_main_funestras_hud_walked_is_gone(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        for retired in ("main_hud_clockwise", "main_hud_counterclockwise"):
+            state, _ops = dispatch_command(retired, BridgeState(), config)
+            assert state == BridgeState(), retired
 
     def test_in_the_headset_the_same_keys_put_the_hud_against_a_side(self, tmp_path):
         config = _make_config(tmp_path, vr_main_funestra=True)
 
         state, _ops = dispatch_command("landscape_hud_up", BridgeState(), config)
-        state, _ops = dispatch_command("main_hud_clockwise", state, config)
+        state, _ops = dispatch_command("main_hud_left", state, config)
 
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_edge is HudEdge.UPPER
         assert state.main_hud_edge is HudEdge.LEFT
         assert state.satellite(RoomFunestra.LANDSCAPE).hud_corner is HudCorner.UPPER_LEFT
         assert state.main_hud_corner is HudCorner.UPPER_LEFT
+
+        state, _ops = dispatch_command("main_hud_up", state, config)
+        assert state.main_hud_edge is HudEdge.UPPER
 
     def test_a_hud_starts_against_the_lower_side_in_the_headset(self):
         assert BridgeState().main_hud_edge is HudEdge.LOWER
@@ -5620,3 +5578,194 @@ class TestNamingAFunestraAddressesIt:
         state, _ops = dispatch_command(command, state, _make_config(tmp_path))
 
         assert state.satellite(RoomFunestra.PORTRAIT).nav_anchor == ""
+
+
+class TestTheEnhancementLevel:
+    """Which of what a Funestra plays gets through, by whether an enhanced
+    version exists -- narrowed the way F-mode narrows a satellite and the
+    shapes narrow the Main Funestra."""
+
+    def test_the_main_funestra_narrows_its_list_and_says_so(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+
+        state, ops = dispatch_command("main_enhancement_enhanced", _make_state(), config)
+
+        assert state.main_enhancement is EnhancementLevel.ENHANCED
+        assert builds.asked[-1].settings.enhancement is EnhancementLevel.ENHANCED
+        assert ops == [WindowOp(op="notice", key="Enhanced only", source="main", level=NOTICE)]
+
+    def test_asking_the_main_funestra_for_the_level_it_plays_rebuilds_nothing(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+
+        _state, ops = dispatch_command("main_enhancement_both", _make_state(), config)
+
+        assert ops == [] and builds.asked == []
+
+    def test_in_genau_mode_the_main_funestras_level_is_ignored(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+
+        state, ops = dispatch_command(
+            "main_enhancement_original", _make_state(main_mode=MainMode.GENAU), config)
+
+        assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
+        assert state.main_enhancement is EnhancementLevel.BOTH and builds.asked == []
+
+    def test_a_reset_puts_the_main_funestras_level_back(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+        narrowed = _make_state(main_enhancement=EnhancementLevel.ORIGINAL)
+
+        state, _ops = dispatch_command("main_reset", narrowed, config)
+
+        assert state.main_enhancement is EnhancementLevel.BOTH
+        assert builds.asked[-1].settings.enhancement is EnhancementLevel.BOTH
+
+    def test_a_satellite_narrows_its_browse_the_way_f_mode_does(self, tmp_path):
+        config = _make_config(tmp_path)
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=4)
+            state, ops = dispatch_command("landscape_enhancement_original", _make_state(), config)
+
+        assert state.satellite(RoomFunestra.LANDSCAPE).enhancement is EnhancementLevel.ORIGINAL
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+        assert mock_filter.call_args.kwargs["enhancement"] is EnhancementLevel.ORIGINAL
+        assert mock_filter.call_args.kwargs["funestra"] is RoomFunestra.LANDSCAPE
+        assert ops == [WindowOp(op="notice", key="Original only", source="landscape", level=NOTICE)]
+
+    def test_a_level_that_keeps_none_of_a_satellites_clips_is_not_kept_either(self, tmp_path):
+        config = _make_config(tmp_path)
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=0, applied=False, message="nothing")
+            state, ops = dispatch_command("portrait_enhancement_enhanced", _make_state(), config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+        assert ops == [WindowOp(op="notice", key="nothing", source="portrait", level=logging.WARNING)]
+
+    def test_a_satellites_rebuilds_carry_its_level(self, tmp_path):
+        """An F-mode or a filter after it must not quietly widen the browse."""
+        config = _make_config(tmp_path)
+        narrowed = _make_state(portrait=SatelliteState(enhancement=EnhancementLevel.ENHANCED))
+
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=2)
+            dispatch_command("portrait_no_filter", narrowed, config)
+        _state, _ops, mock_fmode = _dispatch_fmode("portrait_fmode_on", narrowed, config)
+
+        assert mock_filter.call_args.kwargs["enhancement"] is EnhancementLevel.ENHANCED
+        assert mock_fmode.call_args.kwargs["satellites"][RoomFunestra.PORTRAIT].enhancement is (
+            EnhancementLevel.ENHANCED)
+
+    def test_a_satellites_reset_puts_its_level_back(self, tmp_path):
+        config = _make_config(tmp_path)
+        narrowed = _make_state(portrait=SatelliteState(enhancement=EnhancementLevel.ENHANCED))
+
+        with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=9)
+            state, _ops = dispatch_command("portrait_reset", narrowed, config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+
+    def test_said_to_a_side_in_origenerator_mode_it_is_the_slideshows_own_switch(self, tmp_path):
+        """"enhanced only" reaches the slideshow as its own words; "enhanced
+        and original" presses its enhanced-only switch off, only while the show
+        says the switch is on; "original only" is nothing a slideshow has."""
+        config = _origenerator_config(tmp_path)
+        state = _in_origenerator_mode()
+
+        state, _ops = dispatch_command("portrait_enhancement_enhanced", state, config)
+        publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=False, enhanced=True)
+        state, _ops = dispatch_command("portrait_enhancement_both", state, config)
+        publish_the_show(config, RoomFunestra.PORTRAIT, f_mode=False, enhanced=False)
+        state, _ops = dispatch_command("portrait_enhancement_both", state, config)
+        state, ops = dispatch_command("portrait_enhancement_original", state, config)
+
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:enhanced only", "portrait_enhanced"]
+        assert ops == [WindowOp(op=Op.IGNORED, key="in Origenerator mode")]
+        assert state.satellite(RoomFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
+
+
+class TestAHudSaidToACorner:
+    """A spoken corner puts a Funestra's HUD there outright, where the Ctrl keys
+    step it round; it leaves the HUD as open or as collapsed as it was."""
+
+    def test_it_moves_that_funestras_hud_there_and_leaves_it_collapsed_if_it_was(self, tmp_path):
+        config = _make_config(tmp_path)
+        state, _ops = dispatch_command("portrait_hud_minimize", BridgeState(), config)
+
+        state, _ops = dispatch_command("portrait_hud_lower_right", state, config)
+        state, _ops = dispatch_command("main_hud_upper_right", state, config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_minimized is True
+        assert state.main_hud_corner is HudCorner.UPPER_RIGHT
+
+    def test_in_origenerator_mode_the_slideshow_wearing_the_hud_is_told(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+
+        dispatch_command("landscape_hud_upper_right", _in_origenerator_mode(RoomFunestra.LANDSCAPE), config)
+
+        assert _origenerator_cmds(config) == ["landscape_hud_corner|upper_right"]
+
+    def test_in_the_headset_an_upper_corner_hangs_it_over_the_top_and_a_lower_one_under(self, tmp_path):
+        config = _make_config(tmp_path, vr_main_funestra=True)
+
+        state, _ops = dispatch_command("portrait_hud_upper_left", BridgeState(), config)
+        state, _ops = dispatch_command("main_hud_lower_right", state, config)
+
+        assert state.satellite(RoomFunestra.PORTRAIT).hud_edge is HudEdge.UPPER
+        assert state.main_hud_edge is HudEdge.LOWER
+
+    def test_a_bare_corner_reaches_whichever_funestra_was_addressed_last(self):
+        assert resolve_active_funestra_command("active_hud_upper_left", 1) == "main_hud_upper_left"
+        assert resolve_active_funestra_command("active_hud_lower_right", 2) == "portrait_hud_lower_right"
+
+
+class TestASatellitesSound:
+    """A satellite opens muted; its sound is told to it alone, the way its speed is."""
+
+    def test_a_satellite_opens_muted_at_full_volume(self):
+        assert BridgeState().satellite(RoomFunestra.PORTRAIT).muted is True
+        assert BridgeState().satellite(RoomFunestra.PORTRAIT).volume == 100
+
+    def test_unmute_and_the_steps_reach_that_satellite_alone(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        state, ops = dispatch_command("portrait_unmute", _make_state(), config)
+        assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 100 0\n"
+        assert ops == [WindowOp(op="notice", key="Volume 100%", source=SOURCE_PORTRAIT)]
+
+        state, ops = dispatch_command("portrait_volume_down", state, config)
+        assert state.satellite(RoomFunestra.PORTRAIT).volume == 90
+        assert config.portrait_cmd_file.read_text(encoding="utf-8").splitlines()[-1] == "SET_VOLUME 90 0"
+        assert ops == [WindowOp(op="notice", key="Volume 90%", source=SOURCE_PORTRAIT)]
+        assert not config.main_funestra_cmd_file.exists()
+        assert not config.landscape_cmd_file.exists()
+
+    def test_a_mute_keeps_the_level_and_a_step_lifts_the_mute(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = _make_state().with_satellite(RoomFunestra.LANDSCAPE, volume=40, muted=False)
+
+        state, ops = dispatch_command("landscape_mute", state, config)
+        assert (state.satellite(RoomFunestra.LANDSCAPE).volume,
+                state.satellite(RoomFunestra.LANDSCAPE).muted) == (40, True)
+        assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_VOLUME 40 1\n"
+        assert ops == [WindowOp(op="notice", key="Muted", source=SOURCE_LANDSCAPE)]
+
+        state, _ops = dispatch_command("landscape_volume_up", state, config)
+        assert (state.satellite(RoomFunestra.LANDSCAPE).volume,
+                state.satellite(RoomFunestra.LANDSCAPE).muted) == (50, False)
+
+    def test_in_origenerator_mode_the_sound_is_still_the_funestras_own(self, tmp_path):
+        """The slideshow plays on the Funestra, whose volume control this is, so
+        the word goes to the Funestra and never to the hosted app."""
+        config = _origenerator_config(tmp_path)
+
+        dispatch_command("portrait_mute", _in_origenerator_mode(RoomFunestra.PORTRAIT), config)
+
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, RoomFunestra.PORTRAIT) == ["SET_VOLUME 100 1"]
+
+    def test_bare_sound_words_reach_whichever_funestra_was_addressed_last(self):
+        assert resolve_active_funestra_command("active_mute", 1) == "audio_mute"
+        assert resolve_active_funestra_command("active_unmute", 1) == "audio_unmute"
+        assert resolve_active_funestra_command("active_volume_down", 1) == "audio_volume_down"
+        assert resolve_active_funestra_command("active_volume_up", 3) == "landscape_volume_up"

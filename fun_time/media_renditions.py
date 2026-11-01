@@ -13,6 +13,7 @@ full-size — a thumbnail, a preview — wants the original.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 _UPSCALED_ROOT = ("2_outbox", "upscaled_by_orientation")
@@ -50,3 +51,7 @@ def renditions(video_path: str | Path, media_root: str | Path | None) -> list[st
     """*video_path* and its other renditions, it first; ``[]`` for the only one."""
     original = original_rendition(video_path, media_root)
     return [str(video_path), original] if original else []
+
+
+def has_an_upscale(media_root: str | Path | None) -> Callable[[str], bool]:
+    return lambda video_path: bool(renditions(video_path, media_root))

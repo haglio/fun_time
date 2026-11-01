@@ -35,8 +35,8 @@ def _sided_fmode_command(funestra: RoomFunestra, target: bool | None) -> str:
 # the opposite of what was asked when a phrase is misheard twice.  The bare
 # command — the F key, the spoken "f mode" — still means all three at once; naming
 # a Funestra reaches that one alone, off its own HUD button or its own spoken
-# phrase.  ``both_fmode`` never arrives here: the dispatch loop expands every
-# both_* into its portrait/landscape pair first.
+# phrase.  ``satellites_fmode`` never arrives here: the dispatch loop expands every
+# satellites_* into its portrait/landscape pair first.
 _FMODE_COMMANDS: dict[str, tuple[tuple[RoomFunestra, ...], bool | None]] = {
     "fmode_toggle": (FMODE_FUNESTRAS, None),
     "fmode_on": (FMODE_FUNESTRAS, True),
@@ -131,10 +131,12 @@ def _dispatch_fmode(
                 cmd_file=config.satellite(funestra).cmd_file,
                 recent=state.satellite(funestra).latest,
                 filter_query=state.satellite(funestra).filter,
+                enhancement=state.satellite(funestra).enhancement,
             )
             for funestra in RoomFunestra.SATELLITES
         },
         regen_metadata_root=config.regen_metadata_root,
+        regen_media_root=config.regen_media_root,
     )
     if result.funestras:
         logger.info(result.log_message)

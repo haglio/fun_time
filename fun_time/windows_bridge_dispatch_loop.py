@@ -63,7 +63,7 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
-from .origenerator_switches import RfbSlot, hosts
+from .origenerator_switches import BOTH_SATELLITES_MODE_COMMANDS, RfbSlot, hosts
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
@@ -114,14 +114,16 @@ REQUEST_NEWS: dict[str, tuple[str, bool]] = {
 
 
 _FUNESTRA_GROUPS = {
-    "both_": ("portrait_", "landscape_"),
+    "satellites_": ("portrait_", "landscape_"),
     "all_": ("main_", "portrait_", "landscape_"),
 }
 
 
 def expand_group_command(command: str) -> list[str]:
-    """A ``both_``/``all_`` command as the per-Funestra commands it stands for,
-    each then handled exactly as if said alone; anything else as itself."""
+    """A ``satellites_``/``all_`` command as the per-Funestra commands it stands
+    for, each handled as if said alone; the side's mode switches pass as themselves."""
+    if command in BOTH_SATELLITES_MODE_COMMANDS:
+        return [command]
     for group, funestras in _FUNESTRA_GROUPS.items():
         if command.startswith(group):
             return [funestra + command[len(group):] for funestra in funestras]
@@ -261,7 +263,7 @@ class DispatchLoopRunner:
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance
         # began; an "active_*" command then resolves onto the Funestra most
-        # recently addressed and a "both_*" one expands into its pair.
+        # recently addressed and a "satellites_*" one expands into its pair.
         self._batching_rfb = True
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):

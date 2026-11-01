@@ -9,12 +9,15 @@ from funestra.file_channel import append_command
 from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRASH
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 
-from .bridge_records import BridgeConfig, Handler, WindowOp
+from .bridge_records import IN_ORIGENERATOR_MODE, BridgeConfig, Handler, WindowOp, ignored
 from .event_log import FAVORITE, NOTICE
 from .filter_vocab import decode_filter_command
+from .funestra_handover import show_enhanced_filter
+from .hosted_contract import ENHANCED_ONLY, said_to_the_hosted_app
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_weird
 from .media_metadata import forget_indexed_clip, is_favorite
+from .mode_plan import EnhancementLevel
 from .origenerator_switches import hosts
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
@@ -350,7 +353,8 @@ def _dispatch_reset(
         if not _browse_at_defaults(state.satellite(funestra)):
             state = cancel_lock(funestra, state, config)
             state = state.with_satellite(
-                funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
+                funestra, latest=False, filter="", favorites_filter=False,
+                enhancement=EnhancementLevel.BOTH, nav_anchor="")
             state = clear_side_grouping(state, funestra)
             result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
             logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
@@ -381,8 +385,55 @@ def _rebuild_satellite(
         state_dir=config.state_dir,
         cmd_file=config.satellite(funestra).cmd_file,
         start_at_top=start_at_top,
+        enhancement=satellite.enhancement,
         regen_metadata_root=config.regen_metadata_root,
+        regen_media_root=config.regen_media_root,
     )
+
+
+# Which of what a satellite plays gets through, by whether an enhanced version
+# exists: one verb per level, as the Main Funestra's shapes have one per state.
+_ENHANCEMENT_COMMANDS: dict[str, tuple[RoomFunestra, EnhancementLevel]] = {
+    f"{funestra.label}_enhancement_{level}": (funestra, level)
+    for funestra in RoomFunestra.SATELLITES
+    for level in EnhancementLevel
+}
+
+
+def _dispatch_enhancement(
+    funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Narrow what *funestra* plays to the clips that have an enhanced version,
+    to the ones that have none, or widen it back; a level that keeps nothing
+    leaves the playlist, and the level, as they were."""
+    if hosts(funestra, state, config):
+        return _dispatch_slideshows_enhancement(funestra, level, state, config)
+    if state.satellite(funestra).enhancement is level:
+        return state, []
+    narrowed = state.with_satellite(funestra, enhancement=level)
+    result = _rebuild_satellite(funestra, narrowed.satellite(funestra).filter, narrowed, config)
+    logger.info(result.log_message)
+    if not result.applied:
+        return state, [WindowOp(op="notice", key=result.log_message,
+                                source=satellite_source(funestra), level=logging.WARNING)]
+    return narrowed, [WindowOp(op="notice", key=level.flash, source=satellite_source(funestra),
+                               level=NOTICE)]
+
+
+def _dispatch_slideshows_enhancement(
+    funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Said to a side in Origenerator mode: the slideshow's own enhanced-only
+    switch, which the hosted app hears as its words or as the switch pressed
+    off; a slideshow has no originals-only to offer."""
+    if level is EnhancementLevel.ORIGINAL:
+        return ignored(state, IN_ORIGENERATOR_MODE)
+    if level is EnhancementLevel.ENHANCED:
+        append_command(config.origenerator_cmd_file,
+                       said_to_the_hosted_app(funestra.label, ENHANCED_ONLY))
+    elif show_enhanced_filter(config.satellite(funestra)):
+        append_command(config.origenerator_cmd_file, f"{funestra.label}_enhanced")
+    return state, []
 
 
 def _dispatch_set_filter(
@@ -531,7 +582,14 @@ def _reorder(funestra: RoomFunestra, recent: bool, state: BridgeState, config: B
     return _dispatch_reorder(funestra, recent, state, config)
 
 
+def _enhancement(funestra: RoomFunestra, level: EnhancementLevel, state: BridgeState,
+                 config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enhancement(funestra, level, state, config)
+
+
 HANDLERS: dict[str, Handler] = {
+    **{cmd: partial(_enhancement, funestra, level)
+       for cmd, (funestra, level) in _ENHANCEMENT_COMMANDS.items()},
     **{cmd: partial(_transport, funestra, verb)
        for cmd, (funestra, verb) in _TRANSPORT_COMMANDS.items()},
     **{cmd: partial(_send_to_satellite, funestra, verb)

@@ -579,12 +579,9 @@ class _MainUnit(_VideoUnit):
         if said is not None and self._notices is not None:
             self._notices.flash(said, level=NOTICE, screen=self.screen_name, now=now)
 
-    def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
-        wrap = self.verbs.wrap
-        if zoom != 1.0:
-            self.verbs.set_fov(wrap.fov_deg * zoom)
+    def dial_the_wrap(self, *, stretch: float) -> None:
         if stretch != 1.0:
-            self.verbs.set_height(wrap.height * stretch)
+            self.verbs.set_height(self.verbs.wrap.height * stretch)
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
@@ -1937,9 +1934,8 @@ class Arrangement:
             _hands_for_the_funestras(the_room.library, the_room.gallery, hands, elapsed_s=elapsed_s),
             self._pointer, elapsed_s=elapsed_s, dialing=dialing)
         the_room.posts.post(thumb.commands)
-        zoom = verbs.angle_asked.take()
         if dialing:
-            main_unit.dial_the_wrap(zoom=zoom, stretch=thumb.stretch)
+            main_unit.dial_the_wrap(stretch=thumb.stretch)
         main_unit.flash_the_readout(now)
         self.scene_yaw, lift_deg = carried_heading(self.scene_yaw, frame.carried)
         verbs.nudge_tilt(lift_deg)

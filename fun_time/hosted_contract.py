@@ -97,3 +97,8 @@ def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
 def said_to_the_hosted_app(side: str, words: str) -> str:
     return f"{side.upper()}_SAY:{words}"
 
+
+# The hosted app's own words for a slideshow narrowed to the pictures it has
+# enhanced, which the room says to it on a side's behalf.
+ENHANCED_ONLY = "enhanced only"
+

@@ -15,7 +15,7 @@ from .bridge_records import SatelliteChannel
 from .funestra_handover import keep_aside
 from .main_list import MainList, MainListSettings
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
-from .mode_plan import build_mode_switch_plan
+from .mode_plan import EnhancementLevel, build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_PORTRAIT,
@@ -121,12 +121,15 @@ def apply_satellite_fmode(
     cmd_file: str | Path,
     recent: bool = False,
     filter_query: str = "",
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> None:
     """Rebuild one satellite's playlist under *enabled* and tell it to re-read.
 
-    F-mode narrows a satellite to the favorites.  The side's own filter and
-    order ride along, so narrowing to favorites does not quietly undo either.
+    F-mode narrows a satellite to the favorites.  The side's own filter, order
+    and enhancement level ride along, so narrowing to favorites does not
+    quietly undo any of them.
     """
     build_one_satellite_playlist(
         sources=sources,
@@ -136,6 +139,8 @@ def apply_satellite_fmode(
         recent=recent,
         filter_query=filter_query,
         metadata_root=regen_metadata_root,
+        enhancement=enhancement,
+        media_root=regen_media_root,
     )
     append_command(Path(cmd_file), RELOAD_PLAYLIST)
 
@@ -148,6 +153,7 @@ class SatelliteFmodeInputs:
     cmd_file: str | Path
     recent: bool = False
     filter_query: str = ""
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
 
 
 def apply_fmode(
@@ -162,6 +168,7 @@ def apply_fmode(
     main_builds: MainListBuilds = BUILDS_HERE,
     satellites: Mapping[RoomFunestra, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> FModeFlowResult:
     """Put each of *Funestras* into F-mode, or take it out, and rebuild just those.
 
@@ -188,7 +195,9 @@ def apply_fmode(
                 cmd_file=satellite.cmd_file,
                 recent=satellite.recent,
                 filter_query=satellite.filter_query,
+                enhancement=satellite.enhancement,
                 regen_metadata_root=regen_metadata_root,
+                regen_media_root=regen_media_root,
             )
     return FModeFlowResult(
         funestras=named,
@@ -206,7 +215,9 @@ def satellite_browse_paths(
     favorites_filter: bool,
     recent: bool,
     sources: str,
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
     ordering — one clip per group, filter-honoring, Latest/Shuffle-aware.
@@ -217,6 +228,7 @@ def satellite_browse_paths(
     return build_satellite_playlist_paths(
         sources, favorites_filter,
         filter_query=query, recent=recent, metadata_root=regen_metadata_root,
+        enhancement=enhancement, media_root=regen_media_root,
     )
 
 
@@ -237,7 +249,9 @@ def apply_satellite_filter(
     state_dir: str | Path,
     cmd_file: str | Path,
     start_at_top: bool = False,
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
     regen_metadata_root: Path | None = None,
+    regen_media_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite under *query*.
 
@@ -259,10 +273,12 @@ def apply_satellite_filter(
     name = PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, favorites_filter=favorites_filter, recent=recent,
-        sources=sources, regen_metadata_root=regen_metadata_root,
+        sources=sources, enhancement=enhancement,
+        regen_metadata_root=regen_metadata_root, regen_media_root=regen_media_root,
     )
-    if query and not paths:
-        return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
+    if (query or enhancement is not EnhancementLevel.BOTH) and not paths:
+        return SatelliteFilterFlowResult(
+            0, False, f"Filter {label}: no matches for '{query or f'{enhancement} only'}'")
     playlist_path = build_playlist_file_path(Path(state_dir), name)
     write_playlist_file(playlist_path, paths, metadata_root=regen_metadata_root)
     append_command(Path(cmd_file), RELOAD_PLAYLIST)

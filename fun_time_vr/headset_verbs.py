@@ -7,7 +7,6 @@ family."""
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -28,13 +27,10 @@ SCENE_JUMP_LANDS_WITHIN_MS = 500
 
 TILT_STEP_DEG = 5.0
 
-ANGLE_STEP = 1.01
 DIAL_STILL_S = 0.6
 
 CYCLE_PROJECTION = "CYCLE_PROJECTION"
 CYCLE_PROJECTION_BACK = "CYCLE_PROJECTION_BACK"
-WIDEN_PROJECTION = "WIDEN_PROJECTION"
-NARROW_PROJECTION = "NARROW_PROJECTION"
 RECENTER = "RECENTER"
 LAYOUT_RESET = "LAYOUT_RESET"
 TILT_UP = "TILT_UP"
@@ -56,21 +52,6 @@ class HostRequest:
             return False
         self._asked = False
         return True
-
-
-class AngleRequest:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._factor = 1.0
-
-    def ask(self, factor: float) -> None:
-        with self._lock:
-            self._factor *= factor
-
-    def take(self) -> float:
-        with self._lock:
-            factor, self._factor = self._factor, 1.0
-        return factor
 
 
 class HeadsetVerbs:
@@ -95,7 +76,6 @@ class HeadsetVerbs:
         self._scene_starts: tuple[float, ...] = ()
         self._tilt_deg = clamp_tilt(tilt_deg)
         self.recenter = HostRequest()
-        self.angle_asked = AngleRequest()
         self.layout_reset = HostRequest()
         self._video: Path = playback.current_video
         self._loads_seen = playback.loads
@@ -272,12 +252,6 @@ CONTROLS: tuple[Control, ...] = (
         name="projection",
         verbs=(Verb(CYCLE_PROJECTION, _moves(HeadsetVerbs.cycle_projection)),
                Verb(CYCLE_PROJECTION_BACK, _moves(HeadsetVerbs.cycle_projection_back))),
-    ),
-    Control(
-        name="projection_angle",
-        verbs=(Verb(WIDEN_PROJECTION, _moves(lambda verbs: verbs.angle_asked.ask(ANGLE_STEP))),
-               Verb(NARROW_PROJECTION,
-                    _moves(lambda verbs: verbs.angle_asked.ask(1 / ANGLE_STEP)))),
     ),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda verbs: verbs.recenter.ask())),)),
     Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(HeadsetVerbs.reset_layout)),)),

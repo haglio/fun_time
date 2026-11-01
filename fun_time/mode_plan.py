@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 
 from funestra.funestra_verbs import SHOW
 from funestra.modes import MainMode
@@ -63,3 +65,25 @@ def build_mode_switch_plan(
         main_funestra_should_play=None if omni_paused else kino_shows(target_mode),
         log_message=f"Switched to {target_mode} mode",
     )
+
+
+class EnhancementLevel(StrEnum):
+    """Which of what a Funestra plays gets through, by whether an enhanced
+    version of it exists -- as the projection filter lets shapes through."""
+
+    ENHANCED = "enhanced"
+    ORIGINAL = "original"
+    BOTH = "both"
+
+    @property
+    def flash(self) -> str:
+        """What a Funestra narrowed to this level says over its picture."""
+        return {EnhancementLevel.ENHANCED: "Enhanced only",
+                EnhancementLevel.ORIGINAL: "Original only",
+                EnhancementLevel.BOTH: "Enhanced + original"}[self]
+
+    def keep(self, paths: list[str], has_an_enhanced_version: Callable[[str], bool]) -> list[str]:
+        if self is EnhancementLevel.BOTH:
+            return list(paths)
+        wanted = self is EnhancementLevel.ENHANCED
+        return [path for path in paths if has_an_enhanced_version(path) == wanted]

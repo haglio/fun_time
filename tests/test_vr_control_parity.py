@@ -25,6 +25,7 @@ import json
 import logging
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -302,6 +303,7 @@ class TestTheSatellites:
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
+                                     volume=SimpleNamespace(set=lambda volume, muted: None),
                                      funscript_jumps=FunscriptJumps(
                                          session, NoticeWriter(None))),
                 )

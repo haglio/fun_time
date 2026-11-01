@@ -38,7 +38,9 @@ def hud_stamp(channel: SatelliteChannel) -> HudStamp:
     return stat.st_ino, stat.st_mtime_ns
 
 
-def show_f_mode(channel: SatelliteChannel) -> bool | None:
+def _slideshows_switch(channel: SatelliteChannel, switch: str) -> bool | None:
+    """Whether the hosted app's slideshow on *channel*'s side has *switch* on,
+    read off the HUD it publishes; None where it draws no such switch."""
     if channel.origenerator_hud_file is None:
         return None
     try:
@@ -48,7 +50,15 @@ def show_f_mode(channel: SatelliteChannel) -> bool | None:
     if hud is None:
         return None
     return next((button.lit for row in hud.rows for button in row
-                 if button.command == f"{hud.funestra}_fmode"), None)
+                 if button.command == f"{hud.funestra}_{switch}"), None)
+
+
+def show_f_mode(channel: SatelliteChannel) -> bool | None:
+    return _slideshows_switch(channel, "fmode")
+
+
+def show_enhanced_filter(channel: SatelliteChannel) -> bool | None:
+    return _slideshows_switch(channel, "enhanced")
 
 
 def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:

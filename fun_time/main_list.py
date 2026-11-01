@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from funestra.funestra_verbs import SET_F_MODE
 from funestra.modes import LengthMode
 from shared_ui.orientation import PORTRAIT
+
+from main_funestra.library import enhanced_by_processing, stable_title
 
 from .media_metadata import (
     EXCERPT,
@@ -20,6 +23,7 @@ from .media_metadata import (
     recorded_orientation,
     video_type_of,
 )
+from .mode_plan import EnhancementLevel
 from .modes import (
     PLAYLIST_MAIN_FUNESTRA,
     VideoShapes,
@@ -42,6 +46,7 @@ class MainListSettings:
     plays_landscape: bool = True
     scripted_filter: bool = False
     length: LengthMode = LengthMode.MIXED
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
     latest: bool = False
     shuffle_seed: int = 0
 
@@ -51,6 +56,7 @@ class MainListSettings:
                    plays_portrait=state.main_plays_portrait,
                    plays_landscape=state.main_plays_landscape,
                    scripted_filter=state.main_scripted_filter, length=state.main_length_mode,
+                   enhancement=state.main_enhancement,
                    latest=state.main_latest, shuffle_seed=state.main_shuffle_seed)
 
     def into(self, state):
@@ -58,6 +64,7 @@ class MainListSettings:
                        main_plays_portrait=self.plays_portrait,
                        main_plays_landscape=self.plays_landscape,
                        main_scripted_filter=self.scripted_filter, main_length_mode=self.length,
+                       main_enhancement=self.enhancement,
                        main_latest=self.latest, main_shuffle_seed=self.shuffle_seed)
 
     @property
@@ -70,18 +77,24 @@ _KINDS_OF_LENGTH = {
     LengthMode.FULL: frozenset({FULL_LENGTH}),
 }
 
-_LENGTHS_THE_KEY_WALKS = (LengthMode.MIXED, LengthMode.CLIPS, LengthMode.FULL)
-
-
-def next_length_mode(length: LengthMode) -> LengthMode:
-    if length not in _LENGTHS_THE_KEY_WALKS:
-        return LengthMode.MIXED
-    position = _LENGTHS_THE_KEY_WALKS.index(length)
-    return _LENGTHS_THE_KEY_WALKS[(position + 1) % len(_LENGTHS_THE_KEY_WALKS)]
-
-
 def new_shuffle_seed() -> int:
     return random.getrandbits(32)
+
+
+def _family_of(video: str) -> tuple[Path, str]:
+    path = Path(video)
+    return path.parent, stable_title(path.stem)
+
+
+def _has_an_enhanced_version(every: list[str]) -> Callable[[str], bool]:
+    """Whether a video's family -- the files beside it that are one video at
+    different qualities, as the Main Funestra's versions button walks them --
+    holds one an upscaler or Evolver made."""
+    enhanced: dict[tuple[Path, str], bool] = {}
+    for video in every:
+        family = _family_of(video)
+        enhanced[family] = enhanced.get(family, False) or enhanced_by_processing(Path(video).stem)
+    return lambda video: enhanced[_family_of(video)]
 
 
 def _shuffled(videos: list[str], seed: int) -> list[str]:
@@ -141,7 +154,7 @@ class MainList:
             vr_roots = source_roots(self.vr_dirs)
             kept = [video for video in kept
                     if plays_in_f_mode(video, self.metadata_root, outlying_dirs=vr_roots)]
-        return kept
+        return settings.enhancement.keep(kept, _has_an_enhanced_version(videos))
 
     def videos(self, settings: MainListSettings, *, on_screen: str = "",
                from_the_top: bool = False) -> list[str]:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from funestra.hud_placement import HudCorner
+
 from .event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT, SOURCE_SYSTEM
+from .mode_plan import EnhancementLevel
 from .room_funestras import RoomFunestra
 
 MAIN_EQUIVALENTS = {
@@ -10,6 +13,7 @@ MAIN_EQUIVALENTS = {
     "nudge_prev": "main_nudge_prev",
     "funscript_jump": "main_funestra_funscript_jump",
     "next_funscripted": "main_funestra_next_funscripted",
+    **{f"enhancement_{level}": f"main_enhancement_{level}" for level in EnhancementLevel},
     "no_loop": "main_funestra_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
@@ -21,6 +25,12 @@ MAIN_EQUIVALENTS = {
     "shuffle": "main_shuffle",
     "hud_minimize": "main_hud_minimize",
     "hud_restore": "main_hud_restore",
+    **{f"hud_{corner.value}": f"main_hud_{corner.value}" for corner in HudCorner},
+    # And its sound, under the ids its own console posts.
+    "mute": "audio_mute",
+    "unmute": "audio_unmute",
+    "volume_down": "audio_volume_down",
+    "volume_up": "audio_volume_up",
 }
 
 

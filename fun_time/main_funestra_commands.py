@@ -96,12 +96,13 @@ def _step_through(funestra: RoomFunestra, verb: str, state: BridgeState, config:
     return state, []
 
 
-def _forward_to_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
-                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The Main Funestra owns the main slot in kino mode; in genau mode the paused Main Funestra
-    still navigates in the background, and its SEEK commands apply to a live
-    local clock, so rapid nudges stack naturally."""
-    append_command(config.main_funestra_cmd_file, verb)
+def _forward_to_whatever_is_on_the_main_funestra(
+    verb: str, state: BridgeState, config: BridgeConfig, _target_path: str,
+) -> tuple[BridgeState, list[WindowOp]]:
+    """The video in Kino mode, Genau's flick in Genau mode: a step reaches
+    what is on screen, never the paused video behind the flick."""
+    append_command(config.main_funestra_cmd_file if kino_shows(state.main_mode)
+                   else config.genau_cmd_file, verb)
     return state, []
 
 
@@ -147,13 +148,6 @@ def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _lock_kino_on_the_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
-                                    target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if not kino_shows(state.main_mode):
-        return ignored(state, IN_GENAU_MODE)
-    return _main_lock(verb, state, config, target_path)
-
-
 def _save_clip(state: BridgeState, _config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Ask the loop for a genaumacher save — asked for, not run: genaumacher boots a
@@ -171,8 +165,6 @@ _MAIN_TRANSPORT = {"main_prev": PREV, "main_next": NEXT}
 _VR_MAIN_FUNESTRA_VERBS = {
     "projection_cycle": "CYCLE_PROJECTION",
     "projection_cycle_back": "CYCLE_PROJECTION_BACK",
-    "projection_wider": "WIDEN_PROJECTION",
-    "projection_narrower": "NARROW_PROJECTION",
     "recenter_view": "RECENTER",
     "tilt_up": "TILT_UP",
     "tilt_down": "TILT_DOWN",
@@ -187,10 +179,9 @@ SKIP_AHEAD = "main_funestra_funscript_jump"
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_step_through, funestra, verb)
        for cmd, (funestra, verb) in _PLAYHEAD_COMMANDS.items()},
-    **{cmd: partial(_forward_to_main_funestra, verb) for cmd, verb in _MAIN_TRANSPORT.items()},
+    **{cmd: partial(_forward_to_whatever_is_on_the_main_funestra, verb)
+       for cmd, verb in _MAIN_TRANSPORT.items()},
     **{cmd: partial(_main_lock, verb) for cmd, verb in MAIN_LOCK_COMMANDS.items()},
-    "genau_lock": partial(_main_lock, TOGGLE_LOCK),
-    "main_funestra_lock": partial(_lock_kino_on_the_main_funestra, TOGGLE_LOCK),
     **{cmd: partial(_forward_to_the_vr_main_funestra, verb)
        for cmd, verb in _VR_MAIN_FUNESTRA_VERBS.items()},
     **{cmd: partial(_forward_to_main_funestra_on_screen, verb)

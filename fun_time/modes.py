@@ -21,6 +21,8 @@ from .media_metadata import (
     recorded_duration_seconds,
     recorded_for,
 )
+from .media_renditions import has_an_upscale
+from .mode_plan import EnhancementLevel
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
 
@@ -317,9 +319,12 @@ def build_satellite_playlist_paths(
     recent: bool = False,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
+    media_root: Path | None = None,
 ) -> list[str]:
     files = satellite_narrowing(collect_video_files(source_spec), favorites_filter,
                                 filter_query=filter_query, metadata_root=metadata_root)
+    files = enhancement.keep(files, has_an_upscale(media_root))
     filtered = bool(filter_query) and metadata_root is not None
     # With a metadata root, both orders collapse to one slot per group: Latest
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
@@ -374,11 +379,13 @@ def build_one_satellite_playlist(
     filter_query: str = "",
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH,
+    media_root: Path | None = None,
 ) -> None:
     """Build and write the playlist file a single satellite plays from."""
     paths = build_satellite_playlist_paths(
         sources, favorites_filter, filter_query=filter_query, recent=recent, rng=rng,
-        metadata_root=metadata_root,
+        metadata_root=metadata_root, enhancement=enhancement, media_root=media_root,
     )
     write_playlist_file(build_playlist_file_path(state_dir, name), paths,
                         metadata_root=metadata_root)
@@ -394,6 +401,7 @@ class SatelliteBuild:
     favorites_filter: bool = False
     recent: bool = False
     filter_query: str = ""
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
 
 
 def build_satellite_playlists(
@@ -403,17 +411,15 @@ def build_satellite_playlists(
     state_dir: Path,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
+    media_root: Path | None = None,
 ) -> None:
     """Build and write both satellite playlists, each honoring its own
     :class:`SatelliteBuild` (action-group collapse and watch weighting apply
     when *metadata_root* is given)."""
-    build_one_satellite_playlist(
-        sources=portrait.sources, name=PLAYLIST_PORTRAIT,
-        state_dir=state_dir, favorites_filter=portrait.favorites_filter, recent=portrait.recent,
-        filter_query=portrait.filter_query, rng=rng, metadata_root=metadata_root,
-    )
-    build_one_satellite_playlist(
-        sources=landscape.sources, name=PLAYLIST_LANDSCAPE,
-        state_dir=state_dir, favorites_filter=landscape.favorites_filter, recent=landscape.recent,
-        filter_query=landscape.filter_query, rng=rng, metadata_root=metadata_root,
-    )
+    for side, name in ((portrait, PLAYLIST_PORTRAIT), (landscape, PLAYLIST_LANDSCAPE)):
+        build_one_satellite_playlist(
+            sources=side.sources, name=name,
+            state_dir=state_dir, favorites_filter=side.favorites_filter, recent=side.recent,
+            filter_query=side.filter_query, rng=rng, metadata_root=metadata_root,
+            enhancement=side.enhancement, media_root=media_root,
+        )

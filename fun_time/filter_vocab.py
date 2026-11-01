@@ -1,7 +1,7 @@
 """Spoken filter vocabulary and command decoding for the Satellite Funestras.
 
 A metadata filter is issued by voice: an act, alone for both Funestras or with
-"portrait", "landscape" or "both" before or after it, drawn from the
+"portrait", "landscape" or "satellites" before or after it, drawn from the
 library's ``video.action`` values.  This module is the single source of truth
 mapping those to dispatch commands.  It stays free of the speech runtime so the
 command reference and tests can import it cheaply — the same reason
@@ -50,7 +50,7 @@ def load_camera_words(
     return tuple(load_content(local_path, example_path)["cameras"])
 
 
-_SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
+_SCOPE_TOKENS: tuple[str, ...] = ("satellites", "portrait", "landscape")
 
 
 def _slug(query: str) -> str:
@@ -68,7 +68,7 @@ def set_command(scope: str, query: str) -> str:
 def decode_filter_command(command: str) -> tuple[str, str] | None:
     """``(scope, query)`` for a filter dispatch command, or None if it isn't one.
 
-    ``scope`` is one of both/portrait/landscape.  Decoding is purely structural,
+    ``scope`` is one of satellites/portrait/landscape.  Decoding is purely structural,
     so an unknown act still round-trips (and simply matches nothing downstream).
     Dropping a filter is not one of these — that is ``<side>_no_filter``, in the
     satellite grid with every other side action.
@@ -90,7 +90,7 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
     out: dict[str, str] = {}
     for query, forms in acts.items():
         for form in forms:
-            out[form] = set_command("both", query)
+            out[form] = set_command("satellites", query)
             for side in _SCOPE_TOKENS:
                 out.update(named_first_or_last(side, form, set_command(side, query)))
     return out

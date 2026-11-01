@@ -3,13 +3,27 @@ from __future__ import annotations
 
 import numpy as np
 
-from fun_time.command_reference import build_reference_sections
+from fun_time.command_reference import (
+    CONTROLLER_HEADER,
+    HOTKEY_HEADER,
+    VOICE_HEADER,
+    build_reference_sections,
+)
 from fun_time_vr.reference_panel import (
+    _KEY_X,
+    _PAD,
+    _SAY_X,
+    _WHAT_X,
     NEXT_PAGE,
     PREV_PAGE,
     REFERENCE_WIDTH_PX,
     ReferencePointer,
     ReferenceState,
+    _cells,
+    column_heads,
+    header_lines,
+    lines_of,
+    note_lines,
     page_of,
     paint_reference,
     reference_actions,
@@ -43,6 +57,64 @@ class TestItIsTheSameReference:
                  for index in range(len(build_reference_sections()))}
 
         assert sizes == {(REFERENCE_WIDTH_PX, reference_height())}
+
+    def test_a_sections_note_is_painted_whole_on_as_many_lines_as_it_takes(self):
+        """The satellite sections' notes run well past one line of the panel,
+        and a note cut off at the first line loses the rule it carries."""
+        noted = [section for section in build_reference_sections() if section.note]
+
+        assert noted
+        for section in noted:
+            lines = note_lines(section)
+            assert " ".join(lines) == " ".join(section.note.split())
+            assert 1 <= len(lines) <= 3
+
+    def test_a_shared_sections_hotkey_head_names_its_funestras_on_a_line_of_its_own(self):
+        """Where the desktop's Hotkey head spans one column per Funestra, the
+        panel gives their names a line under the head, and every page keeps
+        that line's height so walking never resizes."""
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert header_lines(by_title["Funestras"]) == 2
+        assert header_lines(by_title["Dashboard"]) == 1
+        assert header_lines(by_title["Genau"]) == 1  # its rows hold no key
+
+    def test_a_page_without_a_key_paints_the_voice_column_where_the_key_column_was(self):
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert column_heads(by_title["Dashboard"]) == (
+            (_KEY_X, HOTKEY_HEADER), (_SAY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+        assert column_heads(by_title["Origenerator"]) == ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
+
+    def test_a_page_with_a_controller_input_paints_a_controller_column_before_the_voice(self):
+        """The desktop's Controller column, between the hotkeys and the voice
+        where a section has one, the columns after it moved along to make room."""
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert [head for _, head in column_heads(by_title["Funestras"])] == [
+            HOTKEY_HEADER, CONTROLLER_HEADER, VOICE_HEADER, "What it does"]
+        assert [head for _, head in column_heads(by_title["VR"])] == [
+            CONTROLLER_HEADER, VOICE_HEADER, "What it does"]
+        for section in by_title.values():
+            xs = [x for x, _ in column_heads(section)]
+            assert xs == sorted(xs) and xs[0] == _KEY_X and xs[-1] >= _WHAT_X, section.title
+        nudge = next(row for row in by_title["Funestras"].rows if row.description == "nudge back 10 seconds")
+        assert [text for _, text, _ in _cells(nudge, by_title["Funestras"])][:2] == ["— / — / -", "B / Y"]
+
+    def test_an_untitled_group_takes_no_title_line(self):
+        by_title = {section.title: section for section in build_reference_sections()}
+
+        assert lines_of(by_title["VR"]) == len(by_title["VR"].rows)
+        assert lines_of(by_title["Main Funestra"]) == 1 + len(by_title["Main Funestra"].rows)
+
+    def test_no_page_runs_its_rows_past_its_lower_edge(self):
+        """A longer note pushes the rows down, and the page has to grow with
+        it rather than paint the last rows off its edge."""
+        for index in range(len(build_reference_sections())):
+            panel = np.asarray(paint_reference(ReferenceState(open=True, page=index)))
+            lower_edge = panel[reference_height() - _PAD:, :, :3]
+
+            assert not (lower_edge.max(axis=2) > 128).any(), index
 
 
 class TestWalkingTheSections:

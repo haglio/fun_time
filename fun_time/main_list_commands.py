@@ -14,7 +14,7 @@ from main_funestra.genau_verbs import genau_orientations
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, ignored
 from .content import no_other_flicks
-from .event_log import SOURCE_MAIN
+from .event_log import NOTICE, SOURCE_MAIN
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
 from .inclusion_pairs import (
     LENGTH,
@@ -26,8 +26,8 @@ from .inclusion_pairs import (
     lengths_included,
 )
 from .main_funestra_commands import MAIN_FUNESTRA_CMD_MAP, MAIN_LOCK_COMMANDS
-from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
-from .mode_plan import kino_shows
+from .main_list import MainListSettings, new_shuffle_seed
+from .mode_plan import EnhancementLevel, kino_shows
 from .modes import VideoShapes
 from .osr2_commands import NORMAL_SPEED
 from .runtime_flow import rebuild_main_list
@@ -203,7 +203,30 @@ def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConf
     return (state.main_scripted_filter or state.main_latest
             or main_video_shapes(state, config).narrows
             or state.main_length_mode is not LengthMode.MIXED
+            or state.main_enhancement is not EnhancementLevel.BOTH
             or not (state.main_plays_portrait and state.main_plays_landscape))
+
+
+# Which of what the Main Funestra plays gets through, by whether an enhanced
+# version exists: one verb per level, as its shapes have one per state.
+_ENHANCEMENT_COMMANDS: dict[str, EnhancementLevel] = {
+    f"main_enhancement_{level}": level for level in EnhancementLevel
+}
+
+
+def _dispatch_enhancement(
+    level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Asking for the level already playing changes nothing: a rebuild
+    reshuffles, and this must not become a second way to reshuffle."""
+    if not kino_shows(state.main_mode):
+        return ignored(state, IN_GENAU_MODE)
+    if state.main_enhancement is level:
+        return state, []
+    state = replace(state, main_enhancement=level)
+    _rebuild_the_main_list(state, config)
+    logger.info("Main Funestra enhancement: %s", level)
+    return state, [WindowOp(op="notice", key=level.flash, source=SOURCE_MAIN, level=NOTICE)]
 
 
 def main_funestra_at_defaults(
@@ -247,10 +270,9 @@ def _include(pair: InclusionPair, wanted: Included, state: BridgeState, config: 
     return _dispatch_inclusion(pair, wanted, state, config)
 
 
-def _main_length_toggle(state: BridgeState, config: BridgeConfig,
-                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_inclusion(
-        LENGTH, lengths_included(next_length_mode(state.main_length_mode)), state, config)
+def _enhancement(level: EnhancementLevel, state: BridgeState, config: BridgeConfig,
+                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enhancement(level, state, config)
 
 
 def _main_reset(state: BridgeState, config: BridgeConfig,
@@ -273,6 +295,6 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_include, pair, wanted)
        for pair in (PROJECTION, LENGTH, ORIENTATION)
        for cmd, wanted in pair.asked.items()},
-    "main_funestra_toggle_length": _main_length_toggle,
+    **{cmd: partial(_enhancement, level) for cmd, level in _ENHANCEMENT_COMMANDS.items()},
     MAIN_RESET: _main_reset,
 }

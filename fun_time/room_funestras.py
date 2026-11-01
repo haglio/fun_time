@@ -31,10 +31,10 @@ class RoomFunestra(IntEnum):
     @classmethod
     def for_scope(cls, scope: str) -> tuple[RoomFunestra, ...]:
         """The Funestras a both/portrait/landscape scope word names."""
-        if scope == "both":
+        if scope == "satellites":
             return cls.SATELLITES
         return (cls.PORTRAIT,) if scope == "portrait" else (cls.LANDSCAPE,)
 
 
-# The scope "both" reaches — the two satellites, never the Main Funestra.
+# The scope "satellites" reaches — the two satellites, never the Main Funestra.
 RoomFunestra.SATELLITES = (RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)

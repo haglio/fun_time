@@ -139,10 +139,12 @@ def dispatch_command(
 # In its Origenerator mode a Satellite Funestra is the hosted app's: it hands the
 # Funestra what to play and answers every press on the buttons it drew.  So what
 # is said to that side goes there as it was said, and the session keeps only what
-# is about the Funestra itself -- parking its window, its crown, its rate, taking
-# the OSR2, its mode, and its lock, which cannot wait for the app to read a press.
+# is about the Funestra itself -- parking its window, its crown, its rate, its
+# sound, taking the OSR2, its mode, its enhancement level, which it says to the
+# slideshow in the app's own words, and its lock, which cannot wait for the app
+# to read a press.
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
-                      "_origenerator_activate")
+                      "_origenerator_activate", "_mute", "_unmute", "_volume_", "_enhancement_")
 
 
 _THE_FUNESTRAS_LOCK = frozenset({*LOCK_TOGGLES, *LOCK_STATE_COMMANDS})
@@ -164,7 +166,7 @@ def _about_a_satellite(command: str) -> bool:
 
 def _said_to_each_side(command: str) -> tuple[str, ...]:
     target = decode_filter_command(command)
-    if target is None or target[0] != "both":
+    if target is None or target[0] != "satellites":
         return (command,)
     return tuple(set_command(funestra.label, target[1]) for funestra in RoomFunestra.SATELLITES)
 

@@ -224,7 +224,7 @@ it is simply not something to pin any more.
 Origenerator is by far the slowest child of a session, either shape of it: its
 window lands ten to thirty seconds after launch, against five to eight for
 everything else. Both sessions host it as of 2026-09-20, so each satellite's
-Origenerator mode crosses like any other mode — the shows are the Satellite
+Origenerator mode crosses like any other mode — the slideshows are the Satellite
 Funestras' own playlists, and the headset's satellites are Funestras
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
@@ -252,7 +252,7 @@ straight back out.
 
 The arriving session offers Origenerator without waiting to hear from the app,
 since it was already open, and leaves its status file alone: the app rewrites that
-only when a show opens or closes, so a cleared one would stay missing until
+only when a slideslideshow opens or closes, so a cleared one would stay missing until
 then. The paused flag and the command file are cleared as ever: a stale freeze
 or an unread verb from the last session would land on this one.
 

@@ -104,7 +104,7 @@ from fun_time_vr.funestras import (
     draw_eyes,
     hang_the_room,
 )
-from fun_time_vr.headset_verbs import AngleRequest, HeadsetVerbs, HostRequest
+from fun_time_vr.headset_verbs import HeadsetVerbs, HostRequest
 from fun_time_vr.hud_buttons import HudButtons
 from fun_time_vr.hud_sides import side_screen_name
 from fun_time_vr.hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG, toggle_screen_name
@@ -1886,7 +1886,6 @@ def _a_room_to_arrange(*, main=None, satellites=(), others=()):
     main = main or _a_main_slot()
     main.verbs.recenter = HostRequest()
     main.verbs.layout_reset = HostRequest()
-    main.verbs.angle_asked = AngleRequest()
     main.verbs.tilt_deg = 0.0
     main.verbs.nudge_tilt = MagicMock()
     main.can_dial_the_wrap = False
@@ -1974,18 +1973,16 @@ class TestArrangingTheRoom:
         the_room.keeper.place.assert_called_once_with(LANDSCAPE, dragged)
         the_room.keeper.settle.assert_called_once_with()
 
-    def test_the_sticks_and_the_keyboard_dial_a_wrap_that_can_be_dialed(self):
+    def test_the_sticks_dial_a_wrap_that_can_be_dialed(self):
         the_room = _a_room_to_arrange()
         the_room.main_unit.can_dial_the_wrap = True
-        the_room.main_unit.verbs.angle_asked.ask(1.5)
 
         self._arrange(the_room)
 
-        the_room.main_unit.dial_the_wrap.assert_called_once_with(zoom=1.5, stretch=1.0)
+        the_room.main_unit.dial_the_wrap.assert_called_once_with(stretch=1.0)
 
     def test_a_flat_frame_is_not_dialed(self):
         the_room = _a_room_to_arrange()
-        the_room.main_unit.verbs.angle_asked.ask(1.5)
 
         self._arrange(the_room)
 
@@ -2151,24 +2148,24 @@ class TestDialingTheMainFunestrasWrap:
 
         assert _MainUnit.can_dial_the_wrap.fget(main_unit) is False
 
-    def test_a_zoom_scales_the_field_of_view_it_has_now_and_a_stretch_the_height(self):
+    def test_a_stretch_scales_the_height_it_has_now(self):
         main_unit, dialed = self._main_unit(fov=100.0, height=1.5)
 
-        main_unit.dial_the_wrap(zoom=1.1, stretch=0.8)
+        main_unit.dial_the_wrap(stretch=0.8)
 
-        assert dialed == {"fov": pytest.approx(110.0), "height": pytest.approx(1.2)}
+        assert dialed == {"height": pytest.approx(1.2)}
 
     def test_a_video_never_dialed_starts_from_what_its_projection_carries(self):
         main_unit, dialed = self._main_unit()
 
-        main_unit.dial_the_wrap(zoom=0.5, stretch=2.0)
+        main_unit.dial_the_wrap(stretch=2.0)
 
-        assert dialed == {"fov": pytest.approx(90.0), "height": pytest.approx(2.0)}
+        assert dialed == {"height": pytest.approx(2.0)}
 
-    def test_a_frame_that_zooms_nothing_and_stretches_nothing_dials_nothing(self):
+    def test_a_frame_that_stretches_nothing_dials_nothing(self):
         main_unit, dialed = self._main_unit()
 
-        main_unit.dial_the_wrap(zoom=1.0, stretch=1.0)
+        main_unit.dial_the_wrap(stretch=1.0)
 
         assert dialed == {}
 
