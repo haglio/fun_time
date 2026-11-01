@@ -243,11 +243,12 @@ _STUB_MAIN = textwrap.dedent(
         playlist = handed(side, "playlist")
         if side in held or playlist is None:
             return
+        time.sleep(1.5)  # the real app's fill of a side, which takes it seconds
+        publish_whole(handed(side, "hud_file"), hud_text(
+            HudModel(funestra=side, title=f"Stub {side} slideshow")))
         write_playlist(playlist, [PlaylistItem(IMAGES / f"{side}.png")])
         queued = append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
         note(f"{side}: list written, reload queued={queued}")
-        publish_whole(handed(side, "hud_file"), hud_text(
-            HudModel(funestra=side, title=f"Stub {side} slideshow")))
         held.add(side)
 
     def close_slideshow(side):
@@ -513,6 +514,47 @@ def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_b
              desc="the Portrait Funestra to play its own clips again")
 
 
+def _huds_worn_until(session, funestra: RoomFunestra, done) -> list:
+    """Every HUD the session published for *Funestra* until *done*, each once."""
+    hud_file, worn = session.config.satellite(funestra).hud_file, []
+
+    def look():
+        text = _published(hud_file)
+        if text and (not worn or worn[-1] != text):
+            worn.append(text)
+        return done()
+
+    assert seen_within(look, seconds=COMMAND_BUDGET_S, every_s=0.005), (
+        f"the {funestra.label} Funestra never finished its switch, wearing "
+        f"{[(hud.title, _lit_mode(hud), hud.corner and hud.corner.path) for hud in map(parse_hud, worn) if hud]}")
+    return [parse_hud(text) for text in worn]
+
+
+def _a_whole_huds_mode(hud, funestra: RoomFunestra, own: list[Path]) -> str:
+    """Which mode's whole HUD *hud* is, or "" for one that is neither."""
+    lit = [button.command for button in hud.rows[0] if button.lit] if hud.rows else []
+    if lit == [f"{funestra.label}_kino_activate"] and hud.corner and Path(hud.corner.path) in own:
+        return "kino"
+    if (lit == [f"{funestra.label}_origenerator_activate"]
+            and hud.title == f"Stub {funestra.label} slideshow"):
+        return "origenerator"
+    return ""
+
+
+def _wears(session, funestra: RoomFunestra, own: list[Path]) -> str:
+    hud = parse_hud(_published(session.config.satellite(funestra).hud_file))
+    return "" if hud is None else _a_whole_huds_mode(hud, funestra, own)
+
+
+def _published(hud_file: Path) -> str:
+    """*hud_file*'s text, or "" while it is missing or being replaced: Windows
+    refuses a read of a file in the middle of the publisher's rename."""
+    try:
+        return hud_file.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_bands_the_window(
         hosted_session):
     session, hwnd = hosted_session
@@ -569,6 +611,41 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     for funestra, hwnd in (("portrait", portrait), ("landscape", landscape)):
         wait_for(lambda hwnd=hwnd: is_window_topmost(hwnd),
                  desc=f"the {funestra} Funestra to be put back in the topmost band")
+
+
+@pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
+def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
+    """He watched the HUD change in stages: a bare "Origenerator mode" HUD over
+    the video still playing, and on the way back a Kino HUD with no map
+    (2026-10-29).
+
+    A session of its own with the dashboard enabled, since that is what
+    publishes the HUDs the Funestras wear."""
+    temp_root = build_integration_temp_root()
+    stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
+    config_path = build_integration_config(temp_root)
+    _host_stub(config_path, stub_root)
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S,
+                      env_overrides={"FUN_TIME_DISABLE_DASHBOARD": "0"})
+        portrait = RoomFunestra.PORTRAIT
+        own = wait_for(lambda: _own_clips(session, portrait),
+                       desc="the Portrait Funestra to play a list of its own")
+        wait_for(lambda: _wears(session, portrait, own) == "kino",
+                 desc="the Portrait Funestra to wear its whole Kino HUD")
+
+        _press_once_origenerator_is_up(session, f"{portrait.label}_origenerator_activate")
+        going = _huds_worn_until(session, portrait, lambda: _shows_the_stub(session, portrait)
+                                 and _wears(session, portrait, own) == "origenerator")
+        session.write_dashboard_command(f"{portrait.label}_kino_activate")
+        coming = _huds_worn_until(session, portrait, lambda: _own_clips(session, portrait)
+                                  and _wears(session, portrait, own) == "kino")
+    finally:
+        session.stop()
+
+    assert [mode for hud in going + coming
+            if not (mode := _a_whole_huds_mode(hud, portrait, own))] == []
 
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)

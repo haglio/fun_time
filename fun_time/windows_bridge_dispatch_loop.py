@@ -44,7 +44,7 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
 from .event_log import NOTICE, SOURCE_SYSTEM, notice
 from .f_mode import every_funestra_in_f_mode
-from .funestra_handover import Homecoming
+from .funestra_handover import Departures, Homecoming, SidesChangingHands
 from .funestra_notices import FunestraNotices
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
@@ -211,6 +211,11 @@ class DispatchLoopRunner:
         self._answers = 0
         self._ignored_because = ""
         self.homecoming = Homecoming()
+        self.departures = Departures()
+        self.changing_hands = SidesChangingHands(
+            self.departures, self.homecoming,
+            left_on=self.hud.the_video_it_comes_home_to,
+            changed=partial(_publish_the_side_changing_hands, self))
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={2: config.portrait_status_file,
@@ -288,7 +293,7 @@ class DispatchLoopRunner:
             self.satellite_speeds.take_the_main_funestras_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        self.homecoming.bring(self.state, self.config, now=now)
+        self.state = self.changing_hands.follow(self.state, self.config, now=now)
         self.latest_arrivals.deliver(self.state, coming_home=self.homecoming.funestras)
         held = self.lock_follower.held()
         if held:
@@ -792,6 +797,15 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
 
+def _publish_the_side_changing_hands(runner: DispatchLoopRunner, state: BridgeState) -> None:
+    write_shared_state(runner.shared_state_file, state)
+    runner.hud.publish(state)
+
+
+def _run_hand_over_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
+    runner.departures.expect((RoomFunestra[op.key.upper()],), runner.config)
+
+
 def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.homecoming.expect((RoomFunestra[op.key.upper()],), runner.config,
                              now=time.monotonic())
@@ -824,6 +838,7 @@ _OP_HANDLERS = {
     Op.MAIN_FUNESTRA_ANSWERS: _run_an_answer_given_elsewhere,
     Op.NARROWING_ANSWERS: _run_an_answer_given_elsewhere,
     Op.IGNORED: _run_ignored,
+    Op.HAND_OVER_FUNESTRAS: _run_hand_over_funestras,
     Op.TAKE_BACK_FUNESTRAS: _run_take_back_funestras,
     Op.FOLLOW_THE_LOCK: _run_follow_the_lock,
 }

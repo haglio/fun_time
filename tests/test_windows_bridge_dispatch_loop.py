@@ -21,6 +21,7 @@ from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
+from funestra.satellite_hud import HudModel, hud_text, parse_hud
 from funestra.status import StatusWriter
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
@@ -35,6 +36,7 @@ from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FIL
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import FAVORITE
 from fun_time.funestra_handover import LET_GO_TIMEOUT_S, keep_aside
+from fun_time.hud_transport import HudPublisher
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -3547,10 +3549,15 @@ def _hosting(tmp_path, **overrides):
                    landscape_origenerator_hud_file=tmp_path / "origenerator_landscape_hud.json")
 
 
+def _follow_the_sides(runner, *, now: float) -> None:
+    runner.state = runner.changing_hands.follow(runner.state, runner.config, now=now)
+
+
 def _in_origenerator_mode(state: BridgeState, *funestras: RoomFunestra) -> BridgeState:
     """*state* with *funestras* in their Origenerator mode -- both, with none named."""
     for funestra in funestras or RoomFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
+        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR,
+                                     handed_over=True)
     return state
 
 
@@ -3844,6 +3851,40 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
         assert config.landscape_notice_file == tmp_path / "elsewhere" / "landscape_notice.txt"
 
 
+class TestTheAppTakesAFunestra:
+    """A side switched to Origenerator mode is the app's from the first HUD the
+    app publishes for it after the switch, and wears that HUD at once."""
+
+    def _switched(self, tmp_path):
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
+            {"portrait": tmp_path / "portrait_hud.json"}, tmp_path / "thumbs", ()))
+        runner.state = replace(runner.state, origenerator_ready=True)
+        channel = config.satellite(RoomFunestra.PORTRAIT)
+        write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])
+        publish_whole(channel.origenerator_hud_file, "")
+        runner._dispatch("portrait_origenerator_activate")
+        return runner, channel
+
+    def test_the_side_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
+        runner, _channel = self._switched(tmp_path)
+
+        _follow_the_sides(runner, now=0.0)
+
+        assert runner.state.portrait.handed_over is False
+
+    def test_the_apps_first_hud_hands_the_side_over_and_goes_up_at_once(self, tmp_path):
+        runner, channel = self._switched(tmp_path)
+        publish_whole(channel.origenerator_hud_file,
+                      hud_text(HudModel(funestra="portrait", title="Stub slideshow")))
+
+        _follow_the_sides(runner, now=0.0)
+
+        assert runner.state.portrait.handed_over is True
+        published = (tmp_path / "portrait_hud.json").read_text(encoding="utf-8")
+        assert parse_hud(published).title == "Stub slideshow"
+
+
 class TestTheFunestrasComeHome:
     """Leaving origenerator mode asks the hosted app to let go of the two
     Funestras, and each comes home once it has: its own list back, turned onto
@@ -3876,7 +3917,7 @@ class TestTheFunestrasComeHome:
         runner, config = self._left_for_origenerator(tmp_path, locked=True)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        runner.homecoming.bring(runner.state, runner.config, now=100.5)
+        _follow_the_sides(runner, now=100.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
         assert self._queued(config, RoomFunestra.LANDSCAPE) == []    # still the app's
@@ -3885,7 +3926,7 @@ class TestTheFunestrasComeHome:
         """An app that has stalled or gone does not get to keep the Funestras."""
         runner, config = self._left_for_origenerator(tmp_path)
 
-        runner.homecoming.bring(runner.state, runner.config, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
+        _follow_the_sides(runner, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
         assert self._queued(config, RoomFunestra.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
@@ -3895,12 +3936,12 @@ class TestTheFunestrasComeHome:
         runner.state = _in_origenerator_mode(runner.state, RoomFunestra.PORTRAIT)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        runner.homecoming.bring(runner.state, runner.config, now=100.5)
+        _follow_the_sides(runner, now=100.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == []
         runner.state = runner.state.with_satellite(RoomFunestra.PORTRAIT,
                                                    mode=SatellitesMode.KINO)
-        runner.homecoming.bring(runner.state, runner.config, now=100.6)
+        _follow_the_sides(runner, now=100.6)
         assert self._queued(config, RoomFunestra.PORTRAIT) == []     # nothing owed any more
 
     def test_a_side_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
@@ -3911,7 +3952,7 @@ class TestTheFunestrasComeHome:
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
         runner.homecoming.expect(RoomFunestra.SATELLITES, runner.config, now=101.0)
 
-        runner.homecoming.bring(runner.state, runner.config, now=101.5)
+        _follow_the_sides(runner, now=101.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == []
 

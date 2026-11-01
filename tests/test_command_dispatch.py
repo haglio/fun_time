@@ -4722,7 +4722,8 @@ def _in_origenerator_mode(*funestras: RoomFunestra, **fields) -> BridgeState:
     session whose hosted app is up."""
     state = _up(**fields)
     for funestra in funestras or RoomFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
+        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR,
+                                     handed_over=True)
     return state
 
 
@@ -4784,7 +4785,8 @@ class TestEachSatellitesOwnMode:
         state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
         assert state.rfb_slot is RfbSlot.RFB
-        assert [op for op in ops if op.op != "notice"] == []
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+            ("hand_over_funestras", "portrait")]
         assert _origenerator_cmds(config) == ["portrait_open_slideshow"]
         portrait = config.satellite(RoomFunestra.PORTRAIT)
         assert not portrait.paused_file.exists()

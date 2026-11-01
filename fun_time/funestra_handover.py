@@ -6,7 +6,7 @@ where the Funestra opens at its top: exactly where it left off.
 """
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -51,6 +51,15 @@ def show_f_mode(channel: SatelliteChannel) -> bool | None:
                  if button.command == f"{hud.funestra}_fmode"), None)
 
 
+def taken_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
+    if hud_stamp(channel) == stamp:
+        return False
+    try:
+        return bool(channel.origenerator_hud_file.read_text(encoding="utf-8").strip())
+    except OSError:
+        return False
+
+
 def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
     """Whether the hosted app has published *channel*'s HUD empty since *stamp* --
     its close, which only reading the way out makes it do.  An empty one already
@@ -86,7 +95,7 @@ def keep_aside(channel: SatelliteChannel) -> None:
     write_playlist(kept, rotated_onto(entries, video))
 
 
-def take_back_the_list(playlist_file: Path) -> bool:
+def take_back_the_list(playlist_file: Path, *, onto: str = "") -> bool:
     """Put the list kept aside for *playlist_file* back in it; ``False`` with none kept.
 
     The kept list is spent by it: a stale one would be dealt over whatever the
@@ -96,13 +105,13 @@ def take_back_the_list(playlist_file: Path) -> bool:
     entries = read_playlist(kept)
     if not entries:
         return False
-    write_playlist(playlist_file, entries)
+    write_playlist(playlist_file, rotated_onto(entries, onto) if onto else entries)
     kept.unlink(missing_ok=True)
     return True
 
 
-def hand_back(channel: SatelliteChannel) -> bool:
-    if not take_back_the_list(channel.playlist_file):
+def hand_back(channel: SatelliteChannel, *, onto: str = "") -> bool:
+    if not take_back_the_list(channel.playlist_file, onto=onto):
         return False
     append_command(channel.cmd_file, RELOAD_PLAYLIST)
     return True
@@ -111,6 +120,25 @@ def hand_back(channel: SatelliteChannel) -> bool:
 # How long the hosted app is given to let go of the Funestras when origenerator
 # mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
 LET_GO_TIMEOUT_S = 3.0
+
+
+class Departures:
+    def __init__(self) -> None:
+        self._going: dict[RoomFunestra, HudStamp] = {}
+
+    def expect(self, funestras: tuple[RoomFunestra, ...], config: BridgeConfig) -> None:
+        for funestra in funestras:
+            self._going[funestra] = hud_stamp(config.satellite(funestra))
+
+    def forget(self, funestra: RoomFunestra) -> None:
+        self._going.pop(funestra, None)
+
+    def taken(self, config: BridgeConfig) -> list[RoomFunestra]:
+        taken = [funestra for funestra, stamp in self._going.items()
+                 if taken_since(config.satellite(funestra), stamp)]
+        for funestra in taken:
+            del self._going[funestra]
+        return taken
 
 
 class Homecoming:
@@ -130,10 +158,12 @@ class Homecoming:
             self._coming[funestra] = (
                 now + LET_GO_TIMEOUT_S, hud_stamp(config.satellite(funestra)))
 
-    def bring(self, state: BridgeState, config: BridgeConfig, *, now: float) -> None:
+    def bring(self, state: BridgeState, config: BridgeConfig, *, now: float,
+              left_on: Callable[[RoomFunestra], str]) -> list[RoomFunestra]:
         """Hand each satellite its own list again once the hosted app has let
         go of it, or has had long enough to -- never before, when a list the app
         wrote after it would take the Funestra straight back."""
+        landed = []
         for funestra, (deadline, stamp) in list(self._coming.items()):
             if origenerator_shows(state.satellite(funestra).mode):
                 del self._coming[funestra]
@@ -142,7 +172,33 @@ class Homecoming:
             if now < deadline and not let_go_since(channel, stamp):
                 continue
             del self._coming[funestra]
-            hand_back(channel)
+            hand_back(channel, onto=left_on(funestra))
             # The session's own hold stands again, whatever the app left.
             append_command(channel.cmd_file,
                            LOCK_ON if state.satellite(funestra).locked else LOCK_OFF)
+            landed.append(funestra)
+        return landed
+
+
+class SidesChangingHands:
+    def __init__(self, departures: Departures, homecoming: Homecoming, *,
+                 left_on: Callable[[RoomFunestra], str],
+                 changed: Callable[[BridgeState], None]) -> None:
+        self._departures = departures
+        self._homecoming = homecoming
+        self._left_on = left_on
+        self._changed = changed
+
+    def follow(self, state: BridgeState, config: BridgeConfig, *, now: float) -> BridgeState:
+        for funestra in self._departures.taken(config):
+            state = self._hand(state, funestra, to_the_app=True)
+        for funestra in self._homecoming.bring(state, config, now=now, left_on=self._left_on):
+            self._departures.forget(funestra)
+            state = self._hand(state, funestra, to_the_app=False)
+        return state
+
+    def _hand(self, state: BridgeState, funestra: RoomFunestra, *,
+              to_the_app: bool) -> BridgeState:
+        state = state.with_satellite(funestra, handed_over=to_the_app)
+        self._changed(state)
+        return state

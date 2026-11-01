@@ -14,7 +14,7 @@ from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
 from funestra.console import console_text
 from funestra.drive_readout import read_drive
-from funestra.modes import MainMode, Osr2State
+from funestra.modes import MainMode, Osr2State, SatellitesMode
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
@@ -34,7 +34,7 @@ from .main_list_commands import (
 )
 from .media_metadata import load_metadata, metadata_path_for
 from .media_renditions import renditions
-from .origenerator_switches import hosts
+from .origenerator_switches import hosts, origenerator_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
@@ -85,7 +85,9 @@ class HudFeed:
         self._last_publish = 0.0
         self._favorites = _RecordedFavorites()
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
+        self._the_apps_on_screen: dict[str, str] = {}
         self._hosted_huds: dict[RoomFunestra, HudModel | None] = {}
+        self._last_worn_hosted: dict[RoomFunestra, HudModel | None] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         """Publish, if the cadence says it is time."""
@@ -140,13 +142,13 @@ class HudFeed:
                 has_funscript=status.has_funscript,
                 # None for a session hosting no Origenerator — the HUD then draws
                 # no mode pair at all, rather than a switch that can only dead-end.
-                mode=values.mode if self.config.origenerator_enabled else None,
+                mode=SatellitesMode.KINO if self.config.origenerator_enabled else None,
             )
 
         for funestra in RoomFunestra.SATELLITES:
             if hosts(funestra, state, self.config):
                 self.publisher.publish_text(funestra.label, hud_text(hosted_model(
-                    funestra.label, self._hosted_hud(funestra),
+                    funestra.label, self._worn_hosted_hud(funestra, state),
                     active=state.active_funestra == funestra,
                     origenerator_ready=state.origenerator_ready,
                     in_vr=self.config.vr_main_funestra,
@@ -211,6 +213,13 @@ class HudFeed:
         scripted = read_satellite_status(self.config.satellite(holder).status_file)
         return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
 
+    def _worn_hosted_hud(self, funestra: RoomFunestra, state: BridgeState) -> HudModel | None:
+        worn = self._hosted_hud(funestra)
+        if worn is None and not origenerator_shows(state.satellite(funestra).mode):
+            worn = self._last_worn_hosted.get(funestra)
+        self._last_worn_hosted[funestra] = worn
+        return worn
+
     def _hosted_hud(self, funestra: RoomFunestra) -> HudModel | None:
         """The hosted app's HUD for *Funestra*'s side, or None; one it is
         replacing this instant leaves the HUD read before it standing."""
@@ -231,9 +240,16 @@ class HudFeed:
         return drive.advance_interval if drive is not None else 0
 
 
+    def the_video_it_comes_home_to(self, funestra: RoomFunestra) -> str:
+        name = funestra.label
+        self._the_apps_on_screen[name] = read_satellite_status(
+            self.config.satellite(funestra).status_file).video
+        left_on = self._last_satellite_status.get(name)
+        return left_on.video if left_on is not None else ""
+
     def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
-        """What *Funestra* last said about itself, held over a read that comes back
-        blank.
+        """What *Funestra* last said about its own videos, held over a read that
+        comes back blank or names what the hosted app had on it.
 
         A satellite always has a clip — it cannot discard its way to an empty
         playlist — so once one has named a clip, a blank status means the read
@@ -244,7 +260,8 @@ class HudFeed:
         the truth.
         """
         status = read_satellite_status(status_file)
-        if status.video:
+        if status.video and status.video != self._the_apps_on_screen.get(funestra):
+            self._the_apps_on_screen.pop(funestra, None)
             self._last_satellite_status[funestra] = status
             return status
         return self._last_satellite_status.get(funestra, status)
