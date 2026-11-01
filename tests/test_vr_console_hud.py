@@ -7,7 +7,7 @@ from funestra.console import ConsoleModel, _row_width, osr2_controls
 from funestra.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
 from funestra.drive_readout import DriveHud
 from funestra.hud_placement import HudEdge
-from shared_ui.palette import AMBER, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
 from fun_time.console_buttons import MainSlot, console_rows
 from fun_time.event_log import FAVORITE, NOTICE
@@ -79,9 +79,9 @@ class TestTheColorOfANotice:
     def test_each_level_has_the_desktops_own_color(self):
         assert level_color(NOTICE) == TEXT_PRIMARY
         assert level_color(FAVORITE) == GREEN
-        assert level_color(logging.WARNING) == AMBER
+        assert level_color(logging.WARNING) == YELLOW
         assert level_color(logging.ERROR) == RED
 
     def test_a_level_between_two_takes_the_loudest_it_reaches(self):
-        assert level_color(logging.WARNING + 1) == AMBER
+        assert level_color(logging.WARNING + 1) == YELLOW
         assert level_color(logging.DEBUG) == TEXT_MUTED

@@ -1365,7 +1365,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         would group these windows under a button with no icon at all."""
         assert taskbar_identity_args() == ("--taskbar-identity", APP_USER_MODEL_ID)
 
-    def test_a_branch_sessions_funestras_join_its_own_button_wearing_its_amber_letter(
+    def test_a_branch_sessions_funestras_join_its_own_button_wearing_its_yellow_letter(
             self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv(preview_marker.FLAG, "1")
         monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature=None))
@@ -1385,7 +1385,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         assert Path(command[command.index("--icon") + 1]).parent == tmp_path / "inked"
 
 
-    def test_a_branch_sessions_satellites_wear_its_amber_letter(self, tmp_path: Path, monkeypatch):
+    def test_a_branch_sessions_satellites_wear_its_yellow_letter(self, tmp_path: Path, monkeypatch):
         monkeypatch.setenv(preview_marker.FLAG, "1")
         monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature=None))
         monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path / "inked")

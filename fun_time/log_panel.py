@@ -24,7 +24,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from shared_ui.colors import (
-    AMBER,
     BG_BUTTON,
     BG_PRIMARY,
     BG_SECONDARY,
@@ -34,6 +33,7 @@ from shared_ui.colors import (
     TEXT_MUTED,
     TEXT_PRIMARY,
     WHITE,
+    YELLOW,
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, SIZE_TINY, make_font
@@ -85,7 +85,7 @@ _LEVEL_COLORS: dict[int, QColor] = {
     logging.INFO: TEXT_MUTED,
     NOTICE: TEXT_PRIMARY,
     FAVORITE: GREEN,
-    logging.WARNING: AMBER,
+    logging.WARNING: YELLOW,
     logging.ERROR: RED,
 }
 

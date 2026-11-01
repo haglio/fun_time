@@ -379,7 +379,7 @@ their stills are warmed at startup with the library's.
 
 ### Loop recording (Kino mode)
 
-Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
+Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (yellow loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
 
 ### Sound
 
