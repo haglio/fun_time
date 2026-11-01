@@ -28,6 +28,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
+from funestra.playlist import PlaylistItem
 
 from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_filename
 from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
@@ -56,6 +57,7 @@ from fun_time.win32_process import (
     is_process_alive,
 )
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
+from main_funestra.library import collapse_playlist_versions
 from tests.made_up_genau import write_settings_naming_genau
 from tests.scratch import remove_scratch
 
@@ -1034,6 +1036,11 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
             f"within {budget_s:g}s -- the library is cold on this machine"
         )
     return chosen
+
+
+def one_clip_per_video(clips, version_index) -> list[Path]:
+    return [item.path for item in collapse_playlist_versions(
+        [PlaylistItem(clip) for clip in clips], version_index)]
 
 
 def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read=None) -> bool:

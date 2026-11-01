@@ -52,6 +52,7 @@ from .integration_support import (
     joined_within,
     let_seconds_pass,
     library_clips,
+    one_clip_per_video,
     published_status,
     readable_at_speed,
     sample_library_clips,
@@ -104,6 +105,15 @@ def _sample_library_videos(dirs, count: int) -> list[str]:
     )]
 
 
+def _main_videos_next_can_step_between(config, manifest, vr) -> list[str]:
+    library = vrp._TheLibrary(manifest, vr, while_reading=lambda: None)
+    return [str(clip) for clip in sample_library_clips(
+        one_clip_per_video(library_clips(config.paths.main_funestra_library_dirs),
+                           library.source.version_index), 2,
+        desc="different videos in the Main Funestra's library", readable=readable_at_speed,
+    )]
+
+
 def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
@@ -124,9 +134,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     # where opening a cold file blocks inside the drive's own driver.  No timeout
     # can end a thread stuck there, and Windows cannot finish closing a process
     # that has one, so every run that read them left an unkillable python process.
-    main_videos = _sample_library_videos(config.paths.main_funestra_library_dirs, 2)
     Path(commands.main_funestra_playlist_file).write_text(
-        "".join(f"{video}\n" for video in main_videos), encoding="utf-8"
+        "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
+        encoding="utf-8",
     )
     Path(commands.portrait_playlist_file).write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.portrait_dirs, 2)),
@@ -395,8 +405,7 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
     vr = vrp.VrSettings.read(manifest_path)
     commands = manifest.commands
     Path(commands.main_funestra_playlist_file).write_text(
-        "".join(f"{video}\n" for video in _sample_library_videos(
-            config.paths.main_funestra_library_dirs, 2)),
+        "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
         encoding="utf-8",
     )
     # Genau mode is where the Main Funestra waits paused, and the flag survives a
@@ -465,8 +474,7 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
     vr = vrp.VrSettings.read(manifest_path)
     commands = manifest.commands
     Path(commands.main_funestra_playlist_file).write_text(
-        "".join(f"{video}\n" for video in _sample_library_videos(
-            config.paths.main_funestra_library_dirs, 2)),
+        "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
         encoding="utf-8",
     )
     Path(commands.main_funestra_paused_file).write_text("0", encoding="utf-8")
