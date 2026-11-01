@@ -41,6 +41,7 @@ def parse_command_line(line: str) -> CommandLine:
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
 _SATELLITE_NAMES = tuple(funestra.label for funestra in FunTimeFunestra.SATELLITES)
+_SATELLITE_WORDS = (*_SATELLITE_NAMES, "satellites")
 FAVORITES_PHRASE = "favorites"
 
 
@@ -60,7 +61,7 @@ def said_to_a_satellite(command: str) -> tuple[str, str] | None:
 
 def _bare_or_named(commands: dict[str, str], words: str, action: str) -> None:
     commands[words] = f"active_{action}"
-    for satellite in (*_SATELLITE_NAMES, "both"):
+    for satellite in _SATELLITE_WORDS:
         commands.update(named_first_or_last(satellite, words, f"{satellite}_{action}"))
     if (on_the_main := on_the_main_funestra(action)) is not None:
         commands.update(named_first_or_last("main", words, on_the_main))
@@ -101,10 +102,10 @@ def _satellite_action_phrases(commands: dict[str, str]) -> None:
     }
     for _act_word, _act in _SATELLITE_ACTIONS.items():
         _bare_or_named(commands, _act_word, _act)
+    for _of_a_video in ("next", "previous", "trash", "lock", "unlock"):
+        commands[f"{_of_a_video} video"] = commands[_of_a_video]
 
-    for _funestra_word, _command in (("portrait", "portrait_cycle_version"),
-                                     ("landscape", "landscape_cycle_version"),
-                                     ("both", "both_cycle_version"),
+    for _funestra_word, _command in (*((satellite, f"{satellite}_cycle_version") for satellite in _SATELLITE_WORDS),
                                      ("main", "main_funestra_cycle_version")):
         commands.update(named_first_or_last(_funestra_word, "version", _command))
 
@@ -132,6 +133,14 @@ def _group_cycle_and_mode_phrases(commands: dict[str, str]) -> None:
         for _cycle_verb in ("cycle", "next", "change"):
             commands[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
+    _SOUND_WORDS: dict[str, str] = {
+        "mute": "mute", "un mute": "unmute",
+        "quiet": "volume_down", "quieter": "volume_down",
+        "loud": "volume_up", "louder": "volume_up",
+    }
+    for _sound_word, _change in _SOUND_WORDS.items():
+        _bare_or_named(commands, _sound_word, _change)
+
     _FMODE_PHRASES: dict[str, tuple[str, str]] = {
         "f mode": ("fmode", "fmode_toggle"),
         "f mode on": ("fmode_on", "fmode_on"),
@@ -140,15 +149,18 @@ def _group_cycle_and_mode_phrases(commands: dict[str, str]) -> None:
     for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
         _bare_or_named(commands, _fmode_word, _fmode_act)
         commands.update(named_first_or_last("all", _fmode_word, _fmode_all))
+    commands["fun scripts"] = "main_fmode_on"
+    commands.update(named_first_or_last("main", "fun scripts", "main_fmode_on"))
     commands.update(named_first_or_last("all", "reset", "all_reset"))
 
-    _MODE_NAV: dict[str, tuple[str, str]] = {
-        "kino": ("main_next", "main_prev"),
-        **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
+    _ENHANCEMENT_PHRASES: dict[str, str] = {
+        "enhanced only": "enhancement_enhanced",
+        "original only": "enhancement_original",
+        "enhanced and original": "enhancement_both",
+        "original and enhanced": "enhancement_both",
     }
-    for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
-        commands.update(named_first_or_last(_base, "next", _next_cmd))
-        commands.update(named_first_or_last(_base, "previous", _prev_cmd))
+    for _phrase, _act in _ENHANCEMENT_PHRASES.items():
+        _bare_or_named(commands, _phrase, _act)
 
 
 def _number_phrases(commands: dict[str, str], flick: str) -> None:
@@ -234,9 +246,20 @@ def _speed_move_and_hud_phrases(commands: dict[str, str]) -> None:
                         ("expand", "hud_restore")):
         for _words in (f"{_verb} hud", f"hud {_verb}"):
             _bare_or_named(commands, _words, _act)
-        for _satellite in (*_SATELLITE_NAMES, "both", "main"):
+        for _satellite in (*_SATELLITE_WORDS, "main"):
             commands[f"{_verb} {_satellite} hud"] = commands[f"{_satellite} {_verb} hud"]
 
+    _CORNER_WORDS: dict[str, str] = {
+        f"{_height} {_edge}": f"{_corner}_{_edge}"
+        for _height, _corner in (("top", "upper"), ("upper", "upper"),
+                                 ("lower", "lower"), ("bottom", "lower"))
+        for _edge in ("left", "right")
+    }
+    for _corner_word, _corner in _CORNER_WORDS.items():
+        for _lead in ("", "move "):
+            _bare_or_named(commands, f"{_lead}hud {_corner_word}", f"hud_{_corner}")
+        for _funestra in (*_SATELLITE_WORDS, "main"):
+            commands[f"move {_funestra} hud {_corner_word}"] = commands[f"{_funestra} hud {_corner_word}"]
 
 def build_voice_commands(
     *,
@@ -265,46 +288,49 @@ def build_voice_commands(
         "stop": "relief_omnipause",
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
-        "o s r two off": "robot_hand_park",
-        "oh es are two off": "robot_hand_park",
         "o s r two control off": "robot_hand_park",
         "oh es are two control off": "robot_hand_park",
         "o s r two control on": "robot_hand_release",
         "oh es are two control on": "robot_hand_release",
         "un park": "robot_hand_release",
-        "o s r two resume": "robot_hand_release",
-        "oh es are two resume": "robot_hand_release",
 
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
+        "kino": "kino_activate",
         "kino mode": "kino_activate",
+        "aura generator": "satellites_origenerator_activate",
         "aura generator mode": "satellites_origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         "projection": "projection_cycle",
+        "cycle projection": "projection_cycle",
         "recenter": "recenter_view",
     "tilt up": "tilt_up",
     "tilt down": "tilt_down",
     "level": "tilt_reset",
-        "browse": "browse_library",
-        "clip": "genaumacher_save",
-        "save clip": "genaumacher_save",
+        **dict.fromkeys(("browse", "open browser", "open file browser", "file browser",
+                         "file browse"), "browse_library"),
+        "save loop": "genaumacher_save",
+        f"save {flick}": "genaumacher_save",
         "record": "main_funestra_record_down",
         "loop": "main_funestra_record_up",
         "version": "main_funestra_cycle_version",
-        "clips": "main_funestra_length_clips",
-        "full": "main_funestra_length_full",
+        "clips only": "main_funestra_length_clips",
+        "full only": "main_funestra_length_full",
+        "clips and full": "main_funestra_length_mixed",
+        "full and clips": "main_funestra_length_mixed",
         "vr only": "main_projection_vr",
         "flat only": "main_projection_flat",
         "two d only": "main_projection_flat",
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
+        "two d and vr": "main_projection_both",
+        "vr and two d": "main_projection_both",
         "portrait only": "main_orientation_portrait",
         "only portrait": "main_orientation_portrait",
         "landscape only": "main_orientation_landscape",
         "only landscape": "main_orientation_landscape",
         "portrait and landscape": "main_orientation_both",
         "landscape and portrait": "main_orientation_both",
-        "mixed": "main_funestra_length_mixed",
         "compilation": "main_funestra_compilation",
         "end compilation": "main_funestra_end_compilation",
         "full video": "main_funestra_full_vid",
@@ -321,16 +347,14 @@ def build_voice_commands(
         "human inspired": "robot_hand_toggle_learned",
         "human inspired on": "robot_hand_learned_on",
         "human inspired off": "robot_hand_learned_off",
+        "hi on": "robot_hand_learned_on",
+        "hi off": "robot_hand_learned_off",
         f"previous {flick}": "genau_prev_flick",
         f"next {flick}": "genau_next_flick",
+        f"lock {flick}": "main_lock_on",
+        f"unlock {flick}": "main_lock_off",
         "voice off": "voice_off",
         "mic off": "voice_off",
-        "mute": "audio_mute",
-        "un mute": "audio_unmute",
-        "quiet": "audio_volume_down",
-        "quieter": "audio_volume_down",
-        "loud": "audio_volume_up",
-        "louder": "audio_volume_up",
     }
 
     if clip_jump_phrases is None:
@@ -345,9 +369,10 @@ def build_voice_commands(
     _number_phrases(commands, flick)
     _speed_move_and_hud_phrases(commands)
 
-    for _satellite in _SATELLITE_NAMES:
+    for _satellite in _SATELLITE_WORDS:
         commands.update(named_first_or_last(_satellite, FAVORITES_PHRASE,
                                             say_command(_satellite, FAVORITES_PHRASE)))
+    commands[FAVORITES_PHRASE] = say_command("active", FAVORITES_PHRASE)
 
     if filter_commands is None:
         filter_commands = filter_voice_commands()
@@ -355,11 +380,12 @@ def build_voice_commands(
     if _shadowed:
         raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
     commands.update(filter_commands)
-    for _satellite in _SATELLITE_NAMES:
-        for _phrase in origenerator_phrases:
-            for _spoken, _said in named_first_or_last(
-                    _satellite, _phrase, say_command(_satellite, _phrase)).items():
-                commands.setdefault(_spoken, _said)
+    for _phrase in origenerator_phrases:
+        _aimed = {} if _phrase in GENAU_SAID else {_phrase: say_command("active", _phrase)}
+        for _satellite in _SATELLITE_WORDS:
+            _aimed.update(named_first_or_last(_satellite, _phrase, say_command(_satellite, _phrase)))
+        for _spoken, _said in _aimed.items():
+            commands.setdefault(_spoken, _said)
     return MappingProxyType(commands)
 
 
@@ -376,6 +402,8 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("omni pause", "omnipause"),
     ("omni play", "omniplay"),
     ("un park", "unpark"),
+    ("hi on", "HI on"),
+    ("hi off", "HI off"),
     ("o s r two", "OSR2"),
     ("oh es are two", "OSR2"),
     ("v r", "VR"),

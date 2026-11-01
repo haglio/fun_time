@@ -24,6 +24,7 @@ from .modes import rotated_onto
 from .shared_state import (
     BridgeState,
     SatelliteState,
+    main_loop_bounds,
     migrate_shared_state,
     read_shared_state,
     write_shared_state,
@@ -175,11 +176,12 @@ def resume_what_lives_in_a_funestra(
 
 def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
                      playlist_file: Path) -> None:
-    if carried.main_loop_out_ms <= carried.main_loop_in_ms:
+    in_ms, out_ms = main_loop_bounds(carried)
+    if out_ms <= in_ms:
         return
     if playlist_opens_on(playlist_file, carried.main_loop_video):
         append_command(Path(main_funestra_cmd_file),
-                       f"{SET_LOOP} {carried.main_loop_in_ms} {carried.main_loop_out_ms}")
+                       f"{SET_LOOP} {in_ms} {out_ms}")
 
 
 _OSR2_CONTROLS = (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED)

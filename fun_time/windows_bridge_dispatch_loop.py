@@ -19,7 +19,7 @@ from funestra.funestra_verbs import play_file
 from funestra.main_hud import BROKER_PRESS
 from funestra.playlist import PlaylistItem
 
-from .aiming import message_source, resolve_active_funestra_command
+from .aiming import expand_group_command, message_source, resolve_active_funestra_command
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
@@ -98,19 +98,6 @@ REQUEST_NEWS: dict[str, tuple[str, bool]] = {
     for satellite in ("portrait", "landscape")
     for news, opened in (("open", True), ("closed", False))
 }
-
-
-_FUNESTRA_GROUPS = {
-    "both_": ("portrait_", "landscape_"),
-    "all_": ("main_", "portrait_", "landscape_"),
-}
-
-
-def expand_group_command(command: str) -> list[str]:
-    for group, funestras in _FUNESTRA_GROUPS.items():
-        if command.startswith(group):
-            return [funestra + command[len(group):] for funestra in funestras]
-    return [command]
 
 
 def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:

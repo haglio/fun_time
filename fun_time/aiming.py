@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from funestra.hud_placement import HudCorner
+
 from .event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
+from .mode_plan import EnhancementLevel
+from .origenerator_switches import BOTH_SATELLITES_MODE_COMMANDS
 
 MAIN_EQUIVALENTS = {
     "next": "main_next",
@@ -10,6 +14,7 @@ MAIN_EQUIVALENTS = {
     "nudge_prev": "main_nudge_prev",
     "funscript_jump": "main_funestra_funscript_jump",
     "next_funscripted": "main_funestra_next_funscripted",
+    **{f"enhancement_{level}": f"main_enhancement_{level}" for level in EnhancementLevel},
     "no_loop": "main_funestra_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
@@ -22,6 +27,11 @@ MAIN_EQUIVALENTS = {
     "shuffle": "main_shuffle",
     "hud_minimize": "main_hud_minimize",
     "hud_restore": "main_hud_restore",
+    **{f"hud_{corner.value}": f"main_hud_{corner.value}" for corner in HudCorner},
+    "mute": "audio_mute",
+    "unmute": "audio_unmute",
+    "volume_down": "audio_volume_down",
+    "volume_up": "audio_volume_up",
 }
 
 
@@ -65,3 +75,17 @@ def message_source(command: str, active_funestra: int | None) -> str:
     funestra = active_funestra if command.startswith("active_") else command_funestra(command)
     return FUNESTRA_SOURCES.get(funestra, SOURCE_SYSTEM)
 
+
+FUNESTRA_GROUPS = {
+    "satellites_": ("portrait_", "landscape_"),
+    "all_": ("main_", "portrait_", "landscape_"),
+}
+
+
+def expand_group_command(command: str) -> list[str]:
+    if command in BOTH_SATELLITES_MODE_COMMANDS:
+        return [command]
+    for group, funestras in FUNESTRA_GROUPS.items():
+        if command.startswith(group):
+            return [funestra + command[len(group):] for funestra in funestras]
+    return [command]

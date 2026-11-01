@@ -13,10 +13,11 @@ from .bridge_records import BridgeConfig, Handler, WindowOp
 from .event_log import FAVORITE, MESSAGE
 from .filter_vocab import decode_filter_command
 from .fun_time_funestras import FunTimeFunestra
+from .funestra_handover import slideshows_enhancement
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
-from .modes import SatelliteBuild
+from .mode_plan import EnhancementLevel
 from .origenerator_switches import hosts
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
@@ -25,7 +26,7 @@ from .osr2_commands import (
     percent_rate,
     skip_ahead_refused,
 )
-from .runtime_flow import SatelliteFilterFlowResult, apply_satellite_filter
+from .runtime_flow import SatelliteBuild, SatelliteFilterFlowResult, apply_satellite_filter
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
     cancel_lock,
@@ -281,7 +282,8 @@ def _dispatch_reset(
         if not _browse_at_defaults(state.satellite(funestra)):
             state = cancel_lock(funestra, state, config)
             state = state.with_satellite(
-                funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
+                funestra, latest=False, filter="", favorites_filter=False,
+                enhancement=EnhancementLevel.BOTH, nav_anchor="")
             state = clear_satellite_grouping(state, funestra)
             result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
             logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
@@ -300,10 +302,36 @@ def _rebuild_satellite(
         funestra=funestra,
         channel=channel,
         build=SatelliteBuild(channel.sources, favorites_filter=satellite.favorites_filter,
-                             recent=satellite.latest, filter_query=query),
+                             recent=satellite.latest, filter_query=query,
+                             enhancement=satellite.enhancement,
+                             media_root=config.regen_media_root),
         start_at_top=start_at_top,
         regen_metadata_root=config.regen_metadata_root,
     )
+
+
+_ENHANCEMENT_COMMANDS: dict[str, tuple[FunTimeFunestra, EnhancementLevel]] = {
+    f"{funestra.label}_enhancement_{level}": (funestra, level)
+    for funestra in FunTimeFunestra.SATELLITES
+    for level in EnhancementLevel
+}
+
+
+def _dispatch_enhancement(
+    funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    if hosts(funestra, state, config):
+        return slideshows_enhancement(funestra, level, state, config)
+    if state.satellite(funestra).enhancement is level:
+        return state, []
+    narrowed = state.with_satellite(funestra, enhancement=level)
+    result = _rebuild_satellite(funestra, narrowed.satellite(funestra).filter, narrowed, config)
+    logger.info(result.log_message)
+    if not result.applied:
+        return state, [WindowOp(op="message", key=result.log_message,
+                                source=satellite_source(funestra), level=logging.WARNING)]
+    return narrowed, [WindowOp(op="message", key=level.flash, source=satellite_source(funestra),
+                               level=MESSAGE)]
 
 
 def _dispatch_set_filter(
@@ -429,7 +457,14 @@ def _reorder(funestra: FunTimeFunestra, recent: bool, state: BridgeState, config
     return _dispatch_reorder(funestra, recent, state, config)
 
 
+def _enhancement(funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState,
+                 config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enhancement(funestra, level, state, config)
+
+
 HANDLERS: dict[str, Handler] = {
+    **{cmd: partial(_enhancement, funestra, level)
+       for cmd, (funestra, level) in _ENHANCEMENT_COMMANDS.items()},
     **{cmd: partial(_transport, funestra, verb)
        for cmd, (funestra, verb) in _TRANSPORT_COMMANDS.items()},
     **{cmd: partial(_send_to_satellite, funestra, verb)

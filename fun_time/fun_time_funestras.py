@@ -14,7 +14,7 @@ class FunTimeFunestra(IntEnum):
 
     @classmethod
     def for_scope(cls, scope: str) -> tuple[FunTimeFunestra, ...]:
-        if scope == "both":
+        if scope == "satellites":
             return cls.SATELLITES
         return (cls.PORTRAIT,) if scope == "portrait" else (cls.LANDSCAPE,)
 

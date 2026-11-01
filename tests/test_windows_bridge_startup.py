@@ -595,7 +595,7 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
-        main_loop_video=left_on["main_player"][1], main_loop_in_ms=2000, main_loop_out_ms=4000))
+        main_loop_video=left_on["main_player"][1], main_loop_bounds_ms="2000 4000"))
 
     _run_start_core_session(kwargs)
 
@@ -655,8 +655,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
-        main_loop_video=str(tmp_path / "deleted.mp4"), main_loop_in_ms=2000,
-        main_loop_out_ms=4000))
+        main_loop_video=str(tmp_path / "deleted.mp4"), main_loop_bounds_ms="2000 4000"))
 
     _run_start_core_session(kwargs)
 
@@ -841,7 +840,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     )
     (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
     write_shared_state(shared_state_path(state_dir), BridgeState(
-        main_loop_video=watching, main_loop_in_ms=1000, main_loop_out_ms=4000))
+        main_loop_video=watching, main_loop_bounds_ms="1000 4000"))
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"

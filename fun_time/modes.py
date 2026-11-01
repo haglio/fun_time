@@ -21,6 +21,8 @@ from .media_metadata import (
     recorded_duration_seconds,
     recorded_for,
 )
+from .media_renditions import has_an_upscale
+from .mode_plan import EnhancementLevel
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
 
@@ -269,6 +271,8 @@ class SatelliteBuild:
     favorites_filter: bool = False
     recent: bool = False
     filter_query: str = ""
+    enhancement: EnhancementLevel = EnhancementLevel.BOTH
+    media_root: Path | None = None
 
 
 def build_satellite_playlist_paths(
@@ -279,6 +283,7 @@ def build_satellite_playlist_paths(
 ) -> list[str]:
     files = satellite_narrowing(collect_video_files(build.sources), build.favorites_filter,
                                 filter_query=build.filter_query, metadata_root=metadata_root)
+    files = build.enhancement.keep(files, has_an_upscale(build.media_root))
     filtered = bool(build.filter_query) and metadata_root is not None
     if metadata_root is None:
         return order_paths(files, recent=build.recent, rng=rng)
@@ -329,11 +334,8 @@ def build_satellite_playlists(
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
-    build_one_satellite_playlist(
-        portrait, build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT),
-        rng=rng, metadata_root=metadata_root,
-    )
-    build_one_satellite_playlist(
-        landscape, build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE),
-        rng=rng, metadata_root=metadata_root,
-    )
+    for satellite, name in ((portrait, PLAYLIST_PORTRAIT), (landscape, PLAYLIST_LANDSCAPE)):
+        build_one_satellite_playlist(
+            satellite, build_playlist_file_path(state_dir, name),
+            rng=rng, metadata_root=metadata_root,
+        )

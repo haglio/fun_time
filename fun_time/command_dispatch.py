@@ -112,7 +112,7 @@ def dispatch_command(
 
 
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
-                      "_origenerator_activate")
+                      "_origenerator_activate", "_mute", "_unmute", "_volume_", "_enhancement_")
 
 
 _THE_FUNESTRAS_LOCK = frozenset({*LOCK_TOGGLES, *LOCK_STATE_COMMANDS})
@@ -133,7 +133,7 @@ def _about_a_satellite(command: str) -> bool:
 
 def _said_to_each_satellite(command: str) -> tuple[str, ...]:
     target = decode_filter_command(command)
-    if target is None or target[0] != "both":
+    if target is None or target[0] != "satellites":
         return (command,)
     return tuple(set_command(funestra.label, target[1]) for funestra in FunTimeFunestra.SATELLITES)
 
