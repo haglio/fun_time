@@ -21,14 +21,14 @@ from pathlib import Path
 # A message meant for the person watching, not for a post-mortem: "Clip saved",
 # "No other seeds".  Louder than INFO's diagnostic chatter, quieter than a
 # WARNING.  These are what the log panel shows at its default verbosity.
-NOTICE = 25
-logging.addLevelName(NOTICE, "NOTICE")
+MESSAGE = 25
+logging.addLevelName(MESSAGE, "NOTICE")
 
-# A notice about the one family of things green is reserved for on every surface
+# A message about the one family of things green is reserved for on every surface
 # in this app: the favorites, the lock that puts a video in them, F-mode's filter
 # over them, and the funscripts.  A hair louder than a plain NOTICE so it picks a
 # color of its own without changing what any verbosity stop lets through — every
-# notice, either kind, shows from the NOTICE stop down.  Not a stop on the dial
+# message, either kind, shows from the NOTICE stop down.  Not a stop on the dial
 # itself: it is a NOTICE that happens to be about favorites, not a volume.
 FAVORITE = 26
 logging.addLevelName(FAVORITE, "FAVORITE")
@@ -37,7 +37,7 @@ logging.addLevelName(FAVORITE, "FAVORITE")
 LEVELS_BY_NAME: dict[str, int] = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
-    "NOTICE": NOTICE,
+    "NOTICE": MESSAGE,
     "WARNING": logging.WARNING,
     "ERROR": logging.ERROR,
 }
@@ -150,12 +150,12 @@ def parse_event_line(line: str | bytes) -> EventRecord | None:
         return None
 
 
-def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE,
+def flash_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE,
            flashes: bool = True, spoken_at: float | None = None) -> None:
     """Log a message meant for the person watching the screen: "Clip saved", "No
     other seeds".  The log panel lists it, and unless *flashes* is off it flashes
-    over the Funestra *source* names (:mod:`fun_time.notice_feed`), or in the
-    headset (:mod:`fun_time_vr.notices`).
+    over the Funestra *source* names (:mod:`fun_time.message_feed`), or in the
+    headset (:mod:`fun_time_vr.messages`).
 
     *level* defaults to NOTICE (a normal announcement, white); pass FAVORITE for
     one about the favorites or a funscript, which reads green, WARNING for a
@@ -166,9 +166,9 @@ def notice(logger: logging.Logger, message: str, *, source: str, level: int = NO
 
 
 def is_announcement(record: EventRecord) -> bool:
-    """Whether *record* flashes: a notice, or louder, logged with *flashes* on.
+    """Whether *record* flashes: a message, or louder, logged with *flashes* on.
     The verbosity dial governs only what the log panel lists."""
-    return record.flashes and record.level >= NOTICE
+    return record.flashes and record.level >= MESSAGE
 
 
 def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], int]:

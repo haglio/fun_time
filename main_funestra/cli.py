@@ -13,7 +13,7 @@ from functools import partial
 from pathlib import Path
 
 from app_support import ports
-from funestra.notices import MessageWriter
+from funestra.messages import MessageWriter
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 from shared_ui.orientation import ORIENTATIONS
@@ -177,5 +177,5 @@ def kino_on(args, *, source: LibrarySource | None, memory: ModeMemory) -> Callab
         clip_nav=ClipNav.build(
             [entry.video for entry in source.entries] if source is not None else [],
             source.metadata_root if source is not None else None),
-        notices=MessageWriter(args.notice_file), memory=memory, remembered=memory.read(),
+        messages=MessageWriter(args.notice_file), memory=memory, remembered=memory.read(),
         resolve_playlist=partial(resolve_playlist, args, source=source))

@@ -11,7 +11,7 @@ from pathlib import Path
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from .bridge_records import BridgeConfig
-from .event_log import SOURCE_MAIN, notice
+from .event_log import SOURCE_MAIN, flash_message
 from .funestra_status import read_main_funestra_status
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def save_clip_session(config: BridgeConfig) -> str:
 
 
 def save_and_say(config: BridgeConfig) -> None:
-    """Run the save and flash its notice -- from the genaumacher-save thread."""
+    """Run the save and flash its message -- from the genaumacher-save thread."""
     message = save_clip_session(config)
     if message:
-        notice(logger, message, source=SOURCE_MAIN)
+        flash_message(logger, message, source=SOURCE_MAIN)

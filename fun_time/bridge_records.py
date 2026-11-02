@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from app_support import state_files
 
 from .config import RegenConfig
-from .event_log import NOTICE, SOURCE_SYSTEM
+from .event_log import MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .loopback_server import LOOPBACK_PORT
 from .main_list import MainList
@@ -53,7 +53,7 @@ class BridgeConfig:
     # Where this session answers whether it is in OmniPause -- baked into the
     # landing page a lock opens, which polls it.
     loopback_port: int = LOOPBACK_PORT
-    # Where each Funestra publishes its one-shot notices (a jump with nowhere to go).
+    # Where each Funestra publishes its one-shot messages (a jump with nowhere to go).
     main_funestra_notice_file: Path | None = None
     portrait_notice_file: Path | None = None
     landscape_notice_file: Path | None = None
@@ -173,7 +173,7 @@ class Op(StrEnum):
     a :class:`WindowOp` can ask the dispatch loop for (StrEnum: items compare
     equal to the plain strings producers and tests have always used)."""
 
-    NOTICE = "notice"
+    MESSAGE = "message"
     SHOW_WINDOW = "show_window"
     HIDE_WINDOW = "hide_window"
     ACTIVATE_WINDOW = "activate_window"
@@ -197,14 +197,14 @@ class Op(StrEnum):
 @dataclass(frozen=True)
 class WindowOp:
     op: str
-    # The op's one payload: a window's name, an RFB URL, or a notice's message.
+    # The op's one payload: a window's name, an RFB URL, or a message's message.
     key: str = ""
-    # Which window a ``notice`` op is about, so the log panel can filter it.
+    # Which window a ``message`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM
-    # The log level a ``notice`` op is logged at — NOTICE (white) for a normal
+    # The log level a ``message`` op is logged at — NOTICE (white) for a normal
     # confirmation, FAVORITE (green) for one about the favorites or a funscript,
     # WARNING (yellow) for a dead end, ERROR (red) for a failure.
-    level: int = NOTICE
+    level: int = MESSAGE
 
 
 Handler = Callable[["BridgeState", "BridgeConfig", str], "tuple[BridgeState, list[WindowOp]]"]

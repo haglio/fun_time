@@ -10,7 +10,7 @@ from voice_core.listening import Heard
 
 from fun_time.event_log import (
     FAVORITE,
-    NOTICE,
+    MESSAGE,
     SOURCE_DASH,
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -20,12 +20,12 @@ from fun_time.event_log import (
     EventRecord,
     event_line,
 )
-from fun_time.unlogged_notices import UnloggedNotices
+from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.voice_control import VoiceController
-from fun_time_vr.notices import MAIN, NoticeBoard, screen_for
+from fun_time_vr.messages import MAIN, MessageBoard, screen_for
 
 
-def _write(path: Path, message: str, level: int = NOTICE, source: str = SOURCE_SYSTEM,
+def _write(path: Path, message: str, level: int = MESSAGE, source: str = SOURCE_SYSTEM,
            *, flashes: bool = True, spoken_at: float | None = None) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(event_line(EventRecord(1.0, level, source, message, flashes,
@@ -65,24 +65,24 @@ class TestWhichScreenALineBelongsTo:
 
 class TestWhatItPicksUp:
     def test_a_flash_from_inside_the_process_shows_at_once_and_fades_like_the_rest(self, tmp_path):
-        board = NoticeBoard(_log(tmp_path), banner_seconds=2.0)
+        board = MessageBoard(_log(tmp_path), message_seconds=2.0)
 
-        board.flash("Fisheye · 158° · height 1.20", level=NOTICE, screen=MAIN, now=1.0)
+        board.flash("Fisheye · 158° · height 1.20", level=MESSAGE, screen=MAIN, now=1.0)
 
-        assert board.banner(MAIN).message == "Fisheye · 158° · height 1.20"
+        assert board.flashed(MAIN).message == "Fisheye · 158° · height 1.20"
         board.pump(None, now=2.5)
-        assert board.banner(MAIN).message == "Fisheye · 158° · height 1.20"
+        assert board.flashed(MAIN).message == "Fisheye · 158° · height 1.20"
         board.pump(None, now=3.1)
-        assert board.banner(MAIN) is None
+        assert board.flashed(MAIN) is None
 
     def test_an_announcement_written_after_it_started_flashes(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "landscape next")
 
         board.pump(None, now=1.0)
 
-        assert board.banner(MAIN).message == "landscape next"
+        assert board.flashed(MAIN).message == "landscape next"
 
     def test_the_backlog_it_opened_on_is_not_news(self, tmp_path):
         """The session's history is not what a person is told the moment they
@@ -90,94 +90,94 @@ class TestWhatItPicksUp:
         path = _log(tmp_path)
         _write(path, "an older command")
 
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         board.pump(None, now=1.0)
 
-        assert board.banner(MAIN) is None
+        assert board.flashed(MAIN) is None
 
-    def test_the_diagnostic_chatter_under_a_notice_is_not_shown(self, tmp_path):
-        """The same bar the desktop's notices flash on — a notice, or louder —
+    def test_the_diagnostic_chatter_under_a_message_is_not_shown(self, tmp_path):
+        """The same bar the desktop's messages flash on — a message, or louder —
         so the two surfaces say the same things."""
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "Voice command: landscape_next", level=logging.INFO)
         _write(path, "No clip that way", level=logging.WARNING)
 
         board.pump(None, now=1.0)
 
-        assert board.banner(MAIN).message == "No clip that way"
+        assert board.flashed(MAIN).message == "No clip that way"
 
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "clip locked", level=FAVORITE)
 
         board.pump(None, now=1.0)
 
-        assert board.banner(MAIN).level == FAVORITE
+        assert board.flashed(MAIN).level == FAVORITE
 
 
 class TestTheBannerOverEachFunestra:
     def test_a_line_flashes_over_the_funestra_it_names(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "portrait next", source=SOURCE_PORTRAIT)
 
         board.pump(None, now=1.0)
 
-        assert board.banner(SOURCE_PORTRAIT).message == "portrait next"
-        assert board.banner(SOURCE_LANDSCAPE) is None
-        assert board.banner(MAIN) is None
+        assert board.flashed(SOURCE_PORTRAIT).message == "portrait next"
+        assert board.flashed(SOURCE_LANDSCAPE) is None
+        assert board.flashed(MAIN) is None
 
     def test_the_newest_line_wins_its_screen(self, tmp_path):
-        """One banner per Funestra, as on the desktop: a second notice replaces
+        """One message per Funestra, as on the desktop: a second message replaces
         the first rather than waiting its turn."""
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "portrait next", source=SOURCE_PORTRAIT)
         _write(path, "portrait lock", source=SOURCE_PORTRAIT)
 
         board.pump(None, now=1.0)
 
-        assert board.banner(SOURCE_PORTRAIT).message == "portrait lock"
+        assert board.flashed(SOURCE_PORTRAIT).message == "portrait lock"
 
     def test_each_screen_flashes_its_own(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "portrait next", source=SOURCE_PORTRAIT)
         _write(path, "skip", source=SOURCE_MAIN)
 
         board.pump(None, now=1.0)
 
-        assert board.banner(SOURCE_PORTRAIT).message == "portrait next"
-        assert board.banner(MAIN).message == "skip"
+        assert board.flashed(SOURCE_PORTRAIT).message == "portrait next"
+        assert board.flashed(MAIN).message == "skip"
 
 
 class TestWhatItDrops:
     def test_a_banner_fades_after_its_seconds(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path, banner_seconds=2.0)
+        board = MessageBoard(path, message_seconds=2.0)
         _write(path, "skip", source=SOURCE_MAIN)
         board.pump(None, now=100.0)
 
         board.pump(None, now=101.9)
-        assert board.banner(MAIN).message == "skip"
+        assert board.flashed(MAIN).message == "skip"
 
         board.pump(None, now=102.1)
-        assert board.banner(MAIN) is None
+        assert board.flashed(MAIN) is None
 
 
 class TestWordsFlashedWithNoLogLine:
     def test_they_flash_over_the_funestra_they_name(self, tmp_path):
-        board = NoticeBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
+        board = MessageBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
             2.0, logging.WARNING, SOURCE_PORTRAIT, "unrecognized voice command: alpha beta")))
 
         board.pump(None, now=1.0)
 
-        assert board.banner(SOURCE_PORTRAIT).message == "unrecognized voice command: alpha beta"
+        assert board.flashed(SOURCE_PORTRAIT).message == "unrecognized voice command: alpha beta"
 
     def test_they_never_join_what_the_dash_lists(self, tmp_path):
-        board = NoticeBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
+        board = MessageBoard(_log(tmp_path), unlogged=_Unlogged(EventRecord(
             2.0, logging.WARNING, SOURCE_PORTRAIT, "unrecognized voice command: alpha beta")))
 
         board.pump(None, now=1.0)
@@ -186,18 +186,18 @@ class TestWordsFlashedWithNoLogLine:
 
     def test_the_line_logged_in_their_place_is_listed_and_not_flashed(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path)
+        board = MessageBoard(path)
         _write(path, "unrecognized voice command (2 words)", level=logging.WARNING, flashes=False)
 
         board.pump(None, now=1.0)
 
         assert [record.message for record in board.records] == [
             "unrecognized voice command (2 words)"]
-        assert board.banner(MAIN) is None
+        assert board.flashed(MAIN) is None
 
     def test_the_dash_lists_the_words_heard_in_place_of_their_count(self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path, unlogged=_Unlogged(EventRecord(
+        board = MessageBoard(path, unlogged=_Unlogged(EventRecord(
             2.0, logging.WARNING, SOURCE_SYSTEM, "unrecognized voice command: alpha beta",
             spoken_at=2.0)))
         _write(path, "unrecognized voice command (2 words)", level=logging.WARNING,
@@ -211,14 +211,14 @@ class TestWordsFlashedWithNoLogLine:
     def test_closing_the_board_closes_their_inbox(self, tmp_path):
         unlogged = _Unlogged()
 
-        NoticeBoard(_log(tmp_path), unlogged=unlogged).close()
+        MessageBoard(_log(tmp_path), unlogged=unlogged).close()
 
         assert unlogged.stopped
 
     def test_speech_that_is_no_command_reaches_the_headset_in_its_words_and_no_file_does(
             self, tmp_path):
         path = _log(tmp_path)
-        board = NoticeBoard(path, unlogged=UnloggedNotices(tmp_path))
+        board = MessageBoard(path, unlogged=UnloggedMessages(tmp_path))
         voice_log = logging.getLogger("fun_time.voice_control")
         written = EventLogHandler(path)
         voice_log.addHandler(written)
@@ -228,14 +228,14 @@ class TestWordsFlashedWithNoLogLine:
                 Recognition(unrecognized_text="put the kettle on"),
                 spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
             deadline = time.monotonic() + 5.0
-            while board.banner(MAIN) is None and time.monotonic() < deadline:
+            while board.flashed(MAIN) is None and time.monotonic() < deadline:
                 board.pump(None, now=1.0)
                 time.sleep(0.02)
         finally:
             voice_log.removeHandler(written)
             board.close()
 
-        assert board.banner(MAIN).message == "unrecognized voice command: put the kettle on"
+        assert board.flashed(MAIN).message == "unrecognized voice command: put the kettle on"
         assert [record.message for record in board.records] == [
             "unrecognized voice command: put the kettle on"]
         assert "kettle" not in path.read_text(encoding="utf-8")
@@ -246,19 +246,19 @@ class TestWordsFlashedWithNoLogLine:
         a board that faded a line against the record's own timestamp would drop
         it by the difference between the two — which on this machine is days."""
         path = _log(tmp_path)
-        board = NoticeBoard(path, banner_seconds=5.0)
+        board = MessageBoard(path, message_seconds=5.0)
         _write(path, "landscape next")
 
         board.pump(None, now=9_999.0)
 
-        assert board.banner(MAIN) is not None
+        assert board.flashed(MAIN) is not None
 
     def test_a_missing_log_is_simply_nothing_to_say(self, tmp_path):
-        board = NoticeBoard(tmp_path / "never-written.jsonl")
+        board = MessageBoard(tmp_path / "never-written.jsonl")
 
         board.pump(None, now=1.0)
 
-        assert board.banner(MAIN) is None
+        assert board.flashed(MAIN) is None
 
 
 class TestWhatTheChannelWorkerAsksOfIt:
@@ -270,6 +270,6 @@ class TestWhatTheChannelWorkerAsksOfIt:
     wait for an answer that could not come."""
 
     def test_the_board_can_be_closed_as_well_as_pumped(self, tmp_path):
-        board = NoticeBoard(_log(tmp_path))
+        board = MessageBoard(_log(tmp_path))
 
         board.close()

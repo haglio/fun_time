@@ -16,9 +16,9 @@ a loading screen that leaves first turns it into a room sorting itself out in fr
 
 Whether anything is COVERING those windows is a separate question, and one
 ``test_loading_screen_startup_integration`` already asks of the satellites.  It is
-left there: the dashboard this session runs with brings its notice overlay, whose
+left there: the dashboard this session runs with brings its message overlay, whose
 whole job is to flash over a Funestra for a couple of seconds, so a coverage check
-here would go red on a notice doing exactly what it is for.
+here would go red on a message doing exactly what it is for.
 """
 from __future__ import annotations
 

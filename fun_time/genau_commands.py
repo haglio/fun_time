@@ -83,7 +83,7 @@ def _mark_genaus_flick_weird(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     unfavorite(read_genau_status(config.genau_status_file).flick, config)
     append_command(config.genau_cmd_file, "WEIRD")
-    return state, [WindowOp(op="notice", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
+    return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 
 def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,

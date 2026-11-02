@@ -157,7 +157,7 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   no longer merges cleanly, so the queue waits, armed, forever. Rebase the
   moment it turns, and do not re-arm — re-arming does nothing, and on
   2026-09-07 bought twenty minutes of silence. The repo lands several agents'
-  work an hour, so losing that race is ordinary and only failing to notice it
+  work an hour, so losing that race is ordinary and only failing to message it
   is not.
   **Not in the queue, still `CLEAN`:** you force-pushed after the PR opened.
   GitHub drops auto-merge on a force-push, and `.github/workflows/auto-merge.yml`

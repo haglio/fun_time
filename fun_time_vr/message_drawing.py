@@ -1,8 +1,8 @@
-"""The banner a notice flashes over the Funestra it names, drawn for a video.
+"""The message a message flashes over the Funestra it names, drawn for a video.
 
 The desktop hangs a frameless window over that Funestra's; a headset has none, so
-the same banner is composited into the frame the way the scrubber is.  Shape
-and colors are :class:`fun_time.notice_overlay.NoticeOverlay`'s.
+the same message is composited into the frame the way the scrubber is.  Shape
+and colors are :class:`fun_time.message_overlay.NoticeOverlay`'s.
 
 Every measurement scales with the frame, which is not the size of a window: a
 satellite decodes to 2048px and the Main Funestra to 8192, so the desktop's own
@@ -51,8 +51,8 @@ def font_px(height: int) -> int:  # the type size for a frame this tall
     return max(MIN_FONT_PX, round(height * FONT_FRACTION))
 
 
-def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
-    """The banner, sized to what it says and to the frame it goes on."""
+def paint_message(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
+    """The message, sized to what it says and to the frame it goes on."""
     font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
     room = max(1, max_width - 2 * pad_x)
@@ -64,31 +64,31 @@ def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Imag
     x0, y0, x1, y1 = probe.multiline_textbbox((0, 0), text, font=font, spacing=spacing,
                                               align="center")
     x0, y0, x1, y1 = math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1)
-    banner = Image.new(
+    flashed = Image.new(
         "RGBA", (x1 - x0 + 2 * pad_x, y1 - y0 + 2 * pad_y), (*BG_SECONDARY, 235),
     )
-    draw = ImageDraw.Draw(banner)
+    draw = ImageDraw.Draw(flashed)
     draw.rounded_rectangle(
-        (0, 0, banner.width - 1, banner.height - 1),
+        (0, 0, flashed.width - 1, flashed.height - 1),
         radius=max(2, round(size * _RADIUS)), outline=(*ink, 255),
         width=max(1, round(size * _BORDER)),
     )
     draw.multiline_text((pad_x - x0, pad_y - y0), text, font=font, fill=(*ink, 255),
                         spacing=spacing, align="center")
-    return banner
+    return flashed
 
 
-def banner_placement(banner: Image.Image, width: int, height: int) -> tuple[int, int]:
+def message_placement_in_a_frame(flashed: Image.Image, width: int, height: int) -> tuple[int, int]:
     """Centered across the top, never off a narrow frame's left edge."""
-    return max(0, (width - banner.width) // 2), round(height * TOP_MARGIN_FRACTION)
+    return max(0, (width - flashed.width) // 2), round(height * TOP_MARGIN_FRACTION)
 
 
-def banner_bgra(message: str, level: int, *, width: int, height: int):
+def message_bgra(message: str, level: int, *, width: int, height: int):
     """``(x, y, bgra)`` for one overlay call, or None when it would not fit."""
     if width <= 1 or height <= 1:
         return None
-    banner = paint_banner(
+    flashed = paint_message(
         message, level, max_width=round(width * WIDTH_FRACTION), size=font_px(height),
     )
-    x, y = banner_placement(banner, width, height)
-    return x, y, red_and_blue_swapped(np.asarray(banner))
+    x, y = message_placement_in_a_frame(flashed, width, height)
+    return x, y, red_and_blue_swapped(np.asarray(flashed))

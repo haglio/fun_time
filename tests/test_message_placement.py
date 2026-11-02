@@ -3,17 +3,17 @@ from __future__ import annotations
 import logging
 
 from fun_time.dashboard_layout import Rect, Size
-from fun_time.event_log import NOTICE, EventRecord, is_announcement
-from fun_time.notice_placement import (
+from fun_time.event_log import MESSAGE, EventRecord, is_announcement
+from fun_time.message_placement import (
     FunestraRects,
-    notice_target_rect,
+    message_target_rect,
     top_center_position,
 )
 
 
 class TestIsAnnouncement:
-    def test_a_notice_is_an_announcement(self):
-        assert is_announcement(EventRecord(0.0, NOTICE, "main", "Clip saved"))
+    def test_a_message_is_an_announcement(self):
+        assert is_announcement(EventRecord(0.0, MESSAGE, "main", "Clip saved"))
 
     def test_a_warning_is_louder_so_it_counts_too(self):
         assert is_announcement(EventRecord(0.0, logging.WARNING, "main", "careful"))
@@ -33,18 +33,18 @@ class TestNoticeTargetRect:
 
     def test_each_funestra_source_maps_to_its_own_rect(self):
         rects = self._rects()
-        assert notice_target_rect("main", rects) == rects.main
-        assert notice_target_rect("portrait", rects) == rects.portrait
-        assert notice_target_rect("landscape", rects) == rects.landscape
-        assert notice_target_rect("dash", rects) == rects.dash
+        assert message_target_rect("main", rects) == rects.main
+        assert message_target_rect("portrait", rects) == rects.portrait
+        assert message_target_rect("landscape", rects) == rects.landscape
+        assert message_target_rect("dash", rects) == rects.dash
 
-    def test_a_system_notice_has_no_funestra_so_it_falls_back_to_the_main_funestra(self):
+    def test_a_system_message_has_no_funestra_so_it_falls_back_to_the_main_funestra(self):
         rects = self._rects()
-        assert notice_target_rect("system", rects) == rects.main
+        assert message_target_rect("system", rects) == rects.main
 
     def test_an_unknown_source_falls_back_to_the_main_funestra(self):
         rects = self._rects()
-        assert notice_target_rect("nonsense", rects) == rects.main
+        assert message_target_rect("nonsense", rects) == rects.main
 
 
 class TestTopCenterPosition:

@@ -43,7 +43,7 @@ from fun_time.dashboard_layout import PAD, compute_dashboard_bar_layout
 from fun_time.dashboard_osr2_model import room_for_a_whole_part
 from fun_time.event_log import (
     LEVELS_BY_NAME,
-    NOTICE,
+    MESSAGE,
     SOURCE_LABELS,
     SOURCE_MAIN,
     SOURCE_PORTRAIT,
@@ -76,7 +76,7 @@ from tests.made_up_osr2_parts import a_part, a_readout, center_of
 _A_PREVIEW = Preview(feature="the new reference popup")
 
 
-def _record(message: str, *, level: int = NOTICE, source: str = SOURCE_SYSTEM) -> EventRecord:
+def _record(message: str, *, level: int = MESSAGE, source: str = SOURCE_SYSTEM) -> EventRecord:
     return EventRecord(ts=1_700_000_000.0, level=level, source=source, message=message)
 
 
@@ -251,7 +251,7 @@ class TestTheLogWrapsAsTheDesktopsDoes:
     def test_a_record_reads_the_way_the_log_panel_writes_it(self):
         record = _record("portrait next", source=SOURCE_PORTRAIT)
 
-        assert log_lines(DashState(), [record]) == [(format_record(record), NOTICE)]
+        assert log_lines(DashState(), [record]) == [(format_record(record), MESSAGE)]
 
     def test_a_record_too_long_for_a_row_goes_on_to_the_rows_under_it_whole(self):
         record = _record(" ".join(f"word{n}" for n in range(40)))
@@ -284,7 +284,7 @@ class TestTheLogWrapsAsTheDesktopsDoes:
         rows = log_lines(DashState(), records)
 
         assert len(rows) >= LOG_ROWS
-        assert rows == [(format_record(record), NOTICE) for record in records[-len(rows):]]
+        assert rows == [(format_record(record), MESSAGE) for record in records[-len(rows):]]
 
     def test_a_record_too_long_for_the_rows_left_is_left_out_whole_rather_than_cut(self):
         room = len(log_lines(DashState(), [_record(f"line {n}") for n in range(LOG_ROWS * 4)]))
@@ -292,7 +292,7 @@ class TestTheLogWrapsAsTheDesktopsDoes:
         newer = [_record(f"line {n}") for n in range(room - 1)]
 
         assert log_lines(DashState(), [too_long, *newer]) == [
-            (format_record(record), NOTICE) for record in newer]
+            (format_record(record), MESSAGE) for record in newer]
 
 
 class TestTheColumnBesideTheOsr2Part:
@@ -590,7 +590,7 @@ class TestWhatItDraws:
     def test_the_dial_hides_what_it_is_set_above(self):
         loud_only = DashState(verbosity=logging.ERROR)
         quiet = np.asarray(paint_dash(loud_only, []))
-        spoken = np.asarray(paint_dash(loud_only, [_record("portrait next", level=NOTICE)]))
+        spoken = np.asarray(paint_dash(loud_only, [_record("portrait next", level=MESSAGE)]))
 
         assert np.array_equal(quiet, spoken)
 

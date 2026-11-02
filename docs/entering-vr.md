@@ -76,7 +76,7 @@ So the crossing goes through a relay, `fun_time.session_handoff`:
 1. The dispatch loop answers `enter_vr` / `exit_vr` by writing
    `state/session_handoff.txt` and then ending the session exactly as `quit`
    does — "end_session" on the AHK command channel. Said of the session
-   already running, it posts a notice and stays put instead.
+   already running, it posts a message and stays put instead.
 2. The orchestrator's `main`, after teardown and as its very last act, takes
    that request off the disk and spawns the relay, detached.
 3. The relay waits for the mutex to come free. That is the outgoing session
@@ -105,7 +105,7 @@ at risk, because no bare "enter" was in the grammar to win.
 
 So the synonym is gone. "quit" still quits, and so does Ctrl+Alt+Q. A stray
 "exit" now lands on the crossing pair instead, which in the session it names is
-answered with a notice and nothing else — a far cheaper misreading than ending
+answered with a message and nothing else — a far cheaper misreading than ending
 Fun Time. `tests/test_voice_commands.py` holds the rule for every crossing
 phrase, present and future.
 

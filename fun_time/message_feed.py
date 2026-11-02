@@ -1,4 +1,4 @@
-"""What drives the notices flashed over a Funestra: a second tail of the event log, faster than
+"""What drives the messages flashed over a Funestra: a second tail of the event log, faster than
 the panel's 500ms refresh so a "Clip saved" lands promptly, drawn over the
 window it concerns — from the same layout functions startup and the crown place
 that window with.
@@ -17,12 +17,12 @@ from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement,
 from fun_time.notice_placement import FunestraRects, notice_target_rect
 from fun_time.overlay_progress import loading_screen_is_up
 from fun_time.shared_state import read_shared_state
-from fun_time.unlogged_notices import UnloggedNotices
+from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monitor_rects
 
 
 def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> FunestraRects:
-    """Where each notice-bearing window sits, in real screen coordinates."""
+    """Where each message-bearing window sits, in real screen coordinates."""
     seats = secondary_monitor_rects(screens.secondary_monitor, screens.config, majority=majority)
     return FunestraRects(
         main=seats.main,
@@ -33,15 +33,15 @@ def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> F
 
 
 def _screens(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | None:
-    """None on a headless run, where notices simply do not flash."""
+    """None on a headless run, where messages simply do not flash."""
     try:
         return screen_layout(layout, rfb_mode_selector=rfb_mode_selector)
     except (ValueError, OSError):
         return None
 
 
-class NoticeFeed:
-    """One session's notices: where they go, when they may go, how far read.
+class MessageFeed:
+    """One session's messages: where they go, when they may go, how far read.
 
     Two directories, because the two files are in two.  *held* waits for the
     LOADING SCREEN, which the panel's own reveal precedes.
@@ -67,7 +67,7 @@ class NoticeFeed:
         self._shared_state_file = shared_state_file
         self._screens = _screens(layout, rfb_mode_selector)
         self.overlay = make_overlay() if self._screens is not None else None
-        self._unlogged = UnloggedNotices(event_log_dir) if self.overlay is not None else None
+        self._unlogged = UnloggedMessages(event_log_dir) if self.overlay is not None else None
 
     @property
     def offset(self) -> int:
@@ -104,7 +104,7 @@ class NoticeFeed:
             return
         rects = self.funestra_rects
         for record in announcements:
-            self.overlay.flash(record, notice_target_rect(record.source, rects))
+            self.overlay.flash(record, message_target_rect(record.source, rects))
 
     def shutdown(self) -> None:
         """Put the overlay down; nothing flashes after this."""

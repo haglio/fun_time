@@ -6,7 +6,7 @@ import logging
 from funestra.hud_placement import HudEdge
 from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
-from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.event_log import FAVORITE, MESSAGE
 
 DEG_PER_PX = 32.6 / 380  # every control in the scene, one size
 # Pixels across, held: the screen keeps one size whatever it carries, so its
@@ -15,7 +15,7 @@ HUD_WIDTH_PX = 560
 
 # fun_time.log_panel's own mapping.
 _LEVEL_COLORS: dict[int, tuple[int, int, int]] = {
-    NOTICE: TEXT_PRIMARY,
+    MESSAGE: TEXT_PRIMARY,
     FAVORITE: GREEN,
     logging.WARNING: YELLOW,
     logging.ERROR: RED,

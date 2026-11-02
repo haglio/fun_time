@@ -70,7 +70,7 @@ class TestTheFlagFilesThisProcessReads:
             self, tmp_path, cfg_path, unmuted, text: str, expected: bool):
         """Not the library function in the abstract — the closure `main` builds.
         Invert it and the companion plays whenever genau mode is OFF; nothing
-        else in the suite would notice."""
+        else in the suite would message."""
         read_flag = self._reader_the_runtime_was_given(tmp_path, cfg_path)
         path = tmp_path / "flag.txt"
         path.write_text(text, encoding="utf-8")

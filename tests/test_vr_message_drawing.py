@@ -1,0 +1,144 @@
+"""The message a message flashes over the Funestra it names."""
+from __future__ import annotations
+
+import logging
+
+import numpy as np
+from shared_ui.notice_shape import NOTICE_TOP_MARGIN
+
+from fun_time.event_log import FAVORITE, MESSAGE
+from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
+from fun_time_vr.message_drawing import (
+    MIN_FONT_PX,
+    font_px,
+    message_bgra,
+    message_placement_in_a_frame,
+    paint_message,
+)
+
+
+def _flashed(message="skip", level=MESSAGE, *, max_width=1600, size=48):
+    return paint_message(message, level, max_width=max_width, size=size)
+
+
+class TestTheBanner:
+    def test_it_says_what_it_was_given(self):
+        short = _flashed("skip")
+        longer = _flashed("landscape shuffle")
+
+        assert longer.width > short.width
+        assert np.asarray(short)[:, :, 3].max() > 0
+
+    def test_it_reads_the_level_the_log_panel_reads(self):
+        """One color per level across every surface: a red line is red on the
+        desktop's message, in its log panel and here."""
+        plain = np.asarray(_flashed(level=MESSAGE))
+        loud = np.asarray(_flashed(level=logging.ERROR))
+        favorite = np.asarray(_flashed(level=FAVORITE))
+
+        assert not np.array_equal(plain, loud)
+        assert not np.array_equal(plain, favorite)
+
+    def test_a_long_line_is_cut_to_the_width_it_was_given(self):
+        wide = _flashed("word " * 60, max_width=400)
+
+        assert wide.width <= 400
+
+    def test_a_word_wider_than_the_banner_is_cut_to_it_too(self):
+        """However the family's wrapper hands back a line still too wide, the
+        message's way of showing one is the cut."""
+        assert _flashed("x" * 300, max_width=400).width <= 400
+
+    def test_a_line_break_in_a_message_starts_a_new_line_as_on_the_desktops_notice(self):
+        spaced = _flashed("first made up line second made up line", max_width=4000)
+        broken = _flashed("first made up line\nsecond made up line", max_width=4000)
+
+        assert broken.height > spaced.height
+
+    def test_a_message_too_wide_for_one_line_goes_on_to_another_rather_than_lose_its_end(self):
+        one_line = _flashed("not sure enough of: portrait next", max_width=4000)
+        wrapped = _flashed("not sure enough of: portrait next (press Enter to accept)",
+                          max_width=900)
+
+        assert wrapped.width <= 900
+        assert wrapped.height > one_line.height
+
+
+class TestItIsSizedToTheFrameItGoesOn:
+    """A Funestra decodes to 2048 or 8192 pixels, not to the size of a window, so
+    the desktop's own 19px type came out a tenth of the height it reads at
+    there -- with a 1px border and a 4px corner nobody could see at all."""
+
+    def test_the_type_grows_with_the_frame(self):
+        assert font_px(MAIN_VIDEO_CAP_PX) > font_px(SATELLITE_VIDEO_CAP_PX) > font_px(720)
+
+    def test_it_never_goes_under_the_desktops_own_size(self):
+        assert font_px(100) == MIN_FONT_PX
+
+    def test_the_whole_shape_grows_with_it_and_not_just_the_type(self):
+        """The padding, the border and the corner are multiples of the type, so
+        a message on a big frame is the same shape rather than thin type in a
+        box that stayed small."""
+        small = _flashed(size=20)
+        large = _flashed(size=80)
+
+        assert large.height / small.height > 3.0
+
+    def test_a_bigger_frame_gets_a_bigger_banner(self):
+        _x, _y, small = message_bgra("skip", MESSAGE, width=1280, height=720)
+        _x, _y, large = message_bgra("skip", MESSAGE, width=3840, height=2160)
+
+        assert large.shape[0] > small.shape[0]
+
+
+class TestWhereItSits:
+    def test_it_is_centered_across_the_top(self):
+        flashed = _flashed()
+
+        x, y = message_placement_in_a_frame(flashed, 1920, 1080)
+
+        assert x == (1920 - flashed.width) // 2
+        assert 0 < y < 1080 // 10
+
+    def test_it_sits_where_the_desktop_sits_it(self):
+        """On a frame as tall as a Funestra's window the message sits where the
+        desktop sits its message; it was once twice as far down."""
+        _x, y = message_placement_in_a_frame(_flashed(), 1920, 1000)
+
+        assert y == NOTICE_TOP_MARGIN
+
+    def test_it_never_starts_off_the_left_of_a_narrow_frame(self):
+        flashed = _flashed("landscape shuffle", max_width=4000, size=64)
+
+        x, _y = message_placement_in_a_frame(flashed, 40, 400)
+
+        assert x == 0
+
+    def test_the_margin_scales_with_the_frame(self):
+        flashed = _flashed()
+
+        _x, small = message_placement_in_a_frame(flashed, 1280, 720)
+        _x, large = message_placement_in_a_frame(flashed, 3840, 2160)
+
+        assert large > small
+
+
+class TestWhatTheOverlayGets:
+    def test_it_hands_over_a_placed_bgra_block(self):
+        placed = message_bgra("skip", MESSAGE, width=1920, height=1080)
+
+        assert placed is not None
+        x, y, bgra = placed
+        assert bgra.shape[2] == 4
+        assert x >= 0
+        assert y >= 0
+
+    def test_the_banner_stays_inside_the_frame(self):
+        x, _y, bgra = message_bgra("landscape shuffle please", MESSAGE, width=1152, height=2048)
+
+        assert x + bgra.shape[1] <= 1152
+
+    def test_a_frame_with_no_size_yet_gets_nothing(self):
+        """Before mpv reports its dimensions the target is 1x1; a message drawn
+        onto that is a message mpv would scale over the whole screen."""
+        assert message_bgra("skip", MESSAGE, width=1, height=1) is None

@@ -20,8 +20,8 @@ from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.genau_notifier import GenauNotifier
+from funestra.messages import MessageWriter
 from funestra.modes import MainMode
-from funestra.notices import MessageWriter
 
 from fun_time.genau_config import GenauSettings
 
@@ -69,7 +69,7 @@ def _genau(args):
         channels=channels,
         notifier=GenauNotifier(args.notify_host, args.notify_port),
         tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
-        notices=MessageWriter(args.notice_file),
+        messages=MessageWriter(args.notice_file),
         start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
         latest=args.genau_latest,
         f_mode=args.genau_f_mode,

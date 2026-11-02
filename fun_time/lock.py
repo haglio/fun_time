@@ -58,7 +58,7 @@ def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState,
 class DiscardPlan:
     condemns: bool
     log_message: str
-    notice_message: str
+    message_text: str
 
 
 def build_discard_plan(
@@ -68,8 +68,8 @@ def build_discard_plan(
         return DiscardPlan(
             condemns=False,
             log_message=f"Removed from favorites on Funestra {funestra}: {current_path}",
-            notice_message="Unfavorited")
+            message_text="Unfavorited")
     return DiscardPlan(
         condemns=True,
         log_message=f"Discarding from Funestra {funestra}: {current_path}",
-        notice_message=SENT_TO_TRASH)
+        message_text=SENT_TO_TRASH)

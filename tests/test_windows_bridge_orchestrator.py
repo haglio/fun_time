@@ -80,7 +80,7 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
-from fun_time.unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
+from fun_time.unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from fun_time.win32 import StackedWindow
 from fun_time.win32_events import PressAndCaretWatch
 from fun_time.window_names import ORIGENERATOR_TITLE
@@ -2514,7 +2514,7 @@ class TestStartupCancellation:
         leftovers = [
             pids_file, ahk_cmd_file, dashboard_cmd_file,
             dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
-            state_dir / UNLOGGED_NOTICE_PORT_FILENAME, Path(commands.dashboard_state_file),
+            state_dir / UNLOGGED_MESSAGE_PORT_FILENAME, Path(commands.dashboard_state_file),
         ]
         state = shared_state_path(state_dir)
         for path in [*leftovers, state]:

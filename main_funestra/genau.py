@@ -14,8 +14,8 @@ from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_overlay import FlickFrame
 from funestra.main_hud_painter import ModeHud
+from funestra.messages import MessageWriter
 from funestra.modes import MessageLevel
-from funestra.notices import MessageWriter
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
@@ -52,7 +52,7 @@ class Genau:
         channels: GenauChannels,
         notifier,
         tcode_sink,
-        notices: MessageWriter | None = None,
+        messages: MessageWriter | None = None,
         start_flick: Path | None = None,
         latest: bool = False,
         f_mode: bool = False,
@@ -72,7 +72,7 @@ class Genau:
         self._orientations = orientations
         self._metadata_root = metadata_root
         self._notifier = notifier
-        self._notices = notices
+        self._messages = messages
         self._frame = None
         self._flick: Path | None = None
         self._loading: str | None = None
@@ -165,12 +165,12 @@ class Genau:
         self._loading = text
 
     def _say_no_other_flicks(self) -> None:
-        if self._notices is not None:
-            self._notices.say(no_other_flicks(), level=MessageLevel.WARNING)
+        if self._messages is not None:
+            self._messages.say(no_other_flicks(), level=MessageLevel.WARNING)
 
     def _say(self, words: str) -> None:
-        if self._notices is not None:
-            self._notices.say(words, level=MessageLevel.NOTICE)
+        if self._messages is not None:
+            self._messages.say(words, level=MessageLevel.NORMAL)
 
     def _scan(self) -> list[Path]:
         return self._kept_of(self._browsed())

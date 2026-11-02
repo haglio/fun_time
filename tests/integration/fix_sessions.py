@@ -38,7 +38,7 @@ class FixNotice:
 @dataclass(frozen=True)
 class FixSessionSteps:
     start_again: list[dict]
-    notices: list[FixNotice]
+    messages: list[FixNotice]
 
 
 def shipped_again(incidents: Sequence[dict]) -> set[int]:
@@ -57,7 +57,7 @@ def _fix_sessions(incidents: Sequence[dict], sessions: Sequence[dict]) -> Iterat
 
 def fix_session_steps(incidents: Sequence[dict], sessions: Sequence[dict], told: Mapping[str, str],
                       restarts: Mapping[str, int], died: Callable[[dict], bool]) -> FixSessionSteps:
-    start_again, notices = [], []
+    start_again, messages = [], []
     for incident, session in _fix_sessions(incidents, sessions):
         state, session_id = session.get("state"), session["id"]
         if state not in _SETTLED or told.get(session_id) == state:
@@ -76,9 +76,9 @@ def fix_session_steps(incidents: Sequence[dict], sessions: Sequence[dict], told:
             title = f"{name} stopped on an error"
             body = ("It stopped on an error from the Claude service. Click to open it in Claude Desktop "
                     "and tell it to carry on.")
-        notices.append(FixNotice(session_id, session.get("sessionId", session_id), session.get("cwd", ""), state,
+        messages.append(FixNotice(session_id, session.get("sessionId", session_id), session.get("cwd", ""), state,
                                  title, body))
-    return FixSessionSteps(start_again, notices)
+    return FixSessionSteps(start_again, messages)
 
 
 def background_sessions(claude: str, shell=run_command) -> list[dict]:
@@ -101,9 +101,9 @@ def died_on_a_service_error(transcripts: Path, session: dict) -> bool:
     return bool(last_said.get("isApiErrorMessage"))
 
 
-def _start_notice(notice: FixNotice) -> None:
+def _start_notice(flashed: FixNotice) -> None:
     subprocess.Popen([str(Path(sys.executable).with_name("pythonw.exe")), "-m", "tests.integration.fix_session_notice",
-                      notice.session, notice.resume, notice.cwd, notice.title, notice.body],
+                      flashed.session, flashed.resume, flashed.cwd, flashed.title, flashed.body],
                      cwd=Path(__file__).resolve().parents[2], **hidden_subprocess_kwargs())
 
 
@@ -136,8 +136,8 @@ def look_after_fix_sessions(state: Path, incidents: Sequence[dict], claude: str,
         restarts[session_id] = restarts.get(session_id, 0) + 1
     if started_again:
         write_whole(restarts_path, json.dumps(restarts, indent=1))
-    for notice in steps.notices:
-        start(notice)
-        told[notice.session] = notice.state
-    if steps.notices:
+    for flashed in steps.messages:
+        start(flashed)
+        told[flashed.session] = flashed.state
+    if steps.messages:
         write_whole(told_path, json.dumps(told, indent=1))

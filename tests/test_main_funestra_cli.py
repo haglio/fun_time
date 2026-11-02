@@ -389,7 +389,7 @@ class TestTheWholeSurfaceFunTimeLaunchesThrough:
 
     def test_genau_tells_the_audio_companion_where_fun_times_config_puts_it(self):
         """The companion binds the address its own section names, so Genau's
-        notices default to that same section rather than to a number of its own."""
+        messages default to that same section rather than to a number of its own."""
         args = build_parser({"audio_companion": {"host": "10.0.0.9", "port": 50600}}).parse_args([])
 
         assert (args.notify_host, args.notify_port) == ("10.0.0.9", 50600)

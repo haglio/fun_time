@@ -11,7 +11,7 @@ from main_funestra.genau_verbs import genau_f_mode
 
 from .aiming import FUNESTRA_SOURCES
 from .bridge_records import BridgeConfig, Handler, WindowOp
-from .event_log import FAVORITE, NOTICE, SOURCE_SYSTEM
+from .event_log import FAVORITE, MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import show_f_mode
 from .main_list import MainListSettings
@@ -150,15 +150,15 @@ def _dispatch_fmode(
     # *asked for*, not the ones that moved: "f mode" is a gesture at Fun Time even
     # on the press where only one Funestra was left to narrow.  Enabling is green,
     # since what it narrows to is the favorites and the funscripts; disabling is
-    # an ordinary white notice.
+    # an ordinary white message.
     source = FUNESTRA_SOURCES[funestras[0]] if len(funestras) == 1 else SOURCE_SYSTEM
-    notice_op = WindowOp(
-        op="notice",
+    message_op = WindowOp(
+        op="message",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
         source=source,
-        level=FAVORITE if enabled else NOTICE,
+        level=FAVORITE if enabled else MESSAGE,
     )
-    return state, [notice_op]
+    return state, [message_op]
 
 
 def _fmode(funestras: tuple[str, ...], target: bool | None, state: BridgeState,

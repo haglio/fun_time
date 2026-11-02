@@ -4,16 +4,16 @@ import logging
 from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.event_log import FAVORITE, MESSAGE
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
-from fun_time.funestra_notices import read_funestra_notice
+from fun_time.funestra_messages import read_funestra_message
 from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
 from tests.fun_time_window_fakes import MAIN_FUNESTRA_PID
 
 
 def _runner(tmp_path: Path) -> DispatchLoopRunner:
     """A real DispatchLoopRunner whose config's files all live under tmp_path,
-    the three Funestras' notice channels among them."""
+    the three Funestras' message channels among them."""
     path_fields = (
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
         "portrait_playlist_file", "landscape_cmd_file", "landscape_paused_file",
@@ -49,37 +49,37 @@ def _write(path: Path, seq: int, level: str, message: str) -> None:
 
 
 class TestReadFunestraNotice:
-    def test_reads_a_published_notice(self, tmp_path):
+    def test_reads_a_published_message(self, tmp_path):
         path = tmp_path / "main_player_notice.txt"
         _write(path, 3, "warning", "full video not available")
 
-        assert read_funestra_notice(path) == (3.0, "warning", "full video not available")
+        assert read_funestra_message(path) == (3.0, "warning", "full video not available")
 
     def test_missing_file_is_empty(self, tmp_path):
-        assert read_funestra_notice(tmp_path / "nope.txt") == (0, "", "")
+        assert read_funestra_message(tmp_path / "nope.txt") == (0, "", "")
 
     def test_malformed_sequence_is_empty(self, tmp_path):
         path = tmp_path / "main_player_notice.txt"
         path.write_text("seq=nonsense\nmessage=hi\n", encoding="utf-8")
 
-        assert read_funestra_notice(path) == (0, "", "")
+        assert read_funestra_message(path) == (0, "", "")
 
 
 class TestFlashFunestraNotices:
-    """The loop flashes each Funestra's notice exactly once, over that
+    """The loop flashes each Funestra's message exactly once, over that
     Funestra, in the color its kind names."""
 
     def _loop(self, tmp_path):
-        return _runner(tmp_path)  # built before any notice exists: seq latch 0
+        return _runner(tmp_path)  # built before any message exists: seq latch 0
 
     def test_flashes_once_then_stays_quiet(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
         _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
 
         with caplog.at_level(logging.DEBUG):
-            loop.notices.flash_new()
+            loop.messages.flash_new()
             first = [r for r in caplog.records if "full video not available" in r.message]
-            loop.notices.flash_new()
+            loop.messages.flash_new()
             again = [r for r in caplog.records if "full video not available" in r.message]
 
         assert len(first) == 1
@@ -94,28 +94,28 @@ class TestFlashFunestraNotices:
         loop = self._loop(tmp_path)
         with caplog.at_level(logging.DEBUG):
             _write(tmp_path / "main_player_notice.txt", 1, "favorite", "funscript jump")
-            loop.notices.flash_new()
-            _write(tmp_path / "main_player_notice.txt", 2, "notice", "full video")
-            loop.notices.flash_new()
+            loop.messages.flash_new()
+            _write(tmp_path / "main_player_notice.txt", 2, "message", "full video")
+            loop.messages.flash_new()
             _write(tmp_path / "main_player_notice.txt", 3, "warning", "money shot not available")
-            loop.notices.flash_new()
+            loop.messages.flash_new()
 
         by_message = {r.message: r.levelno for r in caplog.records}
         assert by_message["funscript jump"] == FAVORITE
-        assert by_message["full video"] == NOTICE
+        assert by_message["full video"] == MESSAGE
         assert by_message["money shot not available"] == logging.WARNING
 
     def test_a_new_sequence_flashes_again(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
         _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
         with caplog.at_level(logging.DEBUG):
-            loop.notices.flash_new()
+            loop.messages.flash_new()
             _write(tmp_path / "main_player_notice.txt", 2, "warning", "money shot not available")
-            loop.notices.flash_new()
+            loop.messages.flash_new()
 
         assert any("money shot not available" in r.message for r in caplog.records)
 
-    def test_a_satellites_notice_flashes_over_that_satellite(self, tmp_path, caplog):
+    def test_a_satellites_message_flashes_over_that_satellite(self, tmp_path, caplog):
         """Each Funestra has a channel of its own, so a satellite's "no
         funscripting ahead" lands over the satellite that said it and the Main
         Funestra's over the Main, each counted on its own sequence."""
@@ -124,8 +124,8 @@ class TestFlashFunestraNotices:
         _write(tmp_path / "landscape_notice.txt", 1, "favorite", "next funscripted")
 
         with caplog.at_level(logging.DEBUG):
-            loop.notices.flash_new()
-            loop.notices.flash_new()
+            loop.messages.flash_new()
+            loop.messages.flash_new()
 
         assert sorted((r.getMessage(), r.source, r.levelno) for r in caplog.records) == [
             ("next funscripted", "landscape", FAVORITE),
@@ -133,10 +133,10 @@ class TestFlashFunestraNotices:
         ]
 
 
-def test_a_notice_from_a_previous_session_does_not_flash_on_open(tmp_path):
+def test_a_message_from_a_previous_session_does_not_flash_on_open(tmp_path):
     """Opening Fun Time replayed whatever was last in the file, so a stale
     'full video not available' appeared the instant it started.  The latch is
-    the real constructor's own: the runner is built AFTER the stale notice
+    the real constructor's own: the runner is built AFTER the stale message
     landed, exactly as a fresh session opens over last session's file."""
     _write(tmp_path / "main_player_notice.txt", 500, "warning", "stale from last time")
     _write(tmp_path / "portrait_notice.txt", 500, "warning", "stale on the side")
@@ -146,10 +146,10 @@ def test_a_notice_from_a_previous_session_does_not_flash_on_open(tmp_path):
     seen: list[str] = []
     handler = logging.Handler()
     handler.emit = lambda record: seen.append(record.getMessage())
-    logger = logging.getLogger("fun_time.funestra_notices")
+    logger = logging.getLogger("fun_time.funestra_messages")
     logger.addHandler(handler)
     try:
-        loop.notices.flash_new()
+        loop.messages.flash_new()
     finally:
         logger.removeHandler(handler)
 

@@ -37,8 +37,8 @@ from funestra.funestra_controls import apply_command as apply_satellite_command
 from funestra.funestra_verbs import SHOW
 from funestra.funscript_jumps import FunscriptJumps
 from funestra.genau_controls import VERBS as GENAU_VERBS
+from funestra.messages import MessageWriter
 from funestra.modes import MainMode
-from funestra.notices import MessageWriter
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
 from funestra.testing import FakeEngine
@@ -71,12 +71,12 @@ from tests.test_windows_bridge_dispatch_loop import make_runner
 # the one VR process with no HWND of its own, and the session hands its
 # dispatch loop no window of the hosted Origenerator's either — that one boots
 # parked and stays parked for the stay (docs/known-issues.md) — so these
-# resolve nothing and settle into no-ops.  ``notice`` is here for a nearer
+# resolve nothing and settle into no-ops.  ``message`` is here for a nearer
 # reason: its overlay is a desktop window the session does not launch, so a
 # flash that would confirm a key on the desktop confirms nothing in the
 # headset.  Listed so the sweep can tell a designed no-op from a new one.
 _OPS_WITH_NO_WINDOWS = frozenset({
-    Op.NOTICE, Op.SHOW_WINDOW, Op.HIDE_WINDOW, Op.ACTIVATE_WINDOW, Op.MINIMIZE_WINDOW,
+    Op.MESSAGE, Op.SHOW_WINDOW, Op.HIDE_WINDOW, Op.ACTIVATE_WINDOW, Op.MINIMIZE_WINDOW,
     Op.RESTORE_PARKED, Op.RESTACK_RFB,
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })
@@ -162,7 +162,7 @@ class _TheHeadsetsMainFunestra:
             locked=True, sound_is_the_rooms=True,
             users={MainMode.KINO: partial(
                 Kino, source=None, clip_nav=ClipNav.build([], None),
-                notices=MessageWriter(None), memory=ModeMemory(None),
+                messages=MessageWriter(None), memory=ModeMemory(None),
                 remembered=RememberedMode(), resolve_playlist=list),
                 MainMode.GENAU: lambda _playback: _genau_in_the_headset(tmp_path)},
             window_verbs=self._apply_the_headsets_verb,

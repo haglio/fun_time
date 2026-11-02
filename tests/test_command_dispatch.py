@@ -27,7 +27,7 @@ from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
-from fun_time.event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_PORTRAIT
+from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.lock_hud import hud_map_cells
@@ -956,7 +956,7 @@ def test_funscript_jump_is_refused_while_a_satellite_has_the_osr2(tmp_path: Path
     _, ops = dispatch_command("main_funestra_funscript_jump", state, config)
 
     assert not config.main_funestra_cmd_file.exists()
-    assert ops == [WindowOp(op="notice", key="The Main Funestra doesn't have the OSR2",
+    assert ops == [WindowOp(op="message", key="The Main Funestra doesn't have the OSR2",
                             level=logging.WARNING)]
 
 
@@ -976,7 +976,7 @@ def test_a_satellites_skip_ahead_is_refused_while_another_funestra_has_the_osr2(
     _, ops = dispatch_command("portrait_funscript_jump", state, config)
 
     assert not config.portrait_cmd_file.exists()
-    assert ops == [WindowOp(op="notice", key="The portrait Satellite doesn't have the OSR2",
+    assert ops == [WindowOp(op="message", key="The portrait Satellite doesn't have the OSR2",
                             level=logging.WARNING)]
 
 
@@ -1096,7 +1096,7 @@ def test_a_satellite_with_no_video_on_screen_ignores_video_scoped_commands(
 ):
     """A satellite that has not published its first status — mid-startup, or
     between videos — has no current video, and a key mashed exactly then must
-    be inert: no crash, no notice, no verb queued against an empty path."""
+    be inert: no crash, no message, no verb queued against an empty path."""
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command(command, _make_state(), config)
@@ -1346,7 +1346,7 @@ def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_pat
     assert (state.genau_favorites_filter, state.main_scripted_filter) == (True, False)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{genau_f_mode(True)}\n"
     assert mock_fmode.call_args.kwargs["funestras"] == ()
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=SOURCE_MAIN, level=FAVORITE)]
+    assert ops == [WindowOp(op="message", key="F-Mode enabled", source=SOURCE_MAIN, level=FAVORITE)]
 
 
 def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
@@ -1383,11 +1383,11 @@ def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
 
     # At the favorites' own level, so it flashes green: F-mode is the filter over
     # them, and green is what the favorites and the funscripts own.
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="system",
+    assert ops == [WindowOp(op="message", key="F-Mode enabled", source="system",
                             level=FAVORITE)]
 
 
-def test_fmode_flashes_a_plain_white_notice_when_it_turns_off(tmp_path: Path):
+def test_fmode_flashes_a_plain_white_message_when_it_turns_off(tmp_path: Path):
     """Disabling F-mode flashed red, the color kept for errors, and nothing went
     wrong.  It is white, and says which way it went: a green "F mode" there once
     read as "turned on"."""
@@ -1397,7 +1397,7 @@ def test_fmode_flashes_a_plain_white_notice_when_it_turns_off(tmp_path: Path):
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
     assert ops == [
-        WindowOp(op="notice", key="F-Mode disabled", source="system", level=NOTICE),
+        WindowOp(op="message", key="F-Mode disabled", source="system", level=MESSAGE),
     ]
 
 
@@ -1406,7 +1406,7 @@ def test_a_sided_fmode_flashes_on_that_funestras_own_display(tmp_path: Path):
 
     _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
 
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="landscape",
+    assert ops == [WindowOp(op="message", key="F-Mode enabled", source="landscape",
                             level=FAVORITE)]
 
 
@@ -1421,7 +1421,7 @@ def test_favorites_said_to_a_satellite_in_kino_mode_flips_its_f_mode_as_a_show_d
     assert mock_fmode.call_args.kwargs["funestras"] == (funestra,)
     assert (on.satellite(funestra).favorites_filter, off.satellite(funestra).favorites_filter) == (
         True, False)
-    assert ops == [WindowOp(op="notice", key="F-Mode enabled", source=funestra.label,
+    assert ops == [WindowOp(op="message", key="F-Mode enabled", source=funestra.label,
                             level=FAVORITE)]
 
 
@@ -1470,7 +1470,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert kwargs["query"] == "alpha"
     assert kwargs["cmd_file"] == config.satellite(2).cmd_file
     assert kwargs["sources"] == config.portrait_sources
-    assert any(op.op == "notice" for op in ops)
+    assert any(op.op == "message" for op in ops)
 
 
 def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
@@ -1486,7 +1486,7 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     assert mock_browse.call_args.kwargs["query"] == "alpha"
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
-    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+    assert [op.key for op in ops if op.op == "message"] == ["Loop off"]
 
 
 def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
@@ -1501,7 +1501,7 @@ def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
 
     assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
     assert new_state.active_funestra == 2
-    assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
+    assert [op.source for op in ops if op.op == "message"] == ["portrait"]
 
 
 def test_a_video_sent_to_a_satellite_screen_carries_its_funscript(tmp_path: Path):
@@ -1569,7 +1569,7 @@ def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]
     assert new_state.active_funestra == 2
-    assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
+    assert [op.source for op in ops if op.op == "message"] == ["portrait"]
 
 
 def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
@@ -1621,7 +1621,7 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
     _new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == []  # an empty axis: nothing switched
-    dead_end = [op for op in ops if op.op == "notice"]
+    dead_end = [op for op in ops if op.op == "message"]
     assert dead_end
     assert dead_end[0].level == logging.WARNING
 
@@ -1660,7 +1660,7 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
 
     assert _cmds(config, 2) == []
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
-    dead_end = [op for op in ops if op.op == "notice"]
+    dead_end = [op for op in ops if op.op == "message"]
     assert dead_end
     assert dead_end[0].level == logging.WARNING
 
@@ -1741,8 +1741,8 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     assert {call.kwargs["funestra"] for call in mock_filter.call_args_list} == set(FunTimeFunestra.SATELLITES)
 
 
-def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(tmp_path: Path):
-    """A both-scope filter touches two windows, so it reports two notices — one
+def test_filter_command_both_scope_messages_each_satellite_under_its_own_source(tmp_path: Path):
+    """A both-scope filter touches two windows, so it reports two messages — one
     filed under each — rather than one line the log panel cannot filter."""
     config = _make_config(tmp_path)
     state = _make_state()
@@ -1751,8 +1751,8 @@ def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(t
         mock_filter.return_value = _filter_result()
         _new_state, ops = dispatch_command("filter_both_beta_gamma", state, config)
 
-    notices = [op for op in ops if op.op == "notice"]
-    assert [op.source for op in notices] == ["portrait", "landscape"]
+    messages = [op for op in ops if op.op == "message"]
+    assert [op.source for op in messages] == ["portrait", "landscape"]
 
 
 def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
@@ -1825,7 +1825,7 @@ def test_recents_reorders_only_the_satellite_it_names(tmp_path: Path):
     assert [call.kwargs["funestra"] for call in mock_filter.call_args_list] == [FunTimeFunestra.PORTRAIT]
     assert state.satellite(FunTimeFunestra.PORTRAIT).latest is True
     assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is False
-    assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
+    assert [op.source for op in ops if op.op == "message"] == ["portrait"]
 
 
 def test_shuffle_puts_one_satellite_back_without_touching_the_other(tmp_path: Path):
@@ -2131,8 +2131,8 @@ def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path)
     _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
-    notices = [(op.key, op.source) for op in ops if op.op == "notice"]
-    assert notices == [("Action: Alpha", "portrait")]
+    messages = [(op.key, op.source) for op in ops if op.op == "message"]
+    assert messages == [("Action: Alpha", "portrait")]
 
 
 def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp_path: Path):
@@ -2152,7 +2152,7 @@ def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
 
 
-def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path):
+def test_portrait_cycle_action_messages_when_video_has_no_siblings(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "loner": _cycle_meta("111", "Alpha"),
     })
@@ -2162,13 +2162,13 @@ def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path
     _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
     assert _cmds(config, 2) == []
-    dead_end = [op for op in ops if op.op == "notice"]
+    dead_end = [op for op in ops if op.op == "message"]
     assert [op.key for op in dead_end] == ["No other actions"]
     # A dead end is a warning, so it reads yellow: red is kept for errors.
     assert dead_end[0].level == logging.WARNING
 
 
-def test_a_successful_cycle_action_notice_is_an_ordinary_white_notice(tmp_path: Path):
+def test_a_successful_cycle_action_message_is_an_ordinary_white_notice(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
@@ -2178,9 +2178,9 @@ def test_a_successful_cycle_action_notice_is_an_ordinary_white_notice(tmp_path: 
     _set_current(config, 2, paths["subject_zeta"])
     _new_state, ops = dispatch_command("portrait_cycle_action", state, config)
 
-    notices = [op for op in ops if op.op == "notice"]
-    assert notices
-    assert all(op.level == NOTICE for op in notices)
+    messages = [op for op in ops if op.op == "message"]
+    assert messages
+    assert all(op.level == MESSAGE for op in messages)
 
 
 def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
@@ -2243,10 +2243,10 @@ def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_p
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
     # Every seed hit narrates itself so the log/flash shows what happened; an exact
     # sister reads "Next seed", which is the contrast that makes a widen legible.
-    assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
+    assert [op.key for op in ops if op.op == "message"] == ["Next seed"]
 
 
-def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
+def test_portrait_cycle_seed_messages_without_seed_siblings(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "no_meta": None,
@@ -2257,7 +2257,7 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
     _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
     assert _cmds(config, 2) == []
-    dead_end = [op for op in ops if op.op == "notice"]
+    dead_end = [op for op in ops if op.op == "message"]
     assert [op.key for op in dead_end] == ["No other seeds"]
     assert dead_end[0].level == logging.WARNING
 
@@ -2284,7 +2284,7 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
     _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
     assert _cmds(config, 2) == []
-    dead = [op for op in ops if op.op == "notice"]
+    dead = [op for op in ops if op.op == "message"]
     assert [op.key for op in dead] == ["No other seeds"]
     assert dead[0].level == logging.WARNING
 
@@ -2306,7 +2306,7 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
     assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))  # no jump
     assert _playlist(config, 2)[0] == c   # the video on screen leads the looped queue
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == c
-    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
+    assert [op.key for op in ops if op.op == "message"] == ["More seeds"]
 
 
 def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
@@ -2324,9 +2324,9 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # nothing widened
-    notices = [op for op in ops if op.op == "notice"]
-    assert [op.key for op in notices] == ["Widening net failed"]
-    assert notices[0].level == logging.WARNING
+    messages = [op for op in ops if op.op == "message"]
+    assert [op.key for op in messages] == ["Widening net failed"]
+    assert messages[0].level == logging.WARNING
 
 
 def test_more_seeds_reports_widening_failed_when_the_library_holds_one_video(tmp_path: Path):
@@ -2337,9 +2337,9 @@ def test_more_seeds_reports_widening_failed_when_the_library_holds_one_video(tmp
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # nothing widened
-    notices = [op for op in ops if op.op == "notice"]
-    assert [op.key for op in notices] == ["Widening net failed"]
-    assert notices[0].level == logging.WARNING
+    messages = [op for op in ops if op.op == "message"]
+    assert [op.key for op in messages] == ["Widening net failed"]
+    assert messages[0].level == logging.WARNING
 
 
 def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
@@ -2355,7 +2355,7 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a
-    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
+    assert [op.key for op in ops if op.op == "message"] == ["More seeds"]
 
 
 def _other_act_widen_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str, str]:
@@ -2398,7 +2398,7 @@ def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]  # keeps its own notice
+    assert [op.key for op in ops if op.op == "message"] == ["More seeds"]  # keeps its own message
 
 
 def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
@@ -2422,7 +2422,7 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
     # b_alpha, not the sister-seed c_gamma (a different action, reached via the
     # action axis instead).
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['b_alpha']}"]
-    assert [op.key for op in ops if op.op == "notice"] == ["Next seed"]
+    assert [op.key for op in ops if op.op == "message"] == ["Next seed"]
 
 
 def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
@@ -2475,8 +2475,8 @@ def test_portrait_wrong_action_strikes_the_act_out_of_the_sidecar(tmp_path: Path
     video = _sidecar_video(config, paths["subject_zeta"])
     assert "action" not in video
     assert video["wrong_action"] == "Zeta Massage"
-    assert [(op.key, op.source, op.level) for op in ops if op.op == "notice"] == [
-        ("Action removed: Zeta Massage", "portrait", NOTICE)
+    assert [(op.key, op.source, op.level) for op in ops if op.op == "message"] == [
+        ("Action removed: Zeta Massage", "portrait", MESSAGE)
     ]
     assert _cmds(config, 2) == [], "the clip keeps playing — only its metadata changed"
 
@@ -2490,7 +2490,7 @@ def test_wrong_action_reports_a_dead_end_when_the_video_has_no_act(tmp_path: Pat
     _set_current(config, 2, paths["unlabeled"])
     _new_state, ops = dispatch_command("portrait_wrong_action", state, config)
 
-    assert [(op.key, op.level) for op in ops if op.op == "notice"] == [
+    assert [(op.key, op.level) for op in ops if op.op == "message"] == [
         ("No action to remove", logging.WARNING)
     ]
     assert "wrong_action" not in _sidecar_video(config, paths["unlabeled"])
@@ -2527,7 +2527,7 @@ def test_landscape_wrong_action_strikes_the_landscape_video(tmp_path: Path):
 
     assert "action" not in _sidecar_video(config, paths["on_landscape"])
     assert _sidecar_video(config, paths["on_portrait"])["action"] == "Zeta Massage"
-    assert [op.source for op in ops if op.op == "notice"] == ["landscape"]
+    assert [op.source for op in ops if op.op == "message"] == ["landscape"]
 
 
 def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: Path):
@@ -2823,7 +2823,7 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     assert new_state.volume == 90
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
-    assert ops == [WindowOp(op="notice", key="Volume 90%", source="main")]
+    assert ops == [WindowOp(op="message", key="Volume 90%", source="main")]
 
 
 def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
@@ -2870,7 +2870,7 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
     assert (new_state.volume, new_state.muted) == (35, False)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
-    assert ops == [WindowOp(op="notice", key="Volume 35%", source="main")]
+    assert ops == [WindowOp(op="message", key="Volume 35%", source="main")]
 
 
 def test_the_level_reaches_both_funestras_that_draw_it(tmp_path: Path):
@@ -2909,7 +2909,7 @@ def test_the_max_intensity_slider_reaches_every_funestra_that_can_drive_the_devi
     for command_file in (config.genau_cmd_file, config.main_funestra_cmd_file,
                          config.portrait_cmd_file, config.landscape_cmd_file):
         assert command_file.read_text(encoding="utf-8").strip() == "SET_MAX_INTENSITY 35"
-    assert ops == [WindowOp(op="notice", key="Max intensity 35%", source="main")]
+    assert ops == [WindowOp(op="message", key="Max intensity 35%", source="main")]
 
 
 def test_the_max_intensity_clamps_and_ignores_nonsense(tmp_path: Path):
@@ -2931,7 +2931,7 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     # What the Main Funestra is told is its own test; here the companion, which only has to
     # be quiet, gets the plain zero.
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
-    assert ops == [WindowOp(op="notice", key="Muted", source="main")]
+    assert ops == [WindowOp(op="message", key="Muted", source="main")]
 
 
 def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
@@ -2943,7 +2943,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
 
     assert new_state.muted is False
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
-    assert ops == [WindowOp(op="notice", key="Volume 70%", source="main")]
+    assert ops == [WindowOp(op="message", key="Volume 70%", source="main")]
 
 
 def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
@@ -3121,7 +3121,7 @@ def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_funestra(
     _, ops = dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "WEIRD\n"
-    assert [(op.op, op.key, op.source) for op in ops] == [("notice", "Sent to Trash", "main")]
+    assert [(op.op, op.key, op.source) for op in ops] == [("message", "Sent to Trash", "main")]
 
 
 @pytest.mark.parametrize("command", [
@@ -3426,14 +3426,14 @@ def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
     assert not config.main_funestra_cmd_file.exists()
 
 
-@pytest.mark.parametrize(("command", "status_of", "notice"), [
+@pytest.mark.parametrize(("command", "status_of", "expected_message"), [
     ("main_nudge_next", lambda config: config.main_funestra_status_file,
      ("This video is 10s or shorter", SOURCE_MAIN)),
     ("portrait_nudge_prev", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
      ("This clip is 10s or shorter", SOURCE_PORTRAIT)),
 ])
 def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and_says_why(
-        tmp_path: Path, command, status_of, notice):
+        tmp_path: Path, command, status_of, expected_message):
     """The HUD draws the pair faded there; a key or a spoken word for it is
     refused the same way, with what the faded button's hover says."""
     config = _make_config(tmp_path)
@@ -3441,12 +3441,12 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
 
     _state, ops = dispatch_command(command, _make_state(), config)
 
-    assert [(op.op, op.key, op.source) for op in ops] == [("notice", *notice)]
+    assert [(op.op, op.key, op.source) for op in ops] == [("message", *expected_message)]
     assert not config.main_funestra_cmd_file.exists()
     assert _cmds(config, FunTimeFunestra.PORTRAIT) == []
 
 
-@pytest.mark.parametrize(("command", "status_of", "position_ms", "notice"), [
+@pytest.mark.parametrize(("command", "status_of", "position_ms", "expected_message"), [
     ("portrait_nudge_prev", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
      6_000, ("Less than 10s into this clip", SOURCE_PORTRAIT)),
     ("portrait_nudge_next", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
@@ -3455,13 +3455,13 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
      6_000, ("Less than 10s into this video", SOURCE_MAIN)),
 ])
 def test_a_ten_second_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
-        tmp_path: Path, command, status_of, position_ms, notice):
+        tmp_path: Path, command, status_of, position_ms, expected_message):
     config = _make_config(tmp_path)
     _publish_status(status_of(config), duration_ms=60_000, position_ms=position_ms)
 
     _state, ops = dispatch_command(command, _make_state(), config)
 
-    assert [(op.op, op.key, op.source) for op in ops] == [("notice", *notice)]
+    assert [(op.op, op.key, op.source) for op in ops] == [("message", *expected_message)]
     assert not config.main_funestra_cmd_file.exists()
     assert _cmds(config, FunTimeFunestra.PORTRAIT) == []
 
@@ -3635,7 +3635,7 @@ def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: P
     # native Funestra then loops it by auto-advance.
     assert sorted(_playlist(config, 2)) == sorted([a, b])
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
-    assert any(op.op == "notice" and op.source == "portrait" for op in ops)
+    assert any(op.op == "message" and op.source == "portrait" for op in ops)
 
 
 def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: Path):
@@ -3708,7 +3708,7 @@ def test_marking_videos_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_p
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
     # Plain, not the favorites' green: nothing was starred, nothing was pressed.
     assert [(op.op, op.key, op.source, op.level) for op in ops
-            if op.key == "Locked"] == [("notice", "Locked", "portrait", NOTICE)]
+            if op.key == "Locked"] == [("message", "Locked", "portrait", MESSAGE)]
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
@@ -3723,10 +3723,10 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     assert _playlist(config, 2) == []  # no queue reshape for a group of one
     assert _cmds(config, 2) == ["LOCK_ON"]  # a group of one is really a single-video lock
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-    notices = [op for op in ops if op.op == "notice"]
-    assert [op.key for op in notices] == ["Locked"]
+    messages = [op for op in ops if op.op == "message"]
+    assert [op.key for op in messages] == ["Locked"]
     # Green, because a lock puts the video in the favorites.
-    assert [op.level for op in notices] == [FAVORITE]
+    assert [op.level for op in messages] == [FAVORITE]
 
 
 def test_a_loop_of_one_video_puts_it_in_the_favorites_as_every_lock_does(tmp_path: Path):
@@ -3950,7 +3950,7 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     assert _playlist(config, 2) == []  # empty browse never blanks the live queue
     assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+    assert [op.key for op in ops if op.op == "message"] == ["Loop off"]
 
 
 @pytest.mark.parametrize("axis", ["seed", "action"])
@@ -4009,7 +4009,7 @@ def test_the_loop_key_locks_the_video_on_screen_when_nothing_is_looping(tmp_path
     assert _cmds(config, 2) == ["LOCK_ON"]
     assert (state.portrait.locked, state.portrait.loop) == (True, "")
     assert is_favorite(a, config.regen_metadata_root)
-    assert [(op.key, op.level) for op in ops if op.op == "notice"] == [("Locked", FAVORITE)]
+    assert [(op.key, op.level) for op in ops if op.op == "message"] == [("Locked", FAVORITE)]
 
 
 def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
@@ -4033,7 +4033,7 @@ def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
     assert _playlist(config, 2) == [a, *browse]
-    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+    assert [op.key for op in ops if op.op == "message"] == ["Loop off"]
 
 
 def test_four_presses_of_the_loop_key_come_back_round_to_off(tmp_path: Path):
@@ -4073,7 +4073,7 @@ def test_with_nothing_to_loop_the_loop_key_locks_then_lets_go_without_moving_on(
     browse.assert_not_called()
     assert _cmds(config, 2) == ["LOCK_ON", "LOCK_OFF"]  # let go where it stands, no NEXT
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is False
-    assert [op.key for op in ops if op.op == "notice"] == ["Unlocked"]
+    assert [op.key for op in ops if op.op == "message"] == ["Unlocked"]
 
 
 def test_the_loop_keys_off_stop_lets_go_of_a_lock_taken_inside_the_loop(tmp_path: Path):
@@ -4087,7 +4087,7 @@ def test_the_loop_keys_off_stop_lets_go_of_a_lock_taken_inside_the_loop(tmp_path
 
     assert (state.portrait.locked, state.portrait.loop) == (False, "")
     assert _cmds(config, 2) == ["LOCK_OFF", "RELOAD_PLAYLIST"]
-    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+    assert [op.key for op in ops if op.op == "message"] == ["Loop off"]
 
 
 def test_the_loop_key_ends_a_loop_the_video_has_drifted_out_of(tmp_path: Path):
@@ -4100,7 +4100,7 @@ def test_the_loop_key_ends_a_loop_the_video_has_drifted_out_of(tmp_path: Path):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-    assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+    assert [op.key for op in ops if op.op == "message"] == ["Loop off"]
 
 
 def test_the_loop_key_drives_only_its_own_satellite(tmp_path: Path):
@@ -4223,7 +4223,7 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
     mock_filter.assert_not_called()
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == ""
     assert any(
-        op.op == "notice" and "No action metadata" in op.key and op.source == "landscape"
+        op.op == "message" and "No action metadata" in op.key and op.source == "landscape"
         for op in ops
     )
 
@@ -4303,7 +4303,7 @@ def test_main_latest_reloads_the_main_funestra_newest_first(tmp_path):
 
     assert state.main_latest is True
     assert builds.asked[-1].settings.latest is True
-    assert ops[0].op == "notice"
+    assert ops[0].op == "message"
 
     state, _ops = dispatch_command("main_shuffle", state, config)
     assert state.main_latest is False
@@ -4333,7 +4333,7 @@ def test_narrowing_the_main_funestra_keeps_its_order(tmp_path):
 def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
     """The bug this fixes: "main latest" in genau mode rewrote a playlist for the Main Funestra,
     which was neither on screen nor playing, and Genau — the Funestra actually
-    showing — carried on in the order it launched in.  Two notices and nothing
+    showing — carried on in the order it launched in.  Two messages and nothing
     happening.  The reorder goes to whoever owns the slot's screen, as the lock
     does."""
     config, builds = _recording(_make_config(tmp_path))
@@ -4342,7 +4342,7 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
     assert builds.asked == []  # the Main Funestra's playlist is left exactly as it was
-    assert [op.key for op in ops if op.op == "notice"] == ["Latest"]
+    assert [op.key for op in ops if op.op == "message"] == ["Latest"]
 
     dispatch_command("main_shuffle", state, config)
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST", "SHUFFLE"]
@@ -4497,7 +4497,7 @@ def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, co
     sent = config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
     assert config.main_list.file.read_text(encoding="utf-8").splitlines() == [str(on_screen)]
     assert (sent[-1], sent.count("LOCK_ON")) == ("LOCK_ON", 1)
-    assert [op.key for op in ops if op.op == "notice"] + [
+    assert [op.key for op in ops if op.op == "message"] + [
         record.getMessage() for record in caplog.records if record.levelno == logging.WARNING
     ] == ["Including no other videos"]
 
@@ -4681,7 +4681,7 @@ def test_main_reset_leaves_what_the_main_funestra_holds_alone_while_genau_owns_t
 def test_main_reset_flashes_reset_over_the_main_funestra(tmp_path):
     _state, ops = dispatch_command("main_reset", _make_state(), _make_config(tmp_path))
 
-    assert ops == [WindowOp(op="notice", key="Reset", source="main")]
+    assert ops == [WindowOp(op="message", key="Reset", source="main")]
 
 
 def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path):
@@ -4795,7 +4795,7 @@ class TestEachSatellitesOwnMode:
         state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
         assert state.rfb_mode is RfbMode.RFB
-        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+        assert [(op.op, op.key) for op in ops if op.op != "message"] == [
             ("hand_over_funestras", "portrait")]
         assert _origenerator_cmds(config) == ["portrait_open_slideshow"]
         portrait = config.satellite(FunTimeFunestra.PORTRAIT)
@@ -4854,7 +4854,7 @@ class TestEachSatellitesOwnMode:
         config = _make_config(tmp_path)
         state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert any(op.op == "notice" and op.level == logging.WARNING for op in ops)
+        assert any(op.op == "message" and op.level == logging.WARNING for op in ops)
 
     def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
         """Fun Time opens without waiting that app out, so for the first
@@ -4869,7 +4869,7 @@ class TestEachSatellitesOwnMode:
             state, ops = dispatch_command(command, BridgeState(), config)
             assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
             assert [(op.op, op.key) for op in ops] == [
-                ("notice", "Origenerator is still starting")]
+                ("message", "Origenerator is still starting")]
             assert _origenerator_cmds(config) == []
 
     def test_a_switch_clicked_while_paused_still_hands_the_funestra_to_the_hosted_app(
@@ -4942,13 +4942,13 @@ class TestTheRandomFavsBrowsersPlace:
         state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
         assert state.rfb_mode is RfbMode.RFB
         assert [(op.op, op.key) for op in ops] == [
-            ("notice", "Origenerator is still starting")]
+            ("message", "Origenerator is still starting")]
 
     def test_without_an_origenerator_the_browser_keeps_its_place(self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.rfb_mode is RfbMode.RFB
-        assert [(op.op, op.key) for op in ops] == [("notice", "No Origenerator configured")]
+        assert [(op.op, op.key) for op in ops] == [("message", "No Origenerator configured")]
 
 
 class TestOrigeneratorTransport:
@@ -5318,7 +5318,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
     assert weird.call_args[0][1] == Path("odd.mp4")
     assert "Discarding from Funestra 3: odd.mp4" in caplog.text
     assert [(op.op, op.key, op.source) for op in ops] == [
-        ("notice", "Sent to Trash", "landscape")
+        ("message", "Sent to Trash", "landscape")
     ]
 
 
@@ -5368,7 +5368,7 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     # The demotion and the condemnation look the same on screen otherwise, so
     # each says which one it was.
     assert [(op.op, op.key, op.source) for op in ops] == [
-        ("notice", "Unfavorited", "landscape")
+        ("message", "Unfavorited", "landscape")
     ]
 
 
@@ -5385,7 +5385,7 @@ def test_an_unfavoriting_is_said_in_the_favorites_green_and_a_condemning_in_whit
     _state, condemned = _discard(3, _make_state(), config)
 
     assert [(op.key, op.level) for op in demoted] == [("Unfavorited", FAVORITE)]
-    assert [(op.key, op.level) for op in condemned] == [("Sent to Trash", NOTICE)]
+    assert [(op.key, op.level) for op in condemned] == [("Sent to Trash", MESSAGE)]
 
 
 def test_discarding_a_locked_favorite_lets_the_satellite_go(tmp_path: Path):
@@ -5452,7 +5452,7 @@ def test_discarding_a_demoted_video_again_marks_it_weird(tmp_path: Path):
     # And in different colors: undoing a favoriting is one of the things green
     # is kept for, condemning a video that was never a favorite is not.
     assert [op.level for op in demote_ops] == [FAVORITE]
-    assert [op.level for op in condemn_ops] == [NOTICE]
+    assert [op.level for op in condemn_ops] == [MESSAGE]
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()
     assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]

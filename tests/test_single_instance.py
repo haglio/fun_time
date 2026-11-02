@@ -1,4 +1,4 @@
-"""Tests for fun_time.single_instance: the name Fun Time claims and the notice
+"""Tests for fun_time.single_instance: the name Fun Time claims and the message
 it shows.  The mutex itself is app_support.win32's, and tested there."""
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
 
 
 class TestShowAlreadyRunningMessage:
-    def test_it_is_the_familys_notice_under_fun_times_icon(self):
+    def test_it_is_the_familys_message_under_fun_times_icon(self):
         with alert_shown() as show_alert:
             show_already_running_message("Test text", "Test Title")
 

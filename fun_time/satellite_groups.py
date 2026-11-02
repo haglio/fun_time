@@ -207,16 +207,16 @@ def cycle_variant(
         target = _next_seed_sibling(index, current)
         missing_message = "No other seeds"
     if target is None:
-        ops.append(WindowOp(op="notice", key=missing_message, source=source, level=logging.WARNING))
+        ops.append(WindowOp(op="message", key=missing_message, source=source, level=logging.WARNING))
         return state, ops
     play_video(config, funestra, target)
     if kind == "action":
         # Numbered when the group holds several of the same act ("Alpha 2").
         action = action_label(index, target)
         if action:
-            ops.append(WindowOp(op="notice", key=f"Action: {action}", source=source))
+            ops.append(WindowOp(op="message", key=f"Action: {action}", source=source))
     else:
-        ops.append(WindowOp(op="notice", key="Next seed", source=source))
+        ops.append(WindowOp(op="message", key="Next seed", source=source))
     return state, ops
 
 
@@ -241,14 +241,14 @@ def more_seeds(
     exact = {normalize_path_key(m) for m in seed_family_items(index, current)} - {current_key}
     wide = {normalize_path_key(m) for m in widened_seed_items(index, current)} - {current_key}
     if wide <= exact:
-        return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=logging.WARNING)]
+        return state, [WindowOp(op="message", key="Widening net failed", source=source, level=logging.WARNING)]
     state = state.with_satellite(funestra, widen_video=current)
     # Loop the pool that was just widened: the widen anchor now matches the video on
     # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
-    # where none was running and re-shapes one that was.  Its notices are dropped —
+    # where none was running and re-shapes one that was.  Its messages are dropped —
     # "More seeds" is the one thing that happened, from the user's side.
     state, _loop_ops = group_loop(funestra, "seed", state, config, target_path=current)
-    return state, [WindowOp(op="notice", key="More seeds", source=source)]
+    return state, [WindowOp(op="message", key="More seeds", source=source)]
 
 
 def wrong_action(
@@ -272,14 +272,14 @@ def wrong_action(
     action = reject_action(current, config.regen_metadata_root)
     if not action:
         return state, [WindowOp(
-            op="notice", key="No action to remove", source=source, level=logging.WARNING
+            op="message", key="No action to remove", source=source, level=logging.WARNING
         )]
     # The grouping index carries the act it just lost — it decides the HUD's
     # action column, its labels and where a cycle goes next — so it has to be
     # rebuilt rather than left describing the sidecar as it was.
     reset_group_index_cache()
     logger.info("Wrong action on %s: removed %r", current, action)
-    return state, [WindowOp(op="notice", key=f"Action removed: {action}", source=source)]
+    return state, [WindowOp(op="message", key=f"Action removed: {action}", source=source)]
 
 
 def _loop_items(
@@ -333,7 +333,7 @@ def group_loop(
     # HUD reads a running seed loop as widened exactly when it truly is — and a
     # plain exact-family loop drops any stale anchor.
     state = state.with_satellite(funestra, widen_video=current if widened else "")
-    ops.append(WindowOp(op="notice", key=message, source=source))
+    ops.append(WindowOp(op="message", key=message, source=source))
     return state, ops
 
 
@@ -348,14 +348,14 @@ def lock_a_loop_left_with_one_video(
         return state, []
     send_satellite(config, funestra, LOCK_ON)
     state = clear_satellite_grouping(state.with_satellite(funestra, locked=True), funestra)
-    return state, [WindowOp(op="notice", key="Locked", source=satellite_source(funestra))]
+    return state, [WindowOp(op="message", key="Locked", source=satellite_source(funestra))]
 
 
 def _locked_by_a_loop_control(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, current: str
 ) -> tuple[BridgeState, list[WindowOp]]:
     state, ops = lock_satellite(funestra, state, config, current)
-    return state, [WindowOp(op="notice", key="Locked", source=satellite_source(funestra),
+    return state, [WindowOp(op="message", key="Locked", source=satellite_source(funestra),
                             level=FAVORITE), *ops]
 
 
@@ -382,7 +382,7 @@ def _loop_and_lock_off(
     state = cancel_lock(funestra, state, config)
     if looping:
         return no_loop(funestra, state, config)
-    return state, [WindowOp(op="notice", key="Unlocked", source=satellite_source(funestra))]
+    return state, [WindowOp(op="message", key="Unlocked", source=satellite_source(funestra))]
 
 
 def _browse_after(browse: list[str], current: str) -> list[str]:
@@ -437,7 +437,7 @@ def no_loop(
     # button and the rectangle and nothing else; the map lets go by itself once the
     # browse moves on past the group.
     state = state.with_satellite(funestra, loop="")
-    return state, [WindowOp(op="notice", key="Loop off", source=satellite_source(funestra))]
+    return state, [WindowOp(op="message", key="Loop off", source=satellite_source(funestra))]
 
 
 def cycle_version(
@@ -449,7 +449,7 @@ def cycle_version(
     video = target_path or current
     family = renditions(video, config.regen_media_root)
     if not family:
-        return state, [WindowOp(op="notice", key="No other version",
+        return state, [WindowOp(op="message", key="No other version",
                                 source=satellite_source(funestra), level=logging.WARNING)]
     if target_path and not same_video(target_path, current):
         play_video(config, funestra, target_path)
@@ -466,7 +466,7 @@ def switch_to_video(
     if not path:
         return state, []
     play_video(config, funestra, path)
-    return state, [WindowOp(op="notice", key="Switched", source=satellite_source(funestra))]
+    return state, [WindowOp(op="message", key="Switched", source=satellite_source(funestra))]
 
 
 def navigate_hud(
@@ -481,7 +481,7 @@ def navigate_hud(
     now playing.  Each axis wraps, so running off its end comes round to the
     anchor; only a step with genuinely nowhere to go — sideways off the action
     column, or along an axis holding just the anchor — is a dead end, reported
-    red like the other no-effect notices.
+    red like the other no-effect messages.
 
     A vertical step from a seed cell dives into THAT seed's own action column —
     the one the HUD draws under the lit cell (``build_hud`` hangs it
@@ -513,6 +513,6 @@ def navigate_hud(
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):
         state = state.with_satellite(funestra, nav_anchor=anchor)
-        return state, [WindowOp(op="notice", key="No clip that way", source=source, level=logging.WARNING)]
+        return state, [WindowOp(op="message", key="No clip that way", source=source, level=logging.WARNING)]
     state = state.with_satellite(funestra, nav_anchor=root)
     return switch_to_video(funestra, target, state, config)

@@ -481,7 +481,7 @@ class TestOrigeneratorPaths:
         assert cfg.satellite(FunTimeFunestra.LANDSCAPE).origenerator_hud_file == (
             state / "origenerator_landscape_hud.json")
 
-    def test_each_satellite_publishes_its_notices_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+    def test_each_satellite_publishes_its_messages_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         """Where a satellite says what came of a funscript move, as the Main
         Funestra does in main_player_notice.txt beside them."""
         cfg = load_config(cfg_path)

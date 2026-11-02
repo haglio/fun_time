@@ -12,7 +12,7 @@ import pytest
 from funestra.playback import Playback
 from funestra.testing import FakeEngine
 
-from fun_time.event_log import NOTICE, SOURCE_MAIN
+from fun_time.event_log import MESSAGE, SOURCE_MAIN
 from fun_time_vr.frame_shape import FISHEYE_CIRCLE
 from fun_time_vr.headset_verbs import ANGLE_STEP, DIAL_STILL_S, TILT_STEP_DEG, HeadsetVerbs
 from fun_time_vr.layout import TILT_LIMIT_DEG
@@ -72,7 +72,7 @@ def headset(tmp_path):
 
 
 def _step(headset, delta: int = 1) -> None:
-    """The item moves on the Funestra's playback; the headset's verbs notice
+    """The item moves on the Funestra's playback; the headset's verbs message
     on their next pass."""
     headset.playback.step(delta)
     headset.verbs.tick(now=0.0)
@@ -499,7 +499,7 @@ class TestScenes:
             headset.verbs.apply("NEXT_SCENE")
             headset.verbs.apply("PREV_SCENE")
 
-        assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
+        assert self._told(caplog) == [(MESSAGE, SOURCE_MAIN)] * 2
         assert headset.engine.seeks == []
 
     def test_no_scene_left_to_go_to_is_said_on_its_frame_too(self, headset, caplog):
@@ -511,7 +511,7 @@ class TestScenes:
             engine.position_ms = 1_000.0
             verbs.apply("PREV_SCENE")
 
-        assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
+        assert self._told(caplog) == [(MESSAGE, SOURCE_MAIN)] * 2
         assert engine.seeks == []
 
     def test_a_video_in_a_vr_folder_kept_away_from_the_library_reads_its_scenes_off_its_record(

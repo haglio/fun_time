@@ -64,7 +64,7 @@ def _dispatch_audio(
         muted=state.muted,
     )
     message = "Muted" if state.muted else f"Volume {state.volume}%"
-    return state, [WindowOp(op="notice", key=message, source=SOURCE_MAIN)]
+    return state, [WindowOp(op="message", key=message, source=SOURCE_MAIN)]
 
 
 def _set_muted(muted: bool, state: BridgeState, config: BridgeConfig,

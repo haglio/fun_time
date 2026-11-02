@@ -25,7 +25,7 @@ class FakeSource:
         self.metadata_root = metadata_root
 
 
-class FakeNotices:
+class FakeMessages:
     def __init__(self) -> None:
         self.said: list[tuple[str, str]] = []
 
@@ -65,11 +65,11 @@ class World:
         self.playback = Playback([self.first, self.second], engine=self.engine, locked=True,
                                  funscripts=dict(self.scripts))
         self.memory = ModeMemory(tmp_path / "main_player_mode.txt")
-        self.notices = FakeNotices()
+        self.messages = FakeMessages()
         self.resolved: list[list[PlaylistItem]] = [[PlaylistItem(self.second), PlaylistItem(self.first)]]
         self.kino = Kino(
             self.playback, source=self.source, clip_nav=ClipNav.build([self.first, self.second], meta),
-            notices=self.notices, memory=self.memory, remembered=remembered or RememberedMode(),
+            messages=self.messages, memory=self.memory, remembered=remembered or RememberedMode(),
             resolve_playlist=lambda: self.resolved[-1])
 
 
@@ -116,7 +116,7 @@ class TestItsVerbs:
         world = World(tmp_path)
         world.source.version_index = {world.first: family, upscale: family}
         kino = Kino(world.playback, source=world.source, clip_nav=ClipNav.build([world.first], None),
-                    notices=world.notices, memory=world.memory, remembered=RememberedMode(),
+                    messages=world.messages, memory=world.memory, remembered=RememberedMode(),
                     resolve_playlist=list)
 
         assert kino.apply_command("CYCLE_VERSION") is True
@@ -233,7 +233,7 @@ class TestKinoOnTheLibrary:
         (tmp_path / "main_player_playlist.tsv").write_text(f"{world.second}\n", encoding="utf-8")
 
         made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)
-        made.keywords["notices"].say("a notice", level=MessageLevel.NOTICE)
+        made.keywords["messages"].say("a notice", level=MessageLevel.NORMAL)
 
         assert made.keywords["source"] is world.source
         assert made.keywords["memory"] is world.memory

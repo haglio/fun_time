@@ -80,7 +80,7 @@ class TestGenauRunsOnItToo:
         assert given["settings"] == "GenauSettings.read(args.config)"
         assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert given["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
-        assert given["notices"] == "MessageWriter(args.notice_file)"
+        assert given["messages"] == "MessageWriter(args.notice_file)"
         assert given["f_mode"] == "args.genau_f_mode"
         assert given["orientations"] == "orientations_from(args.genau_orientations)"
         assert channels == {"command": "args.genau_command_file", "paused": "args.genau_paused_file",

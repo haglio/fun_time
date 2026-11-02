@@ -1051,7 +1051,7 @@ def a_fix_session(state, **more):
 
 
 def notices_about(session, told):
-    return fix_sessions.fix_session_steps([FIX], [session], told, restarts={}, died=lambda session: False).notices
+    return fix_sessions.fix_session_steps([FIX], [session], told, restarts={}, died=lambda session: False).messages
 
 
 def test_he_is_told_once_when_a_fix_session_waits_for_him_and_once_when_it_finishes():
@@ -1073,7 +1073,7 @@ def test_a_fix_session_that_stopped_on_an_error_from_the_claude_service_is_start
     steps = fix_sessions.fix_session_steps([FIX], [stopped], told={}, restarts={}, died=lambda session: True)
 
     assert steps.start_again == [stopped]
-    assert steps.notices == []
+    assert steps.messages == []
 
 
 @pytest.mark.parametrize("waiting_for, needs", [(None, "answer"), ("input needed", "answer"),
@@ -1085,7 +1085,7 @@ def test_a_fix_session_blocked_on_anything_but_an_error_is_waiting_for_him(waiti
                                             died=lambda session: "waitingFor" in session)
 
     assert steps.start_again == []
-    assert [notice.body for notice in steps.notices] == [f"It needs your {needs}. Click to open it in Claude Desktop."]
+    assert [notice.body for notice in steps.messages] == [f"It needs your {needs}. Click to open it in Claude Desktop."]
 
 
 def test_a_fix_session_that_failed_is_started_again_like_one_that_stopped_on_an_error_from_the_service():
@@ -1094,7 +1094,7 @@ def test_a_fix_session_that_failed_is_started_again_like_one_that_stopped_on_an_
     steps = fix_sessions.fix_session_steps([FIX], [failed], told={}, restarts={}, died=lambda session: False)
 
     assert steps.start_again == [failed]
-    assert steps.notices == []
+    assert steps.messages == []
 
 
 def test_he_is_told_a_fix_session_stopped_on_an_error_once_starting_it_again_has_not_helped():
@@ -1102,7 +1102,7 @@ def test_he_is_told_a_fix_session_stopped_on_an_error_once_starting_it_again_has
                                             restarts={"1a2b3c4d": fix_sessions.RESTARTS}, died=lambda session: True)
 
     assert steps.start_again == []
-    assert [(notice.title, notice.state) for notice in steps.notices] == [
+    assert [(notice.title, notice.state) for notice in steps.messages] == [
         ("Fix #398: Keep the crown lit stopped on an error", "blocked")]
 
 
@@ -1110,7 +1110,7 @@ def test_a_stopped_fix_session_he_was_told_is_waiting_for_him_is_left_to_him():
     steps = fix_sessions.fix_session_steps([FIX], [a_fix_session("blocked")], told={"1a2b3c4d": "blocked"},
                                             restarts={}, died=lambda session: True)
 
-    assert steps == fix_sessions.FixSessionSteps(start_again=[], notices=[])
+    assert steps == fix_sessions.FixSessionSteps(start_again=[], messages=[])
 
 
 def test_a_fix_session_that_stops_on_an_error_after_he_was_told_it_finished_is_told_about_not_started_again():
@@ -1118,7 +1118,7 @@ def test_a_fix_session_that_stops_on_an_error_after_he_was_told_it_finished_is_t
                                             restarts={}, died=lambda session: True)
 
     assert steps.start_again == []
-    assert [notice.title for notice in steps.notices] == ["Fix #398: Keep the crown lit stopped on an error"]
+    assert [notice.title for notice in steps.messages] == ["Fix #398: Keep the crown lit stopped on an error"]
 
 
 ASKED = {"type": "user", "message": {"role": "user", "content": "Fix the crown."}}
@@ -1154,7 +1154,7 @@ def test_a_record_that_started_no_session_is_never_matched_to_a_session_without_
     steps = fix_sessions.fix_session_steps([{"kind": "flaky", "commit": "c3"}, FIX], [interactive], told={},
                                            restarts={}, died=lambda session: True)
 
-    assert steps == fix_sessions.FixSessionSteps(start_again=[], notices=[])
+    assert steps == fix_sessions.FixSessionSteps(start_again=[], messages=[])
 
 
 @pytest.mark.parametrize("state", ["done", "blocked"])
@@ -1164,7 +1164,7 @@ def test_a_session_fixing_a_change_the_verifier_shipped_again_is_neither_told_ab
     steps = fix_sessions.fix_session_steps([FIX, shipped_again], [a_fix_session(state)], told={}, restarts={},
                                             died=lambda session: True)
 
-    assert steps == fix_sessions.FixSessionSteps(start_again=[], notices=[])
+    assert steps == fix_sessions.FixSessionSteps(start_again=[], messages=[])
 
 
 def a_dead_fix_session(tmp_path):

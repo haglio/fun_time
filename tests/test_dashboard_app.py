@@ -70,7 +70,7 @@ from fun_time.dashboard_layout import (
 from fun_time.dashboard_runtime import DashboardSnapshot
 from fun_time.event_log import (
     EVENT_LOG_FILENAME,
-    NOTICE,
+    MESSAGE,
     SOURCE_DASH,
     EventLogHandler,
     event_log_path,
@@ -80,7 +80,7 @@ from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbMode
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
-from fun_time.unlogged_notices import flash_unlogged
+from fun_time.unlogged_messages import flash_unlogged
 from fun_time.voice_control import VoiceController
 from fun_time.window_layout import (
     compute_main_media_rect,
@@ -755,7 +755,7 @@ def test_the_panel_leaves_the_topmost_band_before_it_becomes_visible(dashboard_a
 
 
 @pytest.mark.parametrize("building", [True, False])
-def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
+def test_the_messages_start_held_exactly_when_the_panel_starts_hidden(
         building, dashboard_app_config):
     """One answer decides both.  Read separately they could disagree — startup
     finishes between the two reads — and the panel would then come up holding
@@ -771,7 +771,7 @@ def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
             window._notices.poll()
 
         # Held exactly when the panel is: one answer decided both.
-        assert (window._notices.overlay.flashed == []) is building
+        assert (window._messages.overlay.flashed == []) is building
     finally:
         window.close()
 
@@ -1465,13 +1465,13 @@ def test_the_dashboard_runs_on_an_application_made_where_it_is_let_go_of_safely(
     assert len(dressed) == 1
 
 
-# --- the notice feed ---------------------------------------------------------
+# --- the message feed ---------------------------------------------------------
 # A second, faster tail of the same event log the strip reads, flashing each
 # announcement over the Funestra it is about.
 
 
 class _FakeOverlay:
-    """A notice overlay that records what it was asked to flash."""
+    """A message overlay that records what it was asked to flash."""
 
     def __init__(self) -> None:
         self.flashed: list[tuple[str, object]] = []
@@ -1491,12 +1491,12 @@ def _monitors(primary=(0, 0, 1920, 1080), secondary=(1920, 0, 1080, 1920)):
 
 def test_the_funestra_rects_come_from_the_layout_startup_positions_with(
         dashboard_app_config):
-    """The notice has to land ON the window, not near it, so both ends compute
+    """The message has to land ON the window, not near it, so both ends compute
     the rect from the same two functions rather than from two descriptions."""
     with patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        rects = window._notices.funestra_rects
+        rects = window._messages.funestra_rects
     finally:
         window.close()
 
@@ -1516,26 +1516,26 @@ def test_the_funestra_rects_come_from_the_layout_startup_positions_with(
 
 
 @pytest.mark.parametrize("failure", [ValueError("no such monitor"), OSError("no display")])
-def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
+def test_monitors_that_cannot_be_read_leave_the_messages_off_rather_than_crash(
         failure, dashboard_app_config):
     """A headless run has no monitors to enumerate; the panel still comes up,
-    it just has nowhere to put a notice."""
+    it just has nowhere to put a message."""
     with patch("fun_time.window_layout.enumerate_monitors", side_effect=failure):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        assert window._notices.funestra_rects is None
-        assert window._notices.overlay is None
-        window._notices.poll()  # and polling is a no-op rather than an error
+        assert window._messages.funestra_rects is None
+        assert window._messages.overlay is None
+        window._messages.poll()  # and polling is a no-op rather than an error
     finally:
         window.close()
 
 
-def _notice_window(dashboard_app_config, *, held: bool):
-    """A window whose notice feed is wired to a fake overlay."""
+def _message_window(dashboard_app_config, *, held: bool):
+    """A window whose message feed is wired to a fake overlay."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=held), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
-    window._notices.overlay = _FakeOverlay()
+    window._messages.overlay = _FakeOverlay()
     return window
 
 
@@ -1548,20 +1548,20 @@ def _write_event(app_config, message: str, *, level: int) -> None:
             {"ts": 1.0, "level": level, "source": SOURCE_DASH, "msg": message}) + "\n")
 
 
-def test_a_main_funestra_notice_lands_on_the_main_funestra_wherever_the_crown_has_put_it(
+def test_a_main_funestra_message_lands_on_the_main_funestra_wherever_the_crown_has_put_it(
         dashboard_app_config):
     write_shared_state(shared_state_path(dashboard_app_config.state_dir),
                        BridgeState(majority=Crown.MAIN))
-    window = _notice_window(dashboard_app_config, held=False)
+    window = _message_window(dashboard_app_config, held=False)
     try:
         path = dashboard_app_config.state_dir / EVENT_LOG_FILENAME
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(
-                {"ts": 1.0, "level": NOTICE, "source": "main", "msg": "Clip saved"}) + "\n")
+                {"ts": 1.0, "level": MESSAGE, "source": "main", "msg": "Clip saved"}) + "\n")
 
-        window._notices.poll()
+        window._messages.poll()
 
-        (_message, target), = window._notices.overlay.flashed
+        (_message, target), = window._messages.overlay.flashed
     finally:
         window.close()
     layout = dashboard_app_config.layout
@@ -1577,9 +1577,9 @@ def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_eithe
     appear for a moment through the scrim the loading screen is there to be.  Held, the
     read offset does not advance, so the announcement arrives afterwards over
     Fun Time it is about."""
-    window = _notice_window(dashboard_app_config, held=True)
+    window = _message_window(dashboard_app_config, held=True)
     try:
-        _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
 
         with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
             window._notices.poll()
@@ -1597,7 +1597,7 @@ def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_eithe
 def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_config):
     """Once the loading screen is down it never comes back, and this runs four times a
     second for the length of the session."""
-    window = _notice_window(dashboard_app_config, held=True)
+    window = _message_window(dashboard_app_config, held=True)
     try:
         loading_screen = patch("fun_time.notice_feed.loading_screen_is_up", return_value=False)
         with loading_screen as is_up:
@@ -1624,33 +1624,33 @@ def test_a_window_that_never_waited_asks_about_the_loading_screen_at_all(dashboa
 
 def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         dashboard_app_config):
-    """The strip shows every event; only the announcements get a notice — and an
+    """The strip shows every event; only the announcements get a message — and an
     event that gets none must still not be re-read on the next poll."""
-    window = _notice_window(dashboard_app_config, held=False)
+    window = _message_window(dashboard_app_config, held=False)
     try:
         _write_event(dashboard_app_config, "just a log line", level=logging.INFO)
 
-        window._notices.poll()
+        window._messages.poll()
 
-        assert window._notices.overlay.flashed == []
-        assert window._notices.offset > 0
+        assert window._messages.overlay.flashed == []
+        assert window._messages.offset > 0
     finally:
         window.close()
 
 
 def test_words_flashed_with_no_log_line_land_over_the_funestra_they_name(dashboard_app_config):
-    window = _notice_window(dashboard_app_config, held=False)
+    window = _message_window(dashboard_app_config, held=False)
     try:
         flash_unlogged(dashboard_app_config.state_dir, "unrecognized voice command: alpha beta",
                        source="portrait", level=logging.WARNING)
         deadline = time.monotonic() + 5.0
-        while not window._notices.overlay.flashed and time.monotonic() < deadline:
-            window._notices.poll()
+        while not window._messages.overlay.flashed and time.monotonic() < deadline:
+            window._messages.poll()
             time.sleep(0.02)
 
-        [(message, target)] = window._notices.overlay.flashed
+        [(message, target)] = window._messages.overlay.flashed
         assert message == "unrecognized voice command: alpha beta"
-        assert target == window._notices.funestra_rects.portrait
+        assert target == window._messages.funestra_rects.portrait
     finally:
         window.close()
 
@@ -1658,7 +1658,7 @@ def test_words_flashed_with_no_log_line_land_over_the_funestra_they_name(dashboa
 def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_without_them(
         dashboard_app_config):
     state_dir = dashboard_app_config.state_dir
-    window = _notice_window(dashboard_app_config, held=False)
+    window = _message_window(dashboard_app_config, held=False)
     voice_log = logging.getLogger("fun_time.voice_control")
     written = EventLogHandler(event_log_path(state_dir))
     voice_log.addHandler(written)
@@ -1668,13 +1668,13 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
             Recognition(unrecognized_text="put the kettle on"),
             spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
         deadline = time.monotonic() + 5.0
-        while not window._notices.overlay.flashed and time.monotonic() < deadline:
-            window._notices.poll()
+        while not window._messages.overlay.flashed and time.monotonic() < deadline:
+            window._messages.poll()
             time.sleep(0.02)
         window._log_widget._poll()
         listed = [window._log_widget._list.item(row).text()
                   for row in range(window._log_widget._list.count())]
-        flashed = [message for message, _target in window._notices.overlay.flashed]
+        flashed = [message for message, _target in window._messages.overlay.flashed]
     finally:
         voice_log.removeHandler(written)
         window.close()
@@ -1698,7 +1698,7 @@ def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
 
 
 def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
-    """`notice_feed` is not held to this: it reads `notice_overlay`, whose
+    """`message_feed` is not held to this: it reads `message_overlay`, whose
     widget half imports PyQt6."""
     def loads_qt(module: str) -> bool:
         result = subprocess.run(

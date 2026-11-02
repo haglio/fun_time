@@ -478,7 +478,7 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolat
     rewrote only *paths* — so a run and a live session raced for one socket.
 
     Whichever bound second died with WSAEADDRINUSE.  Started in the order the
-    user would notice, that is theirs: a run holding the port means opening Fun
+    user would message, that is theirs: a run holding the port means opening Fun
     Time loses its companion audio, with nothing on screen to explain it.  And
     while both were up, Genau's notifications went to whichever companion won,
     which need not be its own session's.

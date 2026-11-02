@@ -760,37 +760,37 @@ class TestDispatchLoopRunner:
 
         assert _mailbox(runner) == ["unsuspend_hotkeys"]
 
-    def test_dispatch_sends_a_notice_to_the_event_log_not_to_ahk(self, tmp_path):
-        """A notice is a message for the person watching; it goes to the log
+    def test_dispatch_sends_a_message_to_the_event_log_not_to_ahk(self, tmp_path):
+        """A message is a message for the person watching; it goes to the log
         panel's stream, and AHK — which used to flash it at the mouse — never
         hears about it."""
         runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
-        notice_op = WindowOp(op="notice", key="Genaumacher: MyVideo", source="main")
+        message_op = WindowOp(op="message", key="Genaumacher: MyVideo", source="main")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
-            mock_dispatch.return_value = (runner.state, [notice_op])
+             patch("fun_time.windows_bridge_dispatch_loop.flash_message") as mock_message:
+            mock_dispatch.return_value = (runner.state, [message_op])
             runner._dispatch("some_command")
 
         assert not ahk_cmd_file.exists()
-        mock_notice.assert_called_once()
-        assert mock_notice.call_args[0][1] == "Genaumacher: MyVideo"
-        assert mock_notice.call_args[1] == {"source": "main", "level": notice_op.level}
+        mock_message.assert_called_once()
+        assert mock_message.call_args[0][1] == "Genaumacher: MyVideo"
+        assert mock_message.call_args[1] == {"source": "main", "level": message_op.level}
 
-    def test_a_dead_end_notice_is_logged_at_its_warning_level(self, tmp_path):
-        """A no-effect notice carries WARNING so the panel and flash render it
+    def test_a_dead_end_message_is_logged_at_its_warning_level(self, tmp_path):
+        """A no-effect message carries WARNING so the panel and flash render it
         yellow; the dispatch loop must pass that level through, not flatten it to
         NOTICE."""
         runner = make_runner(tmp_path)
 
-        notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.WARNING)
+        message_op = WindowOp(op="message", key="No other seeds", source="portrait", level=logging.WARNING)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
-            mock_dispatch.return_value = (runner.state, [notice_op])
+             patch("fun_time.windows_bridge_dispatch_loop.flash_message") as mock_message:
+            mock_dispatch.return_value = (runner.state, [message_op])
             runner._dispatch("portrait_cycle_seed")
 
-        assert mock_notice.call_args[1] == {"source": "portrait", "level": logging.WARNING}
+        assert mock_message.call_args[1] == {"source": "portrait", "level": logging.WARNING}
 
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=100, dashboard_enabled=True)
@@ -1280,7 +1280,7 @@ class TestDispatchLoopRunner:
         (tmp_path / "dashboard_cmd.txt").write_text("voice_accept", encoding="utf-8")
         flashed = []
 
-        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+        with patch("fun_time.windows_bridge_dispatch_loop.flash_message",
                    side_effect=lambda _log, msg, *, source, level=25: flashed.append(
                        (msg, source, level))):
             runner.tick()
@@ -1293,7 +1293,7 @@ class TestABareHudPhraseAfterANamedOne:
     def _say(runner, tmp_path, command, said):
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
-        with patch("fun_time.windows_bridge_dispatch_loop.notice"):
+        with patch("fun_time.windows_bridge_dispatch_loop.flash_message"):
             runner.tick()
 
     def test_hud_expand_after_portrait_hud_collapse_opens_the_portrait_hud(self, tmp_path):
@@ -1316,7 +1316,7 @@ class TestWhatASpokenCommandFlashes:
         flashed = []
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, list(ops))), \
-             patch("fun_time.windows_bridge_dispatch_loop.notice",
+             patch("fun_time.windows_bridge_dispatch_loop.flash_message",
                    side_effect=lambda _log, msg, *, source, level=25: flashed.append(
                        (msg, source, level))):
             runner.tick()
@@ -1351,7 +1351,7 @@ class TestWhatASpokenCommandFlashes:
 
     def test_a_command_that_says_what_it_did_is_the_one_entry(self, tmp_path):
         spoken = format_spoken_command("portrait_more_seeds", spoken_at=1.0, said="more seeds")
-        said_itself = WindowOp(op="notice", key="More seeds", source="portrait")
+        said_itself = WindowOp(op="message", key="More seeds", source="portrait")
 
         assert self._flashed(tmp_path, spoken, [said_itself]) == [("More seeds", "portrait", 25)]
 
@@ -1362,7 +1362,7 @@ class TestWhatASpokenCommandFlashes:
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
         flashed = []
-        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+        with patch("fun_time.windows_bridge_dispatch_loop.flash_message",
                    side_effect=lambda _log, msg, *, source, level=25: flashed.append(
                        (msg, source, level))):
             runner.tick()
@@ -1480,7 +1480,7 @@ class TestWhatASpokenCommandFlashes:
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
         flashed = []
-        with patch("fun_time.windows_bridge_dispatch_loop.notice",
+        with patch("fun_time.windows_bridge_dispatch_loop.flash_message",
                    side_effect=lambda _log, msg, *, source, level=25: flashed.append(
                        (msg, source))):
             runner.tick()
@@ -2840,7 +2840,7 @@ class TestIdempotentVoiceCommands:
 
     def test_save_video_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
         """The save boots a sibling repo's interpreter (up to its 10 s timeout),
-        so the tick hands it to a thread and the notice lands when it does —
+        so the tick hands it to a thread and the message lands when it does —
         the one command whose confirmation trails the keypress."""
         runner = make_runner(tmp_path)
         with patch(
@@ -2865,7 +2865,7 @@ class TestIdempotentVoiceCommands:
 
     def test_save_video_failure_flashes_nothing(self, tmp_path, caplog):
         """save_clip_session answers "" on failure and has already logged why;
-        an empty notice would flash an empty rectangle."""
+        an empty message would flash an empty rectangle."""
         runner = make_runner(tmp_path)
         with patch(
             "fun_time.genaumacher_save.save_clip_session", return_value=""
@@ -3815,7 +3815,7 @@ class TestOpeningInOrigeneratorMode:
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
     """Two of the session's paths were worked out from a neighbor's, so the
     writer that owns the layout had no say in them: the state directory was
-    dashboard_state_file's parent, and the notice channel was main_funestra_status_file
+    dashboard_state_file's parent, and the message channel was main_funestra_status_file
     with the name swapped.  Both are keys now, and a manifest that says
     something else is believed."""
 
@@ -3832,7 +3832,7 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
         assert build_bridge_config_from_manifest(manifest).state_dir == tmp_path / "elsewhere"
 
-    def test_the_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+    def test_the_message_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
         manifest = self._manifest(
             cfg_factory, tmp_path,
             main_funestra_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
@@ -3841,7 +3841,7 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
         assert build_bridge_config_from_manifest(manifest).main_funestra_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
 
-    def test_each_satellites_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+    def test_each_satellites_message_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
         manifest = self._manifest(
             cfg_factory, tmp_path,
             portrait_notice_file=str(tmp_path / "elsewhere" / "portrait_notice.txt"),

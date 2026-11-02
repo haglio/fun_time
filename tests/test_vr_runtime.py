@@ -235,7 +235,7 @@ def test_explain_never_raises_on_a_readiness_it_has_no_wording_for():
 
 def test_every_readiness_is_either_explained_or_deliberately_not():
     """Wording is looked up by the item, so an item added without any is a
-    decision taken here rather than a fallback string nobody notices."""
+    decision taken here rather than a fallback string nobody messages."""
     unexplained = {item for item in Readiness if item not in _EXPLANATIONS}
 
     assert unexplained == {Readiness.READY, Readiness.FAILED}

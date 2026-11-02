@@ -33,8 +33,8 @@ from funestra.flick_folder import vr_flicks_in
 from funestra.funestra import Funestra
 from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
+from funestra.messages import MessageWriter
 from funestra.modes import MainMode
-from funestra.notices import MessageWriter
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 from funestra.pointer import OMNIPAUSE_TOGGLE
@@ -50,14 +50,14 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.event_log import NOTICE, SOURCE_MAIN, event_log_path, notice
+from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
-from fun_time.unlogged_notices import UnloggedNotices
+from fun_time.unlogged_messages import UnloggedMessages
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.contract import MainChannels
@@ -86,7 +86,6 @@ from .headset_wear import HeadsetWear
 from .hud_buttons import HudButtons, hud_button_names
 from .hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG
 from .layout import (
-    BANNER,
     DASH,
     FUNESTRAS,
     GALLERY,
@@ -95,6 +94,7 @@ from .layout import (
     LIBRARY,
     MAIN,
     MAIN_HUD,
+    MESSAGE_SCREEN,
     PORTRAIT,
     REFERENCE,
     Layout,
@@ -136,8 +136,8 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
-from .notice_banner import banner_bgra, paint_banner
-from .notices import NoticeBoard
+from .message_drawing import message_bgra, paint_message
+from .messages import MessageBoard
 from .perf import FramePerf
 from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
@@ -194,7 +194,7 @@ from .wraps import Wrap, angle_limits, immersive_wrap
 logger = logging.getLogger(__name__)
 
 # Overlay ids shared with the desktop satellite (10 is its lock HUD).
-_OV_NOTICE_BANNER = 13
+_OV_NOTICE_MESSAGE = 13
 
 
 # Longest texture side each video gets: near-native for the Main Funestra, and for
@@ -305,7 +305,7 @@ class _VideoUnit:
         self.layer_dirty = False
         self.layer_rect: tuple[int, int] | None = None
         # Furniture last painted, pump-thread-owned.
-        self._banner_shown: tuple | None = None
+        self._message_shown: tuple | None = None
         self._audio_routed = False
         self._held = False
 
@@ -342,7 +342,7 @@ class _VideoUnit:
         """Give the Funestra its sound on the first frame the headset is WORN:
         routed earlier, a parked endpoint takes the stream without consuming it
         and mpv's audio clock never ticks, freezing the Funestra on frame 1.
-        When it wedges anyway, :mod:`fun_time_vr.playback_watch` notices."""
+        When it wedges anyway, :mod:`fun_time_vr.playback_watch` messages."""
         if self._audio_routed:
             return
         self._audio_routed = True
@@ -382,24 +382,24 @@ class _VideoUnit:
     def _post(self, command: str) -> None:
         append_command(self._dashboard_cmd_file, command)
 
-    def overlay_banner(self, notice) -> None:
-        """Flash *notice* over this screen, or clear what was flashing,
+    def overlay_message(self, flashed) -> None:
+        """Flash *message* over this screen, or clear what was flashing,
         repainted only when it changes."""
         if not self.target.ready:
             return
         width, height = self.target.width, self.target.height
-        shown = None if notice is None else (notice.message, notice.level, width, height)
-        if shown == self._banner_shown:
+        shown = None if flashed is None else (flashed.message, flashed.level, width, height)
+        if shown == self._message_shown:
             return
-        self._banner_shown = shown
+        self._message_shown = shown
         if shown is None:
-            self.engine.remove_overlay(_OV_NOTICE_BANNER)
+            self.engine.remove_overlay(_OV_NOTICE_MESSAGE)
             return
-        placed = banner_bgra(notice.message, notice.level, width=width, height=height)
+        placed = message_bgra(flashed.message, flashed.level, width=width, height=height)
         if placed is None:
             return
         x, y, bgra = placed
-        self.engine.overlay(_OV_NOTICE_BANNER, x, y, bgra)
+        self.engine.overlay(_OV_NOTICE_MESSAGE, x, y, bgra)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """One turn of the file-channel worker — what every unit owes it."""
@@ -478,7 +478,7 @@ class _MainUnit(_VideoUnit):
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
-        remembered: Layout, stop: threading.Event, notices=None, perf=None,
+        remembered: Layout, stop: threading.Event, messages=None, perf=None,
         while_reading: Callable[[], None] = lambda: None,
     ) -> None:
         super().__init__(
@@ -488,7 +488,7 @@ class _MainUnit(_VideoUnit):
         commands = manifest.commands
         self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
         self._audio_device = vr.audio_device.strip()
-        self._notices = notices
+        self._messages = messages
         self._watch = PlaybackWatch()
         self._readout = WrapReadout()
         self._presses = _Presses(MAIN, MAIN_HUD)
@@ -560,17 +560,17 @@ class _MainUnit(_VideoUnit):
             return None
         return readout(self.verbs.projection, self.verbs.wrap)
 
-    def banner_into_the_frame(self):
-        """A banner drawn into a frame wrapped round the viewer lands on the seam
+    def message_into_the_frame(self):
+        """A message drawn into a frame wrapped round the viewer lands on the seam
         between its two eyes; the floating one carries it instead."""
-        if self._notices is None or self.wraps_the_viewer:
+        if self._messages is None or self.wraps_the_viewer:
             return None
-        return self._notices.banner(self.screen_name)
+        return self._messages.flashed(self.screen_name)
 
     def flash_the_readout(self, now: float) -> None:
         said = self._readout.frame(self.wrap_readout, now=now)
-        if said is not None and self._notices is not None:
-            self._notices.flash(said, level=NOTICE, screen=self.screen_name, now=now)
+        if said is not None and self._messages is not None:
+            self._messages.flash(said, level=MESSAGE, screen=self.screen_name, now=now)
 
     def dial_the_wrap(self, *, zoom: float, stretch: float) -> None:
         wrap = self.verbs.wrap
@@ -615,8 +615,8 @@ class _MainUnit(_VideoUnit):
         if self.funestra.stopped:
             stop.set()
         self._watch_progress(now)
-        if self._notices is not None:
-            self.overlay_banner(self.banner_into_the_frame())
+        if self._messages is not None:
+            self.overlay_message(self.message_into_the_frame())
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
@@ -639,11 +639,11 @@ class _MainUnit(_VideoUnit):
         if verdict is None:
             return
         if verdict == STALLED:
-            notice(logger, "the video stopped advancing; reopening it", source=SOURCE_MAIN,
+            flash_message(logger, "the video stopped advancing; reopening it", source=SOURCE_MAIN,
                    level=logging.ERROR)
             self._reopen()
         else:
-            notice(logger, "the video is still not advancing", source=SOURCE_MAIN,
+            flash_message(logger, "the video is still not advancing", source=SOURCE_MAIN,
                    level=logging.ERROR)
 
     def _reopen(self) -> None:
@@ -681,7 +681,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file)),
         notifier=GenauNotifier(vr.notify_host, vr.notify_port),
         tcode_sink=_osr2_slot(commands, ROBOT_HAND),
-        notices=MessageWriter(Path(commands.main_funestra_notice_file)),
+        messages=MessageWriter(Path(commands.main_funestra_notice_file)),
         stop_event=stop,
         start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
         latest=resumed.genau_latest,
@@ -702,7 +702,7 @@ class _SatelliteUnit(_VideoUnit):
 
     def __init__(
         self, funestra: str, manifest: LaunchManifest, contexts, *,
-        vr: VrSettings, remembered: Mapping[str, Placement], notices=None, perf=None,
+        vr: VrSettings, remembered: Mapping[str, Placement], messages=None, perf=None,
     ) -> None:
         super().__init__(
             VideoThread(contexts, _headsets_engine(contexts), SATELLITE_VIDEO_CAP_PX,
@@ -710,8 +710,8 @@ class _SatelliteUnit(_VideoUnit):
             remembered.get(funestra, self.SPOTS[funestra]),
         )
         commands = manifest.commands
-        self.screen_name = funestra  # its notices flash over its own frame
-        self._notices = notices
+        self.screen_name = funestra  # its messages flash over its own frame
+        self._messages = messages
         # What a launched satellite is given on its command line, read out of
         # the manifest instead: this one runs in the headset's own process.
         channels = SatelliteChannels.from_manifest(
@@ -783,8 +783,8 @@ class _SatelliteUnit(_VideoUnit):
     def pump(self, stop: threading.Event, now: float) -> None:
         self._take_presses()
         self.funestra.tick(window=self._window())
-        if self._notices is not None:
-            self.overlay_banner(self._notices.banner(self.screen_name))
+        if self._messages is not None:
+            self.overlay_message(self._messages.flashed(self.screen_name))
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
@@ -949,10 +949,10 @@ class _DashUnit:
 
     def __init__(self, main_unit: _MainUnit, *,
                  remembered: Mapping[str, Placement], dashboard_cmd_file: Path,
-                 notices: NoticeBoard, dashboard_state_file: Path,
+                 messages: MessageBoard, dashboard_state_file: Path,
                  reference_flag: Path, state_dir: Path) -> None:
         self._main_unit = main_unit
-        self._notices = notices
+        self._messages = messages
         self._state_file = dashboard_state_file
         self._reference_flag = reference_flag
         self._floating = _at_the_dashs_own_width(remembered.get(DASH, self.SPOTS[DASH]))
@@ -1028,7 +1028,7 @@ class _DashUnit:
             reference_open=read_flag(self._reference_flag, default=False),
             nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
         )
-        records = self._notices.records
+        records = self._messages.records
         aim = self._presses.hover
         hover = surface_pixel(*aim[1], size) if aim is not None else None
         self._pointer.hover(hover)
@@ -1247,33 +1247,33 @@ class _LibraryUnit:
         self.screen.close()
 
 
-BANNER_ELEVATION_DEG = 24.0
-BANNER_PX_PER_DEG = 40.0
-# The family's small type as big as it reads on the HUD, drawn at the banner's density.
-BANNER_FONT_PX = round(in_pixels(SIZE_SMALL) * BANNER_PX_PER_DEG * DEG_PER_PX)
-BANNER_MAX_WIDTH_PX = 1600
+MESSAGE_ELEVATION_DEG = 24.0
+MESSAGE_PX_PER_DEG = 40.0
+# The family's small type as big as it reads on the HUD, drawn at the message's density.
+MESSAGE_FONT_PX = round(in_pixels(SIZE_SMALL) * MESSAGE_PX_PER_DEG * DEG_PER_PX)
+MESSAGE_MAX_WIDTH_PX = 1600
 
 
-class _BannerUnit:
-    """The main screen's banner, floating in front of a frame wrapped round the viewer."""
+class _MessageUnit:
+    """The main screen's message, floating in front of a frame wrapped round the viewer."""
 
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
-    def __init__(self, main_unit, notices) -> None:
+    def __init__(self, main_unit, messages) -> None:
         self._main_unit = main_unit
-        self._notices = notices
+        self._messages = messages
         self._lock = threading.Lock()
         self._image = None
         self._uploaded = None
         self._painted: tuple[str, int] | None = None
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(Placement(0.0, BANNER_ELEVATION_DEG, 1.0))
+        self.screen = _HangingScreen(Placement(0.0, MESSAGE_ELEVATION_DEG, 1.0))
 
     def hangings(self) -> tuple[Hanging, ...]:
         if self._painted is None or not (self._main_unit.wraps_the_viewer and self.texture.ready):
             return ()
         return (Hanging(
-            Screen(BANNER, self.screen.placement, self.texture.aspect),
+            Screen(MESSAGE_SCREEN, self.screen.placement, self.texture.aspect),
             mesh=self.screen, frame=self.texture, blend=True, in_front=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:
@@ -1286,15 +1286,15 @@ class _BannerUnit:
         pass
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        notice = self._notices.banner(MAIN) if self._main_unit.wraps_the_viewer else None
-        painted = None if notice is None else (notice.message, notice.level)
+        flashed = self._messages.flashed(MAIN) if self._main_unit.wraps_the_viewer else None
+        painted = None if flashed is None else (flashed.message, flashed.level)
         if painted == self._painted:
             return
         if painted is not None:
-            image = paint_banner(
-                notice.message, notice.level, max_width=BANNER_MAX_WIDTH_PX, size=BANNER_FONT_PX)
+            image = paint_message(
+                flashed.message, flashed.level, max_width=MESSAGE_MAX_WIDTH_PX, size=MESSAGE_FONT_PX)
             self.screen.placement = Placement(
-                0.0, BANNER_ELEVATION_DEG, image.width / BANNER_PX_PER_DEG)
+                0.0, MESSAGE_ELEVATION_DEG, image.width / MESSAGE_PX_PER_DEG)
             with self._lock:
                 self._image = image
         self._painted = painted
@@ -1802,15 +1802,15 @@ def hang_the_room(
     state_dir = Path(commands.dashboard_cmd_file).parent
     remembered = remembered_layout(state_dir)
     stop = threading.Event()
-    # One read of the event log per tick, pumped before every screen's banner.
-    notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
+    # One read of the event log per tick, pumped before every screen's message.
+    messages = MessageBoard(event_log_path(state_dir), unlogged=UnloggedMessages(state_dir))
     main_unit = _MainUnit(
         manifest, vr, contexts, remembered=remembered, stop=stop, notices=notices, perf=perf,
         while_reading=present_the_loading_screen)
     present_the_loading_screen()  # the Main Funestra has opened its media, and the satellites are next
     satellites = [
         _SatelliteUnit(funestra, manifest, contexts, vr=vr, remembered=remembered.placements,
-                       notices=notices, perf=perf)
+                       messages=messages, perf=perf)
         for funestra in (PORTRAIT, LANDSCAPE)
     ]
     present_the_loading_screen()
@@ -1819,7 +1819,7 @@ def hang_the_room(
         main_unit,
         remembered=remembered.placements,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        notices=notices,
+        messages=messages,
         dashboard_state_file=Path(commands.dashboard_state_file),
         reference_flag=reference_flag,
         state_dir=Path(commands.state_dir),
@@ -1840,7 +1840,7 @@ def hang_the_room(
     return TheRoom(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag), library=library,
-        banner=_BannerUnit(main_unit, notices),
+        flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),
         loading_screen=loading_screen, notices=notices,

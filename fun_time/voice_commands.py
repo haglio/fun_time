@@ -501,7 +501,7 @@ def build_voice_commands(
 VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 
-# recognizer phrase -> what the reference and the notices show, one pair per word
+# recognizer phrase -> what the reference and the messages show, one pair per word
 # spelled as it is heard: a name in no dictionary as the words it sounds like, a
 # joined-up word as its halves, a device name as its letters, Genau as "go now".
 # EVERY such spelling above is here and nowhere else, so no row explains its own.

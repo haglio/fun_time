@@ -17,13 +17,13 @@ from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
 
-from fun_time.aiming import notice_source
+from fun_time.aiming import message_source
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
-    notice,
+    flash_message,
 )
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
@@ -31,7 +31,7 @@ from fun_time.hosted_contract import (
     said_to_the_hosted_app,
     with_when_said,
 )
-from fun_time.unlogged_notices import flash_unlogged
+from fun_time.unlogged_messages import flash_unlogged
 from fun_time.voice_commands import (
     GENAU_SAID,
     VOICE_COMMANDS,
@@ -64,9 +64,9 @@ def _how_many(words: str) -> str:
 
 
 
-# The Funestra words a speaker can put in any command, and which window a notice
+# The Funestra words a speaker can put in any command, and which window a message
 # about that Funestra flashes over.  "both" is deliberately absent: it addresses
-# two Funestras, and a notice flashes over one.
+# two Funestras, and a message flashes over one.
 _SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
@@ -362,7 +362,7 @@ class VoiceController:
                                recognition.silent_reading, heard_text=recognition.silent_reading,
                                spoken_at=heard.spoken_at)
         else:
-            notice(logger, DID_NOT_CATCH_IT, source=SOURCE_SYSTEM, level=logging.WARNING)
+            flash_message(logger, DID_NOT_CATCH_IT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
     def accept_what_it_was_not_sure_of(self) -> bool:
         with self._not_sure_of_lock:
@@ -376,26 +376,26 @@ class VoiceController:
         written = self._write_spoken(phrase, spoken_at=spoken_at)
         hold = self._holds.when(spoken_at)
         if not written and hold is not None and not self._muted.is_set():
-            notice(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
-                   source=notice_source(self.commands[phrase], self.active_funestra()),
+            flash_message(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
+                   source=message_source(self.commands[phrase], self.active_funestra()),
                    level=logging.WARNING)
 
     def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str,
                       spoken_at: float, then: str = "") -> None:
         source = _source_for_heard_text(heard_text)
         after = f" {then}" if then else ""
-        notice(logger, f"{logged} ({_how_many(words)}){after}", source=source,
+        flash_message(logger, f"{logged} ({_how_many(words)}){after}", source=source,
                level=logging.WARNING, flashes=False, spoken_at=spoken_at)
         flash_unlogged(self.cmd_file.parent, f"{shown}: {words}{after}", source=source,
                        level=logging.WARNING, spoken_at=spoken_at)
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:
         if forming and not self._words_forming and self._is_listening():
-            notice(logger, WORKING_ON_IT, source=SOURCE_SYSTEM)
+            flash_message(logger, WORKING_ON_IT, source=SOURCE_SYSTEM)
         self._words_forming = bool(forming)
 
     def _announce_the_microphone_is_back(self) -> None:
-        notice(logger, "Voice control: audio from the microphone resumed", source=SOURCE_SYSTEM)
+        flash_message(logger, "Voice control: audio from the microphone resumed", source=SOURCE_SYSTEM)
 
     def stop(self) -> None:
         """Signal the run loop to stop."""
