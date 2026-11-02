@@ -2,6 +2,7 @@
 its Kino / Origenerator pair with."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import cache
 
 from funestra.hud import SYMBOL_FONT, draw_button, load_font, text_width
@@ -55,3 +56,45 @@ def paint_selector(size: tuple[int, int], placed: list[tuple[Rect, Button]], *,
         draw_button(image, draw, rect, button, hovered=rect == hovered,
                     icon_font=_icon_font(), word_font=_word_font())
     return image
+
+
+class RfbModeSelector:
+    def __init__(self, *, x: int, y: int, post: Callable[[str], None]) -> None:
+        self._x, self._y = x, y
+        self._post = post
+        self.placed: list[tuple[Rect, Button]] = []
+        self._hovered: tuple[Rect, Button] | None = None
+
+    def show(self, rfb_mode: RfbMode, *, origenerator_ready: bool) -> bool:
+        placed = place_selector(selector_buttons(rfb_mode, origenerator_ready=origenerator_ready),
+                                x=self._x, y=self._y)
+        changed = placed != self.placed
+        self.placed = placed
+        return changed
+
+    @property
+    def name_under_the_pointer(self) -> str | None:
+        return None if self._hovered is None else self._hovered[1].tooltip_on_hover
+
+    def rgba(self, size: tuple[int, int]) -> bytes:
+        hovered = None if self._hovered is None else self._hovered[0]
+        return paint_selector(size, self.placed, hovered=hovered).tobytes("raw", "RGBA")
+
+    def press(self, x: int, y: int) -> None:
+        under = self._under(x, y)
+        if under is not None and not under[1].dim:
+            self._post(under[1].command)
+
+    def move(self, x: int, y: int) -> None:
+        self._hovered = self._under(x, y)
+
+    def release(self) -> None:
+        pass
+
+    def leave(self) -> None:
+        self._hovered = None
+
+    def _under(self, x: int, y: int) -> tuple[Rect, Button] | None:
+        return next(((rect, button) for rect, button in self.placed
+                     if rect[0] <= x < rect[0] + rect[2] and rect[1] <= y < rect[1] + rect[3]),
+                    None)

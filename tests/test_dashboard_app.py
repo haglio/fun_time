@@ -1890,10 +1890,13 @@ def mode_selector_window(cfg_factory, tmp_path):
         window.close()
 
 
+def _on_the_mode_selector(window, label: str) -> tuple[int, int]:
+    rect = next(rect for rect, button in window._mode_selector.buttons.placed if button.icon == label)
+    return rect[0] + rect[2] // 2, rect[1] + rect[3] // 2
+
+
 def _press_the_strip(window, label: str) -> None:
-    rect = next(rect for rect, button in window._mode_selector.placed if button.icon == label)
-    QTest.mouseClick(window._mode_selector, Qt.MouseButton.LeftButton,
-                     pos=QPoint(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2))
+    QTest.mouseClick(window._mode_selector, Qt.MouseButton.LeftButton, pos=QPoint(*_on_the_mode_selector(window, label)))
 
 
 def test_only_a_session_hosting_origenerator_gives_its_dashboard_the_strip(
@@ -1925,11 +1928,11 @@ def test_the_strip_lights_whatever_holds_the_browsers_place(mode_selector_window
     mode_selector_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True),
                             frozenset())
 
-    assert [(button.icon, button.lit, button.dim) for _rect, button in mode_selector_window._mode_selector.placed] == [
+    assert [(button.icon, button.lit, button.dim) for _rect, button in mode_selector_window._mode_selector.buttons.placed] == [
         ("Random Favs Browser", False, False), ("Origenerator", True, False)]
 
 
-def test_a_press_on_the_strip_asks_for_that_one_in_the_browsers_place(mode_selector_window, tmp_path):
+def test_a_press_on_the_mode_selector_asks_for_that_one_in_the_browsers_place(mode_selector_window, tmp_path):
     mode_selector_window._do_render(_snapshot(origenerator_ready=True), frozenset())
 
     _press_the_strip(mode_selector_window, "Origenerator")
@@ -1945,6 +1948,32 @@ def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(mode_
     _press_the_strip(mode_selector_window, "Origenerator")
 
     assert poll_dashboard_commands(mode_selector_window._app_config.dashboard_cmd_file) == []
+
+
+def test_a_button_on_the_mode_selector_lights_under_the_pointer_and_names_itself_until_it_leaves(mode_selector_window):
+    selector = mode_selector_window._mode_selector
+    mode_selector_window._do_render(_snapshot(origenerator_ready=True), frozenset())
+    resting = selector.grab().toImage()
+
+    _point_at(selector, *_on_the_mode_selector(mode_selector_window, "Origenerator"))
+
+    assert selector.grab().toImage() != resting
+    assert QToolTip.text() == "Origenerator in the Random Favs Browser's place"
+
+    _leave(selector)
+
+    assert selector.grab().toImage() == resting
+    QToolTip.hideText()
+
+
+def test_the_name_goes_away_when_the_pointer_is_off_every_button_on_the_mode_selector(mode_selector_window):
+    selector = mode_selector_window._mode_selector
+    _point_at(selector, *_on_the_mode_selector(mode_selector_window, "Random Favs Browser"))
+
+    _point_at(selector, 0, 0)
+
+    _pump_until(lambda: not QToolTip.isVisible())
+    assert not QToolTip.isVisible()
 
 
 # --- the OSR2 part at the window's right end -------------------------------------

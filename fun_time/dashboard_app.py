@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
 from funestra.file_channel import append_command
-from PyQt6.QtGui import QColor, QFont, QImage
+from PyQt6.QtGui import QColor, QFont
 from shared_ui.application import application
 from shared_ui.colors import (
     BG_BUTTON,
@@ -27,6 +27,7 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY
 from shared_ui.foreground import bring_to_front
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
+from shared_ui.pressable_drawing import PressableDrawing
 from shared_ui.preview import Preview
 from shared_ui.preview_icon import app_icon
 from shared_ui.spacing import BUTTON_RADIUS_HUD, MARGIN_STANDARD
@@ -72,7 +73,7 @@ from fun_time.message_feed import MessageFeed
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
+from fun_time.rfb_mode_selector import RfbModeSelector
 from fun_time.session_end import mark_session_end
 from fun_time.shared_state import shared_state_path
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
@@ -405,67 +406,36 @@ class DashboardWidget(QWidget):
             self.update()
 
 
-class RfbModeSelectorWidget(QWidget):
+class RfbModeSelectorWidget(PressableDrawing):
     """The mode selector under the log, hovered and pressed the way a Satellite
-    Funestra's HUD is (:mod:`fun_time.rfb_mode_strip`)."""
+    Funestra's HUD is (:mod:`fun_time.rfb_mode_selector`)."""
 
     action_triggered = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
+        self.buttons = RfbModeSelector(x=PAD, y=PAD, post=self._post)
+        super().__init__(self.buttons, parent)
         self.setFixedHeight(RFB_MODE_SELECTOR_HEIGHT)
-        self.setMouseTracking(True)
-        self.placed = _placed_on_the_strip(DashboardSnapshot())
-        self._hovered: tuple[int, int, int, int] | None = None
+        self.show_state(DashboardSnapshot())
 
     def show_state(self, snapshot: DashboardSnapshot) -> None:
-        placed = _placed_on_the_strip(snapshot)
-        if placed != self.placed:
-            self.placed = placed
+        if self.buttons.show(snapshot.rfb_mode, origenerator_ready=snapshot.origenerator_ready):
             self.update()
 
-    def paintEvent(self, event: object) -> None:
-        image = paint_selector((self.width(), self.height()), self.placed, hovered=self._hovered)
-        pixels = image.tobytes("raw", "RGBA")
-        painter = QPainter(self)
-        painter.drawImage(0, 0, QImage(pixels, image.width, image.height, image.width * 4,
-                                       QImage.Format.Format_RGBA8888))
-        painter.end()
-
-    def _under(self, event: object):
-        pos = event.position()
-        x, y = int(pos.x()), int(pos.y())
-        return next(((rect, button) for rect, button in self.placed
-                     if rect[0] <= x < rect[0] + rect[2] and rect[1] <= y < rect[1] + rect[3]),
-                    None)
-
-    def mousePressEvent(self, event: object) -> None:
-        under = self._under(event)
-        if under is not None and not under[1].dim:
-            self.action_triggered.emit(under[1].command)
+    def drawing(self) -> tuple[bytes, tuple[int, int]]:
+        size = self.width(), self.height()
+        return self.buttons.rgba(size), size
 
     def mouseMoveEvent(self, event: object) -> None:
-        under = self._under(event)
-        self._hover(None if under is None else under[0])
-        if under is None:
+        super().mouseMoveEvent(event)
+        name = self.buttons.name_under_the_pointer
+        if name is None:
             QToolTip.hideText()
         else:
-            QToolTip.showText(self.mapToGlobal(event.position().toPoint()),
-                              under[1].tooltip_on_hover, self)
+            QToolTip.showText(self.mapToGlobal(event.position().toPoint()), name, self)
 
-    def leaveEvent(self, event: object) -> None:
-        self._hover(None)
-
-    def _hover(self, rect: tuple[int, int, int, int] | None) -> None:
-        if rect != self._hovered:
-            self._hovered = rect
-            self.update()
-
-
-def _placed_on_the_strip(snapshot: DashboardSnapshot):
-    return place_selector(selector_buttons(snapshot.rfb_mode,
-                                     origenerator_ready=snapshot.origenerator_ready),
-                       x=PAD, y=PAD)
+    def _post(self, command: str) -> None:
+        self.action_triggered.emit(command)
 
 
 class ReferenceDialog(QDialog):
