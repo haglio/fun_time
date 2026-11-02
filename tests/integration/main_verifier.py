@@ -22,9 +22,9 @@ import coverage
 import pytest
 from app_support.file_channel import write_whole
 from app_support.logging_utils import configure_logging, install_exception_logging
+from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.checkout_overrides import primary_of
 from fun_time.process_tree import kill_process_tree
 from fun_time.project_paths import SIBLING_CHECKOUTS_OVERRIDE_NAME, STATE_DIRNAME
 
@@ -638,7 +638,7 @@ def first_bad(commits: Sequence[str], fails_at: Callable[[str], bool]) -> str:
 
 
 def main() -> None:
-    primary = primary_of(Path(__file__).resolve().parents[2])
+    primary = primary_checkout_of(Path(__file__).resolve().parents[2])
     state = primary / STATE_DIRNAME
     install_exception_logging(configure_logging("main_verifier", state / "main_verifier.log"))
     try:

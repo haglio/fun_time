@@ -27,10 +27,6 @@ def is_a_worktree(checkout: Path) -> bool:
     return checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude"
 
 
-def primary_of(checkout: Path) -> Path:
-    return checkout.parents[2] if is_a_worktree(checkout) else checkout
-
-
 def _own_override(name: str) -> list[str] | None:
     """This checkout's *name* override, resolved against its own project dir."""
     return override_lines(PROJECT_DIR / STATE_DIRNAME / name)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -187,9 +188,14 @@ def test_a_root_left_behind_leaves_pytest_to_say_why_a_failed_run_failed():
     assert session.exitstatus == pytest.ExitCode.TESTS_FAILED
 
 
-def test_a_failed_run_in_a_worktree_keeps_its_records_in_the_production_checkout():
-    production = Path("C:/checkouts/fun_time")
+def test_a_failed_run_in_a_worktree_keeps_its_records_in_the_production_checkout(tmp_path):
+    production = tmp_path / "fun_time"
     worktree = production / ".claude" / "worktrees" / "made-up-worktree"
+    for command in (["init", str(production)],
+                    ["-C", str(production), "-c", "user.name=Example", "-c", "user.email=example@example.com",
+                     "commit", "--allow-empty", "-m", "Example"],
+                    ["-C", str(production), "worktree", "add", str(worktree)]):
+        subprocess.run(["git", *command], check=True, capture_output=True)
 
     assert where_failed_runs_are_kept(worktree) == where_failed_runs_are_kept(production) == (
         production / "state" / "integration_failures")

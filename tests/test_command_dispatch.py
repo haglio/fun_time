@@ -4247,17 +4247,17 @@ def test_the_genaumacher_sibling_is_found_beside_the_primary_not_beside_a_worktr
     assert "worktrees" not in resolved.parts
 
 
-def test_the_genaumacher_sibling_falls_back_to_this_checkout_without_git():
+def test_the_genaumacher_sibling_falls_back_to_this_checkout_without_git(tmp_path):
     """No worse than it was: where git cannot answer, the checkout that is
     running is the only guess available."""
     genaumacher_save._genaumacher_project_dir.cache_clear()
     try:
-        with patch("fun_time.branch_session.primary_checkout", side_effect=OSError("no git")):
+        with patch("fun_time.config.PROJECT_DIR", tmp_path / "fun_time"):
             resolved = genaumacher_save._genaumacher_project_dir()
     finally:
         genaumacher_save._genaumacher_project_dir.cache_clear()
 
-    assert resolved == Path(genaumacher_save.__file__).resolve().parents[1].parent / "genaumacher"
+    assert resolved == tmp_path / "genaumacher"
 
 
 class _BuildsRecorded:

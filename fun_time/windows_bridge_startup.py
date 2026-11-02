@@ -15,6 +15,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from app_support import osr2_hold
+from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import process_started
 from funestra import broker
@@ -28,7 +29,7 @@ from satellite.contract import SatelliteChannels, WindowPlacement
 from . import preview_marker
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import write_broker_command
-from .checkout_overrides import is_a_worktree, primary_of, sibling_checkouts_kwargs
+from .checkout_overrides import is_a_worktree, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
@@ -510,7 +511,9 @@ def origenerator_launch_command(
 
 
 def origenerator_interpreter(origenerator_dir: str | Path) -> Path:
-    return primary_of(Path(origenerator_dir)) / ".venv" / "Scripts" / "python.exe"
+    checkout = Path(origenerator_dir)
+    installed_in = primary_checkout_of(checkout) if is_a_worktree(checkout) else checkout
+    return installed_in / ".venv" / "Scripts" / "python.exe"
 
 
 def origenerator_launch_kwargs(

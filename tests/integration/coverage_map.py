@@ -10,7 +10,7 @@ from pathlib import Path
 from app_support.file_channel import write_whole
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
+from fun_time.checkout_overrides import STATE_DIRNAME
 
 INTEGRATION_TESTS = "tests/integration/test_*.py"
 NEVER_SHIPPED = ("tests/*", "docs/*", "*.md", ".github/*", ".claude/*", "tools/*", "ruff.toml",
@@ -18,8 +18,8 @@ NEVER_SHIPPED = ("tests/*", "docs/*", "*.md", ".github/*", ".claude/*", "tools/*
 MAP_NAME = "integration_coverage_map.json"
 
 
-def the_machine_s_map(checkout: Path) -> Path:
-    return primary_of(checkout) / STATE_DIRNAME / MAP_NAME
+def the_machine_s_map(primary: Path) -> Path:
+    return primary / STATE_DIRNAME / MAP_NAME
 
 
 @dataclass(frozen=True)

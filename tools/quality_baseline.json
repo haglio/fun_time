@@ -190,7 +190,7 @@
     "fun_time/audio_companion_app.py": 19,
     "fun_time/audio_volume.py": 26,
     "fun_time/branch_seeding.py": 18,
-    "fun_time/branch_session.py": 138,
+    "fun_time/branch_session.py": 132,
     "fun_time/breeding_report.py": 17,
     "fun_time/bridge_records.py": 47,
     "fun_time/broker_control.py": 3,
@@ -738,7 +738,7 @@
     "tests/test_windows_bridge_sequencer.py": 4
   },
   "statements": {
-    "fun_time/branch_session.py": 361,
+    "fun_time/branch_session.py": 358,
     "fun_time/dashboard_app.py": 517,
     "fun_time/library_browser.py": 483,
     "fun_time/win32.py": 310,

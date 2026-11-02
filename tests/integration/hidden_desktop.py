@@ -52,11 +52,10 @@ from pathlib import Path
 from time import monotonic
 
 from app_support.integration_runs import runs_dir
+from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import JobObject
 from app_support.win32_loader import load_dll, win_functype
-
-from fun_time.checkout_overrides import primary_of
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
@@ -473,7 +472,7 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
 
 def what_this_change_needs(base: str) -> Picked:
     root = _repo_root()
-    return tests_to_run(changed_paths(root, base), CoverageMap.load(the_machine_s_map(root)))
+    return tests_to_run(changed_paths(root, base), CoverageMap.load(the_machine_s_map(primary_checkout_of(root))))
 
 
 def _run_what_this_change_needs(base: str) -> int:
@@ -498,7 +497,7 @@ CLAUDE_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
 def _line_records() -> Path:
     if elsewhere := os.environ.get(LINE_RECORDS_ENV):
         return Path(elsewhere)
-    return runs_dir(primary_of(_repo_root()))
+    return runs_dir(primary_checkout_of(_repo_root()))
 
 
 def _branch_of(checkout: Path) -> str:
