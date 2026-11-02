@@ -98,6 +98,9 @@ not-unit-tested = [
 # runs; launch_vr.vbs, FunTimeVR's; and launch_branch.vbs, which a
 # "Verify <branch>" shortcut runs on a worktree. All three are rendered from
 # these by `python -m app_support.launcher --write`.
+[tool.haglio.launcher-gate]
+without-a-log = ["launch_main_verifier.vbs"]
+
 [tool.haglio.launchers."launch.vbs"]
 app = "Fun Time"
 run = "-m fun_time.orchestrator"
