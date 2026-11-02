@@ -7,12 +7,12 @@ ignore = ["E501", "BLE001", "S110",
     # This repo's ratchet: each rule the family config still finds here, and its places today.
     "RUF059",  # 89
     "C408",  # 106
-    "E402",  # 34
+    "E402",  # 28
     "PLR0913",  # 93
-    "SIM105",  # 12
+    "SIM105",  # 11
     "RUF001",  # 14
     "SIM117",  # 18
-    "PLR0915",  # 4
+    "PLR0915",  # 3
     "PLR0912",  # 2
     "ISC004",  # 20
     "PLR0917",  # 10

@@ -18,7 +18,15 @@ from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QToolTip, QWidget
-from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY, hovered
+from shared_ui.colors import (
+    BG_BUTTON,
+    BG_BUTTON_ACTIVE,
+    BLUE,
+    GREEN,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    hovered,
+)
 from shared_ui.find_bar import FindBar
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
@@ -97,7 +105,7 @@ from tests.sleeps import sleeps_in
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
     kwargs.setdefault("icons", IconCache())
-    return build_dashboard_scene(layout, snapshot, width=layout.width, **kwargs)
+    return build_dashboard_scene(layout, snapshot, **kwargs)
 
 
 def _snapshot(**overrides) -> DashboardSnapshot:
@@ -477,6 +485,11 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided():
     assert (geo.x(), geo.y(), geo.width(), geo.height()) == (11, 22, 333, 444)
 
 
+def _window_under_the_loading_screen(app_config, **placed):
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
+        return build_dashboard_window(app_config, **placed)
+
+
 def test_minimize_routes_omniminimize_command(dashboard_window, dashboard_app_config):
     """Minimizing the dashboard writes the omniminimize command for the dispatch loop."""
 
@@ -510,8 +523,7 @@ def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboar
 
 
 def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_config):
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
-        window = build_dashboard_window(dashboard_app_config)
+    window = _window_under_the_loading_screen(dashboard_app_config)
     cmd_file = dashboard_app_config.dashboard_cmd_file
     if cmd_file.exists():
         cmd_file.unlink()
@@ -527,8 +539,7 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_con
     it is the reveal's own restore: it must not route omnirestore — but it
     must clear the suppression, or the dashboard silently stops routing the
     minimize gestures for the rest of the session."""
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
-        window = build_dashboard_window(dashboard_app_config)
+    window = _window_under_the_loading_screen(dashboard_app_config)
     assert window._reveal.routing_suppressed is True
     cmd_file = dashboard_app_config.dashboard_cmd_file
     if cmd_file.exists():
@@ -551,8 +562,7 @@ def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_
     reveal owns the first placement.  (The minimized half has its own test
     below.)"""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
-        window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
+    window = _window_under_the_loading_screen(dashboard_app_config, launch_geometry=launch_geo)
 
     try:
         with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as apply_geo:
@@ -990,20 +1000,18 @@ def test_a_pressed_controls_light_goes_out_by_itself(dashboard_window):
     assert _fill_of(dashboard_window, VOICE_TOGGLE) == resting
 
 
-def test_a_closed_window_is_not_drawn_again_when_its_last_press_goes_out(
-        dashboard_app_config, monkeypatch):
+def test_a_closed_window_is_not_drawn_again_when_its_last_press_goes_out(dashboard_app_config):
     window = build_dashboard_window(dashboard_app_config)
     window._on_action(VOICE_TOGGLE)
     window.close()
-    drawn_after_closing = []
-    monkeypatch.setattr(window, "_do_render", lambda *_args: drawn_after_closing.append(True))
+    drawn_last = window._widget._scene
 
     deadline = time.monotonic() + 2 * PRESS_FLASH_S
     while time.monotonic() < deadline:
         QApplication.processEvents()
         time.sleep(0.01)
 
-    assert drawn_after_closing == []
+    assert window._widget._scene is drawn_last
 
 
 def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboard_app_config):
@@ -1240,7 +1248,7 @@ def test_lighten_color_caps_at_255():
 def test_dashboard_widget_emits_action_on_click():
     """Clicking inside an action rect should emit action_triggered with the action ID."""
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.width, icons=IconCache())
+    scene = build_dashboard_scene(layout, icons=IconCache())
 
     widget = DashboardWidget(scene)
     received: list[str] = []
@@ -1266,7 +1274,7 @@ def test_dashboard_widget_emits_action_on_click():
 def test_dashboard_widget_ignores_click_outside_actions():
     """Clicking outside any action rect should not emit."""
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.width, icons=IconCache())
+    scene = build_dashboard_scene(layout, icons=IconCache())
 
     widget = DashboardWidget(scene)
     received: list[str] = []
@@ -1346,11 +1354,11 @@ def test_a_control_goes_back_to_its_ground_when_the_pointer_leaves_the_bar(bar):
 
 
 def test_a_control_under_the_pointer_names_itself(bar):
-    action, rect = next(pair for pair in bar._scene.actions if pair[0] == QUIT_BUTTON)
+    rect = dict(bar._scene.actions)[QUIT_BUTTON]
 
     _point_at(bar, *_center(rect))
 
-    assert QToolTip.text() == dict((r, text) for r, text in bar._scene.hover_texts)[rect]
+    assert QToolTip.text() == dict(bar._scene.hover_texts)[rect]
     assert "Quit" in QToolTip.text()
 
 
@@ -1632,23 +1640,11 @@ def test_the_dashboard_runs_on_an_application_made_where_it_is_let_go_of_safely(
     assert len(dressed) == 1
 
 
-def test_a_taskbar_that_refuses_the_sessions_identity_does_not_stop_the_dashboard(
-        cfg_path, monkeypatch):
-    @contextmanager
-    def application(_argv):
-        yield MagicMock(exec=MagicMock(return_value=7))
-
+def test_a_taskbar_that_refuses_the_sessions_identity_does_not_stop_the_dashboard():
     def refused(_identity):
         raise OSError("refused")
 
-    monkeypatch.setattr(dashboard_app, "application", application)
-    monkeypatch.setattr(dashboard_app, "set_up_logging", lambda: None)
-    monkeypatch.setattr(dashboard_app, "set_app_user_model_id", refused)
-    monkeypatch.setattr(dashboard_app, "build_dashboard_window", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(dashboard_app, "dress_application", lambda _app: None)
-    manifest = write_windows_bridge_manifest(load_config(cfg_path))
-
-    assert dashboard_app.main([str(manifest)]) == 7
+    dashboard_app.claim_taskbar_identity("FunTime.MadeUp", refused)
 
 
 # --- the message feed ---------------------------------------------------------
