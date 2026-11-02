@@ -17,7 +17,7 @@ from app_support import file_channel
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QToolTip, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -57,6 +57,7 @@ from fun_time.dashboard_app import (
     DashboardWidget,
     IconCache,
     ReferenceDialog,
+    RfbModeSelectorWidget,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
@@ -88,6 +89,7 @@ from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbMode
 from fun_time.press_flash import PRESS_FLASH_S
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.satellite_buttons import STILL_STARTING_TOOLTIP
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_messages import flash_unlogged
 from fun_time.voice_control import VoiceController
@@ -1313,12 +1315,20 @@ def _colors_in(image, rect) -> set[int]:
             for y in range(rect.y, rect.y + rect.height)}
 
 
+class _Tooltip:
+    def __init__(self) -> None:
+        self.said: list[str | None] = []
+
+    def showText(self, _at, text, _widget) -> None:
+        self.said.append(text)
+
+    def hideText(self) -> None:
+        self.said.append(None)
+
+
 @pytest.fixture
-def bar(dashboard_window):
-    try:
-        yield dashboard_window._widget
-    finally:
-        QToolTip.hideText()
+def bar():
+    return DashboardWidget(_scene(), tooltip=_Tooltip())
 
 
 def test_each_control_is_painted_on_the_ground_its_scene_gives_it(bar):
@@ -1358,8 +1368,8 @@ def test_a_control_under_the_pointer_names_itself(bar):
 
     _point_at(bar, *_center(rect))
 
-    assert QToolTip.text() == dict(bar._scene.hover_texts)[rect]
-    assert "Quit" in QToolTip.text()
+    assert bar._tooltip.said == [dict(bar._scene.hover_texts)[rect]]
+    assert "Quit" in bar._tooltip.said[0]
 
 
 def test_the_name_goes_away_when_the_pointer_is_off_every_control(bar):
@@ -1367,19 +1377,17 @@ def test_the_name_goes_away_when_the_pointer_is_off_every_control(bar):
 
     _point_at(bar, 0, 0)
 
-    _pump_until(lambda: not QToolTip.isVisible())
-    assert not QToolTip.isVisible()
+    assert bar._tooltip.said[-1] is None
 
 
-def test_a_control_that_takes_no_press_names_itself_but_does_not_light_under_the_pointer(
-        dashboard_window, bar):
-    dashboard_window._do_render(_snapshot(nothing_to_reset=True), frozenset())
+def test_a_control_that_takes_no_press_names_itself_but_does_not_light_under_the_pointer(bar):
+    bar.set_scene(_scene(_snapshot(nothing_to_reset=True)))
     rect = compute_dashboard_bar_layout().reset_all_button
     ground = next(item.fill for item in bar._scene.rects if item.rect == rect)
 
     _point_at(bar, *_center(rect))
 
-    assert "Reset" in QToolTip.text()
+    assert "Reset" in bar._tooltip.said[0]
     assert _pixel_on_the_controls_ground(bar.grab().toImage(), rect) == ground
 
 
@@ -1941,13 +1949,13 @@ def mode_selector_window(cfg_factory, tmp_path):
         window.close()
 
 
-def _on_the_mode_selector(window, label: str) -> tuple[int, int]:
-    rect = next(rect for rect, button in window._mode_selector.buttons.placed if button.icon == label)
+def _on_the_mode_selector(selector, label: str) -> tuple[int, int]:
+    rect = next(rect for rect, button in selector.buttons.placed if button.icon == label)
     return rect[0] + rect[2] // 2, rect[1] + rect[3] // 2
 
 
 def _press_the_strip(window, label: str) -> None:
-    QTest.mouseClick(window._mode_selector, Qt.MouseButton.LeftButton, pos=QPoint(*_on_the_mode_selector(window, label)))
+    QTest.mouseClick(window._mode_selector, Qt.MouseButton.LeftButton, pos=QPoint(*_on_the_mode_selector(window._mode_selector, label)))
 
 
 def test_only_a_session_hosting_origenerator_gives_its_dashboard_the_strip(
@@ -2001,30 +2009,34 @@ def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(mode_
     assert poll_dashboard_commands(mode_selector_window._app_config.dashboard_cmd_file) == []
 
 
-def test_a_button_on_the_mode_selector_lights_under_the_pointer_and_names_itself_until_it_leaves(mode_selector_window):
-    selector = mode_selector_window._mode_selector
-    mode_selector_window._do_render(_snapshot(origenerator_ready=True), frozenset())
+@pytest.fixture
+def selector():
+    widget = RfbModeSelectorWidget(tooltip=_Tooltip())
+    widget.resize(600, widget.height())
+    widget.show_state(_snapshot(origenerator_ready=True))
+    return widget
+
+
+def test_a_button_on_the_mode_selector_lights_under_the_pointer_until_it_leaves(selector):
     resting = selector.grab().toImage()
 
-    _point_at(selector, *_on_the_mode_selector(mode_selector_window, "Origenerator"))
+    _point_at(selector, *_on_the_mode_selector(selector, "Origenerator"))
 
     assert selector.grab().toImage() != resting
-    assert QToolTip.text() == "Origenerator in the Random Favs Browser's place"
+    assert selector._tooltip.said == [None]
 
     _leave(selector)
 
     assert selector.grab().toImage() == resting
-    QToolTip.hideText()
 
 
-def test_the_name_goes_away_when_the_pointer_is_off_every_button_on_the_mode_selector(mode_selector_window):
-    selector = mode_selector_window._mode_selector
-    _point_at(selector, *_on_the_mode_selector(mode_selector_window, "Random Favs Browser"))
+def test_origenerator_on_the_mode_selector_says_it_is_starting_until_the_pointer_moves_off(selector):
+    selector.show_state(_snapshot(origenerator_ready=False))
 
+    _point_at(selector, *_on_the_mode_selector(selector, "Origenerator"))
     _point_at(selector, 0, 0)
 
-    _pump_until(lambda: not QToolTip.isVisible())
-    assert not QToolTip.isVisible()
+    assert selector._tooltip.said == [STILL_STARTING_TOOLTIP, None]
 
 
 # --- the OSR2 part at the window's right end -------------------------------------
