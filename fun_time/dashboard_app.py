@@ -326,6 +326,13 @@ def build_dashboard_scene(
     )
 
 
+def _say_the_name(widget: QWidget, event: object, name: str | None, tooltip) -> None:
+    if not name:
+        tooltip.hideText()
+    else:
+        tooltip.showText(widget.mapToGlobal(event.position().toPoint()), name, widget)
+
+
 def _pointer_at(event: object) -> tuple[int, int]:
     pos = event.position()
     return int(pos.x()), int(pos.y())
@@ -336,8 +343,9 @@ class DashboardWidget(QWidget):
 
     action_triggered = pyqtSignal(str)
 
-    def __init__(self, scene: DashboardScene, parent: QWidget | None = None) -> None:
+    def __init__(self, scene: DashboardScene, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
         super().__init__(parent)
+        self._tooltip = tooltip
         # Which control the pointer is over, so it can be drawn one step lighter.
         self._hovered: Rect | None = None
         self.setMouseTracking(True)
@@ -388,11 +396,7 @@ class DashboardWidget(QWidget):
     def mouseMoveEvent(self, event: object) -> None:
         x, y = _pointer_at(event)
         self._set_hovered(self._scene.control_at(x, y))
-        name = self._scene.name_at(x, y)
-        if name is None:
-            QToolTip.hideText()
-        else:
-            QToolTip.showText(self.mapToGlobal(event.position().toPoint()), name, self)
+        _say_the_name(self, event, self._scene.name_at(x, y), self._tooltip)
 
     def leaveEvent(self, event: object) -> None:
         self._set_hovered(None)
@@ -412,9 +416,10 @@ class RfbModeSelectorWidget(PressableDrawing):
 
     action_triggered = pyqtSignal(str)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
         self.buttons = RfbModeSelector(x=PAD, y=PAD, post=self._post)
         super().__init__(self.buttons, parent)
+        self._tooltip = tooltip
         self.setFixedHeight(RFB_MODE_SELECTOR_HEIGHT)
         self.show_state(DashboardSnapshot())
 
@@ -428,11 +433,7 @@ class RfbModeSelectorWidget(PressableDrawing):
 
     def mouseMoveEvent(self, event: object) -> None:
         super().mouseMoveEvent(event)
-        name = self.buttons.name_under_the_pointer
-        if name is None:
-            QToolTip.hideText()
-        else:
-            QToolTip.showText(self.mapToGlobal(event.position().toPoint()), name, self)
+        _say_the_name(self, event, self.buttons.name_under_the_pointer, self._tooltip)
 
     def _post(self, command: str) -> None:
         self.action_triggered.emit(command)
