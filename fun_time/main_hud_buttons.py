@@ -35,7 +35,7 @@ from shared_ui.spacing import BUTTON_WORD_W
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_buttons import MAIN_FUNESTRA_NOUN, minimize_button
+from .funestra_buttons import NOUN, minimize_button
 from .inclusion_pairs import (
     LENGTH,
     ORIENTATION,
@@ -101,7 +101,7 @@ def main_hud_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tup
     return (
         (
             *(
-                Button(command, label, f"{label} mode", width=BUTTON_WORD_W,
+                Button(command, label, "", width=BUTTON_WORD_W,
                        lit=facts.main_mode is main_mode)
                 for command, label, main_mode in MODE_BUTTONS
             ),
@@ -190,17 +190,17 @@ def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
     if kino_shows(facts.main_mode):
         remembered = bool(facts.compilation)
         return (
-            *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=facts.longer_than_a_step),
-            funscript_jump_button("main_funestra_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
+            *transport("main", noun=NOUN, longer_than_a_step=facts.longer_than_a_step),
+            funscript_jump_button("main_funestra_funscript_jump", noun=NOUN,
                                   has_osr2=facts.has_osr2, has_funscript=facts.has_funscript),
-            lock_button("main", locked=facts.locked, tooltip=lock_tooltip(facts.locked, MAIN_FUNESTRA_NOUN)),
+            lock_button("main", locked=facts.locked, tooltip=lock_tooltip(facts.locked, NOUN)),
             fmode_button("main", "F-Mode — play only the well funscripted videos", lit=facts.f_mode),
             reset_button("main", nothing_to_reset=facts.nothing_to_reset, tooltip=RESET_TOOLTIP),
             *browse_order_buttons("main", latest=facts.latest, remembered=remembered),
             *_inclusion_buttons(facts, remembered=remembered, things="videos"),
             _compilation_button(facts),
             _clip_scene_button(facts),
-            versions_button("main_funestra_cycle_version", noun=MAIN_FUNESTRA_NOUN,
+            versions_button("main_funestra_cycle_version", noun=NOUN,
                             has_other_versions=facts.has_other_versions),
         )
     flick = genau_flick_noun()

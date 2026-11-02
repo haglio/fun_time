@@ -580,7 +580,7 @@ class TestLayout:
         first = main_hud_rows(MainFunestraFacts())[0]
 
         assert [(b.command, b.icon, b.tooltip) for b in first[:2]] == [
-            ("main_kino_activate", "Kino", "Kino mode"), ("genau_activate", "Genau", "Genau mode")]
+            ("main_kino_activate", "Kino", ""), ("genau_activate", "Genau", "")]
 
     def test_the_mode_row_leads_so_it_holds_its_place_across_modes(self):
         for mode in MainMode:

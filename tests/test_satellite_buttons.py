@@ -113,9 +113,8 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
         "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
         "portrait_crown"]
     assert [b.icon for b in rows[0][:2]] == ["Kino", "Origenerator"]
-    assert rows[0][0].tooltip == "Kino mode — this Funestra plays its own videos"
-    assert rows[0][1].tooltip == (
-        "Origenerator mode — this Funestra plays Origenerator's slideshows")
+    assert rows[0][0].tooltip == ""
+    assert rows[0][1].tooltip == ""
     assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
     assert rows[0][2].group_break
@@ -180,7 +179,7 @@ def test_skip_ahead_rides_the_transport_as_the_main_funestras_does():
     jump = {b.command: b for b in _band(has_osr2=True, has_funscript=True)}["portrait_funscript_jump"]
 
     assert shared_icon_name(jump.icon) == "funscript_jump"
-    assert jump.tooltip == "Skip ahead to where this clip's scripting starts up again"
+    assert jump.tooltip == "Skip ahead to where this video's scripting starts up again"
     assert not jump.group_break
     assert not jump.lit
     assert not jump.dim
@@ -188,8 +187,8 @@ def test_skip_ahead_rides_the_transport_as_the_main_funestras_does():
 
 @pytest.mark.parametrize(("has_osr2", "has_funscript", "why"), [
     (False, True, "this Funestra doesn't have the OSR2"),
-    (True, False, "this clip has no funscript"),
-    (False, False, "this Funestra doesn't have the OSR2 and this clip has no funscript"),
+    (True, False, "this video has no funscript"),
+    (False, False, "this Funestra doesn't have the OSR2 and this video has no funscript"),
 ])
 def test_skip_ahead_grays_out_without_the_osr2_or_a_funscript_and_says_which(
         has_osr2, has_funscript, why):
@@ -197,7 +196,7 @@ def test_skip_ahead_grays_out_without_the_osr2_or_a_funscript_and_says_which(
             }["portrait_funscript_jump"]
 
     assert jump.dim
-    assert jump.tooltip == f"Skip ahead to where this clip's scripting starts up again ({why})"
+    assert jump.tooltip == f"Skip ahead to where this video's scripting starts up again ({why})"
 
 
 def test_no_face_is_typed():
@@ -218,7 +217,7 @@ def test_the_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter():
 
     for step in ("portrait_nudge_prev", "portrait_nudge_next"):
         assert short[step].dim
-        assert "this clip is 10s or shorter" in short[step].tooltip
+        assert "this video is 10s or shorter" in short[step].tooltip
         assert not longer[step].dim
         assert "shorter" not in longer[step].tooltip
 

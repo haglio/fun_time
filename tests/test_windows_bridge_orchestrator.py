@@ -2947,7 +2947,7 @@ class TestOpenEventLog:
 
     @pytest.mark.parametrize(("command", "said"), [
         ("portrait_lock", "Locked portrait satellite"),
-        ("origenerator_activate", "Origenerator in the Random Favs Browser's place"),
+        ("origenerator_activate", "Origenerator mode"),
         ("genau_activate", "Switched to genau mode"),
         ("main_latest", "Latest: the Main Funestra"),
     ])

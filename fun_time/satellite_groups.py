@@ -513,6 +513,6 @@ def navigate_hud(
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):
         state = state.with_satellite(funestra, nav_anchor=anchor)
-        return state, [WindowOp(op="message", key="No clip that way", source=source, level=logging.WARNING)]
+        return state, [WindowOp(op="message", key="No video that way", source=source, level=logging.WARNING)]
     state = state.with_satellite(funestra, nav_anchor=root)
     return switch_to_video(funestra, target, state, config)

@@ -43,4 +43,4 @@ def test_a_control_both_huds_carry_looks_and_reads_the_same_on_each(state):
     for name, command in _ON_THE_MAIN_HUD.items():
         button = satellite[f"portrait_{name}"]
         assert replace(button, command=command,
-                       tooltip=button.tooltip.replace("clip", "video")) == console[command], name
+                       tooltip=button.tooltip) == console[command], name

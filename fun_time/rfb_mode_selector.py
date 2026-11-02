@@ -18,17 +18,15 @@ from .satellite_buttons import STILL_STARTING_TOOLTIP
 Rect = tuple[int, int, int, int]
 
 _BUTTONS = (
-    (RfbMode.RFB, RFB_ACTIVATE, "Random Favs Browser",
-     "The Random Favs Browser in its place"),
-    (RfbMode.ORIGENERATOR, ORIGENERATOR_ACTIVATE, "Origenerator",
-     "Origenerator in the Random Favs Browser's place"),
+    (RfbMode.RFB, RFB_ACTIVATE, "Random Favs Browser"),
+    (RfbMode.ORIGENERATOR, ORIGENERATOR_ACTIVATE, "Origenerator"),
 )
 
 
 def selector_buttons(rfb_mode: RfbMode, *, origenerator_ready: bool) -> tuple[Button, ...]:
-    def button(holder: RfbMode, command: str, label: str, tooltip: str) -> Button:
+    def button(holder: RfbMode, command: str, label: str) -> Button:
         dim = holder is RfbMode.ORIGENERATOR and not origenerator_ready
-        return Button(command, label, STILL_STARTING_TOOLTIP if dim else tooltip,
+        return Button(command, label, STILL_STARTING_TOOLTIP if dim else "",
                       width=FIT_THE_WORD, lit=rfb_mode is holder, dim=dim)
     return tuple(button(*declared) for declared in _BUTTONS)
 

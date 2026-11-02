@@ -187,7 +187,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("main_crown", "portrait_crown"),
             ),
             _Row(
-                "Kino mode on both sides at once — the Main Funestra's video "
+                "Kino mode on both Satellites at once — the Main Funestra's video "
                 "and the Satellite Funestras",
                 (),
                 ("kino_activate",),
@@ -198,14 +198,14 @@ _SECTIONS: tuple[_Section, ...] = (
             # one idea — say the side, then what you would have said to
             # Origenerator.
             _Row(
-                "Speak to a hosted Origenerator show — the side, then its own "
+                "Speak to a hosted Origenerator show — the Satellite, then its own "
                 "words: a shelf to play (\"landscape experiments\", "
                 "\"portrait favorites\"), the show's controls "
                 "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
                 "a targeted fix (\"portrait fix teeth\"), \"genau\" to "
                 f"animate the image as a Genau {_FLICK.one}, or \"enhanced only\" to "
                 "keep just the images the show has enhanced.  In this mode the "
-                "side's own \"shuffle\", \"latest\", \"trash\" and \"no filter\" reach the "
+                "Satellite's own \"shuffle\", \"latest\", \"trash\" and \"no filter\" reach the "
                 "show too",
                 (),
                 tuple(say_command(side, FAVORITES_PHRASE) for side in ("portrait", "landscape")),
@@ -482,20 +482,20 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Satellites",
         (
-            _Row("Previous clip", ("Left",), _sided("prev"), hotkeys_alt=("A",)),
-            _Row("Next clip", ("Right",), _sided("next"), hotkeys_alt=("D",)),
+            _Row("Previous video", ("Left",), _sided("prev"), hotkeys_alt=("A",)),
+            _Row("Next video", ("Right",), _sided("next"), hotkeys_alt=("D",)),
             _Row("Nudge back 10 seconds", (), _sided("nudge_prev")),
             _Row("Nudge forward 10 seconds", (), _sided("nudge_next")),
             _Row(
                 "Funscript navigation: \"jump to funscript\" skips ahead to where "
-                "the clip's scripting starts up again, while that Satellite has the "
-                "OSR2; \"next funscripted\" leaves for the next scripted clip in the "
+                "the video's scripting starts up again, while that Satellite has the "
+                "OSR2; \"next funscripted\" leaves for the next scripted video in the "
                 "playlist, landing where its action begins",
                 (),
                 _sided("funscript_jump", "next_funscripted"),
             ),
             _Row(
-                "Unfavorite the clip — or send it to Trash when it is not a favorite",
+                "Unfavorite the video — or send it to Trash when it is not a favorite",
                 ("Up",),
                 _sided("trash"),
                 hotkeys_alt=("W",),
@@ -511,13 +511,13 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Cycle action — same subject(s) & scene, another act", (), _sided("cycle_action")),
             _Row("Cycle seed — same config, different subject", (), _sided("cycle_seed")),
             _Row(
-                "Wrong action — the clip's act is mislabeled; strike it so "
+                "Wrong action — the video's act is mislabeled; strike it so "
                 "Evolver's backfill tool asks about it again",
                 (),
                 _sided("wrong_action"),
             ),
             _Row(
-                "Step through the other versions of this clip — the upscale the "
+                "Step through the other versions of this video — the upscale the "
                 "library plays and the original it was made from",
                 ("Shift+Left", "Shift+Right"),
                 ("portrait_cycle_version_back", "portrait_cycle_version",
@@ -529,7 +529,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 # Both key columns run up then down, so the two sides' keycaps
                 # line up with each other rather than reading as WASD.
                 "Navigate the map — move a selection down the column of other "
-                "acts, switching to that clip",
+                "acts, switching to that video",
                 ("Shift+Up", "Shift+Down"),
                 (
                     "portrait_nav_up", "portrait_nav_down",
@@ -579,7 +579,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 # recognizer's grammar is built from (see filter_vocab).
                 voice_display=display_forms(),
             ),
-            _Row("Filter to the current clip's action", (), _sided("lock_action")),
+            _Row("Filter to the current video's action", (), _sided("lock_action")),
             _Row("Drop the filter — keep the order and everything else", (), _sided("no_filter")),
             _Row("Latest — reload newest-first", (), _sided("latest")),
             _Row("Shuffle — reshuffle (cancels Latest; keeps the filter)", (), _sided("shuffle")),
@@ -602,7 +602,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Reset — back to every default: no filter, no lock, no loop, no F-Mode, normal speed, shuffled from the top", (), _sided("reset")),
         ),
         key_headers=("Portrait", "Landscape"),
-        note="Alone, a phrase reaches whatever you last navigated — a side, or "
+        note="Alone, a phrase reaches whatever you last navigated — a Satellite, or "
         "the Main Funestra.  Add “portrait”, “landscape” or “both”, before it or "
         "after, to aim it: “portrait next”, “next both”.",
         merge_scopes=True,

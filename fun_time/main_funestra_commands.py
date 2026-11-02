@@ -20,7 +20,7 @@ from funestra.hud_controls import why_it_cannot_step
 from .aiming import FUNESTRA_SOURCES
 from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN
+from .funestra_buttons import NOUN
 from .funestra_status import read_genau_status, read_main_funestra_status
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
@@ -81,11 +81,9 @@ def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, conf
                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if funestra is FunTimeFunestra.MAIN:
         status = read_main_funestra_status(config.main_funestra_status_file)
-        noun = MAIN_FUNESTRA_NOUN
     else:
         status = read_satellite_status(config.satellite(funestra).status_file)
-        noun = SATELLITE_NOUN
-    cannot = why_it_cannot_step(verb, status, noun)
+    cannot = why_it_cannot_step(verb, status, NOUN)
     if cannot is not None:
         return state, [WindowOp(op="message", key=cannot.capitalize(),
                                 source=FUNESTRA_SOURCES[funestra], level=logging.WARNING)]

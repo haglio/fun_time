@@ -232,7 +232,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
 
 def test_the_grid_carries_every_both_and_active_command():
     """Nothing was dropped in the consolidation: each command the retired "Both",
-    "Active side" and "Filters" sections documented is on a row of the grid."""
+    "Active Satellite" and "Filters" sections documented is on a row of the grid."""
     covered = {c for row in _satellite_section().rows for c in row.commands}
     assert {
         "both_prev", "both_next", "both_trash",
@@ -299,7 +299,7 @@ def test_the_reference_calls_the_mode_kino_and_never_video():
 
     assert said == []
     assert [row.description.split(" — ")[0] for row in rows if "kino_activate" in row.commands] == [
-        "Kino mode on both sides at once"]
+        "Kino mode on both Satellites at once"]
 
 
 def test_the_reference_calls_a_funestras_hud_its_hud_and_never_its_panel():
@@ -519,7 +519,7 @@ def test_section_titles_run_global_robot_hand_genau_main_funestra_satellites():
     and every satellite scope shares the last section."""
     titles = [s.title for s in build_reference_sections()]
     assert titles == ["Global", "Robot Hand", "Genau", "Main Funestra", "Satellites"]
-    for retired in ("Portrait", "Landscape", "Both", "Active side",
+    for retired in ("Portrait", "Landscape", "Both", "Active Satellite",
                     "Filters (satellites)", "Modes", "Genau control"):
         assert retired not in titles, f"{retired!r} should be folded in"
 

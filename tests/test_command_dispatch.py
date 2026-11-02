@@ -3425,7 +3425,7 @@ def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
     ("main_nudge_next", lambda config: config.main_funestra_status_file,
      ("This video is 10s or shorter", SOURCE_MAIN)),
     ("portrait_nudge_prev", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
-     ("This clip is 10s or shorter", SOURCE_PORTRAIT)),
+     ("This video is 10s or shorter", SOURCE_PORTRAIT)),
 ])
 def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and_says_why(
         tmp_path: Path, command, status_of, expected_message):
@@ -3443,9 +3443,9 @@ def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and
 
 @pytest.mark.parametrize(("command", "status_of", "position_ms", "expected_message"), [
     ("portrait_nudge_prev", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
-     6_000, ("Less than 10s into this clip", SOURCE_PORTRAIT)),
+     6_000, ("Less than 10s into this video", SOURCE_PORTRAIT)),
     ("portrait_nudge_next", lambda config: config.satellite(FunTimeFunestra.PORTRAIT).status_file,
-     54_000, ("Less than 10s left in this clip", SOURCE_PORTRAIT)),
+     54_000, ("Less than 10s left in this video", SOURCE_PORTRAIT)),
     ("main_nudge_prev", lambda config: config.main_funestra_status_file,
      6_000, ("Less than 10s into this video", SOURCE_MAIN)),
 ])
