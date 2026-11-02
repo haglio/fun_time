@@ -19,10 +19,10 @@ def _the_main_hud_in(mode: str) -> MainHud:
     declared and the broker up, with the OSR2's readout under them."""
     return MainHud(
         modes=ModeHud(video="scene one"),
-        console=MainHudModel(main_mode=mode, locked=False,
-                             rows=main_hud_rows(MainFunestraFacts(main_mode=mode, locked=False),
-                                               in_vr=True),
-                             osr2_controls=osr2_controls(broker_running=True)),
+        main_hud_model=MainHudModel(main_mode=mode, locked=False,
+                                    rows=main_hud_rows(MainFunestraFacts(main_mode=mode, locked=False),
+                                                      in_vr=True),
+                                    osr2_controls=osr2_controls(broker_running=True)),
         drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine", position=1000,
                        advance_interval=10, waveform=tuple([0.5] * 80), trace_seconds=12.0),
     )
