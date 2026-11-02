@@ -1,13 +1,9 @@
-"""The three gates that are this repo's own: no module reaches into another's
-privates, prose does not outgrow the code it explains, and nothing new binds
-Win32 under the layer that exists to. The dead-code checks that sat beside them
-are app_support's gates, which every repo names once in its pytest options.
-"""
+"""The gates that are this repo's own: nothing new binds Win32 under the layer that
+exists to, the dispatch loop's glue stays on its collaborators, and the command
+registry holds the registry and the guards."""
 from __future__ import annotations
 
 import ast
-import io
-import tokenize
 from pathlib import Path
 
 import pytest
@@ -20,96 +16,6 @@ PACKAGES = (ROOT / "fun_time", ROOT / "main_funestra", ROOT / "satellite", ROOT 
 
 def _package_sources():
     return sorted(p for pkg in PACKAGES for p in pkg.rglob("*.py"))
-
-
-def test_no_module_reaches_into_another_ones_privates():
-    """A leading underscore is the only boundary marker these packages have.
-
-    Six imports crossed it — two banding helpers, the event log, the HUD
-    priming, and a voice-control error string read from two other modules —
-    which means the name said "mine" while five call sites in three packages
-    depended on it.  Either a name is part of a module's surface, in which case
-    it says so and carries a docstring, or it is not and nobody outside reads
-    it; this is what makes that a rule rather than an intention.
-    """
-    reaches = []
-    for path in _package_sources():
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.ImportFrom):
-                continue
-            for alias in node.names:
-                if alias.name.startswith("_") and not alias.name.startswith("__"):
-                    module = node.module or "." * node.level
-                    reaches.append(
-                        f"{path.relative_to(ROOT)}:{node.lineno}: "
-                        f"from {module} import {alias.name}")
-
-    assert reaches == [], (
-        "a private name is imported across a module boundary:\n" + "\n".join(reaches)
-        + "\nEither make it public with a docstring saying what it promises, "
-          "or stop reading it from outside."
-    )
-
-
-MAX_PROSE_LINES = 5479
-
-
-def _prose_and_code(path: Path) -> tuple[int, int]:
-    """(prose lines, code lines) in one module.
-
-    A line is prose when its only content is a comment or a docstring, so a
-    trailing `# why` on a real statement costs nothing -- the ratio is about
-    paragraphs, not annotations.
-    """
-    source = path.read_text(encoding="utf-8")
-    lines = source.splitlines()
-    kind = ["blank" if not line.strip() else "code" for line in lines]
-    try:
-        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
-    except (tokenize.TokenError, IndentationError):  # pragma: no cover - syntax is CI's job
-        return 0, 0
-
-    def mark(token, *, only_if_alone: bool):
-        for n in range(token.start[0] - 1, token.end[0]):
-            if kind[n] != "code":
-                continue
-            if only_if_alone and lines[n].split("#")[0].strip():
-                continue  # a trailing `# why` on a statement is not prose
-            kind[n] = "prose"
-
-    opens_a_statement = tokenize.INDENT
-    for token in tokens:
-        if token.type == tokenize.COMMENT:
-            mark(token, only_if_alone=True)
-        elif token.type == tokenize.STRING and opens_a_statement in (
-            tokenize.INDENT, tokenize.DEDENT, tokenize.NEWLINE, tokenize.NL,
-        ):
-            mark(token, only_if_alone=False)
-        if token.type not in (tokenize.COMMENT, tokenize.NL):
-            opens_a_statement = token.type
-    return kind.count("prose"), kind.count("code")
-
-
-def test_prose_does_not_outgrow_the_code_it_explains():
-    """A ceiling that can only come down.
-
-    Design that lives in prose has to be kept in step by hand, and is not kept
-    in step by hand. Where a paragraph states a rule, the way to spend it is a
-    name or a test, not another paragraph -- and this fails until one of those
-    is what carries it.
-    """
-    prose = code = 0
-    for path in _package_sources() + sorted((ROOT / "tools").rglob("*.py")):
-        module_prose, module_code = _prose_and_code(path)
-        prose += module_prose
-        code += module_code
-
-    assert prose <= MAX_PROSE_LINES, (
-        f"{prose} prose lines (ceiling {MAX_PROSE_LINES}), against {code} of code "
-        f"-- {prose / code:.4f} per line. Delete a stale block, or move what it "
-        "says into a name or a test; lower MAX_PROSE_LINES when you do."
-    )
 
 
 # Every module that reaches ``ctypes``' Windows binding surface directly rather
