@@ -129,7 +129,7 @@ class TestResolveRole:
                    side_effect=lookup_hosted):
             assert windows.hwnd("origenerator") == HOSTED_HWND
 
-    def test_an_origenerator_he_had_open_as_a_preview_is_found_after_the_room_takes_it_over(self):
+    def test_an_origenerator_he_had_open_as_a_preview_is_found_after_the_app_takes_it_over(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         the_preview = partial(lookup_hosted, caption=window_title(
             ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")))
@@ -201,7 +201,7 @@ class TestTopmostBands:
 
     def test_restore_all_topmost_leaves_the_browser_under_the_hosted_app(self):
         """His: the Random Favs Browser flashes over Origenerator for a moment
-        every time the room resumes from OmniPause.
+        every time Fun Time resumes from OmniPause.
 
         The browser shares its rect with hosted Core, and the
         band policy already answers "not topmost" for it in origenerator mode
@@ -373,7 +373,7 @@ def test_a_window_nobody_has_found_yet_is_not_placed():
     place.assert_not_called()
 
 
-def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_room():
+def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_app():
     windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND})
     now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 

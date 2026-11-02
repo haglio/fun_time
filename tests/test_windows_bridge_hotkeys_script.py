@@ -67,7 +67,7 @@ def test_the_pause_leaves_exactly_three_keys_live():
     obvious exceptions we already have".  The spoken side of that is pinned as a
     whole frozenset in test_command_reference; without this the keyboard side was
     prose alone, and a fourth exempt key could go in unnoticed.  Esc resumes,
-    Ctrl+Alt+Q quits, Shift+Esc retracts the OSR2 from a room that may still have
+    Ctrl+Alt+Q quits, Shift+Esc retracts the OSR2 from a session that may still have
     it on him."""
     bound = {line.split("::", 1)[0]
              for line in suspend_exempt_block().splitlines() if "::" in line}

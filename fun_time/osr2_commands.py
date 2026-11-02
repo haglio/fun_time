@@ -22,10 +22,10 @@ from funestra.funestra_verbs import (
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, WindowOp, ignored
 from .broker_control import write_broker_command
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
 from .mode_plan import kino_shows
 from .osr2_section import TAKE_OSR2_COMMANDS, funestra_with_the_osr2
-from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 from .satellite_groups import send_satellite
 from .shared_state import BridgeState
@@ -79,7 +79,7 @@ def percent_rate(command: str, prefix: str) -> str | None:
 
 
 def _speed_target(state: BridgeState, config: BridgeConfig, *,
-                  by_driver: bool) -> RoomFunestra | None:
+                  by_driver: bool) -> FunTimeFunestra | None:
     """Which engine a speed command drives: a Funestra, or None for the Robot Hand.
 
     An engine-named command goes where its name says — in kino mode the video's
@@ -92,16 +92,16 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *,
     """
     holder = funestra_with_the_osr2(state)
     driving = by_driver and state.osr2_control == OSR2_DRIVING
-    if driving and holder is not RoomFunestra.MAIN:
+    if driving and holder is not FunTimeFunestra.MAIN:
         status = read_satellite_status(config.satellite(holder).status_file)
         return holder if status.funscript_driving else None
     if not kino_shows(state.main_mode):
         return None
     if not driving:
-        return RoomFunestra.MAIN
-    if (holder is RoomFunestra.MAIN
+        return FunTimeFunestra.MAIN
+    if (holder is FunTimeFunestra.MAIN
             and read_main_funestra_status(config.main_funestra_status_file).funscript_driving):
-        return RoomFunestra.MAIN
+        return FunTimeFunestra.MAIN
     return None
 
 
@@ -109,13 +109,13 @@ NORMAL_SPEED = f"{SET_SPEED} 1"
 
 
 _SKIP_AHEAD_NAMES = {
-    RoomFunestra.MAIN: "Main Funestra",
-    RoomFunestra.PORTRAIT: "portrait Satellite",
-    RoomFunestra.LANDSCAPE: "landscape Satellite",
+    FunTimeFunestra.MAIN: "Main Funestra",
+    FunTimeFunestra.PORTRAIT: "portrait Satellite",
+    FunTimeFunestra.LANDSCAPE: "landscape Satellite",
 }
 
 
-def skip_ahead_refused(funestra: RoomFunestra, state: BridgeState) -> list[WindowOp]:
+def skip_ahead_refused(funestra: FunTimeFunestra, state: BridgeState) -> list[WindowOp]:
     if funestra_with_the_osr2(state) is funestra:
         return []
     return [WindowOp(op="notice", key=f"The {_SKIP_AHEAD_NAMES[funestra]} doesn't have the OSR2",
@@ -132,7 +132,7 @@ def _speed(main_funestra_cmd: str | None, genau_cmd: str | None, by_driver: bool
         return ignored(state, IN_GENAU_MODE)
     if target is None:
         append_command(config.genau_cmd_file, verb)
-    elif target is RoomFunestra.MAIN:
+    elif target is FunTimeFunestra.MAIN:
         append_command(config.main_funestra_cmd_file, verb)
     else:
         send_satellite(config, target, verb)
@@ -157,7 +157,7 @@ def _robot_hand_release(state: BridgeState, config: BridgeConfig,
     return replace(state, osr2_control=OSR2_DRIVING), []
 
 
-def _take_the_osr2(funestra: RoomFunestra, state: BridgeState, _config: BridgeConfig,
+def _take_the_osr2(funestra: FunTimeFunestra, state: BridgeState, _config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return replace(state, osr2_funestra=funestra), []
 

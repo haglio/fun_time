@@ -19,13 +19,13 @@ from funestra.modes import LoopState
 from funestra.playlist import PlaylistItem
 
 from fun_time.config import SatelliteFiles
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import (
     MainFunestraStatus,
     read_genau_status,
     read_main_funestra_status,
 )
 from fun_time.media_metadata import mark_favorite
-from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.voice_commands import format_spoken_command
@@ -609,7 +609,7 @@ def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_s
 ):
     """A clip made for the test, since each step it refuses needs one longer than ten seconds."""
     s = shared_integration_session
-    portrait = s.config.satellite(RoomFunestra.PORTRAIT)
+    portrait = s.config.satellite(FunTimeFunestra.PORTRAIT)
     clip = clip_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640", seconds=20)
     s.write_dashboard_command("play")
     append_command(portrait.cmd_file, play_file(PlaylistItem(clip)))
@@ -709,7 +709,7 @@ def _script_that_starts_in_ten_hours(path: Path) -> Path:
 
 @contextmanager
 def _the_portrait_funestra_driving_the_osr2(s: FunTimeIntegrationSession, tmp_path: Path):
-    portrait = s.config.satellite(RoomFunestra.PORTRAIT)
+    portrait = s.config.satellite(FunTimeFunestra.PORTRAIT)
     s.wait_until(lambda: bool(read_satellite_status(portrait.status_file).video)
                  and not read_satellite_status(portrait.status_file).paused,
                  description="the Portrait Funestra playing a video")
@@ -722,7 +722,7 @@ def _the_portrait_funestra_driving_the_osr2(s: FunTimeIntegrationSession, tmp_pa
         s.wait_for_new_log("Locked portrait satellite")
         s.wait_until(lambda: read_satellite_status(portrait.status_file).funscript_driving,
                      description="the Portrait Funestra's funscript to be driving")
-        s.wait_until(lambda: RoomFunestra.PORTRAIT.label in senders(
+        s.wait_until(lambda: FunTimeFunestra.PORTRAIT.label in senders(
             tcode_heard(s.config.osr2_slot_port, seconds=1)),
             description="the OSR2 to hear the Portrait Funestra")
         yield portrait, video
@@ -742,7 +742,7 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
     before = senders(tcode_heard(sink, seconds=2))
     with _the_portrait_funestra_driving_the_osr2(s, tmp_path) as (portrait, video):
         scripted = senders(tcode_heard(sink, seconds=4))
-        assert list(scripted) == [RoomFunestra.PORTRAIT.label], (before, scripted)
+        assert list(scripted) == [FunTimeFunestra.PORTRAIT.label], (before, scripted)
         ((_moves, _first, _last, lowest, highest),) = scripted.values()
         assert highest - lowest > 0.5, scripted
 
@@ -758,7 +758,7 @@ def test_fun_time_a_satellite_with_the_osr2_drives_it_from_its_videos_funscript(
         let_seconds_pass(2.0)
         resting = senders(tcode_heard(sink, seconds=4))
         assert resting, resting
-        assert RoomFunestra.PORTRAIT.label not in resting, resting
+        assert FunTimeFunestra.PORTRAIT.label not in resting, resting
 
 
 def test_fun_time_the_osr2_taken_back_under_omnipause_hears_only_the_robot_hand_after_it(
@@ -784,7 +784,7 @@ def test_fun_time_the_osr2_taken_back_under_omnipause_hears_only_the_robot_hand_
         s.write_dashboard_command("main_kino_activate")
         s.wait_for_new_log("Switched to kino mode")
 
-    assert list(portrait_alone) == [RoomFunestra.PORTRAIT.label], portrait_alone
+    assert list(portrait_alone) == [FunTimeFunestra.PORTRAIT.label], portrait_alone
     assert list(after_the_pause) == [ROBOT_HAND], after_the_pause
 
 
@@ -829,7 +829,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     comes off, the file stays in the library, and the clip stays in the rotation —
     W then A comes straight back to it."""
     s = isolated_integration_session
-    landscape = s.config.satellite(RoomFunestra.LANDSCAPE)
+    landscape = s.config.satellite(FunTimeFunestra.LANDSCAPE)
     held = _held_still(s, landscape)
 
     s.write_dashboard_command("landscape_trash")
@@ -1014,12 +1014,12 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
-    """Close Fun Time with the room playing fast and unheld, and it comes back
+    """Close Fun Time with Fun Time playing fast and unheld, and it comes back
     that way.
 
-    A Funestra's rate and its hold live in the Funestra process, so the room keeps
+    A Funestra's rate and its hold live in the Funestra process, so Fun Time keeps
     them as each Funestra publishes them to its status file, and the reopened
-    session re-sends both from the room's state.  Only a real session proves that:
+    session re-sends both from Fun Time's state.  Only a real session proves that:
     they have to survive the force-kill that ends one and arrive as verbs the new
     Funestra obeys.
     """

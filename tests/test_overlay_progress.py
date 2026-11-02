@@ -7,13 +7,13 @@ import pytest
 
 from fun_time.overlay_progress import (
     ACTIVATING_ORIGENERATOR,
+    APP_PHASES,
     CANCEL_FILENAME,
     CANCEL_OPENING_FUN_TIME,
     CANCEL_WORD,
     LAUNCH_PHASES,
     PROGRESS_FILENAME,
     QUIT_WORD,
-    ROOM_PHASES,
     SHUTDOWN_PHASES,
     SHUTDOWN_READY_FILENAME,
     STARTING_VOICE_COMMANDS,
@@ -192,7 +192,7 @@ class TestStartupPhases:
         slideshow and the browser in its place, so the step names the app."""
         assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
-    def test_the_launch_names_its_own_work_before_the_room_arrives(self):
+    def test_the_launch_names_its_own_work_before_the_app_arrives(self):
         """Loading itself and checking the Funestras' engine took seconds off an
         uncovered desktop; they run under the loading screen, so the loading screen says so."""
         assert (*LAUNCH_PHASES, *ROOM_PHASES) == STARTUP_PHASES
@@ -326,7 +326,7 @@ class TestStartupStillBuilding:
 
     Not "the loading screen has gone": the loading screen is the last thing to leave, so a
     companion that waits for it arrives after the reveal — the user watching the
-    session's own control panel turn up on a room that was supposed to be
+    session's own control panel turn up on a session that was supposed to be
     finished.  It waits for the FULL BAR instead, which the final phase writes
     while the loading screen is still up.
     """

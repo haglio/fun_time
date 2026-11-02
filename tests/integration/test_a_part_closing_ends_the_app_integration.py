@@ -1,4 +1,4 @@
-"""A part of the room that closes while the session is up takes the whole room
+"""A part of Fun Time that closes while the session is up takes all of Fun Time
 down with it, on a real session.
 
 His rule (2026-10-08): "If one component of Fun Time dies, the whole thing
@@ -27,7 +27,7 @@ pytestmark = pytest.mark.skipif(
     reason="Fun Time integration tests require Windows",
 )
 
-ROOM_CLOSES_WITHIN_S = 30.0
+APP_CLOSES_WITHIN_S = 30.0
 
 
 def _still_up(child) -> bool:
@@ -44,8 +44,8 @@ def test_a_funestra_closing_mid_session_closes_the_whole_room():
 
         session.wait_for_new_log(
             "The session ended because the Landscape Funestra closed itself",
-            timeout=ROOM_CLOSES_WITHIN_S)
-        budget = Budget(ROOM_CLOSES_WITHIN_S)
+            timeout=APP_CLOSES_WITHIN_S)
+        budget = Budget(APP_CLOSES_WITHIN_S)
         while not budget.expired() and any(map(_still_up, children.values())):
             time.sleep(0.5)
 

@@ -8,20 +8,20 @@ from pathlib import Path
 
 from satellite.contract import SatelliteChannels
 
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 from .window_layout import WindowRect
 
 
 @dataclass(frozen=True)
 class SatelliteLaunch:
-    funestra: RoomFunestra
+    funestra: FunTimeFunestra
     sources: str
     channels: SatelliteChannels
     log_file: str | Path
     rect: WindowRect
 
 
-def for_funestra(launch: SatelliteLaunch, funestra: RoomFunestra) -> SatelliteLaunch:
+def for_funestra(launch: SatelliteLaunch, funestra: FunTimeFunestra) -> SatelliteLaunch:
     """*launch*, after refusing one that belongs to the other Funestra."""
     if launch.funestra is not funestra:
         raise ValueError(f"a {launch.funestra.label} launch was handed to {funestra.label}")

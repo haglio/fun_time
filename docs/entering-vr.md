@@ -37,7 +37,7 @@ in either orchestrator:
 
 Every row of that table is carried by any reopen, a crossing included
 ([resuming-a-session.md](resuming-a-session.md)): the rate, the hold and Genau's
-Amp, Speed and Center bars are re-sent from the room's state
+Amp, Speed and Center bars are re-sent from Fun Time's state
 (`session_resume.resume_what_lives_in_a_funestra`), which the dispatch loop keeps
 from what each Funestra reports, and the mic's mute is in the same state.
 
@@ -98,7 +98,7 @@ send an ordinary launch into the headset on its way out.
 ### A crossing phrase must not begin with a phrase of its own
 
 "exit" was a spoken synonym for "quit". The first time "exit VR" was ever said,
-the room quit instead: both were whole phrases in the grammar, and the shorter
+Fun Time quit instead: both were whole phrases in the grammar, and the shorter
 one scored better — the event log recorded `Voice command: quit`, the AHK
 channel took an exit, and no crossing was ever requested. "enter VR" was never
 at risk, because no bare "enter" was in the grammar to win.
@@ -106,7 +106,7 @@ at risk, because no bare "enter" was in the grammar to win.
 So the synonym is gone. "quit" still quits, and so does Ctrl+Alt+Q. A stray
 "exit" now lands on the crossing pair instead, which in the session it names is
 answered with a notice and nothing else — a far cheaper misreading than ending
-the room. `tests/test_voice_commands.py` holds the rule for every crossing
+Fun Time. `tests/test_voice_commands.py` holds the rule for every crossing
 phrase, present and future.
 
 Nothing has to be handed over besides the request. The broker keeps running
@@ -187,7 +187,7 @@ Every loading screen says what Esc would cancel, and takes one Esc:
   and the same app opens again.
 
 Going back is a crossing of its own, started with `--no-cancel`: its covers
-offer no Esc, so a second press never sends the room back the other way.
+offer no Esc, so a second press never sends Fun Time back the other way.
 Ctrl+Alt+Q ends everything at any of these points instead.
 
 Esc is heard by the hotkey script, which needs no focus, and lands as the word
@@ -232,7 +232,7 @@ The curtain waits for it only where the last session left Origenerator holding
 something -- a satellite in its Origenerator mode, or the Random Favs Browser's
 place: such a room holds its loading screen up until the app publishes a status, puts
 Origenerator back on what it held under it and opens already that way
-([resuming-a-session.md](resuming-a-session.md)), while a room Origenerator held
+([resuming-a-session.md](resuming-a-session.md)), while a session Origenerator held
 nothing of waits for nothing. A boot still costs a minute of
 a session Origenerator holds nothing in, and a crossing used to pay that twice,
 the desktop session closing it on the way out and the session coming back
@@ -274,7 +274,7 @@ down. The timeouts differ because what they are waiting out differs:
   Funestra holds an OpenXR session, well into "Waiting for Funestras...".
 - **The VR shutdown loading screen** (20s), like the desktop's closing screen, is kept
   up by the teardown itself while it waits for a part to end: it moves the
-  file's time once a second then, so a part slow to end never uncovers the room.
+  file's time once a second then, so a part slow to end never uncovers Fun Time.
   Anywhere else twenty seconds without a new step means the orchestrator died or
   is stuck, and the loading screen goes rather than hold him in front of it for good.
 - **A held loading screen** is exempt: nothing is writing its file, because the session
@@ -282,7 +282,7 @@ down. The timeouts differ because what they are waiting out differs:
 - **The transition screen** on the monitors waits 20s too, kept up the same way by
   each process the crossing passes through.
 
-`SceneReady` is a different question — whether the room is on screen, which a
+`SceneReady` is a different question — whether Fun Time is on screen, which a
 desktop orchestrator sees for itself and a headset cannot report. The dwell (2s)
 is how long the loading screen must have been drawn to the headset before the room may be
 revealed; without one the loading screen was over before anyone had it on, which

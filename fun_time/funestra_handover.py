@@ -16,9 +16,9 @@ from funestra.playlist import read_playlist, write_playlist
 from funestra.satellite_hud import parse_hud
 
 from .bridge_records import BridgeConfig, SatelliteChannel
+from .fun_time_funestras import FunTimeFunestra
 from .modes import rotated_onto
 from .origenerator_switches import origenerator_shows
-from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 
 if TYPE_CHECKING:
@@ -124,16 +124,16 @@ LET_GO_TIMEOUT_S = 3.0
 
 class Departures:
     def __init__(self) -> None:
-        self._going: dict[RoomFunestra, HudStamp] = {}
+        self._going: dict[FunTimeFunestra, HudStamp] = {}
 
-    def expect(self, funestras: tuple[RoomFunestra, ...], config: BridgeConfig) -> None:
+    def expect(self, funestras: tuple[FunTimeFunestra, ...], config: BridgeConfig) -> None:
         for funestra in funestras:
             self._going[funestra] = hud_stamp(config.satellite(funestra))
 
-    def forget(self, funestra: RoomFunestra) -> None:
+    def forget(self, funestra: FunTimeFunestra) -> None:
         self._going.pop(funestra, None)
 
-    def taken(self, config: BridgeConfig) -> list[RoomFunestra]:
+    def taken(self, config: BridgeConfig) -> list[FunTimeFunestra]:
         taken = [funestra for funestra, stamp in self._going.items()
                  if taken_since(config.satellite(funestra), stamp)]
         for funestra in taken:
@@ -146,20 +146,20 @@ class Homecoming:
     and which of its hosted HUDs was up when it was sent for."""
 
     def __init__(self) -> None:
-        self._coming: dict[RoomFunestra, tuple[float, HudStamp]] = {}
+        self._coming: dict[FunTimeFunestra, tuple[float, HudStamp]] = {}
 
     @property
-    def funestras(self) -> Collection[RoomFunestra]:
+    def funestras(self) -> Collection[FunTimeFunestra]:
         return self._coming.keys()
 
-    def expect(self, funestras: tuple[RoomFunestra, ...], config: BridgeConfig, *,
+    def expect(self, funestras: tuple[FunTimeFunestra, ...], config: BridgeConfig, *,
                now: float) -> None:
         for funestra in funestras:
             self._coming[funestra] = (
                 now + LET_GO_TIMEOUT_S, hud_stamp(config.satellite(funestra)))
 
     def bring(self, state: BridgeState, config: BridgeConfig, *, now: float,
-              left_on: Callable[[RoomFunestra], str]) -> list[RoomFunestra]:
+              left_on: Callable[[FunTimeFunestra], str]) -> list[FunTimeFunestra]:
         """Hand each satellite its own list again once the hosted app has let
         go of it, or has had long enough to -- never before, when a list the app
         wrote after it would take the Funestra straight back."""
@@ -182,7 +182,7 @@ class Homecoming:
 
 class SatellitesChangingHands:
     def __init__(self, departures: Departures, homecoming: Homecoming, *,
-                 left_on: Callable[[RoomFunestra], str],
+                 left_on: Callable[[FunTimeFunestra], str],
                  changed: Callable[[BridgeState], None]) -> None:
         self._departures = departures
         self._homecoming = homecoming
@@ -197,7 +197,7 @@ class SatellitesChangingHands:
             state = self._hand(state, funestra, to_the_app=False)
         return state
 
-    def _hand(self, state: BridgeState, funestra: RoomFunestra, *,
+    def _hand(self, state: BridgeState, funestra: FunTimeFunestra, *,
               to_the_app: bool) -> BridgeState:
         state = state.with_satellite(funestra, handed_over=to_the_app)
         self._changed(state)

@@ -23,11 +23,11 @@ from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, par
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.crown import Crown
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import load_metadata, mark_favorite, metadata_path_for
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 
 
@@ -65,7 +65,7 @@ def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
     """*state* with the named sides -- both, with none named -- in their
     Origenerator mode."""
     for funestra in funestras or ("portrait", "landscape"):
-        state = state.with_satellite(RoomFunestra[funestra.upper()],
+        state = state.with_satellite(FunTimeFunestra[funestra.upper()],
                                      mode=SatellitesMode.ORIGENERATOR, handed_over=True)
     return state
 
@@ -245,7 +245,7 @@ class TestHudPublishing:
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         asked = BridgeState(origenerator_ready=True).with_satellite(
-            RoomFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
+            FunTimeFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
 
         feed.publish(asked)
 
@@ -267,7 +267,7 @@ class TestHudPublishing:
         publish_satellite_status(status, "C:/g/scene one.png")
         feed.publish(away)
 
-        comes_home_to = feed.the_video_it_comes_home_to(RoomFunestra.PORTRAIT)
+        comes_home_to = feed.the_video_it_comes_home_to(FunTimeFunestra.PORTRAIT)
         feed.publish(BridgeState())
 
         assert comes_home_to == "C:/v/p.mp4"
@@ -286,7 +286,7 @@ class TestHudPublishing:
         feed.publish(away)
         hosted_file.write_text("", encoding="utf-8")
 
-        feed.publish(away.with_satellite(RoomFunestra.PORTRAIT, mode=SatellitesMode.KINO))
+        feed.publish(away.with_satellite(FunTimeFunestra.PORTRAIT, mode=SatellitesMode.KINO))
 
         assert hud(tmp_path, "portrait")["title"] == "Locked"
 
@@ -433,13 +433,13 @@ class TestHudPublishing:
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4",
                                  has_funscript=True)
 
-        feed.publish(BridgeState(osr2_funestra=RoomFunestra.PORTRAIT))
+        feed.publish(BridgeState(osr2_funestra=FunTimeFunestra.PORTRAIT))
 
         assert not skip_ahead(hud(tmp_path, "portrait")).get("dim")
         assert skip_ahead(hud(tmp_path, "landscape"))["dim"] is True
 
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4")
-        feed.publish(BridgeState(osr2_funestra=RoomFunestra.PORTRAIT))
+        feed.publish(BridgeState(osr2_funestra=FunTimeFunestra.PORTRAIT))
 
         assert skip_ahead(hud(tmp_path, "portrait"))["dim"] is True
 
@@ -448,9 +448,9 @@ class TestHudPublishing:
         feed = make_feed(tmp_path)
         (tmp_path / "main_player_status.txt").write_text("has_funscript=1\n", encoding="utf-8")
 
-        feed.publish(BridgeState(osr2_funestra=RoomFunestra.MAIN))
+        feed.publish(BridgeState(osr2_funestra=FunTimeFunestra.MAIN))
         held = skip_ahead(console(tmp_path))
-        feed.publish(BridgeState(osr2_funestra=RoomFunestra.LANDSCAPE))
+        feed.publish(BridgeState(osr2_funestra=FunTimeFunestra.LANDSCAPE))
 
         assert not held.get("dim")
         assert skip_ahead(console(tmp_path))["dim"] is True
@@ -492,7 +492,7 @@ class TestHudPublishing:
 
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
-        """That reset belongs to the show, whose state this room cannot see, so
+        """That reset belongs to the show, whose state this session cannot see, so
         it stays pressable however settled the Funestra underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(funestra="portrait", title="Unlocked \u00b7 Shuffle",
@@ -848,7 +848,7 @@ class TestTheOsr2PartIsOnTheDashboard:
         assert rows["robot_hand_toggle_learned"].lit is True
         assert rows["robot_hand_cycle_shape"].tooltip == "Waveform: Sawtooth"
 
-    def test_it_is_told_the_room_is_paused(self, tmp_path):
+    def test_it_is_told_the_app_is_paused(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, omni_paused=True))
 
         assert _dashboard_osr2(tmp_path).paused is True
@@ -892,7 +892,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
-        assert portrait.osr2_rows == ((osr2_button(RoomFunestra.PORTRAIT, has_it=True),),)
+        assert portrait.osr2_rows == ((osr2_button(FunTimeFunestra.PORTRAIT, has_it=True),),)
         assert (portrait.osr2_controls, portrait.max_intensity) == ((), None)
 
     def test_the_main_console_has_it_to_begin_with_and_wears_its_button_lit(self, tmp_path):
@@ -929,9 +929,9 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
 
         assert _published(tmp_path, "landscape").osr2_rows == (
-            (osr2_button(RoomFunestra.LANDSCAPE, has_it=True),),)
+            (osr2_button(FunTimeFunestra.LANDSCAPE, has_it=True),),)
         assert _published(tmp_path, "portrait").osr2_rows == (
-            (osr2_button(RoomFunestra.PORTRAIT, has_it=False),),)
+            (osr2_button(FunTimeFunestra.PORTRAIT, has_it=False),),)
 
     def test_a_satellite_the_hosted_app_holds_is_told_whether_it_has_the_osr2_as_that_changes(
             self, tmp_path):
@@ -996,7 +996,7 @@ class TestOsr2Mode:
             assert feed.osr2_mode() is Osr2Mode.AUTO
 
 
-def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_funestra(tmp_path):
+def test_the_consoles_crown_goes_dark_once_the_app_gives_it_to_the_portrait_funestra(tmp_path):
     feed = make_feed(tmp_path)
 
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))
@@ -1006,7 +1006,7 @@ def test_the_consoles_crown_goes_dark_once_the_room_gives_it_to_the_portrait_fun
     assert not crown.get("lit")
 
 
-def test_the_portrait_huds_crown_is_lit_once_the_room_gives_it_the_crown(tmp_path):
+def test_the_portrait_huds_crown_is_lit_once_the_app_gives_it_the_crown(tmp_path):
     feed = make_feed(tmp_path)
 
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))

@@ -1,5 +1,5 @@
 """The buttons Fun Time puts on the main console, row by row, declared in
-:class:`funestra.hud_button.Button` off what the room knows and what the
+:class:`funestra.hud_button.Button` off what Fun Time knows and what the
 Main Funestra published about its video.  Each button's command is a dashboard
 command verbatim: a press goes onto the command file, and the dispatcher
 routes it to the Funestra the mode says owns it.
@@ -34,6 +34,7 @@ from shared_ui.spacing import BUTTON_WORD_W
 
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_buttons import MAIN_FUNESTRA_NOUN, minimize_button
 from .inclusion_pairs import (
     LENGTH,
@@ -45,12 +46,11 @@ from .inclusion_pairs import (
 )
 from .mode_plan import kino_shows
 from .osr2_section import osr2_button
-from .room_funestras import RoomFunestra
 
 
 @dataclass(frozen=True)
 class MainFunestraFacts:
-    """What the console's buttons are lit and named from: the room's own state
+    """What the console's buttons are lit and named from: Fun Time's own state
     of the Main Funestra, then what the Main Funestra published about its video,
     each defaulting to "cannot" until the Funestra says otherwise."""
 
@@ -248,4 +248,4 @@ def _flick_seconds_row() -> tuple[Button, ...]:
 
 
 def _control_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
-    return (osr2_button(RoomFunestra.MAIN, has_it=facts.has_osr2),)
+    return (osr2_button(FunTimeFunestra.MAIN, has_it=facts.has_osr2),)

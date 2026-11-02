@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT, SOURCE_SYSTEM
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 
 MAIN_EQUIVALENTS = {
     "next": "main_next",
@@ -39,26 +39,26 @@ def resolve_active_funestra_command(command: str, active_funestra: int) -> str:
     if not command.startswith("active_"):
         return command
     action = command.removeprefix("active_")
-    if active_funestra == RoomFunestra.MAIN:
+    if active_funestra == FunTimeFunestra.MAIN:
         return on_the_main_funestra(action) or command
-    satellite = "portrait" if active_funestra == RoomFunestra.PORTRAIT else "landscape"
+    satellite = "portrait" if active_funestra == FunTimeFunestra.PORTRAIT else "landscape"
     return f"{satellite}_{action}"
 
 
-_NAMED_BY = {"portrait_": RoomFunestra.PORTRAIT, "landscape_": RoomFunestra.LANDSCAPE,
-             "main_": RoomFunestra.MAIN, "genau_": RoomFunestra.MAIN}
+_NAMED_BY = {"portrait_": FunTimeFunestra.PORTRAIT, "landscape_": FunTimeFunestra.LANDSCAPE,
+             "main_": FunTimeFunestra.MAIN, "genau_": FunTimeFunestra.MAIN}
 
 
-def command_funestra(command: str) -> RoomFunestra | None:
+def command_funestra(command: str) -> FunTimeFunestra | None:
     """The Funestra a command addresses, or None if it addresses no Funestra."""
     return next((funestra for prefix, funestra in _NAMED_BY.items()
                  if command.startswith(prefix)), None)
 
 
 FUNESTRA_SOURCES = {
-    RoomFunestra.MAIN: SOURCE_MAIN,
-    RoomFunestra.PORTRAIT: SOURCE_PORTRAIT,
-    RoomFunestra.LANDSCAPE: SOURCE_LANDSCAPE,
+    FunTimeFunestra.MAIN: SOURCE_MAIN,
+    FunTimeFunestra.PORTRAIT: SOURCE_PORTRAIT,
+    FunTimeFunestra.LANDSCAPE: SOURCE_LANDSCAPE,
 }
 
 

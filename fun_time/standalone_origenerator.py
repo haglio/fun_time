@@ -5,13 +5,13 @@ from typing import NamedTuple
 
 from app_support import origenerator_handoff as handoff
 
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 
 RELEASE = "RELEASE"
 _THE_SATELLITES_SHOWING = {
-    "portrait": (RoomFunestra.PORTRAIT,),
-    "landscape": (RoomFunestra.LANDSCAPE,),
-    "both": RoomFunestra.SATELLITES,
+    "portrait": (FunTimeFunestra.PORTRAIT,),
+    "landscape": (FunTimeFunestra.LANDSCAPE,),
+    "both": FunTimeFunestra.SATELLITES,
 }
 
 
@@ -19,7 +19,7 @@ class OpenOrigenerator(NamedTuple):
     pid: int
     starting: bool
     place: Path
-    slideshow_on: tuple[RoomFunestra, ...]
+    slideshow_on: tuple[FunTimeFunestra, ...]
 
     @property
     def checkout(self) -> Path:

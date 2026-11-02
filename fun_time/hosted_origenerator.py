@@ -16,6 +16,7 @@ from app_support import origenerator_handoff as handoff
 from app_support.win32 import process_started
 from funestra.file_channel import append_command
 
+from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import (
     NO_HOSTED_VOCABULARY,
     HostedVocabulary,
@@ -23,7 +24,6 @@ from .hosted_contract import (
     what_it_answers_by_voice,
 )
 from .manifest import LaunchManifest
-from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .standalone_origenerator import OpenOrigenerator, claim_the_osr2, the_open_origenerator
@@ -51,7 +51,7 @@ class HostedApp(NamedTuple):
     pid: int
     already_open: bool
     taken_over: bool
-    slideshow_on: tuple[RoomFunestra, ...]
+    slideshow_on: tuple[FunTimeFunestra, ...]
 
 
 def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
@@ -88,7 +88,7 @@ def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
             status_file=m.commands.funestra_file(funestra.label, "status"),
             hud_file=m.commands.funestra_file(funestra.label, "origenerator_hud"),
         )
-        for funestra in RoomFunestra.SATELLITES
+        for funestra in FunTimeFunestra.SATELLITES
     }
 
 
@@ -110,7 +110,7 @@ def what_an_adopted_app_is_told(frames_file: str, input_file: str, *, in_a_heads
     return f"{HAND_OVER}|{frames_file}|{input_file}" if in_a_headset else TAKE_BACK
 
 
-def _clear_what_an_earlier_room_left(m: LaunchManifest) -> None:
+def _clear_what_an_earlier_app_left(m: LaunchManifest) -> None:
     for name in (m.commands.origenerator_frames_file,
                  m.commands.origenerator_input_file):
         with contextlib.suppress(OSError):
@@ -132,16 +132,16 @@ def bring_up_the_hosted_app(
         plan = screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator).plan
     claim_the_osr2(origenerator_dir)
     if in_a_headset:
-        _clear_what_an_earlier_room_left(m)
+        _clear_what_an_earlier_app_left(m)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
         crossing = what_an_adopted_app_is_told(m.commands.origenerator_frames_file,
                                                m.commands.origenerator_input_file,
                                                in_a_headset=in_a_headset)
         append_command(Path(m.commands.origenerator_cmd_file), crossing)
-        logger.info("Told the adopted app which room this is: %s", crossing)
+        logger.info("Told the adopted app which session this is: %s", crossing)
         return kept
-    # Both read on the app's first tick, and a room never opens paused.
+    # Both read on the app's first tick, and a session never opens paused.
     write_flag_file(m.commands.origenerator_paused_file, False)
     origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
     origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)

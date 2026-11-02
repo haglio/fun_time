@@ -12,12 +12,12 @@ from funestra.modes import MainMode, SatellitesMode
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_handover import hand_back, keep_aside
 from fun_time.funestra_settings import FunestraReports
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
 from fun_time.origenerator_switches import RfbMode
-from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
     DESCRIBES_THE_PLAYLIST,
     NOT_RESUMED,
@@ -153,7 +153,7 @@ class TestResumePlaylists:
     def test_opens_a_funestra_that_never_came_home_on_its_own_list(self, tmp_path: Path):
         """A session quit while the hosted Origenerator had the Funestra leaves that
         app's items in the playlist file and the Funestra's own list kept aside.
-        Every room is built in kino mode, so its own list is what it opens on —
+        Every session is built in kino mode, so its own list is what it opens on —
         at the clip it was showing when it left."""
         a, b, image = _clips(tmp_path, "a.mp4", "b.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[image])
@@ -186,7 +186,7 @@ class TestResumeSharedState:
     "F-mode" by reporting it *enabled* while nothing visibly changed.
     """
 
-    def test_a_room_saved_before_it_kept_its_funestras_settings_takes_their_last_reports(
+    def test_an_app_saved_before_it_kept_its_funestras_settings_takes_their_last_reports(
             self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         state_file.write_text("[state]\nvolume = 40\n", encoding="utf-8")
@@ -196,7 +196,7 @@ class TestResumeSharedState:
 
         assert (state.volume, state.main_speed) == (40, 1.5)
 
-    def test_a_room_saved_before_it_kept_the_mic_takes_the_flag_it_left_and_spends_it(
+    def test_an_app_saved_before_it_kept_the_mic_takes_the_flag_it_left_and_spends_it(
             self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         state_file.write_text("[state]\nvolume = 40\n", encoding="utf-8")
@@ -207,7 +207,7 @@ class TestResumeSharedState:
         assert state.mic_muted is True
         assert not (tmp_path / "mic_off.flag").exists()
 
-    def test_what_a_funestra_reported_after_the_room_last_wrote_its_state_comes_back(
+    def test_what_a_funestra_reported_after_the_app_last_wrote_its_state_comes_back(
             self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_speed=0.5))
@@ -236,8 +236,8 @@ class TestResumeSharedState:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.main_scripted_filter, state.satellite(RoomFunestra.PORTRAIT).favorites_filter,
-                state.satellite(RoomFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
+        assert (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter,
+                state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
         """A loop IS the group written out as the Satellite's playlist, so resuming
@@ -248,11 +248,11 @@ class TestResumeSharedState:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
-        assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
-        assert state.satellite(RoomFunestra.PORTRAIT).widen_clip == "C:/v/a.mp4"
-        assert state.satellite(RoomFunestra.LANDSCAPE).loop == "action"
-        assert state.satellite(RoomFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
+        assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
+        assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
+        assert state.satellite(FunTimeFunestra.PORTRAIT).widen_clip == "C:/v/a.mp4"
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
     def test_carries_each_satellite_s_filter_and_order(self, tmp_path: Path):
         """Both narrowed the playlist that just came back, so both are still in
@@ -262,9 +262,9 @@ class TestResumeSharedState:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.satellite(RoomFunestra.PORTRAIT).filter, state.satellite(RoomFunestra.LANDSCAPE).filter) == ("alpha", "beta gamma")
-        assert state.satellite(RoomFunestra.PORTRAIT).latest is True
-        assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
+        assert (state.satellite(FunTimeFunestra.PORTRAIT).filter, state.satellite(FunTimeFunestra.LANDSCAPE).filter) == ("alpha", "beta gamma")
+        assert state.satellite(FunTimeFunestra.PORTRAIT).latest is True
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
 
     def test_carries_the_main_funestra_s_order(self, tmp_path: Path):
         """The Main Funestra's order fixes its resumed playlist exactly as a
@@ -300,7 +300,7 @@ class TestResumeSharedState:
         state = resume_shared_state(state_file, resumed=True)
 
         assert (state.volume, state.muted) == (40, True)
-        assert (state.satellite(RoomFunestra.PORTRAIT).locked, state.satellite(RoomFunestra.LANDSCAPE).locked) == (True, False)
+        assert (state.satellite(FunTimeFunestra.PORTRAIT).locked, state.satellite(FunTimeFunestra.LANDSCAPE).locked) == (True, False)
 
     def test_carries_what_the_osr2_was_left_in(self, tmp_path: Path):
         """Held at one end, it stays that way: the device arbiter carries the
@@ -323,9 +323,9 @@ class TestResumeSharedState:
 
     def test_carries_which_funestra_has_the_osr2(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(osr2_funestra=RoomFunestra.LANDSCAPE))
+        write_shared_state(state_file, BridgeState(osr2_funestra=FunTimeFunestra.LANDSCAPE))
 
-        assert resume_shared_state(state_file, resumed=True).osr2_funestra == RoomFunestra.LANDSCAPE
+        assert resume_shared_state(state_file, resumed=True).osr2_funestra == FunTimeFunestra.LANDSCAPE
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which Funestra owns the big display is as much a thing you set as the
@@ -350,12 +350,12 @@ class TestResumeSharedState:
         fresh = BridgeState()
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
-        for funestra in RoomFunestra.SATELLITES:
+        for funestra in FunTimeFunestra.SATELLITES:
             for name in NOT_RESUMED_PER_SATELLITE:
                 assert getattr(state.satellite(funestra), name) == getattr(
                     fresh.satellite(funestra), name)
 
-    def test_a_room_reopens_with_the_windows_where_startup_puts_them(self, tmp_path: Path):
+    def test_an_app_reopens_with_the_windows_where_startup_puts_them(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(crowned=Crown.MAIN, majority=Crown.MAIN))
 
@@ -420,7 +420,7 @@ class TestResumeSatelliteLocks:
         state = resume_shared_state(state_file, resumed=False)
 
         started_over = left
-        for funestra in RoomFunestra.SATELLITES:
+        for funestra in FunTimeFunestra.SATELLITES:
             started_over = started_over.with_satellite(funestra, **{
                 name: getattr(SatelliteState(), name) for name in DESCRIBES_THE_PLAYLIST})
         assert remembered_values(replace(state, main_shuffle_seed=0)) == remembered_values(
@@ -444,7 +444,7 @@ class TestResumeSatelliteLocks:
 
         written = read_shared_state(state_file)
         assert written is not None
-        assert written.satellite(RoomFunestra.PORTRAIT).favorites_filter is True
+        assert written.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is True
         assert written.omni_paused is False
 
     def test_a_first_run_leaves_a_state_file(self, tmp_path: Path):
@@ -538,12 +538,12 @@ class TestResumeRates:
 class TestResumeSatelliteVolumes:
     def test_a_satellite_gets_back_the_level_and_mute_it_was_left_at(self, tmp_path: Path):
         portrait_cmd, landscape_cmd = tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"
-        carried = BridgeState().with_satellite(RoomFunestra.PORTRAIT, volume=40, muted=False)
+        carried = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, volume=40, muted=False)
 
         resume_what_lives_in_a_funestra(
             carried, main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-            satellite_cmd_files={RoomFunestra.PORTRAIT: portrait_cmd,
-                                 RoomFunestra.LANDSCAPE: landscape_cmd},
+            satellite_cmd_files={FunTimeFunestra.PORTRAIT: portrait_cmd,
+                                 FunTimeFunestra.LANDSCAPE: landscape_cmd},
             genau_cmd_file=tmp_path / "genau_cmd.txt")
 
         assert portrait_cmd.read_text(encoding="utf-8").splitlines() == ["SET_VOLUME 40 0"]
@@ -570,7 +570,7 @@ class TestResumeMainLock:
 
 
 class TestWhatARestartBringsBackOfEachFunestra:
-    _KEPT_IN_THE_ROOMS_STATE: ClassVar[dict] = {
+    _KEPT_IN_THE_APPS_STATE: ClassVar[dict] = {
         "SET_SPEED": {"main_speed", "speed"}, "SPEED_UP": {"main_speed", "speed"},
         "SPEED_DOWN": {"main_speed", "speed"}, "LOCK_ON": {"main_locked", "locked"},
         "LOCK_OFF": {"main_locked", "locked"}, "TOGGLE_LOCK": {"main_locked", "locked"},
@@ -584,7 +584,7 @@ class TestWhatARestartBringsBackOfEachFunestra:
     _RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER = frozenset({"SET_TCODE_ENABLED"})
 
     def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
-        named = (set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING
+        named = (set(self._KEPT_IN_THE_APPS_STATE) | self._NO_SETTING
                  | self._RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER)
         verbs = {name for name, spelled in vars(funestra_verbs).items() if spelled == name}
 
@@ -592,13 +592,13 @@ class TestWhatARestartBringsBackOfEachFunestra:
             f"say how a restart brings back {sorted(verbs - named)}; "
             f"a Funestra no longer answers {sorted(named - verbs)}")
 
-    def test_what_a_restart_resends_is_what_the_rooms_state_keeps(self, tmp_path: Path):
+    def test_what_a_restart_resends_is_what_the_apps_state_keeps(self, tmp_path: Path):
         main_funestra_cmd, portrait_cmd = tmp_path / "main_player_cmd.txt", tmp_path / "portrait_cmd.txt"
         carried = shifted_state(BridgeState())
 
         resume_what_lives_in_a_funestra(
             carried, main_funestra_cmd_file=main_funestra_cmd,
-            satellite_cmd_files={RoomFunestra.PORTRAIT: portrait_cmd},
+            satellite_cmd_files={FunTimeFunestra.PORTRAIT: portrait_cmd},
             genau_cmd_file=tmp_path / "genau_cmd.txt")
         resume_satellite_locks([(portrait_cmd, True)])
 
@@ -608,10 +608,10 @@ class TestWhatARestartBringsBackOfEachFunestra:
             funestra_verbs.LOCK_ON}
         assert {funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME,
                 funestra_verbs.LOCK_ON} <= {
-            getattr(funestra_verbs, name) for name in self._KEPT_IN_THE_ROOMS_STATE}
+            getattr(funestra_verbs, name) for name in self._KEPT_IN_THE_APPS_STATE}
 
-    def test_what_the_rooms_state_keeps_for_a_funestra_is_remembered(self):
-        assert set().union(*self._KEPT_IN_THE_ROOMS_STATE.values()) <= (
+    def test_what_the_apps_state_keeps_for_a_funestra_is_remembered(self):
+        assert set().union(*self._KEPT_IN_THE_APPS_STATE.values()) <= (
             set(RESUMED_FIELDS) | set(RESUMED_SATELLITE_FIELDS))
 
 
@@ -662,7 +662,7 @@ class TestResumeGenau:
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
-    _KEPT_IN_THE_ROOMS_STATE: ClassVar[dict] = {
+    _KEPT_IN_THE_APPS_STATE: ClassVar[dict] = {
         "speed": "genau_speed", "amplitude": "genau_amplitude", "center": "genau_center",
         "shape": "genau_shape", "flick_seconds": "genau_flick_seconds",
         "learned": "genau_learned", "lock": "genau_locked", "max_intensity": "max_intensity",
@@ -672,28 +672,28 @@ class TestResumeGenau:
         "quit", "flick", "condemn", "play_file", "flip_ends", "pause", "tcode", "hud"})
 
     def test_every_control_genau_has_comes_back_after_a_restart_or_is_no_setting(self):
-        named = set(self._KEPT_IN_THE_ROOMS_STATE) | self._NO_SETTING
+        named = set(self._KEPT_IN_THE_APPS_STATE) | self._NO_SETTING
         controls = {control.name for control, _ in GENAU_VERBS.values()}
 
         assert controls == named, (
             f"say how a restart brings back {sorted(controls - named)}; "
             f"Genau no longer has {sorted(named - controls)}")
 
-    def test_a_restart_resends_what_the_rooms_state_keeps_for_genau(self, tmp_path: Path):
+    def test_a_restart_resends_what_the_apps_state_keeps_for_genau(self, tmp_path: Path):
         genau_cmd = tmp_path / "genau_cmd.txt"
 
         resume_genau(genau_cmd, replace(shifted_state(BridgeState()), genau_shape="sawtooth"))
 
         resent = {GENAU_VERBS[line.split()[0]][0].name
                   for line in genau_cmd.read_text(encoding="utf-8").splitlines()}
-        assert {self._KEPT_IN_THE_ROOMS_STATE[control] for control in resent} == {
+        assert {self._KEPT_IN_THE_APPS_STATE[control] for control in resent} == {
             name for name in RESUMED_FIELDS if name.startswith("genau_")
             and name not in ("genau_latest", "genau_plays_vr", "genau_plays_flat",
                              "genau_favorites_filter", "genau_plays_portrait",
                              "genau_plays_landscape")}
 
-    def test_what_the_rooms_state_keeps_for_genau_is_remembered(self):
-        assert set(self._KEPT_IN_THE_ROOMS_STATE.values()) <= set(RESUMED_FIELDS)
+    def test_what_the_apps_state_keeps_for_genau_is_remembered(self):
+        assert set(self._KEPT_IN_THE_APPS_STATE.values()) <= set(RESUMED_FIELDS)
 
     _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"f_mode": ("genau_favorites_filter",),
                             "orientations": ("genau_plays_portrait", "genau_plays_landscape")}
@@ -802,12 +802,12 @@ class TestPlaylistOpensOn:
         assert playlist_opens_on(tmp_path / "absent.tsv", "C:/v/a.mp4") is False
 
 
-def test_a_room_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path):
+def test_an_app_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path):
     """A satellite left in its Origenerator mode opens in it, and so does
     Origenerator left in the Random Favs Browser's place.
 
-    The room does not wait out the hosted app's boot and nothing rearranges
-    itself later either: the mode is what the room is in from its first tick,
+    Fun Time does not wait out the hosted app's boot and nothing rearranges
+    itself later either: the mode is what Fun Time is in from its first tick,
     and the app arrives into a mode already set rather than switching the sides
     under whatever was on them.
     """
@@ -818,6 +818,6 @@ def test_a_room_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path)
 
     resumed = resume_shared_state(state_file, resumed=True)
 
-    assert resumed.satellite(RoomFunestra.LANDSCAPE).mode is SatellitesMode.ORIGENERATOR
-    assert resumed.satellite(RoomFunestra.PORTRAIT).mode is SatellitesMode.KINO
+    assert resumed.satellite(FunTimeFunestra.LANDSCAPE).mode is SatellitesMode.ORIGENERATOR
+    assert resumed.satellite(FunTimeFunestra.PORTRAIT).mode is SatellitesMode.KINO
     assert resumed.rfb_mode is RfbMode.ORIGENERATOR

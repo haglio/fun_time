@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from app_support import origenerator_handoff as handoff
 
-from fun_time.room_funestras import RoomFunestra
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.standalone_origenerator import (
     OpenOrigenerator,
     claim_the_osr2,
@@ -45,9 +45,9 @@ def test_an_open_app_is_taken_over_through_the_checkout_its_offer_stood_in(tmp_p
 
 
 @pytest.mark.parametrize(("shape", "satellites"), [
-    ("portrait", (RoomFunestra.PORTRAIT,)),
-    ("landscape", (RoomFunestra.LANDSCAPE,)),
-    ("both", RoomFunestra.SATELLITES)])
+    ("portrait", (FunTimeFunestra.PORTRAIT,)),
+    ("landscape", (FunTimeFunestra.LANDSCAPE,)),
+    ("both", FunTimeFunestra.SATELLITES)])
 def test_an_open_app_showing_a_slideshow_names_the_satellites_of_its_shape(
         tmp_path, shape, satellites):
     _offer(tmp_path)

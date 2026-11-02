@@ -73,7 +73,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Where a press on the console or the volume control posts "
                         "its Fun Time command")
     p.add_argument("--genau-command-file", type=Path, default=None,
-                   help="Poll this file for the room's verbs to Genau, which runs on "
+                   help="Poll this file for Fun Time's verbs to Genau, which runs on "
                         "this window beside Kino; left off, Kino runs alone")
     p.add_argument("--genau-paused-file", type=Path, default=None,
                    help="Flag file that pauses Genau's flick under the OSR2's own beat")

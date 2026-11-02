@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from funestra.modes import SatellitesMode
 
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
     from .bridge_records import BridgeConfig
@@ -48,9 +48,9 @@ def mode_command(satellite: str, mode: SatellitesMode) -> str:
     return said_about(satellite, f"{mode}_activate")
 
 
-SATELLITE_MODE_COMMANDS: dict[str, tuple[RoomFunestra, SatellitesMode]] = {
+SATELLITE_MODE_COMMANDS: dict[str, tuple[FunTimeFunestra, SatellitesMode]] = {
     mode_command(funestra.label, mode): (funestra, mode)
-    for funestra in RoomFunestra.SATELLITES
+    for funestra in FunTimeFunestra.SATELLITES
     for mode in (KINO_MODE, ORIGENERATOR_MODE)
 }
 
@@ -63,15 +63,15 @@ BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode | None] = {
 }
 
 
-def hosts(funestra: RoomFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
+def hosts(funestra: FunTimeFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
     """Whether the hosted app holds *funestra*: a Satellite Funestra in its
     Origenerator mode, in a session hosting the app."""
-    return (funestra in RoomFunestra.SATELLITES and config.hosts_origenerator
+    return (funestra in FunTimeFunestra.SATELLITES and config.hosts_origenerator
             and state.satellite(funestra).handed_over)
 
 
 def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:
-    return frozenset(funestra.label for funestra in RoomFunestra.SATELLITES
+    return frozenset(funestra.label for funestra in FunTimeFunestra.SATELLITES
                      if hosts(funestra, state, config))
 
 

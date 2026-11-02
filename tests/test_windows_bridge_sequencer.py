@@ -19,6 +19,7 @@ from funestra.modes import MainMode, SatellitesMode
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
 from fun_time.dashboard_layout import dashboard_window_height
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_deaths import FunestraDied
 from fun_time.funestra_status import (
     read_main_funestra_status,
@@ -37,7 +38,6 @@ from fun_time.overlay_progress import (
     NullProgress,
     StartupCancelled,
 )
-from fun_time.room_funestras import RoomFunestra
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
 from fun_time.shared_state import (
@@ -189,7 +189,7 @@ def _sequencer_stubs(**overrides):
         "wait_for_window_by_title": dict(return_value=99999),
         "move_window": {},
         "set_always_on_top": {},
-        # Every Funestra launched here is a made-up pid, so the room is running
+        # Every Funestra launched here is a made-up pid, so Fun Time is running
         # unless a test says one of them died.
         "is_process_alive": dict(return_value=True),
     }
@@ -395,7 +395,7 @@ class TestRunStartupSequence:
             "main_funestra_y": PRIMARY_MEDIA_RECT["y"],
             "main_funestra_width": PRIMARY_MEDIA_RECT["width"],
             "main_funestra_height": PRIMARY_MEDIA_RECT["height"],
-            # Genau runs on this window too, through files of its own: the room's
+            # Genau runs on this window too, through files of its own: Fun Time's
             # verbs for the hand and the clip, its pause, and the status it publishes.
             "genau_command_file": str(cfg.genau_cmd_file),
             "genau_paused_file": str(cfg.genau_paused_file),
@@ -550,7 +550,7 @@ class TestRunStartupSequence:
 
         assert stubs.launch_main_funestra.call_args.kwargs["genau_latest"] is True
 
-    def test_genau_is_launched_in_the_f_mode_it_was_left_in_over_the_rooms_favorites(
+    def test_genau_is_launched_in_the_f_mode_it_was_left_in_over_the_apps_favorites(
             self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         write_shared_state(shared_state_path(tmp_path), BridgeState(genau_favorites_filter=True))
@@ -769,9 +769,9 @@ class TestTheOrderInsideTheStartupPhases:
 
         assert order.index("browser") < order.index("companions")
 
-    def test_the_funestras_are_released_only_once_the_room_is_built(
+    def test_the_funestras_are_released_only_once_the_app_is_built(
             self, cfg_factory, tmp_path):
-        """Startup holds every Funestra so nothing plays into a room that is
+        """Startup holds every Funestra so nothing plays into a session that is
         still being built; the release is therefore the last thing the phases
         do on the path with no loading screen to hide under."""
         order = self._sequence(cfg_factory, tmp_path)
@@ -827,7 +827,7 @@ class TestRunStartupSequenceCancellation:
 class TestAFunestraThatDiesWhileTheRoomComesUp:
     """Every wait here is bounded and reveals anyway when it runs out, which is right
     for a Funestra that is merely slow and wrong for one that is gone: his previews
-    spent every window and status timeout in turn and then opened on a room with no
+    spent every window and status timeout in turn and then opened on a session with no
     Funestras in it, with Ctrl+Alt+Q the only way out (2026-09-22)."""
 
     def test_the_startup_ends_naming_the_funestra_and_what_it_said(self, cfg_factory, tmp_path):
@@ -860,7 +860,7 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
 
         assert set(died.value.launched_pids) >= {30, 40, MAIN_FUNESTRA_PID}
 
-    def test_a_room_whose_funestras_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
+    def test_an_app_whose_funestras_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs():
@@ -930,7 +930,7 @@ class TestLoadingScreenStartup:
         assert not hasattr(windows_bridge_sequencer, "find_window_by_pid")
         # And every managed window is still resolved, by caption alone.
         # The hosted app's three windows are never among them: it is still
-        # booting when the room opens, so the dispatch loop resolves each the
+        # booting when Fun Time opens, so the dispatch loop resolves each the
         # first time it is asked for one.
         assert result.hwnds_by_window == {
             "portrait": 3030, "landscape": 4040, "main_funestra": 2525,
@@ -976,7 +976,7 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
         """The re-band after the loading screen has gone, and the path with no loading screen."""
         assert all(under == 0 for _h, _on, under in self._calls())
 
-    def test_a_room_opening_with_origenerator_in_the_browsers_place_keeps_the_browser_under_it(
+    def test_an_app_opening_with_origenerator_in_the_browsers_place_keeps_the_browser_under_it(
             self):
         for beneath in (self.LOADING_SCREEN, 0):
             calls = self._calls(beneath=beneath, rfb_slot=RfbSlot.ORIGENERATOR)
@@ -1373,7 +1373,7 @@ class TestOrigeneratorLaunch:
         assert str(captured["command_file"]).endswith("origenerator_cmd.txt")
         # A "1" a prior session's OmniPause stranded in the paused flag is
         # cleared before the app launches — a stale freeze made every show
-        # open frozen while the room ran.
+        # open frozen while Fun Time ran.
         assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
 
     def test_the_hosted_app_is_handed_both_funestras(self, cfg_factory, tmp_path):
@@ -1387,7 +1387,7 @@ class TestOrigeneratorLaunch:
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        stale = cfg.satellite(RoomFunestra.PORTRAIT).origenerator_hud_file
+        stale = cfg.satellite(FunTimeFunestra.PORTRAIT).origenerator_hud_file
         stale.parent.mkdir(parents=True, exist_ok=True)
         stale.write_text('{"Funestra": "portrait"}', encoding="utf-8")
         captured = {}
@@ -1399,7 +1399,7 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        for funestra in RoomFunestra.SATELLITES:
+        for funestra in FunTimeFunestra.SATELLITES:
             files = cfg.satellite(funestra)
             assert captured["funestras"][funestra.label] == HandedFunestra(
                 playlist_file=str(files.playlist_file), cmd_file=str(files.cmd_file),
@@ -1502,7 +1502,7 @@ class TestOrigeneratorLaunch:
         assert result.origenerator_pid == open_app
         assert handed["pid"] == open_app
 
-    def test_a_room_that_took_over_an_app_still_starting_has_to_hear_from_it(
+    def test_an_app_that_took_over_an_app_still_starting_has_to_hear_from_it(
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
@@ -1554,7 +1554,7 @@ class TestOrigeneratorLaunch:
         """What a takeover reaches is an open window's poll, and a process that
         has stopped answering keeps standing its offer.  One was handed a
         takeover on 2026-09-28 and never read it: the session reported it hosted
-        and the room ran for five minutes with the Origenerator mode button grey.
+        and Fun Time ran for five minutes with the Origenerator mode button grey.
         Last session's status file is cleared first, so it cannot stand in for
         this app answering."""
         cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
@@ -1641,7 +1641,7 @@ class TestOrigeneratorLaunch:
         assert open_app not in excinfo.value.launched_pids
         assert excinfo.value.origenerator_taken_over
 
-    def test_a_room_that_took_an_open_app_over_knows_it_was_already_open(
+    def test_an_app_that_took_an_open_app_over_knows_it_was_already_open(
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
@@ -1652,7 +1652,7 @@ class TestOrigeneratorLaunch:
 
         assert result.origenerator_already_open
 
-    def test_a_room_that_took_over_an_app_showing_a_slideshow_carries_its_satellite_out_of_startup(
+    def test_an_app_that_took_over_an_app_showing_a_slideshow_carries_its_satellite_out_of_startup(
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
@@ -1661,9 +1661,9 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator=dict()), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert result.origenerator_slideshow_on == (RoomFunestra.LANDSCAPE,)
+        assert result.origenerator_slideshow_on == (FunTimeFunestra.LANDSCAPE,)
 
-    def test_a_room_that_took_over_an_app_showing_nothing_carries_no_slideshow(
+    def test_an_app_that_took_over_an_app_showing_nothing_carries_no_slideshow(
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
@@ -1674,7 +1674,7 @@ class TestOrigeneratorLaunch:
 
         assert result.origenerator_slideshow_on == ()
 
-    def test_a_room_that_adopted_the_app_a_crossing_kept_knows_it_was_already_open(
+    def test_an_app_that_adopted_the_app_a_crossing_kept_knows_it_was_already_open(
         self, cfg_factory, tmp_path
     ):
         cfg = load_config(cfg_factory({"paths": {
@@ -1692,7 +1692,7 @@ class TestOrigeneratorLaunch:
         assert result.origenerator_pid == kept_app
         assert result.origenerator_already_open
 
-    def test_a_room_that_launched_its_app_has_to_hear_from_it(self, cfg_factory, tmp_path):
+    def test_an_app_that_launched_its_app_has_to_hear_from_it(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator")}}))
         manifest_path = write_windows_bridge_manifest(
@@ -1718,7 +1718,7 @@ class TestOrigeneratorLaunch:
 
 
 class TestOrigeneratorDoesNotHoldTheRoomUp:
-    """The curtain waits for the room, and no longer for the hosted app.
+    """The curtain waits for Fun Time, and no longer for the hosted app.
 
     It used to, and that wait WAS the length of a launch: the app's window
     lands ten to thirty seconds after its launch against five to eight for

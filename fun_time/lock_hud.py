@@ -35,7 +35,7 @@ def _title(
 
     This Satellite's words in the places :func:`funestra.hud_title.hud_title` lays
     out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
-    are not spelled here: every Funestra in the room says this line, and a reader
+    are not spelled here: every Funestra in Fun Time says this line, and a reader
     glancing between two screens is reading one sentence in two places.
 
     What fills those places is the satellite's own.  The loop is the set it is playing,

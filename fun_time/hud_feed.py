@@ -20,6 +20,7 @@ from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
 from .crown import Crown
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import (
     MainFunestraStatus,
     read_genau_status,
@@ -44,7 +45,6 @@ from .osr2_section import (
     osr2_part,
     tell_a_hosted_satellite_whose_the_osr2_is,
 )
-from .room_funestras import RoomFunestra
 from .satellite_commands import satellite_at_defaults
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
@@ -88,9 +88,9 @@ class HudFeed:
         self._favorites = _RecordedFavorites()
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
         self._the_apps_on_screen: dict[str, str] = {}
-        self._hosted_huds: dict[RoomFunestra, HudModel | None] = {}
-        self._last_worn_hosted: dict[RoomFunestra, HudModel | None] = {}
-        self._osr2_told: dict[RoomFunestra, bool] = {}
+        self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
+        self._last_worn_hosted: dict[FunTimeFunestra, HudModel | None] = {}
+        self._osr2_told: dict[FunTimeFunestra, bool] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         """Publish, if the cadence says it is time."""
@@ -115,12 +115,12 @@ class HudFeed:
         osr2 = self._holders_osr2(with_the_osr2, state.main_mode, main_funestra,
                                   osr2_mode, osr2_trouble)
 
-        def device(funestra: RoomFunestra) -> DeviceBlock:
+        def device(funestra: FunTimeFunestra) -> DeviceBlock:
             if funestra is not with_the_osr2:
                 return DeviceBlock.offered_to(funestra)
             return DeviceBlock.held_by(funestra, osr2)
 
-        def satellite(funestra: RoomFunestra) -> SatelliteInputs:
+        def satellite(funestra: FunTimeFunestra) -> SatelliteInputs:
             name = funestra.label
             status = self._satellite_status(name, self.config.satellite(funestra).status_file)
             current = status.video
@@ -149,7 +149,7 @@ class HudFeed:
             )
 
         told = self._osr2_told
-        for funestra in RoomFunestra.SATELLITES:
+        for funestra in FunTimeFunestra.SATELLITES:
             if hosts(funestra, state, self.config):
                 tell_a_hosted_satellite_whose_the_osr2_is(self.config, told, funestra,
                                                      funestra is with_the_osr2)
@@ -166,7 +166,7 @@ class HudFeed:
             forget_what_a_satellite_was_told_of_the_osr2(told, funestra)
             self.publisher.publish(funestra.label, build_satellite_hud(
                 satellite(funestra), self.config.regen_metadata_root,
-                RoomFunestra.label_of(state.active_funestra),
+                FunTimeFunestra.label_of(state.active_funestra),
                 origenerator_ready=state.origenerator_ready,
                 in_vr=self.config.vr_main_funestra, crowned=state.crowned,
             ), device(funestra))
@@ -180,7 +180,7 @@ class HudFeed:
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,
             hud_minimized=state.main_hud_minimized,
-            active=state.active_funestra == RoomFunestra.MAIN,
+            active=state.active_funestra == FunTimeFunestra.MAIN,
             scripted_filter=state.main_scripted_filter,
             genau_favorites_filter=state.genau_favorites_filter,
             latest=state.main_latest,
@@ -204,30 +204,30 @@ class HudFeed:
             nothing_to_reset=main_funestra_at_defaults(state, self.config, main_funestra),
             in_vr=self.config.vr_main_funestra,
             crowned=state.crowned is Crown.MAIN,
-            has_osr2=with_the_osr2 is RoomFunestra.MAIN,
+            has_osr2=with_the_osr2 is FunTimeFunestra.MAIN,
         ))))
         self.publisher.publish_text(DASHBOARD_OSR2_PART, console_text(osr2_part(
             with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
             paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
             broker=broker_running, max_intensity=state.max_intensity)))
 
-    def _holders_osr2(self, holder: RoomFunestra, main_mode: MainMode,
+    def _holders_osr2(self, holder: FunTimeFunestra, main_mode: MainMode,
                       main_funestra: MainFunestraStatus, osr2_mode: Osr2Mode,
                       trouble: Osr2Trouble | None) -> Osr2State:
-        if holder is RoomFunestra.MAIN:
+        if holder is FunTimeFunestra.MAIN:
             return osr2_state(main_mode=main_mode, osr2_mode=osr2_mode,
                               funscript_driving=main_funestra.funscript_driving, trouble=trouble)
         scripted = read_satellite_status(self.config.satellite(holder).status_file)
         return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
 
-    def _worn_hosted_hud(self, funestra: RoomFunestra, state: BridgeState) -> HudModel | None:
+    def _worn_hosted_hud(self, funestra: FunTimeFunestra, state: BridgeState) -> HudModel | None:
         worn = self._hosted_hud(funestra)
         if worn is None and not origenerator_shows(state.satellite(funestra).mode):
             worn = self._last_worn_hosted.get(funestra)
         self._last_worn_hosted[funestra] = worn
         return worn
 
-    def _hosted_hud(self, funestra: RoomFunestra) -> HudModel | None:
+    def _hosted_hud(self, funestra: FunTimeFunestra) -> HudModel | None:
         """The hosted app's HUD for *Funestra*'s Satellite, or None; one it is
         replacing this instant leaves the HUD read before it standing."""
         path = self.config.satellite(funestra).origenerator_hud_file
@@ -247,7 +247,7 @@ class HudFeed:
         return drive.advance_interval if drive is not None else 0
 
 
-    def the_video_it_comes_home_to(self, funestra: RoomFunestra) -> str:
+    def the_video_it_comes_home_to(self, funestra: FunTimeFunestra) -> str:
         name = funestra.label
         self._the_apps_on_screen[name] = read_satellite_status(
             self.config.satellite(funestra).status_file).video

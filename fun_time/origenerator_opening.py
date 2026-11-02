@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .bridge_records import BridgeConfig
 from .dashboard_actions import ORIGENERATOR_ACTIVATE
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import origenerator_has_published
 from .origenerator_switches import (
     KINO_MODE,
@@ -15,33 +16,32 @@ from .origenerator_switches import (
     mode_command,
     origenerator_shows,
 )
-from .room_funestras import RoomFunestra
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 
 logger = logging.getLogger(__name__)
 
 
 def holding_nothing(state: BridgeState) -> BridgeState:
-    for funestra in RoomFunestra.SATELLITES:
+    for funestra in FunTimeFunestra.SATELLITES:
         state = state.with_satellite(funestra, mode=KINO_MODE)
     return replace(state, rfb_mode=RfbMode.RFB)
 
 
 def what_origenerator_held(left_in: BridgeState, *,
-                           slideshow_on: tuple[RoomFunestra, ...]) -> tuple[str, ...]:
+                           slideshow_on: tuple[FunTimeFunestra, ...]) -> tuple[str, ...]:
     satellites = tuple(
-        mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
+        mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in FunTimeFunestra.SATELLITES
         if funestra in slideshow_on or origenerator_shows(left_in.satellite(funestra).mode))
     in_the_rfb_mode = bool(slideshow_on) or left_in.rfb_mode is RfbMode.ORIGENERATOR
     return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_mode else ()))
 
 
 class OrigeneratorOpening:
-    """The room opening in Origenerator mode: what the hosted app held when the
+    """Fun Time opening in Origenerator mode: what the hosted app held when the
     last session closed is owed to it again, once it has answered."""
 
     def __init__(self, config: BridgeConfig, left_in: BridgeState, *,
-                 already_open: bool, slideshow_on: tuple[RoomFunestra, ...]) -> None:
+                 already_open: bool, slideshow_on: tuple[FunTimeFunestra, ...]) -> None:
         self._config = config
         self._is_up = already_open
         self._owed = (what_origenerator_held(left_in, slideshow_on=slideshow_on)
@@ -61,7 +61,7 @@ class OrigeneratorOpening:
             logger.info("Origenerator is up; its mode is open")
         return self._is_up
 
-    def room_as_it_is(self, state: BridgeState) -> BridgeState:
+    def app_as_it_is(self, state: BridgeState) -> BridgeState:
         state = replace(state, origenerator_ready=self.has_answered())
         if self._config.origenerator_enabled and state.origenerator_ready:
             return state
@@ -74,7 +74,7 @@ class OrigeneratorOpening:
             return ()
         if wait_for_the_app(self.has_answered):
             return owed
-        logger.info("Origenerator did not finish starting, so the room opens in kino mode")
+        logger.info("Origenerator did not finish starting, so Fun Time opens in kino mode")
         left_in = read_shared_state(shared_state_file)
         if left_in is not None:
             write_shared_state(shared_state_file, holding_nothing(left_in))

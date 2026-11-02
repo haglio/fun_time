@@ -29,6 +29,7 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed_message
 from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
 from fun_time.loading_screen import STALE_TIMEOUT_S
@@ -1246,7 +1247,7 @@ class TestLoadingScreenLifecycle:
 
         assert runner.call_args.kwargs["origenerator_already_open"] is already_open
 
-    @pytest.mark.parametrize("slideshow_on", [(RoomFunestra.PORTRAIT,), ()])
+    @pytest.mark.parametrize("slideshow_on", [(FunTimeFunestra.PORTRAIT,), ()])
     def test_the_dispatch_loop_is_told_which_satellite_the_hosted_apps_slideshow_is_on(
         self, cfg_factory, tmp_path, slideshow_on,
     ):
@@ -1806,7 +1807,7 @@ class TestClosingScreenLifecycle:
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_a_crossing_leaves_the_hotkey_script_listening_for_esc(self, cfg_factory, tmp_path):
-        """While the room changes over nothing else hears Esc; the relay reads
+        """While Fun Time changes over nothing else hears Esc; the relay reads
         what it dropped once this session has let go."""
         state_dir = _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
 
@@ -2060,11 +2061,11 @@ def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None
 
 class TestAFunestraThatDiedWhileTheRoomCameUp:
     """The launch ends and says which Funestra went and what it said, instead of
-    revealing a room with a Funestra missing: his previews waited out every window and
+    revealing a session with a Funestra missing: his previews waited out every window and
     status timeout and opened on the browser alone, and Ctrl+Alt+Q was the only way
     out (2026-09-22)."""
 
-    def test_the_half_built_room_is_torn_down_and_the_reason_goes_back_to_the_launch(
+    def test_the_half_built_app_is_torn_down_and_the_reason_goes_back_to_the_launch(
         self, cfg_factory, tmp_path,
     ):
         cfg = load_config(cfg_factory())
@@ -2098,7 +2099,7 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
         assert not (state_dir / "bridge_pids.ini").exists()
         put_up.assert_not_called()
 
-    def test_the_line_saying_why_is_written_once_the_half_built_room_is_down(
+    def test_the_line_saying_why_is_written_once_the_half_built_app_is_down(
         self, cfg_factory, tmp_path,
     ):
         cfg = load_config(cfg_factory())
@@ -3130,7 +3131,7 @@ class TestALoadingScreenSlowerThanTheLaunchsWait:
     SCREEN_PID = 4100
     SCREEN_HWND = 4101
 
-    def test_the_room_is_banded_under_the_screen_once_it_is_up(self, cfg_factory, tmp_path):
+    def test_the_app_is_banded_under_the_screen_once_it_is_up(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -3322,7 +3323,7 @@ class TestARoomLeftInOrigeneratorMode:
             )
         return events
 
-    def test_the_room_is_shown_with_the_browser_under_origenerator(self, cfg_factory, tmp_path):
+    def test_the_app_is_shown_with_the_browser_under_origenerator(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
         assert "post-loading pass with origenerator in the browser's place" in events
@@ -3348,7 +3349,7 @@ class TestARoomLeftInOrigeneratorMode:
             "the dashboard shows itself on the full bar, and the pass waits for its window"
         )
 
-    def test_an_app_that_never_answers_opens_the_room_in_kino_mode(self, cfg_factory, tmp_path):
+    def test_an_app_that_never_answers_opens_the_app_in_kino_mode(self, cfg_factory, tmp_path):
         with patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_BUDGET_S", 0.05), \
              patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_POLL_S", 0.01):
             events = self._run(cfg_factory, tmp_path, the_app_answers=False)
@@ -3449,7 +3450,7 @@ class TestStartingVoice:
         prepared = cls._prepared(config_path, tmp_path, **preparing)
         return windows_bridge_orchestrator.start_voice_control(prepared, dispatch_runner=runner)
 
-    def test_voice_starts_listening_as_it_is_prepared_and_acts_on_nothing_until_handed_the_room(
+    def test_voice_starts_listening_as_it_is_prepared_and_acts_on_nothing_until_handed_the_app(
             self, cfg_factory, tmp_path):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
         controller = MagicMock()
@@ -3460,7 +3461,7 @@ class TestStartingVoice:
         controller.return_value.mute.assert_called_once_with()
         controller.return_value.unmute.assert_not_called()
 
-    def test_a_room_left_with_the_mic_on_hears_commands_once_voice_is_handed_the_room(
+    def test_an_app_left_with_the_mic_on_hears_commands_once_voice_is_handed_the_app(
             self, cfg_factory, tmp_path):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
         controller = MagicMock()
@@ -3493,7 +3494,7 @@ class TestStartingVoice:
 
         assert controller.call_args.kwargs["hosted_said_at_suffix"] == " @{said_at_epoch_seconds}"
 
-    def test_the_voice_asks_the_room_which_satellites_the_hosted_app_holds(
+    def test_the_voice_asks_the_app_which_satellites_the_hosted_app_holds(
         self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
@@ -3507,7 +3508,7 @@ class TestStartingVoice:
         assert satellites == frozenset({"landscape"})
         asked.assert_called_once_with(runner.state, runner.config)
 
-    def test_the_room_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(
+    def test_the_app_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(
         self, cfg_factory, tmp_path,
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
@@ -3587,7 +3588,7 @@ class TestStartingVoice:
 
         asked.assert_not_called()
 
-    def test_a_session_prepares_voice_before_the_room_comes_up_and_listens_with_it(
+    def test_a_session_prepares_voice_before_the_app_comes_up_and_listens_with_it(
         self, cfg_factory, tmp_path,
     ):
         cfg = load_config(cfg_factory())
@@ -3606,8 +3607,8 @@ class TestStartingVoice:
             def wait(self, timeout=None):
                 return 0
 
-        def the_room_comes_up(**_kwargs):
-            order.append("the room comes up")
+        def the_app_comes_up(**_kwargs):
+            order.append("Fun Time comes up")
             return _fake_startup_result()
 
         def voice_starts(voice, **_kwargs):
@@ -3619,7 +3620,7 @@ class TestStartingVoice:
                           side_effect=lambda _config_path, **_asking: order.append("voice prepared")
                           or prepared), \
              patch.object(windows_bridge_orchestrator, "run_startup_sequence",
-                          side_effect=the_room_comes_up), \
+                          side_effect=the_app_comes_up), \
              patch.object(windows_bridge_orchestrator.subprocess, "Popen", return_value=Hotkeys()), \
              patch.object(windows_bridge_orchestrator, "start_voice_control",
                           side_effect=voice_starts), \
@@ -3634,9 +3635,9 @@ class TestStartingVoice:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        assert order == ["voice prepared", "the room comes up", prepared]
+        assert order == ["voice prepared", "Fun Time comes up", prepared]
 
-    def test_a_room_left_with_the_mic_off_opens_with_it_off(self, cfg_factory, tmp_path):
+    def test_an_app_left_with_the_mic_off_opens_with_it_off(self, cfg_factory, tmp_path):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
         controller = MagicMock()
 
@@ -3695,7 +3696,7 @@ class TestTheHudPublisherASessionStarts:
         assert str(clip) in warmed
 
 
-def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back_with(
+def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_app_came_back_with(
         cfg_factory, tmp_path, monkeypatch):
     manifest = LaunchManifest.read(write_windows_bridge_manifest(
         load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))

@@ -33,6 +33,7 @@ from .checkout_overrides import is_a_worktree, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import take_back_the_list
 from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
@@ -48,7 +49,6 @@ from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
-from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_launch import SatelliteLaunch, for_funestra
@@ -334,8 +334,8 @@ def start_core_session(
     """Launch the session's media stack, returning the mode its Main Funestra
     opens in — which the caller needs because parking the Main Funestra/Genau pair to match
     takes window handles only the sequencer has."""
-    portrait = for_funestra(portrait, RoomFunestra.PORTRAIT)
-    landscape = for_funestra(landscape, RoomFunestra.LANDSCAPE)
+    portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
+    landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
     # Clear any satellites stranded by a prior crash on the very files this
     # session is about to claim, so four Funestras never race the two command/status
     # file sets.  Bounded to those files: a session elsewhere on the machine (an
@@ -409,8 +409,8 @@ def start_core_session(
     # A lock has no file of its own to come back in, so queue it for each Satellite
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
-        (Path(portrait.channels.command), carried.satellite(RoomFunestra.PORTRAIT).locked),
-        (Path(landscape.channels.command), carried.satellite(RoomFunestra.LANDSCAPE).locked),
+        (Path(portrait.channels.command), carried.satellite(FunTimeFunestra.PORTRAIT).locked),
+        (Path(landscape.channels.command), carried.satellite(FunTimeFunestra.LANDSCAPE).locked),
     ])
     # The Main Funestra's loop is the same kind of thing, and queued the same way.
     resume_main_loop(Path(main_funestra_cmd_file), carried, main_list.file)
@@ -608,7 +608,7 @@ def launch_main_funestra(
     """Launch the Main Funestra subprocess, returning its PID.
 
     Kino and Genau both run on its window, so the launch names Genau's own files
-    beside the Funestra's: the channel the room's verbs for the hand and the flick
+    beside the Funestra's: the channel Fun Time's verbs for the hand and the flick
     arrive on, the flag that pauses its flick, the status it publishes, and the
     flick and order it was left browsing.
 
@@ -808,8 +808,8 @@ def launch_core_apps(
 ) -> None:
     """Spawn the two native Satellite Funestras (portrait + landscape), each
     straight into its rect, and the portrait one ready to tile."""
-    portrait = for_funestra(portrait, RoomFunestra.PORTRAIT)
-    landscape = for_funestra(landscape, RoomFunestra.LANDSCAPE)
+    portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
+    landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
 
     def _launch(launch: SatelliteLaunch, title: str, role: str, *, tiles: bool) -> int:
         return launch_satellite(

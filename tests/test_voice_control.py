@@ -57,9 +57,9 @@ class TestCommandRules:
         assert rules.phrases == frozenset(VOICE_COMMANDS)
         assert set(filter_voice_commands()) <= rules.phrases
 
-    def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_room(self):
+    def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_app(self):
         """A repair promotes a reading ranked under another: a fine trade for a
-        satellite nudge, a bad one for quitting the room or moving the device."""
+        satellite nudge, a bad one for quitting Fun Time or moving the device."""
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         ruled_out = {phrase for phrase in rules.phrases if rules.never_repaired(phrase)}
@@ -115,7 +115,7 @@ def test_the_listener_is_handed_a_reader_for_the_phrases_said_in_german(tmp_path
     assert set(vc.engines.verifying_listener_in) == {"de"}
 
 
-def test_the_listener_is_handed_a_speech_detector_so_a_loud_room_cannot_hold_words_open(tmp_path):
+def test_the_listener_is_handed_a_speech_detector_so_a_loud_app_cannot_hold_words_open(tmp_path):
     vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
 
     assert isinstance(vc.engines.hears_speech, HearsSpeech)
@@ -135,7 +135,7 @@ class TestHandleHeard:
         assert seen == []
 
     def test_a_sound_alike_phrase_is_handed_on_under_its_friendly_name(self, tmp_path):
-        """"go now" drives Genau; what the room says it heard is "genau", not the
+        """"go now" drives Genau; what Fun Time says it heard is "genau", not the
         raw sound-alike the recognizer listens for."""
         vc = _controller(tmp_path)
 
@@ -200,7 +200,7 @@ class TestHandleHeard:
         written = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == ["quit"]
 
-    def test_a_muted_room_stays_silent_while_omnipaused_too(self, tmp_path, monkeypatch):
+    def test_a_muted_app_stays_silent_while_omnipaused_too(self, tmp_path, monkeypatch):
         vc = _controller(tmp_path)
         vc.suspend()
         vc.mute()
@@ -393,7 +393,7 @@ class TestAcceptingWhatItWasNotSureOf:
 
 
 class TestTheListenerItRuns:
-    def test_misses_are_kept_beside_the_state_only_while_the_room_is_listened_to(self, tmp_path):
+    def test_misses_are_kept_beside_the_state_only_while_the_app_is_listened_to(self, tmp_path):
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
 
         assert vc.listener_settings.miss_dir == tmp_path / "voice_misses"
@@ -432,10 +432,10 @@ class TestTheListenerItRuns:
 
         assert seen == [("Voice control: audio from the microphone resumed", "system", 25)]
 
-    def test_the_first_words_of_an_utterance_say_the_room_is_working_on_them(
+    def test_the_first_words_of_an_utterance_say_the_app_is_working_on_them(
             self, tmp_path, monkeypatch):
         """Understanding a phrase can take seconds -- 6.88 of them, for one
-        "enter vr" -- and a room that shows nothing in that time gets told twice.
+        "enter vr" -- and a session that shows nothing in that time gets told twice.
         So the moment the recognizer has words forming, it says so."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
@@ -472,7 +472,7 @@ class TestTheListenerItRuns:
         assert seen == [voice_control.WORKING_ON_IT] * 2
 
     @pytest.mark.parametrize("quieted", ["mute", "suspend"])
-    def test_a_room_not_being_listened_to_is_told_nothing(self, tmp_path, monkeypatch, quieted):
+    def test_an_app_not_being_listened_to_is_told_nothing(self, tmp_path, monkeypatch, quieted):
         """Muted, or held by omnipause, what is said is thrown away -- so saying
         it is being worked on would be a promise about nothing."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
@@ -709,7 +709,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
 
     @pytest.mark.parametrize("phrase, command", [("stop", "relief_omnipause"), ("quit", "quit")])
-    def test_what_a_paused_room_still_hears_is_still_a_command_while_one_is_open(
+    def test_what_a_paused_app_still_hears_is_still_a_command_while_one_is_open(
             self, tmp_path, phrase, command):
         vc = self._controller(tmp_path)
         vc.request_opened("landscape")
@@ -739,7 +739,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
         assert not vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
 
-    def test_a_muted_room_takes_no_words_down_for_one(self, tmp_path):
+    def test_a_muted_app_takes_no_words_down_for_one(self, tmp_path):
         vc = self._controller(tmp_path)
         vc.request_opened("landscape")
 

@@ -12,6 +12,7 @@ from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .event_log import FAVORITE, NOTICE
 from .filter_vocab import decode_filter_command
+from .fun_time_funestras import FunTimeFunestra
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_weird
 from .media_metadata import forget_indexed_clip, is_favorite
@@ -23,7 +24,6 @@ from .osr2_commands import (
     percent_rate,
     skip_ahead_refused,
 )
-from .room_funestras import RoomFunestra
 from .runtime_flow import SatelliteFilterFlowResult, apply_satellite_filter
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 def _lock_as_said(
-    funestra: RoomFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
+    funestra: FunTimeFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
@@ -67,7 +67,7 @@ def _lock_as_said(
 
 
 def _toggle_lock(
-    funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
         return _lock_a_hosted_satellite(funestra, _lock_pressed(funestra), state, config, target_path)
@@ -75,7 +75,7 @@ def _toggle_lock(
 
 
 def _lock_a_hosted_satellite(
-    funestra: RoomFunestra, said: str, state: BridgeState, config: BridgeConfig,
+    funestra: FunTimeFunestra, said: str, state: BridgeState, config: BridgeConfig,
     target_path: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
     if said != lock_said(funestra, False):
@@ -85,19 +85,19 @@ def _lock_a_hosted_satellite(
 
 
 def _set_lock(
-    funestra: RoomFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
+    funestra: FunTimeFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
     target_path: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
     if locked:
         return lock_satellite(funestra, state, config, target_path)
     state = cancel_lock(funestra, state, config)
     send_satellite(config, funestra, NEXT)
-    logger.info("Unlocked %s satellite", RoomFunestra(funestra).label)
+    logger.info("Unlocked %s satellite", FunTimeFunestra(funestra).label)
     return state, []
 
 
 def _discard(
-    funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     locked = state.satellite(funestra).locked
     current_path = satellite_current(config, funestra)
@@ -143,97 +143,97 @@ def _discard(
 
 # The satellite and the variation axis each cycle command reaches.
 _CYCLE_COMMANDS = {
-    "portrait_cycle_action": (RoomFunestra.PORTRAIT, "action"),
-    "portrait_cycle_seed": (RoomFunestra.PORTRAIT, "seed"),
-    "landscape_cycle_action": (RoomFunestra.LANDSCAPE, "action"),
-    "landscape_cycle_seed": (RoomFunestra.LANDSCAPE, "seed"),
+    "portrait_cycle_action": (FunTimeFunestra.PORTRAIT, "action"),
+    "portrait_cycle_seed": (FunTimeFunestra.PORTRAIT, "seed"),
+    "landscape_cycle_action": (FunTimeFunestra.LANDSCAPE, "action"),
+    "landscape_cycle_seed": (FunTimeFunestra.LANDSCAPE, "seed"),
 }
 
 
-_VERSION_COMMANDS: dict[str, tuple[RoomFunestra, int]] = {
-    "portrait_cycle_version": (RoomFunestra.PORTRAIT, 1),
-    "portrait_cycle_version_back": (RoomFunestra.PORTRAIT, -1),
-    "landscape_cycle_version": (RoomFunestra.LANDSCAPE, 1),
-    "landscape_cycle_version_back": (RoomFunestra.LANDSCAPE, -1),
+_VERSION_COMMANDS: dict[str, tuple[FunTimeFunestra, int]] = {
+    "portrait_cycle_version": (FunTimeFunestra.PORTRAIT, 1),
+    "portrait_cycle_version_back": (FunTimeFunestra.PORTRAIT, -1),
+    "landscape_cycle_version": (FunTimeFunestra.LANDSCAPE, 1),
+    "landscape_cycle_version_back": (FunTimeFunestra.LANDSCAPE, -1),
 }
 
 
 # "more seeds" — see :func:`satellite_groups.more_seeds`.
-_MORE_SEEDS_SATELLITES = {"portrait_more_seeds": RoomFunestra.PORTRAIT,
-                     "landscape_more_seeds": RoomFunestra.LANDSCAPE}
+_MORE_SEEDS_SATELLITES = {"portrait_more_seeds": FunTimeFunestra.PORTRAIT,
+                     "landscape_more_seeds": FunTimeFunestra.LANDSCAPE}
 
 
 # Slot and axis per group-loop command — see :func:`satellite_groups.group_loop`.
-_LOOP_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
-    "portrait_action_loop": (RoomFunestra.PORTRAIT, "action"),
-    "portrait_seed_loop": (RoomFunestra.PORTRAIT, "seed"),
-    "landscape_action_loop": (RoomFunestra.LANDSCAPE, "action"),
-    "landscape_seed_loop": (RoomFunestra.LANDSCAPE, "seed"),
+_LOOP_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
+    "portrait_action_loop": (FunTimeFunestra.PORTRAIT, "action"),
+    "portrait_seed_loop": (FunTimeFunestra.PORTRAIT, "seed"),
+    "landscape_action_loop": (FunTimeFunestra.LANDSCAPE, "action"),
+    "landscape_seed_loop": (FunTimeFunestra.LANDSCAPE, "seed"),
 }
 
 
-_LOCK_ACTION_SATELLITES: dict[str, RoomFunestra] = {
-    "portrait_lock_action": RoomFunestra.PORTRAIT,
-    "landscape_lock_action": RoomFunestra.LANDSCAPE,
+_LOCK_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {
+    "portrait_lock_action": FunTimeFunestra.PORTRAIT,
+    "landscape_lock_action": FunTimeFunestra.LANDSCAPE,
 }
 
 
-def lock_said(funestra: RoomFunestra, locked: bool) -> str:
+def lock_said(funestra: FunTimeFunestra, locked: bool) -> str:
     return f"{funestra.label}_lock_{'on' if locked else 'off'}"
 
 
-def _lock_pressed(funestra: RoomFunestra) -> str:
+def _lock_pressed(funestra: FunTimeFunestra) -> str:
     return f"{funestra.label}_lock"
 
 
-LOCK_STATE_COMMANDS: dict[str, tuple[RoomFunestra, bool]] = {
+LOCK_STATE_COMMANDS: dict[str, tuple[FunTimeFunestra, bool]] = {
     lock_said(funestra, locked): (funestra, locked)
-    for funestra in RoomFunestra.SATELLITES
+    for funestra in FunTimeFunestra.SATELLITES
     for locked in (True, False)
 }
 
 
-LOCK_TOGGLES: dict[str, RoomFunestra] = {_lock_pressed(funestra): funestra
-                                          for funestra in RoomFunestra.SATELLITES}
+LOCK_TOGGLES: dict[str, FunTimeFunestra] = {_lock_pressed(funestra): funestra
+                                          for funestra in FunTimeFunestra.SATELLITES}
 
 
 # "reset" clears a satellite's filter and reshuffles it back to the default
 # browse; "both reset" expands to these two before dispatch.
-_RESET_SATELLITES: dict[str, tuple[RoomFunestra, ...]] = {
-    "portrait_reset": (RoomFunestra.PORTRAIT,),
-    "landscape_reset": (RoomFunestra.LANDSCAPE,),
+_RESET_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
+    "portrait_reset": (FunTimeFunestra.PORTRAIT,),
+    "landscape_reset": (FunTimeFunestra.LANDSCAPE,),
 }
 
 
 # "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
-_NO_LOOP_SATELLITES: dict[str, RoomFunestra] = {
-    "portrait_no_loop": RoomFunestra.PORTRAIT,
-    "landscape_no_loop": RoomFunestra.LANDSCAPE,
+_NO_LOOP_SATELLITES: dict[str, FunTimeFunestra] = {
+    "portrait_no_loop": FunTimeFunestra.PORTRAIT,
+    "landscape_no_loop": FunTimeFunestra.LANDSCAPE,
 }
 
 
-_LOOP_CYCLE_SATELLITES: dict[str, RoomFunestra] = {
-    "portrait_loop": RoomFunestra.PORTRAIT,
-    "landscape_loop": RoomFunestra.LANDSCAPE,
+_LOOP_CYCLE_SATELLITES: dict[str, FunTimeFunestra] = {
+    "portrait_loop": FunTimeFunestra.PORTRAIT,
+    "landscape_loop": FunTimeFunestra.LANDSCAPE,
 }
 
 
 # "no filter" drops just the filter — the narrow counterpart of reset, which puts
 # the whole Satellite back to its defaults.
-_NO_FILTER_SATELLITES: dict[str, tuple[RoomFunestra, ...]] = {
-    "portrait_no_filter": (RoomFunestra.PORTRAIT,),
-    "landscape_no_filter": (RoomFunestra.LANDSCAPE,),
+_NO_FILTER_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
+    "portrait_no_filter": (FunTimeFunestra.PORTRAIT,),
+    "landscape_no_filter": (FunTimeFunestra.LANDSCAPE,),
 }
 
 
 # "Wrong action" — the clip is fine, its label is not.  Per side, like every
 # other judgement of the clip on screen.
-_WRONG_ACTION_SATELLITES: dict[str, RoomFunestra] = {"portrait_wrong_action": RoomFunestra.PORTRAIT,
-                                          "landscape_wrong_action": RoomFunestra.LANDSCAPE}
+_WRONG_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {"portrait_wrong_action": FunTimeFunestra.PORTRAIT,
+                                          "landscape_wrong_action": FunTimeFunestra.LANDSCAPE}
 
 
 def _dispatch_lock_action(
-    funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Filter the satellite to the current clip's action — "portrait [act]",
     with the act read off the clip instead of spoken."""
@@ -247,7 +247,7 @@ def _dispatch_lock_action(
 
 
 def _dispatch_lock_video(
-    funestra: RoomFunestra, path: str, state: BridgeState, config: BridgeConfig
+    funestra: FunTimeFunestra, path: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Double-click a HUD thumbnail: switch to *path* and lock it."""
     return lock_satellite(funestra, state, config, path)
@@ -258,8 +258,8 @@ _NAV_DIRECTIONS = ("up", "down")
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
     """``(funestra, direction)`` for a ``<satellite>_nav_<dir>`` command, else None."""
-    for prefix, funestra in (("portrait_nav_", RoomFunestra.PORTRAIT),
-                          ("landscape_nav_", RoomFunestra.LANDSCAPE)):
+    for prefix, funestra in (("portrait_nav_", FunTimeFunestra.PORTRAIT),
+                          ("landscape_nav_", FunTimeFunestra.LANDSCAPE)):
         if command.startswith(prefix):
             direction = command[len(prefix):]
             if direction in _NAV_DIRECTIONS:
@@ -275,7 +275,7 @@ def is_hud_nav_command(command: str) -> bool:
 
 
 def _dispatch_reorder(
-    funestra: RoomFunestra, recent: bool, state: BridgeState, config: BridgeConfig
+    funestra: FunTimeFunestra, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
 
@@ -292,7 +292,7 @@ def _dispatch_reorder(
     result = _rebuild_satellite(funestra, state.satellite(funestra).filter, state, config, start_at_top=True)
     state = state.with_satellite(funestra, locked=False)
     state = clear_satellite_grouping(state, funestra)
-    funestra_name = RoomFunestra(funestra).label
+    funestra_name = FunTimeFunestra(funestra).label
     # The order's own word and nothing else.  The notice flashes on the Funestra it
     # was said to, and this is what that Funestra's HUD calls the order it is now
     # in, so naming the Funestra and then spelling the order out a second time
@@ -315,7 +315,7 @@ def satellite_at_defaults(satellite: SatelliteState, status: SatelliteStatus) ->
 
 
 def _dispatch_reset(
-    funestras: tuple[RoomFunestra, ...], state: BridgeState, config: BridgeConfig
+    funestras: tuple[FunTimeFunestra, ...], state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put a satellite (or both) back to every default, not just its filter.
 
@@ -360,7 +360,7 @@ def _dispatch_reset(
 
 
 def _rebuild_satellite(
-    funestra: RoomFunestra, query: str, state: BridgeState, config: BridgeConfig,
+    funestra: FunTimeFunestra, query: str, state: BridgeState, config: BridgeConfig,
     *, start_at_top: bool = False,
 ) -> SatelliteFilterFlowResult:
     """Rebuild one satellite's browse under *query* and its own current ordering.
@@ -386,7 +386,7 @@ def _rebuild_satellite(
 
 
 def _dispatch_set_filter(
-    funestras: tuple[RoomFunestra, ...], query: str, state: BridgeState, config: BridgeConfig
+    funestras: tuple[FunTimeFunestra, ...], query: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Apply a metadata filter to *Funestras* and rebuild them.
 
@@ -414,15 +414,15 @@ def _dispatch_set_filter(
 
 
 # Plain playlist navigation, per Satellite.
-_TRANSPORT_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
-    "portrait_prev": (RoomFunestra.PORTRAIT, PREV),
-    "portrait_next": (RoomFunestra.PORTRAIT, NEXT),
-    "landscape_prev": (RoomFunestra.LANDSCAPE, PREV),
-    "landscape_next": (RoomFunestra.LANDSCAPE, NEXT),
+_TRANSPORT_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
+    "portrait_prev": (FunTimeFunestra.PORTRAIT, PREV),
+    "portrait_next": (FunTimeFunestra.PORTRAIT, NEXT),
+    "landscape_prev": (FunTimeFunestra.LANDSCAPE, PREV),
+    "landscape_next": (FunTimeFunestra.LANDSCAPE, NEXT),
 }
 
 
-def _transport(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+def _transport(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     state = cancel_lock(funestra, state, config)
     if verb == NEXT and is_single_video_loop(funestra, state, config):
@@ -433,14 +433,14 @@ def _transport(funestra: RoomFunestra, verb: str, state: BridgeState, config: Br
 
 # A satellite's own playback rate, and its funscript moves: each verb goes to
 # that satellite as it is.
-_SENT_TO_A_SATELLITE: dict[str, tuple[RoomFunestra, str]] = {
+_SENT_TO_A_SATELLITE: dict[str, tuple[FunTimeFunestra, str]] = {
     f"{funestra.label}_{act}": (funestra, verb)
-    for funestra in RoomFunestra.SATELLITES
+    for funestra in FunTimeFunestra.SATELLITES
     for act, verb in (*PLAYBACK_RATE_ACTS.items(), *FUNSCRIPT_MOVES.items())
 }
 
 
-def _send_to_satellite(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+def _send_to_satellite(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if verb == JUMP_TO_FUNSCRIPT and (refused := skip_ahead_refused(funestra, state)):
         return state, refused
@@ -448,17 +448,17 @@ def _send_to_satellite(funestra: RoomFunestra, verb: str, state: BridgeState, co
     return state, []
 
 
-def _no_loop(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig,
+def _no_loop(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return no_loop(funestra, state, config)
 
 
-def _reset(funestras: tuple[RoomFunestra, ...], state: BridgeState, config: BridgeConfig,
+def _reset(funestras: tuple[FunTimeFunestra, ...], state: BridgeState, config: BridgeConfig,
            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_reset(funestras, state, config)
 
 
-def _set_filter(funestras: tuple[RoomFunestra, ...], query: str, state: BridgeState, config: BridgeConfig,
+def _set_filter(funestras: tuple[FunTimeFunestra, ...], query: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_set_filter(funestras, query, state, config)
 
@@ -482,7 +482,7 @@ def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
         return None
     head, _, path = command.partition("|")
     return switch_to_video(
-        RoomFunestra.PORTRAIT if head.startswith("portrait_") else RoomFunestra.LANDSCAPE,
+        FunTimeFunestra.PORTRAIT if head.startswith("portrait_") else FunTimeFunestra.LANDSCAPE,
         path, state, config)
 
 
@@ -493,7 +493,7 @@ def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
         return None
     head, _, path = command.partition("|")
     return _dispatch_lock_video(
-        RoomFunestra.PORTRAIT if head.startswith("portrait_") else RoomFunestra.LANDSCAPE,
+        FunTimeFunestra.PORTRAIT if head.startswith("portrait_") else FunTimeFunestra.LANDSCAPE,
         path, state, config)
 
 
@@ -503,12 +503,12 @@ def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
     if filter_target is None:
         return None
     scope, query = filter_target
-    return _dispatch_set_filter(RoomFunestra.for_scope(scope), query, state, config)
+    return _dispatch_set_filter(FunTimeFunestra.for_scope(scope), query, state, config)
 
 
 def _parsed_satellite_speed(command: str, state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    for funestra in RoomFunestra.SATELLITES:
+    for funestra in FunTimeFunestra.SATELLITES:
         verb = percent_rate(command, f"{funestra.label}_speed_")
         if verb is not None:
             send_satellite(config, funestra, verb)
@@ -518,15 +518,15 @@ def _parsed_satellite_speed(command: str, state: BridgeState, config: BridgeConf
 
 # The two browse orderings, per satellite: Latest reloads newest-first, Shuffle
 # reshuffles; the Main Funestra's pair is main_list_commands'.
-_REORDER_COMMANDS: dict[str, tuple[RoomFunestra, bool]] = {
-    "portrait_latest": (RoomFunestra.PORTRAIT, True),
-    "landscape_latest": (RoomFunestra.LANDSCAPE, True),
-    "portrait_shuffle": (RoomFunestra.PORTRAIT, False),
-    "landscape_shuffle": (RoomFunestra.LANDSCAPE, False),
+_REORDER_COMMANDS: dict[str, tuple[FunTimeFunestra, bool]] = {
+    "portrait_latest": (FunTimeFunestra.PORTRAIT, True),
+    "landscape_latest": (FunTimeFunestra.LANDSCAPE, True),
+    "portrait_shuffle": (FunTimeFunestra.PORTRAIT, False),
+    "landscape_shuffle": (FunTimeFunestra.LANDSCAPE, False),
 }
 
 
-def _reorder(funestra: RoomFunestra, recent: bool, state: BridgeState, config: BridgeConfig,
+def _reorder(funestra: FunTimeFunestra, recent: bool, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_reorder(funestra, recent, state, config)
 
@@ -539,8 +539,8 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_toggle_lock, funestra) for cmd, funestra in LOCK_TOGGLES.items()},
     **{cmd: partial(_lock_as_said, funestra, locked)
        for cmd, (funestra, locked) in LOCK_STATE_COMMANDS.items()},
-    "portrait_trash": partial(_discard, RoomFunestra.PORTRAIT),
-    "landscape_trash": partial(_discard, RoomFunestra.LANDSCAPE),
+    "portrait_trash": partial(_discard, FunTimeFunestra.PORTRAIT),
+    "landscape_trash": partial(_discard, FunTimeFunestra.LANDSCAPE),
     **{cmd: partial(cycle_variant, funestra, kind)
        for cmd, (funestra, kind) in _CYCLE_COMMANDS.items()},
     **{cmd: partial(cycle_version, funestra, delta)

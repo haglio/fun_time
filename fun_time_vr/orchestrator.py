@@ -37,6 +37,7 @@ from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_
 from fun_time.child_launch import open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.event_log import open_event_log
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_deaths import (
     part_closed_message,
@@ -90,7 +91,6 @@ from fun_time.overlay_progress import (
     what_the_flag_asks,
 )
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
-from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_end import session_end_marker_path
 from fun_time.session_environment import SessionEnvironment
@@ -656,14 +656,14 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     # A lock lives in the Funestra process, so it has to be re-sent; the roles read
     # the satellites' own command files, and the headset is not up yet.
     resume_satellite_locks([
-        (Path(commands.portrait_cmd_file), carried.satellite(RoomFunestra.PORTRAIT).locked),
-        (Path(commands.landscape_cmd_file), carried.satellite(RoomFunestra.LANDSCAPE).locked),
+        (Path(commands.portrait_cmd_file), carried.satellite(FunTimeFunestra.PORTRAIT).locked),
+        (Path(commands.landscape_cmd_file), carried.satellite(FunTimeFunestra.LANDSCAPE).locked),
     ])
     resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        satellite_cmd_files={RoomFunestra.PORTRAIT: Path(commands.portrait_cmd_file),
-                             RoomFunestra.LANDSCAPE: Path(commands.landscape_cmd_file)},
+        satellite_cmd_files={FunTimeFunestra.PORTRAIT: Path(commands.portrait_cmd_file),
+                             FunTimeFunestra.LANDSCAPE: Path(commands.landscape_cmd_file)},
         genau_cmd_file=Path(commands.genau_cmd_file),
     )
     resume_main_loop(Path(commands.main_funestra_cmd_file), carried,

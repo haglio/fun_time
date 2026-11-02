@@ -5,8 +5,8 @@ import os
 
 import pytest
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import SAID_AT_FIELD, declared_flags
-from fun_time.room_funestras import RoomFunestra
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.origenerator_contract import answers, published
 from tests.origenerator_expectations import EXPECTATIONS, LEFT_UNANSWERED, published_text
@@ -66,17 +66,17 @@ def test_the_shipped_origenerator_reads_every_word_a_headset_writes(relied_on, s
     assert set(relied_on["headset_words"]) <= set(shipped["headset_words"])
 
 
-def test_the_shipped_origenerator_answers_every_line_a_room_writes(relied_on, shipped):
+def test_the_shipped_origenerator_answers_every_line_an_app_writes(relied_on, shipped):
     assert [line for line in relied_on["command_lines"] if not answers(line, shipped)] == []
 
 
-def test_the_room_answers_every_line_the_shipped_origenerator_tells_it_of_a_request(shipped):
+def test_the_app_answers_every_line_the_shipped_origenerator_tells_it_of_a_request(shipped):
     assert set(shipped["request_lines"]) <= set(REQUEST_NEWS)
 
 
 def test_the_lines_left_unanswered_are_lines_the_shipped_origenerator_refuses(shipped):
     answered = [line for line in (f"{funestra.label}_{said}" for said in LEFT_UNANSWERED
-                                  for funestra in RoomFunestra.SATELLITES)
+                                  for funestra in FunTimeFunestra.SATELLITES)
                 if answers(line, shipped)]
 
     assert answered == []

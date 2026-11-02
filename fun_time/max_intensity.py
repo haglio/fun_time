@@ -12,7 +12,7 @@ from funestra.robot_hand import FULL_INTENSITY
 
 from .bridge_records import BridgeConfig, WindowOp
 from .event_log import SOURCE_MAIN
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
     from .shared_state import BridgeState
@@ -22,7 +22,7 @@ MAX_INTENSITY_COMMAND = f"{MAX_INTENSITY}_"
 
 def funestras_that_can_drive_the_osr2(config) -> tuple[Path, ...]:
     return (config.genau_cmd_file, config.main_funestra_cmd_file,
-            *(config.satellite(funestra).cmd_file for funestra in RoomFunestra.SATELLITES))
+            *(config.satellite(funestra).cmd_file for funestra in FunTimeFunestra.SATELLITES))
 
 
 def publish_max_intensity(command_files: Iterable[Path], *, max_intensity: int) -> None:

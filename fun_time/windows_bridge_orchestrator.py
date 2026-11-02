@@ -41,6 +41,7 @@ from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
+from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
     FunestraDied,
@@ -78,7 +79,6 @@ from .process_identity import NAMER
 from .process_tree import kill_process_tree
 from .raising_the_loading_screen import EXIT_WAIT_S, RaisedLoadingScreen
 from .rfb_slideshow import rfb_slideshow_on
-from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -576,7 +576,7 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
 
     ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
     curtain, which is where it belongs: the bands decide what the reveal looks
-    like, so applying them afterwards is watching the room sort itself out.
+    like, so applying them afterwards is watching Fun Time sort itself out.
     Handed the overlay, this bands every window under it and leaves it out of
     the "is this Funestra buried?" test.
     """
@@ -713,7 +713,7 @@ def start_hud_priming(
     publisher = HudPublisher(
         {
             **{funestra.label: Path(manifest.commands.funestra_file(funestra.label, "hud"))
-               for funestra in RoomFunestra.SATELLITES},
+               for funestra in FunTimeFunestra.SATELLITES},
             # The Main Funestra's console rides the same publisher as the satellites' maps.
             "main_funestra": Path(manifest.commands.main_funestra_console_file),
             DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
@@ -784,7 +784,7 @@ def seat_the_secondary_monitor(manifest: LaunchManifest, hwnds_by_window: dict[s
     FunTimeWindows(pids=ChildPids(), hwnds_by_window=hwnds_by_window).seat(rects(majority=most))
 
 
-def _reveal_the_room(
+def _reveal_the_app(
     result: StartupResult,
     *,
     manifest: LaunchManifest,
@@ -970,7 +970,7 @@ def wait_for_voice_under_the_loading_screen(
     progress.announce(STARTING_VOICE_COMMANDS.key)
     with progress.loading_screen_kept_up():
         if not voice_controller.done_starting.wait(VOICE_START_BUDGET_S):
-            logger.warning("Voice commands were not listening after %.0fs; opening the room "
+            logger.warning("Voice commands were not listening after %.0fs; opening Fun Time "
                            "without them", VOICE_START_BUDGET_S)
 
 
@@ -1110,7 +1110,7 @@ def hold_the_osr2(commands: CommandFiles) -> None:
 @dataclass(frozen=True)
 class SessionEnd:
     exit_code: int
-    closed: str | None = None  # the part of the room that closed itself, ending it
+    closed: str | None = None  # the part of Fun Time that closed itself, ending it
 
 
 @dataclass(frozen=True)

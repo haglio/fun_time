@@ -45,6 +45,7 @@ from fun_time.dashboard_actions import (
     REFERENCE_OPEN_FILENAME,
 )
 from fun_time.event_log import NOTICE
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -57,7 +58,6 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
@@ -2655,8 +2655,8 @@ class TestTheOsr2PartOnTheDash:
 
     def test_it_draws_the_part_the_room_publishes_with_its_holders_readout(self, tmp_path):
         unit = _a_dash(tmp_path)
-        part = published(tmp_path, a_part(RoomFunestra.PORTRAIT))
-        readout = handed_on(tmp_path, RoomFunestra.PORTRAIT, a_readout())
+        part = published(tmp_path, a_part(FunTimeFunestra.PORTRAIT))
+        readout = handed_on(tmp_path, FunTimeFunestra.PORTRAIT, a_readout())
 
         self._pumped(unit)
 
@@ -2694,7 +2694,7 @@ class TestTheOsr2PartOnTheDash:
 
         self._pumped(unit)
         unchanged = unit._image
-        handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+        handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
         self._pumped(unit)
 
         assert unchanged is first
@@ -2712,7 +2712,7 @@ class TestTheOsr2PartOnTheDash:
                             lambda *drawn, **shown: painted.append(drawn) or paint(*drawn, **shown))
 
         self._pumped(unit)
-        handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+        handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
         self._pumped(unit)
 
         assert len(painted) == 1
@@ -2732,7 +2732,7 @@ class TestTheOsr2PartOnTheDash:
     def test_a_drag_along_a_band_of_its_readout_goes_on_setting_it_until_let_go(self, tmp_path):
         unit = _a_dash(tmp_path)
         published(tmp_path, a_part())
-        handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+        handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
         self._pumped(unit)
         x, y, width, height = band_of(a_part(), a_readout(), "speed")
         middle = y + height // 2

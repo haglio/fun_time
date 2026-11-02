@@ -358,7 +358,7 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
 
 def test_the_quit_row_no_longer_offers_the_exit_synonym():
     """"exit" quit the session until it made "exit VR" unsayable: the shorter
-    phrase won every recognition, so leaving the headset ended the room instead
+    phrase won every recognition, so leaving the headset ended Fun Time instead
     (docs/entering-vr.md).  The legend must not keep offering a word the
     recognizer now reads as the crossing."""
     rows = _all_rows()
@@ -512,7 +512,7 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
 
 
 def test_section_titles_run_global_robot_hand_genau_main_funestra_satellites():
-    """Five sections, in the order the room is built: what governs everything,
+    """Five sections, in the order Fun Time is built: what governs everything,
     then the engine driving the OSR2, then the clips it plays under, then the
     video, then the two Satellite Funestras.  The hand leads because it drives in both
     modes, Genau leads the Main Funestra because it owns the primary display in its own mode,
@@ -629,7 +629,7 @@ def test_the_clip_navigation_row_quotes_only_what_voice_answers():
 
 
 def test_corrected_descriptions():
-    """Rows say what the key does to the room, not just what it is called."""
+    """Rows say what the key does to Fun Time, not just what it is called."""
     descs = {r.description for r in _all_rows()}
     assert {"Disable voice control", "Start / stop broker"} <= descs
     assert any(d.startswith("Enable / disable human-inspired motion") for d in descs)
@@ -676,7 +676,7 @@ def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     assert "relief_omnipause" in SUSPEND_EXEMPT_COMMANDS
 
 
-def test_a_paused_room_hears_what_he_ruled_and_nothing_else():
+def test_a_paused_app_hears_what_he_ruled_and_nothing_else():
     """The whole set, so that widening or narrowing it fails here: the three
     ways out on 2026-09-28, and the headset's four on 2026-10-16.  See
     CLAUDE.md, "Standing rules"."""

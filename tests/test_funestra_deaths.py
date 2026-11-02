@@ -1,6 +1,6 @@
-"""A Funestra that dies while the room is coming up ends the launch, saying which one
+"""A Funestra that dies while Fun Time is coming up ends the launch, saying which one
 and what it said -- rather than every window and status wait running out and leaving
-him a room with no Funestras in it and Ctrl+Alt+Q as the only way out (2026-09-22)."""
+him a session with no Funestras in it and Ctrl+Alt+Q as the only way out (2026-09-22)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,7 +31,7 @@ def _what_it_said(funestra: LaunchedFunestra) -> str:
     return died.value.said
 
 
-def test_a_living_room_raises_nothing():
+def test_a_living_app_raises_nothing():
     funestras = [LaunchedFunestra("the Portrait Funestra", 30), LaunchedFunestra("Genau", 60)]
 
     raise_if_a_funestra_died(funestras, alive=_alive(30, 60))

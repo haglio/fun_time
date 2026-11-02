@@ -16,8 +16,8 @@ from pathlib import Path
 from app_support import ports, state_files
 
 from .config import LayoutConfig, RegenConfig
+from .fun_time_funestras import FunTimeFunestra
 from .main_funestra_console import main_funestra_console_path
-from .room_funestras import RoomFunestra
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
@@ -26,7 +26,7 @@ def _satellite_files(config) -> dict[str, str]:
     """Both satellites' channel files, under the keys the manifest always used."""
     return {
         f"{funestra.label}_{name}": str(getattr(config.satellite(funestra), name))
-        for funestra in RoomFunestra.SATELLITES
+        for funestra in FunTimeFunestra.SATELLITES
         for name in ("cmd_file", "paused_file", "status_file", "notice_file", "playlist_file",
                      "hud_file", "origenerator_hud_file")
     }

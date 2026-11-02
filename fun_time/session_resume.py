@@ -17,12 +17,12 @@ from funestra.robot_hand import RobotHandState, WaveformShape
 
 from main_funestra.loop_verbs import SET_LOOP
 
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import take_back_the_list
 from .funestra_settings import FunestraReports, with_what_the_funestras_report
 from .main_list import MainList, MainListSettings, new_shuffle_seed
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto
-from .room_funestras import RoomFunestra
 from .shared_state import (
     BridgeState,
     SatelliteState,
@@ -156,7 +156,7 @@ def resume_main_lock(main_funestra_cmd_file: Path, *, locked: bool) -> None:
 
 
 def resume_satellite_volumes(carried: BridgeState,
-                             satellite_cmd_files: Mapping[RoomFunestra, Path]) -> None:
+                             satellite_cmd_files: Mapping[FunTimeFunestra, Path]) -> None:
     opens_at = SatelliteState()
     for funestra, command_file in satellite_cmd_files.items():
         satellite = carried.satellite(funestra)
@@ -174,7 +174,7 @@ def resume_what_lives_in_a_funestra(
     carried: BridgeState,
     *,
     main_funestra_cmd_file: Path,
-    satellite_cmd_files: Mapping[RoomFunestra, Path],
+    satellite_cmd_files: Mapping[FunTimeFunestra, Path],
     genau_cmd_file: Path,
 ) -> None:
     """What any reopen re-sends because it lives in a Funestra: ``docs/resuming-a-session.md``."""
@@ -236,9 +236,9 @@ def resume_shared_state(state_file: Path, *, resumed: bool,
         previous = with_what_the_funestras_report(previous, last_reported)
     state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
-        portrait=_resumed_satellite(previous.satellite(RoomFunestra.PORTRAIT),
+        portrait=_resumed_satellite(previous.satellite(FunTimeFunestra.PORTRAIT),
                                     playlist_resumed=resumed),
-        landscape=_resumed_satellite(previous.satellite(RoomFunestra.LANDSCAPE),
+        landscape=_resumed_satellite(previous.satellite(FunTimeFunestra.LANDSCAPE),
                                      playlist_resumed=resumed),
     )
     if previous is None or not resumed:

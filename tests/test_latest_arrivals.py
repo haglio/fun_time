@@ -9,15 +9,15 @@ from funestra.funestra_verbs import play_next
 from funestra.modes import MainMode
 from funestra.playlist import PlaylistItem
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import prime_group_indexes
 from fun_time.media_metadata import cached_group_index, mark_favorite, metadata_path_for
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState
 from tests.test_windows_bridge_dispatch_loop import make_config
 
-PORTRAIT_LATEST = BridgeState().with_satellite(RoomFunestra.PORTRAIT, latest=True)
+PORTRAIT_LATEST = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, latest=True)
 MAIN_LATEST = replace(BridgeState(), main_latest=True)
 
 
@@ -78,7 +78,7 @@ class TestASatellitePlayingItsLatestList:
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(
-            RoomFunestra.PORTRAIT, favorites_filter=True))
+            FunTimeFunestra.PORTRAIT, favorites_filter=True))
 
         assert _queued(config.portrait_cmd_file) == [_next(favorite)]
 
@@ -100,7 +100,7 @@ class TestASatellitePlayingItsLatestList:
         newcomer = _video(library, "scene two.mp4")
         arrivals.look()
 
-        arrivals.deliver(PORTRAIT_LATEST.with_satellite(RoomFunestra.PORTRAIT, loop="seed"))
+        arrivals.deliver(PORTRAIT_LATEST.with_satellite(FunTimeFunestra.PORTRAIT, loop="seed"))
         held = _queued(config.portrait_cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 
@@ -116,7 +116,7 @@ class TestASatellitePlayingItsLatestList:
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(
-            RoomFunestra.PORTRAIT, mode=ORIGENERATOR_MODE))
+            FunTimeFunestra.PORTRAIT, mode=ORIGENERATOR_MODE))
         held = _queued(config.portrait_cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 
@@ -129,7 +129,7 @@ class TestASatellitePlayingItsLatestList:
         newcomer = _video(library, "scene two.mp4")
         arrivals.look()
 
-        arrivals.deliver(PORTRAIT_LATEST, coming_home={RoomFunestra.PORTRAIT})
+        arrivals.deliver(PORTRAIT_LATEST, coming_home={FunTimeFunestra.PORTRAIT})
         held = _queued(config.portrait_cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 

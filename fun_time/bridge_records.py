@@ -12,10 +12,10 @@ from app_support import state_files
 
 from .config import RegenConfig
 from .event_log import NOTICE, SOURCE_SYSTEM
+from .fun_time_funestras import FunTimeFunestra
 from .loopback_server import LOOPBACK_PORT
 from .main_list import MainList
 from .main_list_builds import BUILDS_HERE, MainListBuilds
-from .room_funestras import RoomFunestra
 
 if TYPE_CHECKING:
     from .shared_state import BridgeState
@@ -101,9 +101,9 @@ class BridgeConfig:
     regen_generate_image_url: str = RegenConfig.generate_image_url
     main_list_builds: MainListBuilds = BUILDS_HERE
 
-    def satellite(self, funestra: RoomFunestra) -> SatelliteChannel:
+    def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
         """Satellite *Funestra*'s file quartet and sources."""
-        if RoomFunestra(funestra) is RoomFunestra.PORTRAIT:
+        if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT:
             return SatelliteChannel(
                 cmd_file=self.portrait_cmd_file,
                 paused_file=self.portrait_paused_file,

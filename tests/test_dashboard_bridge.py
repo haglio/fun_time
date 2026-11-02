@@ -34,7 +34,7 @@ def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
     """A section nobody reads is republished on every sync tick, forever.
 
     The dashboard in its own process is the only reader of this file in the
-    family, and it asks for exactly these -- whether the room is omnipaused,
+    family, and it asks for exactly these -- whether Fun Time is omnipaused,
     whether voice is listening, whether every Funestra is in F-mode, whether
     every Funestra is already at its defaults, whether this session is the
     headset's, whether the headset's runtime is awake to cross into, and for

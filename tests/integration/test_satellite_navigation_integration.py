@@ -24,11 +24,11 @@ from funestra.playlist import read_playlist
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.filter_vocab import load_camera_words
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_transport import HudPublisher
 from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import SatelliteHud
 from fun_time.modes import write_playlist_file
-from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
@@ -232,7 +232,7 @@ def test_a_clip_that_arrives_under_latest_comes_up_after_the_one_on_screen(satel
     arrivals.look()
     on_screen = satellite.video()
 
-    arrivals.deliver(BridgeState().with_satellite(RoomFunestra.PORTRAIT, latest=True))
+    arrivals.deliver(BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, latest=True))
     _drained(satellite)
     still_up = satellite.video()
     satellite.send("NEXT")

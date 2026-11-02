@@ -581,7 +581,7 @@ def test_do_render_skips_geometry_reapply_while_minimized(dashboard_window, dash
 
 
 def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
-    """While startup is still building the room the dashboard is fully hidden
+    """While startup is still building Fun Time the dashboard is fully hidden
     (SW_HIDE) — never shown, never minimized — so there is no flash and no
     minimize animation.  Built by hand: the deferral is decided at
     construction, so the patches must wrap the build itself."""
@@ -1002,7 +1002,7 @@ def test_the_question_mark_is_lit_exactly_while_the_reference_is_open(dashboard_
     assert edge() == TEXT_MUTED
 
 
-def test_opening_the_reference_find_pauses_the_room_so_typing_reaches_it(
+def test_opening_the_reference_find_pauses_the_app_so_typing_reaches_it(
         dashboard_window, dashboard_app_config):
     commands = dashboard_app_config.dashboard_cmd_file
     commands.unlink(missing_ok=True)
@@ -1576,7 +1576,7 @@ def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_eithe
     """A notice is topmost, so one that fired while the loading screen was up would
     appear for a moment through the scrim the loading screen is there to be.  Held, the
     read offset does not advance, so the announcement arrives afterwards over
-    the room it is about."""
+    Fun Time it is about."""
     window = _notice_window(dashboard_app_config, held=True)
     try:
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)

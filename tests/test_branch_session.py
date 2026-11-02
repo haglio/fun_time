@@ -904,7 +904,7 @@ def _pin(checkout: Path, repo: str, tag: str, *, project: str = "fun-time") -> N
         encoding="utf-8")
 
 
-def test_a_branch_built_on_a_library_newer_than_this_computer_has_is_refused_before_a_room_opens(
+def test_a_branch_built_on_a_library_newer_than_this_computer_has_is_refused_before_an_app_opens(
         repo_with_worktrees, monkeypatch):
     _pin(repo_with_worktrees.newer, "shared_ui", "v0.1.185")
     monkeypatch.setattr(branch_session, "installed_version", {"shared_ui": "0.1.180"}.get)
@@ -965,10 +965,10 @@ def _git_path(worktree: Path, name: str) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
-def test_a_worktree_part_way_through_a_rebase_is_refused_before_a_room_opens(
+def test_a_worktree_part_way_through_a_rebase_is_refused_before_an_app_opens(
         repo_with_worktrees, monkeypatch):
     """His click runs whatever is on disk, and a rebase stopped on a conflict leaves the
-    branch's code half changed; refused, it says so instead of opening a room that dies
+    branch's code half changed; refused, it says so instead of opening a session that dies
     when the half-changed part is reached."""
     _stop_part_way_through(repo_with_worktrees.newer)
     sessions = _sessions_exit_with(monkeypatch, 0)

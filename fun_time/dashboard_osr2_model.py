@@ -8,12 +8,12 @@ from funestra.drive_readout import DriveHud, read_drive
 from funestra.modes import MainMode, Osr2State
 from funestra.robot_hand import FULL_INTENSITY, WaveformShape
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.osr2_section import osr2_part, osr2_part_path, osr2_readout_path
-from fun_time.room_funestras import RoomFunestra
 
 
 def room_for_a_whole_part() -> tuple[int, int]:
-    whole = osr2_part(RoomFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
+    whole = osr2_part(FunTimeFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
                       control=OSR2_DRIVING, paused=False, learned=False,
                       shape=WaveformShape.SINE.value, broker=True, max_intensity=FULL_INTENSITY)
     return ConsolePainter(device_only=True).rgba(ConsoleHud(console=whole, drive=DriveHud()))[1]

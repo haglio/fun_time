@@ -97,13 +97,13 @@ def the_part_that_closed(children: Mapping, *,
 
 
 def part_closed_message(part: str) -> str:
-    return (f"Fun Time stopped: {part} closed itself while the room was up, "
+    return (f"Fun Time stopped: {part} closed itself while Fun Time was up, "
             f"so the whole session was closed with it.")
 
 
 def funestra_died_message(funestra: LaunchedFunestra, said: str) -> str:
     return (
-        f"Fun Time stopped starting up: {funestra.name} closed itself before the room "
+        f"Fun Time stopped starting up: {funestra.name} closed itself before Fun Time "
         f"was up, so the session would have opened without it.\n\n"
         f"{said or 'Its log says nothing.'}"
     )

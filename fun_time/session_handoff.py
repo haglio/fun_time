@@ -44,7 +44,7 @@ logger = logging.getLogger("fun_time.session_handoff")
 
 HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
-# What the monitors read while the room changes shape.
+# What the monitors read while Fun Time changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
 LOADING_SCREEN_STALE_S = 20.0  # how long a crossing may stop saying so before its loading screen is gone
 KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
@@ -185,7 +185,7 @@ def headset_is_held(state_dir: str | Path) -> bool:
 
 
 def release_the_headset(state_dir: str | Path) -> None:
-    """Let a held Funestra go: the room it covered for is on screen."""
+    """Let a held Funestra go: Fun Time it covered for is on screen."""
     for name in (HEADSET_HOLD_NAME, HEADSET_HELD_NAME):
         (Path(state_dir) / name).unlink(missing_ok=True)
 

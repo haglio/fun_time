@@ -29,10 +29,10 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
+from .fun_time_funestras import FunTimeFunestra
 from .mode_plan import STARTUP_MAIN_MODE
 from .origenerator_switches import KINO_MODE, RfbMode, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
-from .room_funestras import RoomFunestra
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ class SatelliteState:
     muted: bool = True
 
 
-def _satellite_key(name: str, funestra: RoomFunestra) -> str:
+def _satellite_key(name: str, funestra: FunTimeFunestra) -> str:
     return f"{funestra.label}_{name}"
 
 
@@ -90,7 +90,7 @@ class BridgeState:
     landscape: SatelliteState = field(default_factory=SatelliteState)
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_mode: RfbMode = RfbMode.RFB
-    # Whether the hosted Origenerator is up.  Every room opens without waiting
+    # Whether the hosted Origenerator is up.  Every session opens without waiting
     # out its boot, so Origenerator is offered nowhere for a session's first
     # half-minute; the dispatch loop reads the app's status file and writes the
     # answer here, for whatever draws an Origenerator button and the switches
@@ -152,20 +152,20 @@ class BridgeState:
     majority: Crown = Crown.PORTRAIT
     osr2_funestra: int = 1
 
-    def satellite(self, funestra: RoomFunestra) -> SatelliteState:
+    def satellite(self, funestra: FunTimeFunestra) -> SatelliteState:
         """The slice of this state one satellite carries."""
-        return self.portrait if RoomFunestra(funestra) is RoomFunestra.PORTRAIT else self.landscape
+        return self.portrait if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT else self.landscape
 
-    def with_satellite(self, funestra: RoomFunestra, **changes) -> BridgeState:
+    def with_satellite(self, funestra: FunTimeFunestra, **changes) -> BridgeState:
         """This state with one satellite's named :class:`SatelliteState` values replaced."""
         satellite = replace(self.satellite(funestra), **changes)
-        if RoomFunestra(funestra) is RoomFunestra.PORTRAIT:
+        if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT:
             return replace(self, portrait=satellite)
         return replace(self, landscape=satellite)
 
     def origenerator_holds_a_satellite(self) -> bool:
         return any(origenerator_shows(self.satellite(funestra).mode)
-                   for funestra in RoomFunestra.SATELLITES)
+                   for funestra in FunTimeFunestra.SATELLITES)
 
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"
@@ -180,7 +180,7 @@ def _written_satellites(state: BridgeState) -> dict[str, str]:
     """Both satellites' slices, under the keys the file has always used."""
     return {
         _satellite_key(f.name, funestra): _written(getattr(state.satellite(funestra), f.name))
-        for funestra in RoomFunestra.SATELLITES
+        for funestra in FunTimeFunestra.SATELLITES
         for f in fields(SatelliteState)
     }
 
@@ -223,7 +223,7 @@ def _publish(state_file: Path, parser: configparser.ConfigParser) -> None:
                        state_file.name, READER_HOLD_BUDGET_S)
 
 
-def _read_satellite(section, funestra: RoomFunestra) -> SatelliteState:
+def _read_satellite(section, funestra: FunTimeFunestra) -> SatelliteState:
     """One satellite's slice."""
     return SatelliteState(**{
         f.name: _read_back(section.get(_satellite_key(f.name, funestra)), f.default)
@@ -306,7 +306,7 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         return None
     s = parser["state"]
     return BridgeState(
-        portrait=_read_satellite(s, RoomFunestra.PORTRAIT),
-        landscape=_read_satellite(s, RoomFunestra.LANDSCAPE),
+        portrait=_read_satellite(s, FunTimeFunestra.PORTRAIT),
+        landscape=_read_satellite(s, FunTimeFunestra.LANDSCAPE),
         **{f.name: _read_back(s.get(f.name), f.default) for f in _session_fields()},
     )

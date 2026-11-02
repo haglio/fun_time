@@ -101,8 +101,8 @@ class FunTimeWindows:
         # Windows a Funestra's own minimize button parked, kept apart from the two
         # other things that minimize around here: the mode switch parks the idle
         # Main Funestra (undone by the switch that brings it back) and
-        # omniminimize parks the room (undone by omnirestore).  These are undone
-        # by the room resuming — a Funestra parked from its own HUD took that HUD
+        # omniminimize parks Fun Time (undone by omnirestore).  These are undone
+        # by Fun Time resuming — a Funestra parked from its own HUD took that HUD
         # down with it and has no button left to press.
         self._parked_hwnds: list[int] = []
         self._minimized_hwnds: list[int] = []
@@ -337,7 +337,7 @@ class FunTimeWindows:
         """Keep hosted Core where the browser's place says.
 
         The switch's ops restore or park it when a command fires, but the
-        window arrives mid-session — the room opens without waiting the app
+        window arrives mid-session — Fun Time opens without waiting the app
         out — so this is what meets it: parked while the browser holds its
         place, and up while Origenerator does.
 

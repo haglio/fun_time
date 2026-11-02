@@ -9,6 +9,7 @@ from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
 from funestra.drive_readout import DriveHud, read_drive
 from funestra.status import FunestraStatus
 
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import (
     GenauStatus,
     MainFunestraStatus,
@@ -16,7 +17,6 @@ from .funestra_status import (
     published_main_funestra_status,
 )
 from .origenerator_switches import origenerator_shows
-from .room_funestras import RoomFunestra
 from .satellite_control import published_satellite_status
 from .shared_state import BridgeState
 
@@ -34,14 +34,14 @@ def _the_headsets_layout(state_dir: Path) -> str | None:
 @dataclass(frozen=True)
 class FunestraReports:
     main: MainFunestraStatus | None = None
-    satellites: Mapping[RoomFunestra, FunestraStatus | None] = field(default_factory=dict)
+    satellites: Mapping[FunTimeFunestra, FunestraStatus | None] = field(default_factory=dict)
     genau_drive: DriveHud | None = None
     genau: GenauStatus | None = None
     headset_layout: str | None = None
 
 
 def reports_published_in(state_dir: Path, *, main_status_file: Path,
-                         satellite_status_files: Mapping[RoomFunestra, Path]) -> FunestraReports:
+                         satellite_status_files: Mapping[FunTimeFunestra, Path]) -> FunestraReports:
     return FunestraReports(
         main=published_main_funestra_status(Path(main_status_file)),
         satellites={funestra: published_satellite_status(Path(status_file))
@@ -55,7 +55,7 @@ def read_funestra_reports(config) -> FunestraReports:
     return reports_published_in(
         config.state_dir, main_status_file=config.main_funestra_status_file,
         satellite_status_files={funestra: config.satellite(funestra).status_file
-                                for funestra in RoomFunestra.SATELLITES})
+                                for funestra in FunTimeFunestra.SATELLITES})
 
 
 def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports) -> BridgeState:

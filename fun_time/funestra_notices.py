@@ -14,7 +14,7 @@ from .event_log import (
     SOURCE_PORTRAIT,
     notice,
 )
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ def notice_channels(config: BridgeConfig) -> dict[str, Path]:
     notices flash over."""
     channels = ((SOURCE_MAIN, config.main_funestra_notice_file),
                 *((source, config.satellite(funestra).notice_file)
-                  for source, funestra in ((SOURCE_PORTRAIT, RoomFunestra.PORTRAIT),
-                                           (SOURCE_LANDSCAPE, RoomFunestra.LANDSCAPE))))
+                  for source, funestra in ((SOURCE_PORTRAIT, FunTimeFunestra.PORTRAIT),
+                                           (SOURCE_LANDSCAPE, FunTimeFunestra.LANDSCAPE))))
     return {source: path for source, path in channels if path is not None}
 
 

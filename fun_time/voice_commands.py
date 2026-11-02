@@ -21,8 +21,8 @@ from fun_time.filter_vocab import filter_voice_commands
 from .aiming import named_first_or_last, on_the_main_funestra
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
+from .fun_time_funestras import FunTimeFunestra
 from .origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, mode_command
-from .room_funestras import RoomFunestra
 
 # A spoken command carries when the *utterance began*, appended after " @".  A
 # phrase is only recognized once the speaker stops, by which time an
@@ -61,7 +61,7 @@ def parse_command_line(line: str) -> CommandLine:
 
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
-_SATELLITE_NAMES = tuple(funestra.label for funestra in RoomFunestra.SATELLITES)
+_SATELLITE_NAMES = tuple(funestra.label for funestra in FunTimeFunestra.SATELLITES)
 FAVORITES_PHRASE = "favorites"
 
 
@@ -307,7 +307,7 @@ def build_voice_commands(
         # scopes are aliases here, every satellite playlist running repeat-all:
         # "lock seed" IS the action loop and "lock type" IS the seed loop.
         #
-        # The scope named "all" is NOT among them: the room's other "all" means
+        # The scope named "all" is NOT among them: Fun Time's other "all" means
         # all *Funestras* ("all f mode"), no listener can tell the senses apart,
         # and they were second spellings of what "lock" and "reset" already say.
         "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
@@ -351,8 +351,8 @@ def build_voice_commands(
     # F-mode, per Funestra, sayable in either order like the rest of the grid:
     # "both" drives the satellites, "main" the Main Funestra, "all" every one --
     # the F key.  Bare it reaches the Funestra last addressed, as bare "lock" and
-    # "next" do; reading it as the whole room made a spoken "f mode" answer
-    # "enabled" on a room that already looked narrowed.
+    # "next" do; reading it as all of Fun Time made a spoken "f mode" answer
+    # "enabled" on a session that already looked narrowed.
     _FMODE_PHRASES: dict[str, tuple[str, str]] = {
         "f mode": ("fmode", "fmode_toggle"),
         "f mode on": ("fmode_on", "fmode_on"),

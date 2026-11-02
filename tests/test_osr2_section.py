@@ -21,12 +21,12 @@ from funestra.modes import MainMode, Osr2State
 from funestra.robot_hand import WaveformShape
 
 from fun_time.console_buttons import MainFunestraFacts, console_rows, osr2_rows
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_funestra_console import osr2_state
 from fun_time.osr2_section import osr2_button, osr2_part
-from fun_time.room_funestras import RoomFunestra
 
 
-def _part(holder: RoomFunestra = RoomFunestra.MAIN, *, main_mode: MainMode = MainMode.KINO,
+def _part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, *, main_mode: MainMode = MainMode.KINO,
           control: str = OSR2_DRIVING, learned: bool = False, shape: str = "sine",
           broker: bool = True):
     return osr2_part(holder, main_mode=main_mode, osr2=Osr2State.ROBOT_HAND, control=control,
@@ -47,7 +47,7 @@ class TestTheOsr2Switch:
     off while parked, and a press flips it."""
 
     def test_it_is_there_whichever_funestra_has_the_osr2_in_either_mode(self):
-        for holder in RoomFunestra:
+        for holder in FunTimeFunestra:
             for mode in MainMode:
                 assert OSR2_CONTROL_BUTTONS[OSR2_PARKED] in _actions(_part(holder, main_mode=mode))
 
@@ -104,7 +104,7 @@ class TestTheReadoutTheWordLeaves:
     def _readout(main_mode: MainMode, *, funscript_driving: bool, max_intensity: int = 100,
                  tmp_path):
         part = osr2_part(
-            RoomFunestra.MAIN, main_mode=main_mode, control=OSR2_DRIVING, paused=False,
+            FunTimeFunestra.MAIN, main_mode=main_mode, control=OSR2_DRIVING, paused=False,
             osr2=osr2_state(main_mode=main_mode, osr2_mode=Osr2Mode.CONTROLLED,
                             funscript_driving=funscript_driving),
             learned=False, shape="sine", broker=True, max_intensity=max_intensity)
@@ -168,13 +168,13 @@ class TestTheBroker:
 
 class TestTheOsr2Button:
     def test_is_lit_on_the_funestra_that_has_the_osr2_and_says_so(self):
-        button = osr2_button(RoomFunestra.PORTRAIT, has_it=True)
+        button = osr2_button(FunTimeFunestra.PORTRAIT, has_it=True)
 
         assert button.lit is True
         assert button.tooltip == "This Funestra has the OSR2 — it follows this Funestra's funscripts"
 
     def test_offers_the_osr2_on_every_other_funestra(self):
-        button = osr2_button(RoomFunestra.LANDSCAPE, has_it=False)
+        button = osr2_button(FunTimeFunestra.LANDSCAPE, has_it=False)
 
         assert (button.command, button.lit) == ("landscape_take_osr2", False)
         assert button.tooltip == "Take over the OSR2 — it follows this Funestra's funscripts"

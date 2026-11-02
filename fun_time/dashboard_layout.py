@@ -68,8 +68,8 @@ def client_rect_filling_frame(
 
 # --- the control bar ---------------------------------------------------------
 # The bar carries what belongs to no one Funestra: quit, pause everything, the
-# reference popup, the microphone, the room's F-mode, the way into VR.  Anything
-# about ONE Funestra is on that Funestra's HUD, so the bar is not arranged like the room.
+# reference popup, the microphone, Fun Time's F-mode, the way into VR.  Anything
+# about ONE Funestra is on that Funestra's HUD, so the bar is not arranged like Fun Time.
 
 # The family's own button square and gap, the HUDs' size: the bar sits directly
 # above them on one screen, and two sizes of one control read as two chromes.

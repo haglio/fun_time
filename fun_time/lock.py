@@ -6,13 +6,13 @@ from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
+from .fun_time_funestras import FunTimeFunestra
 from .media_actions import make_web_url_from_path
 from .media_metadata import mark_favorite
 from .origenerator_switches import RfbMode
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
-from .room_funestras import RoomFunestra
 from .shared_state import BridgeState
 from .watch_stats import record_watch_event, watch_stats_path
 
@@ -62,7 +62,7 @@ class DiscardPlan:
 
 
 def build_discard_plan(
-    *, funestra: RoomFunestra, current_path: str, is_favorite: bool = False
+    *, funestra: FunTimeFunestra, current_path: str, is_favorite: bool = False
 ) -> DiscardPlan:
     if is_favorite:
         return DiscardPlan(
