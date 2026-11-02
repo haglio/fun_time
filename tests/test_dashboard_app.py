@@ -78,6 +78,7 @@ from fun_time.event_log import (
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbMode
+from fun_time.press_flash import PRESS_FLASH_S
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_messages import flash_unlogged
@@ -947,6 +948,44 @@ def test_help_action_opens_dialog_locally_without_routing_command(dashboard_wind
     mock_dialog.return_value.show.assert_called_once()
     # Must NOT be routed to the dispatch loop / command file.
     assert not cmd_file.exists(), "help_reference should not be written as a command"
+
+
+def _pump_until(holds, *, timeout_s: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout_s
+    while not holds() and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.01)
+
+
+def _fill_of(window, action: str):
+    rect = dict(window._widget._scene.actions)[action]
+    return next(item.fill for item in window._widget._scene.rects if item.rect == rect)
+
+
+def test_a_pressed_controls_light_goes_out_by_itself(dashboard_window):
+    resting = _fill_of(dashboard_window, VOICE_TOGGLE)
+
+    dashboard_window._on_action(VOICE_TOGGLE)
+    assert _fill_of(dashboard_window, VOICE_TOGGLE) != resting
+
+    _pump_until(lambda: _fill_of(dashboard_window, VOICE_TOGGLE) == resting)
+    assert _fill_of(dashboard_window, VOICE_TOGGLE) == resting
+
+
+def test_a_closed_window_is_not_drawn_again_when_its_last_press_goes_out(
+        dashboard_app_config, monkeypatch):
+    window = build_dashboard_window(dashboard_app_config)
+    window._on_action(VOICE_TOGGLE)
+    window.close()
+    drawn_after_closing = []
+    monkeypatch.setattr(window, "_do_render", lambda *_args: drawn_after_closing.append(True))
+
+    deadline = time.monotonic() + 2 * PRESS_FLASH_S
+    while time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.01)
+
+    assert drawn_after_closing == []
 
 
 def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboard_app_config):
