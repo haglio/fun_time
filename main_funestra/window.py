@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import logging
 import warnings
 from pathlib import Path
@@ -7,6 +8,13 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 FRAMES_A_SECOND = 60
+
+
+_ALL_THREADS_OF_THIS_PROCESS = 0xFFFFFFFF
+
+
+def leave_out_the_input_methods_that_stall_band_changes() -> None:
+    ctypes.WinDLL("imm32").ImmDisableIME(_ALL_THREADS_OF_THIS_PROCESS)
 
 
 def wear_the_icon(pygame, icon: Path | None) -> None:

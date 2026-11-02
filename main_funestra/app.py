@@ -40,7 +40,12 @@ from .genau import ROBOT_HAND, Genau, GenauChannels
 from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
-from .window import run_the_window, take_outside_resizes, wear_the_icon
+from .window import (
+    leave_out_the_input_methods_that_stall_band_changes,
+    run_the_window,
+    take_outside_resizes,
+    wear_the_icon,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +98,7 @@ def _set_aumid(taskbar_identity: str | None) -> None:
 
 def _open_window(args):
     deliver_the_focusing_click()
+    leave_out_the_input_methods_that_stall_band_changes()
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"

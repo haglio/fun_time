@@ -15,6 +15,8 @@ machine's one ComfyUI, GPU queue, or gallery database — the same reason
 """
 from __future__ import annotations
 
+import ctypes
+import ctypes.wintypes
 import json
 import subprocess
 import sys
@@ -46,6 +48,7 @@ from fun_time.win32 import (
     is_window_topmost,
     iter_zorder,
     set_always_on_top,
+    window_process,
     windows_obscuring,
 )
 from fun_time.window_roles import ORIGENERATOR_TITLE
@@ -573,6 +576,30 @@ def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_b
     _bring_the_satellites_home(session)
     session.write_dashboard_command("rfb_activate")
     wait_for(lambda: is_window_minimized(hwnd), desc="the hosted window to park again")
+
+
+def _input_method_windows_of(processes: set[int]) -> list[int]:
+    user32 = ctypes.WinDLL("user32")
+    found = []
+
+    @ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+    def look_at(hwnd, _):
+        class_name = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, class_name, 64)
+        if class_name.value in ("IME", "MSCTFIME UI") and window_process(hwnd) in processes:
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(look_at, 0)
+    return found
+
+
+def test_no_funestra_keeps_input_method_windows_that_could_stall_its_band(hosted_session):
+    funestras = {window_process(await_window(title, 10, exact=True))
+                 for title in ("Main Funestra", SATELLITE_PORTRAIT_TITLE, SATELLITE_LANDSCAPE_TITLE)}
+
+    assert 0 not in funestras
+    assert _input_method_windows_of(funestras) == []
 
 
 def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):

@@ -17,7 +17,12 @@ from funestra.playlist import PlaylistItem
 from funestra.sdl_hints import deliver_the_focusing_click
 
 from main_funestra.input import Input
-from main_funestra.window import run_the_window, take_outside_resizes, wear_the_icon
+from main_funestra.window import (
+    leave_out_the_input_methods_that_stall_band_changes,
+    run_the_window,
+    take_outside_resizes,
+    wear_the_icon,
+)
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
@@ -61,6 +66,7 @@ def _open_window(placement: WindowPlacement) -> int:
         except OSError:
             logger.info("Could not take the taskbar identity %s",
                         placement.taskbar_identity)
+    leave_out_the_input_methods_that_stall_band_changes()
     pygame.init()
     if placement.x is not None and placement.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"

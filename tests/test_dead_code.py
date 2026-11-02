@@ -26,6 +26,7 @@ def _package_sources():
 # GWL_STYLE written as a bare -16 and the style bits as inline hex, while
 # fun_time/win32.py existed to be the place that names them.
 _WIN32_REACHES = {
+    "main_funestra/window.py": 3,
     # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
     # these want the AttributeError ctypes.windll gives off Windows, and every
     # caller catches it to fall back rather than to fail.  monitors.py is the
