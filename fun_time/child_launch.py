@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import IO
 
-# A child's crash log is near-empty in normal use (a line per clip), so a
+# A child's crash log is near-empty in normal use (a line per video), so a
 # megabyte spans days of sessions — matching the cap the app's own logs use.
 CHILD_LOG_MAX_BYTES = 1_000_000
 

@@ -351,7 +351,7 @@ def start_core_session(
     write_broker_command(broker_cmd_file, osr2_hold.PARK)
     ensure_broker(broker_state_dir, broker_tray_launcher)
     state_path = Path(state_dir)
-    # Come back to the clips this session was closed on, rather than three the
+    # Come back to the videos this session was closed on, rather than three the
     # user never chose: each Funestra's status file names the video it had on
     # screen, so a reopen rotates the satellites' playlists onto theirs, and opens
     # the Main Funestra's list on its.  Only satellites with nothing to resume — a
@@ -399,7 +399,7 @@ def start_core_session(
             state_dir=state_path,
             metadata_root=regen_metadata_root,
         )
-    # Which of the two ran is the difference between the clips of the last
+    # Which of the two ran is the difference between the videos of the last
     # session and new ones, so the log says outright which you are getting.
     logger.info(
         "Resumed last session's playlists"
@@ -681,7 +681,7 @@ def launch_main_funestra(
     if osr2_port:
         cmd += ["--osr2-port", osr2_port]
     # Lets the Main Funestra group a video's versions from Evolver's metadata sidecars rather
-    # than guessing from clip names.
+    # than guessing from video names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
     return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=sibling_checkouts)

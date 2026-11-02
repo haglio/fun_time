@@ -52,11 +52,11 @@ from .integration_support import (
     build_integration_temp_root,
     joined_within,
     let_seconds_pass,
-    library_clips,
-    one_clip_per_video,
+    library_videos,
+    one_video_per_video,
     published_status,
     readable_at_speed,
-    sample_library_clips,
+    sample_library_videos,
     stall_per_transition,
     wait_for,
     window_is_quiet,
@@ -100,16 +100,16 @@ SETTLE_WINDOWS = 12
 
 
 def _sample_library_videos(dirs, count: int) -> list[str]:
-    return [str(clip) for clip in sample_library_clips(
-        library_clips(dirs), count,
+    return [str(video) for video in sample_library_videos(
+        library_videos(dirs), count,
         desc=f"sample videos under {dirs}", readable=readable_at_speed,
     )]
 
 
 def _main_videos_next_can_step_between(config, manifest, vr) -> list[str]:
     library = vrp._TheLibrary(manifest, vr, while_reading=lambda: None)
-    return [str(clip) for clip in sample_library_clips(
-        one_clip_per_video(library_clips(config.paths.main_funestra_library_dirs),
+    return [str(video) for video in sample_library_videos(
+        one_video_per_video(library_videos(config.paths.main_funestra_library_dirs),
                            library.source.version_index), 2,
         desc="different videos in the Main Funestra's library", readable=readable_at_speed,
     )]
@@ -187,7 +187,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
     def has_frame(unit) -> bool:
         """Whether a horizontal strip through the target's middle holds any
-        non-black pixel — resilient to a clip that opens on a dark scene."""
+        non-black pixel — resilient to a video that opens on a dark scene."""
         strip = np.zeros((1, 64, 4), dtype=np.uint8)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, unit.target.fbo)
         GL.glReadPixels(
@@ -282,13 +282,13 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             desc="NEXT to advance the Main Funestra",
         )
 
-        # Clip transitions must not stall the frame loop, and must reach the
+        # Video transitions must not stall the frame loop, and must reach the
         # scene.  Cold-load the landscape satellite repeatedly — explicit
         # navigation, the harsher path than prefetched rollover — while frames
-        # keep pace.  What a clip change costs is mpv's: a decoder's textures,
+        # keep pace.  What a video change costs is mpv's: a decoder's textures,
         # its shaders and the CUDA interop its frames arrive through, 40 to
         # 250ms of it, charged to whichever thread calls render.  On the loop
-        # that was the whole headset freezing at every clip change.
+        # that was the whole headset freezing at every video change.
         transitions: list[list[float]] = []
         landscape_status = Path(commands.landscape_status_file)
         for _ in range(4):
@@ -325,7 +325,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # on the worst frame instead, this rode the one statistic a machine's
         # own hiccup owns: a run whose four transitions cost 79, 91, 92 and
         # 628ms is a hiccup on one pass, and it failed here as a pipeline
-        # that stalls on every clip change.
+        # that stalls on every video change.
         stall = stall_per_transition(transitions)
         assert stall < 150.0, (
             f"clip transitions stalled the frame loop {stall:.0f}ms apiece "

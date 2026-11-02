@@ -383,8 +383,8 @@ def _shows_the_stub(session, funestra: FunTimeFunestra) -> bool:
     return Path(_playing(session, funestra)).name == f"{funestra.label}.png"
 
 
-def _own_clips(session, funestra: FunTimeFunestra) -> list[Path]:
-    """What *Funestra*'s playlist holds, once that is the session's own clips
+def _own_videos(session, funestra: FunTimeFunestra) -> list[Path]:
+    """What *Funestra*'s playlist holds, once that is the session's own videos
     again rather than anything the hosted app wrote there."""
     folders = (session.config.paths.portrait_dirs if funestra is FunTimeFunestra.PORTRAIT
                else session.config.paths.landscape_dirs)
@@ -415,7 +415,7 @@ def _bring_the_satellites_home(session) -> None:
     for funestra in _FUNESTRAS:
         session.write_dashboard_command(f"{funestra.label}_kino_activate")
     for funestra in _FUNESTRAS:
-        wait_for(lambda funestra=funestra: _own_clips(session, funestra)
+        wait_for(lambda funestra=funestra: _own_videos(session, funestra)
                  and not _shows_the_stub(session, funestra),
                  desc=f"the {funestra.label} Funestra to play its own clips again")
 
@@ -480,9 +480,9 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hos
 def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_own(hosted_session):
     """What the mode is for, on the real Funestras: each one plays the list the
     hosted app writes for it, and leaving the mode hands it back the session's
-    own list — the same clips, not the app's items and not an empty list."""
+    own list — the same videos, not the app's items and not an empty list."""
     session, _hwnd = hosted_session
-    own_lists = {funestra: sorted(_own_clips(session, funestra)) for funestra in _FUNESTRAS}
+    own_lists = {funestra: sorted(_own_videos(session, funestra)) for funestra in _FUNESTRAS}
     assert all(own_lists.values()), "the Funestras had no lists of their own to begin with"
 
     _put_origenerator_on_the_satellites(session)
@@ -490,14 +490,14 @@ def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_ow
 
     _bring_the_satellites_home(session)
     for funestra in _FUNESTRAS:
-        assert sorted(_own_clips(session, funestra)) == own_lists[funestra]
+        assert sorted(_own_videos(session, funestra)) == own_lists[funestra]
 
 
 def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_browser_stay_put(
         hosted_session):
     session, hwnd = hosted_session
     portrait, landscape = _FUNESTRAS
-    landscape_own = sorted(_own_clips(session, landscape))
+    landscape_own = sorted(_own_videos(session, landscape))
     assert landscape_own, "the Landscape Funestra had no list of its own to begin with"
 
     state_file = _press_once_origenerator_is_up(
@@ -510,10 +510,10 @@ def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_b
     assert state.rfb_mode is RfbMode.RFB
     assert is_window_minimized(hwnd)
     assert not _shows_the_stub(session, landscape)
-    assert sorted(_own_clips(session, landscape)) == landscape_own
+    assert sorted(_own_videos(session, landscape)) == landscape_own
 
     session.write_dashboard_command(f"{portrait.label}_kino_activate")
-    wait_for(lambda: _own_clips(session, portrait) and not _shows_the_stub(session, portrait),
+    wait_for(lambda: _own_videos(session, portrait) and not _shows_the_stub(session, portrait),
              desc="the Portrait Funestra to play its own clips again")
 
 
@@ -658,7 +658,7 @@ def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S,
                       env_overrides={"FUN_TIME_DISABLE_DASHBOARD": "0"})
         portrait = FunTimeFunestra.PORTRAIT
-        own = wait_for(lambda: _own_clips(session, portrait),
+        own = wait_for(lambda: _own_videos(session, portrait),
                        desc="the Portrait Funestra to play a list of its own")
         wait_for(lambda: _wears(session, portrait, own) == "kino",
                  desc="the Portrait Funestra to wear its whole Kino HUD")
@@ -667,7 +667,7 @@ def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
         going = _huds_worn_until(session, portrait, lambda: _shows_the_stub(session, portrait)
                                  and _wears(session, portrait, own) == "origenerator")
         session.write_dashboard_command(f"{portrait.label}_kino_activate")
-        coming = _huds_worn_until(session, portrait, lambda: _own_clips(session, portrait)
+        coming = _huds_worn_until(session, portrait, lambda: _own_videos(session, portrait)
                                   and _wears(session, portrait, own) == "kino")
     finally:
         session.stop()

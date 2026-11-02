@@ -79,7 +79,7 @@ def no_other_flicks() -> str:
 class WebProvider:
     """A media provider's library-folder marker and gallery-URL template.
 
-    ``marker`` is the folder name that tags a clip as this provider's (matched as
+    ``marker`` is the folder name that tags a video as this provider's (matched as
     ``\\<marker>\\`` in a path); ``gallery_url`` is a template taking ``{id}``,
     the image id parsed from the filename.
     """

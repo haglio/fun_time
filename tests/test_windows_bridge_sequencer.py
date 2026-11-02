@@ -396,7 +396,7 @@ class TestRunStartupSequence:
             "main_funestra_width": PRIMARY_MEDIA_RECT["width"],
             "main_funestra_height": PRIMARY_MEDIA_RECT["height"],
             # Genau runs on this window too, through files of its own: Fun Time's
-            # verbs for the hand and the clip, its pause, and the status it publishes.
+            # verbs for the hand and the video, its pause, and the status it publishes.
             "genau_command_file": str(cfg.genau_cmd_file),
             "genau_paused_file": str(cfg.genau_paused_file),
             "genau_status_file": str(cfg.genau_status_file),
@@ -521,7 +521,7 @@ class TestRunStartupSequence:
 
         assert main_funestra_paused.read_text(encoding="utf-8").strip() == "0"
 
-    def test_genau_is_launched_onto_the_clip_it_was_left_showing(self, cfg_factory, tmp_path):
+    def test_genau_is_launched_onto_the_video_it_was_left_showing(self, cfg_factory, tmp_path):
         """Genau's status file is the only record of which flick was up — it
         rescans its folder every launch — so it is read before Genau is started
         and handed straight back on the command line."""
@@ -540,8 +540,8 @@ class TestRunStartupSequence:
 
     def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
         """Whether Genau was on Latest is in the state the core session just
-        resumed, and it has to go on the launch beside the clip: the LATEST verb
-        browses the new order from its top, over the clip just resumed."""
+        resumed, and it has to go on the launch beside the video: the LATEST verb
+        browses the new order from its top, over the video just resumed."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         write_shared_state(shared_state_path(tmp_path), BridgeState(genau_latest=True))
 

@@ -1,6 +1,6 @@
 """The modes Kino is playing in, and what changes them.
 
-The *compilation* is one anthology's clips standing in for the playlist, which
+The *compilation* is one anthology's videos standing in for the playlist, which
 :mod:`main_funestra.clip_jumps` owns because entering one is what puts you
 there.  *F-mode* is Fun Time's narrowing of the Main Funestra's one list, and
 Kino cannot see it: the narrowed list it receives is indistinguishable from any

@@ -14,7 +14,7 @@ from fun_time_vr.gl_contexts import SharedContexts, hidden_gl_window
 from fun_time_vr.render import RenderTarget
 from fun_time_vr.scheduling import ahead_of_background_work
 
-from .integration_support import build_integration_temp_root, clip_of_a_test_pattern, wait_for
+from .integration_support import build_integration_temp_root, video_of_a_test_pattern, wait_for
 from .run_clock import Budget, OnTimeClock
 
 pytestmark = [
@@ -47,7 +47,7 @@ def _frames_shown(video, target: RenderTarget, *, seconds: float) -> tuple[int, 
 
 
 def test_the_main_frame_is_painted_at_a_sixty_fps_videos_own_rate():
-    pattern = clip_of_a_test_pattern(build_integration_temp_root() / "sixty_fps_test_pattern.mp4",
+    pattern = video_of_a_test_pattern(build_integration_temp_root() / "sixty_fps_test_pattern.mp4",
                                      size="1280x720", seconds=VIDEO_SECONDS, rate=VIDEO_FPS)
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-paint-rate-test")

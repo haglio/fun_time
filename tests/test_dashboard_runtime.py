@@ -169,7 +169,7 @@ def test_read_main_funestra_status_defaults_the_lock_to_on(tmp_path: Path):
 
 def test_read_main_funestra_status_parses_position_and_duration(tmp_path: Path):
     # Watch tracking (breeding) needs the playback fraction, so both the
-    # position and the clip length are read off the Main Funestra's status file.
+    # position and the video length are read off the Main Funestra's status file.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nloop_state=normal\npaused=0\n",

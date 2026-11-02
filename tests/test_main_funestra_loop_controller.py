@@ -48,7 +48,7 @@ class TestLoopController:
         assert lc.out_ms is None
 
     def test_unscripted_loop_uses_raw_bounds(self):
-        # No funscript (a plain clip): the marked range is used as-is, no snapping.
+        # No funscript (a plain video): the marked range is used as-is, no snapping.
         lc = LoopController(None)
 
         lc.on_record_down(2500)

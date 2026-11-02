@@ -15,8 +15,8 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
-    clip_of_a_test_pattern,
     let_seconds_pass,
+    video_of_a_test_pattern,
 )
 
 pytestmark = [
@@ -46,7 +46,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
     played_from = flat_flicks_in(flicks_folder_in(genau)) / "non_AI"
     played_from.mkdir()
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):
-        clip_of_a_test_pattern(played_from / name, size="640x360", seconds=2)
+        video_of_a_test_pattern(played_from / name, size="640x360", seconds=2)
     weird = weird_pile_in(genau)
     session = FunTimeIntegrationSession(build_integration_config(temp_root))
     try:

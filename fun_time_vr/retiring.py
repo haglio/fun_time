@@ -1,4 +1,4 @@
-"""Quad swapchains a clip's size change replaced, waiting to be destroyed.
+"""Quad swapchains a video's size change replaced, waiting to be destroyed.
 
 A retired chain may still be composited by the frames already in flight, so
 destruction waits. Kept out of :mod:`fun_time_vr.vr_session` because the

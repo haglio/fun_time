@@ -98,7 +98,7 @@ def test_other_paths_are_404(tmp_path):
 
 def test_reports_the_live_omnipause_state(tmp_path):
     # Read per request, not captured at startup: the RFB tab pages poll this to
-    # decide whether to freeze their clips, so a stale answer freezes forever.
+    # decide whether to freeze their videos, so a stale answer freezes forever.
     script = tmp_path / USERSCRIPT_NAME
     script.write_text("// x\n", encoding="utf-8")
     paused = False

@@ -26,7 +26,7 @@ from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 
 from .integration_support import let_seconds_pass, published_status
-from .lone_satellite import LoneSatellite, a_lone_satellite, library_clips_of
+from .lone_satellite import LoneSatellite, a_lone_satellite, library_videos_of
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32",
@@ -38,16 +38,16 @@ pytestmark = [
 
 def test_native_satellite_plays_and_obeys_commands():
     satellite = a_lone_satellite()
-    with satellite.launched(library_clips_of("portrait", 3), width=800, height=600):
+    with satellite.launched(library_videos_of("portrait", 3), width=800, height=600):
         first = satellite.wait_until_playing()
-        # Lock (stops auto-advance) so NEXT's effect on the clip is unambiguous.
+        # Lock (stops auto-advance) so NEXT's effect on the video is unambiguous.
         satellite.send(LOCK_ON)
         satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
                            desc="the satellite to lock")
-        locked_clip = satellite.video()
+        locked_video = satellite.video()
         satellite.send(NEXT)
         satellite.wait_for(
-            lambda: read_satellite_status(satellite.status).video not in ("", locked_clip),
+            lambda: read_satellite_status(satellite.status).video not in ("", locked_video),
             desc="NEXT to change the clip while locked")
         satellite.send(f"{SET_SPEED} 2")
         satellite.wait_for(lambda: read_satellite_status(satellite.status).speed == 2.0,
@@ -60,7 +60,7 @@ def test_native_satellite_plays_and_obeys_commands():
         let_seconds_pass(1.2)
         pos_b = published_status(read_satellite_status, satellite.status).position_ms
         assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
-        assert first.video  # a real clip was playing
+        assert first.video  # a real video was playing
 
 
 def test_another_sessions_startup_reap_leaves_this_satellite_alone():
@@ -74,7 +74,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
     the contract at it: a stranger's reap must spare it, its own must still take it.
     """
     satellite = a_lone_satellite()
-    with satellite.launched(library_clips_of("portrait", 2), width=800, height=600):
+    with satellite.launched(library_videos_of("portrait", 2), width=800, height=600):
         satellite.wait_until_playing()
 
         # A session whose state dir is somewhere else entirely comes up.
@@ -97,13 +97,13 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     """The HUD is drawn INTO the video by mpv, so nothing outside the Funestra can
     read it back — what this proves is that the whole render path survives the
     real platform: real thumbnails, real fonts, a real BGRA overlay handed to a
-    real mpv, redrawn when the HUD changes, with the clip still advancing after.
+    real mpv, redrawn when the HUD changes, with the video still advancing after.
     A crash anywhere in it takes the Funestra down and the status file goes stale.
 
     The HUD is built by the production publisher from a production SatelliteHud, so
     the bytes the Funestra parses are exactly the bytes fun_time writes.
     """
-    videos = library_clips_of("portrait", 2)
+    videos = library_videos_of("portrait", 2)
     cache_dir = tmp_path / THUMBNAIL_CACHE_DIRNAME
     for video in videos:
         thumbnail_for(video, cache_dir)

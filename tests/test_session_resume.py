@@ -1,4 +1,4 @@
-"""Bringing a reopened session back to the clip each Funestra was on."""
+"""Bringing a reopened session back to the video each Funestra was on."""
 from __future__ import annotations
 
 from dataclasses import fields, replace
@@ -40,13 +40,13 @@ from main_funestra.genau_verbs import VERBS as GENAUS_VERBS_ON_THE_MAIN_FUNESTRA
 from tests.made_up_state import remembered_values, shifted_state
 
 
-def _clips(tmp_path: Path, *names: str) -> list[str]:
+def _videos(tmp_path: Path, *names: str) -> list[str]:
     """Real files on disk, since a playlist names videos that have to be there."""
     paths = []
     for name in names:
-        clip = tmp_path / name
-        clip.write_bytes(b"")
-        paths.append(str(clip))
+        video = tmp_path / name
+        video.write_bytes(b"")
+        paths.append(str(video))
     return paths
 
 
@@ -76,11 +76,11 @@ def _never_came_home(
 
 
 class TestResumePlaylists:
-    def test_rotates_a_playlist_onto_the_clip_that_was_on_screen(self, tmp_path: Path):
+    def test_rotates_a_playlist_onto_the_video_that_was_on_screen(self, tmp_path: Path):
         """A Funestra starts at the top of its playlist file, so putting last
-        session's clip there is what makes it resume — and rotating (rather than
-        moving it to the front) keeps the clips that were coming up coming up."""
-        a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
+        session's video there is what makes it resume — and rotating (rather than
+        moving it to the front) keeps the videos that were coming up coming up."""
+        a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [a, b, c])
 
@@ -92,7 +92,7 @@ class TestResumePlaylists:
         """A playlist pairs each video with the funscript that drives the OSR2
         through it; rewriting the file without that column would leave a resumed
         session silently unscripted."""
-        a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
+        a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b, f"{c}\tc.funscript"])
 
@@ -113,7 +113,7 @@ class TestResumePlaylists:
         """One build writes both satellites' playlists, so they live or die
         together: if either has no session to come back to, the caller rebuilds
         the pair and each file must still be as the build left it."""
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         portrait = tmp_path / "portrait_playlist.tsv"
         _write_playlist(portrait, [a, b])
 
@@ -125,11 +125,11 @@ class TestResumePlaylists:
         assert resumed is False
         assert portrait.read_text(encoding="utf-8").splitlines() == [a, b]
 
-    def test_keeps_the_queue_when_the_clip_it_left_on_is_gone(self, tmp_path: Path):
-        """A clip trashed or deleted since leaves nothing to rotate onto, but
+    def test_keeps_the_queue_when_the_video_it_left_on_is_gone(self, tmp_path: Path):
+        """A video trashed or deleted since leaves nothing to rotate onto, but
         the queue around it is still last session's — worth far more than a
         fresh shuffle — so it comes back from its top."""
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "landscape_playlist.tsv"
         _write_playlist(playlist, [a, b])
 
@@ -137,11 +137,11 @@ class TestResumePlaylists:
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
 
-    def test_drops_clips_that_no_longer_exist(self, tmp_path: Path):
+    def test_drops_videos_that_no_longer_exist(self, tmp_path: Path):
         """A playlist built moments before launch could only name files that were
         there; one resumed from yesterday can name files trashed since, and mpv
         cannot load those — so they come out as the file is rewritten."""
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         gone = str(tmp_path / "gone.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [a, gone, b])
@@ -154,8 +154,8 @@ class TestResumePlaylists:
         """A session quit while the hosted Origenerator had the Funestra leaves that
         app's items in the playlist file and the Funestra's own list kept aside.
         Every session is built in kino mode, so its own list is what it opens on —
-        at the clip it was showing when it left."""
-        a, b, image = _clips(tmp_path, "a.mp4", "b.mp4", "image.png")
+        at the video it was showing when it left."""
+        a, b, image = _videos(tmp_path, "a.mp4", "b.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[image])
 
         assert resume_playlists([(channel.playlist_file, image)]) is True
@@ -165,7 +165,7 @@ class TestResumePlaylists:
     def test_spends_a_kept_list_even_when_there_is_nothing_to_resume(self, tmp_path: Path):
         """The caller then rebuilds every playlist, and a kept list that outlived
         the rebuild would be dealt over it the next time that Funestra came home."""
-        a, image = _clips(tmp_path, "a.mp4", "image.png")
+        a, image = _videos(tmp_path, "a.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[image])
 
         resumed = resume_playlists([
@@ -244,13 +244,13 @@ class TestResumeSharedState:
         that file resumes the loop — the HUD has to keep its button lit and its
         map frozen where the loop left it, not read the queue as a browse."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4")))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4")))
 
         state = resume_shared_state(state_file, resumed=True)
 
         assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
         assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
-        assert state.satellite(FunTimeFunestra.PORTRAIT).widen_clip == "C:/v/a.mp4"
+        assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/a.mp4"
         assert state.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
         assert state.satellite(FunTimeFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
@@ -462,12 +462,12 @@ class TestResumeMainLoop:
     process that is about to be replaced — so like a satellite's lock it cannot
     ride back in on a file the new Funestra reads, and has to be re-sent.  Either
     orchestrator asks for it, so the whole decision is here rather than at each
-    of them: a desktop session and a headset one part company over which clips
+    of them: a desktop session and a headset one part company over which videos
     they can play, not over what a loop is."""
 
     def _playlist(self, tmp_path: Path, *videos: str) -> Path:
         playlist = tmp_path / "main_player_playlist.tsv"
-        _write_playlist(playlist, list(_clips(tmp_path, *videos)))
+        _write_playlist(playlist, list(_videos(tmp_path, *videos)))
         return playlist
 
     def _looping(self, tmp_path: Path, video: str) -> BridgeState:
@@ -493,7 +493,7 @@ class TestResumeMainLoop:
         assert not main_funestra_cmd.exists()
 
     def test_queues_nothing_when_another_video_leads_the_playlist(self, tmp_path: Path):
-        """A rebuilt playlist, or a clip trashed since, leaves some other video at
+        """A rebuilt playlist, or a video trashed since, leaves some other video at
         the top -- and these bounds would mark out a stretch of a video nobody
         chose.  This is the crossing between the two apps: each refuses the
         other's primary playlist and rebuilds its own."""
@@ -714,8 +714,8 @@ class TestOpeningTheMainList:
         vr_dir, flat_dir = tmp_path / "library" / "VR", tmp_path / "library" / "2D"
         for folder in (vr_dir, flat_dir):
             folder.mkdir(parents=True)
-        vr = _clips(vr_dir, "scene one.mp4", "scene two.mp4")
-        flat = _clips(flat_dir, "scene three.mp4", "scene four.mp4")
+        vr = _videos(vr_dir, "scene one.mp4", "scene two.mp4")
+        flat = _videos(flat_dir, "scene three.mp4", "scene four.mp4")
         the_list = MainList(sources=f"{vr_dir}|{flat_dir}", state_dir=tmp_path / "state",
                             vr_dirs=str(vr_dir))
         return the_list, vr, flat
@@ -771,19 +771,19 @@ class TestOpeningTheMainList:
 
 
 class TestPlaylistOpensOn:
-    """Whether the clip a Funestra will actually load is the one expected — asked
+    """Whether the video a Funestra will actually load is the one expected — asked
     of the Main Funestra before its loop is handed back, since a loop belongs to one
     video and would otherwise be applied to whatever took its place."""
 
-    def test_the_clip_a_resumed_playlist_leads_with(self, tmp_path: Path):
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+    def test_the_video_a_resumed_playlist_leads_with(self, tmp_path: Path):
+        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [b, a])
 
         assert playlist_opens_on(playlist, b) is True
         assert playlist_opens_on(playlist, a) is False
 
-    def test_case_alone_is_not_a_different_clip(self, tmp_path: Path):
+    def test_case_alone_is_not_a_different_video(self, tmp_path: Path):
         """The playlist and the status file are written by different processes,
         and Windows hands the same file back in either case."""
         playlist = tmp_path / "main_player_playlist.tsv"
@@ -792,7 +792,7 @@ class TestPlaylistOpensOn:
         assert playlist_opens_on(playlist, str(tmp_path / "sub" / "A.MP4")) is True
 
     def test_a_funscript_column_does_not_hide_the_video(self, tmp_path: Path):
-        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b])
 

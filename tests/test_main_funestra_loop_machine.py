@@ -92,7 +92,7 @@ class TestTheRecordGesture:
         assert seeks[-1] == 2000, "the playhead lands on the loop's start"
 
     def test_an_unscripted_video_loops_the_raw_range(self):
-        """Clips can be recorded without a funscript; only the snapping is
+        """Videos can be recorded without a funscript; only the snapping is
         funscript-gated."""
         loops, playback, _seeks, _takeovers, _marks = _loops(scripted=False)
 

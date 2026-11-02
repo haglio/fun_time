@@ -120,7 +120,7 @@ class TestPayload:
             assert payload.locked is expected
             assert _button(payload, "main_lock").lit is expected
 
-    def test_the_flip_button_lights_for_the_clip_genau_says_is_flipped(self):
+    def test_the_flip_button_lights_for_the_video_genau_says_is_flipped(self):
         flipped = _payload(main_mode=MainMode.GENAU, genau=GenauStatus(flipped=True))
 
         assert _button(flipped, "genau_flip_ends").lit is True
@@ -134,7 +134,7 @@ class TestPayload:
         assert "every 7s" in _button(payload, "main_lock").tooltip
 
     def test_declares_what_the_main_funestra_published_about_its_video(self):
-        """The compilation, version and clip-jump buttons are lit and named from
+        """The compilation, version and video-jump buttons are lit and named from
         the Main Funestra's own titles: only it knows them, and a Funestra
         that says nothing leaves them dim."""
         known = _payload(main_funestra=MainFunestraStatus(

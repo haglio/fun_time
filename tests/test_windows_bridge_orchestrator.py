@@ -767,7 +767,7 @@ class TestRunPythonOrchestratedBridge:
 
     def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
         """The RFB tab pages poll the loopback server to decide whether to freeze
-        their clips, so it has to read the dispatch loop as it runs — a state
+        their videos, so it has to read the dispatch loop as it runs — a state
         copied at startup would answer "playing" for the rest of the session."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -3672,13 +3672,13 @@ class TestTheHudPublisherASessionStarts:
         assert publisher.call_args.args[0][DASHBOARD_OSR2_PART] == osr2_part_path(
             load_dashboard_app_config(manifest_path).state_dir)
 
-    def test_genaus_clips_are_warmed_for_its_browser_as_the_library_is_for_the_videos(
+    def test_genaus_videos_are_warmed_for_its_browser_as_the_library_is_for_the_videos(
         self, cfg_factory, tmp_path: Path,
     ):
         config = load_config(cfg_factory({}))
-        clip = config.paths.flicks_dir / "2D" / "non_AI" / "scene one.mp4"
-        clip.parent.mkdir(parents=True)
-        clip.touch()
+        video = config.paths.flicks_dir / "2D" / "non_AI" / "scene one.mp4"
+        video.parent.mkdir(parents=True)
+        video.touch()
         manifest = LaunchManifest.read(write_windows_bridge_manifest(
             config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
         bridge_config = SimpleNamespace(portrait_sources="", landscape_sources="", main_sources="",
@@ -3693,7 +3693,7 @@ class TestTheHudPublisherASessionStarts:
             windows_bridge_orchestrator.start_hud_priming(bridge_config, manifest, enabled=True)
             thread.call_args.kwargs["target"]()
 
-        assert str(clip) in warmed
+        assert str(video) in warmed
 
 
 def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_app_came_back_with(

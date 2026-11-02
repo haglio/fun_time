@@ -33,7 +33,7 @@ class FakeNotices:
         self.said.append((message, level))
 
 
-def _clip(lib: Path, meta: Path, rel: str, comp: str, index: int) -> Path:
+def _video(lib: Path, meta: Path, rel: str, comp: str, index: int) -> Path:
     video = lib / rel
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"x")
@@ -49,8 +49,8 @@ class World:
     def __init__(self, tmp_path: Path, *, remembered: RememberedMode | None = None,
                  scripted: bool = True) -> None:
         lib, meta = tmp_path / "videos", tmp_path / "metadata"
-        self.first = _clip(lib, meta, "w/Jane Doe - Scene One.mp4", "Vol6", 1)
-        self.second = _clip(lib, meta, "w/Ann Bly - Scene Two.mp4", "Vol6", 2)
+        self.first = _video(lib, meta, "w/Jane Doe - Scene One.mp4", "Vol6", 1)
+        self.second = _video(lib, meta, "w/Ann Bly - Scene Two.mp4", "Vol6", 2)
         self.scripts = {}
         if scripted:
             for video in (self.first, self.second):
@@ -204,7 +204,7 @@ class TestWhatItSays:
         assert fields["has_compilation"] == "1"
         assert fields["compilation"] == ""
 
-    def test_a_remembered_compilation_is_re_entered_around_its_clip(self, tmp_path):
+    def test_a_remembered_compilation_is_re_entered_around_its_video(self, tmp_path):
         world = World(tmp_path, remembered=RememberedMode(
             compilation="Vol6", video=str(World(tmp_path).second)))
 
@@ -221,7 +221,7 @@ class TestKinoOnTheLibrary:
             "--playlist", str(tmp_path / "main_player_playlist.tsv"),
             "--state-dir", str(tmp_path), "--notice-file", str(tmp_path / "notice.json")])
 
-    def test_its_clip_navigation_is_the_librarys_own_videos(self, tmp_path):
+    def test_its_video_navigation_is_the_librarys_own_videos(self, tmp_path):
         world = World(tmp_path)
 
         made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)

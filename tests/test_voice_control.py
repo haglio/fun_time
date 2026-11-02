@@ -1,7 +1,7 @@
 """What Fun Time does with what the family's listener (voice_core) hears.
 
 Hearing itself -- the grammar, the ranked readings, the repairs, the silence
-floor, the microphone, the kept clips -- is voice_core's and is tested there.
+floor, the microphone, the kept videos -- is voice_core's and is tested there.
 """
 from __future__ import annotations
 

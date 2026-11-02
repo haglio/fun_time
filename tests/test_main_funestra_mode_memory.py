@@ -95,11 +95,11 @@ class TestWritingItDownWheneverItMoves:
 
 
 class TestCompilation:
-    def test_the_compilation_and_its_clip_read_back(self, tmp_path):
+    def test_the_compilation_and_its_video_read_back(self, tmp_path):
         """The Main Funestra's playlist swap for a compilation is in memory only — the
         list Fun Time writes never holds it — so being inside one is remembered here
-        or not at all, and so is which of its clips was on screen: Fun Time's list
-        cannot be opened on a clip it does not contain."""
+        or not at all, and so is which of its videos was on screen: Fun Time's list
+        cannot be opened on a video it does not contain."""
         path = tmp_path / "main_player_mode.txt"
 
         ModeMemory(path).write(INSIDE)

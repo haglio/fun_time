@@ -55,7 +55,7 @@ _NUMERIC_PREFIXES = {
     "robot_hand_amp_": "AMP",
     "robot_hand_center_": "CENTER",
     "robot_hand_speed_": "SPEED",
-    # Seconds a clip holds the screen, unlike the 0-100 axes above.
+    # Seconds a video holds the screen, unlike the 0-100 axes above.
     _GENAUS_FLICK_SECONDS: "FLICK_SECONDS",
 }
 

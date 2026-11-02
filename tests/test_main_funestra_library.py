@@ -94,7 +94,7 @@ class TestGroupVersions:
         # Several short scenes, each with an appended-tag upscale, must fold
         # into one pair per scene — not a single over-grouped blob (which the
         # old first-two-tokens + duration heuristic produced for same-length
-        # clips of one performer).
+        # videos of one performer).
         entries = []
         for n in (1, 2, 3):
             entries.append(_entry(f"clip-{n}.mp4", size=10))
@@ -263,7 +263,7 @@ class TestCollapsePlaylistVersions:
 
 
 class TestGroupVersionsByRecordedId:
-    def test_recorded_id_folds_clips_names_never_would(self):
+    def test_recorded_id_folds_videos_names_never_would(self):
         a = _entry("Totally-Different-A.mp4", 100)
         b = _entry("unrelated_name_b.mp4", 900)
         ids = {a.video: "fam1", b.video: "fam1"}
@@ -274,7 +274,7 @@ class TestGroupVersionsByRecordedId:
         assert groups[0].canonical is b  # larger
         assert groups[0].alternates == [a]
 
-    def test_clips_without_a_recorded_id_fall_back_to_name_grouping(self):
+    def test_videos_without_a_recorded_id_fall_back_to_name_grouping(self):
         rec_a = _entry("scene.mp4", 100)
         rec_b = _entry("other.mp4", 100)
         richard = _entry("Richard.mp4", 50)

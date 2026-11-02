@@ -2,7 +2,7 @@
 
 Assembles the HUD drawn over each satellite: the Satellite's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
-clip's action group and seed family.  Only fun_time has the library metadata this
+video's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
 each Satellite Funestra draws it straight into its own video (:mod:`funestra.satellite_hud`).
 """
@@ -58,7 +58,7 @@ def _title(
 class SatelliteHud:
     """One satellite's HUD contents (portrait or landscape).
 
-    The current clip anchors the map: seeds (the same act, other subjects) run
+    The current video anchors the map: seeds (the same act, other subjects) run
     right from it, and distinct other actions run down.  The action column
     belongs to the cell the seed row lights — the corner normally, the seed
     actually playing while a held map is out along the row — because an action
@@ -75,19 +75,19 @@ class SatelliteHud:
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
-    # Whether the clip on screen is one of the favorites — the star the HUD
-    # marks at the head of the line naming that very clip.
+    # Whether the video on screen is one of the favorites — the star the HUD
+    # marks at the head of the line naming that very video.
     is_favorite: bool = False
     # Whether THIS Funestra's F-mode is on — said in the title already, and
     # riding along so the Funestra's own button can light the way ``locked`` does.
     favorites_filter: bool = False
     latest: bool | None = None
-    # Labels for the map's axes: the current clip's own action (the top row),
+    # Labels for the map's axes: the current video's own action (the top row),
     # and each action sibling's action name (the rows down the column). Seed
     # columns are labeled by ordinal ("Seed 1", …) so need no data here.
     current_action: str = ""
     action_labels: tuple[str, ...] = ()
-    # How many clips each axis stands for, the clip on screen included.  The map
+    # How many videos each axis stands for, the video on screen included.  The map
     # draws a few cells of each, so these are where its real size can be read.
     seed_count: int = 0
     action_count: int = 0
@@ -121,16 +121,16 @@ class SatelliteHud:
 
 
 def _others(items: list[str], current: str) -> list[str]:
-    """*items* without *current* itself — the clips you could reach from here."""
+    """*items* without *current* itself — the videos you could reach from here."""
     key = normalize_path_key(current)
     return [item for item in items if normalize_path_key(item) != key]
 
 
 def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
-    """One representative clip per OTHER action in the current clip's group.
+    """One representative video per OTHER action in the current video's group.
 
     The action axis steps between distinct acts, so same-act twins collapse to a
-    single entry and the current clip's own act is left out — it is the corner.
+    single entry and the current video's own act is left out — it is the corner.
     """
     current_action = index.act_of(current)
     reps: list[str] = []
@@ -146,10 +146,10 @@ def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
 
 # Map navigation geometry
 # -----------------------
-# The map is an L: the current clip anchors the corner, its seed family runs
+# The map is an L: the current video anchors the corner, its seed family runs
 # right (columns) and its distinct other actions run down (rows).  These
 # framework-free helpers let a keyboard selection move around that L and resolve
-# a cell to the clip drawn there, so the dispatch loop can drive the map from the
+# a cell to the video drawn there, so the dispatch loop can drive the map from the
 # arrow / WASD keys exactly as a thumbnail click drives it.
 
 # How many seed columns and action rows the overlay draws — navigation walks the
@@ -195,7 +195,7 @@ def locate_cell(current: str, corner: str, seeds: list[str], actions: list[str])
 
 
 def cell_path(cell: Cell, corner: str, seeds: list[str], actions: list[str]) -> str:
-    """The clip drawn at *cell*, or "" when the cell index is out of range."""
+    """The video drawn at *cell*, or "" when the cell index is out of range."""
     bucket, index = cell
     if bucket == "corner":
         return corner
@@ -206,7 +206,7 @@ def cell_path(cell: Cell, corner: str, seeds: list[str], actions: list[str]) -> 
 def hud_map_cells(
     index: GroupIndex, anchor: str, *, seed_limit: int = SEED_LIMIT, action_limit: int = ACTION_LIMIT
 ) -> tuple[list[str], list[str]]:
-    """The seed-row and action-column clips the map draws around *anchor*, capped
+    """The seed-row and action-column videos the map draws around *anchor*, capped
     at the overlay's draw limits.  The seed row is the exact family — keyboard
     navigation walks the core family, never the widened "more seeds" pool — so the
     axes match what a fresh (un-widened) map shows."""
@@ -218,10 +218,10 @@ def hud_map_cells(
 def _playing_item(
     index: GroupIndex, anchor: str, current: str, action: list[str], axis: str
 ) -> str:
-    """Which drawn map cell the live *current* clip is — the one the overlay
-    lights up.  On the seed axis the clip is itself a seed cell; on the action
+    """Which drawn map cell the live *current* video is — the one the overlay
+    lights up.  On the seed axis the video is itself a seed cell; on the action
     axis it is represented by the sibling sharing its action — unless the column is
-    a running loop's own group, which holds the live clip itself the way a seed row
+    a running loop's own group, which holds the live video itself the way a seed row
     always does."""
     key = normalize_path_key
     if key(current) == key(anchor):
@@ -240,12 +240,12 @@ def _playing_item(
 
 
 def _map_anchor_in(group: list[str], anchor: str) -> str:
-    """The clip a running loop's map hangs on: *anchor* — the clip the loop started
+    """The video a running loop's map hangs on: *anchor* — the video the loop started
     on, which heads the queue it wrote — whenever it is still one of *group*.
 
     Falls back to the group's lowest-keyed item when there is no usable anchor (a
-    loop still running from before the anchor was recorded, or one whose anchor clip
-    has since been trashed).  That is at least the same clip whichever item is
+    loop still running from before the anchor was recorded, or one whose anchor video
+    has since been trashed).  That is at least the same video whichever item is
     playing, so the map goes on holding still as the loop advances.
     """
     key = normalize_path_key(anchor)
@@ -255,12 +255,12 @@ def _map_anchor_in(group: list[str], anchor: str) -> str:
 
 
 def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: list[str]) -> str:
-    """Which axis of *anchor*'s map the live clip sits on — "seed", "action", or ""
+    """Which axis of *anchor*'s map the live video sits on — "seed", "action", or ""
     once it is on none of them.
 
     This is what decides that a map hanging on *anchor* stays there: while the
-    clip on screen is somewhere on that map there is a cell to light, so nothing has
-    to move.  It is how ending a loop leaves the map alone — the clip the loop was
+    video on screen is somewhere on that map there is a cell to light, so nothing has
+    to move.  It is how ending a loop leaves the map alone — the video the loop was
     playing is still one of its cells — and how the map re-homes anyway once the
     browse moves on past the whole group.
     """
@@ -293,7 +293,7 @@ class SatelliteInputs:
     filter_query: str = ""
     loop_axis: str = ""
     map_anchor: str = ""
-    widen_clip: str = ""
+    widen_video: str = ""
     nav_anchor: str = ""
     latest: bool = False
     # This Funestra's own F-mode.  Per Funestra like the filter and the order beside it: each
@@ -310,7 +310,7 @@ class SatelliteInputs:
 
 @dataclass(frozen=True)
 class _MapHold:
-    """Which clip the map hangs on, and what is holding it there."""
+    """Which video the map hangs on, and what is holding it there."""
 
     anchor: str
     active_loop: str = ""
@@ -336,8 +336,8 @@ class _Map:
 
     @classmethod
     def unmapped(cls, anchor: str) -> _Map:
-        """No clip on screen, or no index to place one in: the HUD draws no map,
-        and the counts read zero rather than the one clip an axis always has."""
+        """No video on screen, or no index to place one in: the HUD draws no map,
+        and the counts read zero rather than the one video an axis always has."""
         return cls([], [], "", (), anchor, 0, 0)
 
 
@@ -356,8 +356,8 @@ def _resolve_anchor(
     index: GroupIndex, inputs: SatelliteInputs, widened_pool: list[str], pool_keys: set[str]
 ) -> _MapHold:
     """A loop wins over a map that was already held, which wins over keyboard
-    navigation; each falls back to the clip on screen once its own reason has run
-    out — a loop of one clip, a held map the browse walked off, a nav anchor whose
+    navigation; each falls back to the video on screen once its own reason has run
+    out — a loop of one video, a held map the browse walked off, a nav anchor whose
     walk landed off the map."""
     if inputs.loop_axis in ("seed", "action"):
         group = _looping_group(index, inputs, widened_pool, pool_keys)
@@ -376,7 +376,7 @@ def _resolve_anchor(
 def _axis_shown(
     index: GroupIndex, hold: _MapHold, inputs: SatelliteInputs, widened_pool: list[str]
 ) -> str:
-    """Which axis of a held or frozen map the live clip sits on: the cell the map
+    """Which axis of a held or frozen map the live video sits on: the cell the map
     lights, and — when it is the seed row — whose acts the column shows."""
     if hold.held:
         return hold.active_loop or _axis_holding(index, hold.anchor, inputs.current, widened_pool)
@@ -388,20 +388,20 @@ def _row_is_widened(
 ) -> bool:
     """Is the seed row the widened pool?
 
-    While the map is held, that is settled by the clip on screen being somewhere
+    While the map is held, that is settled by the video on screen being somewhere
     in the pool the row already drew — so the row keeps its width across a loop's
     advances and across the loop ending.  Off any hold, the widen applies only
-    while its own clip is on screen, so a plain auto-advance drops it.
+    while its own video is on screen, so a plain auto-advance drops it.
     """
     if not widened_pool:
         return False
     if held:
         return normalize_path_key(inputs.current) in pool_keys
-    return normalize_path_key(inputs.current) == normalize_path_key(inputs.widen_clip)
+    return normalize_path_key(inputs.current) == normalize_path_key(inputs.widen_video)
 
 
 def _seed_row(index: GroupIndex, hold: _MapHold, widened_pool: list[str], *, widen: bool) -> list[str]:
-    """The clips out along the row.  Navigation walks the exact family (never
+    """The videos out along the row.  Navigation walks the exact family (never
     widened), so a nav-frozen map matches what the keys can reach."""
     if widen and not hold.nav_frozen:
         return _others(widened_pool, hold.anchor)
@@ -409,11 +409,11 @@ def _seed_row(index: GroupIndex, hold: _MapHold, widened_pool: list[str], *, wid
 
 
 def _action_column(index: GroupIndex, hold: _MapHold, current: str, axis: str) -> list[str]:
-    """The clips down the column, which belong to the cell the seed row lights:
+    """The videos down the column, which belong to the cell the seed row lights:
     an action group is keyed by seed, so the seed a held map is playing has other
     acts of its own to step down into.  A running action loop is the exception —
-    it cycles the whole group, twins of one act included, so one clip per distinct
-    act would collapse a two-clip loop to a single row."""
+    it cycles the whole group, twins of one act included, so one video per distinct
+    act would collapse a two-video loop to a single row."""
     if hold.active_loop == "action":
         return _others(action_group_items(index, hold.anchor), hold.anchor)
     return _distinct_action_siblings(index, current if axis == "seed" else hold.anchor)
@@ -431,7 +431,7 @@ def _map_around(
     if hold.held:
         playing = _playing_item(index, hold.anchor, inputs.current, action, axis)
     elif hold.nav_frozen:
-        playing = inputs.current  # the live clip is exactly the cell to light
+        playing = inputs.current  # the live video is exactly the cell to light
     else:
         playing = hold.anchor
     return _Map(
@@ -456,15 +456,15 @@ def build_hud(
 ) -> SatelliteHud:
     """One Satellite's HUD HUD, from everything that Satellite is (:class:`SatelliteInputs`).
 
-    ``inputs.widen_clip`` names the clip the seed row was widened around ("more
+    ``inputs.widen_video`` names the video the seed row was widened around ("more
     seeds"); while it is in force the row grows past the exact parameter set to
-    the clips nearest that one's scene.
+    the videos nearest that one's scene.
 
-    ``inputs.map_anchor`` is the clip the map hangs on — the one a loop started
+    ``inputs.map_anchor`` is the video the map hangs on — the one a loop started
     on, which heads the queue that loop wrote.  While it holds, the map reads in
     the order the Funestra plays it and does not re-orient as the loop advances;
     ``playing`` marks the cell on screen.  It holds on after the loop is
-    switched off for as long as the clip on screen is still one of the map's
+    switched off for as long as the video on screen is still one of the map's
     cells, so ending a loop takes away the loop's chrome and nothing else.
     ``inputs.loop_axis`` names only whether a loop is actually *running*, and
     ``inputs.nav_anchor`` hangs the map the same way for keyboard navigation.
@@ -472,10 +472,10 @@ def build_hud(
     if index is None or not inputs.current:
         hold, drawn = _MapHold(inputs.current), _Map.unmapped(inputs.current)
     else:
-        # The widened pool, ranked once around *inputs.widen_clip* and reused: ranking it again
+        # The widened pool, ranked once around *inputs.widen_video* and reused: ranking it again
         # from another item would score a different set and shuffle the row underneath
         # a map that is supposed to be holding still.
-        widened_pool = widened_seed_items(index, inputs.widen_clip) if inputs.widen_clip else []
+        widened_pool = widened_seed_items(index, inputs.widen_video) if inputs.widen_video else []
         pool_keys = {normalize_path_key(item) for item in widened_pool}
         hold = _resolve_anchor(index, inputs, widened_pool, pool_keys)
         drawn = _map_around(index, hold, inputs, widened_pool, pool_keys)
@@ -518,7 +518,7 @@ def build_satellite_hud(
 ) -> SatelliteHud:
     index: GroupIndex | None = None
     if inputs.current:
-        # The up-front index, never a per-clip rebuild: what arrives is learned into
+        # The up-front index, never a per-video rebuild: what arrives is learned into
         # it as it is put up next (fun_time.latest_arrivals).
         sources = inputs.sources
         index = cached_group_index(
@@ -554,9 +554,9 @@ def hud_thumbnails(
     limit: int,
     thumbnailer: Callable[[str, str | Path], Path | None] = thumbnail_for,
 ) -> list[tuple[str, Path]]:
-    """Up to *limit* ``(video_path, thumbnail_path)`` pairs, skipping unreadable clips.
+    """Up to *limit* ``(video_path, thumbnail_path)`` pairs, skipping unreadable videos.
 
-    Iterates *paths* in order until *limit* thumbnails resolve, so a clip whose
+    Iterates *paths* in order until *limit* thumbnails resolve, so a video whose
     frame cannot be read simply drops out rather than leaving a gap.
     """
     resolved: list[tuple[str, Path]] = []

@@ -42,7 +42,7 @@ def publish_audio_level(
     """Put *volume* / *muted* on the Main Funestra's audio sinks and on both Funestras.
 
     The Main Funestra's mpv carries the video's sound; the Genau audio companion carries the
-    clip music.  Which one is audible depends on the mode, so both are told the
+    video music.  Which one is audible depends on the mode, so both are told the
     same level every time and the bridge alone holds the authoritative value.
 
     The companion is only ever asked to be quiet, so a mute reaches it as a level

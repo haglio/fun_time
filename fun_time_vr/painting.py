@@ -93,7 +93,7 @@ class Painting:
         target = targets[slot]
         target.ensure(*size)
         # flip_y: mpv renders top-left-origin; the scene samples GL lower-left
-        # convention (verified against a top-half-white clip).
+        # convention (verified against a top-half-white video).
         video = self._engine.render(target.fbo, target.width, target.height, flip_y=True)
         self._mark.set()
         self._gpu.flush()

@@ -9,7 +9,7 @@ a file to find it out:
   by hand.  The script carries ``@updateURL`` / ``@downloadURL`` pointing here
   instead, and every merge lands on its next update check.
 * The RFB tab pages ask whether the session is in OmniPause, and freeze the
-  clip they are showing while it is.  A page is a ``file://`` document with no
+  video they are showing while it is.  A page is a ``file://`` document with no
   way to watch the state dir, so it polls (see ``omnipause_url``).
 
 The server binds ``127.0.0.1`` only, 404s every other path, and reads both the
@@ -36,7 +36,7 @@ USERSCRIPT_NAME = "regen_autofill.user.js"
 # only this committed template, which the server falls back to serving.
 EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
-# Polled by the RFB tab pages, which freeze their clips while the session is
+# Polled by the RFB tab pages, which freeze their videos while the session is
 # in OmniPause.
 OMNIPAUSE_PATH = "/omnipause"
 
@@ -110,7 +110,7 @@ def make_server(
 
     ``omni_paused`` is called per request rather than read once, so it can be
     the live dispatch state.  Unwired, it reports a session that is playing —
-    the answer that leaves a clip alone.
+    the answer that leaves a video alone.
     """
     return ThreadingHTTPServer(
         ("127.0.0.1", port),

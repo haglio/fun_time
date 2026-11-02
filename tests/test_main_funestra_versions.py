@@ -1,6 +1,6 @@
 """The other versions of the video on screen, as Kino reads them off the library.
 
-The Funestra puts a version up in the clip's own place; what is pinned here is
+The Funestra puts a version up in the video's own place; what is pinned here is
 which files Kino hands it, read off the library's index, and what it says the
 console's version button can do.
 """

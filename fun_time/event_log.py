@@ -25,7 +25,7 @@ NOTICE = 25
 logging.addLevelName(NOTICE, "NOTICE")
 
 # A notice about the one family of things green is reserved for on every surface
-# in this app: the favorites, the lock that puts a clip in them, F-mode's filter
+# in this app: the favorites, the lock that puts a video in them, F-mode's filter
 # over them, and the funscripts.  A hair louder than a plain NOTICE so it picks a
 # color of its own without changing what any verbosity stop lets through — every
 # notice, either kind, shows from the NOTICE stop down.  Not a stop on the dial

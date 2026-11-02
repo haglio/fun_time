@@ -678,7 +678,7 @@ def _covering(hwnd: int, stack, *, ignore: tuple[int, ...] = ()) -> list:
 def _main_browse_stills(bridge_config) -> list[str]:
     """One video per library-browser tile, off the cheapest rendition of each.
 
-    Warmed with the satellites' clips so the browser opens on a full grid rather
+    Warmed with the satellites' videos so the browser opens on a full grid rather
     than filling in under the user.  Per handle rather than per file, and off the
     smallest item: an upscale and the original it came from make the same
     video, and only one of them is seconds rather than minutes to open.
@@ -697,7 +697,7 @@ def start_hud_priming(
     """Build the HUD publisher and warm what it needs, off the startup thread.
 
     Two costs sit under the first map: indexing each library's seed families and
-    action groups, and extracting a still frame per clip.  With the model here
+    action groups, and extracting a still frame per video.  With the model here
     rather than in a HUD process of its own, both run on this daemon thread, so
     startup keeps going while they finish.  The returned event fires once the
     indexes are ready — startup waits on it before revealing Fun Time, so the maps

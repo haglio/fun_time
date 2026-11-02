@@ -151,7 +151,7 @@ def test_a_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
 
 
 def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path):
-    """Evolver records what kind every video is, so a clip whose generation was
+    """Evolver records what kind every video is, so a video whose generation was
     never scraped now HAS a sidecar. There is nothing to regenerate from in it,
     and a URL built off it would carry no prompt at all."""
     _media_root, metadata_root, video = _setup(
@@ -168,7 +168,7 @@ def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path)
 
 def test_a_sidecar_holding_only_the_stamps_offers_no_regenerate_link(tmp_path: Path):
     """Evolver also stamps what every app watched, and a favorite flag, on
-    every sidecar; neither says anything about how the clip was made."""
+    every sidecar; neither says anything about how the video was made."""
     _media_root, metadata_root, video = _setup(
         tmp_path, "portrait", "abc_topaz.mp4",
         {"video": {"type": "short"}, "watch": {"weight": 2.0}, "favorite": True},

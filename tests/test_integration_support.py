@@ -54,13 +54,13 @@ from tests.integration.integration_support import (
     isolate_shared_resources,
     joined_within,
     let_seconds_pass,
-    library_clips,
-    one_clip_per_video,
+    library_videos,
+    one_video_per_video,
     point_the_main_funestra_at,
     published_status,
     readable_at_speed,
     run_within,
-    sample_library_clips,
+    sample_library_videos,
     stall_per_transition,
     tcode_heard,
     wait_for,
@@ -760,7 +760,7 @@ def test_a_run_finds_genau_where_this_machine_keeps_it_and_reads_the_rest_of_the
     assert haglio_settings.value("genau_dir") == before_the_run
 
 
-def test_a_clip_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
+def test_a_video_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
     """The VR masters sit on the pCloud drive, which fetches a file from the
     internet the first time anything here opens it; a Funestra fed one stalls
     on the fetch, not on the code under test."""
@@ -778,12 +778,12 @@ def test_a_clip_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
     assert not readable_at_speed("gone.mp4", budget_s=0.2, read=gone)
 
 
-def test_a_sample_skips_the_clips_the_drive_cannot_serve_at_speed(monkeypatch, capsys):
+def test_a_sample_skips_the_videos_the_drive_cannot_serve_at_speed(monkeypatch, capsys):
     monkeypatch.setenv("FUN_TIME_INTEGRATION_SEED", "7")
 
-    chosen = sample_library_clips(
+    chosen = sample_library_videos(
         ["a.mp4", "b.mp4", "c.mp4", "d.mp4"], 2, desc="clips",
-        readable=lambda clip: clip != "b.mp4",
+        readable=lambda video: video != "b.mp4",
     )
 
     assert len(chosen) == 2
@@ -797,13 +797,13 @@ def test_two_versions_of_one_video_count_once_towards_a_draw():
     version_index = version_index_from_groups(group_versions(
         [LibraryEntry(video, None, 1) for video in (scene, upscale, other)]))
 
-    assert len(one_clip_per_video([scene, upscale], version_index)) == 1
-    assert len(one_clip_per_video([scene, upscale, other], version_index)) == 2
+    assert len(one_video_per_video([scene, upscale], version_index)) == 1
+    assert len(one_video_per_video([scene, upscale, other], version_index)) == 2
 
 
-def test_a_sample_fails_saying_so_when_too_few_clips_read_at_speed():
+def test_a_sample_fails_saying_so_when_too_few_videos_read_at_speed():
     with pytest.raises(AssertionError, match="read at speed"):
-        sample_library_clips(["a.mp4", "b.mp4"], 2, desc="clips", readable=lambda clip: False)
+        sample_library_videos(["a.mp4", "b.mp4"], 2, desc="clips", readable=lambda video: False)
 
 
 def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
@@ -816,12 +816,12 @@ def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
     probed: list[str] = []
     clock = iter([0.0, 0.0, 1.0, 99.0, 99.0, 99.0])
 
-    def probe(clip):
-        probed.append(clip)
+    def probe(video):
+        probed.append(video)
         return False
 
     with pytest.raises(AssertionError, match="the library is cold"):
-        sample_library_clips([f"{n}.mp4" for n in range(50)], 2, desc="clips",
+        sample_library_videos([f"{n}.mp4" for n in range(50)], 2, desc="clips",
                              readable=probe, budget_s=10.0, now=lambda: next(clock))
 
     assert len(probed) == 2
@@ -831,7 +831,7 @@ def test_the_listing_keeps_only_what_the_funestras_play(tmp_path):
     for suffix in (*SUPPORTED_VIDEO_EXTS, ".wmv", ".funscript", ".txt"):
         (tmp_path / f"clip{suffix}").write_bytes(b"")
 
-    assert sorted(p.suffix for p in library_clips([tmp_path])) == sorted(SUPPORTED_VIDEO_EXTS)
+    assert sorted(p.suffix for p in library_videos([tmp_path])) == sorted(SUPPORTED_VIDEO_EXTS)
 
 
 def _a_library_whose_videos_never_answer(library: Path, monkeypatch) -> None:
@@ -942,14 +942,14 @@ def test_a_quiet_window_tolerates_the_odd_frame():
 
 
 def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
-    """What the clip-transition guard judges.
+    """What the video-transition guard judges.
 
     The regression it guards stalled EVERY transition for hundreds of
     milliseconds, so the honest question is what a transition typically
     costs.  Judging the single worst frame instead put the guard on the one
     statistic machine noise owns: a run whose four transitions cost 79, 91,
     92 and 628ms is a machine hiccup on one pass, not a pipeline that stalls
-    on every clip change."""
+    on every video change."""
     noise_on_one_pass = [[1.0, 78.7], [1.0, 90.6], [1.0, 91.7], [1.0, 628.0]]
     stalls_every_pass = [[1.0, 640.0], [1.0, 647.0], [1.0, 651.0], [1.0, 660.0]]
 
@@ -959,8 +959,8 @@ def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
 
 def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
     """A Funestra publishes its status by replacing the file, and a read that lands
-    inside the replace gets the reader's empty record: no clip, not paused, about
-    a Funestra that has a clip and is paused."""
+    inside the replace gets the reader's empty record: no video, not paused, about
+    a Funestra that has a video and is paused."""
     published = MainFunestraStatus(video="C:/example/scene one.mp4", duration_ms=61_000, paused=True)
     reads = iter([MainFunestraStatus(), published])
 
@@ -1178,10 +1178,10 @@ def _calls_os(node: ast.AST, name: str) -> bool:
             and node.func.attr == name)
 
 
-def _clips_made_in(function: ast.AST) -> set[str]:
+def _videos_made_in(function: ast.AST) -> set[str]:
     return {target.id for node in ast.walk(function)
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
-            and getattr(node.value.func, "id", "") == "clip_of_a_test_pattern"
+            and getattr(node.value.func, "id", "") == "video_of_a_test_pattern"
             for target in node.targets if isinstance(target, ast.Name)}
 
 
@@ -1190,7 +1190,7 @@ def _links_or_dates_what_it_did_not_make(tree: ast.AST) -> list[int]:
     for function in ast.walk(tree):
         if not isinstance(function, ast.FunctionDef):
             continue
-        made = _clips_made_in(function)
+        made = _videos_made_in(function)
         found |= {node.lineno for node in ast.walk(function)
                   if _calls_os(node, "link") or (_calls_os(node, "utime") and not (
                       node.args and isinstance(node.args[0], ast.Name)
@@ -1199,7 +1199,7 @@ def _links_or_dates_what_it_did_not_make(tree: ast.AST) -> list[int]:
 
 
 @pytest.mark.repo_check
-def test_no_check_links_a_file_or_dates_any_but_a_clip_it_made():
+def test_no_check_links_a_file_or_dates_any_but_a_video_it_made():
     integration = Path(integration_support.__file__).parent
     reaches = {path.name: lines for path in sorted(integration.glob("*.py"))
                if path.name != "integration_support.py"
@@ -1208,7 +1208,7 @@ def test_no_check_links_a_file_or_dates_any_but_a_clip_it_made():
 
     assert reaches == {}, (
         "a hard link to a library clip shares that clip's dates, so a date set through one "
-        "rewrites his library; date only a clip the check made with clip_of_a_test_pattern: "
+        "rewrites his library; date only a clip the check made with video_of_a_test_pattern: "
         f"{reaches}")
 
 

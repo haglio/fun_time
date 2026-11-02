@@ -26,7 +26,7 @@ from .integration_support import (
     published_ago,
     published_status,
     real_config_path,
-    sample_library_clips,
+    sample_library_videos,
     state_dir_of,
     the_runs_own_pythonw,
     this_checkouts_siblings,
@@ -35,9 +35,9 @@ from .integration_support import (
 from .run_clock import Budget
 
 
-def library_clips_of(satellite: str, count: int) -> list[str]:
+def library_videos_of(satellite: str, count: int) -> list[str]:
     folder = getattr(load_config(real_config_path()).paths, f"{satellite}_dirs")[0]
-    return sample_library_clips(
+    return sample_library_videos(
         glob.glob(os.path.join(str(folder), "**", "*.mp4"), recursive=True),
         count, desc=f"{satellite} clips")
 

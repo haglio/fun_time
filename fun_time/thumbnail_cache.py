@@ -2,7 +2,7 @@
 
 Videos are raw ``.mp4`` files with no sidecar images, so a representative
 frame is extracted once with OpenCV and cached to disk. The cache filename
-folds in the source file's modification time, so a replaced clip at the same
+folds in the source file's modification time, so a replaced video at the same
 path yields a fresh thumbnail instead of a stale one.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ def thumbnail_path(
 ) -> Path:
     """Deterministic cache location for *video_path*'s thumbnail.
 
-    The name folds in the path and the date its folder lists, so the same clip
+    The name folds in the path and the date its folder lists, so the same video
     maps to the same file until it is modified, then to a new one.
     """
     spelled = os.path.abspath(video_path)
@@ -56,7 +56,7 @@ _FIFTHS = 5
 
 
 def _read_representative_frame(video_path: str | Path):
-    """A frame ~20% into the clip (skipping fade-ins), or the first readable one."""
+    """A frame ~20% into the video (skipping fade-ins), or the first readable one."""
     capture = cv2.VideoCapture(str(video_path))
     try:
         if not capture.isOpened():
@@ -105,11 +105,11 @@ def prewarm_thumbnails(
 ) -> None:
     """Extract and cache *videos*' thumbnails, so a first use never blocks on a
     frame grab.  Idempotent — an already cached thumbnail is skipped.  Sleeps
-    briefly between clips so decoding a big HEVC library never starves the
+    briefly between videos so decoding a big HEVC library never starves the
     session's own work (that starvation was showing up as multi-second blinks);
     run it off the main thread.
 
-    The caller chooses which videos: a satellite warms every clip in its
+    The caller chooses which videos: a satellite warms every video in its
     library, the library browser one per handle off its cheapest rendition.
     """
     for video in videos:

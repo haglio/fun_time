@@ -1,7 +1,7 @@
 """The crown on real windows: a portrait video or Genau flick on the crowned Main
 Funestra trades places with the Portrait Funestra on the secondary monitor, and
 crowning the Portrait Funestra trades them back -- the windows moved, and what
-each draws resized with them.  The clips are synthetic test patterns made for
+each draws resized with them.  The videos are synthetic test patterns made for
 the run."""
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ from .integration_support import (
     await_window,
     build_integration_config,
     build_integration_temp_root,
-    clip_of_a_test_pattern,
+    video_of_a_test_pattern,
 )
 
 pytestmark = [
@@ -44,7 +44,7 @@ _, SECONDARY_MONITOR = SESSION_MONITORS
 
 
 def _tall_test_pattern(folder: Path, *, seconds: int) -> Path:
-    return clip_of_a_test_pattern(folder / "tall_test_pattern.mp4", size="360x640", seconds=seconds)
+    return video_of_a_test_pattern(folder / "tall_test_pattern.mp4", size="360x640", seconds=seconds)
 
 
 def _client_size(hwnd: int) -> tuple[int, int]:
@@ -70,14 +70,14 @@ def _wait_until_seated(session: FunTimeIntegrationSession,
 def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_portrait_funestra():
     temp_root = build_integration_temp_root()
     session = FunTimeIntegrationSession(build_integration_config(temp_root))
-    tall_clip = _tall_test_pattern(temp_root, seconds=30)
+    tall_video = _tall_test_pattern(temp_root, seconds=30)
     try:
         session.start()
         portrait = await_window(SATELLITE_PORTRAIT_TITLE, 10, exact=True)
         main = await_window("Main Funestra", 10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
-        append_command(session.config.main_funestra_cmd_file, play_file(PlaylistItem(tall_clip)))
+        append_command(session.config.main_funestra_cmd_file, play_file(PlaylistItem(tall_video)))
         crowned = rects(majority=Crown.MAIN)
         _wait_until_seated(session, main_funestra=(main, crowned.main),
                            portrait_funestra=(portrait, crowned.portrait))

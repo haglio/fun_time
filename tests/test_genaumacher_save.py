@@ -119,7 +119,7 @@ def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
 
 def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
     config = _make_config(tmp_path)
-    # No main_funestra_status file → no current video → nothing to clip.
+    # No main_funestra_status file → no current video → nothing to video.
 
     with patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
         message = save_clip_session(config)

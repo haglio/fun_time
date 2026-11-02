@@ -109,16 +109,16 @@ def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
     for flag, value in extra.items():
         argv += [f"--{flag.replace('_', '-')}", value]
     (tmp_path / "playlist.tsv").write_text(
-        "".join(f"{clip}\n" for clip in playlist), encoding="utf-8")
+        "".join(f"{video}\n" for video in playlist), encoding="utf-8")
     return build_parser().parse_args(argv)
 
 
-def _clips(tmp_path: Path, *names: str) -> list[Path]:
+def _videos(tmp_path: Path, *names: str) -> list[Path]:
     out = []
     for name in names:
-        clip = tmp_path / f"{name}.mp4"
-        clip.write_bytes(b"")
-        out.append(clip)
+        video = tmp_path / f"{name}.mp4"
+        video.write_bytes(b"")
+        out.append(video)
     return out
 
 
@@ -135,7 +135,7 @@ def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1):
 def test_a_satellite_wears_the_icon_the_session_hands_it(tmp_path):
     handed = tmp_path / "preview_icon.ico"
     shutil.copyfile(PROJECT_ICON, handed)
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"), icon=str(handed))
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"), icon=str(handed))
     fake = _FakePygame()
     worn = []
     fake.display.set_icon = worn.append
@@ -147,7 +147,7 @@ def test_a_satellite_wears_the_icon_the_session_hands_it(tmp_path):
 
 
 def test_the_funestra_is_opened_on_the_window_with_what_the_launch_hands_it(tmp_path, unmuted):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0", "v1"))
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0", "v1"))
 
     _code, opens, _fake = _run_loop(tmp_path, args)
 
@@ -162,7 +162,7 @@ def test_the_funestra_is_opened_on_the_window_with_what_the_launch_hands_it(tmp_
 
 
 def test_no_audio_opens_a_silent_one(tmp_path):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"), no_audio=True)
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"), no_audio=True)
 
     _code, opens, _fake = _run_loop(tmp_path, args)
 
@@ -170,7 +170,7 @@ def test_no_audio_opens_a_silent_one(tmp_path):
 
 
 def test_tile_opens_one_that_tiles_its_item(tmp_path):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"), tile=True)
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"), tile=True)
 
     _code, opens, _fake = _run_loop(tmp_path, args)
 
@@ -178,7 +178,7 @@ def test_tile_opens_one_that_tiles_its_item(tmp_path):
 
 
 def test_each_pass_hands_it_the_windows_size_until_it_stops_then_closes_it(tmp_path):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"))
 
     code, opens, fake = _run_loop(tmp_path, args, passes=3)
 
@@ -197,7 +197,7 @@ def _motion(pos, *, held: bool):
 
 
 def test_a_left_press_and_a_motion_reach_it_placed_in_the_window(tmp_path):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"))
     fake = _FakePygame(event_batches=[[_press((10, 20)), _press((11, 21), button=3),
                                        _motion((30, 40), held=True)]])
 
@@ -208,7 +208,7 @@ def test_a_left_press_and_a_motion_reach_it_placed_in_the_window(tmp_path):
 
 
 def test_the_windows_close_is_the_funestras_to_answer_and_the_loop_goes_on(tmp_path):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"))
     fake = _FakePygame(event_batches=[[SimpleNamespace(type=_FakePygame.QUIT)]])
 
     _code, opens, _fake = _run_loop(tmp_path, args, fake=fake, passes=2)
@@ -218,7 +218,7 @@ def test_the_windows_close_is_the_funestras_to_answer_and_the_loop_goes_on(tmp_p
 
 
 def test_the_window_takes_the_size_fun_time_gives_it_from_outside(tmp_path):
-    args = _loop_args(tmp_path, _clips(tmp_path, "v0"))
+    args = _loop_args(tmp_path, _videos(tmp_path, "v0"))
 
     _code, _opens, fake = _run_loop(tmp_path, args)
 
@@ -227,7 +227,7 @@ def test_the_window_takes_the_size_fun_time_gives_it_from_outside(tmp_path):
 
 def test_the_satellite_plays_ahead_of_background_work(tmp_path, monkeypatch):
     playlist = tmp_path / "playlist.tsv"
-    playlist.write_text(f"{_clips(tmp_path, 'v0')[0]}\n", encoding="utf-8")
+    playlist.write_text(f"{_videos(tmp_path, 'v0')[0]}\n", encoding="utf-8")
     order = []
 
     @contextlib.contextmanager

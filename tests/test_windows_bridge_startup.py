@@ -438,7 +438,7 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
 
 def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tmp_path: Path):
     """The playlist the Main Funestra is handed has already been narrowed and a list of
-    scripted clips looks like any other, so its HUD can only know from being
+    scripted videos looks like any other, so its HUD can only know from being
     told — and it is told alongside the level, not instead of it: every verb
     has to survive on a channel nothing has drained yet."""
     _seed_startup_states(tmp_path, main_list=MainListSettings(scripted_filter=True,
@@ -554,7 +554,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
 def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     """Last session's three playlist files and status files, on disk.
 
-    Each Funestra gets two clips drawn from the very dirs this session's source
+    Each Funestra gets two videos drawn from the very dirs this session's source
     spec names — the shape a real build leaves — and its status file
     names the second, so a resume rotates that one to the front.
     """
@@ -568,21 +568,21 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     left_on = {}
     for name, source_dir in sources.items():
         Path(source_dir).mkdir(parents=True, exist_ok=True)
-        clips = []
+        videos = []
         for index in (1, 2):
-            clip = Path(source_dir) / f"{name} scene {index}.mp4"
-            clip.write_bytes(b"")
-            clips.append(str(clip))
-        left_on[name] = clips
+            video = Path(source_dir) / f"{name} scene {index}.mp4"
+            video.write_bytes(b"")
+            videos.append(str(video))
+        left_on[name] = videos
         (state_dir / f"{name}_playlist.tsv").write_text(
-            "".join(f"{c}\n" for c in clips), encoding="utf-8"
+            "".join(f"{c}\n" for c in videos), encoding="utf-8"
         )
-        (state_dir / f"{name}_status.txt").write_text(f"video={clips[1]}\n", encoding="utf-8")
+        (state_dir / f"{name}_status.txt").write_text(f"video={videos[1]}\n", encoding="utf-8")
     return left_on
 
 
 def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_path: Path, caplog):
-    """Reopening Fun Time lands on the clips it was closed on: with last
+    """Reopening Fun Time lands on the videos it was closed on: with last
     session's playlist files still on disk, each is rotated onto the video that
     Funestra published and no fresh shuffle is built over them."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -603,12 +603,12 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     for name, (first, second) in left_on.items():
         playlist = state_dir / f"{name}_playlist.tsv"
         assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
-    # Which clips you get is the whole difference between the two paths, so the
+    # Which videos you get is the whole difference between the two paths, so the
     # session says which one it took.
     assert "Resumed last session's playlists" in caplog.text
 
 
-def test_a_session_that_ended_hosting_resumes_its_own_clips_not_the_hosted_apps(
+def test_a_session_that_ended_hosting_resumes_its_own_videos_not_the_hosted_apps(
         tmp_path: Path):
     """Every session is BUILT in kino mode, so a session whose last session ended with
     the hosted app holding the Funestras must not open playing that app's items
@@ -735,7 +735,7 @@ def test_a_reopen_hands_genau_back_the_robot_hand_it_was_left_with(tmp_path: Pat
 
 
 def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path: Path):
-    """The clip the loop was cut from was deleted since, so the rotation had
+    """The video the loop was cut from was deleted since, so the rotation had
     nothing to land on and some other video leads.  Sending the bounds anyway
     would loop three seconds of a video the user never marked."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -809,7 +809,7 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
 def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path):
     """A lock dies with the mpv process holding it, so it is queued back to the
     side that had one — waiting in the command file before that satellite
-    launches, and drained on its first tick over the clip the resume put at the
+    launches, and drained on its first tick over the video the resume put at the
     top of its playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
@@ -872,14 +872,14 @@ def test_start_core_session_never_reopens_a_main_list_another_app_left(
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
     # The other app's addition: a video from a library this session never names.
-    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
-    vr_clip.parent.mkdir(parents=True, exist_ok=True)
-    vr_clip.write_bytes(b"")
+    vr_video = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_video.parent.mkdir(parents=True, exist_ok=True)
+    vr_video.write_bytes(b"")
     main_funestra_playlist = state_dir / "main_player_playlist.tsv"
     main_funestra_playlist.write_text(
-        f"{vr_clip}\n{left_on['main_player'][0]}\n", encoding="utf-8"
+        f"{vr_video}\n{left_on['main_player'][0]}\n", encoding="utf-8"
     )
-    (state_dir / "main_player_status.txt").write_text(f"video={vr_clip}\n", encoding="utf-8")
+    (state_dir / "main_player_status.txt").write_text(f"video={vr_video}\n", encoding="utf-8")
     left_browsing_vr_only = BridgeState(main_plays_vr=True, main_plays_flat=False)
     write_shared_state(shared_state_path(state_dir), left_browsing_vr_only)
 
@@ -906,10 +906,10 @@ def test_start_core_session_never_reopens_a_main_list_another_app_left(
     assert "opens at the top of its list" in caplog.text
 
 
-def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
+def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
     tmp_path: Path, caplog
 ):
-    """Saying "exit VR" over a clip the desktop can play keeps it playing.
+    """Saying "exit VR" over a video the desktop can play keeps it playing.
 
     FunTimeVR's rotation is the VR library merged with this one's, so the video
     on screen is often one of this app's own — the list is built from this
@@ -919,12 +919,12 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
-    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
-    vr_clip.parent.mkdir(parents=True, exist_ok=True)
-    vr_clip.write_bytes(b"")
+    vr_video = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_video.parent.mkdir(parents=True, exist_ok=True)
+    vr_video.write_bytes(b"")
     main_funestra_playlist = state_dir / "main_player_playlist.tsv"
     watching = left_on["main_player"][1]
-    main_funestra_playlist.write_text(f"{vr_clip}\n{watching}\n", encoding="utf-8")
+    main_funestra_playlist.write_text(f"{vr_video}\n{watching}\n", encoding="utf-8")
     (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
@@ -937,23 +937,23 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert rebuilt[0].split("\t")[0] == watching
-    assert str(vr_clip) not in [line.split("\t")[0] for line in rebuilt]
+    assert str(vr_video) not in [line.split("\t")[0] for line in rebuilt]
     assert "opens on the video it was left on" in caplog.text
 
 
 def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path: Path):
-    """The loop follows the clip: it is queued only when the Main Funestra really
+    """The loop follows the video: it is queued only when the Main Funestra really
     did come back onto the video it was cut from, and after a crossing that is
     exactly when the rebuild could be rotated onto it."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
-    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
-    vr_clip.parent.mkdir(parents=True, exist_ok=True)
-    vr_clip.write_bytes(b"")
+    vr_video = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_video.parent.mkdir(parents=True, exist_ok=True)
+    vr_video.write_bytes(b"")
     watching = left_on["main_player"][1]
     (state_dir / "main_player_playlist.tsv").write_text(
-        f"{vr_clip}\n{watching}\n", encoding="utf-8"
+        f"{vr_video}\n{watching}\n", encoding="utf-8"
     )
     (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
     write_shared_state(shared_state_path(state_dir), BridgeState(

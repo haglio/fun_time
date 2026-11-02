@@ -100,13 +100,13 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     meta = tmp_path / "videos" / "metadata"
     original = lib / "example" / "2_orig" / "Scene-One-abc.mkv"
     upscale = lib / "example" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
-    for clip, size in ((original, 100), (upscale, 900)):
-        clip.parent.mkdir(parents=True, exist_ok=True)
-        clip.write_bytes(b"x")
-        satellite = (meta / clip.relative_to(lib)).with_suffix(".json")
+    for video, size in ((original, 100), (upscale, 900)):
+        video.parent.mkdir(parents=True, exist_ok=True)
+        video.write_bytes(b"x")
+        satellite = (meta / video.relative_to(lib)).with_suffix(".json")
         satellite.parent.mkdir(parents=True, exist_ok=True)
         satellite.write_text(
-            json.dumps({"version": {"group": "example/Scene-One-abc", "processed": clip is upscale}}),
+            json.dumps({"version": {"group": "example/Scene-One-abc", "processed": video is upscale}}),
             encoding="utf-8",
         )
     ea = LibraryEntry(video=original, funscript=None, size=100)
@@ -116,7 +116,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     index = source.version_index
 
     assert index[original] == index[upscale]  # folded despite unrelated names
-    assert index[original][0][0] == upscale  # canonical is the larger clip
+    assert index[original][0][0] == upscale  # canonical is the larger video
 
 
 def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):

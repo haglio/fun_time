@@ -168,7 +168,7 @@ class TestReadOutOfTheManifest:
         assert portrait.osr2_readout != landscape.osr2_readout
 
     def test_the_play_points_are_named_by_a_rule_rather_than_a_key(self):
-        """The manifest does not carry one: where a Satellite left each clip is
+        """The manifest does not carry one: where a Satellite left each video is
         named from the state directory, which is why it is passed in."""
         channels = SatelliteChannels.from_manifest(
             self._commands(), "portrait", play_points=Path("state/points.json"))

@@ -209,7 +209,7 @@ def satellite_browse_paths(
     regen_metadata_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
-    ordering — one clip per group, filter-honoring, Latest/Shuffle-aware.
+    ordering — one video per group, filter-honoring, Latest/Shuffle-aware.
 
     This is the list a filter rebuild loads into the satellite, and equally the
     target "no loop" reshapes the queue back to when a group loop ends.
@@ -248,10 +248,10 @@ def apply_satellite_filter(
     playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST
     verb makes the Funestra pick it up.
 
-    That reload keeps the clip on screen playing while it survives the new list, and
+    That reload keeps the video on screen playing while it survives the new list, and
     carries on from where it sits — which is right for a filter, and wrong for a
     caller whose whole point is a fresh start.  Reordering newest-first is exactly
-    that: the new order would otherwise only apply *after* the clip playing, and the
+    that: the new order would otherwise only apply *after* the video playing, and the
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """

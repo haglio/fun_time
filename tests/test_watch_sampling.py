@@ -127,7 +127,7 @@ class TestTheMainFunestra:
         assert stats[normalize_path_key(str(watched))]["completions"] == 1
 
     def test_an_unknown_duration_yields_no_sample(self, tmp_path):
-        """Before the Main Funestra knows the clip length it publishes duration_ms=0; no
+        """Before the Main Funestra knows the video length it publishes duration_ms=0; no
         fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
@@ -187,7 +187,7 @@ class TestTheMainFunestra:
 
     def test_a_trashed_video_is_booked_against_nobody(self, tmp_path):
         """The file is going away; classifying its departure would credit or
-        penalize a clip the user threw out."""
+        penalize a video the user threw out."""
         sampler = make_sampler(tmp_path)
         alpha = _make_video(tmp_path, "alpha.mp4")
 

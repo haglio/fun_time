@@ -158,7 +158,7 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
 
     def test_roundtrip_preserves_the_map_anchor(self, tmp_path):
-        """The HUD orders a running loop's map from the clip the loop started on,
+        """The HUD orders a running loop's map from the video the loop started on,
         which it reads from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(map_anchor="C:/v/a.mp4"),
@@ -170,21 +170,21 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
-    def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
-        """The HUD reads which clip each Satellite's seed row is widened around from
+    def test_roundtrip_preserves_the_widen_video(self, tmp_path):
+        """The HUD reads which video each Satellite's seed row is widened around from
         this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait=SatelliteState(widen_clip="C:/v/a.mp4"),
-                            landscape=SatelliteState(widen_clip="C:/v/b.mp4"))
+        state = BridgeState(portrait=SatelliteState(widen_video="C:/v/a.mp4"),
+                            landscape=SatelliteState(widen_video="C:/v/b.mp4"))
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).widen_clip == "C:/v/a.mp4"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).widen_clip == "C:/v/b.mp4"
+        assert loaded.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/a.mp4"
+        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).widen_video == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
-        """The HUD reads which clip each Satellite's map is frozen on for keyboard
+        """The HUD reads which video each Satellite's map is frozen on for keyboard
         navigation from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(nav_anchor="C:/v/a.mp4"),
@@ -315,13 +315,13 @@ class TestTheSideLens:
         state = BridgeState(
             portrait=SatelliteState(
                 locked=True, filter="alpha", favorites_filter=True, latest=True, loop="seed",
-                map_anchor="a.mp4", widen_clip="w.mp4", nav_anchor="n.mp4"),
+                map_anchor="a.mp4", widen_video="w.mp4", nav_anchor="n.mp4"),
             landscape=SatelliteState(filter="beta gamma"),
         )
         portrait = state.satellite(FunTimeFunestra.PORTRAIT)
         assert (portrait.locked, portrait.filter, portrait.favorites_filter) == (True, "alpha", True)
         assert (portrait.latest, portrait.loop) == (True, "seed")
-        assert (portrait.map_anchor, portrait.widen_clip, portrait.nav_anchor) == (
+        assert (portrait.map_anchor, portrait.widen_video, portrait.nav_anchor) == (
             "a.mp4", "w.mp4", "n.mp4")
         landscape = state.satellite(FunTimeFunestra.LANDSCAPE)
         assert landscape.filter == "beta gamma"
@@ -428,7 +428,7 @@ _EXPECTED_STATE_KEYS = {
     "portrait_filter": "", "landscape_filter": "",
     "portrait_loop": "", "landscape_loop": "",
     "portrait_map_anchor": "", "landscape_map_anchor": "",
-    "portrait_widen_clip": "", "landscape_widen_clip": "",
+    "portrait_widen_video": "", "landscape_widen_video": "",
     "portrait_nav_anchor": "", "landscape_nav_anchor": "",
     "volume": "100", "muted": "0", "max_intensity": "100",
     "osr2_control": "driving",

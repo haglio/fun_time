@@ -46,12 +46,12 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
-    clip_of_a_test_pattern,
     let_seconds_pass,
     published_status,
     seen_within,
     senders,
     tcode_heard,
+    video_of_a_test_pattern,
 )
 from .run_clock import Budget
 
@@ -607,15 +607,15 @@ def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteFil
 def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
-    """A clip made for the test, since each step it refuses needs one longer than ten seconds."""
+    """A video made for the test, since each step it refuses needs one longer than ten seconds."""
     s = shared_integration_session
     portrait = s.config.satellite(FunTimeFunestra.PORTRAIT)
-    clip = clip_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640", seconds=20)
+    video = video_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640", seconds=20)
     s.write_dashboard_command("play")
-    append_command(portrait.cmd_file, play_file(PlaylistItem(clip)))
+    append_command(portrait.cmd_file, play_file(PlaylistItem(video)))
     try:
         s.wait_until(
-            lambda: _showing(portrait) == clip.resolve()
+            lambda: _showing(portrait) == video.resolve()
             and read_satellite_status(portrait.status_file).position_ms >= 4_000,
             description="the Portrait Funestra four seconds into the test clip",
         )
@@ -825,8 +825,8 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     """Every sample the isolated session links in is marked a favorite on its
-    record, so the clip on screen is a favorite and discard demotes it: the mark
-    comes off, the file stays in the library, and the clip stays in the rotation —
+    record, so the video on screen is a favorite and discard demotes it: the mark
+    comes off, the file stays in the library, and the video stays in the rotation —
     W then A comes straight back to it."""
     s = isolated_integration_session
     landscape = s.config.satellite(FunTimeFunestra.LANDSCAPE)
@@ -868,22 +868,22 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
 def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
-    """Discarding a clip that is not in the favorites is the full condemnation —
+    """Discarding a video that is not in the favorites is the full condemnation —
     it leaves the playlist and the file moves into the weird dir."""
     status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
     isolated_integration_session.wait_until(
         lambda: bool(read_satellite_status(status_file).video),
         description="portrait satellite to publish the clip it is playing",
     )
-    # Hold the clip before reading which one it is.  These are a few seconds long,
+    # Hold the video before reading which one it is.  These are a few seconds long,
     # so an unlocked satellite can advance between the read below and the discard,
-    # and then the discard meets a *different* clip — one still in the favorites, so
+    # and then the discard meets a *different* video — one still in the favorites, so
     # it is unfavorited instead of condemned and the weird-dir wait times out on a
     # file that was never going there.  A lock is repeat-one, which closes that.
     isolated_integration_session.write_dashboard_command("portrait_lock_on")
     isolated_integration_session.wait_for_new_log("Locked portrait satellite")
     held = published_status(read_satellite_status, status_file).video
-    # Take the clip out of the favorites the way the app does, so the discard
+    # Take the video out of the favorites the way the app does, so the discard
     # below meets an ordinary library file rather than a favorite.
     mark_favorite(held, isolated_integration_session.config.regen.metadata_root, False)
 
@@ -1062,7 +1062,7 @@ def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
     """*names* as two-second test patterns in *folder*, the first the oldest arrival."""
     flicks = []
     for arrived, name in enumerate(names, start=1):
-        flick = clip_of_a_test_pattern(folder / name, size="160x120", seconds=2)
+        flick = video_of_a_test_pattern(folder / name, size="160x120", seconds=2)
         os.utime(flick, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
         flicks.append(flick)
     return flicks

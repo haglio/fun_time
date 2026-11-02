@@ -96,7 +96,7 @@ def apply_enter_omnipause(
     write_flag_file(landscape_paused_file, True)
     if origenerator_paused_file is not None:
         # The hosted Origenerator obeys the same flag idiom: its shows stop
-        # their dwell clocks and playing clips until Fun Time resumes.
+        # their dwell clocks and playing videos until Fun Time resumes.
         write_flag_file(origenerator_paused_file, True)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
@@ -131,7 +131,7 @@ def apply_leave_omnipause(
         write_flag_file(main_funestra_paused_file, False)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
-    # Unfreeze both satellites; a locked one holds its clip (its lock is
+    # Unfreeze both satellites; a locked one holds its video (its lock is
     # independent of the pause flag), an unlocked one resumes auto-advancing --
     # whichever of the session and the hosted app is handing it what to play.
     write_flag_file(portrait_paused_file, False)

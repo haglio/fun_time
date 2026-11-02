@@ -15,7 +15,7 @@ from .filter_vocab import decode_filter_command
 from .fun_time_funestras import FunTimeFunestra
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_weird
-from .media_metadata import forget_indexed_clip, is_favorite
+from .media_metadata import forget_indexed_video, is_favorite
 from .origenerator_switches import hosts
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
@@ -33,7 +33,7 @@ from .satellite_groups import (
     cycle_version,
     group_loop,
     is_single_video_loop,
-    lock_a_loop_left_with_one_clip,
+    lock_a_loop_left_with_one_video,
     lock_on_what_was_meant,
     lock_satellite,
     loop_cycle,
@@ -102,21 +102,21 @@ def _discard(
     locked = state.satellite(funestra).locked
     current_path = satellite_current(config, funestra)
     # "Weird" judges the video the speaker saw.  When the satellite advanced
-    # while the phrase was being recognized, jump back to the condemned clip
-    # before trashing it, so the wrong (innocent) clip is never the one dropped.
+    # while the phrase was being recognized, jump back to the condemned video
+    # before trashing it, so the wrong (innocent) video is never the one dropped.
     condemned = target_path or current_path
     if not condemned:
         logger.info("Nothing discarded on Funestra %d: it has not said which clip it is showing", funestra)
         return state, []
     already_moved_on = bool(target_path) and not same_video(target_path, current_path)
     # Whether this is a demotion or a condemnation is read from the same record
-    # that lights the HUD's ★ for this clip, so the key does what the badge
-    # on screen implies: a starred clip loses the star, an unstarred one goes.
+    # that lights the HUD's ★ for this video, so the key does what the badge
+    # on screen implies: a starred video loses the star, an unstarred one goes.
     plan = build_discard_plan(funestra=funestra, current_path=condemned,
                               is_favorite=is_favorite(condemned, config.regen_metadata_root))
     if locked:
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
-        # the playlist instead of looping the clip that replaced the discarded one.
+        # the playlist instead of looping the video that replaced the discarded one.
         send_satellite(config, funestra, LOCK_OFF)
     unfavorite(condemned, config)
     if plan.condemns:
@@ -124,17 +124,17 @@ def _discard(
             play_video(config, funestra, condemned)
         send_satellite(config, funestra, TRASH)
     elif not already_moved_on:
-        # A demotion leaves the clip in the playlist, so this is a plain
+        # A demotion leaves the video in the playlist, so this is a plain
         # advance (NEXT) and PREV comes straight back to it.  Nothing has to
-        # be done to the clip itself, so a satellite that already moved on is
-        # left alone rather than dragged back to a clip it would leave again.
+        # be done to the video itself, so a satellite that already moved on is
+        # left alone rather than dragged back to a video it would leave again.
         send_satellite(config, funestra, NEXT)
     state = state.with_satellite(funestra, locked=False)
     lock_ops: list[WindowOp] = []
     if plan.condemns:
         move_to_weird(config.weird_dir, Path(condemned))
-        state, lock_ops = lock_a_loop_left_with_one_clip(funestra, state, config, condemned)
-        forget_indexed_clip(condemned)
+        state, lock_ops = lock_a_loop_left_with_one_video(funestra, state, config, condemned)
+        forget_indexed_video(condemned)
     logger.info(plan.log_message)
     notice = WindowOp(op="notice", key=plan.notice_message, source=satellite_source(funestra),
                       level=NOTICE if plan.condemns else FAVORITE)
@@ -226,8 +226,8 @@ _NO_FILTER_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
 }
 
 
-# "Wrong action" — the clip is fine, its label is not.  Per side, like every
-# other judgement of the clip on screen.
+# "Wrong action" — the video is fine, its label is not.  Per side, like every
+# other judgement of the video on screen.
 _WRONG_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {"portrait_wrong_action": FunTimeFunestra.PORTRAIT,
                                           "landscape_wrong_action": FunTimeFunestra.LANDSCAPE}
 
@@ -235,8 +235,8 @@ _WRONG_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {"portrait_wrong_action":
 def _dispatch_lock_action(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Filter the satellite to the current clip's action — "portrait [act]",
-    with the act read off the clip instead of spoken."""
+    """Filter the satellite to the current video's action — "portrait [act]",
+    with the act read off the video instead of spoken."""
     current = target_path or satellite_current(config, funestra)
     if not current:
         return state, []
@@ -279,7 +279,7 @@ def _dispatch_reorder(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
 
-    Either rescans that Satellite's sources, so clips that have arrived since are picked
+    Either rescans that Satellite's sources, so videos that have arrived since are picked
     up, and keeps its filter.  The order is remembered per Satellite — the two satellites
     can be in different ones — so a later filter or F-mode rebuild reloads it the
     same way.  The rebuild replaces the queue, which drops the Satellite's lock and any
@@ -287,7 +287,7 @@ def _dispatch_reorder(
     """
     state = state.with_satellite(funestra, latest=recent)
     # From the top of the new order: asking for the latest is asking to see what has
-    # just arrived, and the reload alone would leave the clip on screen playing with
+    # just arrived, and the reload alone would leave the video on screen playing with
     # the new order applying only after it.
     result = _rebuild_satellite(funestra, state.satellite(funestra).filter, state, config, start_at_top=True)
     state = state.with_satellite(funestra, locked=False)
@@ -321,17 +321,17 @@ def _dispatch_reset(
 
     The lock is released, the filter cleared, F-mode dropped, the order returned to
     shuffled, any group loop and widened row and frozen map dropped, and the Satellite
-    starts from the top of a freshly-built browse — one clip per subject.  "no
+    starts from the top of a freshly-built browse — one video per subject.  "no
     filter" is the narrow gesture; this one is "put it back how it started".
 
     F-mode is one of those defaults, and is cleared here rather than left standing:
     a Satellite reset while it was narrowed to the favorites came back still narrowed to
-    them, which is a browse of a few dozen clips wearing the label of the whole
+    them, which is a browse of a few dozen videos wearing the label of the whole
     library.  The flag goes into the state before the rebuild, because the rebuild
     reads it back to decide how wide to build.
 
     A Satellite already sitting at those defaults is left alone entirely.  The rebuild
-    reshuffles and starts at the top, so a second press landed on a different clip
+    reshuffles and starts at the top, so a second press landed on a different video
     than the first, and a third on another again: a button that says "put it back"
     was the fastest way to keep changing what was playing.  Nothing is narrowed by
     then, so there is nothing the press could put back.
@@ -368,7 +368,7 @@ def _rebuild_satellite(
     The single place a satellite's playlist is rebuilt from its sources, so a
     filter and a reorder cannot drift apart in how they read the Satellite's state.
     ``start_at_top`` is for the callers that mean "start over" — a reorder or a
-    reset — since the reload otherwise keeps the clip on screen and carries on from
+    reset — since the reload otherwise keeps the video on screen and carries on from
     where it sat, leaving the new order to apply only after it.
     """
     satellite = state.satellite(funestra)
@@ -476,7 +476,7 @@ def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
 def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
     """A HUD thumbnail click: "<satellite>_play_video|<path>" switches straight to
-    that clip.  The path rides after the "|" ("|" is illegal in a Windows path,
+    that video.  The path rides after the "|" ("|" is illegal in a Windows path,
     so it is an unambiguous delimiter)."""
     if "_play_video|" not in command:
         return None

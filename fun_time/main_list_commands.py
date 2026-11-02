@@ -42,7 +42,7 @@ MAIN_RESET = "main_reset"
 
 # The same two orders as Genau answers to, keyed by ``recent``.  Every other
 # Funestra is handed a rewritten playlist file; Genau owns its own sequence and
-# rescans its clips folder for itself, so its order crosses as a verb.
+# rescans its videos folder for itself, so its order crosses as a verb.
 _GENAU_ORDER_CMD: dict[bool, str] = {True: "LATEST", False: "SHUFFLE"}
 
 
@@ -61,7 +61,7 @@ def _dispatch_main_reorder(
     and hands it the same RELOAD_PLAYLIST an F-mode change gets, from the top of
     the new order -- a reorder filters nothing out, so it would otherwise carry on
     from where it sits and the arrivals would never come up.  Genau owns its own
-    sequence, so it is told the order and rescans its clips folder itself.
+    sequence, so it is told the order and rescans its videos folder itself.
 
     Each Funestra's order is remembered under its own flag, since ``main_latest``
     describes the playlist file we built and a Genau reorder recorded there would

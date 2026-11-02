@@ -157,7 +157,7 @@ class TestHudPublishing:
     """Each satellite's lock map and the Main Funestra's HUD, built from the session's
     config and the bridge state and published to the files the Funestras read."""
 
-    def test_each_satellites_hud_carries_its_own_clip_and_lock(self, tmp_path):
+    def test_each_satellites_hud_carries_its_own_video_and_lock(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
@@ -425,7 +425,7 @@ class TestHudPublishing:
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
         assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
 
-    def test_a_satellites_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_clip(
+    def test_a_satellites_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_video(
             self, tmp_path):
         feed = make_feed(tmp_path)
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
@@ -455,7 +455,7 @@ class TestHudPublishing:
         assert not held.get("dim")
         assert skip_ahead(console(tmp_path))["dim"] is True
 
-    def test_a_satellite_on_a_clip_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
+    def test_a_satellite_on_a_video_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
             self, tmp_path):
         feed = make_feed(tmp_path)
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
@@ -470,7 +470,7 @@ class TestHudPublishing:
         assert [step.get("dim") for step in ten_second_steps(hud(tmp_path, "landscape"))] == [
             None, None]
 
-    def test_the_versions_button_lights_for_a_clip_the_library_has_twice(self, tmp_path):
+    def test_the_versions_button_lights_for_a_video_the_library_has_twice(self, tmp_path):
         """The upscale the Satellite plays and the sorted original it was made from:
         the button is pressable exactly where there is a second rendition on
         disk, the way the Main Funestra's reads its own library."""
@@ -657,7 +657,7 @@ class TestHudPublishing:
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, main_scripted_filter=True)) is False
 
-    def test_the_main_hud_offers_genaus_shapes_only_where_it_has_vr_clips(self, tmp_path):
+    def test_the_main_hud_offers_genaus_shapes_only_where_it_has_vr_videos(self, tmp_path):
         state = BridgeState(main_mode=MainMode.GENAU, genau_plays_vr=False)
 
         def shape_buttons(config) -> set[tuple[str, bool]]:
@@ -698,9 +698,9 @@ class TestHudPublishing:
         feed.publish(state)
         assert not reset_button(console(tmp_path)).get("dim")
 
-    def test_each_satellites_hud_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
+    def test_each_satellites_hud_says_whether_its_own_video_is_a_favorite(self, tmp_path):
         """The dashboard's HUD used to say this by turning green; the HUD marks
-        it, so the loop has to judge each Funestra's clip against its record."""
+        it, so the loop has to judge each Funestra's video against its record."""
         feed, state = make_feed(tmp_path), BridgeState()
         feed.config.regen_metadata_root = tmp_path / "metadata"
         portrait, landscape = tmp_path / "v" / "p.mp4", tmp_path / "v" / "l.mp4"
@@ -715,7 +715,7 @@ class TestHudPublishing:
         assert portrait["is_favorite"] is True
         assert landscape["is_favorite"] is False
 
-    def test_a_clips_record_is_re_read_only_when_it_moves(self, tmp_path):
+    def test_a_videos_record_is_re_read_only_when_it_moves(self, tmp_path):
         """Every publish asks the question, ~7x a second for the whole session,
         while a record moves a few times an hour — so the read is gated on the
         file actually having changed, and picks the change up when it does."""
@@ -754,8 +754,8 @@ class TestHudPublishing:
 
         assert publish.call_count == 4
 
-    def test_a_status_that_cannot_be_read_keeps_the_clip_it_last_named(self, tmp_path):
-        """A satellite always has a clip, so a status file that reads blank means
+    def test_a_status_that_cannot_be_read_keeps_the_video_it_last_named(self, tmp_path):
+        """A satellite always has a video, so a status file that reads blank means
         the read lost — not that the Funestra has nothing.
 
         Believing the blank republishes an empty HUD, which the Funestra renders
@@ -787,7 +787,7 @@ class TestHudPublishing:
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_hud(self, tmp_path):
         # The other Funestra of it: before a satellite's first status there is no
-        # clip to hold onto, and an empty map is the truth.
+        # video to hold onto, and an empty map is the truth.
         feed, state = make_feed(tmp_path), BridgeState()
 
         feed.publish(state)
@@ -912,7 +912,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert _main_hud_osr2_commands(tmp_path) == ["main_take_osr2"]
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
-    def test_a_satellite_funestra_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
+    def test_a_satellite_funestra_whose_video_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "portrait_status.txt").write_text(

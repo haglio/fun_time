@@ -188,6 +188,6 @@ commits. The inference logic itself is correct and should be reused.
 | `genau_plan.py` | Pure state machine for transition decisions (well-tested, correct) |
 | `windows_bridge_dispatch_loop.py` | `DispatchLoopRunner` — polls mode file every 200ms |
 | `windows_bridge_orchestrator.py` | `should_start_in_genau_mode`, startup flow |
-| `genau/app.py` | Genau clip player subprocess |
+| `genau/app.py` | Genau video player subprocess |
 | `genau/state.py` | UDP listener in Genau app |
 | `genau/notifier.py` | `sync_window_visibility` — Genau's own show/hide |

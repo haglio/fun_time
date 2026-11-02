@@ -20,7 +20,7 @@ def test_make_web_url_from_path_supports_known_roots():
 
 
 def test_move_to_weird_leaves_nothing_for_a_missing_source(tmp_path: Path):
-    """A clip already gone (trashed twice, or moved by hand) is not an error:
+    """A video already gone (trashed twice, or moved by hand) is not an error:
     the move reports where it WOULD have landed and writes nothing."""
     weird_dir = tmp_path / "weird"
 

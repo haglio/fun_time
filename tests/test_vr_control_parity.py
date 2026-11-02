@@ -292,15 +292,15 @@ class TestTheSatellites:
     def test_every_verb_they_are_sent_is_one_the_session_answers(self, landed, tmp_path):
         videos = tmp_path / "sat"
         videos.mkdir()
-        clips = [videos / "a.mp4", videos / "b.mp4"]
-        for clip in clips:
-            clip.write_bytes(b"")
+        videos = [videos / "a.mp4", videos / "b.mp4"]
+        for video in videos:
+            video.write_bytes(b"")
         dead: dict[str, str] = {}
         for channel in ("portrait_cmd_file", "landscape_cmd_file"):
             for verb, where in _sent_to(landed, channel).items():
-                session = Playback(list(clips), engine=FakeEngine())
+                session = Playback(list(videos), engine=FakeEngine())
                 handled = apply_satellite_command(
-                    _a_satellite_line(verb, clips[0]),
+                    _a_satellite_line(verb, videos[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
                                      funscript_jumps=FunscriptJumps(
                                          session, MessageWriter(None))),
@@ -311,10 +311,10 @@ class TestTheSatellites:
 
     def test_a_reset_unlocks_it_and_starts_a_fresh_browse_from_the_top(self, tmp_path):
         config = headset_config(tmp_path)
-        clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
-        for clip in clips:
-            clip.write_bytes(b"")
-        session = Playback(list(clips), engine=FakeEngine())
+        videos = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
+        for video in videos:
+            video.write_bytes(b"")
+        session = Playback(list(videos), engine=FakeEngine())
         session.set_locked(True)
         playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
 
@@ -332,8 +332,8 @@ class TestTheSatellites:
         assert session.current_video == read_playlist(playlist)[0].path
 
 
-def _a_satellite_line(verb: str, clip: Path) -> str:
-    return f"{verb} {clip}" if verb == "PLAY_FILE" else _a_whole_line(verb)
+def _a_satellite_line(verb: str, video: Path) -> str:
+    return f"{verb} {video}" if verb == "PLAY_FILE" else _a_whole_line(verb)
 
 
 class TestGenau:

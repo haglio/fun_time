@@ -142,15 +142,15 @@ def test_an_outlying_folder_inside_no_library_folder_is_measured_from_the_folder
 
 
 def test_metadata_path_places_a_lowercased_key_under_a_root_with_a_capital(tmp_path: Path):
-    """The stats file keys a clip by its lowercased path, and a library root
+    """The stats file keys a video by its lowercased path, and a library root
     with a capital in it is the same place on the disks the library lives on
     -- but not to a case-sensitive ``relative_to``, which is what left the
     breeding report empty under a checkout path with a capital (bug 53)."""
     library = tmp_path / "Library"
     metadata_root = library / "metadata"
-    clip = library / "videos" / "2D" / "clip.mp4"
+    video = library / "videos" / "2D" / "clip.mp4"
 
-    sidecar = metadata_path_for(str(clip).lower(), metadata_root)
+    sidecar = metadata_path_for(str(video).lower(), metadata_root)
 
     assert sidecar is not None
     assert str(sidecar).lower() == str(metadata_root / "2D" / "clip.json").lower()
@@ -240,10 +240,10 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
     assert not index.contains(str(tmp_path / "media" / "new_arrival.mp4"))
 
 
-def test_the_index_holds_one_record_per_clip(tmp_path: Path):
-    """Seven facts about one clip used to be seven dicts keyed by the same path,
+def test_the_index_holds_one_record_per_video(tmp_path: Path):
+    """Seven facts about one video used to be seven dicts keyed by the same path,
     so every reader normalized the path again and probed several of them to
-    answer one question about one clip — and an eighth fact meant an eighth
+    answer one question about one video — and an eighth fact meant an eighth
     dict, an eighth default and an eighth constructor line."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "subject": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
@@ -266,9 +266,9 @@ def test_the_index_holds_one_record_per_clip(tmp_path: Path):
     assert index.entry("C:/never/indexed.mp4").path == ""
 
 
-def test_build_group_index_carries_each_clips_watch_weight(tmp_path: Path):
+def test_build_group_index_carries_each_videos_watch_weight(tmp_path: Path):
     """Evolver sums what every app watched into a weight on the sidecar; the
-    shuffled builds read it off the index they already build, and a clip
+    shuffled builds read it off the index they already build, and a video
     nobody has stamped weighs one."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "loved": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
@@ -290,8 +290,8 @@ def test_watch_weight_of_reads_the_stamped_weight_and_defaults_to_one():
     assert watch_weight_of({"watch": {"weight": "heavy"}}) == 1.0
 
 
-def test_build_group_index_reads_each_clips_scene_tags(tmp_path: Path):
-    """The widen ranks by prompt-tag overlap, so the index carries each clip's tag
+def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):
+    """The widen ranks by prompt-tag overlap, so the index carries each video's tag
     set — the image prompt's comma-separated phrases, normalized."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "subject": _i2v_meta(action="Alpha", video_seed="1"),
@@ -363,7 +363,7 @@ def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
         "portrait", paths_supplier=list, metadata_root=metadata_root)
 
 
-def test_a_clip_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp_path: Path):
+def test_a_video_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp_path: Path):
     media_root, metadata_root, paths = _library(tmp_path, {
         "subject1_zeta": _i2v_meta(action="Zeta Massage", video_seed="1"),
         "subject1_alpha": _i2v_meta(action="Alpha", video_seed="2"),
@@ -376,7 +376,7 @@ def test_a_clip_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp_
     assert index == build_group_index(paths.values(), metadata_root)
 
 
-def test_a_cache_learns_a_clip_into_the_index_it_holds_for_its_library_without_a_rescan(
+def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_a_rescan(
         tmp_path: Path):
     media_root, metadata_root, paths = _library(tmp_path, {
         "known": _i2v_meta(action="Alpha", video_seed="1"),
@@ -411,8 +411,8 @@ def test_filter_haystack_is_the_recorded_act_lowercased():
 
 
 def test_filter_haystack_excludes_both_prompts():
-    """A prompt says what was asked for, not what the clip shows: an act filter
-    that read them handed back clips the HUD labels with some other act."""
+    """A prompt says what was asked for, not what the video shows: an act filter
+    that read them handed back videos the HUD labels with some other act."""
     meta = {
         "video": {"action": "Alpha", "prompt": "delta by the pool"},
         "source_image": {"positive_prompt": "gamma", "negative_prompt": "epsilon"},
@@ -443,10 +443,10 @@ def test_matches_query_is_a_case_insensitive_substring_of_the_act():
     assert not matches_query(meta, "delta")
 
 
-def test_matches_query_drops_a_clip_that_has_no_act_recorded():
-    """The clip a filter used to leave on screen labeled "(unknown)": its prompts
+def test_matches_query_drops_a_video_that_has_no_act_recorded():
+    """The video a filter used to leave on screen labeled "(unknown)": its prompts
     named the act, its sidecar recorded none, so nothing in the map said why it
-    was there.  Un-acted clips are the backfill tool's backlog, not filter hits."""
+    was there.  Un-acted videos are the backfill tool's backlog, not filter hits."""
     unlabeled = {
         "video": {"prompt": "epsilon, by the pool"},
         "source_image": {"positive_prompt": "epsilon"},
@@ -573,7 +573,7 @@ def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):
 
 def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
     """An i2v family is keyed on the source image, which does not pin the action,
-    so items must be narrowed to the current clip's action."""
+    so items must be narrowed to the current video's action."""
     def i2v(action: str, image_seed: str) -> dict:
         return {
             "video": {"prompt": f"do {action}", "action": action, "seed": "77"},
@@ -593,10 +593,10 @@ def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
     assert paths["twirl_b"] not in items  # same family, wrong act
 
 
-def test_widened_seed_items_add_the_most_similar_clips_capped(tmp_path: Path):
-    """"more seeds" adds the clips whose prompt is closest to this one — nearest
+def test_widened_seed_items_add_the_most_similar_videos_capped(tmp_path: Path):
+    """"more seeds" adds the videos whose prompt is closest to this one — nearest
     first, and only a handful.  Exact-config sisters come along as always; a
-    same-act clip sharing no prompt tags is not "more seeds", it is the rest of
+    same-act video sharing no prompt tags is not "more seeds", it is the rest of
     the library, so the cap keeps it out."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("Alpha", "1", prompt="a, b, c, d"),
@@ -612,11 +612,11 @@ def test_widened_seed_items_add_the_most_similar_clips_capped(tmp_path: Path):
     assert paths["far"] not in items  # the cap stops at the nearest, not the whole act
 
 
-def test_widened_seed_items_never_leave_the_clips_own_action(tmp_path: Path):
+def test_widened_seed_items_never_leave_the_videos_own_action(tmp_path: Path):
     """The seed axis is "the same act, another subject", so the action bounds the
-    widen outright — a nearer-scened clip doing something else is not a wider seed
+    widen outright — a nearer-scened video doing something else is not a wider seed
     row, it is the action column, and "more seeds" loops what it draws, so ranking
-    that clip in put another act on screen."""
+    that video in put another act on screen."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("Alpha", "1", prompt="a, b, c"),
         "other_act": _t2v("Theta", "2", prompt="a, b, c"),  # every tag shared
@@ -634,7 +634,7 @@ def test_widened_seed_items_never_leave_the_clips_own_action(tmp_path: Path):
 def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
     """An act nothing else in the library does has no wider seed row.  That is a
     real answer — the caller's "widening net failed" notice — and the widen used to
-    dodge it by handing back the nearest clip of some other act."""
+    dodge it by handing back the nearest video of some other act."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "solo": _t2v("Zeta", "1", prompt="a, b, c"),   # the only Zeta
         "near": _t2v("Alpha", "2", prompt="a, b, c"),   # another act, same scene
@@ -646,7 +646,7 @@ def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path)
 
 def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
     """The library holds "XYZ …" beside "Xyz …".  With the act now bounding the row
-    rather than merely ranking it, a raw string compare would leave a clip alone in
+    rather than merely ranking it, a raw string compare would leave a video alone in
     its casing with no seed row at all."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("XYZ Alpha", "1", prompt="a, b, c"),
@@ -658,7 +658,7 @@ def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: P
 
 
 def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
-    """An image-to-video clip and a text-to-video one look drastically different
+    """An image-to-video video and a text-to-video one look drastically different
     even doing the same act, so within the action the widen ranks its own kind
     first — and falls through to the other kind rather than to nothing."""
     def i2v(action: str, seed: str, prompt: str) -> dict:
@@ -677,7 +677,7 @@ def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
     assert widened_seed_items(index, paths["cur"], additions=1) == [
         paths["cur"], paths["i2v_kin"],
     ]
-    # Only a preference: with no clip of its own kind, the other kind still comes.
+    # Only a preference: with no video of its own kind, the other kind still comes.
     assert widened_seed_items(index, paths["t2v_kin"], additions=1)[1:] != []
 
 
@@ -699,7 +699,7 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
 
 
 def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):
-    """Saying the act is wrong empties ``video.action`` — so the clip reads as
+    """Saying the act is wrong empties ``video.action`` — so the video reads as
     unlabeled again — and keeps what it said under ``video.wrong_action``."""
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
 
@@ -786,7 +786,7 @@ def test_reject_action_leaves_a_sidecar_it_cannot_read_as_a_document(tmp_path: P
 
 
 def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
-    """A clip that was never labeled has nothing to be wrong about, so its
+    """A video that was never labeled has nothing to be wrong about, so its
     sidecar is left exactly as it was — and one with no sidecar at all is left
     without one."""
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
@@ -802,14 +802,14 @@ def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
     assert not metadata_path_for(unknown, metadata_root).exists()
 
 
-def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps():
+def test_the_satellite_hud_lights_a_row_for_exactly_the_videos_this_filter_keeps():
     """The lock HUD's lit filter button and this matcher must not drift apart.
 
     funestra owns the HUD now and carries its own table of the rule, but its
     suite runs with funestra alone on the path, so it cannot reach the
     authority it mirrors.  This Satellite can: fun_time is the repo that wears the
     HUD and applies the filter, so the agreement is pinned here.  The empty
-    query is the one deliberate difference — it keeps every clip, and lights no
+    query is the one deliberate difference — it keeps every video, and lights no
     row.
     """
     camera_words = ("Side", "XYZ")
@@ -818,10 +818,10 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
         ("Side Gamma", "gamma", True),          # the query is one act of the row
         ("Side Gamma", "side gamma", True),     # the filter set from that very row
         ("XYZ Gamma", "side gamma", False),     # …which is not the other camera's row
-        ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
+        ("Gamma, Theta", "gamma", True),        # one of two acts on the video
         ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both Satellites
-        ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very clip
-        ("Gamma", "gamma, theta", False),       # …which does not keep a one-act clip
+        ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very video
+        ("Gamma", "gamma, theta", False),       # …which does not keep a one-act video
         ("Alpha", "gamma", False),
         ("Gam", "gamma", False),                # the label is not the longer query
     ]
@@ -835,8 +835,8 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):
     """Resolving a path opens it, and on a drive that is busy syncing that can block for
-    minutes: the VR pipeline test sat 240 s in ``Path.resolve`` on a library clip while
-    the suites beside it churned the synced tree. A clip spelled under the library root
+    minutes: the VR pipeline test sat 240 s in ``Path.resolve`` on a library video while
+    the suites beside it churned the synced tree. A video spelled under the library root
     needs no such trip; only one reached some other way (a junction) does."""
     def never(self, strict=False):
         raise AssertionError(f"resolved {self}")
@@ -871,7 +871,7 @@ class TestWhatAVideoIsCalled:
             "C:/lib/Jane Doe - Alpha Study Part Two_apo8.mp4",
         ) == "Jane Doe - Alpha Study: Part Two"
 
-    def test_a_clip_evolver_has_not_named_yet_is_called_by_its_own_record(self):
+    def test_a_video_evolver_has_not_named_yet_is_called_by_its_own_record(self):
         assert video_title(
             {"clip": {"performer": "Jane Doe", "source": "Alpha Study 3"}},
             "C:/lib/whatever.mp4",
