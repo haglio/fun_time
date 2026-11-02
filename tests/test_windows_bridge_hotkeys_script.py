@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from fun_time.overlay_progress import CANCEL_FILENAME
-from fun_time.session_handoff import COVER_STALE_S, CROSSING_PROGRESS_NAME
+from fun_time.session_handoff import CROSSING_PROGRESS_NAME, LOADING_SCREEN_STALE_S
 from tests.ahk_script import function_source, script_text, suspend_exempt_block
 
 
@@ -93,7 +93,7 @@ def test_it_is_told_which_orchestrator_launched_it():
 
 
 class TestTheSessionEndsButTheScriptStays:
-    """Esc over the closing cover is how a quit gets called off, and a script
+    """Esc over the closing screen is how a quit gets called off, and a script
     that has exited hooks nothing -- so ending a session leaves it running,
     with only Esc and the quit chord live, until the orchestrator stops it."""
 
@@ -106,13 +106,13 @@ class TestTheSessionEndsButTheScriptStays:
         assert "EndTheSession(" in branch
         assert "ExitApp" not in branch
 
-    def test_esc_over_the_closing_cover_drops_the_cancel_flag(self):
+    def test_esc_over_the_closing_screen_drops_the_cancel_flag(self):
         body = function_source("PauseOrCancelStartup")
         guard = body[:body.index('RequestStartupCancel("cancel")')]
 
         assert "EndingPhase" in guard
 
-    def test_the_quit_chord_over_the_closing_cover_says_quit_in_the_flag(self):
+    def test_the_quit_chord_over_the_closing_screen_says_quit_in_the_flag(self):
         """So a teardown can tell "end everything" from a cancel."""
         body = function_source("EndSession")
         guard = body[:body.index('RequestStartupCancel("quit")')]
@@ -125,8 +125,8 @@ class TestTheSessionEndsButTheScriptStays:
         assert "SetTimer(WatchEnding" in function_source("EndTheSession")
 
     def test_the_watch_waits_out_both_the_session_and_its_crossing(self):
-        """Over the closing cover the orchestrator is alive; over a crossing the
-        cover's file is fresh.  Only with neither is there nothing left."""
+        """Over the closing screen the orchestrator is alive; over a crossing the
+        loading screen's file is fresh.  Only with neither is there nothing left."""
         body = function_source("WatchEnding")
         before_exiting = body[:body.index("ExitApp")]
 
@@ -138,7 +138,7 @@ class TestTheSessionEndsButTheScriptStays:
         text = script_text()
 
         assert f'"\\{CROSSING_PROGRESS_NAME}"' in text
-        assert f"CROSSING_STALE_S := {COVER_STALE_S:g}" in text
+        assert f"CROSSING_STALE_S := {LOADING_SCREEN_STALE_S:g}" in text
 
     def test_ending_the_session_clears_a_cancel_flag_from_before_it_ended(self):
         """Nothing in a live session drops the flag, so one lying there when the
@@ -254,7 +254,7 @@ class TestWithTheHeadsetOff:
         assert 'Hotkey("+Esc", ' in body
         assert "^!q" not in body
 
-    def test_over_the_closing_cover_esc_calls_a_quit_off_whatever_the_headset_said(self):
+    def test_over_the_closing_screen_esc_calls_a_quit_off_whatever_the_headset_said(self):
         body = function_source("ApplyHolds")
         assert "HeadsetOff && !EndingPhase" in body
         assert "ApplyHolds()" in function_source("EndTheSession")

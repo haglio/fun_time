@@ -62,12 +62,6 @@ from fun_time.shared_state import BridgeState, shared_state_path, write_shared_s
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
 from fun_time_vr.console_hud import DEG_PER_PX, HUD_WIDTH_PX
-from fun_time_vr.cover import (
-    VR_SHUTDOWN_PHASES,
-    VR_STARTUP_PHASES,
-    WEARER_STATUS,
-    CoverWatcher,
-)
 from fun_time_vr.dash_panel import (
     DASH_DEG_PER_PX,
     DASH_WIDTH_PX,
@@ -83,8 +77,8 @@ from fun_time_vr.funestras import (
     OFF_THE_HUD,
     Arranged,
     Arrangement,
-    CoverUnit,
-    CoverWatch,
+    LoadingScreenUnit,
+    LoadingScreenWatch,
     VrSettings,
     _BannerUnit,
     _ConsoleUnit,
@@ -124,6 +118,12 @@ from fun_time_vr.layout import (
     shown_at,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
+from fun_time_vr.loading_screen import (
+    VR_SHUTDOWN_PHASES,
+    VR_STARTUP_PHASES,
+    WEARER_STATUS,
+    LoadingScreenWatcher,
+)
 from fun_time_vr.matrices import yaw_of_orientation
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.orchestrator import build_vr_manifest
@@ -765,7 +765,7 @@ class TestASqueezeOnAHangingHud:
 # loop's `finally` then closes one by one: `pumped` in `Funestra._run`.
 _EVERYTHING_THE_WORKER_IS_HANDED = [
     NoticeBoard, _MainUnit, _SatelliteUnit, _DashUnit, _ConsoleUnit, _ReferenceUnit,
-    _LibraryUnit, _BannerUnit, CoverUnit, _LayoutKeeper, _ControllerPosts,
+    _LibraryUnit, _BannerUnit, LoadingScreenUnit, _LayoutKeeper, _ControllerPosts,
 ]
 
 
@@ -1221,7 +1221,7 @@ class TestASatellitesButtonsInTheHeadset:
         assert _dashboard_asked(tmp_path) == ["portrait_hud_restore_at|right"]
 
 
-# --- The cover the roles arrive and leave under ---------------------------
+# --- The loading screen the roles arrive and leave under ---------------------------
 
 
 class _FakeTexture:
@@ -1245,16 +1245,16 @@ class _FakeTexture:
 
 
 @pytest.fixture
-def cover_graphics():
-    """The cover's texture and mesh, recorded rather than made — everything else
+def loading_screen_graphics():
+    """The loading screen's texture and mesh, recorded rather than made — everything else
     about it is files and Pillow, which run anywhere."""
     with patch("fun_time_vr.funestras.FrameTexture", _FakeTexture),             patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
         yield
 
 
-class TestTheCoverUnit:
-    def test_an_idle_state_dir_shows_the_scene(self, tmp_path, cover_graphics):
-        unit = CoverUnit(tmp_path)
+class TestTheLoadingScreenUnit:
+    def test_an_idle_state_dir_shows_the_scene(self, tmp_path, loading_screen_graphics):
+        unit = LoadingScreenUnit(tmp_path)
 
         unit.render_latest_frame()
 
@@ -1262,24 +1262,24 @@ class TestTheCoverUnit:
         assert not unit.closing
 
     def test_a_launch_in_progress_is_covered_from_the_first_frame(
-            self, tmp_path, cover_graphics):
+            self, tmp_path, loading_screen_graphics):
         """Painted on the way in rather than on the worker's first turn: the
-        loop's very first renderable frame is already one the cover has to be
+        loop's very first renderable frame is already one the loading screen has to be
         on, and a tick of scene before it is a tick of the room in the open."""
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
 
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
 
         assert unit.showing
         assert len(unit.texture.uploads) == 1
 
     def test_the_bitmap_is_uploaded_once_per_change_not_per_frame(
-            self, tmp_path, cover_graphics):
+            self, tmp_path, loading_screen_graphics):
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("funestras")
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
         unit.render_latest_frame()
         assert len(unit.texture.uploads) == 1
@@ -1291,38 +1291,38 @@ class TestTheCoverUnit:
         assert len(unit.texture.uploads) == 2
 
     def test_it_says_it_is_waiting_on_him_once_the_room_is_up(
-            self, tmp_path, cover_graphics):
+            self, tmp_path, loading_screen_graphics):
         """A room that is finished is not waiting for Funestras, and saying so
         while he has the headset off is the only moment the words can reach
         him -- they have to be right before he looks, not after."""
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
-        unit = CoverUnit(tmp_path)
-        assert unit._cover.status == "Waiting for Funestras..."
+        unit = LoadingScreenUnit(tmp_path)
+        assert unit._loading_screen.status == "Waiting for Funestras..."
 
         unit.awaiting_wearer = True
         unit.pump(threading.Event(), 0.0)
 
-        assert unit._cover.status == WEARER_STATUS
-        assert unit._cover.fraction == pytest.approx(
-            CoverWatcher(tmp_path).read().fraction
+        assert unit._loading_screen.status == WEARER_STATUS
+        assert unit._loading_screen.fraction == pytest.approx(
+            LoadingScreenWatcher(tmp_path).read().fraction
         ), "only the words change; the bar still says how far the launch got"
 
-    def test_a_teardown_never_asks_him_to_put_it_on(self, tmp_path, cover_graphics):
-        """The closing cover is shown to someone already wearing it."""
+    def test_a_teardown_never_asks_him_to_put_it_on(self, tmp_path, loading_screen_graphics):
+        """The closing screen is shown to someone already wearing it."""
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("funestras")
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
 
         unit.awaiting_wearer = True
         unit.pump(threading.Event(), 0.0)
 
-        assert unit._cover.status != WEARER_STATUS
+        assert unit._loading_screen.status != WEARER_STATUS
 
-    def test_done_hands_the_headset_back(self, tmp_path, cover_graphics):
+    def test_done_hands_the_headset_back(self, tmp_path, loading_screen_graphics):
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("finalizing")
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
         assert unit.showing
 
@@ -1332,22 +1332,22 @@ class TestTheCoverUnit:
 
         assert not unit.showing
 
-    def test_the_ready_flag_waits_for_a_closing_cover(self, tmp_path, cover_graphics):
-        """Teardown holds its first kill for this flag, so a loading cover
+    def test_the_ready_flag_waits_for_a_closing_screen(self, tmp_path, loading_screen_graphics):
+        """Teardown holds its first kill for this flag, so a loading screen
         dropping it would hand back a promise about the wrong panel."""
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
 
         unit.settled()
 
         assert not (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
-    def test_a_painted_closing_cover_reports_itself(self, tmp_path, cover_graphics):
+    def test_a_painted_closing_screen_reports_itself(self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("controls")
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
         assert unit.closing
 
@@ -1355,38 +1355,38 @@ class TestTheCoverUnit:
 
         assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
-    def test_a_closing_cover_answers_teardown_before_a_frame_is_drawn(
-            self, tmp_path, cover_graphics):
+    def test_a_closing_screen_answers_teardown_before_a_frame_is_drawn(
+            self, tmp_path, loading_screen_graphics):
         """The frame loop may never get another frame — the runtime may have
         ended the session already — and teardown is holding its first kill on
         this.  Painted is enough; drawn is a bonus."""
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("controls")
 
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
 
         assert unit.closing
         assert not unit.showing  # nothing uploaded yet
         unit.settled()
         assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
-    def test_an_idle_state_dir_wants_no_cover_at_all(self, tmp_path, cover_graphics):
+    def test_an_idle_state_dir_wants_no_loading_screen_at_all(self, tmp_path, loading_screen_graphics):
         """A Funestra run with no orchestrator -- the integration suite -- must
-        not be held at bring-up waiting for a cover that is not coming."""
-        assert not CoverUnit(tmp_path).wanted
+        not be held at bring-up waiting for a loading screen that is not coming."""
+        assert not LoadingScreenUnit(tmp_path).wanted
 
-    def test_a_launch_in_progress_wants_one(self, tmp_path, cover_graphics):
+    def test_a_launch_in_progress_wants_one(self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
 
-        assert CoverUnit(tmp_path).wanted
+        assert LoadingScreenUnit(tmp_path).wanted
 
-    def test_the_anchor_is_let_go_when_the_cover_does(self, tmp_path, cover_graphics):
-        """So the closing cover hangs where the viewer is by then, not where
+    def test_the_anchor_is_let_go_when_the_loading_screen_does(self, tmp_path, loading_screen_graphics):
+        """So the closing screen hangs where the viewer is by then, not where
         the loading one was, a whole session earlier."""
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("funestras")
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
         assert unit.anchor.heading(1.2) == pytest.approx(1.2)
 
@@ -1396,11 +1396,11 @@ class TestTheCoverUnit:
 
         assert unit.anchor.heading(2.9) == pytest.approx(2.9)
 
-    def test_the_funestra_ending_on_its_own_raises_its_own_closing_cover(
-            self, tmp_path, cover_graphics):
+    def test_the_funestra_ending_on_its_own_raises_its_own_closing_screen(
+            self, tmp_path, loading_screen_graphics):
         """Its window was closed, so nobody is going to write a shutdown file —
         and its own units are about to go down one at a time."""
-        unit = CoverUnit(tmp_path)
+        unit = LoadingScreenUnit(tmp_path)
         unit.render_latest_frame()
         assert not unit.showing
 
@@ -1412,7 +1412,7 @@ class TestTheCoverUnit:
         assert unit.closing
 
 
-# --- What the cover is held for -------------------------------------------
+# --- What the loading screen is held for -------------------------------------------
 
 
 def _frame(painted):
@@ -1451,7 +1451,7 @@ class TestWhenTheRoomIsUp:
     def test_a_sized_texture_is_not_a_frame(self):
         """A video target is ready the moment mpv reports the clip's
         dimensions, a frame or more before it presents anything -- so the room
-        read as up almost as soon as the loop began, the cover came off in a
+        read as up almost as soon as the loop began, the loading screen came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         scene = _room()
         scene["main_unit"] = SimpleNamespace(screen_name="main", texture_in_the_slot=(
@@ -1462,7 +1462,7 @@ class TestWhenTheRoomIsUp:
     def test_the_main_slot_counts_once_wherever_the_scene_is(self):
         """In genau mode Genau's flick has the scene and the video waits
         paused under it, so asking the video for a frame would hold the
-        cover over a room that is finished."""
+        loading screen over a room that is finished."""
         unit = _like(_MainUnit, SimpleNamespace(
             owns_the_slot=False, target=_frame(False),
             users_frame_texture=_frame(True)))
@@ -1470,7 +1470,7 @@ class TestWhenTheRoomIsUp:
         assert _MainUnit.texture_in_the_slot.fget(unit) is unit.users_frame_texture
 
 
-def test_the_cover_goes_up_before_the_funestras_are_built():
+def test_the_loading_screen_goes_up_before_the_funestras_are_built():
     """Built first and shown after, it was on screen for the tail of a launch
     that had already finished -- which is why none of it was ever seen."""
     tree = ast.parse(inspect.getsource(app._run))
@@ -1479,7 +1479,7 @@ def test_the_cover_goes_up_before_the_funestras_are_built():
         if isinstance(node, ast.Call):
             calls.setdefault(ast.unparse(node.func), node.lineno)
 
-    assert calls["CoverUnit"] < calls["raise_the_cover"] < calls["hang_the_room"]
+    assert calls["LoadingScreenUnit"] < calls["raise_the_loading_screen"] < calls["hang_the_room"]
 
 
 def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
@@ -1528,7 +1528,7 @@ def test_the_headset_session_runs_ahead_of_background_work():
 
 # --- The room as the headset hangs it ---
 
-def _hang_a_room(tmp_path, *, present_the_cover=lambda: None, cover=None):
+def _hang_a_room(tmp_path, *, present_the_loading_screen=lambda: None, loading_screen=None):
     """The whole room, every collaborator that needs a device, a process or a
     listener of its own faked."""
     manifest = _manifest_for_a_vr_session(tmp_path)
@@ -1537,7 +1537,7 @@ def _hang_a_room(tmp_path, *, present_the_cover=lambda: None, cover=None):
             patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
         return hang_the_room(
             manifest, _A_SESSION, _NO_GL_CONTEXTS, manifest_path=tmp_path / "launch.ini",
-            cover=cover or CoverUnit(tmp_path), present_the_cover=present_the_cover)
+            loading_screen=loading_screen or LoadingScreenUnit(tmp_path), present_the_loading_screen=present_the_loading_screen)
 
 
 def _kinds_of_screen() -> dict[str, type]:
@@ -1573,13 +1573,13 @@ class TestHangingTheRoom:
                           "render_latest_frame", "close"):
                 assert callable(getattr(unit, asked, None)), (type(unit).__name__, asked)
 
-    def test_the_cover_it_is_handed_hangs_in_it(self, tmp_path, faked_collaborators):
-        cover = CoverUnit(tmp_path)
+    def test_the_loading_screen_it_is_handed_hangs_in_it(self, tmp_path, faked_collaborators):
+        loading_screen = LoadingScreenUnit(tmp_path)
 
-        the_room = _hang_a_room(tmp_path, cover=cover)
+        the_room = _hang_a_room(tmp_path, loading_screen=loading_screen)
 
-        assert the_room.cover is cover
-        assert cover in the_room.units
+        assert the_room.loading_screen is loading_screen
+        assert loading_screen in the_room.units
 
     def test_every_unit_is_asked_for_its_latest_frame_each_frame(
             self, tmp_path, faked_collaborators):
@@ -1621,26 +1621,26 @@ class TestHangingTheRoom:
         assert [type(one).__name__ for one in the_room.closing
                 if not callable(getattr(one, "close", None))] == []
 
-    def _closed_by(self, the_room, *, keep_the_cover: bool) -> list:
+    def _closed_by(self, the_room, *, keep_the_loading_screen: bool) -> list:
         closed: list = []
         for one in the_room.closing:
             one.close = partial(closed.append, one)
-        the_room.close(keep_the_cover=keep_the_cover)
+        the_room.close(keep_the_loading_screen=keep_the_loading_screen)
         return closed
 
     def test_closing_it_closes_everything_it_holds(self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
-        assert self._closed_by(the_room, keep_the_cover=False) == the_room.closing
+        assert self._closed_by(the_room, keep_the_loading_screen=False) == the_room.closing
 
-    def test_a_cover_kept_up_for_the_next_session_is_the_one_thing_left_open(
+    def test_a_loading_screen_kept_up_for_the_next_session_is_the_one_thing_left_open(
             self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
-        closed = self._closed_by(the_room, keep_the_cover=True)
+        closed = self._closed_by(the_room, keep_the_loading_screen=True)
 
-        assert the_room.cover not in closed
-        assert closed == [one for one in the_room.closing if one is not the_room.cover]
+        assert the_room.loading_screen not in closed
+        assert closed == [one for one in the_room.closing if one is not the_room.loading_screen]
 
     def test_the_main_funestra_ticks_on_a_worker_of_its_own_at_genaus_rate(
             self, tmp_path, faked_collaborators):
@@ -1667,26 +1667,26 @@ class TestHangingTheRoom:
         faked_collaborators["Funestra"].return_value.showing = MainMode.GENAU
         assert the_room.library._genau_has_the_slot() is True
 
-    def test_the_main_funestra_keeps_the_cover_moving_while_it_reads_the_library(
+    def test_the_main_funestra_keeps_the_loading_screen_moving_while_it_reads_the_library(
             self, tmp_path, faked_collaborators):
         """Reading the library takes seconds on a cold cache, and nothing else
         presents a frame while the units are built."""
         present = MagicMock()
 
-        _hang_a_room(tmp_path, present_the_cover=present)
+        _hang_a_room(tmp_path, present_the_loading_screen=present)
 
         assert faked_collaborators["_TheLibrary"].call_args.kwargs["while_reading"] is present
 
-    def test_the_cover_is_presented_between_the_funestras_being_built(
+    def test_the_loading_screen_is_presented_between_the_funestras_being_built(
             self, tmp_path, faked_collaborators):
         """Each opens media, which takes long enough to notice."""
         order: list[str] = []
         faked_collaborators["Funestra"].side_effect = (
             lambda *_args, **_kwargs: order.append("funestra") or MagicMock())
 
-        _hang_a_room(tmp_path, present_the_cover=lambda: order.append("cover"))
+        _hang_a_room(tmp_path, present_the_loading_screen=lambda: order.append("loading_screen"))
 
-        assert order == ["funestra", "cover", "funestra", "funestra", "cover"]
+        assert order == ["funestra", "loading_screen", "funestra", "funestra", "loading_screen"]
 
     def test_it_opens_its_screens_where_the_last_session_left_them(
             self, tmp_path, faked_collaborators):
@@ -1711,7 +1711,7 @@ class TestHangingTheRoom:
 
 class TestTheShellsWordsForTheRoom:
     """fun_time_vr/app.py runs only on a headset, so no suite reaches the lines
-    that read the room, the arrangement and the cover; a name renamed under it
+    that read the room, the arrangement and the loading screen; a name renamed under it
     would leave a broken call with both suites green.  Each name it reads off
     them is held against what a room built here answers."""
 
@@ -1721,12 +1721,12 @@ class TestTheShellsWordsForTheRoom:
             "the_room": the_room,
             "arranging": Arrangement(the_room),
             "arranged": Arranged([], [], np.eye(4, dtype=np.float32), 0.0, 0.0),
-            "cover": the_room.cover,
+            "loading_screen": the_room.loading_screen,
         }
 
     @staticmethod
     def _reads(tree) -> list[tuple[str, ...]]:
-        """Every dotted read off a name, deepest first, as ("the_room", "cover", "showing")."""
+        """Every dotted read off a name, deepest first, as ("the_room", "loading_screen", "showing")."""
         reads = []
         for node in ast.walk(tree):
             if not isinstance(node, ast.Attribute):
@@ -1759,20 +1759,20 @@ class TestTheShellsWordsForTheRoom:
             f"{sorted(unanswered)}")
 
 
-# --- The cover's time in front of the eyes ---
+# --- The loading screen's time in front of the eyes ---
 
-class TestWatchingTheCover:
+class TestWatchingTheLoadingScreen:
     def _watch(self, *, dwell_s: float = 0.0):
-        cover = SimpleNamespace(anchor_settled=None, awaiting_wearer=None, settled=MagicMock())
+        loading_screen = SimpleNamespace(anchor_settled=None, awaiting_wearer=None, settled=MagicMock())
         scene_ready = MagicMock()
-        watch = CoverWatch(cover, scene_ready, dwell_s=dwell_s)
-        return cover, scene_ready, watch
+        watch = LoadingScreenWatch(loading_screen, scene_ready, dwell_s=dwell_s)
+        return loading_screen, scene_ready, watch
 
-    def test_the_reveal_waits_for_the_cover_to_have_been_on_screen_not_for_a_wearer(self):
-        """The cover reads the same whether or not anyone is at the lenses, and
+    def test_the_reveal_waits_for_the_loading_screen_to_have_been_on_screen_not_for_a_wearer(self):
+        """The loading screen reads the same whether or not anyone is at the lenses, and
         waiting for a WORN headset spent the whole 25s grace in 26 of his last 40
-        sessions -- so the reveal counts the frames the cover was drawn on."""
-        _cover, scene_ready, watch = self._watch()
+        sessions -- so the reveal counts the frames the loading screen was drawn on."""
+        _loading_screen, scene_ready, watch = self._watch()
 
         watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
         watch.frame_began(blank=(), focused=False, views_tracked=True)
@@ -1780,53 +1780,53 @@ class TestWatchingTheCover:
         scene_ready.note.assert_called_with(blank=(), read=True)
 
     def test_a_blank_screen_is_named_to_the_reveal(self):
-        _cover, scene_ready, watch = self._watch()
+        _loading_screen, scene_ready, watch = self._watch()
 
         watch.frame_began(blank=("portrait",), focused=False, views_tracked=True)
 
         scene_ready.note.assert_called_with(blank=("portrait",), read=False)
 
-    def test_the_cover_holds_its_heading_once_a_wearer_has_had_time_at_it(self):
+    def test_the_loading_screen_holds_its_heading_once_a_wearer_has_had_time_at_it(self):
         """Where it hangs is still the wearer's question: latched on a frame nobody
         was at, the panel sits where he is not looking when he puts the headset on."""
-        cover, _scene_ready, watch = self._watch()
+        loading_screen, _scene_ready, watch = self._watch()
 
         watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
         watch.frame_began(blank=(), focused=False, views_tracked=True)
-        unworn = cover.anchor_settled
+        unworn = loading_screen.anchor_settled
         watch.frame_ended(covered=True, focused=True, should_render=True, now=2.0)
         watch.frame_began(blank=(), focused=True, views_tracked=True)
-        worn = cover.anchor_settled
+        worn = loading_screen.anchor_settled
         watch.frame_began(blank=(), focused=True, views_tracked=False)
 
-        assert (unworn, worn, cover.anchor_settled) == (False, True, False)
+        assert (unworn, worn, loading_screen.anchor_settled) == (False, True, False)
 
-    def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up(self):
+    def test_the_loading_screen_is_told_it_is_waiting_on_him_only_once_the_room_is_up(self):
         """Said before that, it would blame him for a launch still building the
         room; said off the same value the reveal reads, the two cannot disagree."""
-        cover, _scene_ready, watch = self._watch()
+        loading_screen, _scene_ready, watch = self._watch()
 
         watch.frame_began(blank=("main",), focused=False, views_tracked=True)
-        building = cover.awaiting_wearer
+        building = loading_screen.awaiting_wearer
         watch.frame_began(blank=(), focused=False, views_tracked=True)
-        built = cover.awaiting_wearer
+        built = loading_screen.awaiting_wearer
         watch.frame_began(blank=(), focused=True, views_tracked=True)
 
-        assert (building, built, cover.awaiting_wearer) == (False, True, False)
+        assert (building, built, loading_screen.awaiting_wearer) == (False, True, False)
 
-    def test_the_cover_settles_on_a_frame_it_reached_or_that_nothing_reached(self):
-        """A quit made with the headset off would else buy the timeout and no cover."""
-        cover, _scene_ready, watch = self._watch()
+    def test_the_loading_screen_settles_on_a_frame_it_reached_or_that_nothing_reached(self):
+        """A quit made with the headset off would else buy the timeout and no loading screen."""
+        loading_screen, _scene_ready, watch = self._watch()
 
         watch.frame_ended(covered=False, focused=True, should_render=True, now=1.0)
-        assert not cover.settled.called
+        assert not loading_screen.settled.called
         watch.frame_ended(covered=True, focused=True, should_render=True, now=2.0)
         watch.frame_ended(covered=False, focused=True, should_render=False, now=3.0)
 
-        assert cover.settled.call_count == 2
+        assert loading_screen.settled.call_count == 2
 
-    def test_it_says_once_when_the_cover_went_up_and_once_when_it_came_down(self, caplog):
-        _cover, _scene_ready, watch = self._watch()
+    def test_it_says_once_when_the_loading_screen_went_up_and_once_when_it_came_down(self, caplog):
+        _loading_screen, _scene_ready, watch = self._watch()
 
         with caplog.at_level(logging.INFO, logger="fun_time_vr.funestras"):
             watch.drawing(now=10.0)
@@ -1834,7 +1834,7 @@ class TestWatchingTheCover:
             watch.frame_ended(covered=False, focused=True, should_render=True, now=12.5)
             watch.frame_ended(covered=False, focused=True, should_render=True, now=13.5)
 
-        assert caplog.messages == ["Cover drawing to the headset", "Cover down after 2.5s on screen"]
+        assert caplog.messages == ["Loading screen drawing to the headset", "Loading screen down after 2.5s on screen"]
 
 
 # --- The controllers arranging the room, frame by frame ---
@@ -3421,7 +3421,7 @@ class TestPuttingTheRoomBack:
 
         assert unit.screen.placement == _LibraryUnit.SPOTS[LIBRARY]
 
-    @pytest.mark.parametrize("kind", [_ConsoleUnit, _ReferenceUnit, CoverUnit])
+    @pytest.mark.parametrize("kind", [_ConsoleUnit, _ReferenceUnit, LoadingScreenUnit])
     def test_what_rides_on_another_screen_keeps_no_spot_and_is_left_riding(self, kind):
         """Each of these hangs off something else and finds its place again every
         frame, so putting the room back must not pull it off what it rides on."""

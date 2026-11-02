@@ -43,7 +43,7 @@ def test_every_entry_point_can_install_the_family_hooks(module_name, hooks_resto
     thing, so a sixth entry point has one obvious thing to copy."""
     try:
         module = importlib.import_module(module_name)
-    except ImportError as missing:  # pragma: no cover - engine-dependent
+    except ImportError as missing:  # pragma: no loading screen - engine-dependent
         pytest.skip(f"{module_name} needs {missing.name}")
 
     assert callable(module.set_up_logging)
@@ -57,7 +57,7 @@ def test_every_entry_points_logging_step_runs(module_name, hooks_restored, tmp_p
     of their own are handed where it goes; the windowed ones take nothing."""
     try:
         module = importlib.import_module(module_name)
-    except ImportError as missing:  # pragma: no cover - engine-dependent
+    except ImportError as missing:  # pragma: no loading screen - engine-dependent
         pytest.skip(f"{module_name} needs {missing.name}")
     config = SimpleNamespace(log_file=lambda name: tmp_path / f"{name}.log")
 

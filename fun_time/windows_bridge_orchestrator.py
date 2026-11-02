@@ -1,8 +1,8 @@
-"""A session's whole lifecycle, from the cover it is handed to its last child.
+"""A session's whole lifecycle, from the loading screen it is handed to its last child.
 
 Runs the startup phases, launches the AHK hotkey script, starts the dispatch
 loop, holds the session open until the hotkeys exit, then shuts every child
-down.  Both ends of that happen under a cover over every monitor, so the
+down.  Both ends of that happen under a loading screen over every monitor, so the
 session's windows are never watched arriving or leaving one at a time.
 """
 from __future__ import annotations
@@ -51,7 +51,6 @@ from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabu
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_flick_sources
-from .loading_cover import EXIT_WAIT_S, LoadingCover
 from .lock_hud import prime_group_indexes
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
@@ -76,6 +75,7 @@ from .overlay_progress import (
 )
 from .process_identity import NAMER
 from .process_tree import kill_process_tree
+from .raising_the_loading_screen import EXIT_WAIT_S, RaisedLoadingScreen
 from .rfb_slideshow import rfb_slideshow_on
 from .role_windows import ChildPids, WindowRoles, find_origenerators_window
 from .room_funestras import RoomFunestra
@@ -86,12 +86,12 @@ from .session_handoff import (
     DESKTOP,
     HandoffTarget,
     crossing_progress_path,
-    drop_crossing_cover,
+    drop_transition_screen,
     forget_the_kept_origenerator,
     keep_the_origenerator,
     kept_origenerator,
-    launch_crossing_cover,
-    launch_the_way_back_cover,
+    launch_the_way_back_screen,
+    launch_transition_screen,
     pending_handoff,
     release_the_headset,
     request_handoff,
@@ -342,7 +342,7 @@ def _shutdown_children(
     )
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
-        with progress.cover_kept_up():
+        with progress.loading_screen_kept_up():
             for key in keys:
                 if spared and key == "origenerator_pid":
                     continue
@@ -356,7 +356,7 @@ CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
 
 def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen, *,
                              now: Callable[[], float] = time.monotonic) -> None:
-    """Block until the cover is painted over every monitor.  Two ways out
+    """Block until the loading screen is painted over every monitor.  Two ways out
     besides the flag: the screen died, so none is coming; or waiting has come to
     cost more than the flicker would."""
     try:
@@ -378,12 +378,12 @@ def _closing_screen(
     crossing: HandoffTarget | None = None, esc_cancels: str = "",
     now: Callable[[], float] = time.monotonic,
 ) -> Iterator[ProgressReporter]:
-    """Cover every monitor while the session comes down, then uncover it.
+    """Put the closing screen over every monitor while the session comes down, then take it down.
 
     Yields the reporter the teardown steps report through: up and painted before
     the body runs, down once it has finished.  Off for an integration run.
 
-    *crossing* is the session this one is ending FOR: the cover then says so,
+    *crossing* is the session this one is ending FOR: the loading screen then says so,
     and is left standing for the arriving session (docs/entering-vr.md).
     """
     if not enabled:
@@ -400,7 +400,7 @@ def _closing_screen(
     ready_file.unlink(missing_ok=True)
     if crossing is not None:
         progress: ProgressReporter = NullProgress()  # the wording is the crossing's
-        proc = launch_crossing_cover(state_dir, crossing, sibling_checkouts=sibling_checkouts)
+        proc = launch_transition_screen(state_dir, crossing, sibling_checkouts=sibling_checkouts)
     else:
         progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels)
         progress.advance("controls")
@@ -409,7 +409,7 @@ def _closing_screen(
             "-m", "fun_time.closing_screen", str(progress_file),
         ], **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
         tie_to_this_process(proc)
-    logger.info("Teardown cover launched (pid=%d)", proc.pid)
+    logger.info("Teardown loading screen launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc, now=now)
     try:
         yield progress
@@ -424,7 +424,7 @@ def _closing_screen(
             progress_file.unlink(missing_ok=True)
             ready_file.unlink(missing_ok=True)
         else:
-            logger.info("Leaving the cover up for %s", crossing.app_name)
+            logger.info("Leaving the loading screen up for %s", crossing.app_name)
 
 
 # Cancelling from the loading screen is a clean, user-initiated exit.
@@ -461,7 +461,7 @@ def _take_down_the_startup(
     *,
     pids: list[int],
     rfb_hwnd: int,
-    cover: LoadingCover,
+    loading_screen: RaisedLoadingScreen,
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
     sibling_checkouts: str,
@@ -474,12 +474,12 @@ def _take_down_the_startup(
     down; these were launched seconds ago, so their PIDs are still theirs.  The
     hotkey script first: left running, it would go on swallowing every key it binds.
     """
-    state_dir = cover.progress_file.parent
-    back_to = cover.turns_back_to if (
-        canceled and what_the_flag_asks(cover.cancel_file) == CANCEL_WORD) else None
+    state_dir = loading_screen.progress_file.parent
+    back_to = loading_screen.turns_back_to if (
+        canceled and what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD) else None
     logger.info("%s; tearing down %d launched child(ren)", reason, len(pids))
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
-    with cover.progress.cover_kept_up():
+    with loading_screen.progress.loading_screen_kept_up():
         for pid in pids:
             kill_process_tree(pid)
     if release_origenerator_via is not None:
@@ -487,14 +487,14 @@ def _take_down_the_startup(
     close_window(rfb_hwnd)
     if back_to is not None:
         logger.info("Going back to %s", back_to.app_name)
-        way_back = launch_the_way_back_cover(state_dir, sibling_checkouts=sibling_checkouts)
+        way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
         _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
         request_handoff(state_dir, back_to, cancelable=False)
     # Only now that the windows under it are gone: drop the overlay.
-    cover.take_it_down()
-    cover.cancel_file.unlink(missing_ok=True)
+    loading_screen.take_it_down()
+    loading_screen.cancel_file.unlink(missing_ok=True)
     if back_to is None:
-        drop_crossing_cover(state_dir)  # else: no way out of an empty machine
+        drop_transition_screen(state_dir)  # else: no way out of an empty machine
         release_the_headset(state_dir)
     return SessionOver(_CANCELLED_EXIT_CODE)
 
@@ -529,9 +529,9 @@ def add_dispatch_file_handler(log_path: Path) -> None:
         lg.addHandler(handler)
 
 
-# What the finishing pass may spend, all of it under the cover.  The cover comes
+# What the finishing pass may spend, all of it under the loading screen.  The loading screen comes
 # down on DONE, which is written at the end of it, so these bound how long the
-# progress file can sit unchanged while it runs — and the cover takes ITSELF
+# progress file can sit unchanged while it runs — and the loading screen takes ITSELF
 # down if that goes past ``loading_screen.STALE_TIMEOUT_S``, which would put the
 # room's z-order back in front of the user.  A test pins the sum.
 HUD_PRIME_TIMEOUT_S = 20.0
@@ -584,10 +584,10 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
-            # Also the wait that keeps the cover up until the dashboard has shown
+            # Also the wait that keeps the loading screen up until the dashboard has shown
             # itself: it reveals on the last startup phase (see
             # ``startup_still_building``) and hides from these lookups until it
-            # does, so resolving it here is what stops the cover leaving without
+            # does, so resolving it here is what stops the loading screen leaving without
             # it.  A dashboard that never arrives costs the wait and no more.
             dash_hwnd = wait_for_window_by_title(
                 preview_marker.app_title(preview_marker.shown_as()),
@@ -652,7 +652,7 @@ def _settle_the_funestras(funestras: Sequence[tuple[str, int, int]], *,
     decoding), so a promotion can time out through the stalled-window guard and
     land only when that thread next pumps — a maximized Chrome sat over the
     Landscape Funestra until the next full re-band, and the Main Funestra climbed
-    over the room a second after the cover lifted.  So walk the real z-order and
+    over the room a second after the loading screen lifted.  So walk the real z-order and
     re-promote whoever is still buried.  The loading overlay covers everything
     on purpose, so it is not a burial, and a re-promotion under it goes under it.
     """
@@ -788,45 +788,45 @@ def _reveal_the_room(
     result: StartupResult,
     *,
     manifest: LaunchManifest,
-    cover: LoadingCover,
+    loading_screen: RaisedLoadingScreen,
     hud_publisher,
     hud_primed,
-    before_the_cover_goes: Callable[[], RfbSlot] = lambda: RfbSlot.RFB,
+    before_the_loading_screen_goes: Callable[[], RfbSlot] = lambda: RfbSlot.RFB,
 ) -> None:
-    """Take the curtain down on a session that is finished under it.
+    """Take the loading screen down on a session that is finished under it.
 
     The sequencer already positioned every window in phase 4; what is left is
-    the sorting phase 4 deliberately left off, then the cover, then the Funestras.
+    the sorting phase 4 deliberately left off, then the loading screen, then the Funestras.
     """
     # Held until the HUD's group indexes are primed, so Fun Time is not
     # revealed with the maps blank.  Capped: a slow scan fills in late instead.
     if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
         logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
                        HUD_PRIME_TIMEOUT_S)
-    # Band the room and settle its z-order UNDER the curtain.  Phase 4 left the
+    # Band the room and settle its z-order UNDER the loading screen.  Phase 4 left the
     # bands off (each promotion inserts above the overlay), so nothing of the
     # session is topmost yet: revealing here would show Funestras sitting under
     # whatever was on those monitors, climbing over it a second later.
-    rfb_slot = before_the_cover_goes()
+    rfb_slot = before_the_loading_screen_goes()
     # Before the pass below, which waits for the window the dashboard shows
     # itself in when this line fills the bar.
-    cover.progress.advance("finalizing")
+    loading_screen.progress.advance("finalizing")
 
     role_hwnds = _fix_post_loading_windows(
-        result, overlay_hwnd=cover.window(), rfb_slot=rfb_slot)
+        result, overlay_hwnd=loading_screen.window(), rfb_slot=rfb_slot)
     seat_the_secondary_monitor(manifest, role_hwnds)
 
-    cover.take_it_down()
+    loading_screen.take_it_down()
 
-    # The cover is off the screen: NOW the Funestras may run.  The phase walk
+    # The loading screen is off the screen: NOW the Funestras may run.  The phase walk
     # deliberately leaves this to us (see ``release_the_funestras``) — released
     # with the phases, the Main Funestra's video and Genau's audio would have been running
-    # for the whole finishing pass, under a cover he cannot see or hear
+    # for the whole finishing pass, under a loading screen he cannot see or hear
     # through, and the opening seconds of the video would be gone by the time
     # it lifted.
     release_the_funestras(manifest, result.main_mode)
-    # And the headset, where a Funestra may have been holding its cover.
-    release_the_headset(cover.progress_file.parent)
+    # And the headset, where a Funestra may have been holding its loading screen.
+    release_the_headset(loading_screen.progress_file.parent)
 
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
@@ -962,24 +962,24 @@ def start_voice_control(
 VOICE_START_BUDGET_S = 30.0
 
 
-def wait_for_voice_under_the_cover(
+def wait_for_voice_under_the_loading_screen(
     voice_controller: VoiceController | None, *, progress: ProgressReporter,
 ) -> None:
     if voice_controller is None:
         return
     progress.announce(STARTING_VOICE_COMMANDS.key)
-    with progress.cover_kept_up():
+    with progress.loading_screen_kept_up():
         if not voice_controller.done_starting.wait(VOICE_START_BUDGET_S):
             logger.warning("Voice commands were not listening after %.0fs; opening the room "
                            "without them", VOICE_START_BUDGET_S)
 
 
-# Bounded: an app that died on its way up would hold the room's cover shut.
+# Bounded: an app that died on its way up would hold the room's loading screen shut.
 ORIGENERATOR_BOOT_BUDGET_S = 120.0
 ORIGENERATOR_BOOT_POLL_S = 0.5
 
 
-def activate_origenerator_under_the_cover(
+def activate_origenerator_under_the_loading_screen(
     runner: DispatchLoopRunner,
     *,
     progress: ProgressReporter,
@@ -993,7 +993,7 @@ def activate_origenerator_under_the_cover(
             waited = time.monotonic() - started
             if waited >= ORIGENERATOR_BOOT_BUDGET_S:
                 return False
-            # Written again: a cover takes itself down on an untouched file.
+            # Written again: a loading screen takes itself down on an untouched file.
             progress.announce(ACTIVATING_ORIGENERATOR.key)
             time.sleep(ORIGENERATOR_BOOT_POLL_S)
         return True
@@ -1003,14 +1003,14 @@ def activate_origenerator_under_the_cover(
     return runner.state.rfb_slot
 
 
-def finish_under_the_cover(
+def finish_under_the_loading_screen(
     runner: DispatchLoopRunner,
     voice_controller: VoiceController | None,
     *,
     progress: ProgressReporter,
 ) -> RfbSlot:
-    rfb_slot = activate_origenerator_under_the_cover(runner, progress=progress)
-    wait_for_voice_under_the_cover(voice_controller, progress=progress)
+    rfb_slot = activate_origenerator_under_the_loading_screen(runner, progress=progress)
+    wait_for_voice_under_the_loading_screen(voice_controller, progress=progress)
     return rfb_slot
 
 
@@ -1184,7 +1184,7 @@ def _run_until_the_hotkeys_exit(
         crossing = pending_handoff(state_dir)
         esc_cancels = (CANCEL_CLOSING_FUN_TIME
                        if asked and show_overlays and crossing is None else "")
-        # Then the cover, up before anything closes and through all of it: the
+        # Then the loading screen, up before anything closes and through all of it: the
         # controls stopping, the browser closing, and every child being killed.
         with _closing_screen(state_dir, enabled=show_overlays, sibling_checkouts=sibling_checkouts,
                              crossing=crossing,
@@ -1196,7 +1196,7 @@ def _run_until_the_hotkeys_exit(
             dispatch_runner.close()
             if loopback_server is not None:
                 # shutdown() blocks until serve_forever returns, so it belongs
-                # here under the cover rather than out in the open — and the
+                # here under the loading screen rather than out in the open — and the
                 # port is machine-wide, so a server left listening is a port the
                 # next session cannot have.
                 loopback_server.shutdown()
@@ -1215,7 +1215,7 @@ def _run_until_the_hotkeys_exit(
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
             if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
                 logger.info("Esc called the quit off; opening Fun Time again")
-                way_back = launch_the_way_back_cover(state_dir, sibling_checkouts=sibling_checkouts)
+                way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
                 _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
                 request_handoff(state_dir, DESKTOP, cancelable=False)
             elif crossing is None:  # the quit chord after an Esc that had parked it
@@ -1231,10 +1231,10 @@ def run_session(
     hotkey_script: str,
     state_dir: str | Path,
     project_dir: str | Path,
-    cover: LoadingCover,
+    loading_screen: RaisedLoadingScreen,
     env: SessionEnvironment = ORDINARY_SESSION,
 ) -> SessionOver:
-    """Hold a session under the cover already standing over it, then close it."""
+    """Hold a session under the loading screen already standing over it, then close it."""
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     project_dir = Path(project_dir)
@@ -1261,14 +1261,14 @@ def run_session(
         hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
         ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
 
-    progress = cover.progress
+    progress = loading_screen.progress
 
     if env.integration:
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
         logger.info("Pre-wrote suspend_hotkeys for integration test run")
 
     # --- The hotkey script, up before the session it drives ---
-    # Esc has to reach us from the cover onward, and AHK's hooks are the only
+    # Esc has to reach us from the loading screen onward, and AHK's hooks are the only
     # keys here that do not care which window holds the focus (see
     # overlay_progress).  The script holds its other keys until the pids file.
     ahk_proc = launch_hotkey_script(ahk_exe=ahk_exe, script=hotkey_script,
@@ -1296,7 +1296,7 @@ def run_session(
         # before the dispatch loop ever starts.
         return _take_down_the_startup(
             "Startup cancelled by user", pids=cancelled.launched_pids,
-            rfb_hwnd=cancelled.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            rfb_hwnd=cancelled.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             sibling_checkouts=manifest.runtime.sibling_checkouts,
             canceled=True,
             release_origenerator_via=(bridge_config.origenerator_cmd_file
@@ -1305,7 +1305,7 @@ def run_session(
     except FunestraDied as died:
         _take_down_the_startup(
             str(died), pids=died.launched_pids,
-            rfb_hwnd=died.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            rfb_hwnd=died.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             sibling_checkouts=manifest.runtime.sibling_checkouts,
             release_origenerator_via=(bridge_config.origenerator_cmd_file
                                       if died.origenerator_taken_over else None),
@@ -1324,7 +1324,7 @@ def run_session(
     if progress.cancelled:
         return _take_down_the_startup(
             "Startup cancelled by user", pids=launched,
-            rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            rfb_hwnd=result.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             sibling_checkouts=manifest.runtime.sibling_checkouts,
             canceled=True,
             release_origenerator_via=hand_back_via,
@@ -1353,14 +1353,14 @@ def run_session(
         voice_controller, voice_thread = start_voice_control(
             prepared_voice, dispatch_runner=dispatch_runner)
 
-        finish = partial(finish_under_the_cover, dispatch_runner, voice_controller,
+        finish = partial(finish_under_the_loading_screen, dispatch_runner, voice_controller,
                          progress=progress)
 
         # The sequencer already positioned all windows in Phase 4 (the reveal).
         if env.show_overlays:
-            _reveal_the_room(result, manifest=manifest, cover=cover,
+            _reveal_the_room(result, manifest=manifest, loading_screen=loading_screen,
                              hud_publisher=hud_publisher, hud_primed=hud_primed,
-                             before_the_cover_goes=finish)
+                             before_the_loading_screen_goes=finish)
         else:
             finish()
 
@@ -1376,7 +1376,7 @@ def run_session(
     except BaseException:
         _take_down_the_startup(
             "The session failed while opening", pids=launched,
-            rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            rfb_hwnd=result.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             sibling_checkouts=manifest.runtime.sibling_checkouts,
             release_origenerator_via=hand_back_via,
         )

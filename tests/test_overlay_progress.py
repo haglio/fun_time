@@ -162,7 +162,7 @@ class TestPhaseProgress:
             progress.advance("slow")
 
     def test_a_null_reporter_answers_an_announcement_too(self, tmp_path: Path):
-        NullProgress().announce("quick")  # must not raise: integration runs with no cover
+        NullProgress().announce("quick")  # must not raise: integration runs with no loading screen
 
     def test_finish_writes_done(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"
@@ -177,8 +177,8 @@ class TestStartupPhases:
         keys = [phase.key for phase in STARTUP_PHASES]
         assert len(keys) == len(set(keys))
 
-    def test_the_waits_under_the_cover_run_before_the_line_that_fills_the_bar(self):
-        """A room left with Origenerator showing waits out that app under the cover,
+    def test_the_waits_under_the_loading_screen_run_before_the_line_that_fills_the_bar(self):
+        """A room left with Origenerator showing waits out that app under the loading screen,
         and every room waits for its voice commands to listen.  Put after the last
         line, a wait read as a step past "Finalizing..." with the bar already full
         -- finished, and still working."""
@@ -187,20 +187,20 @@ class TestStartupPhases:
         assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
                              "finalizing"]
 
-    def test_the_cover_says_origenerator_is_activating_whatever_it_comes_back_into(self):
+    def test_the_loading_screen_says_origenerator_is_activating_whatever_it_comes_back_into(self):
         """A room can come back with only one satellite on Origenerator's
         slideshow and the browser in its place, so the step names the app."""
         assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
     def test_the_launch_names_its_own_work_before_the_room_arrives(self):
         """Loading itself and checking the Funestras' engine took seconds off an
-        uncovered desktop; they run under the cover, so the cover says so."""
+        uncovered desktop; they run under the loading screen, so the loading screen says so."""
         assert (*LAUNCH_PHASES, *ROOM_PHASES) == STARTUP_PHASES
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
     def test_only_the_last_phase_claims_no_time(self):
         """It has to land the bar on the total, which is what tells a companion
-        window to show itself while the cover is still up -- and nothing may be
+        window to show itself while the loading screen is still up -- and nothing may be
         reported after it, or the bar would read full with work still to do."""
         weights = [phase.weight for phase in STARTUP_PHASES]
 
@@ -218,7 +218,7 @@ class TestShutdownPhases:
 
         Every shutdown phase has real work to do, so a full bar during one of
         them would say the room was clear with children still being killed — and
-        windows going out one by one is the whole thing the cover is there for.
+        windows going out one by one is the whole thing the loading screen is there for.
         """
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES)
@@ -243,13 +243,13 @@ class TestReadyFileFor:
 
 
 class TestProgressFileArgument:
-    def test_a_cover_screen_covers_the_progress_file_it_was_started_with(self, tmp_path: Path,
+    def test_a_loading_screen_screen_covers_the_progress_file_it_was_started_with(self, tmp_path: Path,
                                                                       monkeypatch):
         monkeypatch.setattr(sys, "argv", ["screen", str(tmp_path / "progress.txt")])
 
         assert progress_file_argument("fun_time.closing_screen") == tmp_path / "progress.txt"
 
-    def test_a_cover_screen_started_without_one_says_how_to_start_it_and_stops(self, monkeypatch,
+    def test_a_loading_screen_screen_started_without_one_says_how_to_start_it_and_stops(self, monkeypatch,
                                                                               capsys):
         monkeypatch.setattr(sys, "argv", ["screen"])
 
@@ -324,11 +324,11 @@ class TestNullProgressCancellation:
 class TestStartupStillBuilding:
     """Which reading of the progress file tells a companion window to show itself.
 
-    Not "the cover has gone": the cover is the last thing to leave, so a
+    Not "the loading screen has gone": the loading screen is the last thing to leave, so a
     companion that waits for it arrives after the reveal — the user watching the
     session's own control panel turn up on a room that was supposed to be
     finished.  It waits for the FULL BAR instead, which the final phase writes
-    while the cover is still up.
+    while the loading screen is still up.
     """
 
     def _state_dir(self, tmp_path: Path, text: str | None) -> Path:
@@ -347,34 +347,34 @@ class TestStartupStillBuilding:
         assert startup_still_building(
             self._state_dir(tmp_path, "340/340|Finalizing...")) is False
 
-    def test_false_once_the_cover_has_been_told_to_go(self, tmp_path: Path):
+    def test_false_once_the_loading_screen_has_been_told_to_go(self, tmp_path: Path):
         assert startup_still_building(self._state_dir(tmp_path, "DONE")) is False
 
-    def test_the_companions_are_told_before_the_cover_is(self, tmp_path: Path):
+    def test_the_companions_are_told_before_the_loading_screen_is(self, tmp_path: Path):
         """The whole ordering, walked: every companion is on screen under the
-        cover before anything asks the cover to leave.
+        loading screen before anything asks the loading screen to leave.
 
-        The cover closes on the DONE flag alone (``OverlayWindow._poll``), and
+        The loading screen closes on the DONE flag alone (``OverlayWindow._poll``), and
         that is written only by ``finish()`` — one full sequence after the
         reading the companions act on.
         """
         progress_file = tmp_path / PROGRESS_FILENAME
         progress = PhaseProgress(progress_file, phases=STARTUP_PHASES)
-        cover_may_close = lambda: parse_progress(  # noqa: E731
+        loading_screen_may_close = lambda: parse_progress(  # noqa: E731
             progress_file.read_text(encoding="utf-8")).done
 
         carries_time = [phase for phase in STARTUP_PHASES if phase.weight > 0]
         for phase in carries_time:
             progress.advance(phase.key)
             assert startup_still_building(tmp_path) is True
-            assert cover_may_close() is False
+            assert loading_screen_may_close() is False
 
         for phase in STARTUP_PHASES[len(carries_time):]:
             progress.advance(phase.key)
-            # The companions show themselves at the first of these — and the cover
+            # The companions show themselves at the first of these — and the loading screen
             # is still up, through a wait for the hosted Origenerator as well.
             assert startup_still_building(tmp_path) is False
-            assert cover_may_close() is False
+            assert loading_screen_may_close() is False
 
         progress.finish()
-        assert cover_may_close() is True
+        assert loading_screen_may_close() is True

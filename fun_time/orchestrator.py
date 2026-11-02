@@ -23,15 +23,15 @@ from .event_log import open_event_log
 from .funestra_deaths import show_funestra_died_alert
 from .funestra_engine import engine_missing_abort
 from .headset_power import put_the_headset_to_sleep, wake_the_headset
-from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
 from .project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
+from .raising_the_loading_screen import RaisedLoadingScreen, open_the_loading_screen
 from .session_environment import SessionEnvironment
 from .session_handoff import (
     clear_handoff_request,
     hand_over_if_asked,
-    keep_the_crossing_cover,
+    keep_the_transition_screen,
     pending_handoff,
 )
 from .single_instance import (
@@ -88,8 +88,8 @@ def validate_config(config) -> None:
 
 
 
-def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCover) -> SessionOver:
-    # Seconds of import on a cold machine: it loads under the cover, not ahead of it.
+def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: RaisedLoadingScreen) -> SessionOver:
+    # Seconds of import on a cold machine: it loads under the loading screen, not ahead of it.
     from .windows_bridge_orchestrator import run_session  # noqa: PLC0415
 
     manifest_path = write_windows_bridge_manifest(
@@ -104,7 +104,7 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCo
         hotkey_script=str(hotkey_script),
         state_dir=config.paths.state_dir,
         project_dir=config.project_dir,
-        cover=cover,
+        loading_screen=loading_screen,
         env=env,
     )
     logger.info("Windows bridge exited with code %s", ended.exit_code)
@@ -182,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     logger.info("Loaded config from %s", config.config_path)
-    keep_the_crossing_cover(state_dir)  # a crossing at either end
+    keep_the_transition_screen(state_dir)  # a crossing at either end
     ensure_runtime_files(config)
     clear_handoff_request(state_dir)
     validate_config(config)
@@ -194,8 +194,8 @@ def main(argv: list[str] | None = None) -> int:
     # Before anything else logs, and before the dashboard launches the panel
     # that tails it: this session's event log starts empty and starts collecting.
     open_event_log(state_dir)
-    # Everything below happens under the cover, and says so on it as it runs.
-    cover = open_the_cover(
+    # Everything below happens under the loading screen, and says so on it as it runs.
+    loading_screen = open_the_loading_screen(
         state_dir, show_overlays=env.show_overlays,
         sibling_checkouts=config.paths.sibling_checkouts_path, cancelable=not args.no_cancel,
     )
@@ -206,8 +206,8 @@ def main(argv: list[str] | None = None) -> int:
             stamp_shortcut_aumid()
         describe_the_session_on_the_taskbar(PROJECT_DIR)
 
-        cover.progress.announce("engine")
-        if engine_missing_abort(config, log=logger.error, uncover=cover.take_it_down):
+        loading_screen.progress.announce("engine")
+        if engine_missing_abort(config, log=logger.error, uncover=loading_screen.take_it_down):
             signal_startup_resolved(config)
             return 1
 
@@ -220,9 +220,9 @@ def main(argv: list[str] | None = None) -> int:
         # because it is the one doing the naming -- see prepare_orchestrator_launcher.
         prepare_orchestrator_launcher()
         wake_the_headset(state_dir, integration=env.integration)
-        ended = run_windows_bridge(config, logger, env, cover)
+        ended = run_windows_bridge(config, logger, env, loading_screen)
     except BaseException:
-        cover.take_it_down()  # else it stands out its staleness guard over the wreck
+        loading_screen.take_it_down()  # else it stands out its staleness guard over the wreck
         put_the_headset_to_sleep(state_dir, crossing=False)
         raise
     put_the_headset_to_sleep(state_dir, crossing=pending_handoff(state_dir) is not None)

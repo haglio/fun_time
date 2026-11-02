@@ -309,7 +309,7 @@ class SceneRenderer:
     def begin_eye(self, clear: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)) -> None:
         """Reset the state the mpv render contexts may have left.  *clear* is
         what the eye is wiped to: black for the scene, whose screens hang in a
-        void, and its own ground for a cover, which fills the field of view."""
+        void, and its own ground for a loading screen, which fills the field of view."""
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glDisable(GL.GL_BLEND)
         GL.glDisable(GL.GL_SCISSOR_TEST)

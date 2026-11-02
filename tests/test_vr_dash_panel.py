@@ -169,7 +169,7 @@ class TestItIsTheDesktopsBar:
         assert inked.sum() > icon.width * icon.height // 8
 
     def test_the_apps_name_is_written_in_the_wordmark_tone(self):
-        """The red the desktop's bar and every cover write it in, and not the
+        """The red the desktop's bar and every loading screen write it in, and not the
         tone of the mark standing beside it."""
         panel = paint_dash(DashState(), [])
         title = compute_dashboard_bar_layout().app_title

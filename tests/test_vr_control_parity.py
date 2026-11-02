@@ -433,7 +433,7 @@ class TestWhatAHeadsetDoesNotHost:
         }
         assert not waiting, f"these wait on the headset's Main Funestra to answer: {waiting}"
 
-    def test_the_op_sets_between_them_cover_the_whole_vocabulary(self):
+    def test_the_op_sets_between_them_loading_screen_the_whole_vocabulary(self):
         """A new op added to the dispatcher must be placed in one of them,
         rather than waiting for a command that happens to raise it."""
         placed = (_OPS_WITH_NO_WINDOWS, _OPS_THAT_STILL_ACT, _OPS_A_HEADSET_NEVER_RAISES)

@@ -536,7 +536,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["one and a half speed"] == "active_speed_150"
         assert VOICE_COMMANDS["double speed"] == "active_speed_200"
 
-    def test_spoken_speed_ex_phrases_cover_every_stop(self):
+    def test_spoken_speed_ex_phrases_loading_screen_every_stop(self):
         assert VOICE_COMMANDS["speed point two five ex"] == "active_speed_25"
         assert VOICE_COMMANDS["speed one ex"] == "active_speed_100"
         assert VOICE_COMMANDS["speed one point two five ex"] == "active_speed_125"

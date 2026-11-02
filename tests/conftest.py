@@ -52,9 +52,9 @@ from fun_time import (
     chrome_accessibility,
     closing_screen,
     library_browser,
-    loading_cover,
     loading_screen,
     orchestrator,
+    raising_the_loading_screen,
     session_handoff,
     transition_screen,
     win32,
@@ -189,7 +189,7 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     A unit test mocks the startup that would have opened the session's windows,
     so every lookup the orchestrator makes can only time out — and it times out
     on the wall clock, because ``win32.wait_for_window`` polls with
-    ``time.sleep``.  One startup pass is the loading cover plus five role
+    ``time.sleep``.  One startup pass is the loading screen plus five role
     resolutions, so CI paid 20s per test that ran one, and
     ``test_windows_bridge_orchestrator.py`` alone was 359s of it.
 
@@ -199,8 +199,8 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
 
     The two timeouts are set here rather than edited in the module because both
     are pinned as production numbers:
-    ``TestTheFinishingPassFitsUnderTheCover`` adds the resolve budget up
-    against the cover's staleness guard, and ``TestWaitForClosingScreen`` walks
+    ``TestTheFinishingPassFitsUnderTheLoadingScreen`` adds the resolve budget up
+    against the loading screen's staleness guard, and ``TestWaitForClosingScreen`` walks
     every way out of the closing-screen hold.  A test that is ABOUT the waiting
     marks itself ``real_startup_waits`` and gets the real function and the real
     numbers back.
@@ -209,7 +209,7 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
         return
     monkeypatch.setattr(windows_bridge_orchestrator, "wait_for_window_by_title",
                         lambda _title, **_kwargs: 0)
-    monkeypatch.setattr(loading_cover, "wait_for_window", lambda _find, _timeout_s: 0)
+    monkeypatch.setattr(raising_the_loading_screen, "wait_for_window", lambda _find, _timeout_s: 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 
@@ -221,7 +221,7 @@ _STARTS_A_SCREEN = re.compile(
 
 
 @pytest.fixture(autouse=True)
-def _never_start_a_real_cover(monkeypatch):
+def _never_start_a_real_loading_screen(monkeypatch):
     """Refuse the loading, transition and closing screens at the process
     start, which a test's mocked Popen never reaches.  Each is a real window
     over every monitor of whoever runs the suite, and one whose progress file
@@ -239,10 +239,10 @@ def _never_start_a_real_cover(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _never_leave_a_cover_heartbeat_running(monkeypatch):
-    """Keep a session's crossing-cover heartbeat from outliving its test.
+def _never_leave_a_loading_screen_heartbeat_running(monkeypatch):
+    """Keep a session's transition-screen heartbeat from outliving its test.
 
-    Each session and the relay between them keep the cover up from a thread
+    Each session and the relay between them keep the loading screen up from a thread
     that reads the progress file in their state dir once a second for the
     rest of the process's life -- in a unit run, the rest of the suite.  One
     caught reading as its test's tmp_path went held the file open, and
@@ -250,7 +250,7 @@ def _never_leave_a_cover_heartbeat_running(monkeypatch):
     by the name they imported, which this leaves alone.
     """
     for module in (orchestrator, session_handoff, vr_orchestrator):
-        monkeypatch.setattr(module, "keep_the_crossing_cover", lambda _state_dir: None)
+        monkeypatch.setattr(module, "keep_the_transition_screen", lambda _state_dir: None)
 
 
 @pytest.fixture(autouse=True)

@@ -529,7 +529,7 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_con
 
 def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_config):
     """The deferred half of the geometry guard: while the window is hidden
-    under the loading cover, a render must not touch its geometry — the
+    under the loading screen, a render must not touch its geometry — the
     reveal owns the first placement.  (The minimized half has its own test
     below.)"""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
@@ -605,7 +605,7 @@ def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
 def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
     """Once startup reaches its last phase the dashboard is shown (SW_SHOW) and
     minimize routing is re-enabled — a reveal from hidden fires no restore edge
-    to do it.  The cover is still up at that point; the two tests below say
+    to do it.  The loading screen is still up at that point; the two tests below say
     where the panel is put relative to it.  Built by hand: the deferral is
     decided at construction, so the patch must wrap the build itself."""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
@@ -632,13 +632,13 @@ def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
         window.close()
 
 
-def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
-    """The panel shows itself while the cover is still up, so it must go BELOW it.
+def test_dashboard_reveals_itself_underneath_the_loading_screen(cfg_path: Path):
+    """The panel shows itself while the loading screen is still up, so it must go BELOW it.
 
     Both windows are topmost and showing a window puts it at the top of its band,
-    so a plain reveal would paint the panel over the cover until the cover's next
-    200ms poll re-asserted itself — a flash of exactly what the cover is there to
-    prevent.  So the same SetWindowPos that shows it names the cover as the window
+    so a plain reveal would paint the panel over the loading screen until the loading screen's next
+    200ms poll re-asserted itself — a flash of exactly what the loading screen is there to
+    prevent.  So the same SetWindowPos that shows it names the loading screen as the window
     to sit under, and does not activate.
     """
     config = load_config(cfg_path)
@@ -650,11 +650,11 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
             app_config, launch_geometry=DashboardLaunchGeometry(100, 200, 300, 400))
 
     try:
-        COVER_HWND = 4242
+        LOADING_SCREEN_HWND = 4242
         set_window_pos = MagicMock()
         with (
             patch("fun_time.loading_reveal.startup_still_building", return_value=False),
-            patch("fun_time.loading_reveal.find_window_by_title", return_value=COVER_HWND),
+            patch("fun_time.loading_reveal.find_window_by_title", return_value=LOADING_SCREEN_HWND),
             patch.object(ctypes.windll.user32, "ShowWindow", MagicMock()),
             patch.object(ctypes.windll.user32, "SetWindowPos", set_window_pos),
             patch.object(window, "show"),
@@ -668,8 +668,8 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
         assert isinstance(insert_after, ctypes.c_void_p), (
             "a bare int is passed as c_int, which truncates a 64-bit HWND"
         )
-        assert insert_after.value == COVER_HWND, (
-            "the panel was not inserted below the cover, so it lands on top of it"
+        assert insert_after.value == LOADING_SCREEN_HWND, (
+            "the panel was not inserted below the loading screen, so it lands on top of it"
         )
         SWP_NOZORDER, SWP_NOACTIVATE = 0x0004, 0x0010
         assert not flags & SWP_NOZORDER, "NOZORDER would discard the placement"
@@ -678,9 +678,9 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
         window.close()
 
 
-def test_dashboard_leaves_the_band_alone_when_there_is_no_cover(cfg_path: Path):
-    """No cover to find is not a reason to move the panel around: it is shown
-    where it already sits, exactly as it was before there was a cover to duck.
+def test_dashboard_leaves_the_band_alone_when_there_is_no_loading_screen(cfg_path: Path):
+    """No loading screen to find is not a reason to move the panel around: it is shown
+    where it already sits, exactly as it was before there was a loading screen to duck.
     The band drop exists only to duck one, and a panel dropped out of the band
     with nothing to duck would be shown under every Funestra instead."""
     config = load_config(cfg_path)
@@ -709,15 +709,15 @@ def test_dashboard_leaves_the_band_alone_when_there_is_no_cover(cfg_path: Path):
 
 
 def test_the_panel_leaves_the_topmost_band_before_it_becomes_visible(dashboard_app_config):
-    """Showing a topmost window puts it at the TOP of the band — over the cover —
+    """Showing a topmost window puts it at the TOP of the band — over the loading screen —
     and it stays there until something puts it back, which is a SetWindowPos
     away in a process the machine may not run for tens of milliseconds.  That
     gap was the panel drawn through the scrim for 68ms in one loaded run.
 
     So the reveal drops it out of the band first.  A window that is not topmost
     cannot be above one that is, whatever the machine does next, so the panel is
-    under the cover from the instant it is visible; the promotion that follows
-    names the cover and lands directly beneath it.  The cover is resolved before
+    under the loading screen from the instant it is visible; the promotion that follows
+    names the loading screen and lands directly beneath it.  The loading screen is resolved before
     any of it, while nothing has moved."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config)
@@ -759,7 +759,7 @@ def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
         building, dashboard_app_config):
     """One answer decides both.  Read separately they could disagree — startup
     finishes between the two reads — and the panel would then come up holding
-    notices nothing releases, or releasing them over the cover."""
+    notices nothing releases, or releasing them over the loading screen."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -767,7 +767,7 @@ def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
         assert window._reveal.routing_suppressed is building
         window._notices.overlay = _FakeOverlay()
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
-        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
+        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
             window._notices.poll()
 
         # Held exactly when the panel is: one answer decided both.
@@ -777,8 +777,8 @@ def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
 
 
 def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
-    """The panel shows itself one phase BEFORE the cover goes, so a notice
-    released here would still flash through the scrim.  They wait for the cover
+    """The panel shows itself one phase BEFORE the loading screen goes, so a notice
+    released here would still flash through the scrim.  They wait for the loading screen
     itself; see NoticeFeed."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
@@ -795,10 +795,10 @@ def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
 
         assert window._reveal.deferred is False
         # Asked of the feed, which owns the hold — a reveal that cleared it
-        # would flash a notice through the scrim the cover is still holding up.
+        # would flash a notice through the scrim the loading screen is still holding up.
         window._notices.overlay = _FakeOverlay()
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
-        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
+        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
             window._notices.poll()
         assert window._notices.overlay.flashed == []
     finally:
@@ -1413,7 +1413,7 @@ def test_the_machine_picks_the_port_so_two_sessions_never_collide(
 
 def test_closing_the_window_asks_the_hotkey_script_to_end_the_session(dashboard_app_config):
     """Not to exit: a script that exits takes Esc with it, and Esc over the
-    closing cover is how a quit gets called off."""
+    closing screen is how a quit gets called off."""
     window = build_dashboard_window(dashboard_app_config)
 
     window.close()
@@ -1571,22 +1571,22 @@ def test_a_main_funestra_notice_lands_on_the_main_funestra_wherever_the_crown_ha
     assert target == secondary_monitor_rects(secondary, layout, majority=Crown.MAIN).main
 
 
-def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(
+def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_either(
         dashboard_app_config):
-    """A notice is topmost, so one that fired while the cover was up would
-    appear for a moment through the scrim the cover is there to be.  Held, the
+    """A notice is topmost, so one that fired while the loading screen was up would
+    appear for a moment through the scrim the loading screen is there to be.  Held, the
     read offset does not advance, so the announcement arrives afterwards over
     the room it is about."""
     window = _notice_window(dashboard_app_config, held=True)
     try:
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
 
-        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
+        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
             window._notices.poll()
         assert window._notices.overlay.flashed == []
         assert window._notices.offset == 0
 
-        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=False):
+        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=False):
             window._notices.poll()
         assert [m for m, _ in window._notices.overlay.flashed] == ["Clip saved"]
         assert window._notices.offset > 0
@@ -1595,12 +1595,12 @@ def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(
 
 
 def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_config):
-    """Once the cover is down it never comes back, and this runs four times a
+    """Once the loading screen is down it never comes back, and this runs four times a
     second for the length of the session."""
     window = _notice_window(dashboard_app_config, held=True)
     try:
-        cover = patch("fun_time.notice_feed.loading_cover_is_up", return_value=False)
-        with cover as is_up:
+        loading_screen = patch("fun_time.notice_feed.loading_screen_is_up", return_value=False)
+        with loading_screen as is_up:
             window._notices.poll()
             window._notices.poll()
             window._notices.poll()
@@ -1610,11 +1610,11 @@ def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_con
         window.close()
 
 
-def test_a_window_that_never_waited_asks_about_the_cover_at_all(dashboard_app_config):
-    """Started after the cover was gone, the feed is live from its first poll."""
+def test_a_window_that_never_waited_asks_about_the_loading_screen_at_all(dashboard_app_config):
+    """Started after the loading screen was gone, the feed is live from its first poll."""
     window = _notice_window(dashboard_app_config, held=False)
     try:
-        with patch("fun_time.notice_feed.loading_cover_is_up") as is_up:
+        with patch("fun_time.notice_feed.loading_screen_is_up") as is_up:
             window._notices.poll()
 
         is_up.assert_not_called()

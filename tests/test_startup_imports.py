@@ -33,16 +33,16 @@ EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 _STARTUP_MODULES = (
     "fun_time.orchestrator",     # python -m fun_time.orchestrator
     # The session machinery, which the launch loads a second later, under the
-    # cover: the overlay reads above are on its side of that import.
+    # loading screen: the overlay reads above are on its side of that import.
     "fun_time.windows_bridge_orchestrator",
     "fun_time.voice_commands",   # module-level load_content()["clip_jump_phrases"]
 )
 
-# What may not be loaded to raise the cover, all of it seconds of import on a
+# What may not be loaded to raise the loading screen, all of it seconds of import on a
 # cold machine: the session machinery and the libraries under it.  Each used to
 # load before anything was on screen, which is what he was watching a bare
 # desktop for.
-_NOT_BEFORE_THE_COVER = (
+_NOT_BEFORE_THE_LOADING_SCREEN = (
     "fun_time.windows_bridge_orchestrator",
     "numpy",
     "cv2",
@@ -103,13 +103,13 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
     assert required_key in result.stderr
 
 
-def test_the_launch_loads_nothing_the_cover_does_not_need():
+def test_the_launch_loads_nothing_the_loading_screen_does_not_need():
     """The first thing a launch does is cover the monitors, so what it imports
-    to get there is what he waits through.  The rest loads under the cover."""
+    to get there is what he waits through.  The rest loads under the loading screen."""
     result = subprocess.run(
         [sys.executable, "-c",
          "import fun_time.orchestrator, sys;"
-         f"print([m for m in {_NOT_BEFORE_THE_COVER!r} if m in sys.modules])"],
+         f"print([m for m in {_NOT_BEFORE_THE_LOADING_SCREEN!r} if m in sys.modules])"],
         cwd=PROJECT_DIR, capture_output=True, text=True, check=False,
     )
 

@@ -15,7 +15,7 @@ from fun_time.config import LayoutConfig
 from fun_time.crown import Crown
 from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement, read_events
 from fun_time.notice_placement import FunestraRects, notice_target_rect
-from fun_time.overlay_progress import loading_cover_is_up
+from fun_time.overlay_progress import loading_screen_is_up
 from fun_time.shared_state import read_shared_state
 from fun_time.unlogged_notices import UnloggedNotices
 from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monitor_rects
@@ -44,7 +44,7 @@ class NoticeFeed:
     """One session's notices: where they go, when they may go, how far read.
 
     Two directories, because the two files are in two.  *held* waits for the
-    COVER, which the panel's own reveal precedes.
+    LOADING SCREEN, which the panel's own reveal precedes.
     """
 
     def __init__(
@@ -53,14 +53,14 @@ class NoticeFeed:
         layout: LayoutConfig,
         rfb_slot_strip: bool = False,
         event_log_dir: Path,
-        cover_dir: Path,
+        loading_screen_dir: Path,
         make_overlay: Callable[[], object],
         held: bool,
         list_what_was_heard: Callable[[list[EventRecord]], None],
         shared_state_file: Path | None = None,
     ) -> None:
         self._event_log_dir = event_log_dir
-        self._cover_dir = cover_dir
+        self._loading_screen_dir = loading_screen_dir
         self._offset = 0
         self._held = held
         self._list_what_was_heard = list_what_was_heard
@@ -89,7 +89,7 @@ class NoticeFeed:
         if self.overlay is None or self._screens is None:
             return
         if self._held:
-            if loading_cover_is_up(self._cover_dir):
+            if loading_screen_is_up(self._loading_screen_dir):
                 return
             # Latched, so the steady state costs no file check at all.
             self._held = False

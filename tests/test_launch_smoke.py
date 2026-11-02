@@ -38,9 +38,9 @@ _LAUNCH_MODULE = re.compile(r'-m\s+([A-Za-z_][\w.]*)')
 _UNLAUNCHED_ENTRY_POINTS = (
     ("session_handoff (started by an orchestrator)", "fun_time.session_handoff"),
     # The session machinery, imported by the launch rather than by a launcher:
-    # it loads under the cover, so no ``-m`` names it and the scan cannot find
+    # it loads under the loading screen, so no ``-m`` names it and the scan cannot find
     # it -- while it is where nearly every cross-repo import on this path lives.
-    ("windows_bridge_orchestrator (loaded under the cover)",
+    ("windows_bridge_orchestrator (loaded under the loading screen)",
      "fun_time.windows_bridge_orchestrator"),
 )
 

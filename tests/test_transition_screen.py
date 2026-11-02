@@ -1,4 +1,4 @@
-"""The crossing cover's way out that needs nobody else alive.
+"""The transition screen's way out that needs nobody else alive.
 
 It cost him two forced restarts of the machine.  A crossing raises a
 full-screen always-on-top window and the ARRIVING session takes it down -- so
@@ -6,8 +6,8 @@ every way that session can fail to arrive is a way the monitors stay covered,
 and there are more of those than can be enumerated: the relay died on a locked
 log file once, and something else will die on something else.
 
-So the cover stops depending on anyone: a file that has stopped moving takes it
-down without being asked.  Esc never does -- the cover is there to hide the
+So the loading screen stops depending on anyone: a file that has stopped moving takes it
+down without being asked.  Esc never does -- the loading screen is there to hide the
 room changing shape, and a key that uncovered it was never wanted.
 """
 from __future__ import annotations
@@ -22,37 +22,37 @@ from pathlib import Path
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time import session_handoff, transition_screen
 from fun_time.child_launch import open_child_log
-from fun_time.overlay_progress import COVER_HEARTBEAT_S
+from fun_time.overlay_progress import LOADING_SCREEN_HEARTBEAT_S
 from fun_time.session_handoff import (
-    COVER_STALE_S,
+    LOADING_SCREEN_STALE_S,
     crossing_progress_path,
-    drop_crossing_cover,
-    keep_the_crossing_cover,
+    drop_transition_screen,
+    keep_the_transition_screen,
     returning_from_a_crossing,
 )
 from fun_time_vr import orchestrator as vr_orchestrator
 
 
 def test_it_gives_up_in_a_time_a_person_will_wait():
-    """Three minutes under a cover is indistinguishable from a dead machine --
+    """Three minutes under a loading screen is indistinguishable from a dead machine --
     he force-restarted rather than sit it out.  A crossing takes about two
     seconds, and a slow one keeps saying so."""
     assert transition_screen.STALE_TIMEOUT_S <= 30.0
 
 
-def test_a_slow_crossing_keeps_its_own_cover_up():
+def test_a_slow_crossing_keeps_its_own_loading_screen_up():
     """The other half of a twenty-second timeout: a headset that takes half a
     minute to wake must not be uncovered halfway there.  So a session says the
     crossing is still under way -- without rewriting the line under it, which a
     torn read would blank on the screen."""
-    assert COVER_HEARTBEAT_S * 3 < transition_screen.STALE_TIMEOUT_S  # room to miss some
+    assert LOADING_SCREEN_HEARTBEAT_S * 3 < transition_screen.STALE_TIMEOUT_S  # room to miss some
 
     with tempfile.TemporaryDirectory() as state_dir:
         progress = crossing_progress_path(state_dir)
         progress.write_text("1/2|Changing over...", encoding="utf-8")
         os.utime(progress, (0, 0))
 
-        stop = keep_the_crossing_cover(state_dir)
+        stop = keep_the_transition_screen(state_dir)
         try:
             deadline = time.time() + 5
             while progress.stat().st_mtime < time.time() - 60 and time.time() < deadline:
@@ -67,7 +67,7 @@ def test_a_slow_crossing_keeps_its_own_cover_up():
 def test_a_heartbeat_that_is_stopped_is_gone():
     before = set(threading.enumerate())
     with tempfile.TemporaryDirectory() as state_dir:
-        stop = keep_the_crossing_cover(state_dir)
+        stop = keep_the_transition_screen(state_dir)
 
         stop()
 
@@ -76,7 +76,7 @@ def test_a_heartbeat_that_is_stopped_is_gone():
 
 def test_a_crossing_has_no_process_that_forgets_to_say_so():
     """A crossing passes through three processes -- the session being left, the
-    relay, the session arriving -- and the cover stands across all three.  Any
+    relay, the session arriving -- and the loading screen stands across all three.  Any
     one of them that does not say so uncovers the monitors mid-crossing, which
     is worse than the trap this timeout was shortened to escape."""
     for func in (
@@ -84,28 +84,28 @@ def test_a_crossing_has_no_process_that_forgets_to_say_so():
         vr_orchestrator.main,           # FunTimeVR, leaving or arriving
         session_handoff.run,            # the relay in between
     ):
-        assert "keep_the_crossing_cover(" in inspect.getsource(func), func.__qualname__
+        assert "keep_the_transition_screen(" in inspect.getsource(func), func.__qualname__
 
 
 def test_a_crossing_file_nobody_tidied_is_not_a_crossing():
     """His state dir still holds ``1/2|Cancelling...`` from the run that
-    stranded him.  Only the cover deletes that file, so a crossing that ended
+    stranded him.  Only the loading screen deletes that file, so a crossing that ended
     without one leaks it -- and a startup that reads it as a return builds an
     UNCANCELLABLE loading screen, for that session and every session after."""
     with tempfile.TemporaryDirectory() as state_dir:
         progress = crossing_progress_path(state_dir)
         progress.write_text("1/2|Cancelling...", encoding="utf-8")
-        assert returning_from_a_crossing(state_dir)  # a cover IS standing
+        assert returning_from_a_crossing(state_dir)  # a loading screen IS standing
 
-        os.utime(progress, (time.time() - COVER_STALE_S - 1,) * 2)
+        os.utime(progress, (time.time() - LOADING_SCREEN_STALE_S - 1,) * 2)
         assert not returning_from_a_crossing(state_dir)
 
         # Nor does the session that handed over keep the leak looking alive.
-        drop_crossing_cover(state_dir)
-        stop = keep_the_crossing_cover(state_dir)
+        drop_transition_screen(state_dir)
+        stop = keep_the_transition_screen(state_dir)
         try:
             time.sleep(0.3)
-            os.utime(progress, (time.time() - COVER_STALE_S - 1,) * 2)
+            os.utime(progress, (time.time() - LOADING_SCREEN_STALE_S - 1,) * 2)
             time.sleep(0.3)
         finally:
             stop()

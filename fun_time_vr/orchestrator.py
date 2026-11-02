@@ -98,13 +98,13 @@ from fun_time.session_handoff import (
     DESKTOP,
     VR,
     clear_handoff_request,
-    drop_crossing_cover,
+    drop_transition_screen,
     hand_over_if_asked,
     headset_is_held,
     hold_the_headset,
-    keep_the_crossing_cover,
-    launch_crossing_cover,
-    launch_the_way_back_cover,
+    keep_the_transition_screen,
+    launch_the_way_back_screen,
+    launch_transition_screen,
     pending_handoff,
     release_the_headset,
     request_handoff,
@@ -137,7 +137,7 @@ from fun_time.windows_bridge_orchestrator import (
     PreparedVoice,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
-    finish_under_the_cover,
+    finish_under_the_loading_screen,
     kill_recorded_child,
     launch_hotkey_script,
     let_go_of_a_kept_origenerator,
@@ -159,11 +159,11 @@ from fun_time.windows_bridge_startup import (
 )
 
 from . import vr_runtime
-from .cover import (
+from .loading_screen import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
     scene_ready_file,
-    wait_for_cover_painted,
+    wait_for_loading_screen_painted,
 )
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
@@ -285,7 +285,7 @@ def _wait_for_funestra(
 def _wait_for_the_room(
     marker_file: Path, funestra: subprocess.Popen, progress: ProgressReporter | None = None,
 ) -> bool:
-    """Until the Funestra says the room is up and its cover has been seen.  Never
+    """Until the Funestra says the room is up and its loading screen has been seen.  Never
     fatal: the Funestra caps its own wait, so holding a launch on a missing marker
     is worse than revealing one blank screen.  A checkpoint too."""
     deadline = time.monotonic() + SCENE_READY_TIMEOUT_S
@@ -337,14 +337,14 @@ def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
 
 
 # A running frame loop answers within a frame or two; a headset presenting
-# nothing answers at once (Funestra._CoverUnit.settled).
-CLOSING_COVER_READY_TIMEOUT_S = 5.0
+# nothing answers at once (Funestra._LoadingScreenUnit.settled).
+CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
 
 HEADSET_HOLD_ACK_TIMEOUT_S = 15.0  # to break its loop and let go of every channel
 
 
-class _Cover:
-    """The loading cover from the orchestrator's side: the progress file the
+class _LoadingScreen:
+    """The loading screen from the orchestrator's side: the progress file the
     Funestra reads, and the cancel flag it and the hotkey script drop."""
 
     def __init__(self, state_dir: Path, *, cancelable: bool = True) -> None:
@@ -366,7 +366,7 @@ class _Cover:
 
     def clear(self) -> None:
         """Drop both files -- after a DONE where a session is being revealed,
-        without one where the cover goes with the Funestra."""
+        without one where the loading screen goes with the Funestra."""
         self.progress_file.unlink(missing_ok=True)
         self.cancel_file.unlink(missing_ok=True)
 
@@ -377,21 +377,21 @@ def _take_down_the_launch(
     children: dict[str, ChildProcess],
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
-    cover: _Cover,
+    loading_screen: _LoadingScreen,
     runtime_was_up: bool,
 ) -> None:
-    """The Funestra goes LAST (it wears the cover) and the hotkey script first."""
+    """The Funestra goes LAST (it wears the loading screen) and the hotkey script first."""
     say_the_crossing_is_cancelled(state_dir)  # a teardown of seconds looks like nothing
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     funestra = children.get("vr_funestras_pid")
-    with cover.progress.cover_kept_up():
+    with loading_screen.progress.loading_screen_kept_up():
         for key, child in children.items():
             if key != "vr_funestras_pid":
                 kill_recorded_child(child)
         if funestra is not None:
             kill_recorded_child(funestra)
     _release_vr_runtime(runtime_was_up, state_dir)
-    cover.clear()
+    loading_screen.clear()
 
 
 def _cancel_vr_startup(
@@ -402,13 +402,13 @@ def _cancel_vr_startup(
     children: dict[str, ChildProcess],
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
-    cover: _Cover,
+    loading_screen: _LoadingScreen,
     runtime_was_up: bool,
 ) -> int:
     """Tear down a launch the user called off, then exit, then the monitors."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
-    back_to = (cover.turns_back_to  # read before cover.clear() takes the flag
-               if what_the_flag_asks(cover.cancel_file) == CANCEL_WORD else None)
+    back_to = (loading_screen.turns_back_to  # read before loading_screen.clear() takes the flag
+               if what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD else None)
     # Before the sweep, which would kill one of his the session had borrowed.
     if (app := children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
             state_dir, app, origenerator_cmd_file,
@@ -416,14 +416,14 @@ def _cancel_vr_startup(
         children.pop("origenerator_pid")
     _take_down_the_launch(
         state_dir=state_dir, children=children, ahk_proc=ahk_proc,
-        ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
+        ahk_cmd_file=ahk_cmd_file, loading_screen=loading_screen, runtime_was_up=runtime_was_up,
     )
     if back_to is not None:
         logger.info("Canceled; handing back to %s", back_to.app_name)
-        request_handoff(state_dir, back_to, cancelable=False)  # it drops the cover once it is up
+        request_handoff(state_dir, back_to, cancelable=False)  # it drops the loading screen once it is up
     else:
         logger.info("Canceled; closing")
-        drop_crossing_cover(state_dir)  # nothing is coming to do it for us
+        drop_transition_screen(state_dir)  # nothing is coming to do it for us
         # A launch cancelled before it reached the app never adopted what Fun
         # Time parked, and nothing is coming that will.
         let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
@@ -431,11 +431,11 @@ def _cancel_vr_startup(
 
 
 @contextlib.contextmanager
-def _closing_cover(
+def _closing_screen(
     state_dir: Path, funestra: subprocess.Popen, *, enabled: bool, esc_cancels: str = "",
 ) -> Iterator[ProgressReporter]:
-    """Raise the headset's cover over the teardown, and hold the first kill for
-    it.  No DONE: the cover goes when the Funestra drawing it does, and a DONE
+    """Raise the headset's loading screen over the teardown, and hold the first kill for
+    it.  No DONE: the loading screen goes when the Funestra drawing it does, and a DONE
     would uncover a half-dismantled scene.  Off when the Funestra is what ended."""
     if not enabled:
         yield NullProgress()
@@ -450,10 +450,10 @@ def _closing_cover(
     # Written before the wait so the Funestra has something to read on its first
     # poll, and so its staleness clock starts here rather than never.
     shutdown.advance("controls")
-    wait_for_cover_painted(
+    wait_for_loading_screen_painted(
         ready_file,
         still_alive=lambda: funestra.poll() is None,
-        timeout_s=CLOSING_COVER_READY_TIMEOUT_S,
+        timeout_s=CLOSING_SCREEN_READY_TIMEOUT_S,
     )
     try:
         yield shutdown
@@ -471,7 +471,7 @@ class _Launch:
     pids_file: Path
     ahk_cmd_file: Path
     prepared_voice: PreparedVoice | None
-    cover: _Cover
+    loading_screen: _LoadingScreen
 
     @property
     def commands(self):
@@ -479,7 +479,7 @@ class _Launch:
 
     @property
     def progress(self) -> ProgressReporter:
-        return self.cover.progress
+        return self.loading_screen.progress
 
     @property
     def dashboard_cmd_file(self) -> Path:
@@ -520,7 +520,7 @@ def _prepare_the_launch(config, env: SessionEnvironment, *, cancelable: bool) ->
     return _Launch(
         state_dir=state_dir, manifest_path=manifest_path, manifest=manifest,
         bridge_config=bridge_config, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file,
-        prepared_voice=prepared_voice, cover=_Cover(state_dir, cancelable=cancelable),
+        prepared_voice=prepared_voice, loading_screen=_LoadingScreen(state_dir, cancelable=cancelable),
     )
 
 
@@ -577,7 +577,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         # The checkpoint raised before its phase ran, so *launched* is exact.
         return _cancel_vr_startup(
             state_dir=launch.state_dir, children=launched.children, ahk_proc=ahk_proc,
-            ahk_cmd_file=launch.ahk_cmd_file, cover=launch.cover,
+            ahk_cmd_file=launch.ahk_cmd_file, loading_screen=launch.loading_screen,
             runtime_was_up=launched.runtime_was_up,
             origenerator_cmd_file=Path(launch.commands.origenerator_cmd_file),
             taken_over=launched.hosted_taken_over,
@@ -590,10 +590,10 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                     len(launched.children))
         _take_down_the_launch(
             state_dir=launch.state_dir, children=launched.children, ahk_proc=ahk_proc,
-            ahk_cmd_file=launch.ahk_cmd_file, cover=launch.cover,
+            ahk_cmd_file=launch.ahk_cmd_file, loading_screen=launch.loading_screen,
             runtime_was_up=launched.runtime_was_up,
         )
-        drop_crossing_cover(launch.state_dir)  # nothing is coming to do it for us
+        drop_transition_screen(launch.state_dir)  # nothing is coming to do it for us
         raise
     return _hold_the_session(launch, launched, running, ahk_proc)
 
@@ -694,7 +694,7 @@ def _launch_the_children(launch: _Launch, config, launched: _Launched) -> None:
     logger.info("Audio companion launched (pid=%d)", audio.pid)
     launched.record("audio_pid", audio.pid)
 
-    # The long phase, and the only one the headset shows: the cover is a
+    # The long phase, and the only one the headset shows: the loading screen is a
     # surface of the process launched here, so it covers the rest of it.
     progress.advance("funestras")
     launched.runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
@@ -717,11 +717,11 @@ def _end_a_launch_the_headset_never_joined(
 ) -> int:
     # The script too: one left running swallows every key it binds.
     stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
-    with launch.progress.cover_kept_up():
+    with launch.progress.loading_screen_kept_up():
         for child in launched.children.values():
             kill_recorded_child(child)
     _release_vr_runtime(launched.runtime_was_up, launch.state_dir)
-    launch.cover.clear()
+    launch.loading_screen.clear()
     return 1
 
 
@@ -746,20 +746,20 @@ def _open_the_room(
     )
     voice_controller, voice_thread = start_voice_control(
         launch.prepared_voice, dispatch_runner=dispatch_runner)
-    finish_under_the_cover(dispatch_runner, voice_controller, progress=progress)
-    progress.advance("finalizing")  # the last line, after any wait under the cover
+    finish_under_the_loading_screen(dispatch_runner, voice_controller, progress=progress)
+    progress.advance("finalizing")  # the last line, after any wait under the loading screen
 
     # DONE first, then the Funestras: released before it, the first seconds of a
     # video play under a panel nobody can see through (release_the_funestras).
-    # The Funestra takes the cover down within a poll of this line.
+    # The Funestra takes the loading screen down within a poll of this line.
     progress.finish()
     release_the_funestras(manifest, carried.main_mode)
-    # The headset is showing the session: the monitors' cover can go.
-    drop_crossing_cover(state_dir)
+    # The headset is showing the session: the monitors' loading screen can go.
+    drop_transition_screen(state_dir)
     # Records the children for teardown and hands the keyboard over: the hotkey
     # script takes its startup hold off, so Esc now means omnipause.
     write_pids_file(launch.pids_file, launched.children)
-    launch.cover.clear()
+    launch.loading_screen.clear()
     launch.room_ready_file.unlink(missing_ok=True)
 
     dispatch_thread = threading.Thread(
@@ -818,31 +818,31 @@ def _close_the_session(
     manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
     funestra = launched.funestra
     stop_everything(commands, (running.dispatch_runner, running.dispatch_thread))
-    # This teardown's cover hangs in the headset (docs/entering-vr.md).
+    # This closing screen hangs in the headset (docs/entering-vr.md).
     held = back_to_vr = False
     if (crossing := pending_handoff(state_dir)) is not None:
-        launch_crossing_cover(state_dir, crossing,
+        launch_transition_screen(state_dir, crossing,
                               sibling_checkouts=manifest.runtime.sibling_checkouts)
     # Up first and up through everything below.  A session that ended
     # BECAUSE the Funestra went has nothing left to draw with, and nothing to
     # hide: the cut to the runtime's environment already came.
     esc_cancels = (crossing.crossing_hint if crossing is not None
                    else CANCEL_CLOSING_FUN_TIME_VR if asked else "")
-    with _closing_cover(
+    with _closing_screen(
         state_dir, funestra, enabled=funestra.poll() is None, esc_cancels=esc_cancels,
     ) as shutdown:
         if crossing is not None:
             hold_the_headset(state_dir, stop_runtime=not launched.runtime_was_up)
         _stop_the_controls(running)
         shutdown.advance("companions")
-        with shutdown.cover_kept_up():
+        with shutdown.loading_screen_kept_up():
             kill_recorded_child(launched.children["audio_pid"])
         shutdown.advance("funestras")
         back_to_vr = (crossing is None and esc_cancels != ""
                       and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
         if back_to_vr:
             logger.info("Esc called the quit off; opening Fun Time VR again")
-            launch_the_way_back_cover(
+            launch_the_way_back_screen(
                 state_dir, sibling_checkouts=manifest.runtime.sibling_checkouts,
             )
             request_handoff(state_dir, VR, cancelable=False)
@@ -853,14 +853,14 @@ def _close_the_session(
                 state_dir, hosted_app, Path(commands.origenerator_cmd_file),
                 keep=crossing is not None or back_to_vr,
                 taken_over=launched.hosted_taken_over):
-            with shutdown.cover_kept_up():
+            with shutdown.loading_screen_kept_up():
                 kill_recorded_child(hosted_app)
         held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
             state_dir, funestra,
         )
         if not held:
-            with shutdown.cover_kept_up():
-                kill_recorded_child(launched.children["vr_funestras_pid"])  # last: it wears the cover
+            with shutdown.loading_screen_kept_up():
+                kill_recorded_child(launched.children["vr_funestras_pid"])  # last: it wears the loading screen
         if crossing is None:  # else it hears Esc until the relay has read the flag
             stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
     if not held and not back_to_vr:
@@ -926,7 +926,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     logger.info("Loaded config from %s", config.config_path)
-    keep_the_crossing_cover(config.paths.state_dir)  # a crossing at either end
+    keep_the_transition_screen(config.paths.state_dir)  # a crossing at either end
     ensure_runtime_files(config)
     clear_handoff_request(config.paths.state_dir)
     validate_config(config)

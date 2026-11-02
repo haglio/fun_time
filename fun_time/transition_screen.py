@@ -1,4 +1,4 @@
-"""The cover the monitors wear while the room changes shape.
+"""The loading screen the monitors wear while the room changes shape.
 
 Runs as a subprocess: ``python -m fun_time.transition_screen <progress_file>``,
 raised by the session leaving and taken down by the one arriving
@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from .overlay_progress import progress_file_argument, ready_file_for
 from .overlay_window import OverlayWindow
-from .session_handoff import COVER_STALE_S
+from .session_handoff import LOADING_SCREEN_STALE_S
 
 WINDOW_TITLE = "Fun Time Transition"  # distinct: an exact-title lookup resolves one
-STALE_TIMEOUT_S = COVER_STALE_S  # a crossing that never arrives; 180 read as dead
+STALE_TIMEOUT_S = LOADING_SCREEN_STALE_S  # a crossing that never arrives; 180 read as dead
 
 
 def main() -> None:

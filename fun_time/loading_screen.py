@@ -12,10 +12,10 @@ from __future__ import annotations
 from .overlay_progress import STARTUP_PHASES, progress_file_argument
 
 # Distinct from the dashboard's "Fun Time": a title lookup meaning the dashboard
-# must never resolve this cover.  Borderless, so the title is never rendered.
+# must never resolve this loading screen.  Borderless, so the title is never rendered.
 WINDOW_TITLE = "Fun Time Loading"
 
-# How long the cover sits on a progress file that has stopped changing before it
+# How long the loading screen sits on a progress file that has stopped changing before it
 # concludes startup died.  Wide enough to outlast the longest single phase --
 # the sequencer pins the sum against this.
 STALE_TIMEOUT_S = 60.0

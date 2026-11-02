@@ -82,7 +82,7 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     unexpected one.
 
     An end the session asked for -- the quit chord, or end_session on the
-    mailbox -- leaves the script running over the closing cover, where Esc can
+    mailbox -- leaves the script running over the closing screen, where Esc can
     still call it off; the marker is what tells the orchestrator it ended.  Only
     the mailbox's exit marks and exits at once.
 

@@ -24,8 +24,14 @@ from fun_time.project_paths import PROJECT_VR_ICON
 
 from . import vr_runtime
 from .bringup import open_vr_session
-from .frame_loop import FrameLoop, Headset, present_the_cover, raise_the_cover, tear_down
-from .funestras import CoverUnit, VrSettings, hang_the_room
+from .frame_loop import (
+    FrameLoop,
+    Headset,
+    present_the_loading_screen,
+    raise_the_loading_screen,
+    tear_down,
+)
+from .funestras import LoadingScreenUnit, VrSettings, hang_the_room
 from .perf import FramePerf
 from .render import SceneRenderer
 from .scheduling import ahead_of_background_work
@@ -101,11 +107,11 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     headset = Headset(session, SceneRenderer(), FramePerf(logger=logger))
     state_dir = Path(manifest.commands.dashboard_cmd_file).parent
     # Before the Funestras and refreshed between them: each opens media.
-    cover = CoverUnit(state_dir)
-    raise_the_cover(headset, cover)
+    loading_screen = LoadingScreenUnit(state_dir)
+    raise_the_loading_screen(headset, loading_screen)
     the_room = hang_the_room(
-        manifest, vr, session.shared_contexts(), manifest_path=manifest_path, cover=cover,
-        perf=headset.perf, present_the_cover=lambda: present_the_cover(headset, cover))
+        manifest, vr, session.shared_contexts(), manifest_path=manifest_path, loading_screen=loading_screen,
+        perf=headset.perf, present_the_loading_screen=lambda: present_the_loading_screen(headset, loading_screen))
     the_room.start_pumping(headset.perf)
     logger.info(
         "Entering the VR loop (three Funestras up, compositor layers %s)",

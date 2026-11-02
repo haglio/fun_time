@@ -158,7 +158,7 @@ def test_the_helper_sends_the_pair_to_devnull():
 
 def test_the_console_helper_carries_the_flag_and_nothing_else():
     """No ``startupinfo``: the hiding one would hide the child's own first
-    window, and a cover nobody can see covers nothing."""
+    window, and a loading screen nobody can see covers nothing."""
     assert no_console_window() == {"creationflags": subprocess.CREATE_NO_WINDOW}
 
 

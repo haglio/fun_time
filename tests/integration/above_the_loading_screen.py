@@ -1,17 +1,17 @@
-"""What sits above the loading cover, and for how long.
+"""What sits above the loading screen, and for how long.
 
 Sampled from a thread of its own, because the question is about milliseconds:
-every raise a session makes while the cover is up inserts that window ABOVE the
-cover, and Windows never tells a window it has been displaced, so how long
+every raise a session makes while the loading screen is up inserts that window ABOVE the
+loading screen, and Windows never tells a window it has been displaced, so how long
 anything shows through the scrim is the gap between the raise and whatever puts
 it back.
 
 The arithmetic lives here rather than in the test that uses it because it is
 where the measurement went wrong once: a stay used to be inferred from the gaps
 between samples of one window, with any gap under 20ms read as the same stay —
-and the cover answers a raise in 16ms, so two separate appearances either side
-of the cover's own answer were reported as one stay twice as long.  It is unit
-tested next door in ``tests/test_above_the_cover.py``.
+and the loading screen answers a raise in 16ms, so two separate appearances either side
+of the loading screen's own answer were reported as one stay twice as long.  It is unit
+tested next door in ``tests/test_above_the_loading_screen.py``.
 """
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ _user32.IsWindowVisible.argtypes = [wt.HWND]
 _user32.GetWindowTextW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 GW_HWNDPREV = 3
 
-# How long a window may sit over the cover: two display frames at 60Hz.  The
+# How long a window may sit over the loading screen: two display frames at 60Hz.  The
 # floor under this is one SetWindowPos — whatever puts a window back cannot run
 # before the raise has happened — so the number cannot be zero, and the 200ms
-# the cover's first defense took is six times it.
+# the loading screen's first defense took is six times it.
 VISIBLE_MS = 34.0
 
 POLL_S = 0.002
@@ -50,7 +50,7 @@ _LOST_SAMPLE_MS = 6.0
 
 @dataclass(frozen=True)
 class Stay:
-    """One unbroken stretch of one window sitting above the cover."""
+    """One unbroken stretch of one window sitting above the loading screen."""
 
     what: str
     ms: float
@@ -68,9 +68,9 @@ def _window_title(hwnd: int) -> str:
 def stays_from(samples: list[tuple[float, int, str]]) -> list[Stay]:
     """Every unbroken stay in *samples*, which are (when, hwnd, title) in order.
 
-    A sample naming nothing (hwnd 0) is the cover back on top, and ends whatever
+    A sample naming nothing (hwnd 0) is the loading screen back on top, and ends whatever
     was above it — so an appearance is never joined to the next one across the
-    cover's own answer, however close together the two are.
+    loading screen's own answer, however close together the two are.
     """
     out: list[Stay] = []
     start = previous = 0.0
@@ -90,8 +90,8 @@ def stays_from(samples: list[tuple[float, int, str]]) -> list[Stay]:
     return out
 
 
-class AboveTheCover(threading.Thread):
-    """Sample the window immediately above the cover for as long as it is up.
+class AboveTheLoadingScreen(threading.Thread):
+    """Sample the window immediately above the loading screen for as long as it is up.
 
     Only the one directly above it, because that is one ``GetWindow`` call and
     can therefore run at 2ms — walking the whole z-order costs tens of
@@ -101,22 +101,22 @@ class AboveTheCover(threading.Thread):
     def __init__(self, timeout_s: float = 240.0) -> None:
         super().__init__(daemon=True)
         self._timeout_s = timeout_s
-        self.cover_was_up = False
+        self.loading_screen_was_up = False
         self.samples: list[tuple[float, int, str]] = []
 
     def run(self) -> None:
         budget = Budget(self._timeout_s)
-        cover = 0
+        loading_screen = 0
         while not budget.expired():
-            cover = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
-            if cover:
+            loading_screen = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
+            if loading_screen:
                 break
             time.sleep(0.01)
-        if not cover:
+        if not loading_screen:
             return
-        self.cover_was_up = True
-        while not budget.expired() and _user32.IsWindowVisible(cover):
-            hwnd = _user32.GetWindow(cover, GW_HWNDPREV)
+        self.loading_screen_was_up = True
+        while not budget.expired() and _user32.IsWindowVisible(loading_screen):
+            hwnd = _user32.GetWindow(loading_screen, GW_HWNDPREV)
             while hwnd and not _user32.IsWindowVisible(hwnd):
                 hwnd = _user32.GetWindow(hwnd, GW_HWNDPREV)
             hwnd = int(hwnd or 0)

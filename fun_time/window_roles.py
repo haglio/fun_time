@@ -47,7 +47,7 @@ def role_topmost(role: str, rfb_slot: RfbSlot = RfbSlot.RFB) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band: every window with a
     rect of its own, and of the pair sharing the browser's rect only the one
     holding it -- promoting the covered one only puts it briefly ABOVE its
-    cover, since HWND_TOPMOST inserts at the top of the band."""
+    window over it, since HWND_TOPMOST inserts at the top of the band."""
     if role not in RFB_SLOT_ROLES:
         return True
     return (role == ORIGENERATOR_ROLE) == (rfb_slot is RfbSlot.ORIGENERATOR)

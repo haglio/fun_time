@@ -171,14 +171,14 @@ class TestTheTeardownClosesTheWholeList:
         assert len(traced) == 1
 
     def test_the_one_the_hold_still_needs_is_left_open(self):
-        """A crossing leaves the cover drawing in the headset while the desktop
+        """A crossing leaves the loading screen drawing in the headset while the desktop
         comes back, so it is the one thing the teardown must not close."""
-        cover = _Unit()
+        loading_screen = _Unit()
         other = _Unit()
 
-        _close_channels([other, cover], keep=cover)
+        _close_channels([other, loading_screen], keep=loading_screen)
 
-        assert cover.closed == 0
+        assert loading_screen.closed == 0
         assert other.closed == 1
 
     def test_everything_is_closed_when_nothing_is_kept(self):

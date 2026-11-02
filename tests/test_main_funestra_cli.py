@@ -371,7 +371,7 @@ NO_FLAGS_LANDS_AS = {
 class TestTheWholeSurfaceFunTimeLaunchesThrough:
     """The parser is an orchestrator contract, so it is written down whole.
 
-    The classes above cover the flags Fun Time passes today; these two cover
+    The classes above cover the flags Fun Time passes today; these two loading screen
     the ones it does not, which is where a rename or a dropped flag would
     otherwise go unnoticed until a launch. Both tables are written out here
     rather than read off the parser, so a flag added, removed, renamed or

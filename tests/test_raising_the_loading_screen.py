@@ -8,8 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from app_support import loading_screen
 
-from fun_time import loading_cover, win32
-from fun_time.loading_cover import open_the_cover
+from fun_time import raising_the_loading_screen, win32
 from fun_time.loading_screen import WINDOW_TITLE
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
@@ -17,27 +16,28 @@ from fun_time.overlay_progress import (
     STARTUP_PHASES,
     parse_progress,
 )
+from fun_time.raising_the_loading_screen import open_the_loading_screen
 from fun_time.session_handoff import (
     DESKTOP,
     STARTUP_TIMEOUT_S,
     VR,
     crossing_progress_path,
-    drop_crossing_cover,
-    raise_crossing_cover,
+    drop_transition_screen,
+    raise_transition_screen,
     returning_from_a_crossing,
 )
 from tests.made_up_clocks import SleepDrivenClock
 
 
-def _opened_cover(state_dir, *, cancelable=True, popen=None):
-    with patch("fun_time.loading_cover.subprocess.Popen", popen or MagicMock()), \
-         patch("fun_time.loading_cover.wait_for_window", return_value=0):
-        return open_the_cover(state_dir, show_overlays=True, sibling_checkouts="",
+def _opened_loading_screen(state_dir, *, cancelable=True, popen=None):
+    with patch("fun_time.raising_the_loading_screen.subprocess.Popen", popen or MagicMock()), \
+         patch("fun_time.raising_the_loading_screen.wait_for_window", return_value=0):
+        return open_the_loading_screen(state_dir, show_overlays=True, sibling_checkouts="",
                               cancelable=cancelable)
 
 
-class TestWhatTheCoverSaysBeforeTheScreenIsUp:
-    """The launch's own work runs under the cover, so the cover's first line is
+class TestWhatTheLoadingScreenSaysBeforeTheScreenIsUp:
+    """The launch's own work runs under the loading screen, so the loading screen's first line is
     written before the screen that reads it exists."""
 
     def test_the_first_phase_is_on_disk_before_the_screen_is_launched(self, tmp_path: Path):
@@ -45,18 +45,18 @@ class TestWhatTheCoverSaysBeforeTheScreenIsUp:
         popen = MagicMock(side_effect=lambda *_a, **_kw: written.append(
             (tmp_path / PROGRESS_FILENAME).read_text(encoding="utf-8")) or MagicMock())
 
-        _opened_cover(tmp_path, popen=popen)
+        _opened_loading_screen(tmp_path, popen=popen)
 
         assert parse_progress(written[0]).message == STARTUP_PHASES[0].message
 
-    def test_a_done_a_crash_left_there_cannot_close_the_new_cover(self, tmp_path: Path):
+    def test_a_done_a_crash_left_there_cannot_close_the_new_loading_screen(self, tmp_path: Path):
         """The screen closes on DONE, so a leftover one read on its first poll
-        would take the cover off a launch that had only just raised it."""
+        would take the loading screen off a launch that had only just raised it."""
         (tmp_path / PROGRESS_FILENAME).write_text("DONE", encoding="utf-8")
 
-        cover = _opened_cover(tmp_path)
+        loading_screen = _opened_loading_screen(tmp_path)
 
-        assert not parse_progress(cover.progress_file.read_text(encoding="utf-8")).done
+        assert not parse_progress(loading_screen.progress_file.read_text(encoding="utf-8")).done
 
 
 class TestTheLaunchersLoadingScreen:
@@ -66,25 +66,25 @@ class TestTheLaunchersLoadingScreen:
         monkeypatch.setenv(loading_screen.LINES, '["Updating Fun Time..."]')
         return tmp_path / "screen"
 
-    def test_the_cover_is_told_where_it_meets_the_one_its_launcher_showed(self, tmp_path, launched):
+    def test_the_loading_screen_is_told_where_it_meets_the_one_its_launcher_showed(self, tmp_path, launched):
         popen = MagicMock()
 
-        _opened_cover(tmp_path, popen=popen)
+        _opened_loading_screen(tmp_path, popen=popen)
 
         environment = popen.call_args.kwargs["env"]
         assert (environment[loading_screen.FOLDER], environment[loading_screen.LINES]) == (
             str(launched), '["Updating Fun Time..."]')
 
     def test_nothing_else_the_session_starts_is_told(self, tmp_path, launched):
-        _opened_cover(tmp_path)
+        _opened_loading_screen(tmp_path)
 
         assert loading_screen.FOLDER not in os.environ
 
-    def test_a_cover_on_sibling_checkouts_is_told_as_well(self, tmp_path, launched):
+    def test_a_loading_screen_on_sibling_checkouts_is_told_as_well(self, tmp_path, launched):
         popen = MagicMock()
-        with patch("fun_time.loading_cover.subprocess.Popen", popen), \
-             patch("fun_time.loading_cover.wait_for_window", return_value=0):
-            open_the_cover(tmp_path, show_overlays=True, sibling_checkouts=str(tmp_path))
+        with patch("fun_time.raising_the_loading_screen.subprocess.Popen", popen), \
+             patch("fun_time.raising_the_loading_screen.wait_for_window", return_value=0):
+            open_the_loading_screen(tmp_path, show_overlays=True, sibling_checkouts=str(tmp_path))
 
         environment = popen.call_args.kwargs["env"]
         assert environment[loading_screen.FOLDER] == str(launched)
@@ -96,45 +96,45 @@ def test_the_loading_screen_goes_the_moment_the_fun_time_that_raised_it_does(tmp
     should wait out its minute: no, it goes at once."""
     screen = MagicMock()
 
-    with patch("fun_time.loading_cover.tie_to_this_process") as tie:
-        _opened_cover(tmp_path, popen=MagicMock(return_value=screen))
+    with patch("fun_time.raising_the_loading_screen.tie_to_this_process") as tie:
+        _opened_loading_screen(tmp_path, popen=MagicMock(return_value=screen))
 
     tie.assert_called_once_with(screen)
 
 
-class TestTakingTheCoverDown:
+class TestTakingTheLoadingScreenDown:
     def test_the_screen_is_told_and_then_waited_for(self, tmp_path: Path):
-        cover = _opened_cover(tmp_path)
+        loading_screen = _opened_loading_screen(tmp_path)
 
-        cover.take_it_down()
+        loading_screen.take_it_down()
 
-        cover.process.wait.assert_called_once()
-        assert not cover.progress_file.exists()
+        loading_screen.process.wait.assert_called_once()
+        assert not loading_screen.progress_file.exists()
 
     def test_a_screen_that_will_not_go_is_killed(self, tmp_path: Path):
         """Its window is topmost over every monitor: left standing it hides
         whatever the launch has to say, for a minute of staleness guard."""
-        cover = _opened_cover(tmp_path)
-        cover.process.wait.side_effect = subprocess.TimeoutExpired("loading_screen", 3.0)
+        loading_screen = _opened_loading_screen(tmp_path)
+        loading_screen.process.wait.side_effect = subprocess.TimeoutExpired("loading_screen", 3.0)
 
-        cover.take_it_down()
+        loading_screen.take_it_down()
 
-        cover.process.kill.assert_called_once()
+        loading_screen.process.kill.assert_called_once()
 
-    def test_a_session_with_no_cover_takes_nothing_down(self, tmp_path: Path):
-        cover = open_the_cover(tmp_path, show_overlays=False, sibling_checkouts="")
+    def test_a_session_with_no_loading_screen_takes_nothing_down(self, tmp_path: Path):
+        loading_screen = open_the_loading_screen(tmp_path, show_overlays=False, sibling_checkouts="")
 
-        cover.take_it_down()  # an integration run has no screen to tell
+        loading_screen.take_it_down()  # an integration run has no screen to tell
 
-        assert not cover.progress_file.exists()
+        assert not loading_screen.progress_file.exists()
 
 
 class TestWhatEscCancelsAtTheLoadingScreen:
     @classmethod
     def _opened_line(cls, state_dir, *, cancelable=True):
-        cover = _opened_cover(state_dir, cancelable=cancelable)
-        cover.progress.advance("services")
-        return parse_progress(cover.progress_file.read_text(encoding="utf-8"))
+        loading_screen = _opened_loading_screen(state_dir, cancelable=cancelable)
+        loading_screen.progress.advance("services")
+        return parse_progress(loading_screen.progress_file.read_text(encoding="utf-8"))
 
     def test_a_launch_says_esc_cancels_opening_fun_time(self, tmp_path):
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
@@ -142,14 +142,14 @@ class TestWhatEscCancelsAtTheLoadingScreen:
     def test_a_launch_arriving_from_vr_says_esc_cancels_exiting_vr(self, tmp_path):
         """He asked for the desktop from inside the headset: until it is up,
         Esc takes him back into VR."""
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
 
     def test_a_launch_on_the_way_back_offers_no_esc(self, tmp_path):
         """Esc already called the crossing off; a second would send him back
         the other way for as long as he kept pressing it."""
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path, cancelable=False).hint == ""
 
@@ -158,34 +158,34 @@ class TestWhatEscCancelsAtTheLoadingScreen:
     ):
         """Nothing but the hotkey script left over from the session he left was
         listening then, and the flag it dropped is his answer to this launch."""
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        cover = _opened_cover(tmp_path)
+        loading_screen = _opened_loading_screen(tmp_path)
 
-        assert cover.progress.cancelled
+        assert loading_screen.progress.cancelled
 
     def test_the_first_line_is_not_a_checkpoint_the_flag_can_stop(self, tmp_path):
         """That flag is answered where the teardown lives, at the first phase
-        with children to kill -- not here, where raising the cover would raise
+        with children to kill -- not here, where raising the loading screen would raise
         past the launch instead."""
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        cover = _opened_cover(tmp_path)  # must not raise
+        loading_screen = _opened_loading_screen(tmp_path)  # must not raise
 
         assert parse_progress(
-            cover.progress_file.read_text(encoding="utf-8")).message == STARTUP_PHASES[0].message
+            loading_screen.progress_file.read_text(encoding="utf-8")).message == STARTUP_PHASES[0].message
 
     def test_a_launch_on_the_way_back_clears_the_esc_that_sent_it(self, tmp_path):
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         flag = tmp_path / CANCEL_FILENAME
         flag.write_text("cancel\n", encoding="utf-8")
 
-        cover = _opened_cover(tmp_path, cancelable=False)
+        loading_screen = _opened_loading_screen(tmp_path, cancelable=False)
 
         assert not flag.exists()
-        assert not cover.progress.cancelled
+        assert not loading_screen.progress.cancelled
 
 
 class TestEscOnTheWayBackFromACancelledCrossing:
@@ -194,13 +194,13 @@ class TestEscOnTheWayBackFromACancelledCrossing:
     here closed the app out from under him -- which is not what any number of
     Escs may do."""
 
-    def test_the_standing_cover_is_what_says_this_is_a_return(self, tmp_path):
+    def test_the_standing_loading_screen_is_what_says_this_is_a_return(self, tmp_path):
         assert not returning_from_a_crossing(tmp_path)
 
-        raise_crossing_cover(tmp_path, VR)
+        raise_transition_screen(tmp_path, VR)
         assert returning_from_a_crossing(tmp_path)
 
-        drop_crossing_cover(tmp_path)
+        drop_transition_screen(tmp_path)
         assert returning_from_a_crossing(tmp_path), (
             "DONE is the other session's word that it is up, not a deletion"
         )
@@ -227,17 +227,17 @@ class TestTheWayBackFromVr:
         def its_window(_pid, title, *, include_hidden=False) -> int:
             return 77 if title == WINDOW_TITLE and (include_hidden or clock.now >= seconds) else 0
 
-        monkeypatch.setattr(loading_cover, "find_window_for_process", its_window)
+        monkeypatch.setattr(raising_the_loading_screen, "find_window_for_process", its_window)
 
     @staticmethod
     def _launched(state_dir: Path) -> None:
-        with patch("fun_time.loading_cover.subprocess.Popen", MagicMock()):
-            open_the_cover(state_dir, show_overlays=True, sibling_checkouts="")
+        with patch("fun_time.raising_the_loading_screen.subprocess.Popen", MagicMock()):
+            open_the_loading_screen(state_dir, show_overlays=True, sibling_checkouts="")
 
     def test_returning_to_fun_time_stays_up_until_a_late_loading_screen_can_be_seen(
             self, tmp_path, clock, monkeypatch):
-        raise_crossing_cover(tmp_path, DESKTOP)
-        seen_from = loading_cover.WINDOW_WAIT_S + 3.0
+        raise_transition_screen(tmp_path, DESKTOP)
+        seen_from = raising_the_loading_screen.WINDOW_WAIT_S + 3.0
         self._a_screen_seen_from(clock, seen_from, monkeypatch)
 
         self._launched(tmp_path)
@@ -250,25 +250,25 @@ class TestTheWayBackFromVr:
             self, tmp_path, clock, monkeypatch):
         """Nothing on the monitors is waiting on the loading screen then, and the
         launch's own work is held for as long as it waits."""
-        self._a_screen_seen_from(clock, loading_cover.WINDOW_WAIT_S + 3.0, monkeypatch)
+        self._a_screen_seen_from(clock, raising_the_loading_screen.WINDOW_WAIT_S + 3.0, monkeypatch)
 
         self._launched(tmp_path)
 
-        assert clock.now == pytest.approx(loading_cover.WINDOW_WAIT_S, abs=0.2)
+        assert clock.now == pytest.approx(raising_the_loading_screen.WINDOW_WAIT_S, abs=0.2)
 
     def test_a_loading_screen_never_seen_holds_the_way_back_only_so_long(
             self, tmp_path, clock, monkeypatch):
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         self._a_screen_seen_from(clock, float("inf"), monkeypatch)
 
         self._launched(tmp_path)
 
         assert parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8")).done
-        assert clock.now == pytest.approx(loading_cover.WINDOW_WAIT_UNDER_A_CROSSING_S, abs=0.2)
+        assert clock.now == pytest.approx(raising_the_loading_screen.WINDOW_WAIT_UNDER_A_CROSSING_S, abs=0.2)
 
 
 def test_the_way_back_leaves_fun_time_most_of_the_time_the_crossing_gives_it():
     """The crossing calls itself failed, and says so in an alert, when the
     arriving Fun Time has not reported in within STARTUP_TIMEOUT_S -- and the
     wait for the loading screen comes before that report."""
-    assert loading_cover.WINDOW_WAIT_UNDER_A_CROSSING_S <= STARTUP_TIMEOUT_S / 2
+    assert raising_the_loading_screen.WINDOW_WAIT_UNDER_A_CROSSING_S <= STARTUP_TIMEOUT_S / 2

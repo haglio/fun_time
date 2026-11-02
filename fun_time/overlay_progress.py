@@ -1,13 +1,13 @@
 """What the covers read, and what an orchestrator writes for them.
 
-Both ends of a session put a cover up — ``loading_screen`` while the windows
-arrive, ``closing_screen`` while they go, and :mod:`fun_time_vr.cover` for both
+Both ends of a session put a loading screen up — ``loading_screen`` while the windows
+arrive, ``closing_screen`` while they go, and :mod:`fun_time_vr.loading_screen` for both
 ends in the headset — and each watches a progress file in the state dir for how
 far the orchestrator has got.  This module is that channel: the file names, the
 phases, and the writer on the orchestrator's side.
 
-Esc reaches an orchestrator two ways — a cover's binding, which needs the focus,
-and the hotkey script's hook, which does not — so a cover follows the FLAG, not
+Esc reaches an orchestrator two ways — a loading screen's binding, which needs the focus,
+and the hotkey script's hook, which does not — so a loading screen follows the FLAG, not
 a keypress, and stays up reading "Canceling..." until the teardown finishes.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from app_support.threading_utils import start_daemon_thread
 PROGRESS_FILENAME = "startup_progress.txt"
 SHUTDOWN_PROGRESS_FILENAME = "shutdown_progress.txt"
 
-# A cover whose line offers Esc drops this flag beside its progress file when the
+# A loading screen whose line offers Esc drops this flag beside its progress file when the
 # key lands on it; the orchestrator's progress reporter watches for it and raises
 # StartupCancelled at the next phase boundary so startup unwinds.
 CANCEL_FILENAME = "startup_cancel.flag"
@@ -42,7 +42,7 @@ CANCEL_CLOSING_FUN_TIME_VR = "Press Esc to cancel closing Fun Time VR"
 
 # The closing screen drops this flag beside its own progress file once it is
 # painted over every monitor.  Teardown waits for it before killing anything:
-# a cover that is not up yet hides nothing.
+# a loading screen that is not up yet hides nothing.
 SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 
 
@@ -115,20 +115,20 @@ class StartupCancelled(Exception):
         self.origenerator_taken_over = False
 
 
-def loading_cover_is_up(state_dir: Path) -> bool:
-    """Whether the startup cover is still on the screen.
+def loading_screen_is_up(state_dir: Path) -> bool:
+    """Whether the startup loading screen is still on the screen.
 
     The file exists for the duration of startup, so its presence answers this.
     Distinct from :func:`startup_still_building`, which goes False one phase
-    earlier: a window that must be IN PLACE when the cover lifts asks that one,
-    anything seen THROUGH the cover asks this one."""
+    earlier: a window that must be IN PLACE when the loading screen lifts asks that one,
+    anything seen THROUGH the loading screen asks this one."""
     return (Path(state_dir) / PROGRESS_FILENAME).exists()
 
 
 def startup_still_building(state_dir: Path) -> bool:
     """True while startup is still assembling the room, so a companion window of
-    the session's own must stay out of the cover's way.  Goes False one phase
-    EARLY, at the final weightless phase with the cover still up: a companion
+    the session's own must stay out of the loading screen's way.  Goes False one phase
+    EARLY, at the final weightless phase with the loading screen still up: a companion
     that waited for the lift would arrive late on a finished room."""
     path = Path(state_dir) / PROGRESS_FILENAME
     try:
@@ -152,7 +152,7 @@ class Phase:
 # Startup as the loading screen sees it, in order.  The bar advances by TIME
 # rather than step count: an equal share per step parked it at 83% through the
 # one phase that waits on other processes.  The last is weightless so the bar
-# reads full while the room is settled under the cover.
+# reads full while the room is settled under the loading screen.
 #
 # First, the launch's own work, before there is a room to report on.  The screen
 # opens on this one's words: anything else reads as a flicker on its first poll.
@@ -196,13 +196,13 @@ class ProgressReporter(Protocol):
     def advance(self, phase: str) -> None: ...
     def announce(self, phase: str) -> None: ...
     def finish(self) -> None: ...
-    def cover_kept_up(self) -> contextlib.AbstractContextManager[None]: ...
+    def loading_screen_kept_up(self) -> contextlib.AbstractContextManager[None]: ...
     @property
     def cancelled(self) -> bool: ...
 
 
 class PhaseProgress:
-    """Writes progress updates to a file for a cover to read.  Each ``advance``
+    """Writes progress updates to a file for a loading screen to read.  Each ``advance``
     names the phase entered, and with a cancel file is a checkpoint too: a
     dropped flag aborts the phase before it runs.  Startup alone passes one, and
     ``announce`` is that line without the checkpoint."""
@@ -234,7 +234,7 @@ class PhaseProgress:
 
     def announce(self, phase: str) -> None:
         entered = self._phase_index(phase)
-        # Hundredths of a unit: the cover reads two integers.  The position is
+        # Hundredths of a unit: the loading screen reads two integers.  The position is
         # work ALREADY done, so only a weightless final phase reaches the total.
         done = round(sum(p.weight for p in self._phases[:entered]) * 100)
         total = round(sum(p.weight for p in self._phases) * 100)
@@ -252,8 +252,8 @@ class PhaseProgress:
         self._progress_file.write_text("DONE", encoding="utf-8")
 
     @contextlib.contextmanager
-    def cover_kept_up(self) -> Iterator[None]:
-        stop = keep_the_cover_up(self._progress_file, name="cover-kept-up")
+    def loading_screen_kept_up(self) -> Iterator[None]:
+        stop = keep_the_loading_screen_up(self._progress_file, name="loading-screen-kept-up")
         try:
             yield
         finally:
@@ -272,27 +272,27 @@ class NullProgress:  # silent no-op reporter, for integration mode
     def finish(self) -> None:
         pass
 
-    def cover_kept_up(self) -> contextlib.AbstractContextManager[None]:
+    def loading_screen_kept_up(self) -> contextlib.AbstractContextManager[None]:
         return contextlib.nullcontext()
 
 
-COVER_HEARTBEAT_S = 1.0  # how often the work under a cover says it is still going
+LOADING_SCREEN_HEARTBEAT_S = 1.0  # how often the work under a loading screen says it is still going
 
 
-def keep_the_cover_up(progress_file: Path, *, name: str) -> Callable[[], None]:
-    """Say the work under a cover is still going, once a second, until it is
-    stopped.  The cover takes ITSELF down when this stops -- its one way out
+def keep_the_loading_screen_up(progress_file: Path, *, name: str) -> Callable[[], None]:
+    """Say the work under a loading screen is still going, once a second, until it is
+    stopped.  The loading screen takes ITSELF down when this stops -- its one way out
     that needs nobody else alive -- and slow work outlasts that timeout."""
     stopped = threading.Event()
 
     def beat() -> None:
         while True:
-            try:  # not past DONE: a file the cover never tidied is no work going on
+            try:  # not past DONE: a file the loading screen never tidied is no work going on
                 if not parse_progress(progress_file.read_text(encoding="utf-8")).done:
                     os.utime(progress_file, None)
             except OSError:
                 pass  # no work going on
-            if stopped.wait(COVER_HEARTBEAT_S):
+            if stopped.wait(LOADING_SCREEN_HEARTBEAT_S):
                 return
 
     heartbeat = start_daemon_thread(target=beat, name=name)
