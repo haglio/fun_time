@@ -85,7 +85,7 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 # is a subprocess of its own, an RFB tab is skipped rather than misdelivered
 # (a session with no browser window of its own opens none), and handing the
 # Funestras to a hosted app and back is file work on the Funestras' own channels, as
-# is following a main lock to what the main slot's Funestra says it holds, and
+# is following a main lock to what the Main Funestra's Funestra says it holds, and
 # the line that says a spoken command was ignored, which the loop writes in
 # place of what was heard, and the words a narrowing of the Main Funestra's
 # browse says where it is done.

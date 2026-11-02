@@ -6,7 +6,7 @@ from dataclasses import replace
 import pytest
 from funestra.modes import MainMode
 
-from fun_time.console_buttons import MainSlot, console_rows
+from fun_time.console_buttons import MainFunestraFacts, console_rows
 from fun_time.satellite_buttons import funestra_rows
 
 _ON_THE_CONSOLE = {
@@ -37,7 +37,7 @@ def _declared(rows) -> dict:
     {"locked": False, "latest": False, "has_osr2": False, "has_funscript": True},
 ])
 def test_a_control_both_huds_carry_looks_and_reads_the_same_on_each(state):
-    console = _declared(console_rows(MainSlot(main_mode=MainMode.KINO, **state)))
+    console = _declared(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, **state)))
     satellite = _declared(funestra_rows("portrait", **state))
 
     for name, command in _ON_THE_CONSOLE.items():

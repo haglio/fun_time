@@ -69,13 +69,13 @@ def _open_window(placement: WindowPlacement) -> int:
     if placement.x is not None and placement.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"
     wear_the_icon(pygame, placement.icon)
-    # Borderless, so the client area IS the slot: mpv paints into this window via
+    # Borderless, so the client area IS the place it was given: mpv paints into this window via
     # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
     # the portrait/landscape rect.
     pygame.display.set_mode((placement.width, placement.height), pygame.NOFRAME)
     take_outside_resizes(pygame)
     # A distinct --title per satellite, so the sequencer can resolve each window
-    # to its slot by title when the pid lookup fails; also its Alt-Tab name.
+    # to its place by title when the pid lookup fails; also its Alt-Tab name.
     pygame.display.set_caption(placement.title)
     return pygame.display.get_wm_info()["window"]
 

@@ -163,7 +163,7 @@ class TestWhereEachScreenHangs:
         assert moved.placement == ELSEWHERE
 
     def test_two_things_hanging_by_one_name_both_move(self):
-        """The main slot is two Funestras' screens, whichever is showing."""
+        """The Main Funestra is two Funestras' screens, whichever is showing."""
         one, other = _Moved(SOMEWHERE), _Moved(SOMEWHERE)
 
         where = room.where_they_hang([_Hanger({"main": room.Hangs((one,))}),

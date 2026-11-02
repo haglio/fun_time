@@ -52,7 +52,7 @@ from fun_time.dashboard_bridge import DashboardSnapshot
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import (
     PAD,
-    RFB_SLOT_STRIP_HEIGHT,
+    RFB_MODE_SELECTOR_HEIGHT,
     DashboardBarLayout,
     Rect,
     add_rect_arguments,
@@ -71,7 +71,7 @@ from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.rfb_slot_strip import paint_strip, place_strip, strip_buttons
+from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
 from fun_time.session_end import mark_session_end
 from fun_time.shared_state import shared_state_path
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
@@ -107,7 +107,7 @@ class DashboardAppConfig:
     dashboard_cmd_file: Path
     # Whether the session hosts an Origenerator, which is what puts the strip
     # under the log that says what holds the Random Favs Browser's place.
-    rfb_slot_strip: bool = False
+    rfb_mode_selector: bool = False
 
 
 DashboardLaunchGeometry = Rect
@@ -167,7 +167,7 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
             "commands", "dashboard_state_file", fallback="dashboard_state.ini"),
         dashboard_cmd_file=state_dir / parser.get(
             "commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt"),
-        rfb_slot_strip=bool(parser.get("runtime", "origenerator_dir", fallback="").strip()),
+        rfb_mode_selector=bool(parser.get("runtime", "origenerator_dir", fallback="").strip()),
     )
 
 
@@ -418,15 +418,15 @@ class DashboardWidget(QWidget):
             self.update()
 
 
-class RfbSlotStripWidget(QWidget):
-    """The strip under the log, hovered and pressed the way a Satellite
-    Funestra's HUD is (:mod:`fun_time.rfb_slot_strip`)."""
+class RfbModeSelectorWidget(QWidget):
+    """The mode selector under the log, hovered and pressed the way a Satellite
+    Funestra's HUD is (:mod:`fun_time.rfb_mode_strip`)."""
 
     action_triggered = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(RFB_SLOT_STRIP_HEIGHT)
+        self.setFixedHeight(RFB_MODE_SELECTOR_HEIGHT)
         self.setMouseTracking(True)
         self.placed = _placed_on_the_strip(DashboardSnapshot())
         self._hovered: tuple[int, int, int, int] | None = None
@@ -438,7 +438,7 @@ class RfbSlotStripWidget(QWidget):
             self.update()
 
     def paintEvent(self, event: object) -> None:
-        image = paint_strip((self.width(), self.height()), self.placed, hovered=self._hovered)
+        image = paint_selector((self.width(), self.height()), self.placed, hovered=self._hovered)
         pixels = image.tobytes("raw", "RGBA")
         painter = QPainter(self)
         painter.drawImage(0, 0, QImage(pixels, image.width, image.height, image.width * 4,
@@ -476,7 +476,7 @@ class RfbSlotStripWidget(QWidget):
 
 
 def _placed_on_the_strip(snapshot: DashboardSnapshot):
-    return place_strip(strip_buttons(snapshot.rfb_slot,
+    return place_selector(selector_buttons(snapshot.rfb_mode,
                                      origenerator_ready=snapshot.origenerator_ready),
                        x=PAD, y=PAD)
 
@@ -699,7 +699,7 @@ class DashboardWindow(QMainWindow):
         column.setSpacing(0)
         column.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
         column.addWidget(self._log_widget, 1)
-        self._strip = RfbSlotStripWidget() if app_config.rfb_slot_strip else None
+        self._strip = RfbModeSelectorWidget() if app_config.rfb_mode_selector else None
         if self._strip is not None:
             self._strip.action_triggered.connect(self._on_action)
             column.addWidget(self._strip)
@@ -742,7 +742,7 @@ class DashboardWindow(QMainWindow):
 
         self._notices = NoticeFeed(
             layout=app_config.layout,
-            rfb_slot_strip=app_config.rfb_slot_strip,
+            rfb_mode_selector=app_config.rfb_mode_selector,
             event_log_dir=app_config.state_dir,
             loading_screen_dir=app_config.state_dir,
             make_overlay=NoticeOverlay,

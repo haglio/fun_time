@@ -155,13 +155,13 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     )
 
 
-# The strip under the log that says what holds the Random Favs Browser's place,
+# The mode selector under the log that says what holds the Random Favs Browser's place,
 # where the session hosts an Origenerator: a row as tall as the bar.
-RFB_SLOT_STRIP_HEIGHT = PAD * 2 + BUTTON
+RFB_MODE_SELECTOR_HEIGHT = PAD * 2 + BUTTON
 
 
-def dashboard_window_height(*, rfb_slot_strip: bool = False) -> int:
+def dashboard_window_height(*, rfb_mode_selector: bool = False) -> int:
     """How tall the dashboard window stands: the bar, the log under it and the
     strip under that, which the Random Favs Browser below it inherits."""
-    strip = RFB_SLOT_STRIP_HEIGHT if rfb_slot_strip else 0
+    strip = RFB_MODE_SELECTOR_HEIGHT if rfb_mode_selector else 0
     return compute_dashboard_bar_layout().height + LOG_HEIGHT + strip

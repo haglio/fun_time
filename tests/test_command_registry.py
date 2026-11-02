@@ -24,7 +24,7 @@ from funestra.modes import LengthMode, MainMode, SatellitesMode
 from fun_time import command_dispatch, dashboard_actions, hud_moves, windows_bridge_dispatch_loop
 from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
-from fun_time.console_buttons import MainSlot, console_rows
+from fun_time.console_buttons import MainFunestraFacts, console_rows
 from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
@@ -120,7 +120,7 @@ def _console_verbs() -> frozenset[str]:
                              ("", "Volume One"), ("", "scene", "clip"), (False, True),
                              (False, True))
         for row in console_rows(
-            MainSlot(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
+            MainFunestraFacts(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
                      length_mode=length_mode, compilation=compilation, has_compilation=True,
                      jump_to=jump_to, has_osr2=has_osr2),
             in_vr=in_vr)
@@ -145,7 +145,7 @@ def _satellite_verbs() -> frozenset[str]:
 
 
 def test_every_verb_the_console_posts_lands_on_a_handler():
-    """The sixth surface: the console the Funestras draw for the main slot posts
+    """The sixth surface: the console the Funestras draw for the Main Funestra posts
     the verbs of the buttons Fun Time declares into this dispatcher.  Nothing
     held the two together once, which is how the flick-seconds pair came to
     post a verb this table had renamed away -- both buttons inert in genau

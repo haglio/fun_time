@@ -51,7 +51,7 @@ def _dispatch_main_reorder(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Reload the Main Funestra in a fresh order — Latest (newest-first) or Shuffle.
 
-    To whichever Funestra owns the main slot's screen, the split the lock makes (see
+    To whichever Funestra owns the Main Funestra's screen, the split the lock makes (see
     ``MAIN_LOCK_COMMANDS``) and for the same reason: a browse order is about what
     you are looking at.  Sent to the Main Funestra regardless, "main latest" said in
     genau mode rewrote a playlist for a Funestra neither on screen nor playing.  Both
@@ -259,7 +259,7 @@ def _main_reset(state: BridgeState, config: BridgeConfig,
 
 
 # The Main Funestra's two browse orderings: Latest reloads newest-first, Shuffle
-# reshuffles.  Both reach whichever Funestra holds the main slot's screen.
+# reshuffles.  Both reach whichever Funestra holds the Main Funestra's screen.
 _MAIN_REORDER_COMMANDS = {"main_latest": True, "main_shuffle": False}
 
 

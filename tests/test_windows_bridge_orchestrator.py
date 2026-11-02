@@ -39,7 +39,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
-from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbSlot
+from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbMode
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
@@ -3279,7 +3279,7 @@ class TestARoomLeftInOrigeneratorMode:
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir), BridgeState(
-            portrait=SatelliteState(mode=ORIGENERATOR_MODE), rfb_slot=RfbSlot.ORIGENERATOR))
+            portrait=SatelliteState(mode=ORIGENERATOR_MODE), rfb_mode=RfbMode.ORIGENERATOR))
         if the_app_answers:
             status = Path(manifest.commands.origenerator_status_file)
             status.parent.mkdir(parents=True, exist_ok=True)
@@ -3294,8 +3294,8 @@ class TestARoomLeftInOrigeneratorMode:
         def fake_popen(cmd, **kwargs):
             return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
 
-        def the_post_loading_pass(_result, *, rfb_slot=RfbSlot.RFB, **_kwargs):
-            events.append(f"post-loading pass with {rfb_slot} in the browser's place")
+        def the_post_loading_pass(_result, *, rfb_mode=RfbMode.RFB, **_kwargs):
+            events.append(f"post-loading pass with {rfb_mode} in the browser's place")
             return {"rfb": RFB_HWND}
 
         def a_band(hwnd, on, **_kwargs):

@@ -10,7 +10,7 @@ from .funestra_status import read_genau_status, read_main_funestra_status
 Holding = Callable[[], tuple[bool, str]]
 
 
-def what_the_main_slot_holds(config: BridgeConfig) -> dict[MainMode, Holding]:
+def what_the_main_funestra_holds(config: BridgeConfig) -> dict[MainMode, Holding]:
     def kino() -> tuple[bool, str]:
         status = read_main_funestra_status(config.main_funestra_status_file)
         return status.locked, status.video

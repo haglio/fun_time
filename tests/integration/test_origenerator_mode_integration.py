@@ -32,7 +32,7 @@ from PIL import Image
 from shared_ui.preview import Preview, window_title
 
 from fun_time.event_log import event_log_path
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.process_tree import kill_process_tree
 from fun_time.role_windows import find_origenerators_window
 from fun_time.room_funestras import RoomFunestra
@@ -446,12 +446,12 @@ def _both_in_origenerator_mode(state) -> bool:
 
 def _put_origenerator_in_the_browsers_place(session) -> None:
     state_file = _press_once_origenerator_is_up(session, "origenerator_activate")
-    wait_for(lambda: read_shared_state(state_file).rfb_slot is RfbSlot.ORIGENERATOR,
+    wait_for(lambda: read_shared_state(state_file).rfb_mode is RfbMode.ORIGENERATOR,
              desc="Origenerator to take the Random Favs Browser's place")
 
 
 def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hosted_session):
-    """The user-visible contract of the strip under the dashboard's log, on real
+    """The user-visible contract of the mode selector under the Dashboard's log, on real
     windows: the hosted app boots parked; its Origenerator restores it over the
     RFB's rect and into the topmost band; its Random Favs Browser parks it
     again.  Driven through an OmniPause cycle first, because that is the
@@ -507,7 +507,7 @@ def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_b
 
     state = read_shared_state(state_file)
     assert state.satellite(landscape).mode is SatellitesMode.KINO
-    assert state.rfb_slot is RfbSlot.RFB
+    assert state.rfb_mode is RfbMode.RFB
     assert is_window_minimized(hwnd)
     assert not _shows_the_stub(session, landscape)
     assert sorted(_own_clips(session, landscape)) == landscape_own
@@ -774,7 +774,7 @@ def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
     finally:
         first.stop()
     state_file = shared_state_path(first.config.paths.state_dir)
-    left = replace(read_shared_state(state_file), rfb_slot=RfbSlot.ORIGENERATOR, max_intensity=38)
+    left = replace(read_shared_state(state_file), rfb_mode=RfbMode.ORIGENERATOR, max_intensity=38)
     for funestra in _FUNESTRAS:
         left = left.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)
     write_shared_state(state_file, left)
@@ -785,7 +785,7 @@ def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
         _wait_for_the_slideshows(second)
         opened_in = read_shared_state(state_file)
         assert _both_in_origenerator_mode(opened_in)
-        assert opened_in.rfb_slot is RfbSlot.ORIGENERATOR
+        assert opened_in.rfb_mode is RfbMode.ORIGENERATOR
         assert opened_in.max_intensity == 38
     finally:
         second.stop()
@@ -812,7 +812,7 @@ def test_a_slideshow_open_in_an_origenerator_the_room_takes_over_goes_on_on_its_
                  desc="the Portrait Funestra to show the hosted app's slideshow")
         state = read_shared_state(shared_state_path(session.config.paths.state_dir))
         assert state.satellite(landscape).mode is SatellitesMode.KINO
-        assert state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert state.rfb_mode is RfbMode.ORIGENERATOR
         assert not _shows_the_stub(session, landscape)
     finally:
         session.stop()

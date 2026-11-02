@@ -278,7 +278,7 @@ def _a_main_unit(tmp_path, *, remembered=None, vr=_A_SESSION, manifest=None) -> 
                      remembered=remembered or Layout(), stop=threading.Event())
 
 
-def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_collaborators):
+def test_the_main_funestra_opens_where_the_last_session_left_it(tmp_path, faked_collaborators):
     """Genau's flick and the video take turns in the one slot, so both open in
     whatever the last drag on it settled."""
     moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
@@ -288,7 +288,7 @@ def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_coll
     assert unit.screen.placement == moved
 
 
-def test_the_main_slot_opens_at_the_tilt_the_last_session_left_it_at(
+def test_the_main_funestra_opens_at_the_tilt_the_last_session_left_it_at(
         tmp_path, faked_collaborators):
     """The tilt is the whole arrangement's, and this unit is the one that carries
     it, so a session that opened level would stand every screen up again."""
@@ -411,7 +411,7 @@ def test_the_main_funestra_is_handed_every_file_the_desktops_can_be_but_the_osr2
     assert _handed(headset) == _handed(desktop) - {"osr2_sender", "osr2_port"}
 
 
-def test_the_main_slot_reaches_the_osr2_through_the_brokers_slot(tmp_path, faked_collaborators):
+def test_the_main_funestra_reaches_the_osr2_through_the_brokers_slot(tmp_path, faked_collaborators):
     _a_main_unit(tmp_path, manifest=_manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123))
 
     assert faked_collaborators["Osr2Sender"].call_args == call("main", port=8123)
@@ -1008,7 +1008,7 @@ class _FakeConsoleTexture:
 
 class TestTheConsoleUnderTheSlot:
     """The console in the headset: the bitmap the Main Funestra draws, docked
-    under whichever item fills the main slot -- and, while the video wraps
+    under whichever item fills the Main Funestra -- and, while the video wraps
     the viewer and there is nothing to dock to, under the dashboard."""
 
     def _unit(self, *, wrapped=False, showing=False, edge=HudEdge.LOWER, minimized=False):
@@ -1423,7 +1423,7 @@ def _frame(painted):
 
 def _room(*, main=True, portrait=True, landscape=True, console=True, console_in_the_room=True):
     return dict(
-        main_unit=SimpleNamespace(screen_name="main", texture_in_the_slot=_frame(main)),
+        main_unit=SimpleNamespace(screen_name="main", texture_on_the_screen=_frame(main)),
         satellites=[SimpleNamespace(screen_name="portrait", target=_frame(portrait)),
                     SimpleNamespace(screen_name="landscape", target=_frame(landscape))],
         console=SimpleNamespace(texture=_frame(console), in_the_room=console_in_the_room),
@@ -1454,12 +1454,12 @@ class TestWhenTheRoomIsUp:
         read as up almost as soon as the loop began, the loading screen came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         scene = _room()
-        scene["main_unit"] = SimpleNamespace(screen_name="main", texture_in_the_slot=(
+        scene["main_unit"] = SimpleNamespace(screen_name="main", texture_on_the_screen=(
             SimpleNamespace(ready=True, has_frame=False)))
 
         assert _still_blank(**scene) == ("main",)
 
-    def test_the_main_slot_counts_once_wherever_the_scene_is(self):
+    def test_the_main_funestra_counts_once_wherever_the_scene_is(self):
         """In genau mode Genau's flick has the scene and the video waits
         paused under it, so asking the video for a frame would hold the
         loading screen over a room that is finished."""
@@ -1467,7 +1467,7 @@ class TestWhenTheRoomIsUp:
             owns_the_slot=False, target=_frame(False),
             users_frame_texture=_frame(True)))
 
-        assert _MainUnit.texture_in_the_slot.fget(unit) is unit.users_frame_texture
+        assert _MainUnit.texture_on_the_screen.fget(unit) is unit.users_frame_texture
 
 
 def test_the_loading_screen_goes_up_before_the_funestras_are_built():
@@ -1659,7 +1659,7 @@ class TestHangingTheRoom:
         assert all(one["target"] is funestras._pump_channels for one in started)
         assert len(the_room.workers) == len(started) == 2
 
-    def test_the_browse_asks_whether_genau_has_the_main_slot(self, tmp_path, faked_collaborators):
+    def test_the_browse_asks_whether_genau_has_the_main_funestra(self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
         faked_collaborators["Funestra"].return_value.showing = MainMode.KINO
@@ -1869,7 +1869,7 @@ class _APointer:
 
 def _a_room_to_arrange(*, main=None, satellites=(), others=()):
     """A room of stand-ins: what the arrangement moves, asks and tells."""
-    main = main or _a_main_slot()
+    main = main or _a_main_funestra()
     main.verbs.recenter = HostRequest()
     main.verbs.layout_reset = HostRequest()
     main.verbs.angle_asked = AngleRequest()
@@ -1903,7 +1903,7 @@ class TestArrangingTheRoom:
         the Main Funestra's own placement otherwise; every carry turns the room now."""
         turned = []
         for projection in (FLAT, EQUIRECT_180_SBS):
-            the_room = _a_room_to_arrange(main=_a_main_slot(projection=projection))
+            the_room = _a_room_to_arrange(main=_a_main_funestra(projection=projection))
             arranging, _arranged = self._arrange(
                 the_room, _APointer(Frame(carried=(90.0, 0.0))))
             turned.append(arranging.scene_yaw)
@@ -2059,12 +2059,12 @@ class _AMainStandIn(SimpleNamespace):
     """A stand-in with the main unit's own answers about what fills the slot."""
 
     wraps_the_viewer = _MainUnit.wraps_the_viewer
-    texture_in_the_slot = _MainUnit.texture_in_the_slot
+    texture_on_the_screen = _MainUnit.texture_on_the_screen
 
 
-def _a_main_slot(*, frame=True, projection=FLAT, showing=False, flick=True,
+def _a_main_funestra(*, frame=True, projection=FLAT, showing=False, flick=True,
                  flick_projection=FLAT, video=None, fov=None, height=None, verbs=None):
-    """The main slot as the room reads it: the video or Genau's flick in it."""
+    """The Main Funestra as the room reads it: the video or Genau's flick in it."""
     return _like(_MainUnit, _AMainStandIn(
         target=SimpleNamespace(ready=frame, aspect=16 / 9, video=video),
         verbs=verbs or _VerbsStandIn(
@@ -2085,7 +2085,7 @@ class TestTheMainFunestrasFrameIsWrappedAsItsOwnVideo:
     WIDE, FLAT_VIDEO = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
 
     def _showing(self, video):
-        return _a_main_slot(video=video, verbs=_VerbsStandIn(
+        return _a_main_funestra(video=video, verbs=_VerbsStandIn(
             projection_of={self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get,
             _video=Path(video), **_NEVER_DIALED))
 
@@ -2113,7 +2113,7 @@ class TestDialingTheMainFunestrasWrap:
             set_height=lambda value: dialed.update(height=value),
             _video=Path(self.VIDEO),
         )
-        main_unit = _a_main_slot(video=self.VIDEO, verbs=verbs, showing=showing)
+        main_unit = _a_main_funestra(video=self.VIDEO, verbs=verbs, showing=showing)
         main_unit.target.aspect = 1.0
         main_unit.dial_the_wrap = lambda **dials: _MainUnit.dial_the_wrap(main_unit, **dials)
         return main_unit, dialed
@@ -2163,7 +2163,7 @@ class TestTheReadoutOfAWrappedFrame:
     VIDEO = "C:/videos/wide.mp4"
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
-        return _a_main_slot(video=self.VIDEO, projection=projection, fov=fov, height=height,
+        return _a_main_funestra(video=self.VIDEO, projection=projection, fov=fov, height=height,
                             showing=showing)
 
     def test_the_main_funestra_reads_its_own_wrap(self):
@@ -2239,13 +2239,13 @@ class TestTheBannerOverAWrappedFrame:
         assert _BannerUnit.hangings(unit) == ()
 
 
-class TestTheMainSlotUnderThePointer:
+class TestTheMainFunestraUnderThePointer:
     """The Main Funestra moves and zooms by the same handles the satellites do, so
     it is one of the screens the pointer is handed — but only while what fills
     the slot is a flat screen with edges to take hold of."""
 
     def _units(self, **overrides):
-        return (_a_main_slot(**overrides),)
+        return (_a_main_funestra(**overrides),)
 
     def _slot(self, **overrides):
         hangings = room.what_hangs(self._units(**overrides))
@@ -2312,7 +2312,7 @@ class TestTheMainSlotUnderThePointer:
     def test_a_drag_on_the_slot_moves_genaus_frame_with_the_video(self):
         """They share it, so a drag while one is showing must not leave the
         other hanging where the slot used to be."""
-        main_unit = _a_main_slot()
+        main_unit = _a_main_funestra()
 
         room.where_they_hang([main_unit])[MAIN].put(_UNDER_THE_DASH)
 
@@ -2329,7 +2329,7 @@ class TestTheMainSlotUnderThePointer:
         return room.arranged(Stacking(), room.what_hangs(
             [*self._units(), _a_satellite(LANDSCAPE), _a_console(), dash, reference]))
 
-    def test_the_main_slot_is_listed_under_the_screens_that_overlap_it(self):
+    def test_the_main_funestra_is_listed_under_the_screens_that_overlap_it(self):
         """It is drawn first and it is the biggest, so a satellite tucked over its
         edge — and the console under them all — has to win the ray.  The console
         is pressed, never dragged: it rides on the Main Funestra now."""
@@ -2453,7 +2453,7 @@ class TestEveryHangingScreenIsDrawn:
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
-        main_unit = _a_main_slot(frame=projection is not None, projection=projection or FLAT,
+        main_unit = _a_main_funestra(frame=projection is not None, projection=projection or FLAT,
                                  flick=False)
         main_unit.target.texture = object()
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
@@ -2573,8 +2573,8 @@ def _a_console(*, ready=True):
 
 
 def _slot(*, wrapped=False):
-    """The main slot as the dashboard reads it."""
-    return _a_main_slot(projection=EQUIRECT_180_SBS if wrapped else FLAT)
+    """The Main Funestra as the dashboard reads it."""
+    return _a_main_funestra(projection=EQUIRECT_180_SBS if wrapped else FLAT)
 
 
 def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
@@ -2864,7 +2864,7 @@ class TestTheLibraryUnderThePointer:
             BROWSE_LIBRARY_CLOSE)
         assert not unit.showing
 
-    def test_with_genau_in_the_main_slot_it_opens_genaus_flicks_on_the_flick_up(self, tmp_path):
+    def test_with_genau_in_the_main_funestra_it_opens_genaus_flicks_on_the_flick_up(self, tmp_path):
         host = _FakeLibraryHost()
         unit = _a_library(tmp_path, host, genau_has_the_slot=True)
         (tmp_path / "genau_status.txt").write_text(

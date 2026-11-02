@@ -16,7 +16,7 @@ from fun_time.funestra_handover import hand_back, keep_aside
 from fun_time.funestra_settings import FunestraReports
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import (
     DESCRIBES_THE_PLAYLIST,
@@ -814,10 +814,10 @@ def test_a_room_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path)
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(
         landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
-        rfb_slot=RfbSlot.ORIGENERATOR))
+        rfb_mode=RfbMode.ORIGENERATOR))
 
     resumed = resume_shared_state(state_file, resumed=True)
 
     assert resumed.satellite(RoomFunestra.LANDSCAPE).mode is SatellitesMode.ORIGENERATOR
     assert resumed.satellite(RoomFunestra.PORTRAIT).mode is SatellitesMode.KINO
-    assert resumed.rfb_slot is RfbSlot.ORIGENERATOR
+    assert resumed.rfb_mode is RfbMode.ORIGENERATOR

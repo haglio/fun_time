@@ -161,7 +161,7 @@ def resolve_playlist(
     """The playlist Fun Time passed, collapsed to one entry per version group.
 
     Fun Time lists every version of every video; a library *source*, when
-    present, folds those into one slot each (matching the set "cycle version"
+    present, folds those into one item each (matching the set "cycle version"
     walks).  Without a source — no library dirs — the file is returned verbatim,
     since the Main Funestra then has no grouping to apply.
     """

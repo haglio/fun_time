@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from app_support.win32 import window_exists
 
 from . import preview_marker
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -36,7 +36,7 @@ from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
-    RFB_SLOT_ROLES,
+    RFB_MODE_ROLES,
     is_origenerators_caption,
     role_topmost,
 )
@@ -88,19 +88,19 @@ class WindowRoles:
         self.rfb_hwnd = rfb_hwnd
         # Seeded from the startup sequencer, which resolved every window
         # while it was still visible — startup then hides the inactive
-        # main-slot windows, and hidden windows are invisible to the
+        # windows of the Main Funestra, and hidden windows are invisible to the
         # pid/title lookups.
         self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         # The settle a mode switch's outgoing Funestra waits out is the one thing
         # here that is about elapsed time.  Injectable so a test can let it run
         # out rather than reach in and back-date the deadline.
         self.clock = clock
-        # Main-slot windows waiting out MAIN_BLANK_SETTLE_S before they are
+        # Windows of the Main Funestra waiting out MAIN_BLANK_SETTLE_S before they are
         # minimized, by role -> the time they are due.
         self._pending_hides: dict[str, float] = {}
         # Windows a Funestra's own minimize button parked, kept apart from the two
         # other things that minimize around here: the mode switch parks the idle
-        # main-slot Funestra (undone by the switch that brings it back) and
+        # Main Funestra (undone by the switch that brings it back) and
         # omniminimize parks the room (undone by omnirestore).  These are undone
         # by the room resuming — a Funestra parked from its own HUD took that HUD
         # down with it and has no button left to press.
@@ -172,7 +172,7 @@ class WindowRoles:
     def show(self, role: str) -> None:
         """Bring a role's window back — the mode switch's incoming Funestra.
 
-        Restore rather than SW_SHOW: the idle main-slot Funestra is parked by
+        Restore rather than SW_SHOW: the idle Main Funestra is parked by
         minimizing it (which keeps its taskbar button), so bringing it back is a
         restore.  No-activate — focus is :meth:`activate`'s business — and DWM
         transitions are disabled, so it is instant.  A switch straight back
@@ -201,7 +201,7 @@ class WindowRoles:
         self._pending_hides[role] = self.clock() + MAIN_BLANK_SETTLE_S
 
     def flush_pending_hides(self) -> None:
-        """Park each main-slot window whose settle time has run out."""
+        """Park each window of the Main Funestra whose settle time has run out."""
         if not self._pending_hides:
             return
         now = self.clock()
@@ -237,7 +237,7 @@ class WindowRoles:
     def restore_parked(self) -> None:
         """Bring back every window a minimize button parked — leaving OmniPause.
 
-        Each returns to the rect and size it had, which is its slot: Windows keeps
+        Each returns to the rect and size it had, which is its place: Windows keeps
         a minimized window's restored placement, and nothing moved it meanwhile.
         The topmost bands are re-applied right after by the ``restore_all_topmost``
         op that follows this one, so a window comes back into the same band it
@@ -310,30 +310,30 @@ class WindowRoles:
             if hwnd:
                 set_always_on_top(hwnd, False)
 
-    def restore_all_topmost(self, rfb_slot: RfbSlot) -> None:
+    def restore_all_topmost(self, rfb_mode: RfbMode) -> None:
         """Re-apply the topmost bands after omnipause: the windows with a rect
         of their own, then the shared rect's pair in the order it stacks in."""
         for role in FIXED_TOPMOST_ROLES:
             hwnd = self.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self.restack_rfb_slot(rfb_slot)
+        self.restack_rfb_mode(rfb_mode)
 
-    def restack_rfb_slot(self, rfb_slot: RfbSlot, *, paused: bool = False) -> None:
+    def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> None:
         """Put the browser in the band only while it holds its place, and
         promote the hosted Origenerator's window over it while that does."""
         if paused:
             return
         browser = self.hwnd("rfb")
         if browser:
-            set_always_on_top(browser, role_topmost("rfb", rfb_slot))
-        if not role_topmost(ORIGENERATOR_ROLE, rfb_slot):
+            set_always_on_top(browser, role_topmost("rfb", rfb_mode))
+        if not role_topmost(ORIGENERATOR_ROLE, rfb_mode):
             return
         hwnd = self.hwnd(ORIGENERATOR_ROLE)
         if hwnd:
             set_always_on_top(hwnd, True)
 
-    def converge_origenerator_window(self, rfb_slot: RfbSlot) -> None:
+    def converge_origenerator_window(self, rfb_mode: RfbMode) -> None:
         """Keep hosted Core where the browser's place says.
 
         The switch's ops restore or park it when a command fires, but the
@@ -354,17 +354,17 @@ class WindowRoles:
         if not hwnd:
             return  # still booting — try again next sync
         minimized = is_window_minimized(hwnd)
-        if rfb_slot is RfbSlot.ORIGENERATOR:
+        if rfb_mode is RfbMode.ORIGENERATOR:
             if minimized:
                 restore_window(hwnd, activate=False)
-            if minimized or self._an_rfb_slot_window_out_of_its_band(rfb_slot):
-                self.restack_rfb_slot(rfb_slot)
+            if minimized or self._an_rfb_mode_window_out_of_its_band(rfb_mode):
+                self.restack_rfb_mode(rfb_mode)
         elif not minimized:
             minimize_window(hwnd, activate=False)
 
-    def _an_rfb_slot_window_out_of_its_band(self, rfb_slot: RfbSlot) -> bool:
-        return any(is_window_topmost(hwnd) != role_topmost(role, rfb_slot)
-                   for role in RFB_SLOT_ROLES if (hwnd := self.hwnd(role)))
+    def _an_rfb_mode_window_out_of_its_band(self, rfb_mode: RfbMode) -> bool:
+        return any(is_window_topmost(hwnd) != role_topmost(role, rfb_mode)
+                   for role in RFB_MODE_ROLES if (hwnd := self.hwnd(role)))
 
     def topmost_report(self) -> str:
         """Every managed window's resolved hwnd and topmost state, one line.

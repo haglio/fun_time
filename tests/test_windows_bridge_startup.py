@@ -36,7 +36,7 @@ from fun_time.modes import SatelliteBuild
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.room_funestras import RoomFunestra
-from fun_time.satellite_slot import SatelliteSlot
+from fun_time.satellite_launch import SatelliteLaunch
 from fun_time.shared_state import (
     BridgeState,
     SatelliteState,
@@ -468,9 +468,9 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+        portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                        WindowRect(x=2560, y=0, width=1440, height=2500)),
-        landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+        landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                         WindowRect(x=1664, y=0, width=896, height=1392)),
         main_funestra_status_file=state_dir / "main_player_status.txt",
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
@@ -750,7 +750,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
 
 
 def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
-    """Nothing to resume means no mode to come back to, and the main slot's
+    """Nothing to resume means no mode to come back to, and the Main Funestra's
     own default is kino mode — the same one every session is built in."""
     kwargs = _start_core_session_kwargs(tmp_path)
 
@@ -1396,8 +1396,8 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
                    side_effect=[202, 303]) as launched:
             launch_core_apps(
                 python_exe="python.exe", satellite_module="satellite",
-                portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
-                landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
+                portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
+                landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
                 result_file=tmp_path / "core_apps.ini",
             )
 
@@ -1696,9 +1696,9 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
-            portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
+            portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
                            state_dir, portrait_rect),
-            landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
+            landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
                             state_dir, landscape_rect),
             result_file=result_file,
         )
@@ -1769,10 +1769,10 @@ def _a_satellite_argv(*, title="Portrait AI Funestra", **channels) -> list[str]:
         placement=WindowPlacement(x=0, y=0, width=1, height=1, title=title))
 
 
-def _slot(funestra, sources, state_dir, rect) -> SatelliteSlot:
+def _launch(funestra, sources, state_dir, rect) -> SatelliteLaunch:
     """One Satellite's launch bundle, spelled the way the sequencer spells it."""
     satellite = funestra.label
-    return SatelliteSlot(
+    return SatelliteLaunch(
         funestra=funestra,
         sources=sources,
         channels=SatelliteChannels(
@@ -1816,7 +1816,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
 
 def test_build_satellite_launch_command_forwards_the_distinct_title():
     # The two satellites carry distinct captions; the sequencer resolves each
-    # window to its slot by title when the pid lookup fails, so a shared caption
+    # window to its place by title when the pid lookup fails, so a shared caption
     # (or a dropped --title) would let the portrait/landscape windows cross.
     cmd = _a_satellite_argv(title="Landscape AI Funestra")
 
@@ -2243,9 +2243,9 @@ def test_only_the_portrait_funestra_is_launched_to_tile(tmp_path):
                side_effect=[202, 303]) as launch:
         launch_core_apps(
             python_exe="fun_time_python.exe", satellite_module="satellite",
-            portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+            portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                            WindowRect(x=2560, y=0, width=1440, height=2500)),
-            landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+            landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                             WindowRect(x=1664, y=0, width=896, height=1392)),
             result_file=tmp_path / "core_apps.ini",
         )

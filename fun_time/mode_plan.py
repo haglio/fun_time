@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from funestra.funestra_verbs import SHOW
 from funestra.modes import MainMode
 
-# The main slot's two modes.  The axis is in the name because the satellites'
+# The Main Funestra's two modes.  The axis is in the name because the satellites'
 # own "kino" mode is that same string, and unprefixed the two were one name
 # inside command_dispatch, which handles both.
 MAIN_KINO_MODE = MainMode.KINO
@@ -43,10 +43,10 @@ def build_mode_switch_plan(
     target_mode: MainMode,
     omni_paused: bool,
 ) -> ModeSwitchPlan:
-    """Plan a switch between the main slot's modes; refuse any other."""
+    """Plan a switch between the Main Funestra's modes; refuse any other."""
     for mode in (current_mode, target_mode):
         if mode not in MAIN_MODES:
-            raise ValueError(f"Not a main-slot mode: {mode!r}")
+            raise ValueError(f"Not a Main Funestra mode: {mode!r}")
     if current_mode == target_mode:
         return ModeSwitchPlan(
             target_mode=target_mode,

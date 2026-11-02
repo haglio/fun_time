@@ -78,7 +78,7 @@ class TestWhereTheAppsOwnWindowGoes:
             bring_up_the_hosted_app(manifest, sibling_checkouts="")
 
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors):
-            expected = screen_layout(config.layout, rfb_slot_strip=True).plan.random_favs_browser
+            expected = screen_layout(config.layout, rfb_mode_selector=True).plan.random_favs_browser
         assert captured["layout_plan"].random_favs_browser == expected
 
     def test_a_session_hosting_none_never_asks_the_monitors_anything(

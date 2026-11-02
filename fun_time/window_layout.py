@@ -32,7 +32,7 @@ class ScreenLayout:
     secondary_monitor: MonitorRect
 
 
-def screen_layout(layout_config: LayoutConfig, *, rfb_slot_strip: bool = False) -> ScreenLayout:
+def screen_layout(layout_config: LayoutConfig, *, rfb_mode_selector: bool = False) -> ScreenLayout:
     primary_rect, secondary_rect = get_logical_monitor_rects(
         enumerate_monitors(),
         primary_index=layout_config.primary_monitor,
@@ -43,7 +43,7 @@ def screen_layout(layout_config: LayoutConfig, *, rfb_slot_strip: bool = False) 
             primary_monitor=primary_rect,
             secondary_monitor=secondary_rect,
             layout_config=layout_config,
-            rfb_slot_strip=rfb_slot_strip,
+            rfb_mode_selector=rfb_mode_selector,
         ),
         config=layout_config,
         secondary_monitor=secondary_rect,
@@ -55,9 +55,9 @@ def compute_window_layout(
     primary_monitor: MonitorRect,
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
-    rfb_slot_strip: bool = False,
+    rfb_mode_selector: bool = False,
 ) -> WindowLayoutPlan:
-    dashboard_height = dashboard_window_height(rfb_slot_strip=rfb_slot_strip)
+    dashboard_height = dashboard_window_height(rfb_mode_selector=rfb_mode_selector)
 
     landscape_width = int(primary_monitor.width * clamp01(layout_config.landscape_width_ratio))
     landscape = WindowRect(

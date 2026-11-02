@@ -414,7 +414,7 @@ class _VideoUnit:
         self.screen.close()
 
 
-def _in_the_slot(screen, frame, wrap: Wrap | None) -> tuple[Hanging, ...]:
+def _on_the_screen(screen, frame, wrap: Wrap | None) -> tuple[Hanging, ...]:
     """Round the viewer rather than on a screen leaves no rectangle to aim at."""
     if wrap is not None:
         return (Hanging(Screen(MAIN, screen.placement, frame.aspect,
@@ -529,22 +529,22 @@ class _MainUnit(_VideoUnit):
 
     @property
     def owns_the_slot(self) -> bool:
-        """Whether the video is what fills the main slot, Genau's flick
+        """Whether the video is what fills the Main Funestra, Genau's flick
         filling it otherwise."""
         return self.funestra.showing == MainMode.KINO
 
     @property
-    def texture_in_the_slot(self) -> RenderTarget | FrameTexture:
+    def texture_on_the_screen(self) -> RenderTarget | FrameTexture:
         return self.target if self.owns_the_slot else self.users_frame_texture
 
     def hangings(self) -> tuple[Hanging, ...]:
         if self.owns_the_slot:
             if not self.target.ready:
                 return ()
-            return _in_the_slot(self.screen, self.target, self.verbs.wrap_of(self.target.video))
+            return _on_the_screen(self.screen, self.target, self.verbs.wrap_of(self.target.video))
         if not self.users_frame_texture.ready:
             return ()
-        return _in_the_slot(self.screen, self.users_frame_texture,
+        return _on_the_screen(self.screen, self.users_frame_texture,
                             immersive_wrap(self._flick_projection[1]))
 
     @property
@@ -847,7 +847,7 @@ def _upload(unit) -> bool:
 
 class _ConsoleUnit:
     """The console the Main Funestra draws, hanging under whichever item
-    fills the main slot -- or, while that item wraps the viewer and there is
+    fills the Main Funestra -- or, while that item wraps the viewer and there is
     nothing to dock to, under the dashboard."""
 
     SPOTS: ClassVar[dict[str, Placement]] = {}
@@ -898,10 +898,10 @@ class _ConsoleUnit:
             if rgba is not None:
                 self.texture.upload(rgba)
         wrapped = self._main_unit.wraps_the_viewer
-        slot_aspect = self._main_unit.texture_in_the_slot.aspect
+        screen_aspect = self._main_unit.texture_on_the_screen.aspect
         under, aspect = (
             (self._dash.screen.placement, self._dash.texture.aspect) if wrapped else
-            (shown_at(MAIN, self._main_unit.screen.placement, slot_aspect), slot_aspect))
+            (shown_at(MAIN, self._main_unit.screen.placement, screen_aspect), screen_aspect))
         edge = hud_hangs_from(self._main_unit.funestra.hud_edge, wrapped=wrapped)
         minimized = self._main_unit.funestra.hud_minimized
         if self._shown or minimized:
@@ -973,7 +973,7 @@ class _DashUnit:
         self.screen = _HangingScreen(self._floating)
 
     @property
-    def carrying_the_console(self) -> bool:  # a wrapped slot leaves it the only handle
+    def carrying_the_console(self) -> bool:  # a wrapped video leaves it the only handle
         return self._main_unit.wraps_the_viewer
 
     @property
@@ -1709,9 +1709,9 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
 
 def _still_blank(main_unit, satellites: Sequence, console) -> tuple[str, ...]:
     """Which screens the session opens with have yet to RENDER a frame, as
-    against merely being sized (``has_frame``, never ``ready``); the main slot
+    against merely being sized (``has_frame``, never ``ready``); the Main Funestra
     counts once.  Named, so the reveal can say which one it gave up on."""
-    frames = [(main_unit.screen_name, main_unit.texture_in_the_slot)]
+    frames = [(main_unit.screen_name, main_unit.texture_on_the_screen)]
     frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
     if console.in_the_room:
         frames.append((CONSOLE, console.texture))

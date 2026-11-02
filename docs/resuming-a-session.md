@@ -56,7 +56,7 @@ a file a new process reads:
   command file in the headset (`fun_time_vr.orchestrator.resume_genau_shapes`), because Genau rescans
   its folders whole at every launch; a desktop Genau has only flat flicks, so
   nothing is sent to it,
-- the main slot's mode is what startup seeds Kino, Genau and the Main Funestra's
+- the Main Funestra's mode is what startup seeds Kino, Genau and the Main Funestra's
   window for (`fun_time.windows_bridge_startup.seed_startup_states`),
 - Genau's order goes on its launch line (`--latest`), beside the flick it opens
   on. Genau has no playlist file — it rescans its folder every launch, in the

@@ -9,13 +9,13 @@ from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 
 from fun_time.dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
-from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbSlot
-from fun_time.rfb_slot_strip import paint_strip, place_strip, strip_buttons
+from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbMode
+from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
 from fun_time.satellite_buttons import mode_row
 
 
 def test_the_strip_offers_the_browser_then_origenerator():
-    buttons = strip_buttons(RfbSlot.RFB, origenerator_ready=True)
+    buttons = selector_buttons(RfbMode.RFB, origenerator_ready=True)
 
     assert [(b.command, b.glyph, b.width) for b in buttons] == [
         (RFB_ACTIVATE, "Random Favs Browser", FIT_THE_WORD),
@@ -23,16 +23,16 @@ def test_the_strip_offers_the_browser_then_origenerator():
 
 
 def test_whichever_holds_the_browsers_place_is_lit():
-    for holder in RfbSlot:
-        lit = [b.lit for b in strip_buttons(holder, origenerator_ready=True)]
-        assert lit == [holder is RfbSlot.RFB, holder is RfbSlot.ORIGENERATOR], holder
+    for holder in RfbMode:
+        lit = [b.lit for b in selector_buttons(holder, origenerator_ready=True)]
+        assert lit == [holder is RfbMode.RFB, holder is RfbMode.ORIGENERATOR], holder
 
 
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
     """As a Satellite Funestra's is: faded, never pressed, and saying on hover
     what it waits for."""
-    starting = strip_buttons(RfbSlot.RFB, origenerator_ready=False)
-    ready = strip_buttons(RfbSlot.RFB, origenerator_ready=True)
+    starting = selector_buttons(RfbMode.RFB, origenerator_ready=False)
+    ready = selector_buttons(RfbMode.RFB, origenerator_ready=True)
 
     assert [b.dim for b in starting] == [False, True]
     assert "starting" in starting[1].tooltip
@@ -54,9 +54,9 @@ def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
                     if button.glyph == "Origenerator")
     hud_rgb = _rgb(hud.bgra[:, :, [2, 1, 0, 3]], hud_rect)
 
-    placed = place_strip(strip_buttons(RfbSlot.ORIGENERATOR, origenerator_ready=True),
+    placed = place_selector(selector_buttons(RfbMode.ORIGENERATOR, origenerator_ready=True),
                          x=10, y=10)
-    strip = np.asarray(paint_strip((400, 38), placed))
+    strip = np.asarray(paint_selector((400, 38), placed))
     strip_rect = next(rect for rect, button in placed if button.glyph == "Origenerator")
 
     assert (strip_rect[2], strip_rect[3]) == (hud_rect[2], hud_rect[3])
@@ -64,11 +64,11 @@ def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
 
 
 def test_a_hovered_button_lightens_as_a_huds_does_and_a_dim_one_does_not():
-    placed = place_strip(strip_buttons(RfbSlot.RFB, origenerator_ready=False), x=10, y=10)
+    placed = place_selector(selector_buttons(RfbMode.RFB, origenerator_ready=False), x=10, y=10)
     browser, origenerator = (rect for rect, _button in placed)
 
     def drawn(hovered):
-        return np.asarray(paint_strip((400, 38), placed, hovered=hovered))
+        return np.asarray(paint_selector((400, 38), placed, hovered=hovered))
 
     assert not np.array_equal(_rgb(drawn(browser), browser), _rgb(drawn(None), browser))
     assert np.array_equal(_rgb(drawn(origenerator), origenerator),

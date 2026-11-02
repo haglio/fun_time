@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class DashboardSnapshot:
     nothing_to_reset: bool = False
     headset_ready: bool = True
     origenerator_ready: bool = False
-    rfb_slot: RfbSlot = RfbSlot.RFB
+    rfb_mode: RfbMode = RfbMode.RFB
 
 
 def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> str:
@@ -43,7 +43,7 @@ def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> 
         f"ready={'1' if snapshot.headset_ready else '0'}\n"
         "[origenerator]\n"
         f"ready={'1' if snapshot.origenerator_ready else '0'}\n"
-        f"in_the_rfb_slot={'1' if snapshot.rfb_slot is RfbSlot.ORIGENERATOR else '0'}\n"
+        f"in_the_rfb_mode={'1' if snapshot.rfb_mode is RfbMode.ORIGENERATOR else '0'}\n"
     )
 
 

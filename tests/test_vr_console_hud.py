@@ -9,7 +9,7 @@ from funestra.drive_readout import DriveHud
 from funestra.hud_placement import HudEdge
 from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
-from fun_time.console_buttons import MainSlot, console_rows
+from fun_time.console_buttons import MainFunestraFacts, console_rows
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time_vr.console_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
 
@@ -20,7 +20,7 @@ def _the_console_in(mode: str) -> ConsoleHud:
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
         console=ConsoleModel(main_mode=mode, locked=False,
-                             rows=console_rows(MainSlot(main_mode=mode, locked=False),
+                             rows=console_rows(MainFunestraFacts(main_mode=mode, locked=False),
                                                in_vr=True),
                              osr2_controls=osr2_controls(broker_running=True)),
         drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine", position=1000,
@@ -39,7 +39,7 @@ class TestTheHeldWidth:
         when the mode does.  The kino-mode transport row is that row, and it
         grows every time the console grows a button."""
         widest = max(
-            _row_width(console_rows(MainSlot(main_mode=mode, latest=False,
+            _row_width(console_rows(MainFunestraFacts(main_mode=mode, latest=False,
                                              plays_vr=True, plays_flat=True), in_vr=True))
             for mode in ("kino", "genau")
         )

@@ -12,8 +12,8 @@ It uses a serial broker for the OSR2 — the separate `../broker` project — th
 
 The main stack runs in one of two modes (startup mode is **video**):
 
-- in **Kino mode**, the Main Funestra owns the main slot and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (the Main Funestra sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
-- in **Genau mode** (OSR2 auto/free mode), Genau flicks own the main slot and the Robot Hand drives the OSR2 outright
+- in **Kino mode**, the Main Funestra owns the Main Funestra and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (the Main Funestra sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
+- in **Genau mode** (OSR2 auto/free mode), Genau flicks own the Main Funestra and the Robot Hand drives the OSR2 outright
 
 ## Folder layout
 
@@ -383,7 +383,7 @@ Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recor
 
 ### Sound
 
-One level covers the whole main slot, because it has two audio sinks — the Main Funestra's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and the Main Funestra draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
+One level covers the whole Main Funestra, because it has two audio sinks — the Main Funestra's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and the Main Funestra draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
 
 A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on the Main Funestra's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
 
@@ -410,7 +410,7 @@ A press posts `max_intensity_<0-100>` to the dashboard command file; the bridge 
 
 Each satellite draws the same two controls the Main Funestra does along the lower edge of its video — the scrubber and the volume chip — and, like the Main Funestra's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
 
-A satellite in a fresh room **opens muted** whatever its clips carry — the room's sound is the Main Funestra's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that Funestra's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. Fun Time keeps what each satellite reports of its chip with the room's other settings, so a reopened room hands each satellite back the level and mute it was left at. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
+A satellite in a fresh room **opens muted** whatever its clips carry — the room's sound is the Main Funestra's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that Funestra's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the Main Funestra's two sinks. Fun Time keeps what each satellite reports of its chip with the room's other settings, so a reopened room hands each satellite back the level and mute it was left at. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
 
 A press on the video itself still does nothing: a satellite's paused state belongs to the flag file under OmniPause, so a pause toggled in the window would be gone by the next frame.
 
@@ -436,7 +436,7 @@ F-Mode is **per Funestra** — the Main Funestra, portrait and landscape each ha
 
 - the main playlist (the Main Funestra) keeps only videos with a hand-written `.funscript` at the mirrored path (`videos\videos\…` maps to `videos\scripts\scripts\….funscript`, and an empty mark under `videos\scripts\generated` says no person wrote it) that is in action for at least 30% of the running time Evolver recorded for the video, counting each run of action from its first cycle to its last, a pause of under five seconds staying inside its run (`plays_in_f_mode`). A video whose running time Evolver has not recorded yet — a new one, or one of the headset's own videos on the cloud drive that it has not reached, a few of which it measures each run — stays in
 - each satellite plays only items that are in its normal portrait/landscape pool *and* marked a favorite on their metadata sidecar
-- Genau, which has the main slot in Genau mode, keeps only the flicks marked a favorite on their sidecar — a lock on Genau marks its flick, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-Mode is its own, apart from the Main Funestra's, the way its browse order is
+- Genau, which has the Main Funestra in Genau mode, keeps only the flicks marked a favorite on their sidecar — a lock on Genau marks its flick, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-Mode is its own, apart from the Main Funestra's, the way its browse order is
 
 Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-Mode **on** unless every Funestra is already in it, so the whole-room gesture can never leave half the room narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-Mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its side's "favorites" — "portrait favorites", "landscape favorites" — as its F-Mode, the word Origenerator's shows answer with their own F-Mode switch in Origenerator mode.
 
@@ -471,7 +471,7 @@ AI videos under the regen media root carry metadata sidecars (see `regen.media_r
 
 Two command pairs ride on those groups, spoken rather than key-bound ("portrait action", "portrait seed", "landscape action", "landscape seed"):
 
-- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeating it tours every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
+- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeating it tours every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one item per group — see below), it is swapped in place of the current entry.
 - **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render settings freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the Funestra and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across clips and wait for a "Similar clip").
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.

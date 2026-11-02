@@ -29,7 +29,7 @@ from fun_time.dashboard_app import (
     build_dashboard_window,
     load_dashboard_app_config,
 )
-from fun_time.dashboard_layout import RFB_SLOT_STRIP_HEIGHT
+from fun_time.dashboard_layout import RFB_MODE_SELECTOR_HEIGHT
 from fun_time.dashboard_runtime import DashboardSnapshot
 from fun_time.event_log import NOTICE, EventLogHandler, event_log_path, notice
 from fun_time.log_panel import level_color
@@ -103,7 +103,7 @@ def _build_merged_dashboard(cfg_path: Path):
         primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
-        rfb_slot_strip=app_config.rfb_slot_strip,
+        rfb_mode_selector=app_config.rfb_mode_selector,
     )
     launch_geo = DashboardLaunchGeometry(
         plan.dashboard.x, plan.dashboard.y, plan.dashboard.width, plan.dashboard.height,
@@ -143,7 +143,7 @@ def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edg
         cfg_factory({"paths": {"origenerator_dir": str(tmp_path / "origenerator")}}))
     try:
         central, log, strip = window.centralWidget(), window._log_widget, window._strip
-        assert strip.height() == RFB_SLOT_STRIP_HEIGHT
+        assert strip.height() == RFB_MODE_SELECTOR_HEIGHT
         assert strip.width() == log.width()
         assert strip.y() == log.y() + log.height()
         assert strip.y() + strip.height() == central.height()

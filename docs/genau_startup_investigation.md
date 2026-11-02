@@ -6,7 +6,7 @@
 > "shutdown persistence" idea below did eventually land, but for the mode the
 > *user* left the session in, not for the OSR2's auto mode: the mode rides the
 > shared state file (`session_resume.RESUMED_FIELDS`) and startup seeds the
-> main slot for it (`windows_bridge_startup.seed_startup_states`). The
+> Main Funestra for it (`windows_bridge_startup.seed_startup_states`). The
 > hardware findings are the part still worth reading; the auto-mode trigger
 > itself is still unsolved.
 

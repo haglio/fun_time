@@ -13,7 +13,7 @@ from funestra.hud_controls import longer_than_a_step
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
 
-from .console_buttons import MainSlot, console_rows, osr2_rows, title_filters
+from .console_buttons import MainFunestraFacts, console_rows, osr2_rows, title_filters
 from .funestra_status import GenauStatus, MainFunestraStatus
 from .mode_plan import kino_shows
 
@@ -36,9 +36,9 @@ def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: b
 
 
 @dataclass(frozen=True)
-class MainSlotInputs:
+class MainFunestraInputs:
     """Everything the main console is built from — the satellites'
-    :class:`~fun_time.lock_hud.SatelliteInputs` for the main slot.  The lock and
+    :class:`~fun_time.lock_hud.SatelliteInputs` for the Main Funestra.  The lock and
     the browse order are one flag each, resolved to whichever Funestra is on it."""
 
     main_mode: MainMode
@@ -70,12 +70,12 @@ class MainSlotInputs:
     has_osr2: bool = True
 
 
-def console_model(inputs: MainSlotInputs) -> ConsoleModel:
+def console_model(inputs: MainFunestraInputs) -> ConsoleModel:
     """The console as the Main Funestra parses it: the room around the
     drive readout, and the buttons declared from it."""
     main_funestra, genau = inputs.main_funestra, inputs.genau
     video = kino_shows(inputs.main_mode)
-    slot = MainSlot(
+    facts = MainFunestraFacts(
         main_mode=inputs.main_mode,
         locked=main_funestra.locked if video else genau.locked,
         f_mode=inputs.scripted_filter if video else inputs.genau_favorites_filter,
@@ -107,11 +107,11 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         osr2=osr2_state(main_mode=inputs.main_mode, osr2_mode=inputs.osr2_mode,
                         funscript_driving=main_funestra.funscript_driving,
                         trouble=inputs.osr2_trouble),
-        locked=slot.locked,
-        latest=slot.latest,
-        filters=title_filters(slot),
-        rows=console_rows(slot, in_vr=inputs.in_vr),
-        osr2_rows=osr2_rows(slot),
+        locked=facts.locked,
+        latest=facts.latest,
+        filters=title_filters(facts),
+        rows=console_rows(facts, in_vr=inputs.in_vr),
+        osr2_rows=osr2_rows(facts),
         has_osr2=inputs.has_osr2,
     )
 

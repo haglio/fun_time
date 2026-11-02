@@ -5,7 +5,7 @@ import configparser
 from pathlib import Path
 
 from .dashboard_bridge import DashboardSnapshot, decode_snapshot
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 
 
 def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
@@ -27,8 +27,8 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         headset_ready=(not parser.has_section("headset")
                        or _read_bool(parser, "headset", "ready")),
         origenerator_ready=_read_bool(parser, "origenerator", "ready"),
-        rfb_slot=(RfbSlot.ORIGENERATOR if _read_bool(parser, "origenerator", "in_the_rfb_slot")
-                  else RfbSlot.RFB),
+        rfb_mode=(RfbMode.ORIGENERATOR if _read_bool(parser, "origenerator", "in_the_rfb_mode")
+                  else RfbMode.RFB),
     )
 
 

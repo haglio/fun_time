@@ -42,7 +42,7 @@ from fun_time.media_metadata import (
     normalize_path_key,
 )
 from fun_time.modes import write_playlist_file
-from fun_time.origenerator_switches import RfbSlot, hosted_satellites
+from fun_time.origenerator_switches import RfbMode, hosted_satellites
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_commands import _discard, _toggle_lock
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock
@@ -250,9 +250,9 @@ def test_a_lock_on_a_video_a_website_made_puts_the_browser_back_over_origenerato
     config = _origenerator_config(tmp_path)
     _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
 
-    state, ops = dispatch_command("portrait_lock", _up(rfb_slot=RfbSlot.ORIGENERATOR), config)
+    state, ops = dispatch_command("portrait_lock", _up(rfb_mode=RfbMode.ORIGENERATOR), config)
 
-    assert state.rfb_slot is RfbSlot.RFB
+    assert state.rfb_mode is RfbMode.RFB
     assert [op.op for op in ops] == ["hide_role", "restack_rfb", "open_rfb_tab"]
 
 
@@ -3115,7 +3115,7 @@ def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
         assert ops == []
 
 
-def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_slot(tmp_path: Path):
+def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_funestra(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _, ops = dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
@@ -4567,7 +4567,7 @@ def test_genau_holding_its_flick_for_want_of_shapes_is_not_a_lock_of_his(tmp_pat
     flick = tmp_path / "flicks" / "made up flick.mp4"
     _show_on_genau(config, flick, locked=False)
     only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False,
-                            rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
+                            rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
 
     _state, ops = dispatch_command("main_projection_none", only_flat, config)
 
@@ -4794,7 +4794,7 @@ class TestEachSatellitesOwnMode:
                                 [str(tmp_path / f"{funestra.label}.mp4")])
         state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert state.rfb_slot is RfbSlot.RFB
+        assert state.rfb_mode is RfbMode.RFB
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("hand_over_funestras", "portrait")]
         assert _origenerator_cmds(config) == ["portrait_open_slideshow"]
@@ -4825,9 +4825,9 @@ class TestEachSatellitesOwnMode:
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command(
             "satellites_kino_activate",
-            _in_origenerator_mode(rfb_slot=RfbSlot.ORIGENERATOR), config)
+            _in_origenerator_mode(rfb_mode=RfbMode.ORIGENERATOR), config)
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert state.rfb_mode is RfbMode.ORIGENERATOR
         assert _origenerator_cmds(config) == ["portrait_close_slideshow", "landscape_close_slideshow"]
         assert [(op.op, op.key) for op in ops] == [
             ("take_back_funestras", "portrait"), ("take_back_funestras", "landscape")]
@@ -4837,7 +4837,7 @@ class TestEachSatellitesOwnMode:
         config = _origenerator_config(tmp_path)
         state, _ops = dispatch_command("satellites_origenerator_activate", _up(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert state.rfb_slot is RfbSlot.RFB
+        assert state.rfb_mode is RfbMode.RFB
         assert _origenerator_cmds(config) == ["portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_the_toggle_puts_both_in_origenerator_mode_unless_both_already_are(self, tmp_path):
@@ -4912,7 +4912,7 @@ class TestTheRandomFavsBrowsersPlace:
         (restack_rfb): the browser out of the band, the hosted window in it."""
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
-        assert state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert state.rfb_mode is RfbMode.ORIGENERATOR
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert [(op.op, op.key) for op in ops] == [
             ("show_role", "origenerator"),
@@ -4925,8 +4925,8 @@ class TestTheRandomFavsBrowsersPlace:
     def test_the_browser_takes_its_place_back(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command(
-            "rfb_activate", _in_origenerator_mode(rfb_slot=RfbSlot.ORIGENERATOR), config)
-        assert state.rfb_slot is RfbSlot.RFB
+            "rfb_activate", _in_origenerator_mode(rfb_mode=RfbMode.ORIGENERATOR), config)
+        assert state.rfb_mode is RfbMode.RFB
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert [(op.op, op.key) for op in ops] == [
             ("hide_role", "origenerator"), ("restack_rfb", "")]
@@ -4935,19 +4935,19 @@ class TestTheRandomFavsBrowsersPlace:
     def test_asking_for_what_already_holds_the_place_moves_no_window(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("rfb_activate", _up(), config)
-        assert (state.rfb_slot, ops) == (RfbSlot.RFB, [])
+        assert (state.rfb_mode, ops) == (RfbMode.RFB, [])
 
     def test_a_hosted_app_still_booting_keeps_the_browser_in_its_place(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
-        assert state.rfb_slot is RfbSlot.RFB
+        assert state.rfb_mode is RfbMode.RFB
         assert [(op.op, op.key) for op in ops] == [
             ("notice", "Origenerator is still starting")]
 
     def test_without_an_origenerator_the_browser_keeps_its_place(self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
-        assert state.rfb_slot is RfbSlot.RFB
+        assert state.rfb_mode is RfbMode.RFB
         assert [(op.op, op.key) for op in ops] == [("notice", "No Origenerator configured")]
 
 

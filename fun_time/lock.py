@@ -8,9 +8,9 @@ from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
 from .media_actions import make_web_url_from_path
 from .media_metadata import mark_favorite
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 from .random_favs_browser import FavEntry, target_for_fav
-from .rfb_slot import switch_the_rfb_slot
+from .rfb_mode import switch_the_rfb_mode
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .room_funestras import RoomFunestra
 from .shared_state import BridgeState
@@ -47,8 +47,8 @@ def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState,
             append_command(config.origenerator_cmd_file, go_to_line(item))
         return state, []
     ops: list[WindowOp] = []
-    if state.rfb_slot is RfbSlot.ORIGENERATOR:
-        state, ops = switch_the_rfb_slot(RfbSlot.RFB, state, config)
+    if state.rfb_mode is RfbMode.ORIGENERATOR:
+        state, ops = switch_the_rfb_mode(RfbMode.RFB, state, config)
     page = write_lock_tab_page(tabs_dir(config.state_dir), target,
                                loopback_port=config.loopback_port)
     return state, [*ops, WindowOp(op=Op.OPEN_RFB_TAB, key=page)]

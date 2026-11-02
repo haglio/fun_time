@@ -6,7 +6,7 @@ Many files in the wild are the same content at different quality or upscale
 module folds those variants into a single *version group* keyed on the name —
 an upscale is almost always the original's name plus an appended tag — picks
 the largest file as the canonical one, and folds Fun Time's playlist to one
-slot per group.
+item per group.
 """
 from __future__ import annotations
 
@@ -206,7 +206,7 @@ def collapse_playlist_versions(
     its first-seen position, keeping the largest entry actually present in
     *items* (with that entry's funscript from *items*). Videos absent from the
     index pass through unchanged. This turns Fun Time's raw per-file playlist
-    into the one-slot-per-video rotation the main slot Funestra shows, matching the
+    into the one-item-per-video rotation the Main Funestra shows, matching the
     set :meth:`FunestraSession.cycle_version` walks.
     """
     funscript_by_video = {item.path: item.funscript for item in items}

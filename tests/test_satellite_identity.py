@@ -16,7 +16,7 @@ from fun_time.windows_bridge_startup import (
     launch_core_apps,
 )
 from main_funestra.window import wear_the_icon
-from tests.test_windows_bridge_startup import _slot
+from tests.test_windows_bridge_startup import _launch
 
 
 def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
@@ -28,8 +28,8 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
                side_effect=[202, 303]) as launched:
         launch_core_apps(
             python_exe="python.exe", satellite_module="satellite",
-            portrait=_slot(RoomFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
-            landscape=_slot(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
+            portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
+            landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
             result_file=tmp_path / "core_apps.ini",
         )
 

@@ -20,7 +20,7 @@ RESET_ALL = "all_reset"
 ENTER_VR = "enter_vr"
 EXIT_VR = "exit_vr"
 VR_RESET = "vr_reset"
-# The strip under the log: what holds the Random Favs Browser's place.
+# The mode selector under the log: what holds the Random Favs Browser's place.
 RFB_ACTIVATE = "rfb_activate"
 ORIGENERATOR_ACTIVATE = "origenerator_activate"
 HEADSET_ON = "headset_on"

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from .shared_state import BridgeState
 
 
-class RfbSlot(StrEnum):
+class RfbMode(StrEnum):
     """What holds the Random Favs Browser's place: the browser, or the hosted
     Origenerator's own window over it."""
 

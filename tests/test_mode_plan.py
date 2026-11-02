@@ -58,10 +58,10 @@ def test_same_mode_is_noop():
         assert plan.main_funestra_should_play is None
 
 
-def test_a_mode_that_is_not_the_main_slots_is_refused():
-    with pytest.raises(ValueError, match="Not a main-slot mode: 'origenerator'"):
+def test_a_mode_that_is_not_the_main_funestras_is_refused():
+    with pytest.raises(ValueError, match="Not a Main Funestra mode: 'origenerator'"):
         build_mode_switch_plan(current_mode="kino", target_mode="origenerator", omni_paused=False)
 
 
-def test_the_main_slots_modes_are_the_two():
+def test_the_main_funestras_modes_are_the_two():
     assert MAIN_MODES == (MAIN_KINO_MODE, MAIN_GENAU_MODE)

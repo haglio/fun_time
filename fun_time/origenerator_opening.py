@@ -11,7 +11,7 @@ from .funestra_status import origenerator_has_published
 from .origenerator_switches import (
     KINO_MODE,
     ORIGENERATOR_MODE,
-    RfbSlot,
+    RfbMode,
     mode_command,
     origenerator_shows,
 )
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def holding_nothing(state: BridgeState) -> BridgeState:
     for funestra in RoomFunestra.SATELLITES:
         state = state.with_satellite(funestra, mode=KINO_MODE)
-    return replace(state, rfb_slot=RfbSlot.RFB)
+    return replace(state, rfb_mode=RfbMode.RFB)
 
 
 def what_origenerator_held(left_in: BridgeState, *,
@@ -32,8 +32,8 @@ def what_origenerator_held(left_in: BridgeState, *,
     satellites = tuple(
         mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in RoomFunestra.SATELLITES
         if funestra in slideshow_on or origenerator_shows(left_in.satellite(funestra).mode))
-    in_the_rfb_slot = bool(slideshow_on) or left_in.rfb_slot is RfbSlot.ORIGENERATOR
-    return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_slot else ()))
+    in_the_rfb_mode = bool(slideshow_on) or left_in.rfb_mode is RfbMode.ORIGENERATOR
+    return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_mode else ()))
 
 
 class OrigeneratorOpening:

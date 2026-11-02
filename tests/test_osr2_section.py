@@ -20,7 +20,7 @@ from funestra.hud_marks import shared_mark
 from funestra.modes import MainMode, Osr2State
 from funestra.robot_hand import WaveformShape
 
-from fun_time.console_buttons import MainSlot, console_rows, osr2_rows
+from fun_time.console_buttons import MainFunestraFacts, console_rows, osr2_rows
 from fun_time.main_funestra_console import osr2_state
 from fun_time.osr2_section import osr2_button, osr2_part
 from fun_time.room_funestras import RoomFunestra
@@ -81,7 +81,7 @@ class TestTheRowThatAimsTheDevice:
         assert len(faces) == len(WaveformShape)
 
     def test_rides_on_the_dashboard_s_part_never_on_the_console(self):
-        slot = MainSlot(main_mode=MainMode.KINO)
+        slot = MainFunestraFacts(main_mode=MainMode.KINO)
         console = [b.command for row in (*console_rows(slot), *osr2_rows(slot)) for b in row]
 
         assert "robot_hand_park" in _actions(_part())

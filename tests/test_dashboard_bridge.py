@@ -12,7 +12,7 @@ from fun_time.dashboard_bridge import (
     write_dashboard_snapshot,
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 
 
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
@@ -21,7 +21,7 @@ def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     files.  It is the one record both ways now."""
     snapshot = DashboardSnapshot(
         omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
-        origenerator_ready=True, rfb_slot=RfbSlot.ORIGENERATOR,
+        origenerator_ready=True, rfb_mode=RfbMode.ORIGENERATOR,
     )
     path = tmp_path / "dashboard_state.ini"
 
@@ -66,7 +66,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "ready=1\n"
         "[origenerator]\n"
         "ready=0\n"
-        "in_the_rfb_slot=0\n"
+        "in_the_rfb_mode=0\n"
     )
 
 
