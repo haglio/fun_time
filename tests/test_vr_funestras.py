@@ -32,6 +32,7 @@ from funestra.modes import MainMode
 from funestra.outside_buttons import OutsideButtons
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem
+from funestra.testing import FakeEngine
 from shared_ui.palette import BLUE
 
 from fun_time.config import load_config
@@ -170,7 +171,6 @@ from main_funestra.genau import ROBOT_HAND, GenauChannels
 from tests.headset_layout_reports import reported_layout
 from tests.made_up_genau import with_made_up_genau
 from tests.made_up_osr2_parts import a_part, a_readout, band_of, center_of, handed_on, published
-from tests.satellite_fakes import FakeSatelliteEngine
 
 
 def test_the_funestra_is_told_its_manifest_and_nothing_else():
@@ -545,7 +545,7 @@ class _AVideoThread:
     off it, and the engine it hands the Funestra."""
 
     def __init__(self, *_args, **_kwargs) -> None:
-        self.engine = FakeSatelliteEngine(duration_ms=600_000.0)
+        self.engine = FakeEngine(duration_ms=600_000.0)
         self.closed = False
 
     @property

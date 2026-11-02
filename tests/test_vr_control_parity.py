@@ -41,6 +41,7 @@ from funestra.modes import MainMode
 from funestra.notices import NoticeWriter
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
+from funestra.testing import FakeEngine
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.bridge_records import Op
@@ -64,7 +65,6 @@ from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.genau_fakes import FakeNotifier, FakeSink
-from tests.satellite_fakes import FakeSatelliteEngine
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 # Window ops a VR session raises and nothing acts on: every role lives inside
@@ -156,7 +156,7 @@ class _TheHeadsetsMainFunestra:
         )
         channels.playlist.write_text(f"{first}\t{script}\n{second}\t\n", encoding="utf-8")
         self._command_file = channels.command
-        self.engine = FakeSatelliteEngine(duration_ms=3_600_000.0)
+        self.engine = FakeEngine(duration_ms=3_600_000.0)
         self.funestra = Funestra(
             self.engine, channels=channels, playlist=read_playlist(channels.playlist),
             locked=True, sound_is_the_rooms=True,
@@ -298,7 +298,7 @@ class TestTheSatellites:
         dead: dict[str, str] = {}
         for channel in ("portrait_cmd_file", "landscape_cmd_file"):
             for verb, where in _sent_to(landed, channel).items():
-                session = Playback(list(clips), engine=FakeSatelliteEngine())
+                session = Playback(list(clips), engine=FakeEngine())
                 handled = apply_satellite_command(
                     _a_satellite_line(verb, clips[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
@@ -314,7 +314,7 @@ class TestTheSatellites:
         clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
         for clip in clips:
             clip.write_bytes(b"")
-        session = Playback(list(clips), engine=FakeSatelliteEngine())
+        session = Playback(list(clips), engine=FakeEngine())
         session.set_locked(True)
         playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
 

@@ -11,11 +11,11 @@ from pathlib import Path
 
 from funestra.playback import Playback
 from funestra.playlist import PlaylistItem
+from funestra.testing import FakeEngine
 
 from main_funestra.mode_memory import RememberedMode
 from main_funestra.modes import Modes, reload_playlist
 from main_funestra.versions import Versions
-from tests.satellite_fakes import FakeSatelliteEngine
 
 FIRST = Path("videos/Jane Doe - scene one.mp4")
 SECOND = Path("videos/Ann Bly - scene two.mp4")
@@ -154,7 +154,7 @@ class TestTheFileNamedBesideAVideoWithVersions:
         for path in (default, upscale, other):
             path.write_text("x")
         family = [PlaylistItem(default), PlaylistItem(upscale)]
-        playback = Playback([default, other], engine=FakeSatelliteEngine(), locked=True)
+        playback = Playback([default, other], engine=FakeEngine(), locked=True)
         versions = Versions(playback, {default: family, upscale: family})
         modes = Modes(playback, FakeJumps(title=self.TITLE), versions, the_main_list=list)
         return modes, playback, versions
