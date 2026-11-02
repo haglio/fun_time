@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from app_support.origenerator_handoff import hand_over, take_the_takeover
+from app_support.testing import origenerator_handed_over
 from funestra.file_channel import consume_command_file
 
 from fun_time import load_config
@@ -320,7 +321,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
                    return_value=OpenOrigenerator(6060, starting=False,
                                                  place=origenerator / "state",
                                                  slideshow_on=())), \
-             patch("app_support.origenerator_handoff.hand_over", side_effect=answer), \
+             origenerator_handed_over(side_effect=answer), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=lambda **kw: launched.update(kw) or 91):
             app = bring_up_the_hosted_app(manifest, sibling_checkouts="")
@@ -349,8 +350,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
                    return_value=OpenOrigenerator(6060, starting=False,
                                                  place=origenerator / "state",
                                                  slideshow_on=())), \
-             patch("app_support.origenerator_handoff.hand_over",
-                   side_effect=lambda _place, **kw: handed.update(kw)):
+             origenerator_handed_over(side_effect=lambda _place, **kw: handed.update(kw)):
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=True)
 
         assert [word for word in handed["args"] if word.startswith("--")] == flags

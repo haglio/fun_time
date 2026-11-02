@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pygame
 import pytest
 from funestra.file_channel import read_paused_state
+from funestra.testing import software_outputs_are
 
 from fun_time import audio_companion_app
 from fun_time.audio_companion_app import AudioPlaybackController, find_audio, init_mixer
@@ -406,8 +407,7 @@ class TestTheOutputItPlaysOn:
         """The headset maker's own streaming driver carries its name too and
         Windows lists it first, so taking the first match left the room silent.
         """
-        with patch("funestra.audio_outputs.software_outputs",
-                   return_value=frozenset({self.STREAMING})), \
+        with software_outputs_are(frozenset({self.STREAMING})), \
              patch("fun_time.audio_companion_app.get_audio_device_names",
                    return_value=[self.STREAMING, self.HEADSET]), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \

@@ -20,6 +20,7 @@ from app_support.file_channel import read_flag, write_flag
 from funestra.console import OSR2_RETRACTED
 from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
+from shared_ui.testing import alert_shown
 
 from fun_time import closing_screen, windows_bridge_orchestrator
 from fun_time.command_dispatch import dispatch_command
@@ -2085,7 +2086,7 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("shared_ui.alert.show_alert") as put_up:
+             alert_shown() as put_up:
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk", state_dir=state_dir, project_dir=tmp_path)
@@ -2124,7 +2125,7 @@ class TestAFunestraThatDiedWhileTheRoomCameUp:
                  patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                        side_effect=lambda pid: happened.append(f"ended {pid}")), \
                  patch("fun_time.windows_bridge_orchestrator.close_window"), \
-                 patch("shared_ui.alert.show_alert"):
+                 alert_shown():
                 _a_session(
                     manifest_path=manifest_path, ahk_exe="ahk.exe",
                     hotkey_script="hotkeys.ahk", state_dir=tmp_path / "state",
@@ -2151,7 +2152,7 @@ class TestAPartThatClosedItselfWhileTheRoomWasUp:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.the_part_that_closed",
                    return_value="the Portrait Funestra"), \
-             patch("shared_ui.alert.show_alert") as put_up:
+             alert_shown() as put_up:
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path)
