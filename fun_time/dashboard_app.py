@@ -74,10 +74,8 @@ from fun_time.dashboard_layout import (
 )
 from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.event_log import event_log_path
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
-from fun_time.log_panel_model import ui_state_path
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.message_feed import MessageFeed
@@ -256,7 +254,6 @@ def build_dashboard_scene(
     layout: DashboardBarLayout,
     snapshot: DashboardSnapshot | None = None,
     *,
-    width: int,
     icons: IconCache,
     pressed_actions: frozenset[str] = frozenset(),
     reference_open: bool = False,
@@ -314,7 +311,7 @@ def build_dashboard_scene(
     if omni_paused:
         tooltips[OMNIPAUSE_TOGGLE] = OMNIPAUSE_RESUME_TOOLTIP
     return DashboardScene(
-        width=width,
+        width=layout.width,
         height=layout.height,
         rects=rects,
         texts=texts,
@@ -629,9 +626,8 @@ class DashboardWindow(QMainWindow):
         self._reveal = LoadingReveal(app_config.state_dir)
 
         self._flash = PressFlash()
-        self._flash_going_out = QTimer(self)
+        self._flash_going_out = self._timer_calling(self._show_presses)
         self._flash_going_out.setSingleShot(True)
-        self._flash_going_out.timeout.connect(self._show_presses)
         self._last_snapshot: DashboardSnapshot | None = None
 
         self._shown_as = preview_marker.shown_as()
@@ -649,8 +645,7 @@ class DashboardWindow(QMainWindow):
         self._icons = IconCache()
         self._widget = DashboardWidget(self._bar_scene(frozenset()))
         self._widget.action_triggered.connect(self._on_action)
-        self._log_widget = LogPanelWidget(
-            event_log_path(app_config.state_dir), ui_state_path(app_config.state_dir))
+        self._log_widget = LogPanelWidget.for_session(app_config.state_dir)
         column = QVBoxLayout()
         column.setSpacing(0)
         column.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
@@ -706,14 +701,17 @@ class DashboardWindow(QMainWindow):
             list_what_was_heard=self._log_widget.show_what_was_heard,
             shared_state_file=shared_state_path(app_config.state_dir),
         )
-        self._message_timer = QTimer(self)
-        self._message_timer.timeout.connect(self._messages.poll)
-        self._message_timer.start(250)
-
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self._refresh)
-        self._refresh_timer.start(500)
+        self._timer_calling(self._messages.poll).start(250)
+        self._timer_calling(self._refresh).start(500)
         self._refresh()
+
+    def _timer_calling(self, slot: Callable[[], None]) -> QTimer:
+        timer = QTimer(self)
+        timer.timeout.connect(slot)
+        return timer
+
+    def _post_command(self, action: str) -> None:
+        write_dashboard_command(self._app_config.dashboard_cmd_file, action)
 
     def closeEvent(self, event: object) -> None:
         # Closing this window ends the WHOLE session; a stray Alt+F4 lands here.
@@ -733,9 +731,8 @@ class DashboardWindow(QMainWindow):
         process, and a leaked poller would read on past its window.
         """
         self._press_channel.stop()
-        self._refresh_timer.stop()
-        self._message_timer.stop()
-        self._flash_going_out.stop()
+        for timer in self.findChildren(QTimer):
+            timer.stop()
         self._log_widget.shutdown()
         self._osr2.shutdown()
         self._messages.shutdown()
@@ -760,7 +757,7 @@ class DashboardWindow(QMainWindow):
         if self._reveal.routing_suppressed:
             return  # startup minimize (loading overlay) — not a user gesture
         if now_minimized and not was_minimized:
-            write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIMINIMIZE)
+            self._post_command(OMNIMINIMIZE)
 
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omnirestore command on the minimized -> not-minimized edge only."""
@@ -768,7 +765,7 @@ class DashboardWindow(QMainWindow):
             return
         if self._reveal.took_the_first_restore():
             return  # startup's own minimize came back; routing is live from here
-        write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
+        self._post_command(OMNIRESTORE)
 
     def _show_presses(self) -> None:
         self._do_render(self._last_snapshot, self._flash.lit())
@@ -815,7 +812,6 @@ class DashboardWindow(QMainWindow):
         return build_dashboard_scene(
             self._bar_layout,
             self._last_snapshot,
-            width=self._bar_layout.width,
             icons=self._icons,
             pressed_actions=pressed_actions,
             reference_open=self._reference.is_open,
@@ -826,14 +822,14 @@ class DashboardWindow(QMainWindow):
         self._widget.set_scene(self._bar_scene(self._flash.lit()))
 
     def _pause_for_typing(self) -> None:
-        write_dashboard_command(self._app_config.dashboard_cmd_file, ENTER_OMNIPAUSE)
+        self._post_command(ENTER_OMNIPAUSE)
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
             self._reference.toggle(self._omni_paused)
             return
         self._flash.press(action_id)
-        write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
+        self._post_command(action_id)
         self._show_presses()
 
     def _handle_press_event(self) -> None:
@@ -919,6 +915,13 @@ def set_up_logging() -> logging.Logger:
     return logger
 
 
+def claim_taskbar_identity(identity: str, claim: Callable[[str], None]) -> None:
+    try:
+        claim(identity)
+    except OSError:
+        logger.warning("Windows refused the taskbar identity %s; grouping will not work", identity)
+
+
 def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = parse_args(argv)
@@ -926,10 +929,8 @@ def main(argv: list[str] | None = None) -> int:
     # Set AppUserModelID before any window creation so the taskbar can group
     # this process's windows with the pinned "Fun Time" shortcut.
 
-    try:
-        set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
-    except OSError:
-        pass  # Non-fatal — taskbar grouping just won't work
+    claim_taskbar_identity(preview_marker.session_identity(preview_marker.shown_as()),
+                           set_app_user_model_id)
 
     with application([]) as app:
         # The family's chrome, on the application: a tooltip is a top-level popup,

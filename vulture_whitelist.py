@@ -16,7 +16,6 @@ _.hide  # the Funestra takes a User's own frame down off the headset's surface
 _.pick  # the Funestra hands them the projection picked off the list
 _.set_bar  # the Funestra hands them the angle the Angle bar is set to
 _.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
-_.mouseMoveEvent  # Qt event override
 _.decorationPosition  # Qt's item view reads it off the style option, to put a letter's mark after it
 _.ERROR_CHECKING  # PyOpenGL reads it once, when OpenGL.GL is first imported
 _.optionxform  # ConfigParser hook, set to keep key case
@@ -67,3 +66,6 @@ report_the_headset_held
 headset_is_held
 CANCEL_OPENING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's launch loading screen says it
 CANCEL_CLOSING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's closing screen says it
+
+# shared_ui.PressableDrawing hands the pointer leaving to what it was given (fun_time.rfb_slot_strip.RfbSlotStrip).
+leave

@@ -56,6 +56,7 @@ from fun_time.event_log import (
     SOURCE_LABELS,
     SOURCES,
     EventRecord,
+    event_log_path,
     read_events,
 )
 from fun_time.log_panel_model import (
@@ -68,6 +69,7 @@ from fun_time.log_panel_model import (
     load_ui_state,
     remember_what_was_heard,
     save_ui_state,
+    ui_state_path,
     visible_records,
     with_what_was_heard,
 )
@@ -153,6 +155,10 @@ class LogPanelWidget(QWidget):
     """
 
     POLL_MS = 300
+
+    @classmethod
+    def for_session(cls, state_dir: Path) -> LogPanelWidget:
+        return cls(event_log_path(state_dir), ui_state_path(state_dir))
 
     def __init__(
         self,

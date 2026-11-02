@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QApplication
 from shared_ui.spacing import MARGIN_STANDARD
@@ -267,8 +267,7 @@ def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path
     window.close()
 
     assert not window._press_channel.listening
-    assert not window._refresh_timer.isActive()
-    assert not window._message_timer.isActive()
+    assert not any(timer.isActive() for timer in window.findChildren(QTimer))
     assert not log._timer.isActive()
     assert not window._osr2._timer.isActive()
     assert window._messages.overlay is None
