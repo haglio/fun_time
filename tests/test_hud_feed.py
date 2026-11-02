@@ -741,7 +741,7 @@ class TestHudPublishing:
 
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
         """The loop ticks 20x/s; rebuilding and rewriting both HUDs that often
-        is waste the map never shows, so publishing runs on its own cadence."""
+        is waste the nav map never shows, so publishing runs on its own cadence."""
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
 
@@ -759,9 +759,9 @@ class TestHudPublishing:
         the read lost — not that the Funestra has nothing.
 
         Believing the blank republishes an empty HUD, which the Funestra renders
-        as a HUD with nothing on it, and the next tick puts it back: the map
+        as a HUD with nothing on it, and the next tick puts it back: the nav map
         blinks.  It is most visible under OmniPause, where the frame is frozen
-        and the map is the only thing that can move.
+        and the nav map is the only thing that can move.
         """
         feed, state = make_feed(tmp_path), BridgeState()
         status = tmp_path / "portrait_status.txt"

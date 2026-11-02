@@ -768,7 +768,7 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(landscape=SatelliteState(latest=True), portrait=SatelliteState(favorites_filter=True, filter="alpha", loop="seed", map_anchor="C:/v/a.mp4"), main_scripted_filter=True))
+    write_shared_state(state_file, BridgeState(landscape=SatelliteState(latest=True), portrait=SatelliteState(favorites_filter=True, filter="alpha", loop="seed", nav_map_anchor="C:/v/a.mp4"), main_scripted_filter=True))
 
     _run_start_core_session(kwargs)
 
@@ -778,7 +778,7 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
     assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-    assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
+    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
     # state, but the Main Funestra's own HUD can only know F-mode from being told — so it is
     # told, or the Main Funestra is the one display that comes back saying nothing.

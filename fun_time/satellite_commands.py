@@ -270,7 +270,7 @@ def _parse_nav(command: str) -> tuple[int, str] | None:
 def is_hud_nav_command(command: str) -> bool:
     """Whether *command* drives HUD keyboard navigation — a direction step.  Those
     manage the Satellite's nav anchor themselves, so the generic "any other side
-    command re-homes the map" rule leaves them alone."""
+    command re-homes the nav map" rule leaves them alone."""
     return _parse_nav(command) is not None
 
 
@@ -320,7 +320,7 @@ def _dispatch_reset(
     """Put a satellite (or both) back to every default, not just its filter.
 
     The lock is released, the filter cleared, F-mode dropped, the order returned to
-    shuffled, any group loop and widened row and frozen map dropped, and the Satellite
+    shuffled, any group loop and widened row and frozen nav map dropped, and the Satellite
     starts from the top of a freshly-built browse — one video per subject.  "no
     filter" is the narrow gesture; this one is "put it back how it started".
 

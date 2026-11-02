@@ -162,6 +162,6 @@ RFB_MODE_SELECTOR_HEIGHT = PAD * 2 + BUTTON
 
 def dashboard_window_height(*, rfb_mode_selector: bool = False) -> int:
     """How tall the dashboard window stands: the bar, the log under it and the
-    strip under that, which the Random Favs Browser below it inherits."""
+    mode selector under that, which the Random Favs Browser below it inherits."""
     strip = RFB_MODE_SELECTOR_HEIGHT if rfb_mode_selector else 0
     return compute_dashboard_bar_layout().height + LOG_HEIGHT + strip

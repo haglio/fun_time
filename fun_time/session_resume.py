@@ -56,7 +56,7 @@ NOT_RESUMED = frozenset({
 NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor", "handed_over"})
 
 DESCRIBES_THE_PLAYLIST = frozenset({
-    "locked", "filter", "favorites_filter", "latest", "loop", "map_anchor", "widen_video",
+    "locked", "filter", "favorites_filter", "latest", "loop", "nav_map_anchor", "widen_video",
 })
 
 RESUMED_FIELDS: tuple[str, ...] = tuple(

@@ -49,7 +49,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_bridge import DashboardSnapshot
-from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
+from fun_time.dashboard_controls import BarControl, bar_controls, icon_side
 from fun_time.dashboard_layout import (
     PAD,
     RFB_MODE_SELECTOR_HEIGHT,
@@ -171,13 +171,13 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     )
 
 
-class MarkCache:
+class IconCache:
     """The pixmaps one bar is painted from, kept for as long as that bar: every
     render asks for the same handful, twice a second."""
 
     def __init__(self) -> None:
         self._icons: dict[tuple[str, int], QPixmap] = {}
-        self._marks: dict[tuple[str, int, int], QPixmap] = {}
+        self._family_icons: dict[tuple[str, int, int], QPixmap] = {}
 
     def icon(self, path: Path, height: int) -> QPixmap:
         """An .ico scaled to a square of *height* pixels."""
@@ -193,20 +193,20 @@ class MarkCache:
             self._icons[key] = pm
         return self._icons[key]
 
-    def mark(self, name: str, rect, color: QColor | None = None) -> QPixmap:
-        """One of the family's marks, drawn square for the control it sits in.
+    def family_icon(self, name: str, rect, color: QColor | None = None) -> QPixmap:
+        """One of the family's icons, drawn square for the control it sits in.
 
-        From shared_ui, not typed as a font character: typed, each mark came out
-        at whatever weight its face gave it.  Square, because a mark drawn to a
+        From shared_ui, not typed as a font character: typed, each icon came out
+        at whatever weight its face gave it.  Square, because a icon drawn to a
         wide panel's aspect stops being round; the widget centers it.
 
-        *color* is the bar's ink unless the mark owns one — F-mode's is magenta.
+        *color* is the bar's ink unless the icon owns one — F-mode's is magenta.
         """
         ink = color or COLOR_TEXT
         key = (name, rect.width, rect.height, ink.rgba())
-        if key not in self._marks:
-            self._marks[key] = icon_pixmap(name, mark_side(rect), ink)
-        return self._marks[key]
+        if key not in self._family_icons:
+            self._family_icons[key] = icon_pixmap(name, icon_side(rect), ink)
+        return self._family_icons[key]
 
 
 # The reference popup's name, on its window chrome and on the ? button's tooltip
@@ -216,7 +216,7 @@ REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 _BUTTON_RADIUS = BUTTON_RADIUS_HUD
 
 # Every control in the bar names itself on hover.  Omnipause names the act the
-# press takes rather than the state it is in, as its mark does.
+# press takes rather than the state it is in, as its icon does.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
@@ -236,12 +236,12 @@ def build_dashboard_scene(
     snapshot: DashboardSnapshot | None = None,
     *,
     width: int,
-    marks: MarkCache,
+    icons: IconCache,
     pressed_actions: frozenset[str] = frozenset(),
     reference_open: bool = False,
     shown_as: Preview | None = None,
 ) -> DashboardScene:
-    """The control bar: the app's mark, the session's four, then the three that
+    """The control bar: the app's icon, the session's four, then the three that
     reach past it.  Nothing here stands for one Funestra."""
     omni_paused = snapshot is not None and snapshot.omni_paused
     controls = bar_controls(
@@ -277,15 +277,15 @@ def build_dashboard_scene(
     _font_app.setItalic(True)
 
     # Only the app's own name is set in type now; every control wears a drawn
-    # mark, so the bar carries one weight across it.
+    # icon, so the bar carries one weight across it.
     texts = (
         DashboardTextItem(preview_marker.APP_TITLE, layout.app_title,
                           color=QColor(*preview_marker.wordmark_ink(shown_as)), anchor="w", font=_font_app),
     )
     images = (
-        DashboardImageItem(marks.icon(preview_marker.icon_file(PROJECT_ICON, shown_as),
+        DashboardImageItem(icons.icon(preview_marker.icon_file(PROJECT_ICON, shown_as),
                                       layout.app_icon.height), layout.app_icon),
-        *(DashboardImageItem(marks.mark(control.mark, control.rect, QColor(*control.ink)),
+        *(DashboardImageItem(icons.family_icon(control.icon, control.rect, QColor(*control.ink)),
                              control.rect)
           for control in controls),
     )
@@ -301,7 +301,7 @@ def build_dashboard_scene(
         actions=tuple((control.action, control.rect)
                       for control in controls if not control.dim),
         hover_texts=(
-            *((control.rect, tooltip_for(control.mark, tooltips[control.action]))
+            *((control.rect, tooltip_for(control.icon, tooltips[control.action]))
               for control in controls),
             *(() if shown_as is None else ((layout.app_title, preview_marker.app_title(shown_as)),)),
         ),
@@ -323,7 +323,7 @@ class DashboardWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.marks = MarkCache()
+        self.icons = IconCache()
         self._scene: DashboardScene | None = None
         # Which control the pointer is over, so it can be drawn one step lighter.
         self._hovered: Rect | None = None
@@ -699,10 +699,10 @@ class DashboardWindow(QMainWindow):
         column.setSpacing(0)
         column.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
         column.addWidget(self._log_widget, 1)
-        self._strip = RfbModeSelectorWidget() if app_config.rfb_mode_selector else None
-        if self._strip is not None:
-            self._strip.action_triggered.connect(self._on_action)
-            column.addWidget(self._strip)
+        self._mode_selector = RfbModeSelectorWidget() if app_config.rfb_mode_selector else None
+        if self._mode_selector is not None:
+            self._mode_selector.action_triggered.connect(self._on_action)
+            column.addWidget(self._mode_selector)
         self._osr2 = Osr2PartWidget(app_config.state_dir)
         self._osr2.action_triggered.connect(
             partial(write_dashboard_command, app_config.dashboard_cmd_file))
@@ -840,8 +840,8 @@ class DashboardWindow(QMainWindow):
         pressed_actions: frozenset[str],
     ) -> None:
         self._last_snapshot = snapshot
-        if self._strip is not None:
-            self._strip.show_state(snapshot or DashboardSnapshot())
+        if self._mode_selector is not None:
+            self._mode_selector.show_state(snapshot or DashboardSnapshot())
         # The log strip is a child widget and rides this window's band; the
         # reference popup is its own top-level window, so it is banded too.
         omni_paused = self._omni_paused
@@ -860,7 +860,7 @@ class DashboardWindow(QMainWindow):
             self._bar_layout,
             self._last_snapshot,
             width=self._bar_layout.width,
-            marks=self._widget.marks,
+            icons=self._widget.icons,
             pressed_actions=pressed_actions,
             reference_open=self._reference.is_open,
             shown_as=self._shown_as,

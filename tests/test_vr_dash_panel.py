@@ -58,7 +58,7 @@ from fun_time_vr.dash_panel import (
     _WORDMARK_PX,
     DASH_WIDTH_PX,
     LOG_ROWS,
-    VERBOSITY_CHIP,
+    VERBOSITY_DROPDOWN,
     VERBOSITY_STOP,
     DashPointer,
     DashState,
@@ -92,7 +92,7 @@ def _written(rows: list[str]) -> str:
 def _a_spot_on_the_log() -> tuple[int, int]:
     """Under the filters, right of where the dial's list hangs and left of the
     OSR2 part, where nothing takes a press."""
-    dial = dash_actions()[VERBOSITY_CHIP]
+    dial = dash_actions()[VERBOSITY_DROPDOWN]
     return dial.x + dial.width + 1, dash_height() - 1
 
 
@@ -170,7 +170,7 @@ class TestItIsTheDesktopsBar:
 
     def test_the_apps_name_is_written_in_the_wordmark_tone(self):
         """The red the desktop's bar and every loading screen write it in, and not the
-        tone of the mark standing beside it."""
+        tone of the icon standing beside it."""
         panel = paint_dash(DashState(), [])
         title = compute_dashboard_bar_layout().app_title
         band = np.asarray(panel)[title.y:title.y + title.height,
@@ -308,23 +308,23 @@ class TestTheColumnBesideTheOsr2Part:
             FMODE_TOGGLE, RESET_ALL, EXIT_VR, VR_RESET)]
 
         assert {rect.y for rect in buttons} == {bar.quit_button.y}
-        assert all(actions[name].y >= bar.height for name in (VERBOSITY_CHIP, *SOURCES))
+        assert all(actions[name].y >= bar.height for name in (VERBOSITY_DROPDOWN, *SOURCES))
 
     def test_the_dial_and_the_windows_run_along_a_row_of_their_own_at_the_logs_left_margin(self):
         bar = compute_dashboard_bar_layout()
         actions = dash_actions()
-        dial = actions[VERBOSITY_CHIP]
-        chips = [actions[source] for source in SOURCES]
+        dial = actions[VERBOSITY_DROPDOWN]
+        buttons_of_a_row = [actions[source] for source in SOURCES]
 
         assert (dial.x, dial.y) == (PAD, bar.height + PAD)
-        assert {rect.y for rect in chips} == {dial.y}
-        assert {rect.height for rect in (dial, *chips)} == {BUTTON_SIZE_HUD}
-        assert chips[0].x == dial.x + dial.width + BUTTON_GROUP_GAP
+        assert {rect.y for rect in buttons_of_a_row} == {dial.y}
+        assert {rect.height for rect in (dial, *buttons_of_a_row)} == {BUTTON_SIZE_HUD}
+        assert buttons_of_a_row[0].x == dial.x + dial.width + BUTTON_GROUP_GAP
         assert all(right.x == left.x + left.width + BUTTON_GAP
-                   for left, right in pairwise(chips))
-        for source, chip in zip(SOURCES, chips, strict=True):
+                   for left, right in pairwise(buttons_of_a_row))
+        for source, button in zip(SOURCES, buttons_of_a_row, strict=True):
             label = int(load_font(_LABEL_PX).getlength(SOURCE_LABELS[source]))
-            assert chip.width == label + 2 * BUTTON_PAD_H_TIGHT, source
+            assert button.width == label + 2 * BUTTON_PAD_H_TIGHT, source
 
     def test_the_osr2_part_has_its_right_end_from_the_top_with_room_for_a_whole_one(self):
         part = osr2_part_rect()
@@ -349,7 +349,7 @@ class TestTheColumnBesideTheOsr2Part:
                 assert _apart(first, second), f"{name} over {other}"
 
     def test_the_log_is_written_under_the_filters_and_never_under_the_osr2_part(self):
-        dial = dash_actions()[VERBOSITY_CHIP]
+        dial = dash_actions()[VERBOSITY_DROPDOWN]
         quiet = np.asarray(paint_dash(DashState(), [])).astype(int)
         spoken = np.asarray(paint_dash(
             DashState(), [_record(" ".join(f"word{n}" for n in range(40)))])).astype(int)
@@ -359,7 +359,7 @@ class TestTheColumnBesideTheOsr2Part:
         assert inked[:, 1].max() <= osr2_part_rect().x - PAD
 
     def test_a_word_too_wide_for_a_row_is_clipped_at_the_columns_edge(self):
-        """With no mark, as the desktop's log is, which turns Qt's ellipsis off."""
+        """With no icon, as the desktop's log is, which turns Qt's ellipsis off."""
         quiet = np.asarray(paint_dash(DashState(), [])).astype(int)
         clipped = np.asarray(paint_dash(DashState(), [_record("x" * 200)])).astype(int)
         inked = np.argwhere((quiet != clipped).any(axis=2))
@@ -401,7 +401,7 @@ class TestWhatAPressDoes:
         pointer, posted = _pointer()
         was = pointer.state.verbosity
 
-        pointer.press(*_middle(VERBOSITY_CHIP))
+        pointer.press(*_middle(VERBOSITY_DROPDOWN))
 
         assert pointer.state.dial_open
         assert pointer.state.verbosity == was
@@ -409,7 +409,7 @@ class TestWhatAPressDoes:
 
     def test_picking_a_level_off_the_list_sets_it_and_closes(self):
         pointer, posted = _pointer()
-        pointer.press(*_middle(VERBOSITY_CHIP))
+        pointer.press(*_middle(VERBOSITY_DROPDOWN))
 
         pointer.press(*_middle(f"{VERBOSITY_STOP}ERROR", dial_open=True))
 
@@ -428,7 +428,7 @@ class TestWhatAPressDoes:
     def test_a_press_anywhere_else_closes_it(self):
         """What clicking off an open dropdown does."""
         pointer, _posted = _pointer()
-        pointer.press(*_middle(VERBOSITY_CHIP))
+        pointer.press(*_middle(VERBOSITY_DROPDOWN))
 
         pointer.press(*_a_spot_on_the_log())
 
@@ -499,9 +499,9 @@ class TestItLooksLikeADropdown:
         return np.asarray(image)[:, x, :3]
 
     def test_the_closed_field_wears_an_arrow(self):
-        """The mark every dropdown carries, and the family's own chevron turned
+        """The icon every dropdown carries, and the family's own chevron turned
         down rather than one drawn here to look like it."""
-        rect = dash_actions()[VERBOSITY_CHIP]
+        rect = dash_actions()[VERBOSITY_DROPDOWN]
         painted = np.asarray(paint_dash(DashState(), []))
         right = painted[rect.y:rect.y + rect.height,
                         rect.x + rect.width - 20:rect.x + rect.width - 2, :3]
@@ -513,7 +513,7 @@ class TestItLooksLikeADropdown:
         painted = np.asarray(paint_dash(DashState(voice_active=True), []))
         actions = dash_actions()
 
-        for action, edge in ((QUIT_BUTTON, TEXT_MUTED), (VERBOSITY_CHIP, TEXT_MUTED),
+        for action, edge in ((QUIT_BUTTON, TEXT_MUTED), (VERBOSITY_DROPDOWN, TEXT_MUTED),
                              (VOICE_TOGGLE, BLUE), (SOURCE_MAIN, BLUE)):
             rect = actions[action]
             pixel = painted[rect.y + rect.height // 2, rect.x, :3]
@@ -536,7 +536,7 @@ class TestItLooksLikeADropdown:
     def test_the_level_reads_from_the_left_as_a_field_does(self):
         """Centered is how a button labels itself; a field's value starts at its
         left edge, which is what puts the arrow on its own at the other end."""
-        rect = dash_actions()[VERBOSITY_CHIP]
+        rect = dash_actions()[VERBOSITY_DROPDOWN]
         painted = np.asarray(paint_dash(DashState(verbosity=logging.ERROR), []))
         rows = painted[rect.y + 2:rect.y + rect.height - 2,
                        rect.x:rect.x + rect.width // 2, :3]
@@ -544,7 +544,7 @@ class TestItLooksLikeADropdown:
         assert not np.all(rows == np.asarray(BG_BUTTON, dtype=rows.dtype))
 
     def test_the_open_list_marks_the_chosen_row_in_blue(self):
-        """The blue a dropdown marks its rows with, the same one
+        """The blue a dropdown icons its rows with, the same one
         shared_ui.chrome gives every menu in the family."""
         painted = np.asarray(paint_dash(
             DashState(verbosity=logging.ERROR, dial_open=True), []))
@@ -603,7 +603,7 @@ class TestWhatItDraws:
         assert np.array_equal(quiet, spoken)
 
     def test_the_pause_control_says_which_way_it_goes(self):
-        """The desktop's mark flips to a play triangle while the room is held,
+        """The desktop's icon flips to a play triangle while the room is held,
         because that is what pressing it does next."""
         running = np.asarray(paint_dash(DashState(omni_paused=False), []))
         held = np.asarray(paint_dash(DashState(omni_paused=True), []))
@@ -739,7 +739,7 @@ class TestTheOsr2Part:
 
     def test_a_press_on_it_closes_the_open_list_as_a_press_anywhere_off_the_list_does(self):
         pointer, _posted = _pointer()
-        pointer.press(*_middle(VERBOSITY_CHIP))
+        pointer.press(*_middle(VERBOSITY_DROPDOWN))
 
         pointer.press(*_on_the_part(5, 6))
 

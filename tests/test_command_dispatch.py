@@ -25,7 +25,7 @@ from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genaumacher_save import _genaumacher_project_dir
-from fun_time.lock_hud import hud_map_cells
+from fun_time.lock_hud import nav_map_cells
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list import MainListSettings
 from fun_time.main_list_builds import MainListBuild
@@ -1543,7 +1543,7 @@ def test_a_double_click_on_a_satellite_already_locked_favorites_the_video_it_pic
 
 def _nav_config(tmp_path: Path) -> tuple[BridgeConfig, dict[str, str]]:
     """A grouped portrait library with a seed row (subject_b) and an action column
-    (subject_a_zeta) around subject_a — the map keyboard navigation walks."""
+    (subject_a_zeta) around subject_a — the nav map keyboard navigation walks."""
     return _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),           # corner
         "subject_b": _cycle_meta("222", "Alpha"),           # seed sibling (same act, other subject)
@@ -1553,7 +1553,7 @@ def _nav_config(tmp_path: Path) -> tuple[BridgeConfig, dict[str, str]]:
 
 def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: Path):
     """Shift+Down from the corner selects the first of the subject's other acts,
-    switches the satellite to it (like a thumbnail click) and freezes the map on
+    switches the satellite to it (like a thumbnail click) and freezes the nav map on
     the start video."""
     config, paths = _nav_config(tmp_path)
     state = _make_state()
@@ -1570,7 +1570,7 @@ def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: 
 def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
     """A second Shift+Down, with the anchor still frozen on subject_a and the
     satellite now on its Beta act, steps to the next act — traversal the frozen
-    anchor makes possible even though a plain switch would re-home the map."""
+    anchor makes possible even though a plain switch would re-home the nav map."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_beta": _cycle_meta("111", "Beta Massage"),
@@ -1624,7 +1624,7 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
 def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
     """The action column hangs off the lit cell, so a vertical step from a seed
     reaches THAT seed's other acts — action groups are seed-scoped, and the frozen
-    anchor's own acts belong to a different video.  The map re-roots on the seed."""
+    anchor's own acts belong to a different video.  The nav map re-roots on the seed."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
@@ -1642,7 +1642,7 @@ def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
 def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
     """The dive looks at the lit seed's own acts, not the anchor's: subject_a has
     a Zeta to offer, but the selection is on subject_b, which has none — so the
-    step is a dead end and the map stays rooted where it was."""
+    step is a dead end and the nav map stays rooted where it was."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
@@ -1654,7 +1654,7 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == []
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the nav map held still
     dead_end = [op for op in ops if op.op == "message"]
     assert dead_end
     assert dead_end[0].level == logging.WARNING
@@ -1677,7 +1677,7 @@ def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
 
 
 def test_a_non_nav_satellite_command_clears_the_nav_anchor(tmp_path: Path):
-    """Any Funestra command that is not a navigation step ends navigation, so the map
+    """Any Funestra command that is not a navigation step ends navigation, so the nav map
     stops freezing and re-homes on the live video.
 
     Enter once had its own command for this — it locked the selection and dropped
@@ -1700,7 +1700,7 @@ def test_a_main_funestra_command_leaves_both_satellite_anchors_alone(
     The Main Funestra has no anchor of its own, and every one of its commands was
     dropping the LANDSCAPE satellite's — an old binary helper read "not
     portrait" as landscape, and the Main Funestra inherited the landscape half.
-    So a map frozen on that screen re-homed on a key press aimed at another one
+    So a nav map frozen on that screen re-homed on a key press aimed at another one
     (bug 71).
     """
     config = _make_config(tmp_path)
@@ -1842,7 +1842,7 @@ def test_a_sided_reorder_drops_that_satellites_lock_and_loop(tmp_path: Path):
     """The rebuild replaces the queue, so whatever the Funestra was holding — a lock, a
     group loop, a widened row — goes with it."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait=SatelliteState(locked=True, loop="seed", map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4"))
+    state = _make_state(portrait=SatelliteState(locked=True, loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4"))
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
@@ -1850,7 +1850,7 @@ def test_a_sided_reorder_drops_that_satellites_lock_and_loop(tmp_path: Path):
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is False
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == ""
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == ""
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
 
 
@@ -1882,10 +1882,10 @@ def test_a_filter_leaves_the_video_on_screen_where_it_is(tmp_path: Path):
 
 def test_reset_returns_the_satellite_to_every_default(tmp_path: Path):
     """"reset" puts the whole Funestra back, not just its filter: the lock released, the
-    order shuffled, F-mode dropped, any loop / widened row / frozen map dropped, and
+    order shuffled, F-mode dropped, any loop / widened row / frozen nav map dropped, and
     playing from the top of a fresh browse."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait=SatelliteState(locked=True, filter="alpha", latest=True, favorites_filter=True, loop="seed", map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4", nav_anchor="C:/v/a.mp4"))
+    state = _make_state(portrait=SatelliteState(locked=True, filter="alpha", latest=True, favorites_filter=True, loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4", nav_anchor="C:/v/a.mp4"))
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
@@ -1896,7 +1896,7 @@ def test_reset_returns_the_satellite_to_every_default(tmp_path: Path):
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is False
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is False
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == ""
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == ""
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == ""
     assert mock_filter.call_args.kwargs["query"] == ""
@@ -1954,7 +1954,7 @@ def test_a_satellite_whose_own_sound_was_turned_up_has_nothing_to_reset(tmp_path
     SatelliteState(favorites_filter=True),
     SatelliteState(latest=True),
     SatelliteState(loop="seed"),
-    SatelliteState(map_anchor="C:/v/a.mp4"),
+    SatelliteState(nav_map_anchor="C:/v/a.mp4"),
     SatelliteState(widen_video="C:/v/a.mp4"),
 ])
 def test_reset_still_fires_for_any_one_thing_left_narrowing_the_satellite(
@@ -3674,18 +3674,18 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
 
 
 def test_a_video_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
-    """The map draws the library around the video on screen, and a weirded video
+    """The nav map draws the library around the video on screen, and a weirded video
     has left the library — so its row stops offering it, rather than holding a
     thumbnail of something that is no longer there for the rest of the session.
     """
     config, a, b = _loop_config(tmp_path, axis="seed")
     _set_current(config, 2, a)
-    assert hud_map_cells(_satellite_group_index(FunTimeFunestra.PORTRAIT, config, b), b)[0] == [a]
+    assert nav_map_cells(_satellite_group_index(FunTimeFunestra.PORTRAIT, config, b), b)[0] == [a]
 
     _discard(2, _make_state(), config)            # "weird" on the video on screen
 
     index = _satellite_group_index(FunTimeFunestra.PORTRAIT, config, b)
-    assert hud_map_cells(index, b)[0] == []
+    assert nav_map_cells(index, b)[0] == []
 
 
 def test_marking_videos_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_path: Path):
@@ -3734,7 +3734,7 @@ def test_a_loop_of_one_video_puts_it_in_the_favorites_as_every_lock_does(tmp_pat
 
 
 def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
-    """The HUD reads this flag to freeze its map on the looped group and keep the
+    """The HUD reads this flag to freeze its nav map on the looped group and keep the
     loop button lit while the video auto-advances, so it must live in the state."""
     config, a, _b = _loop_config(tmp_path, axis="action")
 
@@ -3759,7 +3759,7 @@ def test_a_loop_anchors_on_the_video_it_started_on(tmp_path: Path):
     """A loop's queue is written video-on-screen-first, so the HUD has to order its
     map the same way — from the video the loop started on.
 
-    Anchoring the map on some other item (the group's lowest-keyed one) drew the
+    Anchoring the nav map on some other item (the group's lowest-keyed one) drew the
     video on screen somewhere in the middle of the row the instant the loop began,
     and made the action column light up upward as the group played.
     """
@@ -3768,8 +3768,8 @@ def test_a_loop_anchors_on_the_video_it_started_on(tmp_path: Path):
     _set_current(config, 2, b)  # the loop starts on the group's *second* item
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
-    assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == b
-    assert _playlist(config, 2) == [b, a]  # the map's order is the queue's order
+    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == b
+    assert _playlist(config, 2) == [b, a]  # the nav map's order is the queue's order
 
 
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
@@ -3802,13 +3802,13 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
     with patch("fun_time.lock.mark_favorite"):
         state, _ops = dispatch_command(
             "portrait_lock",
-            _make_state(portrait=SatelliteState(locked=False, loop="action", map_anchor=video, widen_video=video)),
+            _make_state(portrait=SatelliteState(locked=False, loop="action", nav_map_anchor=video, widen_video=video)),
             config,
         )
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "action"      # still looping, just held
-    assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == video    # …over the same map
+    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == video    # …over the same map
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == video    # …and the same widened row
 
 
@@ -3822,7 +3822,7 @@ def test_unlocking_leaves_the_loop_running(tmp_path: Path):
     _set_current(config, 2, video)
     state, _ops = dispatch_command(
         "portrait_lock",
-        _make_state(portrait=SatelliteState(locked=True, loop="seed", map_anchor=video)),
+        _make_state(portrait=SatelliteState(locked=True, loop="seed", nav_map_anchor=video)),
         config,
     )
 
@@ -3867,7 +3867,7 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
     """Ending a loop must take away the loop's own chrome — the lit button and the
     rectangle — and nothing else.
 
-    The map keeps hanging on the same video, over the same (possibly widened) row, so
+    The nav map keeps hanging on the same video, over the same (possibly widened) row, so
     the thumbnails do not re-home onto whichever item the loop had reached; it lets
     go by itself once the browse moves on past the group.
     """
@@ -3876,11 +3876,11 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
         state, _ops = dispatch_command(
             "portrait_no_loop",
-            _make_state(portrait=SatelliteState(loop="action", map_anchor="C:/v/anchor.mp4", widen_video="C:/v/anchor.mp4")), config,
+            _make_state(portrait=SatelliteState(loop="action", nav_map_anchor="C:/v/anchor.mp4", widen_video="C:/v/anchor.mp4")), config,
         )
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""                            # the loop is off
-    assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/anchor.mp4"       # the map stays put
+    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/anchor.mp4"       # the nav map stays put
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/anchor.mp4"       # …and stays widened
 
 
@@ -4959,7 +4959,7 @@ class TestOrigeneratorTransport:
 
     def test_every_press_on_a_hosted_satellite_routes_as_it_was_posted(self, tmp_path):
         """The buttons on that Funestra's HUD are the hosted app's own, and so is
-        the map under them -- whatever it declared, it answers, so the session
+        the nav map under them -- whatever it declared, it answers, so the session
         routes every one of them but the Lock without needing to know what it
         means."""
         config = _origenerator_config(tmp_path)

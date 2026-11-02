@@ -43,7 +43,7 @@ def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit
 
     Cached-only, never extracting: a cv2 frame grab takes seconds on HEVC, and the
     map has to keep up with ~5 s videos.  A sibling whose frame the background
-    prewarm has not produced yet is simply not on the map this publish, and appears
+    prewarm has not produced yet is simply not on the nav map this publish, and appears
     on a later one.
     """
     by_path = dict(zip(paths, labels, strict=False))
@@ -75,8 +75,8 @@ def hud_model(hud: SatelliteHud, cache_dir: Path,
     """*HUD* as the record the Satellite Funestra renders.
 
     Thumbnails are resolved here, so the Funestra never touches the library: it gets
-    image paths and draws them.  ``playing`` is resolved to a map *cell* against the
-    siblings that actually made it onto the map, so the Funestra lights exactly the
+    image paths and draws them.  ``playing`` is resolved to a nav map *cell* against the
+    siblings that actually made it onto the nav map, so the Funestra lights exactly the
     thumbnail it drew.
     """
     listings = FolderListings()
@@ -151,7 +151,7 @@ class HudPublisher:
     """Writes each Funestra's HUD file, skipping unchanged HUDs.
 
     Named for what it publishes to rather than what it publishes: the satellites
-    take a map of videos and the Main Funestra takes its HUD, and both want the same
+    take a nav map of videos and the Main Funestra takes its HUD, and both want the same
     write-only-on-change, publish-whole treatment.
     """
 

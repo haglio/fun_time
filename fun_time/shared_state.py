@@ -59,10 +59,10 @@ class SatelliteState:
     # alive by the satellite's auto-advance and dropped by any rebuild.
     loop: str = ""
     # The video this satellite's HUD map hangs on — the head of the queue a loop
-    # wrote.  The map is ordered from it, so the group is drawn in the order the
-    # Funestra plays it.  It outlives the loop: switching a loop off leaves the map
-    # hanging here, and the map re-homes once the browse moves past the group.
-    map_anchor: str = ""
+    # wrote.  The nav map is ordered from it, so the group is drawn in the order the
+    # Funestra plays it.  It outlives the loop: switching a loop off leaves the nav map
+    # hanging here, and the nav map re-homes once the browse moves past the group.
+    nav_map_anchor: str = ""
     # The video this satellite's seed row has been widened around ("more seeds").
     # While it equals the video on screen the HUD ranks the near-matches in
     # alongside the family; navigating away strands it, so the widen resets.
@@ -70,7 +70,7 @@ class SatelliteState:
     # The video this satellite's HUD map is frozen on for keyboard navigation ("" =
     # not navigating).  The arrow / WASD keys move a selection across that frozen
     # map; the anchor holds until Enter locks the selection, another command
-    # re-homes the satellite, or the satellite drifts off the map.
+    # re-homes the satellite, or the satellite drifts off the nav map.
     nav_anchor: str = ""
     mode: SatellitesMode = KINO_MODE
     handed_over: bool = False
@@ -262,6 +262,8 @@ _LAST_SESSIONS_KEYS = {
     "osr2_player": ("osr2_funestra",),
     "satellites_mode": ("portrait_mode", "landscape_mode", "rfb_mode"),
     "rfb_slot": ("rfb_mode",),
+    "portrait_map_anchor": ("portrait_nav_map_anchor",),
+    "landscape_map_anchor": ("landscape_nav_map_anchor",),
     "portrait_widen_clip": ("portrait_widen_video",),
     "landscape_widen_clip": ("landscape_widen_video",),
 }

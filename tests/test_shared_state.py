@@ -157,18 +157,18 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
 
-    def test_roundtrip_preserves_the_map_anchor(self, tmp_path):
+    def test_roundtrip_preserves_the_nav_map_anchor(self, tmp_path):
         """The HUD orders a running loop's map from the video the loop started on,
         which it reads from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait=SatelliteState(map_anchor="C:/v/a.mp4"),
-                            landscape=SatelliteState(map_anchor="C:/v/b.mp4"))
+        state = BridgeState(portrait=SatelliteState(nav_map_anchor="C:/v/a.mp4"),
+                            landscape=SatelliteState(nav_map_anchor="C:/v/b.mp4"))
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
+        assert loaded.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
+        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).nav_map_anchor == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_widen_video(self, tmp_path):
         """The HUD reads which video each Satellite's seed row is widened around from
@@ -315,13 +315,13 @@ class TestTheSideLens:
         state = BridgeState(
             portrait=SatelliteState(
                 locked=True, filter="alpha", favorites_filter=True, latest=True, loop="seed",
-                map_anchor="a.mp4", widen_video="w.mp4", nav_anchor="n.mp4"),
+                nav_map_anchor="a.mp4", widen_video="w.mp4", nav_anchor="n.mp4"),
             landscape=SatelliteState(filter="beta gamma"),
         )
         portrait = state.satellite(FunTimeFunestra.PORTRAIT)
         assert (portrait.locked, portrait.filter, portrait.favorites_filter) == (True, "alpha", True)
         assert (portrait.latest, portrait.loop) == (True, "seed")
-        assert (portrait.map_anchor, portrait.widen_video, portrait.nav_anchor) == (
+        assert (portrait.nav_map_anchor, portrait.widen_video, portrait.nav_anchor) == (
             "a.mp4", "w.mp4", "n.mp4")
         landscape = state.satellite(FunTimeFunestra.LANDSCAPE)
         assert landscape.filter == "beta gamma"
@@ -331,10 +331,10 @@ class TestTheSideLens:
         state = BridgeState(landscape=SatelliteState(filter="delta"))
 
         state = state.with_satellite(FunTimeFunestra.PORTRAIT, locked=True, loop="action",
-                                map_anchor="x.mp4")
+                                nav_map_anchor="x.mp4")
 
         assert state.satellite(FunTimeFunestra.PORTRAIT) == SatelliteState(
-            locked=True, loop="action", map_anchor="x.mp4")
+            locked=True, loop="action", nav_map_anchor="x.mp4")
         assert state.satellite(FunTimeFunestra.LANDSCAPE) == SatelliteState(filter="delta")
 
     def test_with_satellite_refuses_a_name_no_satellite_carries(self):
@@ -427,7 +427,7 @@ _EXPECTED_STATE_KEYS = {
     "active_funestra": "1",
     "portrait_filter": "", "landscape_filter": "",
     "portrait_loop": "", "landscape_loop": "",
-    "portrait_map_anchor": "", "landscape_map_anchor": "",
+    "portrait_nav_map_anchor": "", "landscape_nav_map_anchor": "",
     "portrait_widen_video": "", "landscape_widen_video": "",
     "portrait_nav_anchor": "", "landscape_nav_anchor": "",
     "volume": "100", "muted": "0", "max_intensity": "100",

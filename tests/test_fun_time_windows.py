@@ -324,7 +324,7 @@ class TestOrigeneratorWindowConverger:
         resolve.assert_not_called()
 
 
-TOP_STRIP = WindowRect(2560, 0, 1440, 940)
+TOP_MODE_SELECTOR = WindowRect(2560, 0, 1440, 940)
 
 
 def test_placing_a_window_moves_it_onto_its_rect():
@@ -333,7 +333,7 @@ def test_placing_a_window_moves_it_onto_its_rect():
     with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 2500)), \
          patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
          patch("fun_time.fun_time_windows.place_window") as place:
-        windows.place([("portrait", TOP_STRIP)])
+        windows.place([("portrait", TOP_MODE_SELECTOR)])
 
     place.assert_called_once_with(PORTRAIT_HWND, 2560, 0, 1440, 940)
 
@@ -344,7 +344,7 @@ def test_a_window_already_on_its_rect_is_left_alone():
     with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 940)), \
          patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
          patch("fun_time.fun_time_windows.place_window") as place:
-        windows.place([("portrait", TOP_STRIP)])
+        windows.place([("portrait", TOP_MODE_SELECTOR)])
 
     place.assert_not_called()
 
@@ -355,7 +355,7 @@ def test_a_minimized_window_is_left_where_it_was_until_it_is_back():
     with patch("fun_time.fun_time_windows.window_rect", return_value=(-32000, -32000, 160, 28)), \
          patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
          patch("fun_time.fun_time_windows.place_window") as place:
-        windows.place([("portrait", TOP_STRIP)])
+        windows.place([("portrait", TOP_MODE_SELECTOR)])
 
     place.assert_not_called()
 
@@ -368,7 +368,7 @@ def test_a_window_nobody_has_found_yet_is_not_placed():
          patch("fun_time.fun_time_windows.window_rect", return_value=None), \
          patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
          patch("fun_time.fun_time_windows.place_window") as place:
-        windows.place([("portrait", TOP_STRIP)])
+        windows.place([("portrait", TOP_MODE_SELECTOR)])
 
     place.assert_not_called()
 
@@ -380,6 +380,6 @@ def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_app():
     with patch("fun_time.fun_time_windows.window_rect", side_effect=now.get), \
          patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
          patch("fun_time.fun_time_windows.place_window") as place:
-        windows.place([("main_funestra", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
+        windows.place([("main_funestra", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_MODE_SELECTOR)])
 
     assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]

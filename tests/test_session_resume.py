@@ -244,15 +244,15 @@ class TestResumeSharedState:
         that file resumes the loop — the HUD has to keep its button lit and its
         map frozen where the loop left it, not read the queue as a browse."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4")))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", nav_map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4")))
 
         state = resume_shared_state(state_file, resumed=True)
 
         assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-        assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
+        assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
         assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/a.mp4"
         assert state.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).nav_map_anchor == "C:/v/b.mp4"
 
     def test_carries_each_satellite_s_filter_and_order(self, tmp_path: Path):
         """Both narrowed the playlist that just came back, so both are still in

@@ -54,7 +54,7 @@ def test_hud_payload_names_the_librarys_camera_words():
 
 
 def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
-    """The map is built on the dispatch loop, so a question per video is a question
+    """The nav map is built on the dispatch loop, so a question per video is a question
     per video put to the library drive -- and a drive stuck on one of them takes
     every button and spoken command in the session down with it."""
     folder = tmp_path / "vids"
@@ -87,7 +87,7 @@ def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
 
 def test_hud_payload_carries_whether_the_video_is_a_favorite():
     """The dashboard's HUD said this by turning green; the HUD marks it instead,
-    so the flag has to reach the Funestra along with the map."""
+    so the flag has to reach the Funestra along with the nav map."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         assert hud_model(_hud(is_favorite=True), Path("C:/t")).is_favorite is True
         assert hud_model(_hud(), Path("C:/t")).is_favorite is False
@@ -143,7 +143,7 @@ def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerat
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
     """The corner is the video on screen, so it stays (the Funestra draws a
     placeholder); a sibling whose frame the prewarm hasn't produced simply isn't
-    on the map yet, exactly as the Qt HUD skipped it."""
+    on the nav map yet, exactly as the Qt HUD skipped it."""
     with patch("fun_time.hud_transport.cached_thumbnail", return_value=None):
         payload = hud_model(_hud(), Path("C:/state/thumbs"))
 
@@ -161,7 +161,7 @@ def test_hud_payload_has_no_corner_when_nothing_is_playing():
 
 
 def test_hud_payload_marks_the_cell_actually_on_screen():
-    """Mid-loop the map holds still and a non-corner cell is what is playing; the
+    """Mid-loop the nav map holds still and a non-corner cell is what is playing; the
     payload names that cell so the Funestra lights it instead of the corner."""
     hud = _hud(active_loop="seed", playing="C:/v/s1.mp4")
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
@@ -173,7 +173,7 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
 
 def test_a_running_loop_publishes_every_item_it_cycles():
     """The Funestra windows the looped axis around the video on screen, so it has to be
-    given the whole loop.  Capping it at the handful of cells a map can draw is what
+    given the whole loop.  Capping it at the handful of cells a nav map can draw is what
     left the highlight nowhere to be once the loop advanced past them — the user saw
     three thumbnails, then a stretch with nothing lit and an unrecognisable video."""
     seeds = [f"C:/v/s{i}.mp4" for i in range(12)]

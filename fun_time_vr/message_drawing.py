@@ -2,7 +2,7 @@
 
 The desktop hangs a frameless window over that Funestra's; a headset has none, so
 the same message is composited into the frame the way the scrubber is.  Shape
-and colors are :class:`fun_time.message_overlay.NoticeOverlay`'s.
+and colors are :class:`fun_time.message_overlay.MessageOverlay`'s.
 
 Every measurement scales with the frame, which is not the size of a window: a
 satellite decodes to 2048px and the Main Funestra to 8192, so the desktop's own

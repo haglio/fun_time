@@ -853,7 +853,7 @@ def _build_satellite_launch_command(
     It takes no ``--config``: the channels plus the placement fully specify it,
     and each spells its own flags (:mod:`satellite.contract`).  No
     ``--no-audio`` either -- a satellite opens muted anyway, and the flag is the
-    permanent silence, which here would only kill the volume chip.
+    permanent silence, which here would only kill the volume control.
     """
     return [
         str(python_exe),
