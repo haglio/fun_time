@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
+
+from funestra.sdl_hints import FOCUS_CLICKTHROUGH_HINT
+
+from main_funestra.window import before_the_window_exists
 
 _WINDOW_CLASSES_OF_A_FUNESTRA_LIKE_PROCESS = textwrap.dedent("""
     import ctypes
     import ctypes.wintypes as w
     import threading
 
-    from main_funestra.window import leave_out_the_input_methods_that_stall_band_changes
+    from main_funestra.window import before_the_window_exists
 
-    leave_out_the_input_methods_that_stall_band_changes()
+    before_the_window_exists()
     user32 = ctypes.WinDLL("user32")
     user32.CreateWindowExW.argtypes = [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, *[ctypes.c_int] * 4,
                                        w.HWND, w.HMENU, w.HINSTANCE, w.LPVOID]
@@ -63,3 +68,9 @@ def test_a_process_that_left_them_out_opens_no_input_method_windows():
 
     assert classes.count("Static") == 2
     assert not {"IME", "MSCTFIME UI"} & set(classes)
+
+
+def test_the_step_before_the_window_also_asks_for_the_focusing_click():
+    before_the_window_exists()
+
+    assert os.environ[FOCUS_CLICKTHROUGH_HINT] == "1"

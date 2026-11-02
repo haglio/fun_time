@@ -5,6 +5,8 @@ import logging
 import warnings
 from pathlib import Path
 
+from funestra.sdl_hints import deliver_the_focusing_click
+
 logger = logging.getLogger(__name__)
 
 FRAMES_A_SECOND = 60
@@ -13,7 +15,12 @@ FRAMES_A_SECOND = 60
 _ALL_THREADS_OF_THIS_PROCESS = 0xFFFFFFFF
 
 
-def leave_out_the_input_methods_that_stall_band_changes() -> None:
+def before_the_window_exists() -> None:
+    deliver_the_focusing_click()
+    _leave_out_the_input_methods_that_stall_band_changes()
+
+
+def _leave_out_the_input_methods_that_stall_band_changes() -> None:
     ctypes.WinDLL("imm32").ImmDisableIME(_ALL_THREADS_OF_THIS_PROCESS)
 
 

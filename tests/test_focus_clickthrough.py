@@ -23,7 +23,7 @@ WINDOW_OPENERS = (REPO / "satellite" / "app.py", REPO / "main_funestra" / "app.p
 
 
 def _call_lines(source: Path) -> tuple[list[int], list[int]]:
-    """(lines calling deliver_the_focusing_click, lines calling pygame.init)."""
+    """(lines calling before_the_window_exists, lines calling pygame.init)."""
     tree = ast.parse(source.read_text(encoding="utf-8"))
     hint: list[int] = []
     init: list[int] = []
@@ -31,7 +31,7 @@ def _call_lines(source: Path) -> tuple[list[int], list[int]]:
         if not isinstance(node, ast.Call):
             continue
         target = node.func
-        if isinstance(target, ast.Name) and target.id == "deliver_the_focusing_click":
+        if isinstance(target, ast.Name) and target.id == "before_the_window_exists":
             hint.append(node.lineno)
         elif (isinstance(target, ast.Attribute) and target.attr == "init"
                 and isinstance(target.value, ast.Name) and target.value.id == "pygame"):
@@ -45,7 +45,7 @@ def test_the_focusing_click_is_asked_for_before_the_window_exists(source: Path):
     been created first — so the call comes before ``pygame.init()``."""
     hint, init = _call_lines(source)
 
-    assert hint, f"{source.parent.name}/app.py never calls deliver_the_focusing_click"
+    assert hint, f"{source.parent.name}/app.py never calls before_the_window_exists"
     assert init, f"{source.parent.name}/app.py no longer calls pygame.init — move this guard"
     assert max(hint) < min(init), (
         f"{source.parent.name}/app.py asks for the focusing click after its window exists"

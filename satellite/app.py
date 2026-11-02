@@ -14,11 +14,10 @@ from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.playlist import PlaylistItem
-from funestra.sdl_hints import deliver_the_focusing_click
 
 from main_funestra.input import Input
 from main_funestra.window import (
-    leave_out_the_input_methods_that_stall_band_changes,
+    before_the_window_exists,
     run_the_window,
     take_outside_resizes,
     wear_the_icon,
@@ -55,7 +54,7 @@ def _open_window(placement: WindowPlacement) -> int:
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on a control had to be made
     # twice.  The mechanism is written down in funestra.sdl_hints.
-    deliver_the_focusing_click()
+    before_the_window_exists()
     # Also before the window: Windows reads a process's taskbar identity as each
     # window is created, and a satellite that claims none is filed under whatever
     # the shared interpreter's path is registered to — some unrelated program,
@@ -66,7 +65,6 @@ def _open_window(placement: WindowPlacement) -> int:
         except OSError:
             logger.info("Could not take the taskbar identity %s",
                         placement.taskbar_identity)
-    leave_out_the_input_methods_that_stall_band_changes()
     pygame.init()
     if placement.x is not None and placement.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"
