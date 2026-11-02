@@ -9,13 +9,13 @@ from pathlib import Path
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.console import ConsoleModel
+from funestra.hud_controls import longer_than_a_step
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, Osr2State
 
 from .console_buttons import MainSlot, console_rows, osr2_rows, title_filters
 from .funestra_status import GenauStatus, MainFunestraStatus
 from .mode_plan import kino_shows
-from .ten_second_steps import longer_than_a_step
 
 MAIN_FUNESTRA_CONSOLE_FILENAME = "main_player_console.json"
 

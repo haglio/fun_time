@@ -10,6 +10,18 @@ from dataclasses import dataclass
 
 from funestra.console import ROW_LABEL_W, VALUE_W
 from funestra.hud_button import Button
+from funestra.hud_controls import (
+    RESET_TOOLTIP,
+    TRASH_ICON,
+    browse_order_buttons,
+    fmode_button,
+    funscript_jump_button,
+    lock_button,
+    lock_tooltip,
+    reset_button,
+    transport,
+    versions_button,
+)
 from funestra.hud_marks import (
     FMODE_ICON,
     LOCK_ICON,
@@ -22,17 +34,7 @@ from shared_ui.spacing import BUTTON_WORD_W
 
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
-from .funestra_buttons import (
-    MAIN_FUNESTRA_NOUN,
-    TRASH_ICON,
-    browse_order_buttons,
-    funscript_jump_button,
-    lock_button,
-    minimize_button,
-    reset_button,
-    transport,
-    versions_button,
-)
+from .funestra_buttons import MAIN_FUNESTRA_NOUN, minimize_button
 from .inclusion_pairs import (
     LENGTH,
     ORIENTATION,
@@ -191,11 +193,9 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
             *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
             funscript_jump_button("main_funestra_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
                                   has_osr2=slot.has_osr2, has_funscript=slot.has_funscript),
-            lock_button("main", locked=slot.locked, noun=MAIN_FUNESTRA_NOUN),
-            Button("main_fmode", FMODE_ICON,
-                   "F-Mode — play only the well funscripted videos",
-                   lit=slot.f_mode, favorite=True),
-            reset_button("main", nothing_to_reset=slot.nothing_to_reset),
+            lock_button("main", locked=slot.locked, tooltip=lock_tooltip(slot.locked, MAIN_FUNESTRA_NOUN)),
+            fmode_button("main", "F-Mode — play only the well funscripted videos", lit=slot.f_mode),
+            reset_button("main", nothing_to_reset=slot.nothing_to_reset, tooltip=RESET_TOOLTIP),
             *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
             *_inclusion_buttons(slot, remembered=remembered, things="videos"),
             _compilation_button(slot),
