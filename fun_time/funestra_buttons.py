@@ -1,92 +1,12 @@
-"""The controls the main console and each satellite's HUD both carry, declared
-once so a control reads and looks the same whichever Funestra wears it."""
+"""What the main console and each satellite's HUD have of their own beside
+:mod:`funestra.hud_controls`: the noun, and minimize, which needs a window."""
 from __future__ import annotations
 
 from funestra.hud_button import Button
-from funestra.hud_marks import (
-    BACK_ICON,
-    FORWARD_ICON,
-    LOCK_ICON,
-    MINIMIZE_ICON,
-    NEXT_ICON,
-    PREVIOUS_ICON,
-    shared_mark,
-)
-from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
+from funestra.hud_marks import MINIMIZE_ICON
 
-from .ten_second_steps import too_short_to_step
-
-TRASH_ICON = shared_mark("trash")
-RESET_ICON = shared_mark("reset")
-SHUFFLE_ICON = shared_mark("shuffle")
-LATEST_ICON = shared_mark("latest")
-VERSIONS_ICON = shared_mark("versions")
-FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
-_NONE_FOR_THIS_ONE = " (none for this one)"
 MAIN_FUNESTRA_NOUN = "video"
 SATELLITE_NOUN = "clip"
-
-
-def transport(funestra: str, *, noun: str, longer_than_a_step: bool) -> tuple[Button, ...]:
-    too_short = "" if longer_than_a_step else f" ({too_short_to_step(noun)})"
-    return (
-        Button(f"{funestra}_prev", PREVIOUS_ICON, f"Previous {noun}"),
-        Button(f"{funestra}_nudge_prev", BACK_ICON, f"Back 10s{too_short}",
-               dim=not longer_than_a_step),
-        Button(f"{funestra}_nudge_next", FORWARD_ICON, f"Forward 10s{too_short}",
-               dim=not longer_than_a_step),
-        Button(f"{funestra}_next", NEXT_ICON, f"Next {noun}"),
-    )
-
-
-def lock_button(funestra: str, *, locked: bool, noun: str) -> Button:
-    return Button(
-        f"{funestra}_lock", LOCK_ICON,
-        f"Locked — this {noun} repeats; press to play on through the playlist" if locked
-        else f"Unlocked — plays on through the playlist; press to hold this {noun}",
-        lit=locked, favorite=True, group_break=True)
-
-
-def reset_button(funestra: str, *, nothing_to_reset: bool) -> Button:
-    return Button(
-        f"{funestra}_reset", RESET_ICON,
-        "Reset — no filter, no lock, no loop, no F-Mode, normal speed, shuffled from the top",
-        dim=nothing_to_reset, group_break=True)
-
-
-def lit_or_remembered(on: bool, remembered: bool) -> dict:
-    return {"lit": on and not remembered, "remembered": on and remembered}
-
-
-def browse_order_buttons(funestra: str, *, latest: bool | None,
-                         remembered: bool = False) -> tuple[Button, ...]:
-    if latest is None:
-        return ()
-    return (
-        Button(f"{funestra}_shuffle", SHUFFLE_ICON, f"{SHUFFLE_LABEL} — reshuffle what plays",
-               group_break=True, **lit_or_remembered(not latest, remembered)),
-        Button(f"{funestra}_latest", LATEST_ICON, f"{LATEST_LABEL} — reload it newest-first",
-               **lit_or_remembered(latest, remembered)),
-    )
-
-
-def versions_button(command: str, *, noun: str, has_other_versions: bool) -> Button:
-    return Button(
-        command, VERSIONS_ICON,
-        f"Another version of this {noun}" + ("" if has_other_versions else _NONE_FOR_THIS_ONE),
-        dim=not has_other_versions, group_break=True)
-
-
-def funscript_jump_button(command: str, *, noun: str, has_osr2: bool,
-                          has_funscript: bool) -> Button:
-    missing = " and ".join(why for why, lacking in (
-        ("this Funestra doesn't have the OSR2", not has_osr2),
-        (f"this {noun} has no funscript", not has_funscript)) if lacking)
-    return Button(
-        command, FUNSCRIPT_JUMP_ICON,
-        f"Skip ahead to where this {noun}'s scripting starts up again"
-        + (f" ({missing})" if missing else ""),
-        dim=bool(missing))
 
 
 def minimize_button(funestra: str) -> Button:

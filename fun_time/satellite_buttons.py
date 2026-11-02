@@ -4,21 +4,23 @@ the dashboard command the dispatcher answers for that Funestra."""
 from __future__ import annotations
 
 from funestra.hud_button import FIT_THE_WORD, Button
-from funestra.hud_marks import FMODE_ICON
+from funestra.hud_controls import (
+    RESET_TOOLTIP,
+    browse_order_buttons,
+    favorites_only_tooltip,
+    fmode_button,
+    funscript_jump_button,
+    lock_button,
+    lock_tooltip,
+    reset_button,
+    transport,
+    trash_button,
+    versions_button,
+)
 from funestra.modes import SatellitesMode
 
 from .crown import CROWN_ICON, Crown
-from .funestra_buttons import (
-    SATELLITE_NOUN,
-    TRASH_ICON,
-    browse_order_buttons,
-    funscript_jump_button,
-    lock_button,
-    minimize_button,
-    reset_button,
-    transport,
-    versions_button,
-)
+from .funestra_buttons import SATELLITE_NOUN, minimize_button
 from .origenerator_switches import ORIGENERATOR_MODE, mode_command
 
 MODE_BUTTONS = (
@@ -50,13 +52,10 @@ def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool
         *transport(funestra, noun=SATELLITE_NOUN, longer_than_a_step=longer_than_a_step),
         funscript_jump_button(f"{funestra}_funscript_jump", noun=SATELLITE_NOUN,
                               has_osr2=has_osr2, has_funscript=has_funscript),
-        lock_button(funestra, locked=locked, noun=SATELLITE_NOUN),
-        Button(f"{funestra}_trash", TRASH_ICON,
-               "Unfavorite it — or mark weird when it is not a favorite", danger=True),
-        Button(f"{funestra}_fmode", FMODE_ICON,
-               "F-Mode — browse only the favorites on this Funestra",
-               lit=favorites_filter, favorite=True),
-        reset_button(funestra, nothing_to_reset=nothing_to_reset),
+        lock_button(funestra, locked=locked, tooltip=lock_tooltip(locked, SATELLITE_NOUN)),
+        trash_button(funestra, "Unfavorite it — or mark weird when it is not a favorite"),
+        fmode_button(funestra, favorites_only_tooltip(), lit=favorites_filter),
+        reset_button(funestra, nothing_to_reset=nothing_to_reset, tooltip=RESET_TOOLTIP),
         *browse_order_buttons(funestra, latest=latest),
         versions_button(f"{funestra}_cycle_version", noun=SATELLITE_NOUN,
                         has_other_versions=has_other_versions),

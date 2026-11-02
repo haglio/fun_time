@@ -15,6 +15,7 @@ from funestra.funestra_verbs import (
     SEEK_FWD,
     TOGGLE_LOCK,
 )
+from funestra.hud_controls import why_it_cannot_step
 
 from .aiming import FUNESTRA_SOURCES
 from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
@@ -26,7 +27,6 @@ from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 from .satellite_groups import send_satellite
 from .shared_state import BridgeState
-from .ten_second_steps import why_it_cannot_step
 
 logger = logging.getLogger(__name__)
 

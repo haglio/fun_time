@@ -5,11 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from funestra.hud_button import Button
+from funestra.hud_controls import lit_or_remembered
 from funestra.hud_marks import shared_mark
 from funestra.modes import LengthMode
 from shared_ui.orientation import LANDSCAPE, PORTRAIT
-
-from .funestra_buttons import lit_or_remembered
 
 Included = tuple[bool, bool]
 BOTH: Included = (True, True)

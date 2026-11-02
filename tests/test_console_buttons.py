@@ -11,6 +11,7 @@ from funestra.console import (
     tooltip_at,
 )
 from funestra.hud_button import BUTTON, Button
+from funestra.hud_controls import LATEST_ICON
 from funestra.hud_marks import (
     MINIMIZE_ICON,
     SHARED_MARK,
@@ -29,7 +30,6 @@ from fun_time.console_buttons import (
     osr2_rows,
 )
 from fun_time.content import Noun
-from fun_time.funestra_buttons import LATEST_ICON
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
 from fun_time.osr2_section import osr2_button, osr2_part
 from fun_time.room_funestras import RoomFunestra

@@ -16,7 +16,6 @@ from funestra.status import FunestraStatus, parse_status
 
 @dataclass(frozen=True)
 class ScriptedStatus(FunestraStatus):
-    has_funscript: bool = False
     funscript_resting: bool = False
     handoff_touch_ms: int | None = None
 
@@ -27,7 +26,6 @@ class ScriptedStatus(FunestraStatus):
 
 def scripted_fields(values: dict[str, str]) -> dict:
     return {
-        "has_funscript": _status_bool(values, "has_funscript"),
         "funscript_resting": _status_bool(values, "funscript_resting"),
         "handoff_touch_ms": _status_touch(values),
     }
