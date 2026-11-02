@@ -39,7 +39,7 @@ _.playhead  # main_funestra.genau, off the engine
 _.time_on_screen  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
 from_manifest  # satellite.contract; fun_time_vr's Funestra and the sequencer
-top_block  # main_funestra.kino; funestra's Funestra heads its console with it
+top_block  # main_funestra.kino; funestra's Funestra heads its HUD with it
 _._shaped  # main_funestra.genau's Genau narrows its flicks through the headset's own
 # fun_time.arrivals asks each of these of main_funestra.genau's flicks before it
 # hands them what arrived.

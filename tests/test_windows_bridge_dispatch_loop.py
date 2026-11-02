@@ -16,9 +16,9 @@ import pytest
 from app_support.file_channel import read_flag
 from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
-from funestra.console import OSR2_PARKED
 from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
+from funestra.main_hud import OSR2_PARKED
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
@@ -1039,8 +1039,8 @@ class TestDispatchLoopRunner:
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
-    def test_the_main_funestras_console_button_parks_the_main_funestras_window_in_either_mode(self, tmp_path):
-        """Kino and Genau share the Main Funestra's one window, so the console's
+    def test_the_main_funestras_main_hud_button_parks_the_main_funestras_window_in_either_mode(self, tmp_path):
+        """Kino and Genau share the Main Funestra's one window, so the HUD's
         button reaches that window whichever of them has it."""
         for mode, wanted in (("genau", [MAIN_FUNESTRA_HWND]), ("kino", [MAIN_FUNESTRA_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)

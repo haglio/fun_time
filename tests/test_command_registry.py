@@ -18,13 +18,13 @@ import itertools
 from pathlib import Path
 
 import pytest
-from funestra.console import osr2_controls
+from funestra.main_hud import osr2_controls
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import command_dispatch, dashboard_actions, hud_moves, windows_bridge_dispatch_loop
 from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
-from fun_time.console_buttons import MainFunestraFacts, console_rows
+from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
 from fun_time.satellite_buttons import funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
@@ -38,10 +38,10 @@ from tests.test_command_id_snapshot import (
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands posted straight off a Funestra's own surface, as literal strings in
-# funestra (the satellite HUDs and the main console) — the reachability the
+# funestra (the satellite HUDs and the Main Funestra's HUD) — the reachability the
 # in-repo surfaces cannot show.  HUD_ONLY_COMMAND_IDS is the subset the
 # reference does not list either; the rest it does.
-_CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
+_MAIN_HUD_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "genau_flick_seconds_down",
     "genau_flick_seconds_up",
     # Neither shape of video, and neither length: the browse with nothing in
@@ -119,7 +119,7 @@ def _console_verbs() -> frozenset[str]:
         in itertools.product(MainMode, (False, True), (False, True), LengthMode,
                              ("", "Volume One"), ("", "scene", "clip"), (False, True),
                              (False, True))
-        for row in console_rows(
+        for row in main_hud_rows(
             MainFunestraFacts(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
                      length_mode=length_mode, compilation=compilation, has_compilation=True,
                      jump_to=jump_to, has_osr2=has_osr2),
@@ -144,8 +144,8 @@ def _satellite_verbs() -> frozenset[str]:
     )
 
 
-def test_every_verb_the_console_posts_lands_on_a_handler():
-    """The sixth surface: the console the Funestras draw for the Main Funestra posts
+def test_every_verb_the_main_hud_posts_lands_on_a_handler():
+    """The sixth surface: the HUD the Funestras draw for the Main Funestra posts
     the verbs of the buttons Fun Time declares into this dispatcher.  Nothing
     held the two together once, which is how the flick-seconds pair came to
     post a verb this table had renamed away -- both buttons inert in genau
@@ -210,7 +210,7 @@ def test_every_handler_is_reachable_from_some_surface():
             for name in dir(dashboard_actions)
             if isinstance(getattr(dashboard_actions, name), str) and not name.startswith("_")
         )
-        | _CONSOLE_POSTED
+        | _MAIN_HUD_POSTED
         | _satellite_verbs()
         # The loop translates the idempotent lock forms onto the bare toggles.
         | {"portrait_lock", "landscape_lock"}

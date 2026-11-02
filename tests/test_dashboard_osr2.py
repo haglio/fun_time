@@ -3,18 +3,18 @@ What it reads, file by file, is tests/test_dashboard_osr2_model.py's."""
 from __future__ import annotations
 
 import pytest
-from funestra.console import ConsoleModel
-from funestra.console_hud import ConsoleHud
-from funestra.device_panel import DevicePanel
-from funestra.drive_readout import DriveHud
+from funestra.main_hud import MainHudModel
+from funestra.main_hud_painter import MainHud
+from funestra.osr2_controls_host import Osr2ControlsHost
+from funestra.osr2_visualizer import DriveHud
 
 from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.fun_time_funestras import FunTimeFunestra
 from tests.made_up_osr2_parts import a_part, a_readout, handed_on, published
 
 
-def _drawn(part: ConsoleModel, readout: DriveHud | None = None):
-    return DevicePanel(post=[].append).drawing(ConsoleHud(console=part, drive=readout))
+def _drawn(part: MainHudModel, readout: DriveHud | None = None):
+    return Osr2ControlsHost(post=[].append).drawing(MainHud(main_hud_model=part, drive=readout))
 
 
 @pytest.fixture

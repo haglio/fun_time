@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 from funestra.hud_placement import HudEdge
 
-from .console_hud import DEG_PER_PX
+from .main_hud import DEG_PER_PX
 from .pointer import HANDLE_DEG, PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG

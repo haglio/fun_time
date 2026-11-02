@@ -1,4 +1,4 @@
-"""The buttons Fun Time puts on the main console, row by row, declared in
+"""The buttons Fun Time puts on the Main Funestra's HUD, row by row, declared in
 :class:`funestra.hud_button.Button` off what Fun Time knows and what the
 Main Funestra published about its video.  Each button's command is a dashboard
 command verbatim: a press goes onto the command file, and the dispatcher
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from funestra.console import ROW_LABEL_W, VALUE_W
 from funestra.hud_button import Button
 from funestra.hud_controls import (
     RESET_TOOLTIP,
@@ -22,13 +21,14 @@ from funestra.hud_controls import (
     transport,
     versions_button,
 )
-from funestra.hud_marks import (
+from funestra.hud_icons import (
     FMODE_ICON,
     LOCK_ICON,
     NEXT_ICON,
     PREVIOUS_ICON,
-    shared_mark,
+    shared_icon,
 )
+from funestra.main_hud import ROW_LABEL_W, VALUE_W
 from funestra.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
@@ -50,7 +50,7 @@ from .osr2_section import osr2_button
 
 @dataclass(frozen=True)
 class MainFunestraFacts:
-    """What the console's buttons are lit and named from: Fun Time's own state
+    """What the HUD's buttons are lit and named from: Fun Time's own state
     of the Main Funestra, then what the Main Funestra published about its video,
     each defaulting to "cannot" until the Funestra says otherwise."""
 
@@ -79,15 +79,15 @@ class MainFunestraFacts:
     has_funscript: bool = False
 
 
-OPEN_ICON = shared_mark("folder")
-RECORD_ICON = shared_mark("disc")
-SAVE_ICON = shared_mark("save")
-LESS_ICON = shared_mark("minus")
-MORE_ICON = shared_mark("plus")
-COMPILATION_ICON = shared_mark("compilation")
-CLIP_TO_SCENE_ICON = shared_mark("clip_to_scene")
-SCENE_TO_CLIP_ICON = shared_mark("scene_to_clip")
-FLIP_ENDS_ICON = shared_mark("flip_ends")
+OPEN_ICON = shared_icon("folder")
+RECORD_ICON = shared_icon("disc")
+SAVE_ICON = shared_icon("save")
+LESS_ICON = shared_icon("minus")
+MORE_ICON = shared_icon("plus")
+COMPILATION_ICON = shared_icon("compilation")
+CLIP_TO_SCENE_ICON = shared_icon("clip_to_scene")
+SCENE_TO_CLIP_ICON = shared_icon("scene_to_clip")
+FLIP_ENDS_ICON = shared_icon("flip_ends")
 
 MODE_BUTTONS = (
     ("main_kino_activate", "Kino", MainMode.KINO),
@@ -95,7 +95,7 @@ MODE_BUTTONS = (
 )
 
 
-def console_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
+def main_hud_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
     """The mode row (with minimize outside the headset, and the file controls riding
     it), the transport, and the pace of what it steps."""
     return (

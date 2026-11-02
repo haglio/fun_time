@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from funestra.drive_readout import DriveHud
 from funestra.modes import LoopState, SatellitesMode
+from funestra.osr2_visualizer import DriveHud
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_settings import FunestraReports, with_what_the_funestras_report

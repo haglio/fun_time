@@ -524,7 +524,7 @@ class TestLaunchVrFunestras:
     def test_the_funestra_starts_on_the_named_python_against_the_manifest(self, tmp_path):
         """The command line is the whole contract: OUR interpreter (the VR
         Funestra ships from this repo), the Funestra module, and the manifest that
-        tells it everything else — with its console kept in a log, because
+        tells it everything else — with its HUD kept in a log, because
         under pythonw an import-time death is otherwise traceless."""
         with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
             launch_vr_funestras(
@@ -1012,7 +1012,7 @@ class TestGenausRoleInTheManifest:
         assert vr["flicks_folder"] == str(config.paths.flicks_dir)
 
     def test_the_dispatch_loop_is_told_which_folder_holds_the_vr_flicks(self, config, tmp_path):
-        """Where it decides whether the console offers Genau the VR and flat pair."""
+        """Where it decides whether the HUD offers Genau the VR and flat pair."""
         def bridge_config(session_config):
             path = write_manifest_data(build_vr_manifest(session_config), tmp_path / "launch.ini")
             return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_funestra=True)

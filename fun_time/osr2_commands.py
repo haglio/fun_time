@@ -5,12 +5,6 @@ from dataclasses import replace
 from functools import partial
 
 from app_support import osr2_hold
-from funestra.console import (
-    HOLD_VERB,
-    OSR2_CONTROL_BUTTONS,
-    OSR2_DRIVING,
-    OSR2_PARKED,
-)
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import (
     JUMP_TO_FUNSCRIPT,
@@ -18,6 +12,12 @@ from funestra.funestra_verbs import (
     SET_SPEED,
     SPEED_DOWN,
     SPEED_UP,
+)
+from funestra.main_hud import (
+    HOLD_VERB,
+    OSR2_CONTROL_BUTTONS,
+    OSR2_DRIVING,
+    OSR2_PARKED,
 )
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, WindowOp, ignored
@@ -33,7 +33,7 @@ from .shared_state import BridgeState
 logger = logging.getLogger(__name__)
 
 
-# Speed control splits by which control said it: the console's ± marks move the
+# Speed control splits by which control said it: the HUD's ± marks move the
 # engine they sit next to (_GENAU_CMD_MAP, PLAYBACK_RATE_ACTS), while this bare
 # pair — spoken, or J/L — carries no label and follows whichever engine holds
 # the OSR2 (see :func:`_speed_target` for the whole routing).
@@ -44,7 +44,7 @@ _SPEED_BY_DRIVER = {
 
 
 # Past the lull the playhead is in, or on to the next scripted item: every
-# Funestra answers both, the Main Funestra under the ids its console posts.
+# Funestra answers both, the Main Funestra under the ids its HUD posts.
 FUNSCRIPT_MOVES = {
     "funscript_jump": JUMP_TO_FUNSCRIPT,
     "next_funscripted": NEXT_FUNSCRIPTED,

@@ -5,8 +5,8 @@ import logging
 from itertools import pairwise
 
 import numpy as np
-from funestra.console_hud import ConsoleHud
-from funestra.device_panel import DevicePanel
+from funestra.main_hud_painter import MainHud
+from funestra.osr2_controls_host import Osr2ControlsHost
 from PIL import Image, ImageDraw
 from shared_ui.lettering import BOLD_FACE, WORDMARK_FACE, load_font
 from shared_ui.palette import (
@@ -669,8 +669,8 @@ class TestTheOsr2Part:
 
     def test_its_frame_is_drawn_in_the_room_kept_for_it(self):
         dash = paint_dash(DashState(), [])
-        raw, (width, height) = DevicePanel(post=[].append).drawing(
-            ConsoleHud(console=a_part(), drive=a_readout()))
+        raw, (width, height) = Osr2ControlsHost(post=[].append).drawing(
+            MainHud(main_hud_model=a_part(), drive=a_readout()))
         place = osr2_part_rect()
 
         shown = np.asarray(with_the_osr2_part(dash, (raw, (width, height))))
@@ -689,7 +689,7 @@ class TestTheOsr2Part:
     def test_a_press_on_one_of_its_buttons_posts_that_buttons_command(self):
         pointer, posted = _pointer()
         part = a_part()
-        pointer.part.drawing(ConsoleHud(console=part))
+        pointer.part.drawing(MainHud(main_hud_model=part))
 
         pointer.press(*_on_the_part(*center_of(part, "broker_panel")))
 

@@ -1,4 +1,4 @@
-"""The main console, hanging in the headset: one size, and which edge it hangs along."""
+"""the Main Funestra's HUD, hanging in the headset: one size, and which edge it hangs along."""
 from __future__ import annotations
 
 import logging

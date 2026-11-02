@@ -126,7 +126,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
     ``state_dir``, which is the one value this rewrite goes on to move.  The
     broker is the machine's one broker, configured against the primary for good,
     so a branch session whose broker files followed that move would read an empty
-    directory -- the console's broker light red and its OSR2 light "off" while
+    directory -- the HUD's broker light red and its OSR2 light "off" while
     the device is plainly running.
 
     Every value comes from *real*, the config as production loaded it.
@@ -763,8 +763,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    # A path can carry characters the console codepage has no room for, and the
-    # launcher redirects this console to a log file.  Mark those rather than let
+    # A path can carry characters the HUD codepage has no room for, and the
+    # launcher redirects this HUD to a log file.  Mark those rather than let
     # a print take the launch down.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")

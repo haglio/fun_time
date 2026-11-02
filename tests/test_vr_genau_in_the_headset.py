@@ -10,9 +10,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from funestra.console_hud import ModeHud
 from funestra.funestra import User
-from funestra.notices import NoticeWriter
+from funestra.main_hud_painter import ModeHud
+from funestra.notices import MessageWriter
 
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
@@ -97,7 +97,7 @@ class World:
             start_flick=start_flick,
             latest=latest,
             metadata_root=self.metadata_root,
-            notices=NoticeWriter(self.notice_file),
+            notices=MessageWriter(self.notice_file),
             decode=lambda _path: _frames(),
             start_thread=start_thread,
             clock=lambda: self.now,
@@ -176,7 +176,7 @@ class TestTheDesktopsFlicksAreBrowsedToo:
 
 
 class TestNarrowingToAShape:
-    """The console's VR and flat pair, said to Genau as SHAPES."""
+    """The HUD's VR and flat pair, said to Genau as SHAPES."""
 
     def test_a_vr_flick_on_screen_gives_way_to_the_flat_ones(self, tmp_path):
         world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))

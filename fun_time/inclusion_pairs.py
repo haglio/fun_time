@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from funestra.hud_button import Button
 from funestra.hud_controls import lit_or_remembered
-from funestra.hud_marks import shared_mark
+from funestra.hud_icons import shared_icon
 from funestra.modes import LengthMode
 from shared_ui.orientation import LANDSCAPE, PORTRAIT
 
@@ -70,22 +70,22 @@ def _inclusion_button(command: str, kind: Kind, things: str, *, on: bool,
 
 
 PROJECTION = InclusionPair(
-    Kind("2D", shared_mark("flat_2d"), "2D {things}"),
-    Kind("VR", shared_mark("vr_hemisphere"), "VR {things}"),
+    Kind("2D", shared_icon("flat_2d"), "2D {things}"),
+    Kind("VR", shared_icon("vr_hemisphere"), "VR {things}"),
     {(True, True): "main_projection_both", (True, False): "main_projection_flat",
      (False, True): "main_projection_vr", (False, False): "main_projection_none"},
 )
 
 LENGTH = InclusionPair(
-    Kind("Clips", shared_mark("clips"), "clips"),
-    Kind("Full", shared_mark("full"), "full videos"),
+    Kind("Clips", shared_icon("clips"), "clips"),
+    Kind("Full", shared_icon("full"), "full videos"),
     {(True, True): "main_funestra_length_mixed", (True, False): "main_funestra_length_clips",
      (False, True): "main_funestra_length_full", (False, False): "main_funestra_length_none"},
 )
 
 ORIENTATION = InclusionPair(
-    Kind("Portrait", shared_mark(PORTRAIT), "portrait {things}"),
-    Kind("Landscape", shared_mark(LANDSCAPE), "landscape {things}"),
+    Kind("Portrait", shared_icon(PORTRAIT), "portrait {things}"),
+    Kind("Landscape", shared_icon(LANDSCAPE), "landscape {things}"),
     {(True, True): "main_orientation_both", (True, False): "main_orientation_portrait",
      (False, True): "main_orientation_landscape", (False, False): "main_orientation_none"},
 )

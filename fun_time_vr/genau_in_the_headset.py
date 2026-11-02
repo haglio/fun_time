@@ -6,8 +6,8 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from funestra.console_hud import ModeHud
 from funestra.flick_folder import flat_flicks_in, vr_flicks_in
+from funestra.main_hud_painter import ModeHud
 
 from fun_time.vr_videos import keep_shapes
 from main_funestra.genau import Genau

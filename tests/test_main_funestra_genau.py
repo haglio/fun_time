@@ -9,9 +9,9 @@ import threading
 from pathlib import Path
 
 import numpy as np
-from funestra.console_hud import ModeHud
 from funestra.funestra import User
-from funestra.modes import NoticeLevel
+from funestra.main_hud_painter import ModeHud
+from funestra.modes import MessageLevel
 
 from fun_time import genau_engine
 from fun_time.arrivals import LOOK_EVERY_S
@@ -26,9 +26,9 @@ from tests.genau_fakes import FakeNotifier, FakeSink
 
 class FakeNotices:
     def __init__(self) -> None:
-        self.said: list[tuple[str, NoticeLevel]] = []
+        self.said: list[tuple[str, MessageLevel]] = []
 
-    def say(self, message: str, *, level: NoticeLevel) -> None:
+    def say(self, message: str, *, level: MessageLevel) -> None:
         self.said.append((message, level))
 
 
@@ -306,7 +306,7 @@ class TestFMode:
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
-        assert world.notices.said == [("Including no other pips", NoticeLevel.WARNING)]
+        assert world.notices.said == [("Including no other pips", MessageLevel.WARNING)]
 
     def test_it_opens_in_f_mode_when_the_room_kept_it_on(self, tmp_path):
         world = World(tmp_path, favorites=("beta two.mp4",), f_mode=True)
@@ -322,7 +322,7 @@ class TestFMode:
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
-        assert world.notices.said == [("Including no other pips", NoticeLevel.WARNING)]
+        assert world.notices.said == [("Including no other pips", MessageLevel.WARNING)]
 
 
 class TestItsFrame:
@@ -396,7 +396,7 @@ def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):
 
 
 class TestTurnedAsAsked:
-    """The console's portrait and landscape pair, said to Genau on the Main
+    """The HUD's portrait and landscape pair, said to Genau on the Main
     Funestra's channel, over the orientations Evolver measured its flicks in."""
 
     _TURNED = (("alpha one.mp4", "portrait"), ("beta two.mp4", "landscape"))
@@ -430,7 +430,7 @@ class TestTurnedAsAsked:
 
         world.genau.apply_command(genau_orientations((True, False)))
 
-        assert world.notices.said[-1] == ("Portrait only", NoticeLevel.NOTICE)
+        assert world.notices.said[-1] == ("Portrait only", MessageLevel.NOTICE)
 
     def test_it_opens_turned_the_way_the_room_left_it(self, tmp_path):
         world = self._world(tmp_path, orientations=(True, False))

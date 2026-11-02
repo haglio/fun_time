@@ -6,7 +6,7 @@ import numpy as np
 from funestra.hud_placement import HudEdge
 from shared_ui.spacing import BUTTON_SIZE_HUD
 
-from .console_hud import DEG_PER_PX
+from .main_hud import DEG_PER_PX
 from .pointer import PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG

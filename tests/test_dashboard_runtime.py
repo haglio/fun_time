@@ -99,7 +99,7 @@ def test_read_genau_status_parses_the_flick_lock(tmp_path: Path):
 
 def test_read_genau_status_defaults_the_flick_lock_to_on(tmp_path: Path):
     """A flick repeating is where Genau opens, so a status that says nothing about
-    the lock — or none at all — must not light the console's padlock the wrong
+    the lock — or none at all — must not light the HUD's padlock the wrong
     way."""
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("shape=sine\n", encoding="utf-8")
@@ -159,7 +159,7 @@ def test_read_main_funestra_status_parses_the_lock(tmp_path: Path):
 def test_read_main_funestra_status_defaults_the_lock_to_on(tmp_path: Path):
     """Holding one video is what the Main Funestra does until told otherwise, so a
     status that says nothing about the lock — or no status at all — must not read
-    as unlocked and light the console's padlock the wrong way."""
+    as unlocked and light the HUD's padlock the wrong way."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 

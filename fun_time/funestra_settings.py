@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
-from funestra.drive_readout import DriveHud, read_drive
+from funestra.osr2_visualizer import DriveHud, read_drive
 from funestra.status import FunestraStatus
 
 from .fun_time_funestras import FunTimeFunestra

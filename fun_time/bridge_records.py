@@ -66,7 +66,7 @@ class BridgeConfig:
     vr_main_funestra: bool = False
     # Which of ``main_sources`` hold the VR masters, pipe-joined like the
     # sources themselves.  Empty in a desktop session, whose rotation has none —
-    # and that emptiness is what leaves the shape filter off its console.
+    # and that emptiness is what leaves the shape filter off its HUD.
     vr_library_dirs: str = ""
     genau_vr_flicks: str = ""
     # Our own interpreter — what the library browser is launched with, since the

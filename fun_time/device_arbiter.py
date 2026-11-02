@@ -10,9 +10,9 @@ from pathlib import Path
 from types import MappingProxyType
 
 from app_support import osr2_hold
-from funestra.console import HOLD_VERB, OSR2_DRIVING
 from funestra.file_channel import append_command
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra.main_hud import HOLD_VERB, OSR2_DRIVING
 
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import ScriptedStatus, read_main_funestra_status

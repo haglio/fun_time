@@ -103,7 +103,7 @@ class SatelliteHud:
     active_loop: str = ""
     playing: str = ""
     # This Satellite's own mode, or None for a session hosting no Origenerator —
-    # what draws the mode pair, the satellite counterpart of the main console's
+    # what draws the mode pair, the satellite counterpart of the Main Funestra's HUD's
     # Kino/Genau row.
     mode: SatellitesMode | None = None
     # Whether the hosted app that mode is made of is up yet: false for a

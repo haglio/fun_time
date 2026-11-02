@@ -1,26 +1,26 @@
-"""The console hanging in the headset: the one width it is held to, and which side it hangs on."""
+"""The HUD hanging in the headset: the one width it is held to, and which side it hangs on."""
 from __future__ import annotations
 
 import logging
 
-from funestra.console import ConsoleModel, _row_width, osr2_controls
-from funestra.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
-from funestra.drive_readout import DriveHud
 from funestra.hud_placement import HudEdge
+from funestra.main_hud import MainHudModel, _row_width, osr2_controls
+from funestra.main_hud_painter import _PAD, MainHud, MainHudPainter, ModeHud
+from funestra.osr2_visualizer import DriveHud
 from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
-from fun_time.console_buttons import MainFunestraFacts, console_rows
 from fun_time.event_log import FAVORITE, NOTICE
-from fun_time_vr.console_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
+from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
+from fun_time_vr.main_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
 
 
-def _the_console_in(mode: str) -> ConsoleHud:
-    """The console as the Funestra draws it for *mode*: the room's buttons
+def _the_main_hud_in(mode: str) -> MainHud:
+    """The HUD as the Funestra draws it for *mode*: the room's buttons
     declared and the broker up, with the OSR2's readout under them."""
-    return ConsoleHud(
+    return MainHud(
         modes=ModeHud(video="scene one"),
-        console=ConsoleModel(main_mode=mode, locked=False,
-                             rows=console_rows(MainFunestraFacts(main_mode=mode, locked=False),
+        console=MainHudModel(main_mode=mode, locked=False,
+                             rows=main_hud_rows(MainFunestraFacts(main_mode=mode, locked=False),
                                                in_vr=True),
                              osr2_controls=osr2_controls(broker_running=True)),
         drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine", position=1000,
@@ -29,17 +29,17 @@ def _the_console_in(mode: str) -> ConsoleHud:
 
 
 class TestTheHeldWidth:
-    """He saw the HUD change size between the modes: the console sized itself
+    """He saw the HUD change size between the modes: the HUD sized itself
     to its rows, and the genau-mode ones are narrower.  A screen in a scene that
     changes size is a screen that moves, so the Funestra holds it to one width."""
 
-    def test_it_covers_the_widest_row_the_console_can_build(self):
+    def test_it_covers_the_widest_row_the_main_hud_can_build(self):
         """The painter widens past this constant for a row it cannot otherwise
         hold, so a constant short of the widest row makes the HUD change size
         when the mode does.  The kino-mode transport row is that row, and it
-        grows every time the console grows a button."""
+        grows every time the HUD grows a button."""
         widest = max(
-            _row_width(console_rows(MainFunestraFacts(main_mode=mode, latest=False,
+            _row_width(main_hud_rows(MainFunestraFacts(main_mode=mode, latest=False,
                                              plays_vr=True, plays_flat=True), in_vr=True))
             for mode in ("kino", "genau")
         )
@@ -50,13 +50,13 @@ class TestTheHeldWidth:
         """Held narrower than its rows the painter widens the HUD, and the
         two modes would differ again; the constant has to clear both."""
         for mode in ("kino", "genau"):
-            assert ConsolePainter().rgba(_the_console_in(mode))[1][0] <= HUD_WIDTH_PX
+            assert MainHudPainter().rgba(_the_main_hud_in(mode))[1][0] <= HUD_WIDTH_PX
 
     def test_the_two_modes_paint_the_same_size_at_it(self):
-        painter = ConsolePainter(width=HUD_WIDTH_PX)
+        painter = MainHudPainter(width=HUD_WIDTH_PX)
 
-        kino = painter.rgba(_the_console_in("kino"))[1]
-        genau = painter.rgba(_the_console_in("genau"))[1]
+        kino = painter.rgba(_the_main_hud_in("kino"))[1]
+        genau = painter.rgba(_the_main_hud_in("genau"))[1]
 
         assert kino[0] == genau[0] == HUD_WIDTH_PX
 

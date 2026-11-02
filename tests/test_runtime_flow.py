@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
-from funestra.console import OSR2_DRIVING
+from funestra.main_hud import OSR2_DRIVING
 from funestra.modes import MainMode
 
 from fun_time.fun_time_funestras import FunTimeFunestra

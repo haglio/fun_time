@@ -1760,7 +1760,7 @@ def strip_window(cfg_factory, tmp_path):
 
 
 def _press_the_strip(window, label: str) -> None:
-    rect = next(rect for rect, button in window._strip.placed if button.glyph == label)
+    rect = next(rect for rect, button in window._strip.placed if button.icon == label)
     QTest.mouseClick(window._strip, Qt.MouseButton.LeftButton,
                      pos=QPoint(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2))
 
@@ -1794,7 +1794,7 @@ def test_the_strip_lights_whatever_holds_the_browsers_place(strip_window):
     strip_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True),
                             frozenset())
 
-    assert [(button.glyph, button.lit, button.dim) for _rect, button in strip_window._strip.placed] == [
+    assert [(button.icon, button.lit, button.dim) for _rect, button in strip_window._strip.placed] == [
         ("Random Favs Browser", False, False), ("Origenerator", True, False)]
 
 

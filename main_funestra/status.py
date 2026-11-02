@@ -2,7 +2,7 @@
 
 After the lines every Funestra publishes come Kino's own -- its loop, and the
 video's place in the library -- which FunTimeVR's main role keeps in step.
-The dispatch side reads them to light the console's buttons and to hand a loop
+The dispatch side reads them to light the HUD's buttons and to hand a loop
 back to a reopened session.
 """
 from __future__ import annotations

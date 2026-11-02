@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra.console_hud import ConsoleHud
-from funestra.device_panel import DevicePanel
+from funestra.main_hud_painter import MainHud
+from funestra.osr2_controls_host import Osr2ControlsHost
 from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtWidgets import QWidget
 from shared_ui.pressable_drawing import PressableDrawing
@@ -18,11 +18,11 @@ class Osr2PartWidget(PressableDrawing):
     action_triggered = pyqtSignal(str)
 
     def __init__(self, state_dir: Path, parent: QWidget | None = None) -> None:
-        panel = DevicePanel(post=self._post)
+        panel = Osr2ControlsHost(post=self._post)
         super().__init__(panel, parent)
         self._panel = panel
         self._reader = Osr2PartReader(state_dir)
-        self._hud: ConsoleHud | None = None
+        self._hud: MainHud | None = None
         self.setFixedSize(*room_for_a_whole_part())
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.poll)

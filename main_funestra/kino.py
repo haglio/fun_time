@@ -5,14 +5,14 @@ knows: which files are the same video at different qualities, the length modes,
 the compilation a clip belongs to and the scene it was cut from, the mode
 written down for the next session, and the loop a video is being marked into.  The Funestra asks Kino about every command first, gives it
 a pass of its own each frame before the playback advances, publishes its lines
-after its own, and heads the console with what Kino says it is playing.
+after its own, and heads the HUD with what Kino says it is playing.
 """
 from __future__ import annotations
 
 from functools import partial
 from pathlib import Path
 
-from funestra.console_hud import ModeHud
+from funestra.main_hud_painter import ModeHud
 
 from .clip_jumps import ClipJumps
 from .controls import KinoControls, apply_command

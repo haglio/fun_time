@@ -39,12 +39,12 @@ def _word_font():
 
 
 @cache
-def _glyph_font():
+def _icon_font():
     return load_font(SIZE_BODY, SYMBOL_FONT)
 
 
 def place_selector(buttons: tuple[Button, ...], *, x: int, y: int) -> list[tuple[Rect, Button]]:
-    widths = [text_width(_word_font(), button.glyph) + 2 * MODE_LABEL_PAD
+    widths = [text_width(_word_font(), button.icon) + 2 * MODE_LABEL_PAD
               for button in buttons]
     return button_row_rects(x, y, buttons, widths)
 
@@ -55,5 +55,5 @@ def paint_selector(size: tuple[int, int], placed: list[tuple[Rect, Button]], *,
     draw = ImageDraw.Draw(image)
     for rect, button in placed:
         draw_button(image, draw, rect, button, hovered=rect == hovered,
-                    glyph_font=_glyph_font(), word_font=_word_font())
+                    icon_font=_icon_font(), word_font=_word_font())
     return image

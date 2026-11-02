@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support.file_channel import read_flag, write_flag
-from funestra.console import OSR2_RETRACTED
+from funestra.main_hud import OSR2_RETRACTED
 from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
 from shared_ui.testing import alert_shown
@@ -2923,7 +2923,7 @@ class TestOpenEventLog:
             package_logger.setLevel(original_level)
 
     def test_the_orchestrator_logger_is_enrolled_even_though_it_does_not_propagate(self, tmp_path):
-        """configure_logging turns propagation off for the console logger, so the
+        """configure_logging turns propagation off for the HUD logger, so the
         one handler on the package would never see its lines."""
         orch_logger = logging.getLogger("fun_time.orchestrator")
         package_logger = logging.getLogger("fun_time")

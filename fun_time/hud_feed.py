@@ -1,4 +1,4 @@
-"""What the Funestras draw for themselves: the lock HUDs and the main console.
+"""What the Funestras draw for themselves: the lock HUDs and the Main Funestra's HUD.
 
 The dispatch loop holds the state these are drawn from (locks, filters, loops)
 and already ticks, so it is what feeds them — but building a HUD is a question
@@ -12,10 +12,10 @@ from pathlib import Path
 from app_support import favorites, osr2_device
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
-from funestra.console import console_text
-from funestra.drive_readout import read_drive
 from funestra.hud_controls import longer_than_a_step
+from funestra.main_hud import main_hud_text
 from funestra.modes import MainMode, Osr2State, SatellitesMode
+from funestra.osr2_visualizer import read_drive
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
@@ -28,7 +28,7 @@ from .funestra_status import (
 )
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_satellite_hud
-from .main_funestra_console import MainFunestraInputs, console_model, osr2_state
+from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
     main_funestra_at_defaults,
@@ -79,7 +79,7 @@ class _RecordedFavorites:
 
 
 class HudFeed:
-    """Builds both satellites' HUDs and the console, and publishes them."""
+    """Builds both satellites' HUDs and the HUD, and publishes them."""
 
     def __init__(self, *, config: BridgeConfig, publisher: HudPublisher | None) -> None:
         self.config = config
@@ -170,12 +170,12 @@ class HudFeed:
                 origenerator_ready=state.origenerator_ready,
                 in_vr=self.config.vr_main_funestra, crowned=state.crowned,
             ), device(funestra))
-        # The main console: the controls for whichever Funestra is showing,
+        # the Main Funestra's HUD: the controls for whichever Funestra is showing,
         # what has the OSR2, whether the broker is up, and which Funestra a bare
         # command reaches -- none of which the Funestra can see for itself.
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
-        self.publisher.publish_text("main_funestra", console_text(console_model(MainFunestraInputs(
+        self.publisher.publish_text("main_funestra", main_hud_text(main_hud_model(MainFunestraInputs(
             main_mode=state.main_mode,
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,
@@ -196,7 +196,7 @@ class HudFeed:
             genau_plays_landscape=state.genau_plays_landscape,
             osr2_mode=osr2_mode,
             osr2_trouble=osr2_trouble,
-            # The console's buttons are lit and named from what each Funestra
+            # The HUD's buttons are lit and named from what each Funestra
             # published, since the Funestra drawing it is not always their subject.
             main_funestra=main_funestra,
             genau=genau,
@@ -206,7 +206,7 @@ class HudFeed:
             crowned=state.crowned is Crown.MAIN,
             has_osr2=with_the_osr2 is FunTimeFunestra.MAIN,
         ))))
-        self.publisher.publish_text(DASHBOARD_OSR2_PART, console_text(osr2_part(
+        self.publisher.publish_text(DASHBOARD_OSR2_PART, main_hud_text(osr2_part(
             with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
             paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
             broker=broker_running, max_intensity=state.max_intensity)))

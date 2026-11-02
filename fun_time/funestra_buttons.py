@@ -1,9 +1,9 @@
-"""What the main console and each satellite's HUD have of their own beside
+"""What the Main Funestra's HUD and each satellite's HUD have of their own beside
 :mod:`funestra.hud_controls`: the noun, and minimize, which needs a window."""
 from __future__ import annotations
 
 from funestra.hud_button import Button
-from funestra.hud_marks import MINIMIZE_ICON
+from funestra.hud_icons import MINIMIZE_ICON
 
 MAIN_FUNESTRA_NOUN = "video"
 SATELLITE_NOUN = "clip"

@@ -1,38 +1,38 @@
-"""The console Fun Time publishes for the Main Funestra's HUD to draw."""
+"""The HUD Fun Time publishes for the Main Funestra's HUD to draw."""
 from __future__ import annotations
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
-from funestra.console import (
-    ConsoleModel,
-    console_text,
-    parse_console,
-    read_console,
-)
-from funestra.console_hud import ConsoleHud, ConsolePainter, hud_xy
 from funestra.hud_button import Button
+from funestra.main_hud import (
+    MainHudModel,
+    main_hud_text,
+    parse_main_hud,
+    read_main_hud,
+)
+from funestra.main_hud_painter import MainHud, MainHudPainter, hud_xy
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 
 from fun_time.funestra_status import GenauStatus, MainFunestraStatus
-from fun_time.main_funestra_console import MainFunestraInputs, console_model, osr2_state
+from fun_time.main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 
 
-def _payload(**overrides) -> ConsoleModel:
+def _payload(**overrides) -> MainHudModel:
     base = dict(main_mode=MainMode.KINO, active=False, osr2_mode=Osr2Mode.CONTROLLED,
                 main_funestra=MainFunestraStatus(), genau=GenauStatus())
     base.update(overrides)
-    return console_model(MainFunestraInputs(**base))
+    return main_hud_model(MainFunestraInputs(**base))
 
 
-def _button(model: ConsoleModel, action: str) -> Button:
+def _button(model: MainHudModel, action: str) -> Button:
     return next(b for row in (*model.rows, *model.osr2_rows) for b in row if b.command == action)
 
 
-def _actions(model: ConsoleModel) -> list[str]:
+def _actions(model: MainHudModel) -> list[str]:
     return [b.command for row in (*model.rows, *model.osr2_rows) for b in row if b.command]
 
 
 class TestOsr2State:
-    """What has the device, as one compact word — the console badges it."""
+    """What has the device, as one compact word — the HUD badges it."""
 
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
         for osr2_mode, expected in ((Osr2Mode.OFF, Osr2State.OFF),
@@ -91,7 +91,7 @@ class TestPayload:
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
 
     def test_declares_the_main_funestras_loop_machine_on_the_record_button(self):
-        """The console is drawn in genau mode too, by a Funestra with no loop machine
+        """The HUD is drawn in genau mode too, by a Funestra with no loop machine
         to ask — so where the Main Funestra is in the gesture rides here with the rest of the
         room, and the record button can say which press comes next."""
         recording = _button(_payload(main_funestra=MainFunestraStatus(loop_state=LoopState.RECORDING)),
@@ -104,7 +104,7 @@ class TestPayload:
         assert not resting.hold
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
-        """One padlock on the console, so one flag: the Main Funestra's hold on its video where
+        """One padlock on the HUD, so one flag: the Main Funestra's hold on its video where
         The Main Funestra is on screen, Genau's hold on its flick where Genau is.  Publishing
         both is what left kino mode drawing two locks that meant different things."""
         held_flick, loose_flick = GenauStatus(locked=True), GenauStatus(locked=False)
@@ -179,7 +179,7 @@ def test_the_length_pair_lights_off_what_the_orchestrator_holds():
 
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():
-    """One slot on the console, so one flag, resolved the way the padlock is: the Main Funestra's
+    """One slot on the HUD, so one flag, resolved the way the padlock is: the Main Funestra's
     playlist order where the Main Funestra is on screen, the order Genau last rescanned its flicks
     folder in where Genau is.  They are separate flags because a Genau reorder
     rewrites nothing of the Main Funestra's — reporting the Main Funestra's in genau mode said "Shuffle" at
@@ -193,7 +193,7 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
 
 def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():
     """Two flags with a third answer: None where the rotation holds one shape,
-    which is every session outside the headset, and the console then draws no pair
+    which is every session outside the headset, and the HUD then draws no pair
     of buttons for a choice there is none to make."""
     assert not any(a.startswith("main_projection") for a in _actions(_payload()))
 
@@ -234,7 +234,7 @@ def test_the_hud_title_names_the_orientation_last_in_either_mode():
 def test_the_published_text_carries_the_rows_the_funestra_draws():
     payload = _payload(main_mode=MainMode.GENAU)
 
-    parsed = parse_console(console_text(payload))
+    parsed = parse_main_hud(main_hud_text(payload))
 
     assert parsed == payload
     assert parsed.rows
@@ -243,13 +243,13 @@ def test_the_published_text_carries_the_rows_the_funestra_draws():
 
 class TestTheDeclaredRows:
     @staticmethod
-    def _readout(payload: ConsoleModel, tmp_path):
+    def _readout(payload: MainHudModel, tmp_path):
         hud = tmp_path / "main_player_console.json"
-        hud.write_text(console_text(payload), encoding="utf-8")
-        console = read_console(hud)
+        hud.write_text(main_hud_text(payload), encoding="utf-8")
+        console = read_main_hud(hud)
         assert console is not None
-        painter = ConsolePainter()
-        painter.rgba(ConsoleHud(console=console))
+        painter = MainHudPainter()
+        painter.rgba(MainHud(main_hud_model=console))
         return painter, hud_xy()
 
     @staticmethod
@@ -267,6 +267,6 @@ class TestTheDeclaredRows:
         assert painter.press_at(*self._center(rect, origin)) == "main_next"
 
 
-def test_the_crown_on_the_console_is_lit_while_the_room_has_given_it_to_the_main_funestra():
+def test_the_crown_on_the_main_hud_is_lit_while_the_room_has_given_it_to_the_main_funestra():
     assert _button(_payload(crowned=True), "main_crown").lit is True
     assert _button(_payload(crowned=False), "main_crown").lit is False

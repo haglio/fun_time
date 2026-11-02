@@ -38,7 +38,7 @@ from funestra.funestra_verbs import SHOW
 from funestra.funscript_jumps import FunscriptJumps
 from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.modes import MainMode
-from funestra.notices import NoticeWriter
+from funestra.notices import MessageWriter
 from funestra.playback import Playback
 from funestra.playlist import read_playlist
 from funestra.testing import FakeEngine
@@ -162,7 +162,7 @@ class _TheHeadsetsMainFunestra:
             locked=True, sound_is_the_rooms=True,
             users={MainMode.KINO: partial(
                 Kino, source=None, clip_nav=ClipNav.build([], None),
-                notices=NoticeWriter(None), memory=ModeMemory(None),
+                notices=MessageWriter(None), memory=ModeMemory(None),
                 remembered=RememberedMode(), resolve_playlist=list),
                 MainMode.GENAU: lambda _playback: _genau_in_the_headset(tmp_path)},
             window_verbs=self._apply_the_headsets_verb,
@@ -303,7 +303,7 @@ class TestTheSatellites:
                     _a_satellite_line(verb, clips[0]),
                     FunestraControls(session, reload_playlist=lambda: None,
                                      funscript_jumps=FunscriptJumps(
-                                         session, NoticeWriter(None))),
+                                         session, MessageWriter(None))),
                 )
                 if not handled:
                     dead[verb] = where

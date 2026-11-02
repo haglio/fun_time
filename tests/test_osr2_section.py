@@ -3,26 +3,26 @@ from __future__ import annotations
 
 import pytest
 from app_support.osr2_device import Osr2Mode
-from funestra.console import (
+from funestra.drive_layout import MAX_INTENSITY
+from funestra.hud_button import Button
+from funestra.hud_icons import shared_icon
+from funestra.main_hud import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
-    console_text,
+    main_hud_text,
     osr2_controls,
-    read_console,
+    read_main_hud,
 )
-from funestra.console_hud import ConsoleHud, ConsolePainter, hud_xy
-from funestra.drive_layout import MAX_INTENSITY
-from funestra.drive_readout import DriveHud
-from funestra.hud_button import Button
-from funestra.hud_marks import shared_mark
+from funestra.main_hud_painter import MainHud, MainHudPainter, hud_xy
 from funestra.modes import MainMode, Osr2State
+from funestra.osr2_visualizer import DriveHud
 from funestra.robot_hand import WaveformShape
 
-from fun_time.console_buttons import MainFunestraFacts, console_rows, osr2_rows
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.main_funestra_console import osr2_state
+from fun_time.main_funestra_hud import osr2_state
+from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows, osr2_rows
 from fun_time.osr2_section import osr2_button, osr2_part
 
 
@@ -67,7 +67,7 @@ class TestTheRowThatAimsTheDevice:
         resting = _button(_part(), "robot_hand_toggle_learned")
         lit = _button(_part(learned=True), "robot_hand_toggle_learned")
 
-        assert resting.glyph == shared_mark("human")
+        assert resting.icon == shared_icon("human")
         assert (resting.lit, lit.lit) == (False, True)
         assert (lit.favorite, lit.warn, lit.hold) == (False, False, False)
 
@@ -75,14 +75,14 @@ class TestTheRowThatAimsTheDevice:
         assert _button(_part(shape="rounded_square"), "robot_hand_cycle_shape").tooltip == "Waveform: Square"
 
     def test_the_waveform_button_wears_the_waveform_the_motion_is_in(self):
-        faces = {_button(_part(shape=shape.value), "robot_hand_cycle_shape").glyph
+        faces = {_button(_part(shape=shape.value), "robot_hand_cycle_shape").icon
                  for shape in WaveformShape}
 
         assert len(faces) == len(WaveformShape)
 
-    def test_rides_on_the_dashboard_s_part_never_on_the_console(self):
+    def test_rides_on_the_dashboard_s_part_never_on_the_main_hud(self):
         slot = MainFunestraFacts(main_mode=MainMode.KINO)
-        console = [b.command for row in (*console_rows(slot), *osr2_rows(slot)) for b in row]
+        console = [b.command for row in (*main_hud_rows(slot), *osr2_rows(slot)) for b in row]
 
         assert "robot_hand_park" in _actions(_part())
         assert "robot_hand_park" not in console
@@ -109,9 +109,9 @@ class TestTheReadoutTheWordLeaves:
                             funscript_driving=funscript_driving),
             learned=False, shape="sine", broker=True, max_intensity=max_intensity)
         published = tmp_path / "dashboard_osr2.json"
-        published.write_text(console_text(part), encoding="utf-8")
-        painter = ConsolePainter(device_only=True)
-        painter.rgba(ConsoleHud(console=read_console(published), drive=DriveHud(
+        published.write_text(main_hud_text(part), encoding="utf-8")
+        painter = MainHudPainter(device_only=True)
+        painter.rgba(MainHud(main_hud_model=read_main_hud(published), drive=DriveHud(
             speed=50, amplitude=60, center=50, waveform=tuple(0.5 for _ in range(80)))))
         return painter
 

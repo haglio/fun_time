@@ -208,7 +208,7 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
 # under the library's name rather than fun_time's.
 THE_LISTENERS_LOGGERS = ("voice_core",)
 
-# The orchestrator's logger owns the console and so does not propagate; it has
+# The orchestrator's logger owns the HUD and so does not propagate; it has
 # to be enrolled by name.  Every other fun_time.* logger reaches the handler on
 # the package logger by propagation.
 _NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)

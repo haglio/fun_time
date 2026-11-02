@@ -1,4 +1,4 @@
-"""What the Funestras draw: each satellite's lock map, and the main console.
+"""What the Funestras draw: each satellite's lock map, and the Main Funestra's HUD.
 
 The feed's inputs are the session's config, the bridge state and a publisher,
 so these build one and ask it — no dispatch loop, no windows, no tick.
@@ -14,11 +14,11 @@ from unittest.mock import patch
 import pytest
 from app_support.osr2_device import Osr2Mode
 from app_support.testing import file_channel_clock_at
-from funestra.console import OSR2_PARKED, ConsoleModel, read_console
-from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
+from funestra.main_hud import OSR2_PARKED, MainHudModel, read_main_hud
 from funestra.modes import MainMode, Osr2State, SatellitesMode
+from funestra.osr2_visualizer import DriveHud, publish_drive
 from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
@@ -154,7 +154,7 @@ def broker_is_up(published: dict) -> bool:
 
 
 class TestHudPublishing:
-    """Each satellite's lock map and the main console, built from the session's
+    """Each satellite's lock map and the Main Funestra's HUD, built from the session's
     config and the bridge state and published to the files the Funestras read."""
 
     def test_each_satellites_hud_carries_its_own_clip_and_lock(self, tmp_path):
@@ -310,7 +310,7 @@ class TestHudPublishing:
     ):
         """There every Funestra is a screen in the scene with no window of its own
         to park -- whichever row minimize would ride on the desktop: the end of
-        a Satellite's band, the session's row over it, or the console's mode row."""
+        a Satellite's band, the session's row over it, or the HUD's mode row."""
         config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
         feed = make_feed(tmp_path, config=replace(config, vr_main_funestra=True))
 
@@ -523,8 +523,8 @@ class TestHudPublishing:
         assert actives(3) == (False, True)
         assert actives(1) == (False, False)
 
-    def test_the_console_says_when_the_primary_has_the_floor(self, tmp_path):
-        """The Main Funestra's dot rides the console file, the same file that carries the
+    def test_the_main_hud_says_when_the_primary_has_the_floor(self, tmp_path):
+        """The Main Funestra's dot rides the HUD file, the same file that carries the
         rest of its HUD — one source for both Funestras, in place of the separate
         command it used to be sent."""
         feed, state = make_feed(tmp_path), BridgeState()
@@ -536,7 +536,7 @@ class TestHudPublishing:
         assert active(1) is True   # the Main Funestra holds it
         assert active(2) is False  # a satellite does
 
-    def test_the_console_says_what_has_the_osr2_and_the_osr2_part_whether_the_broker_is_up(
+    def test_the_main_hud_says_what_has_the_osr2_and_the_osr2_part_whether_the_broker_is_up(
             self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
@@ -547,7 +547,7 @@ class TestHudPublishing:
         assert broker_is_up(dashboard(tmp_path))
         assert published["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
-    def test_the_console_says_the_osr2_is_off_while_a_video_still_drives_it_gone_quiet(self, tmp_path):
+    def test_the_main_hud_says_the_osr2_is_off_while_a_video_still_drives_it_gone_quiet(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "osr2_serial_tx.txt").write_text("199.0", encoding="utf-8")
@@ -559,7 +559,7 @@ class TestHudPublishing:
 
         assert console(tmp_path)["osr2"] == Osr2State.OFF
 
-    def test_the_console_names_an_osr2_the_broker_cannot_find(self, tmp_path):
+    def test_the_main_hud_names_an_osr2_the_broker_cannot_find(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_not_found.txt").write_text(str(time.time()), encoding="utf-8")
 
@@ -583,7 +583,7 @@ class TestHudPublishing:
         broker keeps writing where it always did.
 
         Reading the heartbeat and the serial stamp out of the *session's*
-        directory is what had this console calling a live broker dead and a
+        directory is what had this HUD calling a live broker dead and a
         driven OSR2 off — so a stamp in the session's own directory must not
         light either one.
         """
@@ -611,7 +611,7 @@ class TestHudPublishing:
         assert broker_is_up(broker_part)
         assert broker["osr2"] != "off"
 
-    def test_the_consoles_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
+    def test_the_main_huds_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
         """In genau mode the lock says how long an unheld flick stays up, and the
         one place Genau says its pace is the drive readout it publishes."""
         feed, state = make_feed(tmp_path), BridgeState(main_mode=MainMode.GENAU)
@@ -624,7 +624,7 @@ class TestHudPublishing:
                     if button["command"] == "main_lock")
         assert "every 7s" in lock["tooltip"]
 
-    def test_the_console_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
+    def test_the_main_hud_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
         """Each Funestra owns its own lock, and neither can see the other's — so
         both go out on their status files and the one the mode says is showing
         comes back down here, the way the loop state does."""
@@ -646,7 +646,7 @@ class TestHudPublishing:
         assert published("kino") is True
         assert published("genau") is False
 
-    def test_the_consoles_f_mode_in_genau_mode_is_genaus_own(self, tmp_path):
+    def test_the_main_huds_f_mode_in_genau_mode_is_genaus_own(self, tmp_path):
         feed = make_feed(tmp_path)
 
         def f_mode_lit(state: BridgeState) -> bool:
@@ -657,7 +657,7 @@ class TestHudPublishing:
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, main_scripted_filter=True)) is False
 
-    def test_the_console_offers_genaus_shapes_only_where_it_has_vr_clips(self, tmp_path):
+    def test_the_main_hud_offers_genaus_shapes_only_where_it_has_vr_clips(self, tmp_path):
         state = BridgeState(main_mode=MainMode.GENAU, genau_plays_vr=False)
 
         def shape_buttons(config) -> set[tuple[str, bool]]:
@@ -670,7 +670,7 @@ class TestHudPublishing:
         assert shape_buttons(make_config(tmp_path, genau_vr_flicks=str(tmp_path / "vr_flicks"))) == {
             ("main_projection_both", False), ("main_projection_none", True)}
 
-    def test_the_consoles_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
+    def test_the_main_huds_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
             self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         status = feed.config.main_funestra_status_file
@@ -684,7 +684,7 @@ class TestHudPublishing:
 
         assert (short, longer) == ([True, True], [None, None])
 
-    def test_the_consoles_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
+    def test_the_main_huds_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         status = feed.config.main_funestra_status_file
 
@@ -811,12 +811,12 @@ def _osr2_commands(model: HudModel) -> list[str]:
     return [button.command for row in model.osr2_rows for button in row]
 
 
-def _console_osr2_commands(tmp_path) -> list[str]:
+def _main_hud_osr2_commands(tmp_path) -> list[str]:
     return [button.get("command", "") for row in console(tmp_path)["osr2_rows"] for button in row]
 
 
-def _dashboard_osr2(tmp_path) -> ConsoleModel:
-    return read_console(osr2_part_path(tmp_path))
+def _dashboard_osr2(tmp_path) -> MainHudModel:
+    return read_main_hud(osr2_part_path(tmp_path))
 
 
 def _dashboard_osr2_commands(tmp_path) -> list[str]:
@@ -895,7 +895,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert portrait.osr2_rows == ((osr2_button(FunTimeFunestra.PORTRAIT, has_it=True),),)
         assert (portrait.osr2_controls, portrait.max_intensity) == ((), None)
 
-    def test_the_main_console_has_it_to_begin_with_and_wears_its_button_lit(self, tmp_path):
+    def test_the_main_main_hud_has_it_to_begin_with_and_wears_its_button_lit(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState())
 
         assert console(tmp_path)["has_osr2"] is True
@@ -909,7 +909,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2))
 
         assert console(tmp_path)["has_osr2"] is False
-        assert _console_osr2_commands(tmp_path) == ["main_take_osr2"]
+        assert _main_hud_osr2_commands(tmp_path) == ["main_take_osr2"]
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
     def test_a_satellite_funestra_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
@@ -966,7 +966,7 @@ class TestASatelliteWithTheOsr2:
 
 
 class TestOsr2Mode:
-    """What the main console is told the OSR2 is doing, read from the broker's
+    """What the Main Funestra's HUD is told the OSR2 is doing, read from the broker's
     files the one way every app reads them (app_support's osr2_device)."""
 
     def test_a_device_never_heard_from_is_off(self, tmp_path):
@@ -996,7 +996,7 @@ class TestOsr2Mode:
             assert feed.osr2_mode() is Osr2Mode.AUTO
 
 
-def test_the_consoles_crown_goes_dark_once_the_app_gives_it_to_the_portrait_funestra(tmp_path):
+def test_the_main_huds_crown_goes_dark_once_the_app_gives_it_to_the_portrait_funestra(tmp_path):
     feed = make_feed(tmp_path)
 
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))

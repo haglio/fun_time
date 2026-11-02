@@ -25,7 +25,7 @@ from fun_time.funestra_status import (
     read_main_funestra_status,
 )
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.main_funestra_console import main_funestra_console_path
+from fun_time.main_funestra_hud import main_funestra_hud_path
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -382,9 +382,9 @@ class TestRunStartupSequence:
             "command_file": str(cfg.main_funestra_cmd_file),
             "paused_file": str(cfg.main_funestra_paused_file),
             "status_file": str(cfg.main_funestra_status_file),
-            # The console: the panel Fun Time publishes for the Main Funestra's HUD, Genau's
+            # The HUD: the panel Fun Time publishes for the Main Funestra's HUD, Genau's
             # readout for the section under it, and where a press goes back.
-            "console_file": str(main_funestra_console_path(cfg.paths.state_dir)),
+            "console_file": str(main_funestra_hud_path(cfg.paths.state_dir)),
             "drive_file": str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt"),
             # The Main Funestra is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "main_funestra.log",

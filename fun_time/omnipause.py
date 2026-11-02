@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from app_support import osr2_hold
-from funestra.console import HOLD_VERB, OSR2_DRIVING, OSR2_RETRACTED
+from funestra.main_hud import HOLD_VERB, OSR2_DRIVING, OSR2_RETRACTED
 
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .broker_control import write_broker_command
