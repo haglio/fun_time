@@ -13,12 +13,7 @@ from funestra.funestra_verbs import (
     SPEED_DOWN,
     SPEED_UP,
 )
-from funestra.main_hud import (
-    HOLD_VERB,
-    OSR2_CONTROL_BUTTONS,
-    OSR2_DRIVING,
-    OSR2_PARKED,
-)
+from funestra.main_hud import HOLD_VERB, OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, WindowOp, ignored
 from .broker_control import write_broker_command

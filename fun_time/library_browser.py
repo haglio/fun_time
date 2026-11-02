@@ -6,7 +6,7 @@ them — so finding a video meant remembering how far it had got through the
 pipeline.  This browses :mod:`fun_time.library_handles` instead: one tile per
 video, whatever renditions it exists as, alphabetical, with a still off each.
 
-The folder being shown is put up twice, side by side.  The grid of tiles is the
+The folder being shown is put up twice, side by Satellite.  The grid of tiles is the
 half you walk, ordered the way the library ranks itself — biggest source folder
 first, cuts after the videos they came out of — which is the order to browse
 in and the wrong one to *find* in.  So the left sidebar is the other order: the

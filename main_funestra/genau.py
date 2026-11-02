@@ -13,7 +13,7 @@ from app_support.threading_utils import start_daemon_thread
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_overlay import FlickFrame
-from funestra.main_hud_painter import ModeHud
+from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
 from funestra.modes import MessageLevel
 from shared_ui.orientation import PORTRAIT

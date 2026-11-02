@@ -129,6 +129,7 @@ from .loading_screen import (
     paint_loading_screen,
     scene_ready_file,
 )
+from .main_hud import DEG_PER_PX, HUD_WIDTH_PX, hud_hangs_from
 from .matrices import (
     fov_to_projection_matrix,
     pitch_rotation_matrix,
@@ -1734,8 +1735,8 @@ class TheRoom:
 
     def __init__(
         self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
-        console: _ConsoleUnit, reference: _ReferenceUnit, library: _LibraryUnit,
-        banner: _BannerUnit, gallery: _GalleryUnit, loading_screen: LoadingScreenUnit, notices: NoticeBoard,
+        main_hud_unit: _MainHudUnit, reference: _ReferenceUnit, library: _LibraryUnit,
+        flashed: _MessageUnit, gallery: _GalleryUnit, loading_screen: LoadingScreenUnit, messages: MessageBoard,
         keeper: _LayoutKeeper, posts: _ControllerPosts, pointing: _PointerDrawing,
         loading_screen_watch: LoadingScreenWatch, stop: threading.Event,
     ) -> None:
@@ -1752,10 +1753,10 @@ class TheRoom:
         self.stop = stop
         self.workers: tuple[threading.Thread, ...] = ()
         self.wear = HeadsetWear()
-        # Dash before the console, which hangs off where the dashboard ended up.
-        self.units = [main_unit, *self.satellites, dash, console, reference, library,
-                      banner, gallery, loading_screen]
-        self.closing = [notices, *self.units, keeper, posts]
+        # Dash before the HUD, which hangs off where the dashboard ended up.
+        self.units = [main_unit, *self.satellites, dash, main_hud_unit, reference, library,
+                      flashed, gallery, loading_screen]
+        self.closing = [messages, *self.units, keeper, posts]
         self.pumped = [one for one in self.closing if one is not main_unit]
         self.where = room.where_they_hang(self.units)
 
@@ -1805,7 +1806,7 @@ def hang_the_room(
     # One read of the event log per tick, pumped before every screen's message.
     messages = MessageBoard(event_log_path(state_dir), unlogged=UnloggedMessages(state_dir))
     main_unit = _MainUnit(
-        manifest, vr, contexts, remembered=remembered, stop=stop, notices=notices, perf=perf,
+        manifest, vr, contexts, remembered=remembered, stop=stop, messages=messages, perf=perf,
         while_reading=present_the_loading_screen)
     present_the_loading_screen()  # the Main Funestra has opened its media, and the satellites are next
     satellites = [
@@ -1843,7 +1844,7 @@ def hang_the_room(
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),
-        loading_screen=loading_screen, notices=notices,
+        loading_screen=loading_screen, messages=messages,
         keeper=_LayoutKeeper(state_dir / LAYOUT_FILENAME, remembered),
         posts=_ControllerPosts(Path(commands.dashboard_cmd_file)),
         pointing=_PointerDrawing(),

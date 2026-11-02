@@ -26,7 +26,8 @@ from app_support.file_channel import write_flag
 from funestra.flick_overlay import FlickFrame
 from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_placement import HudEdge
-from funestra.main_hud_painter import MainHud, ModeHud
+from funestra.main_hud import ModeHud
+from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode
 from funestra.osr2_controls_host import Osr2ControlsHost
 from funestra.outside_buttons import OutsideButtons
@@ -61,7 +62,6 @@ from fun_time.overlay_progress import (
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
-from fun_time_vr.console_hud import DEG_PER_PX, HUD_WIDTH_PX
 from fun_time_vr.dash_panel import (
     DASH_DEG_PER_PX,
     DASH_WIDTH_PX,
@@ -124,6 +124,7 @@ from fun_time_vr.loading_screen import (
     WEARER_STATUS,
     LoadingScreenWatcher,
 )
+from fun_time_vr.main_hud import DEG_PER_PX, HUD_WIDTH_PX
 from fun_time_vr.matrices import yaw_of_orientation
 from fun_time_vr.messages import MessageBoard
 from fun_time_vr.orchestrator import build_vr_manifest
@@ -764,8 +765,8 @@ class TestASqueezeOnAHangingHud:
 # Every class that goes on the file-channel worker's list, which the frame
 # loop's `finally` then closes one by one: `pumped` in `Funestra._run`.
 _EVERYTHING_THE_WORKER_IS_HANDED = [
-    NoticeBoard, _MainUnit, _SatelliteUnit, _DashUnit, _ConsoleUnit, _ReferenceUnit,
-    _LibraryUnit, _BannerUnit, LoadingScreenUnit, _LayoutKeeper, _ControllerPosts,
+    MessageBoard, _MainUnit, _SatelliteUnit, _DashUnit, _MainHudUnit, _ReferenceUnit,
+    _LibraryUnit, _MessageUnit, LoadingScreenUnit, _LayoutKeeper, _ControllerPosts,
 ]
 
 
@@ -3185,7 +3186,7 @@ class TestTheReferenceUnderTheDashboard:
         assert self._meets(dash.screen.placement, _THE_DASHS_SHAPE, followed)
         assert under.width_deg == followed.width_deg == REFERENCE_WIDTH_DEG
 
-    def test_it_hangs_below_the_console_while_the_main_hud_hangs_from_the_dashboard(
+    def test_it_hangs_below_the_main_hud_while_the_main_hud_hangs_from_the_dashboard(
             self, tmp_path):
         """A wrapped video leaves the HUD nowhere else to dock."""
         unit, _dash, main_hud_unit = self._unit(tmp_path, carrying_the_main_hud=True)
@@ -3421,7 +3422,7 @@ class TestPuttingTheRoomBack:
 
         assert unit.screen.placement == _LibraryUnit.SPOTS[LIBRARY]
 
-    @pytest.mark.parametrize("kind", [_ConsoleUnit, _ReferenceUnit, LoadingScreenUnit])
+    @pytest.mark.parametrize("kind", [_MainHudUnit, _ReferenceUnit, LoadingScreenUnit])
     def test_what_rides_on_another_screen_keeps_no_spot_and_is_left_riding(self, kind):
         """Each of these hangs off something else and finds its place again every
         frame, so putting the room back must not pull it off what it rides on."""

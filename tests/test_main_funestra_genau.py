@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from funestra.funestra import User
-from funestra.main_hud_painter import ModeHud
+from funestra.main_hud import ModeHud
 from funestra.modes import MessageLevel
 
 from fun_time import genau_engine

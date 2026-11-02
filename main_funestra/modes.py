@@ -11,7 +11,7 @@ memory writes the compilation down.
 """
 from __future__ import annotations
 
-from funestra.main_hud_painter import ModeHud
+from funestra.main_hud import ModeHud
 from funestra.playback import funscripts_of
 
 from .mode_memory import RememberedMode

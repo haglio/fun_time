@@ -759,16 +759,16 @@ def test_the_messages_start_held_exactly_when_the_panel_starts_hidden(
         building, dashboard_app_config):
     """One answer decides both.  Read separately they could disagree — startup
     finishes between the two reads — and the panel would then come up holding
-    notices nothing releases, or releasing them over the loading screen."""
+    messages nothing releases, or releasing them over the loading screen."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
         assert window._reveal.routing_suppressed is building
-        window._notices.overlay = _FakeOverlay()
-        _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
-        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
-            window._notices.poll()
+        window._messages.overlay = _FakeOverlay()
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+        with patch("fun_time.message_feed.loading_screen_is_up", return_value=True):
+            window._messages.poll()
 
         # Held exactly when the panel is: one answer decided both.
         assert (window._messages.overlay.flashed == []) is building
@@ -777,7 +777,7 @@ def test_the_messages_start_held_exactly_when_the_panel_starts_hidden(
 
 
 def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
-    """The panel shows itself one phase BEFORE the loading screen goes, so a notice
+    """The panel shows itself one phase BEFORE the loading screen goes, so a message
     released here would still flash through the scrim.  They wait for the loading screen
     itself; see NoticeFeed."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
@@ -795,12 +795,12 @@ def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
 
         assert window._reveal.deferred is False
         # Asked of the feed, which owns the hold — a reveal that cleared it
-        # would flash a notice through the scrim the loading screen is still holding up.
-        window._notices.overlay = _FakeOverlay()
-        _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
-        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
-            window._notices.poll()
-        assert window._notices.overlay.flashed == []
+        # would flash a message through the scrim the loading screen is still holding up.
+        window._messages.overlay = _FakeOverlay()
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+        with patch("fun_time.message_feed.loading_screen_is_up", return_value=True):
+            window._messages.poll()
+        assert window._messages.overlay.flashed == []
     finally:
         window.close()
 
@@ -1573,7 +1573,7 @@ def test_a_main_funestra_message_lands_on_the_main_funestra_wherever_the_crown_h
 
 def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_either(
         dashboard_app_config):
-    """A notice is topmost, so one that fired while the loading screen was up would
+    """A message is topmost, so one that fired while the loading screen was up would
     appear for a moment through the scrim the loading screen is there to be.  Held, the
     read offset does not advance, so the announcement arrives afterwards over
     Fun Time it is about."""
@@ -1581,15 +1581,15 @@ def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_eithe
     try:
         _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
 
-        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=True):
-            window._notices.poll()
-        assert window._notices.overlay.flashed == []
-        assert window._notices.offset == 0
+        with patch("fun_time.message_feed.loading_screen_is_up", return_value=True):
+            window._messages.poll()
+        assert window._messages.overlay.flashed == []
+        assert window._messages.offset == 0
 
-        with patch("fun_time.notice_feed.loading_screen_is_up", return_value=False):
-            window._notices.poll()
-        assert [m for m, _ in window._notices.overlay.flashed] == ["Clip saved"]
-        assert window._notices.offset > 0
+        with patch("fun_time.message_feed.loading_screen_is_up", return_value=False):
+            window._messages.poll()
+        assert [m for m, _ in window._messages.overlay.flashed] == ["Clip saved"]
+        assert window._messages.offset > 0
     finally:
         window.close()
 
@@ -1599,11 +1599,11 @@ def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_con
     second for the length of the session."""
     window = _message_window(dashboard_app_config, held=True)
     try:
-        loading_screen = patch("fun_time.notice_feed.loading_screen_is_up", return_value=False)
+        loading_screen = patch("fun_time.message_feed.loading_screen_is_up", return_value=False)
         with loading_screen as is_up:
-            window._notices.poll()
-            window._notices.poll()
-            window._notices.poll()
+            window._messages.poll()
+            window._messages.poll()
+            window._messages.poll()
 
         assert is_up.call_count == 1
     finally:
@@ -1612,10 +1612,10 @@ def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_con
 
 def test_a_window_that_never_waited_asks_about_the_loading_screen_at_all(dashboard_app_config):
     """Started after the loading screen was gone, the feed is live from its first poll."""
-    window = _notice_window(dashboard_app_config, held=False)
+    window = _message_window(dashboard_app_config, held=False)
     try:
-        with patch("fun_time.notice_feed.loading_screen_is_up") as is_up:
-            window._notices.poll()
+        with patch("fun_time.message_feed.loading_screen_is_up") as is_up:
+            window._messages.poll()
 
         is_up.assert_not_called()
     finally:

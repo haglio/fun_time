@@ -8,7 +8,7 @@
   long the runtime takes to answer (a cold PimaxXR auto-start can be 45s).
 - Scope:
   - Only that stretch. From the loading screen's first frame onward the loading screen
-    hides the whole of the room assembling, and the closing screen hides the
+    hides the whole of Fun Time assembling, and the closing screen hides the
     whole of the teardown.
 - Notes:
   - It cannot be covered from here. An OpenXR app owns no compositor layer

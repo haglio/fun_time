@@ -57,7 +57,6 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.raising_the_loading_screen import open_the_loading_screen
-from fun_time.room_funestras import RoomFunestra
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
@@ -110,8 +109,8 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
+from tests.fun_time_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.loading_screen_beats import heard_from_again_once_stale
-from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.sleeps import sleeps_in
 from tests.test_windows_bridge_dispatch_loop import make_config
 
@@ -214,7 +213,7 @@ class TestFixPostLoadingWindows:
         promotion times out through the stalled-window guard exactly as a
         satellite's does — and a timed-out SetWindowPos lands when that window
         next pumps, which is the second after the loading screen lifts.  He watched the
-        Main Funestra climb over the room there, so it is walked and re-promoted
+        Main Funestra climb over Fun Time there, so it is walked and re-promoted
         with the other two rather than only logged."""
         result = _fake_startup_result()
         titles = {"Main Funestra": 333}
@@ -299,7 +298,7 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(222, True, under=77)
 
-    def test_the_room_is_banded_under_the_loading_screen_and_the_loading_screen_left_alone(self):
+    def test_the_app_is_banded_under_the_loading_screen_and_the_loading_screen_left_alone(self):
         """Under the overlay is where this pass belongs: the bands decide what
         the reveal looks like."""
         result = _fake_startup_result()
@@ -366,7 +365,7 @@ class TestFixPostLoadingWindows:
         It used to, because a session could open already in origenerator mode:
         the loading screen was held for that app's boot, its window restored under the
         loading screen, and the shows banded here as the roles that loading screen the Funestras.
-        Every room opens in kino mode now -- the boot is what made a launch
+        Every session opens in kino mode now -- the boot is what made a launch
         long -- so the app is still coming up when this runs, and its three
         windows are the dispatch loop's to find and band when it has them.
         """
@@ -1885,7 +1884,7 @@ class TestClosingScreenLifecycle:
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
 
     @pytest.mark.parametrize("loading_screen", ["loading_screen", "closing_screen", "transition_screen"])
-    def test_no_loading_screen_opens_a_console_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
+    def test_no_loading_screen_opens_a_main_hud_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
         """A loading screen is started through a named copy of whichever interpreter the
         session runs under, and that is the CONSOLE one for a session launch.vbs
         started -- while a session the crossing relay started has no console at
@@ -3048,7 +3047,7 @@ class TestOrigeneratorGracefulClose:
 
 class TestTheFinishingPassFitsUnderTheLoadingScreen:
     def test_it_cannot_outlast_the_covers_staleness_guard(self):
-        """The room is banded and settled under the loading screen, and the loading screen comes
+        """Fun Time is banded and settled under the loading screen, and the loading screen comes
         down on the DONE written at the end of that.  Nothing writes the progress
         file in between, so the loading screen's staleness guard — its protection against
         an orchestrator that died holding the screen — is running the whole time.
@@ -3333,15 +3332,15 @@ class TestARoomLeftInOrigeneratorMode:
     def test_the_slideshows_are_asked_for_before_the_loading_screen_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
-        assert "portrait_open_slideshow" in events, "the room never came back to origenerator mode"
+        assert "portrait_open_slideshow" in events, "Fun Time never came back to origenerator mode"
         assert events.index("portrait_open_slideshow") < events.index("loading screen gone"), (
-            "the mode was taken up after the room was already his"
+            "the mode was taken up after Fun Time was already his"
         )
 
     def test_the_wait_is_named_on_the_loading_screen_before_the_line_that_fills_the_bar(self):
-        """So the bar is still filling while the room waits, and "Finalizing..."
-        is the last thing it says before the room is shown."""
-        source = inspect.getsource(windows_bridge_orchestrator._reveal_the_room)
+        """So the bar is still filling while Fun Time waits, and "Finalizing..."
+        is the last thing it says before Fun Time is shown."""
+        source = inspect.getsource(windows_bridge_orchestrator._reveal_the_app)
 
         assert source.index("before_the_loading_screen_goes()") < source.index('advance("finalizing")')
         assert (source.index('advance("finalizing")')
@@ -3354,7 +3353,7 @@ class TestARoomLeftInOrigeneratorMode:
              patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_POLL_S", 0.01):
             events = self._run(cfg_factory, tmp_path, the_app_answers=False)
 
-        assert "loading screen gone" in events, "the room never opened"
+        assert "loading screen gone" in events, "Fun Time never opened"
         assert "portrait_open_slideshow" not in events, (
             "the slideshows were asked for with no app to show them")
 

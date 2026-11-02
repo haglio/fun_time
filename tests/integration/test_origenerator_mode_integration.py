@@ -749,10 +749,10 @@ def _hud_of(hud_file: Path, funestra: FunTimeFunestra):
 
 
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
-def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
-    """A room left in origenerator mode opens in it, with no switch pressed: the
+def test_an_app_left_in_the_mode_opens_in_it_as_it_was_left():
+    """A session left in origenerator mode opens in it, with no switch pressed: the
     session holds its own loading screen up for the hosted app and takes the mode up under
-    it, so it is already in the mode when the room is shown.
+    it, so it is already in the mode when Fun Time is shown.
 
     A real session runs first because the state file and the playlists the next
     one reads are what that session leaves on disk -- a session opening on a state

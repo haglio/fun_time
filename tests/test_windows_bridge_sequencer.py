@@ -970,7 +970,7 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
 
     def test_the_walk_touches_only_the_windows_it_bands(self):
         assert {h for h, _on, _under in self._calls(beneath=self.LOADING_SCREEN)} <= set(
-            self.ROLE_HWNDS.values())
+            self.HWNDS_BY_WINDOW.values())
 
     def test_without_a_loading_screen_a_promotion_goes_to_the_top_of_the_band(self):
         """The re-band after the loading screen has gone, and the path with no loading screen."""
@@ -979,8 +979,8 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
     def test_an_app_opening_with_origenerator_in_the_browsers_place_keeps_the_browser_under_it(
             self):
         for beneath in (self.LOADING_SCREEN, 0):
-            calls = self._calls(beneath=beneath, rfb_slot=RfbSlot.ORIGENERATOR)
-            assert [on for h, on, _under in calls if h == self.ROLE_HWNDS["rfb"]] == [False]
+            calls = self._calls(beneath=beneath, rfb_mode=RfbMode.ORIGENERATOR)
+            assert [on for h, on, _under in calls if h == self.HWNDS_BY_WINDOW["rfb"]] == [False]
 
 
 class TestPhase4Reveal:
@@ -1723,7 +1723,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     It used to, and that wait WAS the length of a launch: the app's window
     lands ten to thirty seconds after its launch against five to eight for
     everything else, so every session sat on "Waiting for Origenerator..."
-    long after the room under the loading screen was finished.  The room opens in video
+    long after Fun Time under the loading screen was finished.  Fun Time opens in video
     mode instead and the app goes on booting out of sight; the dispatch loop
     opens its mode up once it answers.
     """

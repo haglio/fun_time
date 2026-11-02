@@ -10,14 +10,7 @@ from funestra.hud_icons import (
     shared_icon,
     shared_icon_name,
 )
-from funestra.main_hud import (
-    GAP,
-    GROUP_GAP,
-    OSR2_DRIVING,
-    hit_test,
-    place_rows,
-    tooltip_at,
-)
+from funestra.main_hud import GAP, GROUP_GAP, OSR2_DRIVING, hit_test, place_rows, tooltip_at
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer

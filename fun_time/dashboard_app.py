@@ -745,7 +745,7 @@ class DashboardWindow(QMainWindow):
             rfb_mode_selector=app_config.rfb_mode_selector,
             event_log_dir=app_config.state_dir,
             loading_screen_dir=app_config.state_dir,
-            make_overlay=NoticeOverlay,
+            make_overlay=MessageOverlay,
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,
             shared_state_file=shared_state_path(app_config.state_dir),

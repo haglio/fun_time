@@ -96,7 +96,7 @@ def test_nothing_stays_over_the_loading_screen_long_enough_to_be_seen():
     watcher = AboveTheLoadingScreen()
     watcher.start()
     try:
-        # With the dashboard, because it and its notice overlay are two of the
+        # With the dashboard, because it and its message overlay are two of the
         # topmost windows that can land over the loading screen.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
@@ -189,7 +189,7 @@ def _sampling(watcher: AboveTheLoadingScreen) -> None:
         "the watcher never sampled the loading screen")
 
 
-def test_a_room_banded_under_a_loading_screen_too_busy_to_answer_never_shows_through_it(tmp_path):
+def test_an_app_banded_under_a_loading_screen_too_busy_to_answer_never_shows_through_it(tmp_path):
     watcher = AboveTheLoadingScreen(timeout_s=60.0)
     with _Windows("portrait", "landscape") as funestras:
         with _a_real_loading_screen(tmp_path / PROGRESS_FILENAME) as loading_screen:

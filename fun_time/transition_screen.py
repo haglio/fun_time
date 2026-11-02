@@ -1,4 +1,4 @@
-"""The loading screen the monitors wear while the room changes shape.
+"""The loading screen the monitors wear while Fun Time changes shape.
 
 Runs as a subprocess: ``python -m fun_time.transition_screen <progress_file>``,
 raised by the session leaving and taken down by the one arriving

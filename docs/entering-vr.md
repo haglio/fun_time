@@ -31,8 +31,8 @@ in either orchestrator:
 | Every Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
-| The mic being off | yes, from the room's state |
-| Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the loading screen before the room is shown |
+| The mic being off | yes, from Fun Time's state |
+| Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the loading screen before Fun Time is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
@@ -181,8 +181,8 @@ runtime's own view.
 Every loading screen says what Esc would cancel, and takes one Esc:
 
 - **Opening Fun Time or Fun Time VR** — the launch comes down and nothing opens.
-- **Entering VR** — the room goes back to Fun Time.
-- **Exiting VR** — the room goes back into Fun Time VR.
+- **Entering VR** — Fun Time goes back to Fun Time.
+- **Exiting VR** — Fun Time goes back into Fun Time VR.
 - **Closing Fun Time or Fun Time VR** — the teardown finishes under its loading screen
   and the same app opens again.
 
@@ -230,7 +230,7 @@ Funestras' own playlists, and the headset's satellites are Funestras
 it: the app's own window).
 The curtain waits for it only where the last session left Origenerator holding
 something -- a satellite in its Origenerator mode, or the Random Favs Browser's
-place: such a room holds its loading screen up until the app publishes a status, puts
+place: such a session holds its loading screen up until the app publishes a status, puts
 Origenerator back on what it held under it and opens already that way
 ([resuming-a-session.md](resuming-a-session.md)), while a session Origenerator held
 nothing of waits for nothing. A boot still costs a minute of
@@ -284,7 +284,7 @@ down. The timeouts differ because what they are waiting out differs:
 
 `SceneReady` is a different question — whether Fun Time is on screen, which a
 desktop orchestrator sees for itself and a headset cannot report. The dwell (2s)
-is how long the loading screen must have been drawn to the headset before the room may be
+is how long the loading screen must have been drawn to the headset before Fun Time may be
 revealed; without one the loading screen was over before anyone had it on, which
 is what its first verifications saw — nothing at all. The grace (25s) is the cap
 on a screen that never gets a frame at all, which a satellite with an empty
@@ -296,9 +296,9 @@ grace for as long as he left it closed.
 
 Until 2026-10-13 the dwell counted only the frames that reached a WORN headset,
 and that cost the reveal the whole grace in 26 of the 40 sessions before it. He
-launches the room from the desktop and picks the headset up later, so nothing
-counted until he did: the room was full in two seconds, the transition screen sat
+launches Fun Time from the desktop and picks the headset up later, so nothing
+counted until he did: Fun Time was full in two seconds, the transition screen sat
 on his monitors for twenty-five, and the give-up line blamed a blank screen that
 was never blank. Where the loading screen HANGS is still the wearer's question and still
-waits for one — latched on a frame nobody was at, the panel sits off to the side
+waits for one — latched on a frame nobody was at, the panel sits off to the Satellite
 of wherever he is looking when he does put the headset on.

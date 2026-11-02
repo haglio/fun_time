@@ -369,7 +369,7 @@ laid out as the library's videos are: a `2D` folder split into `AI` (the flicks
 Origenerator makes) and `non_AI` (the flicks Genaumacher cuts), and a `VR` folder.
 Either Funestra's browse holds `VR` and `2D`, the way the headset's video browse
 does. The desktop's Genau cycles through the 2D flicks alone, and a VR flick
-picked on the desktop plays there as it is, both eyes side by side. A flick
+picked on the desktop plays there as it is, both eyes side by Satellite. A flick
 picked goes up in Genau at once and Genau carries on from it in the order it
 was browsing; one that is not in that order, a VR flick on the desktop or one
 that arrived after Genau last read its folders, is put in after the flick that
@@ -426,7 +426,7 @@ The Funestra keeps running under it — its lock, loop and playlist are untouche
 
 There is no window of a session you can close on its own. Every Funestra answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing screen, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
 
-However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing screen goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the loading screen still calls the quit off.
+However a session ends — any of those, or a crossing into or out of the headset — Fun Time stops before the closing screen goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches Fun Time; Esc on the loading screen still calls the quit off.
 
 The alternative was worse than it sounds: a Funestra that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the Funestras out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the Main Funestra still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `funestra.session_quit`.
 

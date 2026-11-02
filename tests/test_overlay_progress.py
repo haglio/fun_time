@@ -178,8 +178,8 @@ class TestStartupPhases:
         assert len(keys) == len(set(keys))
 
     def test_the_waits_under_the_loading_screen_run_before_the_line_that_fills_the_bar(self):
-        """A room left with Origenerator showing waits out that app under the loading screen,
-        and every room waits for its voice commands to listen.  Put after the last
+        """A session left with Origenerator showing waits out that app under the loading screen,
+        and every session waits for its voice commands to listen.  Put after the last
         line, a wait read as a step past "Finalizing..." with the bar already full
         -- finished, and still working."""
         keys = [phase.key for phase in STARTUP_PHASES]
@@ -188,14 +188,14 @@ class TestStartupPhases:
                              "finalizing"]
 
     def test_the_loading_screen_says_origenerator_is_activating_whatever_it_comes_back_into(self):
-        """A room can come back with only one satellite on Origenerator's
+        """A session can come back with only one satellite on Origenerator's
         slideshow and the browser in its place, so the step names the app."""
         assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
     def test_the_launch_names_its_own_work_before_the_app_arrives(self):
         """Loading itself and checking the Funestras' engine took seconds off an
         uncovered desktop; they run under the loading screen, so the loading screen says so."""
-        assert (*LAUNCH_PHASES, *ROOM_PHASES) == STARTUP_PHASES
+        assert (*LAUNCH_PHASES, *APP_PHASES) == STARTUP_PHASES
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
     def test_only_the_last_phase_claims_no_time(self):
@@ -217,7 +217,7 @@ class TestShutdownPhases:
         """Teardown's bar never reads full before teardown is finished.
 
         Every shutdown phase has real work to do, so a full bar during one of
-        them would say the room was clear with children still being killed — and
+        them would say Fun Time was clear with children still being killed — and
         windows going out one by one is the whole thing the loading screen is there for.
         """
         progress_file = tmp_path / "progress.txt"

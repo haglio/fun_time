@@ -133,7 +133,7 @@ def _write_bridge_pids(session: FunTimeIntegrationSession, children: dict[str, C
 
 @pytest.fixture(autouse=True)
 def _hermetic_stop(session, monkeypatch):
-    """Neutralize the side-effecting halves of stop() so tests stay hermetic.
+    """Neutralize the Satellite-effecting halves of stop() so tests stay hermetic.
 
     The desktop-scoped leftover sweep is exercised elsewhere; here we isolate
     the deterministic identity-checked kill path.

@@ -224,7 +224,7 @@ def crossing_progress_path(state_dir: str | Path) -> Path:
 
 
 def raise_transition_screen(state_dir: str | Path, target: HandoffTarget) -> Path:
-    """Say the room is changing over to *target*."""
+    """Say Fun Time is changing over to *target*."""
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"1/2|{target.crossing_message}|{target.crossing_hint}\n", encoding="utf-8")
