@@ -253,7 +253,7 @@ def test_a_lock_on_a_video_a_website_made_puts_the_browser_back_over_origenerato
     state, ops = dispatch_command("portrait_lock", _up(rfb_mode=RfbMode.ORIGENERATOR), config)
 
     assert state.rfb_mode is RfbMode.RFB
-    assert [op.op for op in ops] == ["hide_role", "restack_rfb", "open_rfb_tab"]
+    assert [op.op for op in ops] == ["hide_window", "restack_rfb", "open_rfb_tab"]
 
 
 def test_a_lock_asks_nothing_of_an_origenerator_still_starting(tmp_path: Path):
@@ -1203,7 +1203,7 @@ def test_minimize_parks_that_funestras_window(tmp_path: Path):
 
     new_state, ops = dispatch_command("portrait_minimize", state, config)
 
-    assert ops == [WindowOp(op="minimize_role", key="portrait")]
+    assert ops == [WindowOp(op="minimize_window", key="portrait")]
     assert new_state.satellite(RoomFunestra.PORTRAIT) == state.satellite(RoomFunestra.PORTRAIT)
     assert _cmds(config, 2) == []
 
@@ -1213,7 +1213,7 @@ def test_minimize_names_each_satellite_its_own_window(tmp_path: Path):
 
     _state, ops = dispatch_command("landscape_minimize", _make_state(), config)
 
-    assert ops == [WindowOp(op="minimize_role", key="landscape")]
+    assert ops == [WindowOp(op="minimize_window", key="landscape")]
 
 
 def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Path):
@@ -1224,7 +1224,7 @@ def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Pat
     for mode in ("genau", "kino"):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
-        assert ops == [WindowOp(op="minimize_role", key="main_funestra")], mode
+        assert ops == [WindowOp(op="minimize_window", key="main_funestra")], mode
 
 
 # --- omnipause_toggle ---
@@ -2588,8 +2588,8 @@ def test_a_switch_brings_the_main_funestras_window_back_and_hands_it_the_focus(t
 
         assert new_state.main_mode is to_mode
         assert ops == [
-            WindowOp(op="show_role", key="main_funestra"),
-            WindowOp(op="activate_role", key="main_funestra"),
+            WindowOp(op="show_window", key="main_funestra"),
+            WindowOp(op="activate_window", key="main_funestra"),
         ]
 
 
@@ -3334,7 +3334,7 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
     order = [op.op for op in ops]
 
     assert order.index("restore_parked") < order.index("restore_all_topmost")
-    assert order.index("restore_parked") < order.index("activate_role")
+    assert order.index("restore_parked") < order.index("activate_window")
 
 
 def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):
@@ -3344,7 +3344,7 @@ def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):
 
     _state, ops = dispatch_command("enter_omnipause", _make_state(), config)
 
-    assert not any(op.op in ("minimize_role", "restore_parked") for op in ops)
+    assert not any(op.op in ("minimize_window", "restore_parked") for op in ops)
 
 
 def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
@@ -3354,7 +3354,7 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
 
     new_state, ops = dispatch_command("enter_omnipause", state, config)
 
-    assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
+    assert not any(op.op == "hide_window" and op.key == "genau" for op in ops)
 
 
 def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
@@ -3364,7 +3364,7 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
 
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
+    assert not any(op.op == "hide_window" and op.key == "genau" for op in ops)
 
 
 def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
@@ -3387,7 +3387,7 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
 
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
-    assert any(op.op == "activate_role" and op.key == "main_funestra" for op in ops)
+    assert any(op.op == "activate_window" and op.key == "main_funestra" for op in ops)
 
 
 # --- Main Funestra nudge ---
@@ -4915,8 +4915,8 @@ class TestTheRandomFavsBrowsersPlace:
         assert state.rfb_mode is RfbMode.ORIGENERATOR
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert [(op.op, op.key) for op in ops] == [
-            ("show_role", "origenerator"),
-            ("activate_role", "origenerator"),
+            ("show_window", "origenerator"),
+            ("activate_window", "origenerator"),
             ("restack_rfb", ""),
         ]
         assert _origenerator_cmds(config) == []
@@ -4929,7 +4929,7 @@ class TestTheRandomFavsBrowsersPlace:
         assert state.rfb_mode is RfbMode.RFB
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert [(op.op, op.key) for op in ops] == [
-            ("hide_role", "origenerator"), ("restack_rfb", "")]
+            ("hide_window", "origenerator"), ("restack_rfb", "")]
         assert _origenerator_cmds(config) == []
 
     def test_asking_for_what_already_holds_the_place_moves_no_window(self, tmp_path):

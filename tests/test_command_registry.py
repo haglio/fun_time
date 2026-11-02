@@ -153,7 +153,7 @@ def test_every_verb_the_console_posts_lands_on_a_handler():
     # Minimize is answered before the handler map, by name; browse and the
     # broker panel are the loop's own branches.
     answered = (_handler_ids() | _loop_branch_ids()
-                | frozenset(hud_moves._MINIMIZE_ROLES))
+                | frozenset(hud_moves._MINIMIZE_WINDOWS))
     posted = _console_verbs()
     assert posted, "no console button posts anything"
     assert answered >= posted, sorted(posted - answered)
@@ -164,7 +164,7 @@ def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
     HUD: each Satellite's own verbs, its mode pair among them, and the minimize the
     loop answers by name."""
     answered = (_handler_ids() | _loop_branch_ids()
-                | frozenset(hud_moves._MINIMIZE_ROLES))
+                | frozenset(hud_moves._MINIMIZE_WINDOWS))
     posted = _satellite_verbs()
     assert posted, "no satellite button posts anything"
     assert answered >= posted, sorted(posted - answered)

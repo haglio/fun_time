@@ -13,7 +13,7 @@ from .mode_plan import kino_shows
 
 if TYPE_CHECKING:
     from .bridge_records import BridgeConfig, WindowOp
-    from .role_windows import WindowRoles
+    from .fun_time_windows import FunTimeWindows
     from .shared_state import BridgeState
     from .window_layout import SecondaryMonitorRects
 
@@ -59,7 +59,7 @@ class Seating:
         self._main_funestra_status_file = main_funestra_status_file
         self._genau_status_file = genau_status_file
 
-    def seat(self, state: BridgeState, windows: WindowRoles) -> BridgeState:
+    def seat(self, state: BridgeState, windows: FunTimeWindows) -> BridgeState:
         if self._rects is None:
             return state
         most = majority_now(state, self._main_funestra_status_file, self._genau_status_file)

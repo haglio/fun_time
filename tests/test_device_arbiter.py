@@ -18,7 +18,7 @@ from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
 from fun_time.room_funestras import RoomFunestra
-from tests.role_window_fakes import FakeClock
+from tests.fun_time_window_fakes import FakeClock
 
 
 def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArbiter:

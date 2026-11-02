@@ -82,7 +82,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
 from fun_time.win32 import StackedWindow
 from fun_time.win32_events import PressAndCaretWatch
-from fun_time.window_roles import ORIGENERATOR_TITLE
+from fun_time.window_names import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
     HUD_PRIME_TIMEOUT_S,
@@ -1419,7 +1419,7 @@ class TestKeepingTheHostedApp:
         the_preview = partial(lookup_hosted, caption=window_title(
             ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")))
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
-             patch("fun_time.role_windows.find_window_for_process", side_effect=the_preview), \
+             patch("fun_time.fun_time_windows.find_window_for_process", side_effect=the_preview), \
              patch("fun_time.windows_bridge_orchestrator.hide_window") as parked:
             _shutdown_children(
                 0, _recorded_children(
@@ -3706,9 +3706,9 @@ def test_the_reveal_seats_the_secondary_monitor_for_the_crown_the_room_came_back
     status.write_text("video=C:/fixtures/scene one.mp4\nportrait=1\n", encoding="utf-8")
     monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;2560,0,1440,3440")
 
-    with patch("fun_time.role_windows.window_rect", return_value=None), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", return_value=None), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         seat_the_secondary_monitor(manifest, {"portrait": 3001, "main_funestra": 2001})
 
     assert sorted(call.args for call in place.call_args_list) == [

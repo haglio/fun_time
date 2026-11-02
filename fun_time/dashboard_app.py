@@ -520,7 +520,7 @@ class ReferenceDialog(QDialog):
         """Follow the same OmniPause band policy as every other Fun Time window.
 
         This popup floats over the Funestras via WindowStaysOnTopHint, but it is
-        not one of the bridge's MANAGED_ROLES — it comes and goes with the ``?``
+        not one of the bridge's MANAGED_WINDOWS — it comes and goes with the ``?``
         button — so the orchestrator's disable_all_topmost never reached it and
         it stayed stranded above a freed desktop for the whole pause.  It is its
         own top-level window, so the dashboard's band does not carry it either;

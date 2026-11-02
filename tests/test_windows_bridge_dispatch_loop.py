@@ -35,6 +35,11 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import FAVORITE
+from fun_time.fun_time_windows import (
+    MAIN_BLANK_SETTLE_S,
+    ChildPids,
+    FunTimeWindows,
+)
 from fun_time.funestra_handover import LET_GO_TIMEOUT_S, keep_aside
 from fun_time.hud_transport import HudPublisher
 from fun_time.manifest import (
@@ -47,11 +52,6 @@ from fun_time.media_metadata import normalize_path_key
 from fun_time.origenerator_switches import RfbMode
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
-from fun_time.role_windows import (
-    MAIN_BLANK_SETTLE_S,
-    ChildPids,
-    WindowRoles,
-)
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
@@ -72,9 +72,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     expand_group_command,
     poll_dashboard_commands,
 )
-from tests.hosted_shows import publish_the_show
-from tests.made_up_state import remembered_values, shifted_state
-from tests.role_window_fakes import (
+from tests.fun_time_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
     HOSTED_HWND,
@@ -92,6 +90,8 @@ from tests.role_window_fakes import (
     lookup_pid,
     lookup_title,
 )
+from tests.hosted_shows import publish_the_show
+from tests.made_up_state import remembered_values, shifted_state
 
 # A browse's process and window, fabricated: nothing of this machine's.
 BROWSE_PID = 424242
@@ -113,7 +113,7 @@ def _neutralise_topmost_reads():
     playback to status files, so a tick's satellite/Main Funestra sampling is inert
     here (no status files written).  A test asserting on topmost state patches
     is_window_topmost itself."""
-    with patch("fun_time.role_windows.is_window_topmost", return_value=False):
+    with patch("fun_time.fun_time_windows.is_window_topmost", return_value=False):
         yield
 
 
@@ -166,14 +166,14 @@ def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
 
 
 def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
-    """A runner over the imaginary desktop in ``tests.role_window_fakes``.
+    """A runner over the imaginary desktop in ``tests.fun_time_window_fakes``.
 
     The pids and the browser hwnd are the windows object's, not the runner's,
     so they are named here the way the tests have always named them and folded
     into one.  ``clock`` is that object's settle clock: a test that is about
     the beat a mode switch waits out hands in a :class:`FakeClock`.
     """
-    windows = WindowRoles(
+    windows = FunTimeWindows(
         pids=ChildPids(
             main_funestra=kwargs.pop("main_funestra_pid", MAIN_FUNESTRA_PID),
             portrait=kwargs.pop("portrait_pid", PORTRAIT_PID),
@@ -182,7 +182,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
             origenerator=kwargs.pop("origenerator_pid", 0),
         ),
         rfb_hwnd=kwargs.pop("rfb_hwnd", 0),
-        role_hwnds=kwargs.pop("role_hwnds", None),
+        hwnds_by_window=kwargs.pop("hwnds_by_window", None),
         **({"clock": kwargs.pop("clock")} if "clock" in kwargs else {}),
     )
     settings = dict(dashboard_enabled=False)
@@ -654,9 +654,9 @@ class TestDispatchLoopRunner:
 
         topmost_calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
@@ -677,11 +677,11 @@ class TestDispatchLoopRunner:
         topmost_calls: list[tuple[int, bool]] = []
         activated: list[int] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.is_window_topmost", return_value=False), \
-             patch("fun_time.role_windows.activate_window", side_effect=activated.append), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.is_window_topmost", return_value=False), \
+             patch("fun_time.fun_time_windows.activate_window", side_effect=activated.append), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
@@ -694,9 +694,9 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.role_windows.set_always_on_top"):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -711,9 +711,9 @@ class TestDispatchLoopRunner:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("browse_library", encoding="utf-8")
 
-            with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-                 patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-                 patch("fun_time.role_windows.set_always_on_top"), \
+            with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+                 patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+                 patch("fun_time.fun_time_windows.set_always_on_top"), \
                  patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                        return_value=None) as mock_browse:
                 runner.tick()
@@ -922,9 +922,9 @@ class TestDispatchLoopRunner:
 
         minimized: list[tuple[int, dict]] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
             runner.tick()
 
         assert {h for h, _ in minimized} == {
@@ -943,9 +943,9 @@ class TestDispatchLoopRunner:
 
         minimized: list[int] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
 
         assert set(minimized) == {
@@ -959,9 +959,9 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
         minimized: list[int] = []
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
 
         assert minimized == []
@@ -975,11 +975,11 @@ class TestDispatchLoopRunner:
         minimized_hwnds: list[int] = []
         restored: list[tuple[int, dict]] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window",
                    side_effect=lambda h, **kw: minimized_hwnds.append(h)), \
-             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))):
+             patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))):
             cmd_file.write_text("omniminimize", encoding="utf-8")
             runner.tick()
             assert minimized_hwnds, "omniminimize put nothing down"
@@ -1007,9 +1007,9 @@ class TestDispatchLoopRunner:
 
         minimized: list[tuple[int, dict]] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
             runner.tick()
 
         assert [h for h, _ in minimized] == [PORTRAIT_HWND]
@@ -1027,9 +1027,9 @@ class TestDispatchLoopRunner:
 
         minimized: list[int] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
@@ -1052,9 +1052,9 @@ class TestDispatchLoopRunner:
 
             minimized: list[int] = []
 
-            with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-                 patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-                 patch("fun_time.role_windows.minimize_window", side_effect=lambda h, minimized=minimized, **kw: minimized.append(h)):
+            with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+                 patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+                 patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, minimized=minimized, **kw: minimized.append(h)):
                 runner.tick()
 
             assert minimized == wanted, mode
@@ -1069,11 +1069,11 @@ class TestDispatchLoopRunner:
 
         restored: list[tuple[int, dict]] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window"), \
-             patch("fun_time.role_windows.activate_window"), \
-             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window"), \
+             patch("fun_time.fun_time_windows.activate_window"), \
+             patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
              patch.object(runner.windows, "restore_all_topmost"):
             cmd_file.write_text("portrait_minimize\nlandscape_minimize", encoding="utf-8")
             runner.tick()
@@ -1100,9 +1100,9 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("portrait_minimize", encoding="utf-8")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.minimize_window"):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.minimize_window"):
             runner.tick()
 
         assert not ahk_cmd_file.exists()
@@ -1802,8 +1802,8 @@ class TestAClickIntoATextField:
                                                               origenerator_process))
 
         with (
-            patch("fun_time.role_windows.find_window_for_process", side_effect=lookup_hosted),
-            patch("fun_time.role_windows.window_process",
+            patch("fun_time.fun_time_windows.find_window_for_process", side_effect=lookup_hosted),
+            patch("fun_time.fun_time_windows.window_process",
                   side_effect={HOSTED_HWND: origenerator_process}.get),
         ):
             runner.tick()
@@ -1890,7 +1890,7 @@ class TestModeSwitchVisibility:
     another application.
 
     These tests run the real dispatch_command, pinning the whole path from
-    command string to win32 call — including the show_role/activate_role ops,
+    command string to win32 call — including the show_window/activate_window ops,
     whose silent dropping broke mode switches once.
     """
 
@@ -1899,15 +1899,15 @@ class TestModeSwitchVisibility:
         runner.state = BridgeState(main_mode=from_mode)
 
         calls: list[tuple[str, int]] = []
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.restore_window",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.restore_window",
                    side_effect=lambda h, **kw: calls.append(("show", h))), \
-             patch("fun_time.role_windows.minimize_window",
+             patch("fun_time.fun_time_windows.minimize_window",
                    side_effect=lambda h, **kw: calls.append(("hide", h))), \
-             patch("fun_time.role_windows.activate_window",
+             patch("fun_time.fun_time_windows.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
-             patch("fun_time.role_windows.set_always_on_top"):
+             patch("fun_time.fun_time_windows.set_always_on_top"):
             runner._dispatch(command)
             runner.tick()
 
@@ -1947,26 +1947,26 @@ class TestModeSwitchVisibility:
 
 
 class TestResolveRole:
-    def test_cached_hwnd_survives_hiding_and_show_role_reaches_it(self, tmp_path):
+    def test_cached_hwnd_survives_hiding_and_show_window_reaches_it(self, tmp_path):
         """Hidden windows are invisible to the pid/title lookups, so the
         HWND captured while a window was visible must be cached and reused —
         otherwise a parked window could never be shown again."""
         runner = make_runner(tmp_path)
 
         # The Main Funestra is visible: the pid lookup finds it once, populating the cache.
-        with patch("fun_time.role_windows.find_window_by_pid",
+        with patch("fun_time.fun_time_windows.find_window_by_pid",
                    side_effect=lookup_pid):
             assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
         # The Main Funestra is now minimized: the pid/title lookups are mocked to fail, but
-        # the cache still answers, and a show_role op reaches the cached hwnd
-        # (show_role restores rather than SW_SHOWs — the idle Funestra is parked
+        # the cache still answers, and a show_window op reaches the cached hwnd
+        # (show_window restores rather than SW_SHOWs — the idle Funestra is parked
         # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
-        show_op = WindowOp(op="show_role", key="main_funestra")
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
+        show_op = WindowOp(op="show_window", key="main_funestra")
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
             assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
@@ -1995,9 +1995,9 @@ class TestBrowseLibrary:
         runner.state = BridgeState(omni_paused=False)
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
-             patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top"), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
@@ -2015,9 +2015,9 @@ class TestBrowseLibrary:
 
         topmost_calls = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -2037,7 +2037,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 400, 1080, 1520)), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
@@ -2061,7 +2061,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    return_value=None) as mock_browse:
             runner._handle_browse_library()
@@ -2118,7 +2118,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
             runner._handle_browse_library()
 
@@ -2134,7 +2134,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
 
@@ -2150,7 +2150,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch.object(runner.windows, "hwnd", side_effect=lambda role: {"main_funestra": MAIN_FUNESTRA_HWND}.get(role, 0)), \
+             patch.object(runner.windows, "hwnd", side_effect=lambda window_name: {"main_funestra": MAIN_FUNESTRA_HWND}.get(window_name, 0)), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect",
                    side_effect=lambda hwnd: (0, 400, 1080, 1520) if hwnd == MAIN_FUNESTRA_HWND else None), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -2167,7 +2167,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    return_value=r"C:\library\genau\flicks\Scene One.mp4"):
             runner._handle_browse_library()
@@ -2183,7 +2183,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
@@ -2197,9 +2197,9 @@ class TestBrowseLibrary:
 
         topmost_calls = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -2215,9 +2215,9 @@ class TestBrowseLibrary:
 
         topmost_calls = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -2239,8 +2239,8 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    side_effect=lambda *a, **kw: suspends.append(
                        _mailbox(runner))):
@@ -2255,8 +2255,8 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
@@ -2269,9 +2269,9 @@ class TestBrowseLibrary:
 
         call_log: list[str] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", side_effect=lambda *a, **kw: (call_log.append("browse"), None)[-1]):
             runner._handle_browse_library()
 
@@ -2286,9 +2286,9 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=MAIN_FUNESTRA_HWND), \
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=MAIN_FUNESTRA_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 0, 800, 600)), \
-             patch("fun_time.role_windows.set_always_on_top") as mock_topmost, \
+             patch("fun_time.fun_time_windows.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
@@ -2298,7 +2298,7 @@ class TestBrowseLibrary:
     def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
         """With no Main Funestra window to stand over, the browser picks its own place.
 
-        find_window_by_title is stubbed too: _resolve_role("main_funestra") falls back to it
+        find_window_by_title is stubbed too: _resolve_window("main_funestra") falls back to it
         when the pid lookup misses, and left live it would enumerate the real
         desktop and return a stray HWND (a running Fun Time's the Main Funestra window) — a flake.
         """
@@ -2307,8 +2307,8 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
@@ -2366,9 +2366,9 @@ class TestBrowsingFromTheHeadset:
         )
 
     def _press(self, runner, *commands):
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.role_windows.set_always_on_top"), \
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    return_value=None) as desktop:
             for command in commands:
@@ -2597,9 +2597,9 @@ class TestIdempotentVoiceCommands:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.role_windows.set_always_on_top"):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.fun_time_windows.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -2612,9 +2612,9 @@ class TestIdempotentVoiceCommands:
 
         topmost_calls: list[tuple[int, bool]] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
@@ -3032,12 +3032,12 @@ class TestSeededRoleHwnds:
         could never bring the Main Funestra's window back."""
         runner = make_runner(
             tmp_path,
-            role_hwnds={"main_funestra": 2001},
+            hwnds_by_window={"main_funestra": 2001},
         )
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         shown: list[int] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0),              patch("fun_time.fun_time_windows.find_window_by_title", return_value=0),              patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("main_funestra") == 2001
             runner._dispatch("main_kino_activate")
 
@@ -3438,7 +3438,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
 
 class TestOrigeneratorWindowConverger:
     """The convergence itself is the windows object's (see
-    tests/test_role_windows.py); what the runner owns is when it runs."""
+    tests/test_fun_time_windows.py); what the runner owns is when it runs."""
 
     def test_omnipause_leaves_the_hosted_window_exactly_where_it_is(self, tmp_path):
         """OmniPause's window state is its own — every band is down and the
@@ -3979,7 +3979,7 @@ def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> Dispatc
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
-        role_hwnds={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND},
+        hwnds_by_window={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND},
         secondary_rects=partial(secondary_monitor_rects, SECONDARY_MONITOR,
                                 load_config(cfg_path).layout))
 
@@ -3989,9 +3989,9 @@ def test_a_portrait_video_on_the_crowned_main_funestra_gives_it_most_of_the_seco
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
     usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
-    with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", side_effect=usual.get), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
@@ -4001,9 +4001,9 @@ def test_a_portrait_video_on_the_crowned_main_funestra_gives_it_most_of_the_seco
 def test_the_room_writes_down_which_funestra_has_most_of_the_secondary_monitor(tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=True)
 
-    with patch("fun_time.role_windows.window_rect", return_value=None), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window"):
+    with patch("fun_time.fun_time_windows.window_rect", return_value=None), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window"):
         runner.tick()
 
     assert read_shared_state(runner.shared_state_file).majority is Crown.MAIN
@@ -4014,9 +4014,9 @@ def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portr
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
     traded = {PORTRAIT_HWND: (2560, 0, 1440, 940), MAIN_FUNESTRA_HWND: (2560, 940, 1440, 2500)}
 
-    with patch("fun_time.role_windows.window_rect", side_effect=traded.get), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", side_effect=traded.get), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
@@ -4031,9 +4031,9 @@ def test_in_genau_mode_a_portrait_flick_gives_the_main_funestra_most_of_the_seco
     runner.state = replace(runner.state, main_mode=MainMode.GENAU)
     usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
-    with patch("fun_time.role_windows.window_rect", side_effect=usual.get), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", side_effect=usual.get), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         runner.tick()
 
     assert [call.args for call in place.call_args_list] == [
@@ -4041,9 +4041,9 @@ def test_in_genau_mode_a_portrait_flick_gives_the_main_funestra_most_of_the_seco
 
 
 def test_a_room_that_arranges_no_secondary_monitor_moves_nothing(tmp_path):
-    runner = make_runner(tmp_path, role_hwnds={"portrait": PORTRAIT_HWND})
+    runner = make_runner(tmp_path, hwnds_by_window={"portrait": PORTRAIT_HWND})
 
-    with patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.place_window") as place:
         runner.tick()
 
     place.assert_not_called()

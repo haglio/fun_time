@@ -44,6 +44,7 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
 from .event_log import NOTICE, SOURCE_SYSTEM, notice
 from .f_mode import every_funestra_in_f_mode
+from .fun_time_windows import FunTimeWindows
 from .funestra_handover import Departures, Homecoming, SatellitesChangingHands
 from .funestra_notices import FunestraNotices
 from .funestra_settings import FunestraReporting
@@ -65,7 +66,6 @@ from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
 from .origenerator_switches import RfbMode, hosts
 from .rfb_slideshow import RfbSlideshow
-from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
@@ -81,7 +81,7 @@ from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import find_window_for_process, set_always_on_top, window_rect
 from .window_layout import SecondaryMonitorRects
-from .window_roles import visible_roles
+from .window_names import visible_windows
 from .windows_bridge_random_favs_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
@@ -155,7 +155,7 @@ class DispatchLoopRunner:
         dashboard_cmd_file: Path,
         shared_state_file: Path,
         ahk_cmd_file: Path,
-        windows: WindowRoles,
+        windows: FunTimeWindows,
         dashboard_enabled: bool,
         env: SessionEnvironment = ORDINARY_SESSION,
         manifest_path: Path | None = None,
@@ -606,7 +606,7 @@ def _omniminimize(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
     """Minimize the windows the modes show, and only those (SW_MINIMIZE would
     drag a parked window back into view); the set is remembered so omnirestore
     brings back exactly these windows."""
-    runner.windows.minimize_all(visible_roles(runner.state.rfb_mode))
+    runner.windows.minimize_all(visible_windows(runner.state.rfb_mode))
 
 
 def _omnirestore(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
@@ -735,15 +735,15 @@ _LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = 
 _AHK_PASSTHROUGH_OPS = {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS}
 
 
-def _run_show_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
+def _run_show_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.windows.show(op.key)
 
 
-def _run_hide_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
+def _run_hide_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.windows.hide_after_settle(op.key)
 
 
-def _run_minimize_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
+def _run_minimize_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
     # A Funestra's own HUD minimize button, parking that one window — straight
     # away, unlike the settled hide of the Main Funestra: the window goes down still
     # showing its video, which is what was pressed for, and its frozen
@@ -755,7 +755,7 @@ def _run_restore_parked(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restore_parked()
 
 
-def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
+def _run_activate_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if not runner.env.integration:
         runner.windows.activate(op.key)
 
@@ -826,10 +826,10 @@ def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 _OP_HANDLERS = {
     Op.NOTICE: _run_notice,
-    Op.SHOW_ROLE: _run_show_role,
-    Op.HIDE_ROLE: _run_hide_role,
-    Op.ACTIVATE_ROLE: _run_activate_role,
-    Op.MINIMIZE_ROLE: _run_minimize_role,
+    Op.SHOW_WINDOW: _run_show_window,
+    Op.HIDE_WINDOW: _run_hide_window,
+    Op.ACTIVATE_WINDOW: _run_activate_window,
+    Op.MINIMIZE_WINDOW: _run_minimize_window,
     Op.RESTORE_PARKED: _run_restore_parked,
     Op.RESTACK_RFB: _run_restack_rfb,
     Op.DISABLE_ALL_TOPMOST: _run_disable_all_topmost,

@@ -41,6 +41,7 @@ from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
+from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
     FunestraDied,
     funestra_died_message,
@@ -77,7 +78,6 @@ from .process_identity import NAMER
 from .process_tree import kill_process_tree
 from .raising_the_loading_screen import EXIT_WAIT_S, RaisedLoadingScreen
 from .rfb_slideshow import rfb_slideshow_on
-from .role_windows import ChildPids, WindowRoles, find_origenerators_window
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .session_end import session_end_marker_path
@@ -612,7 +612,7 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
     )
     # No hosted Origenerator window is resolved here: it is still booting, and
     # its three are the dispatch loop's to find and band once it has them.
-    role_hwnds = apply_startup_window_state(
+    hwnds_by_window = apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -632,7 +632,7 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
     _log_window_obstruction("Main Funestra", main_funestra_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
-    return role_hwnds
+    return hwnds_by_window
 
 
 def _funestras_to_settle(*, portrait_hwnd: int, landscape_hwnd: int,
@@ -774,14 +774,14 @@ def secondary_rects(manifest: LaunchManifest) -> Callable[..., SecondaryMonitorR
     return partial(secondary_monitor_rects, layout.secondary_monitor, layout.config)
 
 
-def seat_the_secondary_monitor(manifest: LaunchManifest, role_hwnds: dict[str, int]) -> None:
+def seat_the_secondary_monitor(manifest: LaunchManifest, hwnds_by_window: dict[str, int]) -> None:
     state = read_shared_state(shared_state_path(Path(manifest.commands.state_dir)))
     rects = secondary_rects(manifest)
     if state is None or rects is None:
         return
     most = majority_now(state, Path(manifest.commands.main_funestra_status_file),
                         Path(manifest.commands.genau_status_file))
-    WindowRoles(pids=ChildPids(), role_hwnds=role_hwnds).seat(rects(majority=most))
+    FunTimeWindows(pids=ChildPids(), hwnds_by_window=hwnds_by_window).seat(rects(majority=most))
 
 
 def _reveal_the_room(
@@ -831,12 +831,12 @@ def _reveal_the_room(
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
-    apply_topmost_bands(role_hwnds, rfb_mode=rfb_mode)
+    apply_topmost_bands(hwnds_by_window, rfb_mode=rfb_mode)
     _settle_the_funestras(
         _funestras_to_settle(
-            portrait_hwnd=role_hwnds.get("portrait", 0),
-            landscape_hwnd=role_hwnds.get("landscape", 0),
-            main_funestra_hwnd=role_hwnds.get("main_funestra", 0),
+            portrait_hwnd=hwnds_by_window.get("portrait", 0),
+            landscape_hwnd=hwnds_by_window.get("landscape", 0),
+            main_funestra_hwnd=hwnds_by_window.get("main_funestra", 0),
         ),
         passes=3, wait_s=0.4,
     )
@@ -1044,7 +1044,7 @@ def _build_the_dispatch_loop(
         manifest_path=manifest_path,
         shared_state_file=shared_state_path(state_dir),
         ahk_cmd_file=ahk_cmd_file,
-        windows=WindowRoles(
+        windows=FunTimeWindows(
             pids=ChildPids(
                 main_funestra=result.main_funestra_pid,
                 portrait=result.portrait_pid,
@@ -1053,7 +1053,7 @@ def _build_the_dispatch_loop(
                 origenerator=result.origenerator_pid,
             ),
             rfb_hwnd=result.rfb_hwnd,
-            role_hwnds=result.role_hwnds,
+            hwnds_by_window=result.hwnds_by_window,
         ),
         dashboard_enabled=dashboard_enabled,
         env=env,

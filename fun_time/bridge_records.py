@@ -174,10 +174,10 @@ class Op(StrEnum):
     equal to the plain strings producers and tests have always used)."""
 
     NOTICE = "notice"
-    SHOW_ROLE = "show_role"
-    HIDE_ROLE = "hide_role"
-    ACTIVATE_ROLE = "activate_role"
-    MINIMIZE_ROLE = "minimize_role"
+    SHOW_WINDOW = "show_window"
+    HIDE_WINDOW = "hide_window"
+    ACTIVATE_WINDOW = "activate_window"
+    MINIMIZE_WINDOW = "minimize_window"
     RESTORE_PARKED = "restore_parked"
     RESTACK_RFB = "restack_rfb"
     DISABLE_ALL_TOPMOST = "disable_all_topmost"
@@ -197,7 +197,7 @@ class Op(StrEnum):
 @dataclass(frozen=True)
 class WindowOp:
     op: str
-    # The op's one payload: a role name, an RFB URL, or a notice's message.
+    # The op's one payload: a window's name, an RFB URL, or a notice's message.
     key: str = ""
     # Which window a ``notice`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM

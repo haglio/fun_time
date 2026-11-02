@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 def _rfb_mode_ops(rfb_mode: RfbMode) -> list[WindowOp]:
     if rfb_mode is RfbMode.ORIGENERATOR:
         return [
-            WindowOp(op="show_role", key="origenerator"),
-            WindowOp(op="activate_role", key="origenerator"),
+            WindowOp(op="show_window", key="origenerator"),
+            WindowOp(op="activate_window", key="origenerator"),
             WindowOp(op="restack_rfb"),
         ]
-    return [WindowOp(op="hide_role", key="origenerator"), WindowOp(op="restack_rfb")]
+    return [WindowOp(op="hide_window", key="origenerator"), WindowOp(op="restack_rfb")]
 
 
 def origenerator_refused(state: BridgeState, config: BridgeConfig, *,

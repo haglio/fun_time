@@ -17,18 +17,18 @@ from .origenerator_switches import RfbMode
 
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
-# dashboard window, not a role of its own, so it rides the dashboard's band.
+# dashboard window, not a window of its own, so it rides the dashboard's band.
 # Kino and Genau both run on the Main Funestra's one window.
-FIXED_TOPMOST_ROLES: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_funestra")
+FIXED_TOPMOST_WINDOWS: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_funestra")
 
 # The hosted Origenerator's one window.  Its shows play on the Satellite
 # Funestras, not in windows of its own (fun_time.funestra_handover).
-ORIGENERATOR_ROLE = "origenerator"
+ORIGENERATOR_WINDOW = "origenerator"
 
 # The browser and the hosted app's window share the RFB's rect.  While the
 # hosted window holds it the browser leaves the band, so no promotion, however
 # late it lands, can stack the browser back over it.
-RFB_MODE_ROLES: tuple[str, ...] = ("rfb", ORIGENERATOR_ROLE)
+RFB_MODE_WINDOWS: tuple[str, ...] = ("rfb", ORIGENERATOR_WINDOW)
 
 # The caption that window wears, resolved together with the app's PID: by
 # title alone a standalone Origenerator of his would match.
@@ -39,22 +39,22 @@ _A_PREVIEWS_CAPTION = window_title(ORIGENERATOR_TITLE, Preview(feature=None))
 def is_origenerators_caption(caption: str) -> bool:
     return caption == ORIGENERATOR_TITLE or caption.startswith(_A_PREVIEWS_CAPTION)
 
-# Every window role the bridge manages, in promotion order.
-MANAGED_ROLES: tuple[str, ...] = FIXED_TOPMOST_ROLES + RFB_MODE_ROLES
+# Every window the bridge manages, in promotion order.
+MANAGED_WINDOWS: tuple[str, ...] = FIXED_TOPMOST_WINDOWS + RFB_MODE_WINDOWS
 
 
-def role_topmost(role: str, rfb_mode: RfbMode = RfbMode.RFB) -> bool:
+def window_is_topmost(window_name: str, rfb_mode: RfbMode = RfbMode.RFB) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band: every window with a
     rect of its own, and of the pair sharing the browser's rect only the one
     holding it -- promoting the covered one only puts it briefly ABOVE its
     window over it, since HWND_TOPMOST inserts at the top of the band."""
     if role not in RFB_SLOT_ROLES:
         return True
-    return (role == ORIGENERATOR_ROLE) == (rfb_mode is RfbMode.ORIGENERATOR)
+    return (window_name == ORIGENERATOR_WINDOW) == (rfb_mode is RfbMode.ORIGENERATOR)
 
 
-def visible_roles(rfb_mode: RfbMode = RfbMode.RFB) -> list[str]:
+def visible_windows(rfb_mode: RfbMode = RfbMode.RFB) -> list[str]:
     """Every managed role whose window is kept on screen: the browser counts
     while the hosted window covers it, since it is covered, not parked."""
-    held = RFB_MODE_ROLES if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",)
-    return [*FIXED_TOPMOST_ROLES, *held]
+    held = RFB_MODE_WINDOWS if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",)
+    return [*FIXED_TOPMOST_WINDOWS, *held]

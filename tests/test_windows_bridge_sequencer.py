@@ -932,7 +932,7 @@ class TestLoadingScreenStartup:
         # The hosted app's three windows are never among them: it is still
         # booting when the room opens, so the dispatch loop resolves each the
         # first time it is asked for one.
-        assert result.role_hwnds == {
+        assert result.hwnds_by_window == {
             "portrait": 3030, "landscape": 4040, "main_funestra": 2525,
             "dashboard": 5050, "rfb": 0,
         }
@@ -943,7 +943,7 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
     window is ever over the loading screen waiting for the loading screen to take the top back --
     which, on a loaded machine, it does late."""
 
-    ROLE_HWNDS: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
+    HWNDS_BY_WINDOW: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
                   "main_funestra": 55}
     LOADING_SCREEN = 999
 
@@ -951,7 +951,7 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
         calls: list[tuple[int, bool, int]] = []
         with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
                    side_effect=lambda h, v, *, under=0: calls.append((h, v, under))):
-            windows_bridge_sequencer.apply_topmost_bands(dict(self.ROLE_HWNDS), **kwargs)
+            windows_bridge_sequencer.apply_topmost_bands(dict(self.HWNDS_BY_WINDOW), **kwargs)
         return calls
 
     def test_every_promotion_names_the_loading_screen_to_sit_under(self):
@@ -1757,7 +1757,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
 
-        assert not [role for role in result.role_hwnds if role.startswith("origenerator")]
+        assert not [window_name for window_name in result.hwnds_by_window if window_name.startswith("origenerator")]
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
 
     def test_the_sequencer_can_no_longer_reach_the_hosted_window_at_all(self):

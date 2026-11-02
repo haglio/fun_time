@@ -11,12 +11,12 @@ from .room_funestras import RoomFunestra
 from .shared_state import BridgeState
 
 # A Funestra's own minimize button (``fun_time.satellite_buttons``, and the Main
-# Funestra's on its console, ``fun_time.console_buttons``), by the window role the
+# Funestra's on its console, ``fun_time.console_buttons``), by the window the
 # dispatch loop resolves it to.  Every Funestra's window here is borderless, so
 # none of them carries a minimize button of its own, and the only other way to
 # park one was the dashboard's minimize — which takes the whole room down
 # together.
-_MINIMIZE_ROLES: dict[str, str] = {
+_MINIMIZE_WINDOWS: dict[str, str] = {
     "portrait_minimize": "portrait",
     "landscape_minimize": "landscape",
     "main_minimize": "main_funestra",
@@ -116,8 +116,8 @@ def _tell_the_hosted_app(funestra: RoomFunestra, action: str, state: BridgeState
 
 def minimize_ops(command: str) -> list[WindowOp] | None:
     """The window *command* asks to have parked, or None when it asks for none."""
-    role = _MINIMIZE_ROLES.get(command)
-    return None if role is None else [WindowOp(op="minimize_role", key=role)]
+    window_name = _MINIMIZE_WINDOWS.get(command)
+    return None if window_name is None else [WindowOp(op="minimize_window", key=window_name)]
 
 
 

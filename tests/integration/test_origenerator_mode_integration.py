@@ -32,9 +32,9 @@ from PIL import Image
 from shared_ui.preview import Preview, window_title
 
 from fun_time.event_log import event_log_path
+from fun_time.fun_time_windows import find_origenerators_window
 from fun_time.origenerator_switches import RfbMode
 from fun_time.process_tree import kill_process_tree
-from fun_time.role_windows import find_origenerators_window
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
@@ -51,7 +51,7 @@ from fun_time.win32 import (
     window_process,
     windows_obscuring,
 )
-from fun_time.window_roles import ORIGENERATOR_TITLE
+from fun_time.window_names import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_orchestrator import (
     ORIGENERATOR_BOOT_BUDGET_S,
     _fix_post_loading_windows,
