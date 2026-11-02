@@ -304,23 +304,23 @@ def _launch_the_satellites(
 
     Returns the mode last session was closed in — the core session has just
     seeded every cross-process flag for it, and what is left is the half only
-    this side can do: band the windows, and reveal on the right Funestra.
+    this Satellite can do: band the windows, and reveal on the right Funestra.
     """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Each satellite's whole launch bundle, built once where the manifest is read.
 
-    def _slot(funestra: RoomFunestra, side: str, sources: str, playlist: str, rect):
+    def _slot(funestra: RoomFunestra, satellite: str, sources: str, playlist: str, rect):
         return SatelliteSlot(
             funestra=funestra,
             sources=sources,
             channels=replace(
                 SatelliteChannels.from_manifest(
-                    m.commands, side,
-                    play_points=state_dir / play_points_filename(side)),
+                    m.commands, satellite,
+                    play_points=state_dir / play_points_filename(satellite)),
                 playlist=build_playlist_file_path(state_dir, playlist)),
-            log_file=state_dir / f"{side}_satellite.log",
+            log_file=state_dir / f"{satellite}_satellite.log",
             rect=rect,
         )
 
@@ -748,8 +748,8 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 def _resolve_satellite_hwnds() -> tuple[int, int]:
     """The portrait and landscape native-satellite windows, as (portrait, landscape).
 
-    Each side is resolved by its DISTINCT window caption ("Portrait AI Funestra" vs
-    "Landscape AI Funestra"), so the lookup can never assign one side's window to the
+    Each Satellite is resolved by its DISTINCT window caption ("Portrait AI Funestra" vs
+    "Landscape AI Funestra"), so the lookup can never assign one Satellite's window to the
     other — a shared caption could, and that was the portrait/landscape visual swap.
 
     Deliberately NOT by pid.  The pid we launch with is the venv's

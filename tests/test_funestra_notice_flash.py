@@ -86,7 +86,7 @@ class TestFlashFunestraNotices:
         assert len(again) == 1  # the repeat tick adds nothing
         assert first[0].levelno == logging.WARNING
 
-    def test_the_funestra_names_the_kind_and_this_side_picks_the_color(self, tmp_path, caplog):
+    def test_the_funestra_names_the_kind_and_this_satellite_picks_the_color(self, tmp_path, caplog):
         """A Funestra has no palette.  It says a funscript jump is about a
         funscript, and the level it lands at here is what makes it green — an
         ordinary jump, which says nothing, lands white, and a jump with nowhere

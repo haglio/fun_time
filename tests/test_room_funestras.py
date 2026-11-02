@@ -18,7 +18,7 @@ def test_funestras_keep_the_slot_numbers_the_ini_stores():
     assert int(RoomFunestra(int("2"))) == 2
 
 
-def test_labels_are_the_names_the_drawing_side_uses():
+def test_labels_are_the_names_the_drawing_satellite_uses():
     assert RoomFunestra.MAIN.label == "main"
     assert RoomFunestra.PORTRAIT.label == "portrait"
     assert RoomFunestra.LANDSCAPE.label == "landscape"

@@ -54,9 +54,9 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def _hud(funestra: str = "portrait", *, index, active: bool = False, **side_fields):
+def _hud(funestra: str = "portrait", *, index, active: bool = False, **satellite_fields):
     """One Funestra's HUD, built from the SatelliteInputs production builds."""
-    return build_hud(SatelliteInputs(funestra, **side_fields), index=index,
+    return build_hud(SatelliteInputs(funestra, **satellite_fields), index=index,
                      active=active)
 
 
@@ -381,7 +381,7 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
     assert hud.seed_siblings == [near]  # still the widened row, not CUR's exact family
 
 
-def test_the_title_holds_every_state_the_side_is_in():
+def test_the_title_holds_every_state_the_satellite_is_in():
     """One line to read the satellite off: the lock, what is looping, which order its
     browse is in, and the filter.  Anything the HUD knows about how the Funestra is
     behaving belongs up there, not spread around the HUD."""
@@ -820,7 +820,7 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
     return str(video)
 
 
-def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
+def test_prime_group_indexes_builds_both_satellites_up_front(tmp_path: Path):
     """Priming builds each Funestra's real index up front and caches it, so a later
     read serves it from memory — no per-clip rebuild during the session."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
@@ -834,7 +834,7 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     assert index.entries
 
 
-def test_a_satellites_hud_indexes_its_own_side_and_carries_the_lock(tmp_path: Path):
+def test_a_satellites_hud_indexes_its_own_satellite_and_carries_the_lock(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sibling = _clip(media_root, metadata_root, "b", _i2v("Beta", "2"))
@@ -874,7 +874,7 @@ def test_only_the_active_funestras_hud_is_marked_active(tmp_path: Path):
     assert actives("main") == (False, False)  # the Main Funestra has it; neither satellite does
 
 
-def test_a_satellites_hud_says_f_mode_only_when_that_side_is_in_it(tmp_path: Path):
+def test_a_satellites_hud_says_f_mode_only_when_that_satellite_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
     title says it on the Funestra it is on, and the other HUD stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"

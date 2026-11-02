@@ -176,7 +176,7 @@ class TestHudPublishing:
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
 
-    def test_a_side_the_hosted_app_has_wears_that_apps_own_hud(self, tmp_path):
+    def test_a_satellite_the_hosted_app_has_wears_that_apps_own_hud(self, tmp_path):
         """The hosted app publishes the Funestra's map, line and buttons; the
         session puts its own row over them -- the way back to its videos, and
         minimize for the Funestra's window -- and says which Funestra has the floor."""
@@ -203,7 +203,7 @@ class TestHudPublishing:
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
-    def test_the_job_queue_the_hosted_app_painted_reaches_that_sides_hud(self, tmp_path):
+    def test_the_job_queue_the_hosted_app_painted_reaches_that_satellites_hud(self, tmp_path):
         """The hosted app paints its Job Queue to a file while Core is hidden
         behind the Random Favs Browser, and the Satellite showing its slideshow
         draws that file at its HUD's foot."""
@@ -218,8 +218,8 @@ class TestHudPublishing:
 
         assert parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8")).foot == foot
 
-    def test_a_side_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
-        """A side the app holds with nothing of its own on it -- a slideshow over and
+    def test_a_satellite_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
+        """A Satellite the app holds with nothing of its own on it -- a slideshow over and
         none after it -- names the mode, with the way back on it, and no map."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
@@ -237,9 +237,9 @@ class TestHudPublishing:
                 [f"{funestra}_kino_activate", f"{funestra}_origenerator_activate",
                  f"{funestra}_minimize", *crown]]
 
-    def test_a_side_switched_to_origenerator_keeps_its_whole_kino_hud_until_the_app_takes_it(
+    def test_a_satellite_switched_to_origenerator_keeps_its_whole_kino_hud_until_the_app_takes_it(
             self, tmp_path):
-        """Filling a side takes Origenerator seconds, and the side plays its own
+        """Filling a Satellite takes Origenerator seconds, and the Satellite plays its own
         videos meanwhile: it goes on wearing their HUD whole, Kino lit, and
         changes in one step once the app has it (2026-10-29)."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
@@ -254,7 +254,7 @@ class TestHudPublishing:
         assert [(button["command"], bool(button.get("lit"))) for button in portrait["rows"][0][:2]] == [
             ("portrait_kino_activate", True), ("portrait_origenerator_activate", False)]
 
-    def test_a_side_handed_back_wears_the_kino_hud_of_the_video_it_comes_home_to_at_once(
+    def test_a_satellite_handed_back_wears_the_kino_hud_of_the_video_it_comes_home_to_at_once(
             self, tmp_path):
         """Its Funestra goes on naming the app's picture until it has opened the
         video it was handed back on, and a Kino HUD built around that picture
@@ -276,7 +276,7 @@ class TestHudPublishing:
         feed.publish(BridgeState(active_funestra=2))
         assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
 
-    def test_a_side_on_its_way_home_keeps_the_apps_last_hud_once_the_app_lets_go(
+    def test_a_satellite_on_its_way_home_keeps_the_apps_last_hud_once_the_app_lets_go(
             self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
@@ -290,7 +290,7 @@ class TestHudPublishing:
 
         assert hud(tmp_path, "portrait")["title"] == "Locked"
 
-    def test_a_side_in_kino_mode_beside_a_hosted_one_keeps_its_own_map(self, tmp_path):
+    def test_a_satellite_in_kino_mode_beside_a_hosted_one_keeps_its_own_map(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
 
@@ -303,20 +303,20 @@ class TestHudPublishing:
             ("landscape_kino_activate", True), ("landscape_origenerator_activate", False)]
         assert landscape.corner.path == "C:/v/l.mp4"
 
-    @pytest.mark.parametrize(("hosting", "hosted_sides"), [
+    @pytest.mark.parametrize(("hosting", "hosted_satellites"), [
         (False, ()), (True, ()), (True, ("portrait", "landscape"))])
     def test_no_funestra_in_a_headset_session_offers_to_minimize(
-        self, tmp_path, hosting, hosted_sides,
+        self, tmp_path, hosting, hosted_satellites,
     ):
         """There every Funestra is a screen in the scene with no window of its own
         to park -- whichever row minimize would ride on the desktop: the end of
-        a side's band, the session's row over it, or the console's mode row."""
+        a Satellite's band, the session's row over it, or the console's mode row."""
         config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
         feed = make_feed(tmp_path, config=replace(config, vr_main_funestra=True))
 
         state = BridgeState()
-        for side in hosted_sides:
-            state = _hosted(state, side)
+        for satellite in hosted_satellites:
+            state = _hosted(state, satellite)
         feed.publish(state)
 
         published = [hud(tmp_path, "portrait"), hud(tmp_path, "landscape"), console(tmp_path)]
@@ -381,7 +381,7 @@ class TestHudPublishing:
         feed.publish(BridgeState(origenerator_ready=True))
         assert not origenerator_button().get("dim")
 
-    def test_the_published_hud_says_when_that_sides_f_mode_is_on(self, tmp_path):
+    def test_the_published_hud_says_when_that_satellites_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the Funestra can see, so the
         publish is the only way F-mode reaches the screen a satellite is on — as the
         title, and as the flag its own button lights off.
@@ -402,19 +402,19 @@ class TestHudPublishing:
         assert landscape["title"] == "Unlocked · Shuffle"
         assert not f_mode_button(landscape).get("lit")
 
-    def test_a_side_at_every_default_draws_its_reset_faded(self, tmp_path):
+    def test_a_satellite_at_every_default_draws_its_reset_faded(self, tmp_path):
         """Pressing it would change nothing, so the button says as much rather
         than offering an act that does nothing."""
         feed = make_feed(tmp_path)
-        for side in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4")
+        for satellite in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{satellite}_status.txt", f"C:/v/{satellite}.mp4")
 
         feed.publish(replace(BridgeState(), portrait=SatelliteState(locked=True)))
 
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
         assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
 
-    def test_a_side_playing_off_normal_speed_has_a_reset_to_offer(self, tmp_path):
+    def test_a_satellite_playing_off_normal_speed_has_a_reset_to_offer(self, tmp_path):
         feed = make_feed(tmp_path)
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
                                  speed=1.5)
@@ -425,7 +425,7 @@ class TestHudPublishing:
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
         assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
 
-    def test_a_sides_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_clip(
+    def test_a_satellites_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_clip(
             self, tmp_path):
         feed = make_feed(tmp_path)
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
@@ -455,7 +455,7 @@ class TestHudPublishing:
         assert not held.get("dim")
         assert skip_ahead(console(tmp_path))["dim"] is True
 
-    def test_a_side_on_a_clip_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
+    def test_a_satellite_on_a_clip_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
             self, tmp_path):
         feed = make_feed(tmp_path)
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
@@ -471,7 +471,7 @@ class TestHudPublishing:
             None, None]
 
     def test_the_versions_button_lights_for_a_clip_the_library_has_twice(self, tmp_path):
-        """The upscale the side plays and the sorted original it was made from:
+        """The upscale the Satellite plays and the sorted original it was made from:
         the button is pressable exactly where there is a second rendition on
         disk, the way the Main Funestra's reads its own library."""
         media_root = tmp_path / "AI"
@@ -505,7 +505,7 @@ class TestHudPublishing:
 
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
 
-    def test_the_published_hud_says_which_side_has_the_floor(self, tmp_path):
+    def test_the_published_hud_says_which_satellite_has_the_floor(self, tmp_path):
         """The active Funestra is a slot number in the state and a Funestra *name* on the
         HUD, so exactly one satellite can claim it — and neither does while the
         the Main Funestra holds it."""
@@ -698,7 +698,7 @@ class TestHudPublishing:
         feed.publish(state)
         assert not reset_button(console(tmp_path)).get("dim")
 
-    def test_each_sides_hud_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
+    def test_each_satellites_hud_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's HUD used to say this by turning green; the HUD marks
         it, so the loop has to judge each Funestra's clip against its record."""
         feed, state = make_feed(tmp_path), BridgeState()
@@ -830,7 +830,7 @@ class TestTheOsr2PartIsOnTheDashboard:
         assert _dashboard_osr2(tmp_path).funestra == "main"
         assert "robot_hand_park" in _dashboard_osr2_commands(tmp_path)
 
-    def test_it_is_the_whole_section_of_the_side_funestra_that_takes_it(self, tmp_path):
+    def test_it_is_the_whole_section_of_the_satellite_funestra_that_takes_it(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         part = _dashboard_osr2(tmp_path)
@@ -858,7 +858,7 @@ class TestTheOsr2PartIsOnTheDashboard:
 
         assert _dashboard_osr2(tmp_path).max_intensity == 35
 
-    def test_it_says_a_scripted_side_funestras_funscript_has_the_osr2(self, tmp_path):
+    def test_it_says_a_scripted_satellite_funestras_funscript_has_the_osr2(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "portrait_status.txt").write_text(
@@ -869,7 +869,7 @@ class TestTheOsr2PartIsOnTheDashboard:
 
         assert _dashboard_osr2(tmp_path).osr2 == Osr2State.FUNSCRIPT
 
-    def test_it_names_why_a_side_funestras_osr2_cannot_be_heard(self, tmp_path):
+    def test_it_names_why_a_satellite_funestras_osr2_cannot_be_heard(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_not_answering.txt").write_text(str(time.time()), encoding="utf-8")
 
@@ -888,7 +888,7 @@ class TestTheOsr2PartIsOnTheDashboard:
 
 
 class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
-    def test_the_side_funestra_that_takes_it_wears_only_its_osr2_button_lit(self, tmp_path):
+    def test_the_satellite_funestra_that_takes_it_wears_only_its_osr2_button_lit(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
@@ -912,7 +912,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert _console_osr2_commands(tmp_path) == ["main_take_osr2"]
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
-    def test_a_side_funestra_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
+    def test_a_satellite_funestra_whose_clip_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "portrait_status.txt").write_text(
@@ -923,7 +923,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
 
         assert _published(tmp_path, "portrait").osr2 == Osr2State.FUNSCRIPT
 
-    def test_a_side_the_hosted_app_has_wears_its_button_too(self, tmp_path):
+    def test_a_satellite_the_hosted_app_has_wears_its_button_too(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
@@ -933,7 +933,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert _published(tmp_path, "portrait").osr2_rows == (
             (osr2_button(RoomFunestra.PORTRAIT, has_it=False),),)
 
-    def test_a_side_the_hosted_app_holds_is_told_whether_it_has_the_osr2_as_that_changes(
+    def test_a_satellite_the_hosted_app_holds_is_told_whether_it_has_the_osr2_as_that_changes(
             self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
@@ -944,7 +944,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_osr2|0", "landscape_osr2|1", "portrait_osr2|1", "landscape_osr2|0"]
 
-    def test_a_side_back_in_origenerator_mode_is_told_again(self, tmp_path):
+    def test_a_satellite_back_in_origenerator_mode_is_told_again(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=2), "portrait"))
@@ -1036,7 +1036,7 @@ class TestWhatTheHudSaysAboutWhereItSits:
         assert console(tmp_path)["hud_corner"] == HudCorner.UPPER_RIGHT
         assert console(tmp_path)["hud_minimized"] is True
 
-    def test_a_side_the_hosted_app_holds_wears_the_sessions_own_corner(self, tmp_path):
+    def test_a_satellite_the_hosted_app_holds_wears_the_sessions_own_corner(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = hud_text(HudModel(funestra="portrait", title="Slideshow",
                                    corner=HudCell(path="C:/p/one.png")))

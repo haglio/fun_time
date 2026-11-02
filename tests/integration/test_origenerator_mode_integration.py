@@ -1,4 +1,4 @@
-"""The satellite side's origenerator mode, proven on a real session.
+"""The Satellite's origenerator mode, proven on a real session.
 
 The unit tests prove the plans and ops; what they cannot prove is what the
 room does with them — that the hosted app's parked window actually rises over
@@ -678,10 +678,10 @@ def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
-    """The one he kept reporting: the mode puts a slideshow on each side and then
+    """The one he kept reporting: the mode puts a slideshow on each Satellite and then
     something buries it a few seconds later.
 
-    A session of its own rather than the module's, because what buries a side
+    A session of its own rather than the module's, because what buries a Satellite
     is the settle pass and the bands a full launch lays down, so the mode has
     to be entered on a session that took the loading-screen path with every
     window real — and with the dashboard enabled, since that is what publishes

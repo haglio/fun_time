@@ -89,7 +89,7 @@ def apply_enter_omnipause(
     write_flag_file(audio_paused_file, True)
     write_flag_file(main_funestra_paused_file, True)
     # The satellites obey their paused flag file each tick, so freezing playback
-    # is a single flag write per side.  A paused native satellite simply cannot
+    # is a single flag write per Satellite.  A paused native satellite simply cannot
     # auto-advance (its advance() returns early while paused), so OmniPause is a
     # settled state: one write holds it, with nothing to police afterwards.
     write_flag_file(portrait_paused_file, True)

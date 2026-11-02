@@ -34,7 +34,7 @@ def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArb
     )
 
 
-def publish_side(tmp_path: Path, funestra: RoomFunestra, *, has_funscript=True, resting=False,
+def publish_satellite(tmp_path: Path, funestra: RoomFunestra, *, has_funscript=True, resting=False,
                  position_ms=10, touch_ms=None) -> None:
     (tmp_path / f"{funestra.label}_status.txt").write_text(
         f"video=C:\\clip.mp4\nposition_ms={position_ms}\n"
@@ -63,7 +63,7 @@ def told(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
 
-def side(tmp_path: Path, funestra: RoomFunestra) -> list[str]:
+def satellite(tmp_path: Path, funestra: RoomFunestra) -> list[str]:
     return told(tmp_path / f"{funestra.label}_cmd.txt")
 
 
@@ -209,16 +209,16 @@ class TestNobodyDriving:
 
         assert genau(driver)[-2:] == HAND_DRIVES
 
-    def test_leaving_omnipause_under_a_side_funestras_script_leaves_the_hand_paused(
+    def test_leaving_omnipause_under_a_satellite_funestras_script_leaves_the_hand_paused(
             self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=True, holder=RoomFunestra.PORTRAIT)
 
         driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
 
         assert genau(driver)[-2:] == HAND_YIELDS
-        assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON]
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON]
 
 
 class TestKinoModeFunscriptHandoff:
@@ -228,7 +228,7 @@ class TestKinoModeFunscriptHandoff:
 
     def test_the_flip_waits_for_the_touch_the_trace_chose(self, tmp_path):
         """The Main Funestra publishes the touch-down its trace drew the blue ending on;
-        the hand keeps the device until the playhead reaches it.  When each side
+        the hand keeps the device until the playhead reaches it.  When each Satellite
         chose its own touch from its own read of the wave, the arbiter could
         take an earlier one — and the leftover drawn blue vanished the moment
         the dot reached it."""
@@ -412,116 +412,116 @@ class TestASideFunestraThatHasTheOsr2:
     def test_drives_it_from_its_own_clips_funscript(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
 
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON]
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON]
         assert genau(driver) == HAND_YIELDS
         assert main_funestra(driver) == [TCODE_OFF]
 
     def test_leaves_the_stretches_its_clip_does_not_script_to_the_robot_hand(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT, resting=True)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT, resting=True)
 
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_OFF]
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_OFF]
         assert genau(driver) == HAND_DRIVES
         assert main_funestra(driver) == [TCODE_OFF]
 
     def test_drives_it_in_genau_mode_as_well(self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.LANDSCAPE)
+        publish_satellite(tmp_path, RoomFunestra.LANDSCAPE)
 
         driver.sync("genau", paused=False, holder=RoomFunestra.LANDSCAPE)
 
-        assert side(tmp_path, RoomFunestra.LANDSCAPE) == [TCODE_ON]
+        assert satellite(tmp_path, RoomFunestra.LANDSCAPE) == [TCODE_ON]
         assert genau(driver) == HAND_YIELDS
 
-    def test_a_side_funestra_that_never_had_it_is_told_nothing(self, tmp_path):
+    def test_a_satellite_funestra_that_never_had_it_is_told_nothing(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
 
         driver.sync("kino", paused=False)
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
-        assert side(tmp_path, RoomFunestra.LANDSCAPE) == []
+        assert satellite(tmp_path, RoomFunestra.LANDSCAPE) == []
 
     def test_the_funestra_it_took_the_osr2_from_stops_sending(self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
-        publish_side(tmp_path, RoomFunestra.LANDSCAPE)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.LANDSCAPE)
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
         driver.sync("kino", paused=False, holder=RoomFunestra.LANDSCAPE)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
-        assert side(tmp_path, RoomFunestra.LANDSCAPE)[-1] == TCODE_ON
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
+        assert satellite(tmp_path, RoomFunestra.LANDSCAPE)[-1] == TCODE_ON
 
-    def test_the_main_funestra_taking_it_back_in_genau_mode_quiets_the_side_funestra(self, tmp_path):
+    def test_the_main_funestra_taking_it_back_in_genau_mode_quiets_the_satellite_funestra(self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
 
         driver.sync("genau", paused=False, holder=RoomFunestra.MAIN)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
 
     def test_the_main_funestra_taking_it_back_in_genau_mode_starts_the_robot_hand_again(
             self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
 
         driver.sync("genau", paused=False, holder=RoomFunestra.MAIN)
 
         assert genau(driver)[-2:] == HAND_DRIVES
 
-    def test_a_side_funestra_let_go_of_under_omnipause_is_off_the_osr2_once_the_room_comes_back(
+    def test_a_satellite_funestra_let_go_of_under_omnipause_is_off_the_osr2_once_the_room_comes_back(
             self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=True, holder=RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=True, holder=RoomFunestra.MAIN)
 
         driver.sync("genau", paused=False, holder=RoomFunestra.MAIN)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
         assert genau(driver)[-2:] == HAND_DRIVES
 
-    def test_a_side_funestra_let_go_of_while_the_room_is_paused_leaves_the_robot_hand_paused(
+    def test_a_satellite_funestra_let_go_of_while_the_room_is_paused_leaves_the_robot_hand_paused(
             self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
         driver.sync("genau", paused=False, holder=RoomFunestra.PORTRAIT)
 
         driver.sync("genau", paused=True, holder=RoomFunestra.MAIN)
 
         assert not the_hand_is_playing(driver)
-        assert side(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT)[-1] == TCODE_OFF
 
     def test_a_hold_switches_off_every_funestra_that_has_had_it(self, tmp_path):
         driver = make_driver(tmp_path)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT)
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
         driver.sync("kino", paused=False, control=OSR2_PARKED, holder=RoomFunestra.PORTRAIT)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON, TCODE_OFF]
-        assert side(tmp_path, RoomFunestra.LANDSCAPE) == []
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_ON, TCODE_OFF]
+        assert satellite(tmp_path, RoomFunestra.LANDSCAPE) == []
         assert main_funestra(driver)[-1] == TCODE_OFF
 
     def test_the_flip_to_its_script_waits_for_the_touch_its_trace_chose(self, tmp_path):
         clock = FakeClock()
         driver = make_driver(tmp_path, clock=clock)
-        publish_side(tmp_path, RoomFunestra.PORTRAIT, resting=True, position_ms=1_000)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT, resting=True, position_ms=1_000)
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
-        publish_side(tmp_path, RoomFunestra.PORTRAIT, resting=False, position_ms=1_200, touch_ms=1_600)
+        publish_satellite(tmp_path, RoomFunestra.PORTRAIT, resting=False, position_ms=1_200, touch_ms=1_600)
         driver.sync("kino", paused=False, holder=RoomFunestra.PORTRAIT)
 
-        assert side(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_OFF]
+        assert satellite(tmp_path, RoomFunestra.PORTRAIT) == [TCODE_OFF]

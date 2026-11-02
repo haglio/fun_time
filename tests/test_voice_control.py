@@ -648,7 +648,7 @@ class TestWriteCommand:
 
 
 
-def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_side(tmp_path):
+def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_satellite(tmp_path):
     vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
                          hosted=HostedVocabulary(frozenset({"fabricated order"})))
 
@@ -670,7 +670,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
                              hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
                              hosted_said_at_suffix=said_at_suffix,
                              clock=lambda: HELD_FROM)
-        vc.hosted_sides = lambda: frozenset(hosting)
+        vc.hosted_satellites = lambda: frozenset(hosting)
         return vc
 
     def test_while_one_is_open_the_words_of_everything_said_are_wanted(self, tmp_path):
@@ -681,7 +681,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert vc.wants_words(_heard(Recognition(phrase="landscape next")))
         assert vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
 
-    def test_the_words_of_an_open_request_go_to_its_side_and_are_acted_on_by_nothing_here(
+    def test_the_words_of_an_open_request_go_to_its_satellite_and_are_acted_on_by_nothing_here(
             self, tmp_path):
         vc = self._controller(tmp_path)
         vc.request_opened("landscape")
@@ -732,7 +732,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert parse_command_line((tmp_path / "cmd.txt").read_text(
             encoding="utf-8").strip()).command == "landscape_next"
 
-    def test_one_opened_on_a_side_that_has_left_origenerator_mode_takes_no_words(self, tmp_path):
+    def test_one_opened_on_a_satellite_that_has_left_origenerator_mode_takes_no_words(self, tmp_path):
         vc = self._controller(tmp_path, hosting=("portrait",))
 
         vc.request_opened("landscape")
@@ -756,7 +756,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert vc.wants_words(replace(_heard(Recognition(unrecognized_text="alpha beta")),
                                       spoken_at=HELD_FROM - 1))
 
-    def test_one_said_whole_in_one_breath_goes_to_the_side_it_names(self, tmp_path):
+    def test_one_said_whole_in_one_breath_goes_to_the_satellite_it_names(self, tmp_path):
         vc = self._controller(tmp_path)
         heard = _formed(Recognition(unconfirmed_phrase="landscape request",
                                     heard="landscape request no"))
@@ -781,7 +781,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert not (tmp_path / "origenerator_cmd.txt").exists()
         assert vc.accept_what_it_was_not_sure_of()
 
-    def test_a_reading_it_could_not_place_led_by_such_a_side_has_its_words_taken_down(
+    def test_a_reading_it_could_not_place_led_by_such_a_satellite_has_its_words_taken_down(
             self, tmp_path):
         vc = self._controller(tmp_path)
 
@@ -809,7 +809,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert not (tmp_path / "cmd.txt").exists()
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
-    def test_one_led_by_a_side_showing_something_else_takes_no_words(self, tmp_path):
+    def test_one_led_by_a_satellite_showing_something_else_takes_no_words(self, tmp_path):
         vc = self._controller(tmp_path, hosting=("landscape",))
 
         assert not vc.wants_words(_heard(Recognition(unrecognized_text="portrait gamma",

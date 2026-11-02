@@ -3502,9 +3502,9 @@ class TestStartingVoice:
         with patch.object(windows_bridge_orchestrator, "hosted_satellites",
                           return_value=frozenset({"landscape"})) as asked:
             self._started(config_path, tmp_path, controller=controller, runner=runner)
-            sides = controller.return_value.hosted_sides()
+            satellites = controller.return_value.hosted_satellites()
 
-        assert sides == frozenset({"landscape"})
+        assert satellites == frozenset({"landscape"})
         asked.assert_called_once_with(runner.state, runner.config)
 
     def test_the_room_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(

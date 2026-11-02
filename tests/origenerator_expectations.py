@@ -5,7 +5,7 @@ every line a room writes on its command file.
 
 Origenerator's suite reads the document from this repo's main before that app
 ships anything, and tests/test_origenerator_expectations.py holds it here to
-this code and to what Origenerator has shipped -- so a change on either side
+this code and to what Origenerator has shipped -- so a change on either Satellite
 that would cost a room its Origenerator fails in the suite of the app that made
 it.
 """
@@ -46,9 +46,9 @@ from tests.hosted_shows import publish_the_show
 
 EXPECTATIONS = Path(__file__).with_suffix(".json")
 
-# Said to a side in Origenerator mode, where what a side is told is the hosted
+# Said to a Satellite in Origenerator mode, where what a Satellite is told is the hosted
 # app's to answer, and answered by nothing over there.  Keyed by what the line
-# says after the side.
+# says after the Satellite.
 LEFT_UNANSWERED: dict[str, str] = {
     "wrong_action": "a show's image carries no act label to strike, and the app "
                     "refuses the strike on purpose",
@@ -72,11 +72,11 @@ def expectations(scratch: Path) -> dict:
     }
 
 
-def _said_after_the_side(line: str) -> str:
+def _said_after_the_satellite(line: str) -> str:
     for funestra in RoomFunestra.SATELLITES:
-        side = f"{funestra.label}_"
-        if line.lower().startswith(side):
-            return line[len(side):].lower()
+        satellite = f"{funestra.label}_"
+        if line.lower().startswith(satellite):
+            return line[len(satellite):].lower()
     return line
 
 
@@ -99,7 +99,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         *_written_in_a_sweep(on_the_monitors),
         *_written_in_a_sweep(in_a_headset),
         *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_rooms_f_mode,
-                     _each_hosted_side_told_whether_it_has_the_osr2,
+                     _each_hosted_satellite_told_whether_it_has_the_osr2,
                      _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_room_crossing_in),
         *(what_an_adopted_app_is_told("{frames}", "{input}", in_a_headset=in_a_headset)
@@ -108,7 +108,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
           for funestra in RoomFunestra.SATELLITES),
     ]
     return {_as_published(line) for line in written
-            if _said_after_the_side(line) not in LEFT_UNANSWERED}
+            if _said_after_the_satellite(line) not in LEFT_UNANSWERED}
 
 
 def _as_published(line: str) -> str:
@@ -145,7 +145,7 @@ def _both_shows_hosted() -> BridgeState:
     return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
 
 
-def _each_hosted_side_told_whether_it_has_the_osr2(room: BridgeConfig) -> None:
+def _each_hosted_satellite_told_whether_it_has_the_osr2(room: BridgeConfig) -> None:
     feed = HudFeed(config=room, publisher=HudPublisher({}, room.state_dir / "thumbs", ()))
     for funestra in RoomFunestra.SATELLITES:
         feed.publish(replace(_both_shows_hosted(), osr2_funestra=funestra.value))

@@ -807,7 +807,7 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
 
     funestra owns the HUD now and carries its own table of the rule, but its
     suite runs with funestra alone on the path, so it cannot reach the
-    authority it mirrors.  This side can: fun_time is the repo that wears the
+    authority it mirrors.  This Satellite can: fun_time is the repo that wears the
     HUD and applies the filter, so the agreement is pinned here.  The empty
     query is the one deliberate difference — it keeps every clip, and lights no
     row.
@@ -819,7 +819,7 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
         ("Side Gamma", "side gamma", True),     # the filter set from that very row
         ("XYZ Gamma", "side gamma", False),     # …which is not the other camera's row
         ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
-        ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both sides
+        ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both Satellites
         ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very clip
         ("Gamma", "gamma, theta", False),       # …which does not keep a one-act clip
         ("Alpha", "gamma", False),

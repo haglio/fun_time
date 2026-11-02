@@ -10,9 +10,9 @@ def _sidecar(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
     v = lib / rel
     v.parent.mkdir(parents=True, exist_ok=True)
     v.write_bytes(b"x")
-    side = (meta / v.relative_to(lib)).with_suffix(".json")
-    side.parent.mkdir(parents=True, exist_ok=True)
-    side.write_text(json.dumps(payload), encoding="utf-8")
+    satellite = (meta / v.relative_to(lib)).with_suffix(".json")
+    satellite.parent.mkdir(parents=True, exist_ok=True)
+    satellite.write_text(json.dumps(payload), encoding="utf-8")
     return v
 
 

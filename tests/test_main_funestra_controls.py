@@ -125,7 +125,7 @@ class TestTheLibrary:
 
 # Every command line Kino answers, one per verb, with fabricated arguments.
 # These strings are what Fun Time writes into main_player_cmd.txt, so a verb
-# renamed on this side is a control that goes quiet on the other.
+# renamed on this Satellite is a control that goes quiet on the other.
 ACCEPTED_COMMANDS = [
     "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
     "CYCLE_VERSION", "CYCLE_VERSION_BACK",

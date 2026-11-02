@@ -74,10 +74,10 @@ def test_multi_word_query_round_trips():
 
 
 def test_clearing_a_filter_is_not_this_module_s_business():
-    """It was — "clear filter" for both sides, "clear portrait" for one — and that
-    put the side word where every other satellite phrase puts an action's own
+    """It was — "clear filter" for both Satellites, "clear portrait" for one — and that
+    put the Satellite word where every other satellite phrase puts an action's own
     words.  Clearing is "no filter" in the grid now, so it scopes like the rest:
-    "portrait clear filter", either order, bare for the side last navigated."""
+    "portrait clear filter", either order, bare for the Satellite last navigated."""
     voice = filter_voice_commands(ACTS)
     for phrase in ("clear filter", "show everything", "clear portrait", "clear landscape"):
         assert phrase not in voice

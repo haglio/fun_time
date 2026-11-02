@@ -48,6 +48,6 @@ def test_fun_times_icon_loads_as_a_window_icon():
     assert len(worn) == 1
 
 
-def test_each_side_names_the_funestra_it_is():
+def test_each_satellite_names_the_funestra_it_is():
     assert SATELLITE_PORTRAIT_TITLE == "Portrait AI Funestra"
     assert SATELLITE_LANDSCAPE_TITLE == "Landscape AI Funestra"

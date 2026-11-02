@@ -69,7 +69,7 @@ def decode_snapshot(raw: bytes) -> str:
 
 
 def _read_existing_snapshot(path: Path) -> str:
-    """What is on disk, or "" — this side never fails over a read."""
+    """What is on disk, or "" — this Satellite never fails over a read."""
     try:
         return decode_snapshot(path.read_bytes())
     except (OSError, UnicodeDecodeError):

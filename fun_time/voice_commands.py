@@ -61,22 +61,22 @@ def parse_command_line(line: str) -> CommandLine:
 
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
-_SATELLITE_SIDES = tuple(funestra.label for funestra in RoomFunestra.SATELLITES)
+_SATELLITE_NAMES = tuple(funestra.label for funestra in RoomFunestra.SATELLITES)
 FAVORITES_PHRASE = "favorites"
 
 
 _SAY = "_say_"
 
 
-def say_command(side: str, phrase: str) -> str:
-    return f"{side}{_SAY}{phrase.replace(' ', '_')}"
+def say_command(satellite: str, phrase: str) -> str:
+    return f"{satellite}{_SAY}{phrase.replace(' ', '_')}"
 
 
-def said_to_a_side(command: str) -> tuple[str, str] | None:
-    side, said, words = command.partition(_SAY)
-    if not said or side not in _SATELLITE_SIDES or not words:
+def said_to_a_satellite(command: str) -> tuple[str, str] | None:
+    satellite, said, words = command.partition(_SAY)
+    if not said or satellite not in _SATELLITE_NAMES or not words:
         return None
-    return side, words.replace("_", " ")
+    return satellite, words.replace("_", " ")
 
 
 def build_voice_commands(
@@ -137,9 +137,9 @@ def build_voice_commands(
         # bare and sided both.
 
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
-        # Kino mode, said of a side or of neither: the bare phrase puts the
-        # main slot AND the satellites on their Funestras, each side's own phrase
-        # just that side.
+        # Kino mode, said of a Satellite or of neither: the bare phrase puts the
+        # main slot AND the satellites on their Funestras, each Satellite's own phrase
+        # just that Satellite.
         "kino mode": "kino_activate",
         # Both satellites' other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
@@ -240,9 +240,9 @@ def build_voice_commands(
                                      ("satellite", "satellites_kino_activate"),
                                      ("satellites", "satellites_kino_activate")):
         commands.update(named_first_or_last(_funestra_word, "kino mode", _command))
-    for _side in _SATELLITE_SIDES:
+    for _satellite in _SATELLITE_NAMES:
         for _mode_words, _mode in (("kino mode", KINO_MODE), ("aura generator mode", ORIGENERATOR_MODE)):
-            commands.update(named_first_or_last(_side, _mode_words, mode_command(_side, _mode)))
+            commands.update(named_first_or_last(_satellite, _mode_words, mode_command(_satellite, _mode)))
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
     # closes from any of them prefixed with "close".
@@ -252,8 +252,8 @@ def build_voice_commands(
 
     def _bare_or_named(words: str, action: str) -> None:
         commands[words] = f"active_{action}"
-        for side in (*_SATELLITE_SIDES, "both"):
-            commands.update(named_first_or_last(side, words, f"{side}_{action}"))
+        for satellite in (*_SATELLITE_NAMES, "both"):
+            commands.update(named_first_or_last(satellite, words, f"{satellite}_{action}"))
         if (on_the_main := on_the_main_funestra(action)) is not None:
             commands.update(named_first_or_last("main", words, on_the_main))
 
@@ -279,7 +279,7 @@ def build_voice_commands(
         "reset": "reset",
         # The two browse orderings, each rescanning the sources so new files are picked
         # up: "latest" reloads newest-first, "shuffle" reshuffles.  Both are sided like
-        # every other satellite action — a side put in latest order has to be
+        # every other satellite action — a Satellite put in latest order has to be
         # shuffleable on its own — and "both latest" is what the P key sends.
         "latest": "latest",
         "shuffle": "shuffle",
@@ -318,11 +318,11 @@ def build_voice_commands(
         # "end loop" / "no loop" / "loop off" ends the loop, whichever kind the
         # Funestra has.
         "no_loop": ("end loop", "no loop", "loop off"),
-        # "no filter" drops just the filter, where "reset" puts the whole side back
+        # "no filter" drops just the filter, where "reset" puts the whole Satellite back
         # to its defaults (lock, order, loop and all); "clear filter" and "show
         # everything" are the same gesture said another way, scoped like the grid.
         "no_filter": ("no filter", "filter off", "clear filter", "show everything"),
-        # "filter" is the same gesture named after what it leaves — the side's
+        # "filter" is the same gesture named after what it leaves — the Satellite's
         # filter, the one the HUD lights and "no filter" drops — so "portrait filter"
         # and "filter portrait" say "portrait lock action", and bare it filters the
         # active side.  It does not collide with the no_filter phrases above: the
@@ -336,7 +336,7 @@ def build_voice_commands(
     # Every cycle axis is sayable by its bare word — the satellite ones from the grid
     # above, the Main Funestra's "version" from the literal map — and each also takes an explicit
     # verb up front: "cycle / next / change <axis>".  "scene" reads as "action".  The
-    # satellite axes cycle the active side here; a side word already reaches a
+    # satellite axes cycle the active side here; a Satellite word already reaches a
     # specific satellite via the bare "portrait action" / "portrait seed" forms.
     _CYCLE_AXES: dict[str, str] = {
         "action": "active_cycle_action",
@@ -474,12 +474,12 @@ def build_voice_commands(
                         ("expand", "hud_restore")):
         for _words in (f"{_verb} hud", f"hud {_verb}"):
             _bare_or_named(_words, _act)
-        for _side in (*_SATELLITE_SIDES, "both", "main"):
-            commands[f"{_verb} {_side} hud"] = commands[f"{_side} {_verb} hud"]
+        for _satellite in (*_SATELLITE_NAMES, "both", "main"):
+            commands[f"{_verb} {_satellite} hud"] = commands[f"{_satellite} {_verb} hud"]
 
-    for _side in _SATELLITE_SIDES:
-        commands.update(named_first_or_last(_side, FAVORITES_PHRASE,
-                                            say_command(_side, FAVORITES_PHRASE)))
+    for _satellite in _SATELLITE_NAMES:
+        commands.update(named_first_or_last(_satellite, FAVORITES_PHRASE,
+                                            say_command(_satellite, FAVORITES_PHRASE)))
 
     # Spoken metadata filters — "portrait beta gamma", "alpha form portrait" —
     # generated from the library's action vocabulary (see fun_time.filter_vocab).  The
@@ -490,10 +490,10 @@ def build_voice_commands(
     if _shadowed:
         raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
     commands.update(filter_commands)
-    for _side in _SATELLITE_SIDES:
+    for _satellite in _SATELLITE_NAMES:
         for _phrase in origenerator_phrases:
             for _spoken, _said in named_first_or_last(
-                    _side, _phrase, say_command(_side, _phrase)).items():
+                    _satellite, _phrase, say_command(_satellite, _phrase)).items():
                 commands.setdefault(_spoken, _said)
     return MappingProxyType(commands)
 

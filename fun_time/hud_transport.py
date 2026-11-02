@@ -9,7 +9,7 @@ This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.S
 into the :class:`~funestra.satellite_hud.HudModel` the Funestra parses back, and
 writes its text only when it actually changed, so a Funestra polling the file
 re-renders per clip change rather than per tick.  The Main Funestra's console
-rides the same publisher, and so does a side the hosted Origenerator holds —
+rides the same publisher, and so does a Satellite the hosted Origenerator holds —
 whose HUD is that app's own, under the session's row.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ from .osr2_section import DeviceBlock
 from .satellite_buttons import funestra_rows, mode_row
 from .thumbnail_cache import cached_thumbnail
 
-# What a side the hosted app holds says before that app has anything on it.
+# What a Satellite the hosted app holds says before that app has anything on it.
 ORIGENERATOR_MODE_LABEL = "Origenerator mode"
 
 

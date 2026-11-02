@@ -49,7 +49,7 @@ from .satellite_commands import (
 )
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
-from .voice_commands import said_to_a_side
+from .voice_commands import said_to_a_satellite
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +100,9 @@ def dispatch_command(
     if answered is not None:
         return answered
 
-    # Said to two sides in different modes, each side's half goes where its
+    # Said to two Satellites in different modes, each Satellite's half goes where its
     # own mode sends it.
-    if halves := _said_to_sides_in_two_modes(command, state, config):
+    if halves := _said_to_satellites_in_two_modes(command, state, config):
         ops: list[WindowOp] = []
         for half in halves:
             state, more = dispatch_command(half, state, config, target_path=target_path,
@@ -110,7 +110,7 @@ def dispatch_command(
             ops.extend(more)
         return state, ops
 
-    # In its Origenerator mode what is said to a side is the hosted app's to
+    # In its Origenerator mode what is said to a Satellite is the hosted app's to
     # answer -- ahead of the handler lookup, whose Funestra handlers it shadows.
     routed = _origenerator_transport(command, state, config, spoken_at)
     if routed is not None:
@@ -138,7 +138,7 @@ def dispatch_command(
 
 # In its Origenerator mode a Satellite Funestra is the hosted app's: it hands the
 # Funestra what to play and answers every press on the buttons it drew.  So what
-# is said to that side goes there as it was said, and the session keeps only what
+# is said to that Satellite goes there as it was said, and the session keeps only what
 # is about the Funestra itself -- parking its window, its crown, its rate, taking
 # the OSR2, its mode, and its lock, which cannot wait for the app to read a press.
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
@@ -148,21 +148,21 @@ _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_act
 _THE_FUNESTRAS_LOCK = frozenset({*LOCK_TOGGLES, *LOCK_STATE_COMMANDS})
 
 
-def _side_said_to(command: str) -> RoomFunestra | None:
+def _satellite_said_to(command: str) -> RoomFunestra | None:
     head = command.removeprefix("filter_")
     return next((funestra for funestra in RoomFunestra.SATELLITES
                  if head.startswith(f"{funestra.label}_")), None)
 
 
 def _about_a_satellite(command: str) -> bool:
-    """Whether *command* is said to one satellite side, about what it plays."""
-    if _side_said_to(command) is None or command in _THE_FUNESTRAS_LOCK:
+    """Whether *command* is said to one Satellite, about what it plays."""
+    if _satellite_said_to(command) is None or command in _THE_FUNESTRAS_LOCK:
         return False
     verb = command.removeprefix("filter_").partition("|")[0]
     return not any(own in verb for own in _THE_FUNESTRAS_OWN)
 
 
-def _said_to_each_side(command: str) -> tuple[str, ...]:
+def _said_to_each_satellite(command: str) -> tuple[str, ...]:
     target = decode_filter_command(command)
     if target is None or target[0] != "both":
         return (command,)
@@ -170,7 +170,7 @@ def _said_to_each_side(command: str) -> tuple[str, ...]:
 
 
 # One the session already says to a Funestra, which means the same thing to the
-# hosted app's show on that side.
+# hosted app's show on that Satellite.
 _SAID_TO_A_FUNESTRA_AND_A_SHOW: dict[str, tuple[str, str]] = {
     "portrait_no_filter": ("portrait", "clear filter"),
     "landscape_no_filter": ("landscape", "clear filter"),
@@ -178,12 +178,12 @@ _SAID_TO_A_FUNESTRA_AND_A_SHOW: dict[str, tuple[str, str]] = {
 
 
 def _words_for_the_hosted_app(command: str) -> tuple[str, str] | None:
-    return said_to_a_side(command) or _SAID_TO_A_FUNESTRA_AND_A_SHOW.get(command)
+    return said_to_a_satellite(command) or _SAID_TO_A_FUNESTRA_AND_A_SHOW.get(command)
 
 
 def _a_lock_said_in_the_hosted_apps_words(command: str, state: BridgeState,
                                           config: BridgeConfig) -> str:
-    said = said_to_a_side(command)
+    said = said_to_a_satellite(command)
     if (said is None or said[1] not in config.origenerator_lock_phrases
             or not routes_to_origenerator(command, state, config)):
         return command
@@ -193,9 +193,9 @@ def _a_lock_said_in_the_hosted_apps_words(command: str, state: BridgeState,
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
     """Whether *command* is bound for the hosted app rather than the session.
 
-    Everything said to a side in its Origenerator mode about what it plays goes
+    Everything said to a Satellite in its Origenerator mode about what it plays goes
     there (:func:`_about_a_satellite`), and so does the app's own spoken vocabulary
-    about that side, as the words themselves: the session hears them for the
+    about that Satellite, as the words themselves: the session hears them for the
     whole room and the hosted app matches them.  Public because the dispatch loop
     asks the same question -- its watch tracking must not book a show's step or
     cull against a library video.
@@ -203,25 +203,25 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     spoken = _words_for_the_hosted_app(command)
     if spoken is not None:
         return hosts(RoomFunestra[spoken[0].upper()], state, config)
-    return all(_about_a_satellite(said) and hosts(_side_said_to(said), state, config)
-               for said in _said_to_each_side(command))
+    return all(_about_a_satellite(said) and hosts(_satellite_said_to(said), state, config)
+               for said in _said_to_each_satellite(command))
 
 
-def _said_to_sides_in_two_modes(command: str, state: BridgeState,
+def _said_to_satellites_in_two_modes(command: str, state: BridgeState,
                                 config: BridgeConfig) -> tuple[str, ...]:
-    """*command* as said to each side, where one of the two sides it reaches is
+    """*command* as said to each Satellite, where one of the two Satellites it reaches is
     the hosted app's and the other the session's; empty otherwise."""
-    said = _said_to_each_side(command)
+    said = _said_to_each_satellite(command)
     if len(said) <= 1 or not all(_about_a_satellite(each) for each in said):
         return ()
-    hosted = {hosts(_side_said_to(each), state, config) for each in said}
+    hosted = {hosts(_satellite_said_to(each), state, config) for each in said}
     return said if len(hosted) > 1 else ()
 
 
 def _origenerator_transport(
     command: str, state: BridgeState, config: BridgeConfig, spoken_at: float | None
 ) -> list[WindowOp] | None:
-    """Hand a side's press to the hosted app, or ``None`` to fall through to
+    """Hand a Satellite's press to the hosted app, or ``None`` to fall through to
     the session's own handling.
 
     None of Kino's bookkeeping (lock flags, favorites, RFB tabs)
@@ -232,7 +232,7 @@ def _origenerator_transport(
         return None
     spoken = _words_for_the_hosted_app(command)
     lines = ([said_to_the_hosted_app(*spoken)] if spoken is not None
-             else _said_to_each_side(command))
+             else _said_to_each_satellite(command))
     for line in lines:
         append_command(config.origenerator_cmd_file,
                        with_when_said(line, spoken_at, config.origenerator_said_at_suffix))
@@ -258,7 +258,7 @@ def _parsed_unresolved_active(command: str, state: BridgeState, _config: BridgeC
 def _parsed_words_for_a_show_that_is_not_up(
         command: str, state: BridgeState, _config: BridgeConfig,
         _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    if said_to_a_side(command) is None:
+    if said_to_a_satellite(command) is None:
         return None
     return ignored(state, IN_KINO_MODE)
 

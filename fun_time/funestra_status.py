@@ -38,7 +38,7 @@ class MainFunestraStatus(ScriptedStatus):
     """Snapshot of what the Main Funestra is playing, parsed from its status file.
 
     The family's seven and then the Main Funestra's own; only the fields with
-    consumers on this side are parsed.  ``position_ms`` and ``duration_ms``
+    consumers on this Satellite are parsed.  ``position_ms`` and ``duration_ms``
     give the playback fraction watch tracking needs; the device arbiter drives
     the OSR2 from the funscript while ``has_funscript`` and not
     ``funscript_resting``, and hands off to the Robot Hand otherwise — so the

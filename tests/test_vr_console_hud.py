@@ -66,7 +66,7 @@ class TestWhichSideTheConsoleHangsOn:
     wraps the viewer leaves no edge to hang against, so there it hangs
     under the dashboard as it always has."""
 
-    def test_it_takes_the_side_its_keys_named(self):
+    def test_it_takes_the_satellite_its_keys_named(self):
         for edge in HudEdge:
             assert hud_hangs_from(edge, wrapped=False) is edge
 

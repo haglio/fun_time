@@ -147,8 +147,8 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.landscape_dirs, 2)),
         encoding="utf-8",
     )
-    for side in ("main_funestra", "portrait", "landscape"):
-        Path(commands.funestra_file(side, "paused")).write_text("0", encoding="utf-8")
+    for satellite in ("main_funestra", "portrait", "landscape"):
+        Path(commands.funestra_file(satellite, "paused")).write_text("0", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-pipeline-test")
@@ -160,9 +160,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     stop = threading.Event()
     main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered, stop=stop)
     satellites = [
-        vrp._SatelliteUnit(side, manifest, contexts, vr=vr,
+        vrp._SatelliteUnit(satellite, manifest, contexts, vr=vr,
                            remembered=remembered.placements)
-        for side in (PORTRAIT, LANDSCAPE)
+        for satellite in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
     perf = vrp.FramePerf(logger=vrp.logger)

@@ -44,7 +44,7 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
 from .event_log import NOTICE, SOURCE_SYSTEM, notice
 from .f_mode import every_funestra_in_f_mode
-from .funestra_handover import Departures, Homecoming, SidesChangingHands
+from .funestra_handover import Departures, Homecoming, SatellitesChangingHands
 from .funestra_notices import FunestraNotices
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
@@ -107,8 +107,8 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 
 HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
 REQUEST_NEWS: dict[str, tuple[str, bool]] = {
-    f"{side}_request_{news}": (side, opened)
-    for side in ("portrait", "landscape")
+    f"{satellite}_request_{news}": (satellite, opened)
+    for satellite in ("portrait", "landscape")
     for news, opened in (("open", True), ("closed", False))
 }
 
@@ -215,10 +215,10 @@ class DispatchLoopRunner:
         self._ignored_because = ""
         self.homecoming = Homecoming()
         self.departures = Departures()
-        self.changing_hands = SidesChangingHands(
+        self.changing_hands = SatellitesChangingHands(
             self.departures, self.homecoming,
             left_on=self.hud.the_video_it_comes_home_to,
-            changed=partial(_publish_the_side_changing_hands, self))
+            changed=partial(_publish_the_satellite_changing_hands, self))
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={2: config.portrait_status_file,
@@ -688,9 +688,9 @@ def _accept_what_voice_was_not_sure_of(runner: DispatchLoopRunner,
         runner._flash(NOTHING_TO_ACCEPT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
 
-def _pass_on_request_news(side: str, opened: bool, runner: DispatchLoopRunner,
+def _pass_on_request_news(satellite: str, opened: bool, runner: DispatchLoopRunner,
                           _spoken_at: float | None) -> None:
-    runner.voice.request_news(side, opened)
+    runner.voice.request_news(satellite, opened)
 
 
 def _headset(runner: DispatchLoopRunner, signal: str) -> None:
@@ -722,8 +722,8 @@ _LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = 
     "voice_off": partial(_toggle_voice, "voice_off"),
     "voice_toggle": partial(_toggle_voice, "voice_toggle"),
     "voice_accept": _accept_what_voice_was_not_sure_of,
-    **{command: partial(_pass_on_request_news, side, opened)
-       for command, (side, opened) in REQUEST_NEWS.items()},
+    **{command: partial(_pass_on_request_news, satellite, opened)
+       for command, (satellite, opened) in REQUEST_NEWS.items()},
 }
 
 
@@ -800,7 +800,7 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
 
-def _publish_the_side_changing_hands(runner: DispatchLoopRunner, state: BridgeState) -> None:
+def _publish_the_satellite_changing_hands(runner: DispatchLoopRunner, state: BridgeState) -> None:
     write_shared_state(runner.shared_state_file, state)
     runner.hud.publish(state)
 

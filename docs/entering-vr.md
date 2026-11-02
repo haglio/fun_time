@@ -23,7 +23,7 @@ in either orchestrator:
 |---|---|
 | Both satellites' playlists, rotated onto the clip each had on screen | yes — the two libraries are the same in either app |
 | Each satellite's lock | yes, re-queued on its command file |
-| F-mode per Funestra, each side's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
+| F-mode per Funestra, each Satellite's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
 | The main slot's mode (video / Genau) | yes |
 | The Main Funestra's clip | yes, when the arriving session can play it |

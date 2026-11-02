@@ -205,8 +205,8 @@ class TestBackDating:
     have auto-advanced between "lock…" and "…portrait"; the timeline says which
     video was on screen when the utterance began."""
 
-    def _observe(self, sampler, side: str, video: str, *, at: float) -> None:
-        _publish(sampler.satellite_status_files[2 if side == "portrait" else 3],
+    def _observe(self, sampler, satellite: str, video: str, *, at: float) -> None:
+        _publish(sampler.satellite_status_files[2 if satellite == "portrait" else 3],
                  video, fraction=0.1)
         sampler.sample_due(now=at, paused=False)
 
@@ -226,7 +226,7 @@ class TestBackDating:
 
         assert sampler.video_at("landscape_trash", 100.7) == "C:\\clips\\landscape.mp4"
 
-    def test_a_side_showing_the_hosted_apps_images_is_back_dated_too(self, tmp_path):
+    def test_a_satellite_showing_the_hosted_apps_images_is_back_dated_too(self, tmp_path):
         sampler = make_sampler(tmp_path)
         status = sampler.satellite_status_files[2]
         for at, image in ((100.0, "C:\\images\\meant.png"), (101.0, "C:\\images\\next.png")):

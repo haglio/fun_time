@@ -183,8 +183,8 @@ class TestReadingItBack:
         assert manifest.layout == cfg.layout
         assert manifest.random_favs_browser.enabled is cfg.random_favs_browser.enabled
 
-    def test_a_sides_file_can_be_asked_for_by_that_side(self, cfg_path, tmp_path):
-        """The HUD publisher and the headset both build their two sides in a
+    def test_a_satellites_file_can_be_asked_for_by_that_satellite(self, cfg_path, tmp_path):
+        """The HUD publisher and the headset both build their two Satellites in a
         loop, so they need the key by side name rather than spelled out."""
         cfg = load_config(cfg_path)
         commands = LaunchManifest.read(

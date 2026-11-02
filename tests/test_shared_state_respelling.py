@@ -22,7 +22,7 @@ from fun_time.shared_state import (
 )
 
 # The state file as a session of that day wrote it: the two locks by slot
-# number, the active Funestra as a side, one F-mode name for two filters, and two
+# number, the active Funestra as a Satellite, one F-mode name for two filters, and two
 # mode words the app has since dropped.
 _LAST_SESSIONS_STATE = (
     "[state]\nmain_mode = hybrid\nsatellites_mode = player\nmain_f_mode = 1\n"
@@ -81,7 +81,7 @@ class TestTheSharedStateFile:
 
     def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
             self, tmp_path: Path):
-        """The satellite side's one mode became each Satellite Funestra's own and
+        """The Satellite's one mode became each Satellite Funestra's own and
         a switch of its own for the browser's place, so a room left in it comes
         back with both Funestras in theirs and Origenerator in the browser's
         place -- the room it was."""

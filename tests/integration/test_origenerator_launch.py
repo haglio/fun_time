@@ -70,13 +70,13 @@ _PLAN = WindowLayoutPlan(
 def _funestras(tmp_path: Path) -> dict[str, HandedFunestra]:
     """Both Satellite Funestras, handed over the way a session hands them."""
     return {
-        side: HandedFunestra(
-            playlist_file=tmp_path / f"{side}_playlist.tsv",
-            cmd_file=tmp_path / f"{side}_cmd.txt",
-            status_file=tmp_path / f"{side}_status.txt",
-            hud_file=tmp_path / f"origenerator_{side}_hud.json",
+        satellite: HandedFunestra(
+            playlist_file=tmp_path / f"{satellite}_playlist.tsv",
+            cmd_file=tmp_path / f"{satellite}_cmd.txt",
+            status_file=tmp_path / f"{satellite}_status.txt",
+            hud_file=tmp_path / f"origenerator_{satellite}_hud.json",
         )
-        for side in ("portrait", "landscape")
+        for satellite in ("portrait", "landscape")
     }
 
 

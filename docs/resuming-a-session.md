@@ -34,12 +34,12 @@ power cut too, where a shutdown hook would not.
 ## What comes back, and why
 
 `RESUMED_FIELDS` is the list. Most of it is what shaped the playlist files: each
-Funestra's own F-mode and each side's filter decide which clips are in them,
+Funestra's own F-mode and each Satellite's filter decide which clips are in them,
 Latest fixes their order, a group loop *is* the group written out as the
 playlist, with the map anchored (and the seed row widened) on the clip it
 started from, and the Main Funestra's buttons, with the number its shuffle is
 dealt from, are what its one list is built from. The rest is what the session was simply *left* in —
-the sound level, the OSR2's max intensity, each side's lock, whether the OSR2
+the sound level, the OSR2's max intensity, each Satellite's lock, whether the OSR2
 was let go of or held at one end, whether Genau was browsing Latest — and there
 is no more reason for those to reset overnight than for the clip on screen to.
 
@@ -112,7 +112,7 @@ calls, 2026-10-13 and 2026-10-17). A slideshow of both shapes puts Origenerator
 on both satellites instead, each playing the slideshow's items of its own
 shape, since only landscape content ever shows on the landscape satellite and
 only portrait on the portrait one (his call, 2026-10-25). The app holds the show
-through the takeover and plays each side's part there when that side's show is
+through the takeover and plays each Satellite's part there when that Satellite's show is
 asked for. It says it is showing one beside its offer, in `fun_time_showing.txt`,
 naming its own process the way the offer does, so the mark of an app that has
 since closed is never believed, and then the shape of its items, `portrait`,
@@ -124,7 +124,7 @@ has a satellite, that Funestra's playlist file holds the app's images and the
 session's own list waits beside it (`fun_time.funestra_handover`). A session quit
 there, or killed there, never brings the Funestra home — so `resume_playlists`
 takes every kept list back before it reads anything, and a room built in video
-mode opens on video lists, at the clip each side was showing when it left.
+mode opens on video lists, at the clip each Satellite was showing when it left.
 Without that, the session after a quit in Origenerator mode opened in Kino mode
 on two locked images, each with a one-square map and nothing to step to
 (2026-09-19). The kept lists are taken back even when the resume goes on to find
@@ -219,7 +219,7 @@ startup, which is exactly how a session came back playing favorites while every
 HUD said F-mode was off — and then answered "F-mode" by reporting it *enabled*
 and changing nothing you could see. Satellites whose playlists had to be built
 fresh start over with them: what described those files (`DESCRIBES_THE_PLAYLIST`
-— each side's lock, filter, F-mode, order, loop and map) is gone with them, and
+— each Satellite's lock, filter, F-mode, order, loop and map) is gone with them, and
 everything else the room was left in still comes back.
 
 **The dispatch loop opens on the state file, never on defaults.** Origenerator

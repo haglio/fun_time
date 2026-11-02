@@ -51,12 +51,12 @@ def _restored_at(command: str, state: BridgeState,
     return _opened_in(funestra, place, state, config)
 
 
-def _hung_open_against(funestra: RoomFunestra, side: str, state: BridgeState) -> BridgeState:
-    if side not in HudEdge:
+def _hung_open_against(funestra: RoomFunestra, edge: str, state: BridgeState) -> BridgeState:
+    if edge not in HudEdge:
         return state
     if funestra is RoomFunestra.MAIN:
-        return replace(state, main_hud_edge=HudEdge(side), main_hud_minimized=False)
-    return state.with_satellite(funestra, hud_edge=HudEdge(side), hud_minimized=False)
+        return replace(state, main_hud_edge=HudEdge(edge), main_hud_minimized=False)
+    return state.with_satellite(funestra, hud_edge=HudEdge(edge), hud_minimized=False)
 
 
 def _opened_in(funestra: RoomFunestra, corner: str, state: BridgeState,
@@ -100,10 +100,10 @@ def _moved_hud(command: str, state: BridgeState,
 
 def _satellite_hud_moved(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, *,
                          direction: str) -> BridgeState:
-    side = state.satellite(funestra)
+    satellite = state.satellite(funestra)
     if config.vr_main_funestra:
-        return state.with_satellite(funestra, hud_edge=side.hud_edge.toward(direction))
-    corner = side.hud_corner.toward(direction)
+        return state.with_satellite(funestra, hud_edge=satellite.hud_edge.toward(direction))
+    corner = satellite.hud_corner.toward(direction)
     _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
     return state.with_satellite(funestra, hud_corner=corner)
 

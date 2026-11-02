@@ -133,7 +133,7 @@ class WindowRoles:
         # exactly, the way every caption this session resolves is: a substring
         # lookup answers with whatever window it reaches first whose title
         # merely CONTAINS the name (see find_window_by_title), and handing one
-        # side's window to the other is the portrait/landscape visual swap.
+        # Satellite's window to the other is the portrait/landscape visual swap.
         if role == "main_funestra":
             hwnd = find_window_by_pid(self.pids.main_funestra) or find_window_by_title("Main Funestra", exact=True)
         elif role == "portrait":

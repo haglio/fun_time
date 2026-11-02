@@ -4,7 +4,7 @@ A headset runs the same orchestrator, the same dispatch loop, the same AHK
 hotkey script and the same voice control as the desktop.  What differs is who
 is listening at the far end of each file channel: the three Funestras live
 inside the one VR process, with the headset's own verbs beside Kino's on the
-Main Funestra, the hosted Origenerator answers a side in its mode as it does
+Main Funestra, the hosted Origenerator answers a Satellite in its mode as it does
 on the desktop, and the windows the desktop's ops act on do not exist.  So a
 control can be perfectly routed and still be dead in the headset — which is
 exactly how the main-slot padlock and F-mode's word in the title came to be dead
@@ -12,7 +12,7 @@ there with the whole suite green.
 
 This module closes that.  It walks every command the reference can produce —
 every hotkey, every spoken phrase — through the real dispatch, against the
-config a headset session builds and in both of the satellite side's modes, and
+config a headset session builds and in both of the Satellite's modes, and
 holds each verb that lands to the vocabulary of whatever will actually read it
 in a VR session -- the hosted Origenerator's through the expectations Fun Time
 publishes of it (tests/origenerator_expectations.py).  The only way to leave a
@@ -350,11 +350,11 @@ class TestGenau:
 
 
 class TestTheHostedOrigenerator:
-    """In origenerator mode what is said to a side goes to the hosted app, which
+    """In origenerator mode what is said to a Satellite goes to the hosted app, which
     a headset hosts as the desktop does.  Every line it is sent is held to what
     the app answers by tests/test_origenerator_expectations.py."""
 
-    def test_it_is_sent_what_is_said_to_a_side_in_its_mode(self, landed):
+    def test_it_is_sent_what_is_said_to_a_satellite_in_its_mode(self, landed):
         assert landed["kino/origenerator/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
 

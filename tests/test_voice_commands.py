@@ -23,15 +23,15 @@ from fun_time.voice_commands import (
     format_spoken_command,
     friendly_voice,
     parse_command_line,
-    said_to_a_side,
+    said_to_a_satellite,
     say_command,
 )
 
 
-def test_the_words_said_to_a_side_are_read_back_off_the_command_they_were_written_as():
-    assert said_to_a_side(say_command("landscape", "fix alpha hands")) == (
+def test_the_words_said_to_a_satellite_are_read_back_off_the_command_they_were_written_as():
+    assert said_to_a_satellite(say_command("landscape", "fix alpha hands")) == (
         "landscape", "fix alpha hands")
-    assert said_to_a_side("landscape_next") is None
+    assert said_to_a_satellite("landscape_next") is None
 
 
 class TestCommandLineFormat:
@@ -305,7 +305,7 @@ class TestVoiceCommands:
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
 
-    def test_kino_mode_is_said_of_a_side_or_of_both(self):
+    def test_kino_mode_is_said_of_a_satellite_or_of_both(self):
         assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
         assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
         assert VOICE_COMMANDS["kino mode"] == "kino_activate"
@@ -320,7 +320,7 @@ class TestVoiceCommands:
         for phrase in ("version", "cycle version", "next version", "change version"):
             assert VOICE_COMMANDS[phrase] == "main_funestra_cycle_version"
 
-    def test_a_side_version_is_said_of_that_side_and_never_bare(self):
+    def test_a_satellite_version_is_said_of_that_satellite_and_never_bare(self):
         """The bare word is the Main Funestra's own axis, so a satellite's
         renditions are asked for by side — in either word order, "both" with
         them, as every other satellite action is."""
@@ -371,7 +371,7 @@ class TestVoiceCommands:
             assert VOICE_COMMANDS[phrase] == "main_reset"
 
     def test_satellite_grid_supports_both_orders(self):
-        """Each satellite action works BARE (→ active side) and with a side word
+        """Each satellite action works BARE (→ active side) and with a Satellite word
         in EITHER order: "portrait lock" and "lock portrait" are equivalent."""
         actions = {
             "lock": "lock_on",
@@ -385,10 +385,10 @@ class TestVoiceCommands:
         }
         for word, act in actions.items():
             assert VOICE_COMMANDS[word] == f"active_{act}"
-            for side in ("portrait", "landscape", "both"):
-                target = f"{side}_{act}"
-                assert VOICE_COMMANDS[f"{side} {word}"] == target  # side first
-                assert VOICE_COMMANDS[f"{word} {side}"] == target  # side last
+            for satellite in ("portrait", "landscape", "both"):
+                target = f"{satellite}_{act}"
+                assert VOICE_COMMANDS[f"{satellite} {word}"] == target  # side first
+                assert VOICE_COMMANDS[f"{word} {satellite}"] == target  # side last
 
     def test_f_mode_is_sayable_per_funestra_in_either_order(self):
         """Every Funestra has its own F-mode, so each is sayable by naming it — in
@@ -397,9 +397,9 @@ class TestVoiceCommands:
         for word, act in (("f mode", "fmode"),
                           ("f mode on", "fmode_on"),
                           ("f mode off", "fmode_off")):
-            for side in ("portrait", "landscape", "both", "main"):
-                assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
-                assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
+            for satellite in ("portrait", "landscape", "both", "main"):
+                assert VOICE_COMMANDS[f"{satellite} {word}"] == f"{satellite}_{act}"
+                assert VOICE_COMMANDS[f"{word} {satellite}"] == f"{satellite}_{act}"
 
     def test_bare_f_mode_reaches_the_active_funestra(self):
         """Bare means the active Funestra here as it does everywhere else in the
@@ -465,9 +465,9 @@ class TestVoiceCommands:
         of "lock" and "reset", so they went instead of being disambiguated."""
         for phrase in ("lock all", "loop all", "same all"):
             assert phrase not in VOICE_COMMANDS
-            for side in ("portrait", "landscape", "both"):
-                assert f"{side} {phrase}" not in VOICE_COMMANDS
-                assert f"{phrase} {side}" not in VOICE_COMMANDS
+            for satellite in ("portrait", "landscape", "both"):
+                assert f"{satellite} {phrase}" not in VOICE_COMMANDS
+                assert f"{phrase} {satellite}" not in VOICE_COMMANDS
         # What they said is still sayable, under the names the grid already used.
         assert VOICE_COMMANDS["lock"] == "active_lock_on"
         assert VOICE_COMMANDS["reset"] == "active_reset"
@@ -559,16 +559,16 @@ class TestVoiceCommands:
         }
         for phrase, act in grid.items():
             assert VOICE_COMMANDS[phrase] == f"active_{act}"
-            for side in ("portrait", "landscape", "both"):
-                assert VOICE_COMMANDS[f"{side} {phrase}"] == f"{side}_{act}"
-                assert VOICE_COMMANDS[f"{phrase} {side}"] == f"{side}_{act}"
+            for satellite in ("portrait", "landscape", "both"):
+                assert VOICE_COMMANDS[f"{satellite} {phrase}"] == f"{satellite}_{act}"
+                assert VOICE_COMMANDS[f"{phrase} {satellite}"] == f"{satellite}_{act}"
             assert VOICE_COMMANDS[f"main {phrase}"] == f"main_funestra_{act}"
             assert VOICE_COMMANDS[f"{phrase} main"] == f"main_funestra_{act}"
 
 
 def test_group_commands_join_the_order_agnostic_grid():
     """The group actions are order-agnostic in both words: "action loop" and
-    "loop action" are equivalent, each works bare (active side) and with a side
+    "loop action" are equivalent, each works bare (active side) and with a Satellite
     word in either order, like the other satellite actions."""
     for words, act in {
         ("action loop", "loop action"): "action_loop",
@@ -579,9 +579,9 @@ def test_group_commands_join_the_order_agnostic_grid():
     }.items():
         for word in words:
             assert VOICE_COMMANDS[word] == f"active_{act}"
-            for side in ("portrait", "landscape", "both"):
-                assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
-                assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
+            for satellite in ("portrait", "landscape", "both"):
+                assert VOICE_COMMANDS[f"{satellite} {word}"] == f"{satellite}_{act}"
+                assert VOICE_COMMANDS[f"{word} {satellite}"] == f"{satellite}_{act}"
 
 
 def test_resume_and_unpause_are_synonyms_for_play():
@@ -594,9 +594,9 @@ def test_shuffle_joins_the_order_agnostic_satellite_grid():
     """Shuffle is sided like its counterpart Latest, so a single satellite can be
     reshuffled without disturbing the other."""
     assert VOICE_COMMANDS["shuffle"] == "active_shuffle"
-    for side in ("portrait", "landscape", "both"):
-        assert VOICE_COMMANDS[f"{side} shuffle"] == f"{side}_shuffle"
-        assert VOICE_COMMANDS[f"shuffle {side}"] == f"{side}_shuffle"
+    for satellite in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{satellite} shuffle"] == f"{satellite}_shuffle"
+        assert VOICE_COMMANDS[f"shuffle {satellite}"] == f"{satellite}_shuffle"
 
 
 def test_skip_and_back_join_the_grid_for_every_funestra():
@@ -605,16 +605,16 @@ def test_skip_and_back_join_the_grid_for_every_funestra():
     addressed, or with the Funestra named either side of them."""
     for word, act in (("skip", "nudge_next"), ("back", "nudge_prev")):
         assert VOICE_COMMANDS[word] == f"active_{act}"
-        for side in ("portrait", "landscape", "both", "main"):
-            assert VOICE_COMMANDS[f"{side} {word}"] == f"{side}_{act}"
-            assert VOICE_COMMANDS[f"{word} {side}"] == f"{side}_{act}"
+        for satellite in ("portrait", "landscape", "both", "main"):
+            assert VOICE_COMMANDS[f"{satellite} {word}"] == f"{satellite}_{act}"
+            assert VOICE_COMMANDS[f"{word} {satellite}"] == f"{satellite}_{act}"
 
 
 def test_reset_joins_the_order_agnostic_satellite_grid():
     assert VOICE_COMMANDS["reset"] == "active_reset"
-    for side in ("portrait", "landscape", "both"):
-        assert VOICE_COMMANDS[f"{side} reset"] == f"{side}_reset"
-        assert VOICE_COMMANDS[f"reset {side}"] == f"{side}_reset"
+    for satellite in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{satellite} reset"] == f"{satellite}_reset"
+        assert VOICE_COMMANDS[f"reset {satellite}"] == f"{satellite}_reset"
 
 
 def test_reset_all_reaches_every_funestra_in_either_order():
@@ -625,11 +625,11 @@ def test_reset_all_reaches_every_funestra_in_either_order():
 def test_wrong_action_joins_the_order_agnostic_satellite_grid():
     """"Wrong action" says the clip on screen is labeled as doing the wrong
     thing.  It is about one clip, like "weird", so it is sided like one: bare it
-    reaches the side last addressed, and a side word works in either order."""
+    reaches the Satellite last addressed, and a Satellite word works in either order."""
     assert VOICE_COMMANDS["wrong action"] == "active_wrong_action"
-    for side in ("portrait", "landscape", "both"):
-        assert VOICE_COMMANDS[f"{side} wrong action"] == f"{side}_wrong_action"
-        assert VOICE_COMMANDS[f"wrong action {side}"] == f"{side}_wrong_action"
+    for satellite in ("portrait", "landscape", "both"):
+        assert VOICE_COMMANDS[f"{satellite} wrong action"] == f"{satellite}_wrong_action"
+        assert VOICE_COMMANDS[f"wrong action {satellite}"] == f"{satellite}_wrong_action"
     # …and it must not disturb the bare "action", which still cycles.
     assert VOICE_COMMANDS["action"] == "active_cycle_action"
 
@@ -658,10 +658,10 @@ def test_voice_commands_include_generated_filter_phrases():
 
 
 def test_clearing_a_filter_scopes_like_every_other_satellite_action():
-    """It used to be "clear portrait" — the side word standing where an action's
+    """It used to be "clear portrait" — the Satellite word standing where an action's
     own words stand everywhere else in the grid.  Now it is the grid's own
-    "no filter" under two more names, so the side word goes where it always does
-    and bare reaches the side last navigated rather than always both."""
+    "no filter" under two more names, so the Satellite word goes where it always does
+    and bare reaches the Satellite last navigated rather than always both."""
     for phrase in ("no filter", "filter off", "clear filter", "show everything"):
         assert VOICE_COMMANDS[phrase] == "active_no_filter"
         assert VOICE_COMMANDS[f"portrait {phrase}"] == "portrait_no_filter"

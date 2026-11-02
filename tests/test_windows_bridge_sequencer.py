@@ -296,7 +296,7 @@ class TestRunStartupSequence:
         assert result.audio_pid == 70
 
     def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
-        """Our python, the satellite module, and each side's files — plus a log
+        """Our python, the satellite module, and each Satellite's files — plus a log
         per windowed Funestra: under pythonw there is no console, so without one
         an unhandled exception dies tracelessly."""
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
@@ -304,14 +304,14 @@ class TestRunStartupSequence:
         assert core_called["satellite_python_exe"] == str(cfg.paths.python_exe)
         assert core_called["satellite_module"] == "satellite"
         state = cfg.paths.state_dir
-        for side in ("portrait", "landscape"):
-            slot = core_called[side]
-            assert slot.funestra.label == side
-            assert slot.channels.command == Path(state / f"{side}_cmd.txt")
-            assert slot.channels.paused == Path(state / f"{side}_paused.txt")
-            assert slot.channels.status == Path(state / f"{side}_status.txt")
-            assert slot.log_file == tmp_path / f"{side}_satellite.log"
-            assert slot.channels.playlist == tmp_path / f"{side}_playlist.tsv"
+        for satellite in ("portrait", "landscape"):
+            slot = core_called[satellite]
+            assert slot.funestra.label == satellite
+            assert slot.channels.command == Path(state / f"{satellite}_cmd.txt")
+            assert slot.channels.paused == Path(state / f"{satellite}_paused.txt")
+            assert slot.channels.status == Path(state / f"{satellite}_status.txt")
+            assert slot.log_file == tmp_path / f"{satellite}_satellite.log"
+            assert slot.channels.playlist == tmp_path / f"{satellite}_playlist.tsv"
         # The Main Funestra's status file rides along too: startup resumes each Funestra onto
         # the video its status file names, and the Main Funestra is the third of the three.
         assert core_called["main_funestra_status_file"] == str(cfg.main_funestra_status_file)
@@ -1267,7 +1267,7 @@ class TestResolveSatelliteHwnds:
     was the portrait/landscape visual swap.
     """
 
-    def test_resolves_each_side_by_its_distinct_title(self):
+    def test_resolves_each_satellite_by_its_distinct_title(self):
         title_to_hwnd = {"Portrait AI Funestra": 1111, "Landscape AI Funestra": 2222}
 
         with patch(
@@ -1377,7 +1377,7 @@ class TestOrigeneratorLaunch:
         assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
 
     def test_the_hosted_app_is_handed_both_funestras(self, cfg_factory, tmp_path):
-        """Each side's own channel -- the list its Funestra plays, the verbs it
+        """Each Satellite's own channel -- the list its Funestra plays, the verbs it
         drains, the status it publishes -- and where the app publishes the
         panel the session puts on that Funestra.  Last session's panel is gone
         before the app starts, so no side wears a show that is not running."""

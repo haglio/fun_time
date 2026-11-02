@@ -39,10 +39,10 @@ from .origenerator_switches import hosts, origenerator_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
-    forget_what_a_side_was_told_of_the_osr2,
+    forget_what_a_satellite_was_told_of_the_osr2,
     funestra_with_the_osr2,
     osr2_part,
-    tell_a_hosted_side_whose_the_osr2_is,
+    tell_a_hosted_satellite_whose_the_osr2_is,
 )
 from .room_funestras import RoomFunestra
 from .satellite_commands import satellite_at_defaults
@@ -151,19 +151,19 @@ class HudFeed:
         told = self._osr2_told
         for funestra in RoomFunestra.SATELLITES:
             if hosts(funestra, state, self.config):
-                tell_a_hosted_side_whose_the_osr2_is(self.config, told, funestra,
+                tell_a_hosted_satellite_whose_the_osr2_is(self.config, told, funestra,
                                                      funestra is with_the_osr2)
-                side = state.satellite(funestra)
+                held = state.satellite(funestra)
                 self.publisher.publish_text(funestra.label, hud_text(hosted_model(
                     funestra.label, self._worn_hosted_hud(funestra, state),
                     active=state.active_funestra == funestra,
                     origenerator_ready=state.origenerator_ready,
                     in_vr=self.config.vr_main_funestra,
                     crowned=state.crowned == funestra.label, device=device(funestra),
-                    hud_corner=side.hud_corner, hud_edge=side.hud_edge,
-                    hud_minimized=side.hud_minimized)))
+                    hud_corner=held.hud_corner, hud_edge=held.hud_edge,
+                    hud_minimized=held.hud_minimized)))
                 continue
-            forget_what_a_side_was_told_of_the_osr2(told, funestra)
+            forget_what_a_satellite_was_told_of_the_osr2(told, funestra)
             self.publisher.publish(funestra.label, build_satellite_hud(
                 satellite(funestra), self.config.regen_metadata_root,
                 RoomFunestra.label_of(state.active_funestra),
@@ -228,7 +228,7 @@ class HudFeed:
         return worn
 
     def _hosted_hud(self, funestra: RoomFunestra) -> HudModel | None:
-        """The hosted app's HUD for *Funestra*'s side, or None; one it is
+        """The hosted app's HUD for *Funestra*'s Satellite, or None; one it is
         replacing this instant leaves the HUD read before it standing."""
         path = self.config.satellite(funestra).origenerator_hud_file
         if path is None:

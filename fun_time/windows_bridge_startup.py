@@ -67,7 +67,7 @@ logger = logging.getLogger(__name__)
 
 
 # DISTINCT captions, so the by-title fallback (a venv's pythonw
-# launcher can own a pid other than the window's) can never hand one side's
+# launcher can own a pid other than the window's) can never hand one Satellite's
 # window to the other, which is the portrait/landscape visual swap.  They are
 # also what each window calls itself in Alt-Tab, so they name what the window
 # IS rather than this project's internal word for it.
@@ -366,7 +366,7 @@ def start_core_session(
         (Path(portrait.channels.playlist), portrait_status.video),
         (Path(landscape.channels.playlist), landscape_status.video),
     ])
-    # Come back to the state that session was in, too — F-mode, each side's
+    # Come back to the state that session was in, too — F-mode, each Satellite's
     # filter, order and lock, any group loop, the sound level, which Funestra had
     # the big display.  The dispatch loop opens on this file, so a session that
     # resumed the files and not the state described itself wrongly on every HUD.
@@ -406,7 +406,7 @@ def start_core_session(
         if resumed
         else "Nothing to resume; built fresh playlists"
     )
-    # A lock has no file of its own to come back in, so queue it for each side
+    # A lock has no file of its own to come back in, so queue it for each Satellite
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
         (Path(portrait.channels.command), carried.satellite(RoomFunestra.PORTRAIT).locked),
@@ -443,7 +443,7 @@ def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts
 @dataclass(frozen=True)
 class HandedFunestra:
     """One Satellite Funestra as the hosted app is handed it: the files the
-    Funestra contract trades through, plus the one that app publishes the side's
+    Funestra contract trades through, plus the one that app publishes the Satellite's
     HUD to for the session to put on the Funestra."""
 
     playlist_file: str | Path
@@ -474,12 +474,12 @@ def origenerator_session_args(
     # session hands it no Funestra.  Unsent, those fell to a rect of zeroes.
     args.extend(_rect_args("portrait-", layout_plan.portrait))
     args.extend(_rect_args("landscape-", layout_plan.landscape))
-    for side, funestra in funestras.items():
+    for satellite, funestra in funestras.items():
         args.extend([
-            f"--{side}-playlist", str(funestra.playlist_file),
-            f"--{side}-cmd-file", str(funestra.cmd_file),
-            f"--{side}-status-file", str(funestra.status_file),
-            f"--{side}-hud-file", str(funestra.hud_file),
+            f"--{satellite}-playlist", str(funestra.playlist_file),
+            f"--{satellite}-cmd-file", str(funestra.cmd_file),
+            f"--{satellite}-status-file", str(funestra.status_file),
+            f"--{satellite}-hud-file", str(funestra.hud_file),
         ])
     if frames_file is not None and input_file is not None:
         args.extend(["--frames-file", str(frames_file),

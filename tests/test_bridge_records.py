@@ -1,4 +1,4 @@
-"""BridgeConfig's per-side view — the config half of the side lens."""
+"""BridgeConfig's per-Satellite view — the config half of the Satellite lens."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,7 +35,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     )
 
 
-def test_side_bundles_one_satellites_channel(tmp_path: Path):
+def test_satellite_bundles_one_satellites_channel(tmp_path: Path):
     config = _make_config(tmp_path)
 
     portrait, landscape = config.satellite(2), config.satellite(3)

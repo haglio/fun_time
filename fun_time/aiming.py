@@ -41,8 +41,8 @@ def resolve_active_funestra_command(command: str, active_funestra: int) -> str:
     action = command.removeprefix("active_")
     if active_funestra == RoomFunestra.MAIN:
         return on_the_main_funestra(action) or command
-    side = "portrait" if active_funestra == RoomFunestra.PORTRAIT else "landscape"
-    return f"{side}_{action}"
+    satellite = "portrait" if active_funestra == RoomFunestra.PORTRAIT else "landscape"
+    return f"{satellite}_{action}"
 
 
 _NAMED_BY = {"portrait_": RoomFunestra.PORTRAIT, "landscape_": RoomFunestra.LANDSCAPE,

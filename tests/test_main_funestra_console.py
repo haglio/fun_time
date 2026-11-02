@@ -210,7 +210,7 @@ def test_the_shapes_reported_are_the_shapes_of_whoever_is_showing():
     assert _button(_payload(main_mode=MainMode.GENAU, **both), "main_projection_none").lit is True
 
 
-def test_the_hud_title_names_each_pair_left_on_one_side_in_the_order_they_sit():
+def test_the_hud_title_names_each_pair_left_on_one_satellite_in_the_order_they_sit():
     assert _payload().filters == ()
     assert _payload(length_mode=LengthMode.CLIPS).filters == ("Clips",)
     assert _payload(plays_vr=True, plays_flat=False,

@@ -125,7 +125,7 @@ def apply_satellite_fmode(
 ) -> None:
     """Rebuild one satellite's playlist under *enabled* and tell it to re-read.
 
-    F-mode narrows a satellite to the favorites.  The side's own filter and
+    F-mode narrows a satellite to the favorites.  The Satellite's own filter and
     order ride along, so narrowing to favorites does not quietly undo either.
     """
     build_one_satellite_playlist(
@@ -166,7 +166,7 @@ def apply_fmode(
     """Put each of *Funestras* into F-mode, or take it out, and rebuild just those.
 
     A Funestra not named is not touched at all — its playlist file is left exactly
-    as it is, so setting one side's F-mode cannot reshuffle the other's queue out
+    as it is, so setting one Satellite's F-mode cannot reshuffle the other's queue out
     from under it.  That is the whole reason the rebuild is per Funestra rather
     than one build of all three.
     """
@@ -294,15 +294,15 @@ def apply_satellite_switch(
     Entering keeps the Funestra's own list aside for the way back, lets go of
     the session's hold on it -- what holds is the app's to say now -- and asks
     the app for a slideshow on it, so the mode opens playing rather than empty: the
-    app picks the set, the whole library of that side's shape, shuffled.
+    app picks the set, the whole library of that Satellite's shape, shuffled.
     Leaving tells it to let go; the Funestra comes home once it has (see
     :mod:`fun_time.funestra_handover`).
     """
-    side = funestra.label.capitalize()
+    satellite = funestra.label.capitalize()
     if current_mode == target_mode:
         return SatelliteSwitchFlowResult(
             next_mode=target_mode, is_transition=False,
-            log_message=f"{side} already in {target_mode} mode")
+            log_message=f"{satellite} already in {target_mode} mode")
     if target_mode == KINO_MODE:
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), said_about(funestra.label, CLOSE_SLIDESHOW))
@@ -313,4 +313,4 @@ def apply_satellite_switch(
             append_command(Path(origenerator_cmd_file), said_about(funestra.label, OPEN_SLIDESHOW))
     return SatelliteSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
-        log_message=f"{side} switched to {target_mode} mode")
+        log_message=f"{satellite} switched to {target_mode} mode")
