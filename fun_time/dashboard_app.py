@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 import configparser
 import logging
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
+from math import ceil
 from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
@@ -70,6 +70,7 @@ from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.message_feed import MessageFeed
 from fun_time.message_overlay import MessageOverlay
+from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
 from fun_time.session_end import mark_session_end
@@ -645,9 +646,6 @@ def apply_dashboard_window_geometry(
     window.resize(scene.width, scene.height)
 
 
-PRESS_FLASH_S = 0.2
-
-
 from app_support.win32 import set_app_user_model_id
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QMainWindow
@@ -676,7 +674,10 @@ class DashboardWindow(QMainWindow):
         # Read once; the message feed below is seeded from this same answer.
         self._reveal = LoadingReveal(app_config.state_dir)
 
-        self._pressed: dict[str, float] = {}
+        self._flash = PressFlash()
+        self._flash_going_out = QTimer(self)
+        self._flash_going_out.setSingleShot(True)
+        self._flash_going_out.timeout.connect(self._show_presses)
         self._last_snapshot: DashboardSnapshot | None = None
 
         self._shown_as = preview_marker.shown_as()
@@ -779,6 +780,7 @@ class DashboardWindow(QMainWindow):
         self._press_channel.stop()
         self._refresh_timer.stop()
         self._message_timer.stop()
+        self._flash_going_out.stop()
         self._log_widget.shutdown()
         self._osr2.shutdown()
         self._messages.shutdown()
@@ -813,12 +815,11 @@ class DashboardWindow(QMainWindow):
             return  # startup's own minimize came back; routing is live from here
         write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
 
-    def _compute_pressed(self) -> frozenset[str]:
-        now = time.monotonic()
-        active = frozenset(aid for aid, t in self._pressed.items() if now - t < PRESS_FLASH_S)
-        for aid in [a for a, t in self._pressed.items() if now - t >= PRESS_FLASH_S]:
-            del self._pressed[aid]
-        return active
+    def _show_presses(self) -> None:
+        self._do_render(self._last_snapshot, self._flash.lit())
+        waiting = self._flash.seconds_until_one_goes_out()
+        if waiting is not None:
+            self._flash_going_out.start(ceil(waiting * 1000))
 
     def _sync_own_topmost(self, omni_paused: bool) -> None:
         """Keep the dashboard's own topmost band in step with OmniPause.
@@ -867,7 +868,7 @@ class DashboardWindow(QMainWindow):
         )
 
     def _repaint_bar(self) -> None:
-        self._widget.set_scene(self._bar_scene(self._compute_pressed()))
+        self._widget.set_scene(self._bar_scene(self._flash.lit()))
 
     def _pause_for_typing(self) -> None:
         write_dashboard_command(self._app_config.dashboard_cmd_file, ENTER_OMNIPAUSE)
@@ -876,13 +877,9 @@ class DashboardWindow(QMainWindow):
         if action_id == HELP_REFERENCE:
             self._reference.toggle(self._omni_paused)
             return
-        self._pressed[action_id] = time.monotonic()
+        self._flash.press(action_id)
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
-        self._do_render(self._last_snapshot, self._compute_pressed())
-        QTimer.singleShot(
-            int(PRESS_FLASH_S * 1000) + 10,
-            lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
-        )
+        self._show_presses()
 
     def _handle_press_event(self) -> None:
         self._apply_presses(self._press_channel.take_all())
@@ -896,22 +893,18 @@ class DashboardWindow(QMainWindow):
         whole batch before either is acted on.
         """
         for action in actions:
-            self._pressed[action] = time.monotonic()
+            self._flash.press(action)
         if HELP_REFERENCE_CLOSE in actions:
             self._reference.close()
         if HELP_REFERENCE in actions:
             self._reference.toggle(self._omni_paused)
-        self._do_render(self._last_snapshot, self._compute_pressed())
-        QTimer.singleShot(
-            int(PRESS_FLASH_S * 1000) + 10,
-            lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
-        )
+        self._show_presses()
 
     def _refresh(self) -> None:
         self._reveal.maybe_reveal()
         self._do_render(
             load_dashboard_snapshot(self._app_config.dashboard_state_file),
-            self._compute_pressed(),
+            self._flash.lit(),
         )
 
 
