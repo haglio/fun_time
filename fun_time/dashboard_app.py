@@ -10,8 +10,19 @@ from math import ceil
 from pathlib import Path
 
 from app_support.logging_utils import install_exception_logging
+from app_support.win32 import set_app_user_model_id
 from funestra.file_channel import append_command
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtCore import QEvent, QRectF, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QFont, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from PyQt6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QMainWindow,
+    QTextBrowser,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+)
 from shared_ui.application import application
 from shared_ui.colors import (
     BG_BUTTON,
@@ -318,14 +329,6 @@ def build_dashboard_scene(
     )
 
 
-# ---------------------------------------------------------------------------
-# PyQt6 rendering widget
-# ---------------------------------------------------------------------------
-from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
-from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
-
-
 def _pointer_at(event: object) -> tuple[int, int]:
     pos = event.position()
     return int(pos.x()), int(pos.y())
@@ -600,11 +603,6 @@ def apply_dashboard_window_geometry(
         )
         return
     window.resize(scene.width, scene.height)
-
-
-from app_support.win32 import set_app_user_model_id
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QMainWindow
 
 
 class DashboardWindow(QMainWindow):
