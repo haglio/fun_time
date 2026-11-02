@@ -196,7 +196,7 @@ class TestTellingAKeptAppWhereItsWindowGoes:
         keep_the_origenerator(config.paths.state_dir, pid=6060, created_at=44)
         monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
         looking = patch("fun_time.window_layout.enumerate_monitors", return_value=monitors)
-        alive = patch("fun_time.hosted_origenerator.get_process_creation_time",
+        alive = patch("fun_time.hosted_origenerator.process_started",
                       return_value=44)
         with looking, alive:
             app = bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
@@ -258,7 +258,7 @@ class TestAdoptingAKeptOrigenerator:
 
     def test_a_live_record_is_adopted_and_spent(self, tmp_path: Path):
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
-        with patch("fun_time.hosted_origenerator.get_process_creation_time",
+        with patch("fun_time.hosted_origenerator.process_started",
                    return_value=44):
             assert _adopt_a_kept_origenerator(self._manifest(tmp_path)).pid == 6060
 
@@ -268,7 +268,7 @@ class TestAdoptingAKeptOrigenerator:
         """Windows hands freed pids straight back out, so the creation time is
         what says the process is still the one that was parked."""
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
-        with patch("fun_time.hosted_origenerator.get_process_creation_time",
+        with patch("fun_time.hosted_origenerator.process_started",
                    return_value=45):
             assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
@@ -283,7 +283,7 @@ class TestAdoptingAKeptOrigenerator:
         (tmp_path / "origenerator_cmd.txt").write_text("CLOSE_SLIDESHOWS\n", encoding="utf-8")
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
 
-        with patch("fun_time.hosted_origenerator.get_process_creation_time",
+        with patch("fun_time.hosted_origenerator.process_started",
                    return_value=44):
             _adopt_a_kept_origenerator(self._manifest(tmp_path))
 

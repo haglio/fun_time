@@ -16,6 +16,7 @@ from pathlib import Path
 
 from app_support import osr2_hold
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.win32 import process_started
 from funestra import broker
 from funestra.file_channel import append_command
 from funestra.modes import MainMode
@@ -59,7 +60,7 @@ from .session_resume import (
     resume_what_lives_in_a_funestra,
 )
 from .shared_state import shared_state_path
-from .win32_process import get_process_creation_time, unix_seconds
+from .win32_process import unix_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
         return None
     started = [created for found in processes_matching(
                    contract.image_pattern, contract.broker_command_line_pattern)
-               if (created := get_process_creation_time(found.pid)) is not None]
+               if (created := process_started(found.pid)) is not None]
     return unix_seconds(min(started)) if started else None
 
 

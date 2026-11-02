@@ -101,29 +101,6 @@ def get_process_image_name(pid: int) -> str | None:
         _kernel32.CloseHandle(handle)
 
 
-def get_process_creation_time(pid: int) -> int | None:
-    """Return the FILETIME at which the process now holding *pid* was created.
-
-    Windows hands a freed PID back out within seconds, so a PID alone does not
-    name a process.  ``(pid, creation_time)`` does: a process can only take a
-    PID after its previous owner is gone, so the newcomer's creation time is
-    strictly later.  Record this alongside a PID and compare it before killing,
-    and a recycled PID is recognized rather than shot.
-
-    ``GetProcessTimes`` fills lpCreationTime with a FILETIME (100-nanosecond
-    ticks since 1601-01-01 UTC) and accepts a handle opened for
-    PROCESS_QUERY_LIMITED_INFORMATION.  Returns None when the process no longer
-    exists (or cannot be opened).
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return None
-    try:
-        return creation_time_of(handle)
-    finally:
-        _kernel32.CloseHandle(handle)
-
-
 _FILETIME_AT_THE_UNIX_EPOCH = 116_444_736_000_000_000
 
 

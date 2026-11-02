@@ -9,9 +9,10 @@ from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import NamedTuple
 
+from app_support.win32 import process_started
 from app_support.win32_loader import load_dll
 
-from fun_time.win32_process import creation_time_of, get_process_creation_time, list_child_pids
+from fun_time.win32_process import creation_time_of, list_child_pids
 from tests.integration.run_clock import Budget
 
 A_STARVED_CHILDS_START_S = 120.0
@@ -37,7 +38,7 @@ class StartedProcess(NamedTuple):
 
     @classmethod
     def of(cls, pid: int) -> StartedProcess:
-        return cls(pid, get_process_creation_time(pid))
+        return cls(pid, process_started(pid))
 
 
 @contextmanager

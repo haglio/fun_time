@@ -87,7 +87,6 @@ DESKTOP_ICON_NAME = "icon.ico"
 
 RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 
-FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
 _SUPERSEDED_PATH_KEYS = ("portrait_dir", "landscape_dir", "genau_dir", "genau_python_exe",

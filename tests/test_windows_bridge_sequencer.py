@@ -11,6 +11,7 @@ import pytest
 from app_support import origenerator_handoff as handoff
 from app_support import ports
 from app_support.origenerator_handoff import hand_over, take_the_takeover
+from app_support.win32 import process_started
 from funestra.modes import MainMode, SatellitesMode
 
 from fun_time import windows_bridge_sequencer
@@ -44,7 +45,6 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
-from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -1443,7 +1443,7 @@ class TestOrigeneratorLaunch:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         open_app = os.getpid()
-        offered = handoff.Process(open_app, created_at or get_process_creation_time(open_app))
+        offered = handoff.Process(open_app, created_at or process_started(open_app))
         (checkout / "state").mkdir(parents=True)
         (checkout / "state" / handoff.OFFER).write_text(
             f"{handoff.offer_of(offered, starting=starting)}\n", encoding="utf-8")
@@ -1601,7 +1601,7 @@ class TestOrigeneratorLaunch:
         )
         open_app = os.getpid()
         keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=open_app,
-                              created_at=get_process_creation_time(open_app), taken_over=True)
+                              created_at=process_started(open_app), taken_over=True)
 
         with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
              pytest.raises(StartupCancelled) as excinfo:
@@ -1680,7 +1680,7 @@ class TestOrigeneratorLaunch:
         )
         kept_app = os.getpid()
         keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=kept_app,
-                              created_at=get_process_creation_time(kept_app))
+                              created_at=process_started(kept_app))
 
         with _sequencer_stubs(launch_origenerator=dict()):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
