@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 from funestra.playback import Playback
+from funestra.testing import FakeEngine
 
 from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time_vr.frame_shape import FISHEYE_CIRCLE
@@ -23,7 +24,6 @@ from fun_time_vr.projection import (
     ProjectionMemory,
 )
 from fun_time_vr.render import immersive_wrap
-from tests.satellite_fakes import FakeSatelliteEngine
 
 HOUR_MS = 3_600_000.0
 
@@ -64,7 +64,7 @@ def headset(tmp_path):
     three = vr_dir / "scene three.mp4"
     for video in (one, two, three):
         video.write_bytes(b"")
-    engine = FakeSatelliteEngine(duration_ms=HOUR_MS)
+    engine = FakeEngine(duration_ms=HOUR_MS)
     playback = Playback([one, two, three], engine=engine, locked=True)
     verbs = HeadsetVerbs(playback, metadata_root=metadata, vr_dirs=(vr_dir,))
     return SimpleNamespace(verbs=verbs, playback=playback, engine=engine, metadata=metadata,
@@ -195,7 +195,7 @@ class TestProjectionCycling:
         vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
         vr_dir.mkdir(parents=True)
         one, two = vr_dir / "scene one.mp4", vr_dir / "scene two.mp4"
-        playback = Playback([one, two], engine=FakeSatelliteEngine(), locked=True)
+        playback = Playback([one, two], engine=FakeEngine(), locked=True)
         verbs = HeadsetVerbs(playback, metadata_root=metadata, vr_dirs=(vr_dir,))
 
         verbs.apply("CYCLE_PROJECTION")
@@ -403,7 +403,7 @@ class TestLayoutReset:
 class TestTilt:
     def _opened_at(self, tmp_path, tilt_deg):
         feature = tmp_path / "feature.mp4"
-        return HeadsetVerbs(Playback([feature], engine=FakeSatelliteEngine(), locked=True),
+        return HeadsetVerbs(Playback([feature], engine=FakeEngine(), locked=True),
                             metadata_root=None, vr_dirs=(), tilt_deg=tilt_deg)
 
     def test_the_room_opens_at_the_tilt_the_last_session_was_left_at(self, tmp_path):
@@ -524,7 +524,7 @@ class TestScenes:
         sidecar = metadata / "VR" / "finished" / "scene one.json"
         sidecar.parent.mkdir(parents=True)
         sidecar.write_text(json.dumps({"scenes": [{"start": 90}]}), encoding="utf-8")
-        engine = FakeSatelliteEngine(duration_ms=HOUR_MS)
+        engine = FakeEngine(duration_ms=HOUR_MS)
         verbs = HeadsetVerbs(Playback([video], engine=engine, locked=True),
                              metadata_root=metadata, vr_dirs=(vr_dir,))
 

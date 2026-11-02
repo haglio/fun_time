@@ -9,13 +9,13 @@ from funestra.funestra import User
 from funestra.modes import LoopState, NoticeLevel
 from funestra.playback import Playback
 from funestra.playlist import PlaylistItem
+from funestra.testing import FakeEngine
 
 from main_funestra.cli import build_parser, kino_on
 from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino
 from main_funestra.library import LibraryEntry
 from main_funestra.mode_memory import ModeMemory, RememberedMode
-from tests.satellite_fakes import FakeSatelliteEngine
 
 
 class FakeSource:
@@ -61,7 +61,7 @@ class World:
                 self.scripts[video] = script
         entries = [LibraryEntry(video, self.scripts.get(video), 1) for video in (self.first, self.second)]
         self.source = FakeSource(entries, metadata_root=meta)
-        self.engine = FakeSatelliteEngine(duration_ms=60_000.0)
+        self.engine = FakeEngine(duration_ms=60_000.0)
         self.playback = Playback([self.first, self.second], engine=self.engine, locked=True,
                                  funscripts=dict(self.scripts))
         self.memory = ModeMemory(tmp_path / "main_player_mode.txt")

@@ -10,9 +10,9 @@ from pathlib import Path
 
 from funestra.playback import Playback
 from funestra.playlist import PlaylistItem
+from funestra.testing import FakeEngine
 
 from main_funestra.versions import Versions
-from tests.satellite_fakes import FakeSatelliteEngine
 
 _SCENE_ONE = ("Jane Doe - scene one.mp4", "Jane Doe - scene one_topaz.mp4")
 
@@ -31,8 +31,8 @@ def _families(*families: list[Path]) -> dict[Path, list[PlaylistItem]]:
     }
 
 
-def _playing(playlist: list[Path], version_index) -> tuple[Versions, Playback, FakeSatelliteEngine]:
-    engine = FakeSatelliteEngine()
+def _playing(playlist: list[Path], version_index) -> tuple[Versions, Playback, FakeEngine]:
+    engine = FakeEngine()
     playback = Playback(playlist, engine=engine, locked=True)
     return Versions(playback, version_index), playback, engine
 
