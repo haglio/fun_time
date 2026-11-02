@@ -12,7 +12,7 @@ from .projection import (
     MKX200_SBS,
     RECTILINEAR_SBS,
 )
-from .render import Wrap
+from .wraps import Wrap
 
 READOUT_EVERY_S = 0.1
 

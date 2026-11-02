@@ -149,7 +149,6 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
 )
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
-from fun_time_vr.render import immersive_wrap
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
@@ -165,6 +164,7 @@ from fun_time_vr.surfaces import HudBitmap, LatestFrame
 from fun_time_vr.thumbs import NUDGE_FORWARD
 from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
+from fun_time_vr.wraps import immersive_wrap
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.contract import MainChannels
 from main_funestra.genau import ROBOT_HAND, GenauChannels

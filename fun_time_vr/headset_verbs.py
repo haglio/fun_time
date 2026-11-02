@@ -18,8 +18,8 @@ from fun_time.media_metadata import recorded_for
 
 from .layout import clamp_tilt
 from .projection import ProjectionMemory, next_projection, previous_projection
-from .render import Wrap, immersive_wrap
 from .video_scenes import scene_starts_ms
+from .wraps import Wrap, immersive_wrap
 
 logger = logging.getLogger(__name__)
 

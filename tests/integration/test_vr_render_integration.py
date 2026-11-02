@@ -19,7 +19,8 @@ from fun_time_vr.projection import (
     MKX200_SBS,
     RECTILINEAR_SBS,
 )
-from fun_time_vr.render import FrameTexture, RenderTarget, SceneRenderer, immersive_wrap
+from fun_time_vr.render import FrameTexture, RenderTarget, SceneRenderer
+from fun_time_vr.wraps import immersive_wrap
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32",

@@ -42,8 +42,9 @@ from fun_time_vr.layout import (
     remembered_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
-from fun_time_vr.render import SceneRenderer, immersive_wrap
+from fun_time_vr.render import SceneRenderer
 from fun_time_vr.scheduling import ahead_of_background_work
+from fun_time_vr.wraps import immersive_wrap
 from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
 
 from .integration_support import (

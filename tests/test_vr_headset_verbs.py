@@ -23,7 +23,7 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
     ProjectionMemory,
 )
-from fun_time_vr.render import immersive_wrap
+from fun_time_vr.wraps import immersive_wrap
 
 HOUR_MS = 3_600_000.0
 

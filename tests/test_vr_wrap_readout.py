@@ -13,8 +13,8 @@ from fun_time_vr.projection import (
     NAMED_PROJECTIONS,
     RECTILINEAR_SBS,
 )
-from fun_time_vr.render import immersive_wrap
 from fun_time_vr.wrap_readout import READOUT_EVERY_S, WrapReadout, label, readout
+from fun_time_vr.wraps import immersive_wrap
 
 
 def test_every_projection_is_named_in_the_apps_own_words():
