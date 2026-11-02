@@ -461,7 +461,7 @@
     "tests/test_integration_support.py": 173,
     "tests/test_integration_teardown.py": 23,
     "tests/test_launch_smoke.py": 24,
-    "tests/test_launchers.py": 29,
+    "tests/test_launchers.py": 26,
     "tests/test_library_browser.py": 101,
     "tests/test_library_handles.py": 76,
     "tests/test_library_record_contract.py": 18,

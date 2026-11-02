@@ -8,12 +8,9 @@ sibling *repo* directories as namespace packages instead and dies on
 orchestrator has configured any logging: the app never appears and no log
 anywhere says why.
 
-The three ``.vbs`` launchers are rendered from their specs in pyproject.toml by
-``app_support.launcher``, whose own tests hold what every launcher does: the venv
-pin, a log a stray child still holding it cannot take from a launch, the ready
-and exit files a hidden launch reports through, and the failure dialog showing
-the end of the log.  What is Fun Time's is asked of each launcher under the real
-script host.
+The ``.vbs`` launchers are rendered from their specs in pyproject.toml, and the
+family's gates ask every launcher what every launcher owes.  What is Fun Time's
+is asked of each one under the real script host.
 """
 from __future__ import annotations
 
@@ -22,7 +19,7 @@ from pathlib import Path
 
 import pytest
 from app_support.launcher import dry_run, run_under_script_host
-from app_support.production_update import TURN, UPKEEP_MARK
+from app_support.production_update import UPKEEP_MARK
 
 from fun_time.branch_session import (
     LAUNCHER_NAME,
@@ -36,11 +33,6 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 STATE = PROJECT_DIR / "state"
 
 on_windows = pytest.mark.skipif(sys.platform != "win32", reason="the Windows script host")
-
-
-def test_the_launchers_are_where_their_shortcuts_point():
-    for name in ("launch.vbs", "launch_vr.vbs", LAUNCHER_NAME):
-        assert (PROJECT_DIR / name).is_file(), name
 
 
 def test_shell_wrapper_starts_the_orchestrator_on_the_project_venv():
@@ -57,10 +49,7 @@ def test_shell_wrapper_starts_the_orchestrator_on_the_project_venv():
 def test_the_desktop_launcher_runs_the_orchestrator_and_watches_the_marker_it_writes():
     report = dry_run(PROJECT_DIR / "launch.vbs")
 
-    assert Path(report.value("interpreter")).parent == PROJECT_DIR / ".venv" / "Scripts"
-    assert Path(report.value("directory")) == PROJECT_DIR
     assert report.value("arguments") == "-m fun_time.orchestrator"
-    assert Path(report.value("log")) == STATE / "launcher.log"
     assert Path(report.value("ready")) == STATE / STARTUP_MARKER_NAME
 
 
@@ -71,7 +60,6 @@ def test_the_vr_launcher_runs_the_vr_orchestrator_under_its_own_marker():
     report = dry_run(PROJECT_DIR / "launch_vr.vbs")
 
     assert report.value("arguments") == "-m fun_time_vr.orchestrator"
-    assert Path(report.value("log")) == STATE / "vr_launcher.log"
     assert Path(report.value("ready")) == STATE / VR_STARTUP_MARKER_NAME
 
 
@@ -126,16 +114,6 @@ def test_a_branch_launch_reads_the_note_branch_session_leaves_where_it_leaves_it
 
 
 @on_windows
-def test_a_new_previews_first_click_shows_the_snapshots_an_earlier_preview_left(tmp_path: Path):
-    worktree = tmp_path / "worktree"
-    worktree.mkdir()
-
-    report = dry_run(PROJECT_DIR / LAUNCHER_NAME, str(worktree), "example-branch")
-
-    assert Path(report.value("pictures")) == STATE / "launcher.screen" / "preview"
-
-
-@on_windows
 def test_the_branch_launcher_on_its_own_says_what_to_double_click_instead():
     """He is never asked to find a branch: the agent with something to show
     leaves a Verify shortcut naming its worktree."""
@@ -163,12 +141,3 @@ def test_the_main_verifier_is_the_machines_upkeep_so_no_update_waits_for_it():
     assert report.values("environment") == [f"{UPKEEP_MARK}=1"]
 
 
-@on_windows
-def test_every_launch_waits_out_an_update_of_fun_time_and_of_the_origenerator_it_hosts(tmp_path: Path):
-    worktree = tmp_path / "worktree"
-    worktree.mkdir()
-    gates = [str(PROJECT_DIR / ".git" / TURN), str(PROJECT_DIR.parent / "origenerator" / ".git" / TURN)]
-
-    for launcher, arguments in (("launch.vbs", ()), ("launch_vr.vbs", ()), ("launch_main_verifier.vbs", ()),
-                                (LAUNCHER_NAME, (str(worktree), "example-branch"))):
-        assert dry_run(PROJECT_DIR / launcher, *arguments).values("gate") == gates, launcher
