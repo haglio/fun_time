@@ -24,7 +24,7 @@ from fun_time.project_paths import PROJECT_VR_ICON
 
 from . import vr_runtime
 from .bringup import open_vr_session
-from .frame_loop import present_the_cover, raise_the_cover, show_the_room, tear_down
+from .frame_loop import FrameLoop, Headset, present_the_cover, raise_the_cover, tear_down
 from .funestras import CoverUnit, VrSettings, hang_the_room
 from .perf import FramePerf
 from .render import SceneRenderer
@@ -98,26 +98,25 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         _show_error_popup(opened.message)
         return 1
     session = opened.session
-    renderer = SceneRenderer()
-    perf = FramePerf(logger=logger)
+    headset = Headset(session, SceneRenderer(), FramePerf(logger=logger))
     state_dir = Path(manifest.commands.dashboard_cmd_file).parent
     # Before the Funestras and refreshed between them: each opens media.
     cover = CoverUnit(state_dir)
-    raise_the_cover(session, renderer, cover)
+    raise_the_cover(headset, cover)
     the_room = hang_the_room(
         manifest, vr, session.shared_contexts(), manifest_path=manifest_path, cover=cover,
-        perf=perf, present_the_cover=lambda: present_the_cover(session, renderer, cover))
-    workers = the_room.start_pumping(perf)
+        perf=headset.perf, present_the_cover=lambda: present_the_cover(headset, cover))
+    the_room.start_pumping(headset.perf)
     logger.info(
         "Entering the VR loop (three Funestras up, compositor layers %s)",
         "on" if vr.compositor_layers else "off",
     )
     try:
-        show_the_room(session, renderer, the_room, perf, glfw, use_layers=vr.compositor_layers)
+        FrameLoop(headset, the_room, use_layers=vr.compositor_layers).show_the_room(glfw)
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:
-        tear_down(session, renderer, the_room, workers, state_dir)
+        tear_down(headset, the_room, state_dir)
     return 0
 
 

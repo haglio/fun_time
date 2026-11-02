@@ -228,7 +228,8 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._screen_names() & named == set()
 
     @pytest.mark.parametrize("step", [
-        frame_loop.show_the_room, frame_loop.show_a_frame, frame_loop.quad_layers,
+        frame_loop.FrameLoop.show_the_room, frame_loop.FrameLoop.show_a_frame,
+        frame_loop.FrameLoop.quad_layers,
         funestras.Arrangement.arrange, funestras.Arrangement._move,
     ])
     def test_the_frame_loop_names_no_screen_of_its_own(self, step):

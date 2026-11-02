@@ -1485,7 +1485,7 @@ def test_the_cover_goes_up_before_the_funestras_are_built():
 def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
     """One arrangement goes to the pointer and to the eye pass, so what a squeeze
     lands on is what was in front."""
-    tree = ast.parse(inspect.getsource(frame_loop.show_a_frame))
+    tree = ast.parse(inspect.getsource(frame_loop.FrameLoop.show_a_frame).lstrip())
     (drawn,) = [n for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and ast.unparse(n.func) == "draw_eyes"]
 
@@ -1650,14 +1650,14 @@ class TestHangingTheRoom:
 
         with patch("fun_time_vr.funestras.start_daemon_thread",
                    side_effect=lambda **how: started.append(how) or SimpleNamespace(**how)):
-            workers = the_room.start_pumping(perf)
+            the_room.start_pumping(perf)
 
         by_name = {one["name"]: one for one in started}
         assert by_name["main-funestra"]["args"] == ([the_room.main_unit], the_room.stop, perf)
         assert by_name["main-funestra"]["kwargs"] == {"hz": MAIN_TICK_HZ}
         assert by_name["file-channels"]["args"] == (the_room.pumped, the_room.stop, perf)
         assert all(one["target"] is funestras._pump_channels for one in started)
-        assert len(workers) == len(started) == 2
+        assert len(the_room.workers) == len(started) == 2
 
     def test_the_browse_asks_whether_genau_has_the_main_slot(self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)

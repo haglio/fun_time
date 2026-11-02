@@ -1751,6 +1751,7 @@ class TheRoom:
         self.pointing = pointing
         self.cover_watch = cover_watch
         self.stop = stop
+        self.workers: tuple[threading.Thread, ...] = ()
         self.wear = HeadsetWear()
         # Dash before the console, which hangs off where the dashboard ended up.
         self.units = [main_unit, *self.satellites, dash, console, reference, library,
@@ -1763,8 +1764,8 @@ class TheRoom:
     def videos(self) -> tuple[_VideoUnit, ...]:
         return (self.main_unit, *self.satellites)
 
-    def start_pumping(self, perf: FramePerf) -> tuple[threading.Thread, threading.Thread]:
-        return (
+    def start_pumping(self, perf: FramePerf) -> None:
+        self.workers = (
             start_daemon_thread(
                 target=_pump_channels, args=(self.pumped, self.stop, perf), name="file-channels"),
             start_daemon_thread(
