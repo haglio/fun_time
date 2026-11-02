@@ -10,8 +10,8 @@ from pathlib import Path
 
 from funestra.modes import MainMode, SatellitesMode
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.origenerator_switches import RfbMode
-from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import (
     SHARED_STATE_FILENAME,
@@ -46,15 +46,15 @@ class TestTheSharedStateFile:
         assert migrate_shared_state(state_file) is True
 
         state = read_shared_state(state_file)
-        assert state.satellite(RoomFunestra.PORTRAIT).locked is True
-        assert state.satellite(RoomFunestra.LANDSCAPE).locked is False
+        assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
         assert state.active_funestra == 3
         assert state.main_scripted_filter is True
-        assert state.satellite(RoomFunestra.PORTRAIT).favorites_filter is True
-        assert state.satellite(RoomFunestra.LANDSCAPE).favorites_filter is False
+        assert state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is True
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter is False
         assert (state.volume, state.muted) == (40, True)
-        assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
-        assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
+        assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
+        assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
 
     def test_the_mode_selector_under_the_log_keeps_its_mode_under_its_new_key(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
@@ -84,7 +84,7 @@ class TestTheSharedStateFile:
 
         state = read_shared_state(state_file)
         assert (state.main_mode, *(state.satellite(funestra).mode
-                                   for funestra in RoomFunestra.SATELLITES), state.rfb_mode) == (
+                                   for funestra in FunTimeFunestra.SATELLITES), state.rfb_mode) == (
             MainMode.KINO, SatellitesMode.KINO, SatellitesMode.KINO, RfbMode.RFB)
 
     def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
@@ -99,7 +99,7 @@ class TestTheSharedStateFile:
         migrate_shared_state(state_file)
 
         state = read_shared_state(state_file)
-        assert [state.satellite(funestra).mode for funestra in RoomFunestra.SATELLITES] == [
+        assert [state.satellite(funestra).mode for funestra in FunTimeFunestra.SATELLITES] == [
             SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert state.rfb_mode is RfbMode.ORIGENERATOR
         assert "satellites_mode" not in state_file.read_text(encoding="utf-8")
@@ -129,7 +129,7 @@ class TestTheSharedStateFile:
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert state.satellite(RoomFunestra.PORTRAIT).locked is True
+        assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
         assert state.main_scripted_filter is True
         assert "locked2" not in state_file.read_text(encoding="utf-8")
 

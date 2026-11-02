@@ -19,6 +19,7 @@ from funestra.play_points import play_points_filename
 from satellite.contract import SatelliteChannels
 
 from . import preview_marker
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_deaths import (
     FunestraDied,
     LaunchedFunestra,
@@ -35,7 +36,6 @@ from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .origenerator_switches import RfbMode
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
-from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_launch import SatelliteLaunch
@@ -97,7 +97,7 @@ class StartupResult:
     # Which Funestra the main slot was revealed on — last session's, resumed.
     # Carried out because the orchestrator starts the Funestras once the loading screen
     # is gone, and starts the mode's.
-    # The satellites have no such line: every room is BUILT with them in Kino mode.
+    # The satellites have no such line: every session is BUILT with them in Kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
@@ -127,7 +127,7 @@ def _startup_hwnds_by_window(
 ) -> dict[str, int]:
     """The managed windows by window, as resolved at startup.
 
-    The hosted app's three are not among them: it is still booting when the room
+    The hosted app's three are not among them: it is still booting when Fun Time
     opens, so none of them exists yet, and ``FunTimeWindows.hwnd`` resolves each
     fresh the first time the dispatch loop asks for one.
     """
@@ -199,7 +199,7 @@ class _LaunchedChildren:
     rfb_hwnd: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
-    origenerator_slideshow_on: tuple[RoomFunestra, ...] = ()
+    origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
 
     def hosts(self, app: HostedApp) -> int:
         self.origenerator_already_open = app.already_open
@@ -213,7 +213,7 @@ class _LaunchedChildren:
 def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
     """Start the Funestras the session's mode puts to work.
 
-    Startup holds every one of them so nothing plays into a room that is still
+    Startup holds every one of them so nothing plays into a session that is still
     being built; this releases exactly the ones the mode shows — Genau (with
     its audio) in both, Kino's video in kino mode alone — so nothing plays out
     of sight or drives the OSR2 unasked.
@@ -280,7 +280,7 @@ class _CoreSession:
     origenerator_pid: int
     origenerator_taken_over: bool
     origenerator_already_open: bool
-    origenerator_slideshow_on: tuple[RoomFunestra, ...]
+    origenerator_slideshow_on: tuple[FunTimeFunestra, ...]
     # The Main Funestra's status file, dropped once phase 1 has spent last session's copy —
     # phase 4 holds the overlay on the new one appearing.
     main_funestra_status_file: Path
@@ -311,7 +311,7 @@ def _launch_the_satellites(
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Each satellite's whole launch bundle, built once where the manifest is read.
 
-    def _launch(funestra: RoomFunestra, satellite: str, sources: str, playlist: str, rect):
+    def _launch(funestra: FunTimeFunestra, satellite: str, sources: str, playlist: str, rect):
         return SatelliteLaunch(
             funestra=funestra,
             sources=sources,
@@ -324,9 +324,9 @@ def _launch_the_satellites(
             rect=rect,
         )
 
-    portrait_launch = _launch(RoomFunestra.PORTRAIT, "portrait", m.media.portrait_dirs,
+    portrait_launch = _launch(FunTimeFunestra.PORTRAIT, "portrait", m.media.portrait_dirs,
                           PLAYLIST_PORTRAIT, plan.portrait)
-    landscape_launch = _launch(RoomFunestra.LANDSCAPE, "landscape", m.media.landscape_dirs,
+    landscape_launch = _launch(FunTimeFunestra.LANDSCAPE, "landscape", m.media.landscape_dirs,
                            PLAYLIST_LANDSCAPE, plan.landscape)
     portrait_logs = logs_as_they_stand(portrait_launch.log_file)
     landscape_logs = logs_as_they_stand(landscape_launch.log_file)
@@ -557,7 +557,7 @@ def _launch_the_companions(
     return ui_pids
 
 
-def _wait_for_the_room_to_be_drawing(
+def _wait_for_the_app_to_be_drawing(
     m: LaunchManifest,
     *,
     main_funestra_status_file: Path,
@@ -650,7 +650,7 @@ def _settle_the_room_under_the_loading_screen(
     # The satellites launched playing and own their playlists, so there is
     # nothing to start here — only resolve and position each under the overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-    _wait_for_the_room_to_be_drawing(
+    _wait_for_the_app_to_be_drawing(
         m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
         funestras=funestras)
 
@@ -792,7 +792,7 @@ def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
     files = [Path(path) for path in status_files if path]
     if not files:
         return True
-    # Counted rather than clocked: this runs while the room is starting, and a
+    # Counted rather than clocked: this runs while Fun Time is starting, and a
     # poll loop that asks a monotonic clock is a loop that never ends where the
     # clock is stubbed.
     for _ in range(max(1, int(timeout_s / _PLAY_POLL_S))):

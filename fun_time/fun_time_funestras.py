@@ -9,14 +9,14 @@ from __future__ import annotations
 from enum import IntEnum
 
 
-class RoomFunestra(IntEnum):
+class FunTimeFunestra(IntEnum):
     MAIN = 1
     PORTRAIT = 2
     LANDSCAPE = 3
 
     @property
     def label(self) -> str:
-        """The name the drawing side uses for this Funestra."""
+        """The name the drawing code uses for this Funestra."""
         return self.name.lower()
 
     @classmethod
@@ -29,7 +29,7 @@ class RoomFunestra(IntEnum):
             return ""
 
     @classmethod
-    def for_scope(cls, scope: str) -> tuple[RoomFunestra, ...]:
+    def for_scope(cls, scope: str) -> tuple[FunTimeFunestra, ...]:
         """The Funestras a both/portrait/landscape scope word names."""
         if scope == "both":
             return cls.SATELLITES
@@ -37,4 +37,4 @@ class RoomFunestra(IntEnum):
 
 
 # The scope "both" reaches — the two satellites, never the Main Funestra.
-RoomFunestra.SATELLITES = (RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)
+FunTimeFunestra.SATELLITES = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)

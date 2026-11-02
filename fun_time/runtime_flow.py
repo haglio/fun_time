@@ -12,6 +12,7 @@ from funestra.modes import SatellitesMode
 logger = logging.getLogger(__name__)
 
 from .bridge_records import SatelliteChannel
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import keep_aside
 from .main_list import MainList, MainListSettings
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
@@ -27,7 +28,6 @@ from .modes import (
 )
 from .origenerator_switches import CLOSE_SLIDESHOW, KINO_MODE, OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
-from .room_funestras import RoomFunestra
 
 
 def write_flag_file(path: str | Path, value: bool) -> None:
@@ -47,14 +47,14 @@ class ModeSwitchFlowResult:
 # F-mode can be set on any of the three, each with its own flag, because it means
 # a different narrowing on each: the satellites drop to the favorites, the Main
 # Funestra to the videos a person hand-wrote a funscript for.
-FMODE_FUNESTRAS = (RoomFunestra.MAIN, RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)
+FMODE_FUNESTRAS = (FunTimeFunestra.MAIN, FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
 
 
 @dataclass(frozen=True)
 class FModeFlowResult:
     """Which Funestras were put into (or out of) F-mode, and what to say about it."""
 
-    funestras: tuple[RoomFunestra, ...]
+    funestras: tuple[FunTimeFunestra, ...]
     enabled: bool
     log_message: str
 
@@ -114,7 +114,7 @@ def rebuild_main_list(
 
 def apply_satellite_fmode(
     *,
-    funestra: RoomFunestra,
+    funestra: FunTimeFunestra,
     enabled: bool,
     sources: str,
     state_dir: str | Path,
@@ -130,7 +130,7 @@ def apply_satellite_fmode(
     """
     build_one_satellite_playlist(
         sources=sources,
-        name=PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE,
+        name=PLAYLIST_PORTRAIT if funestra == FunTimeFunestra.PORTRAIT else PLAYLIST_LANDSCAPE,
         state_dir=Path(state_dir),
         favorites_filter=enabled,
         recent=recent,
@@ -152,7 +152,7 @@ class SatelliteFmodeInputs:
 
 def apply_fmode(
     *,
-    funestras: Sequence[RoomFunestra],
+    funestras: Sequence[FunTimeFunestra],
     enabled: bool,
     main_list: MainList,
     main_settings: MainListSettings,
@@ -160,7 +160,7 @@ def apply_fmode(
     state_dir: str | Path,
     main_funestra_cmd_file: str | Path,
     main_builds: MainListBuilds = BUILDS_HERE,
-    satellites: Mapping[RoomFunestra, SatelliteFmodeInputs],
+    satellites: Mapping[FunTimeFunestra, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
 ) -> FModeFlowResult:
     """Put each of *Funestras* into F-mode, or take it out, and rebuild just those.
@@ -171,13 +171,13 @@ def apply_fmode(
     than one build of all three.
     """
     named = tuple(funestra for funestra in FMODE_FUNESTRAS if funestra in funestras)
-    if RoomFunestra.MAIN in named:
+    if FunTimeFunestra.MAIN in named:
         rebuild_main_list(
             main_list, replace(main_settings, scripted_filter=enabled),
             main_funestra_cmd_file=main_funestra_cmd_file, on_screen=main_on_screen,
             builds=main_builds,
         )
-    for funestra in RoomFunestra.SATELLITES:
+    for funestra in FunTimeFunestra.SATELLITES:
         if funestra in named:
             satellite = satellites[funestra]
             apply_satellite_fmode(
@@ -229,7 +229,7 @@ class SatelliteFilterFlowResult:
 
 def apply_satellite_filter(
     *,
-    funestra: RoomFunestra,
+    funestra: FunTimeFunestra,
     query: str,
     favorites_filter: bool,
     recent: bool,
@@ -255,8 +255,8 @@ def apply_satellite_filter(
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """
-    label = RoomFunestra(funestra).label
-    name = PLAYLIST_PORTRAIT if funestra == RoomFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
+    label = FunTimeFunestra(funestra).label
+    name = PLAYLIST_PORTRAIT if funestra == FunTimeFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, favorites_filter=favorites_filter, recent=recent,
         sources=sources, regen_metadata_root=regen_metadata_root,
@@ -281,7 +281,7 @@ class SatelliteSwitchFlowResult:
 
 def apply_satellite_switch(
     *,
-    funestra: RoomFunestra,
+    funestra: FunTimeFunestra,
     current_mode: SatellitesMode,
     target_mode: SatellitesMode,
     origenerator_cmd_file: str | Path | None,

@@ -3,7 +3,7 @@
 A session's windows arrive one at a time and leave the same way, so both ends
 raise a loading screen and work under it.  Borderless and always on top; it closes on
 :mod:`overlay_progress`'s DONE — never on a full bar, which comes seconds
-earlier while the room is still being put in z-order.
+earlier while Fun Time is still being put in z-order.
 """
 from __future__ import annotations
 

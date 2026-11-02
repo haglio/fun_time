@@ -1,4 +1,4 @@
-"""Genau, as it runs on the Main Funestra: the room drives it through files of its
+"""Genau, as it runs on the Main Funestra: Fun Time drives it through files of its
 own, and with the window it brings its own flick, scrubbed to the OSR2."""
 from __future__ import annotations
 
@@ -97,7 +97,7 @@ class Genau:
             say_no_other_flicks=self._say_no_other_flicks,
             say=self._say,
             condemned_to=lambda flick: weird_folder_for(flick, self._flicks_folder),
-            set_volume=self._the_rooms_level_is_the_funestras,
+            set_volume=self._the_apps_level_is_the_funestras,
             stop_event=stop_event,
             start_flick=start_flick,
             metadata_root=metadata_root,
@@ -207,7 +207,7 @@ class Genau:
         return self._scan()
 
     @staticmethod
-    def _the_rooms_level_is_the_funestras(_level: int, _muted: bool) -> None:
+    def _the_apps_level_is_the_funestras(_level: int, _muted: bool) -> None:
         pass
 
 

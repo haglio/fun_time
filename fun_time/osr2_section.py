@@ -10,7 +10,7 @@ from funestra.hud_button import Button
 from funestra.modes import MainMode, Osr2State
 from shared_ui.spacing import BUTTON_WORD_W
 
-from .room_funestras import RoomFunestra
+from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
     from funestra.satellite_hud import HudModel
@@ -27,25 +27,25 @@ def osr2_readout_path(state_dir: Path, funestra: str) -> Path:
     return Path(state_dir) / f"{funestra}_osr2_readout.txt"
 
 
-def take_osr2_command(funestra: RoomFunestra) -> str:
+def take_osr2_command(funestra: FunTimeFunestra) -> str:
     return f"{funestra.label}_take_osr2"
 
 
-TAKE_OSR2_COMMANDS: dict[str, RoomFunestra] = {take_osr2_command(funestra): funestra for funestra in RoomFunestra}
+TAKE_OSR2_COMMANDS: dict[str, FunTimeFunestra] = {take_osr2_command(funestra): funestra for funestra in FunTimeFunestra}
 
 
-def funestra_with_the_osr2(state) -> RoomFunestra:
+def funestra_with_the_osr2(state) -> FunTimeFunestra:
     try:
-        return RoomFunestra(state.osr2_funestra)
+        return FunTimeFunestra(state.osr2_funestra)
     except ValueError:
-        return RoomFunestra.MAIN
+        return FunTimeFunestra.MAIN
 
 
-def osr2_said_to(funestra: RoomFunestra, has_it: bool) -> str:
+def osr2_said_to(funestra: FunTimeFunestra, has_it: bool) -> str:
     return f"{funestra.label}_osr2|{1 if has_it else 0}"
 
 
-def osr2_button(funestra: RoomFunestra, *, has_it: bool) -> Button:
+def osr2_button(funestra: FunTimeFunestra, *, has_it: bool) -> Button:
     if has_it:
         return Button(take_osr2_command(funestra), "OSR2",
                       "This Funestra has the OSR2 — it follows this Funestra's funscripts",
@@ -55,12 +55,12 @@ def osr2_button(funestra: RoomFunestra, *, has_it: bool) -> Button:
                   width=BUTTON_WORD_W)
 
 
-def osr2_part(holder: RoomFunestra, *, main_mode: MainMode, osr2: Osr2State, control: str,
+def osr2_part(holder: FunTimeFunestra, *, main_mode: MainMode, osr2: Osr2State, control: str,
               paused: bool, learned: bool, shape: str, broker: bool,
               max_intensity: int) -> ConsoleModel:
     return ConsoleModel(
         funestra=holder.label,
-        main_mode=main_mode if holder is RoomFunestra.MAIN else MainMode.KINO,
+        main_mode=main_mode if holder is FunTimeFunestra.MAIN else MainMode.KINO,
         osr2=osr2, osr2_control=control, paused=paused,
         osr2_rows=(aim_row(learned=learned, shape=shape, control=control),),
         osr2_controls=osr2_controls(broker_running=broker),
@@ -74,11 +74,11 @@ class DeviceBlock:
     osr2: str = ""
 
     @classmethod
-    def offered_to(cls, funestra: RoomFunestra) -> DeviceBlock:
+    def offered_to(cls, funestra: FunTimeFunestra) -> DeviceBlock:
         return cls(rows=((osr2_button(funestra, has_it=False),),))
 
     @classmethod
-    def held_by(cls, funestra: RoomFunestra, osr2: Osr2State) -> DeviceBlock:
+    def held_by(cls, funestra: FunTimeFunestra, osr2: Osr2State) -> DeviceBlock:
         return cls(rows=((osr2_button(funestra, has_it=True),),), osr2=osr2)
 
     def worn_by(self, model: HudModel) -> HudModel:

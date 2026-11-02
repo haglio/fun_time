@@ -301,7 +301,7 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     if being_rebuilt(worktree):
         return _refuse(worktree, BEING_REBUILT,
                        f"{worktree} is part way through a rebase or a merge; finish it first.")
-    stopped = _why_its_room_would_not_start(
+    stopped = _why_its_app_would_not_start(
         worktree, primary=primary, config_path=primary_config_path)
     if stopped:
         return _refuse(worktree, stopped.for_him, str(stopped))
@@ -321,7 +321,7 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
 
 
 BEING_REBUILT = ("That branch is being rebuilt right now, so its code is only part way "
-                 "changed, and a room opened on it would stop where the change is.")
+                 "changed, and a session opened on it would stop where the change is.")
 
 
 _LEFT_PART_WAY = ("rebase-merge", "rebase-apply", "MERGE_HEAD", "CHERRY_PICK_HEAD")
@@ -357,13 +357,13 @@ class LibraryOlderThanThePin:
         return f"v{self.installed}" if self.installed else "no copy of it"
 
 
-class RoomWouldNotStart(RuntimeError):
+class AppWouldNotStart(RuntimeError):
     def __init__(self, for_the_agent: str, *, for_him: str):
         super().__init__(for_the_agent)
         self.for_him = for_him
 
 
-class OutOfDateLibrary(RoomWouldNotStart):
+class OutOfDateLibrary(AppWouldNotStart):
     def __init__(self, older: LibraryOlderThanThePin):
         super().__init__(
             f"This branch is built on {older.repo} {older.tag}, and the venv its session runs on has "
@@ -371,7 +371,7 @@ class OutOfDateLibrary(RoomWouldNotStart):
             f"{older.repo} checkout at {older.tag} in state/{SIBLING_CHECKOUTS_OVERRIDE_NAME}, or rebase "
             "it onto a main whose pins this computer has installed, first.",
             for_him=f"That branch is built on {older.repo} {older.tag}, and this computer has "
-                    f"{older.installed_text}, so its room would stop as it starts.")
+                    f"{older.installed_text}, so its session would stop as it starts.")
 
 
 def _version(text: str) -> tuple[int, ...]:
@@ -414,7 +414,7 @@ def _bring_it_up_to_date(older: SiblingOlderThanThePin) -> str:
             f"state/{SIBLING_CHECKOUTS_OVERRIDE_NAME}, first.")
 
 
-class OutOfDateSibling(RoomWouldNotStart):
+class OutOfDateSibling(AppWouldNotStart):
     def __init__(self, older: SiblingOlderThanThePin):
         super().__init__(
             f"{older.checkout} does not carry {older.tag}, the {older.repo} this branch is "
@@ -425,7 +425,7 @@ class OutOfDateSibling(RoomWouldNotStart):
                     "would not come up.")
 
 
-class OutOfDateForOrigenerator(RoomWouldNotStart):
+class OutOfDateForOrigenerator(AppWouldNotStart):
     def __init__(self, older: SiblingOlderThanThePin):
         super().__init__(
             f"{older.checkout} does not carry {older.tag}, the {older.repo} the Origenerator this "
@@ -434,7 +434,7 @@ class OutOfDateForOrigenerator(RoomWouldNotStart):
             + _bring_it_up_to_date(older),
             for_him="That branch is set to start Origenerator on an older copy of the code the "
                     "apps share than the one Origenerator is built on, so Origenerator would "
-                    "close itself as the room opens and end the session.")
+                    "close itself as Fun Time opens and end the session.")
 
 
 def _checkouts_older_than_the_pins(
@@ -467,8 +467,8 @@ def checkouts_older_than_the_hosted_origenerator_needs(
     return _checkouts_older_than_the_pins(named, Path(origenerator) / "pyproject.toml")
 
 
-def _why_its_room_would_not_start(
-        worktree: Path, *, primary: Path, config_path: Path) -> RoomWouldNotStart | None:
+def _why_its_app_would_not_start(
+        worktree: Path, *, primary: Path, config_path: Path) -> AppWouldNotStart | None:
     lacking = libraries_older_than_the_pin(worktree)
     if lacking:
         return OutOfDateLibrary(lacking[0])
@@ -642,7 +642,7 @@ class OutOfDateWorktree(RuntimeError):
 HOSTED_APP_PRIVATE_STATE = ("content.local.json", "state/ui_state.json")
 
 
-class HostedAppWithoutItsOwnState(RoomWouldNotStart):
+class HostedAppWithoutItsOwnState(AppWouldNotStart):
     def __init__(self, checkout: Path, missing: list[str]):
         super().__init__(
             f"{checkout} hosts Origenerator for this session and carries no "
@@ -685,7 +685,7 @@ def write_launch_shortcut(
     missing = commits_missing(worktree, primary)
     if missing:
         raise OutOfDateWorktree(worktree, missing)
-    stopped = _why_its_room_would_not_start(
+    stopped = _why_its_app_would_not_start(
         worktree, primary=primary, config_path=_machine_config(primary))
     if stopped:
         raise stopped
@@ -772,7 +772,7 @@ def main(argv: list[str] | None = None) -> int:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
         try:
             print(write_launch_shortcut(target, vr=args.vr))
-        except (OutOfDateWorktree, RoomWouldNotStart) as refused:
+        except (OutOfDateWorktree, AppWouldNotStart) as refused:
             print(f"No launcher written: {refused}", file=sys.stderr)
             return 1
         print(sibling_checkouts_line(target, primary_checkout()))

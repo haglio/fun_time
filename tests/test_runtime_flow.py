@@ -8,10 +8,10 @@ import pytest
 from funestra.console import OSR2_DRIVING
 from funestra.modes import MainMode
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.media_metadata import metadata_path_for
 from fun_time.omnipause import apply_enter_omnipause, apply_leave_omnipause
-from fun_time.room_funestras import RoomFunestra
 from fun_time.runtime_flow import (
     FMODE_FUNESTRAS,
     SatelliteFmodeInputs,
@@ -143,8 +143,8 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
 
     result = apply_fmode(
         satellites={
-            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=portrait_cmd_file),
-            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=portrait_cmd_file),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=True,
@@ -184,10 +184,10 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
 
     result = apply_fmode(
         satellites={
-            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
         },
-        funestras=(RoomFunestra.PORTRAIT,),
+        funestras=(FunTimeFunestra.PORTRAIT,),
         enabled=True,
         main_list=MainList(sources="", state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
@@ -195,7 +195,7 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
         main_funestra_cmd_file=main_funestra_cmd_file,
     )
 
-    assert result.funestras == (RoomFunestra.PORTRAIT,)
+    assert result.funestras == (FunTimeFunestra.PORTRAIT,)
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert not (state_dir / "landscape_playlist.tsv").exists()
     assert not (state_dir / "main_player_playlist.tsv").exists()
@@ -216,9 +216,9 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
         main_funestra_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
         apply_fmode(
             satellites={
-                RoomFunestra.PORTRAIT: SatelliteFmodeInputs(
+                FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(
                     sources="", cmd_file=tmp_path / "p_cmd.txt"),
-                RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(
+                FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(
                     sources="", cmd_file=tmp_path / "l_cmd.txt"),
             },
             funestras=FMODE_FUNESTRAS,
@@ -286,8 +286,8 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
 
     apply_fmode(
         satellites={
-            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
@@ -313,8 +313,8 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     # Turning F-mode off must keep the satellite playlists newest-first, not reshuffle.
     apply_fmode(
         satellites={
-            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
@@ -453,8 +453,8 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     apply_fmode(
         satellites={
-            RoomFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt", filter_query="alpha"),
-            RoomFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="twirling"),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt", filter_query="alpha"),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="twirling"),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,  # F-mode OFF, so only the metadata filter applies
@@ -611,7 +611,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def test_with_no_broker_omnipause_still_freezes_the_room(flow_files):
+def test_with_no_broker_omnipause_still_freezes_the_app(flow_files):
     apply_enter_omnipause(
         omni_paused=False,
         main_mode=MainMode.GENAU,

@@ -1,4 +1,4 @@
-"""What the main console shows about the room, and the file it reaches on: a
+"""What the main console shows about Fun Time, and the file it reaches on: a
 :class:`~funestra.console.ConsoleModel` carrying the buttons Fun Time
 declares (:mod:`fun_time.console_buttons`), published as text and parsed back
 by ``funestra.console``."""
@@ -71,7 +71,7 @@ class MainFunestraInputs:
 
 
 def console_model(inputs: MainFunestraInputs) -> ConsoleModel:
-    """The console as the Main Funestra parses it: the room around the
+    """The console as the Main Funestra parses it: Fun Time around the
     drive readout, and the buttons declared from it."""
     main_funestra, genau = inputs.main_funestra, inputs.genau
     video = kino_shows(inputs.main_mode)

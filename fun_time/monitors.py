@@ -21,7 +21,7 @@ def enumerate_monitors() -> list[MonitorInfo]:
     """Return work-area rectangles for all monitors via Win32 EnumDisplayMonitors.
 
     ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides it outright: an
-    integration session lays its room out on the same two monitors whatever the
+    integration session lays its session out on the same two monitors whatever the
     machine lists.  Windows place fine at coordinates no display backs.
     """
     fake = os.environ.get("FUN_TIME_FAKE_MONITORS", "").strip()

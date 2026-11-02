@@ -9,7 +9,7 @@ from funestra.device_panel import DevicePanel
 from funestra.drive_readout import DriveHud
 
 from fun_time.dashboard_osr2 import Osr2PartWidget
-from fun_time.room_funestras import RoomFunestra
+from fun_time.fun_time_funestras import FunTimeFunestra
 from tests.made_up_osr2_parts import a_part, a_readout, handed_on, published
 
 
@@ -27,17 +27,17 @@ def widget(tmp_path):
         part.close()
 
 
-def test_it_draws_the_part_the_room_publishes_with_its_holders_readout(widget, tmp_path):
-    part = published(tmp_path, a_part(RoomFunestra.PORTRAIT))
-    readout = handed_on(tmp_path, RoomFunestra.PORTRAIT, a_readout())
-    handed_on(tmp_path, RoomFunestra.MAIN, a_readout(speed=90))
+def test_it_draws_the_part_the_app_publishes_with_its_holders_readout(widget, tmp_path):
+    part = published(tmp_path, a_part(FunTimeFunestra.PORTRAIT))
+    readout = handed_on(tmp_path, FunTimeFunestra.PORTRAIT, a_readout())
+    handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout(speed=90))
 
     widget.poll()
 
     assert widget.drawing() == _drawn(part, readout)
 
 
-def test_until_the_room_publishes_a_part_it_draws_nothing(widget):
+def test_until_the_app_publishes_a_part_it_draws_nothing(widget):
     widget.poll()
     raw, _size = widget.drawing()
 
@@ -57,11 +57,11 @@ def test_every_read_repaints_it_once_a_part_is_up_for_the_dot_walks_by_the_clock
     assert repaints == ["repaint"] * 2
 
 
-def test_it_holds_the_room_a_whole_part_takes_before_one_has_arrived(widget, tmp_path):
+def test_it_holds_the_app_a_whole_part_takes_before_one_has_arrived(widget, tmp_path):
     reserved = widget.size()
 
     published(tmp_path, a_part())
-    handed_on(tmp_path, RoomFunestra.MAIN, a_readout())
+    handed_on(tmp_path, FunTimeFunestra.MAIN, a_readout())
     widget.poll()
     widget.grab()
 

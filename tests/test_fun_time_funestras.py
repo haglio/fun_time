@@ -1,0 +1,37 @@
+from __future__ import annotations
+
+from fun_time.event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
+from fun_time.fun_time_funestras import FunTimeFunestra
+
+
+def test_funestras_keep_the_numbers_the_saved_state_stores():
+    assert FunTimeFunestra.MAIN == 1
+    assert FunTimeFunestra.PORTRAIT == 2
+    assert FunTimeFunestra.LANDSCAPE == 3
+    assert str(FunTimeFunestra.PORTRAIT) == "2"
+    assert f"{FunTimeFunestra.LANDSCAPE}" == "3"
+    assert int(FunTimeFunestra(int("2"))) == 2
+
+
+def test_labels_are_the_lowercase_names():
+    assert FunTimeFunestra.MAIN.label == "main"
+    assert FunTimeFunestra.PORTRAIT.label == "portrait"
+    assert FunTimeFunestra.LANDSCAPE.label == "landscape"
+
+
+def test_a_number_no_funestra_holds_has_an_empty_label():
+    assert FunTimeFunestra.label_of(2) == "portrait"
+    assert FunTimeFunestra.label_of(7) == ""
+
+
+def test_satellites_are_the_scope_both_means():
+    assert FunTimeFunestra.SATELLITES == (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
+    assert FunTimeFunestra.for_scope("both") == FunTimeFunestra.SATELLITES
+    assert FunTimeFunestra.for_scope("portrait") == (FunTimeFunestra.PORTRAIT,)
+    assert FunTimeFunestra.for_scope("landscape") == (FunTimeFunestra.LANDSCAPE,)
+
+
+def test_the_event_log_sources_are_exactly_the_funestra_labels():
+    assert FunTimeFunestra.MAIN.label == SOURCE_MAIN
+    assert FunTimeFunestra.PORTRAIT.label == SOURCE_PORTRAIT
+    assert FunTimeFunestra.LANDSCAPE.label == SOURCE_LANDSCAPE

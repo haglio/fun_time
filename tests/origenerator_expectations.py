@@ -1,12 +1,12 @@
 """What Fun Time relies on of the Origenerator it hosts, read off the code that
 relies on it: the module it starts, the caption it finds the window by, the
 flags of each launch, the words a headset writes on the app's input file and
-every line a room writes on its command file.
+every line a session writes on its command file.
 
 Origenerator's suite reads the document from this repo's main before that app
 ships anything, and tests/test_origenerator_expectations.py holds it here to
 this code and to what Origenerator has shipped -- so a change on either Satellite
-that would cost a room its Origenerator fails in the suite of the app that made
+that would cost a session its Origenerator fails in the suite of the app that made
 it.
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ from unittest.mock import patch
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.filter_vocab import decode_filter_command, set_command
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import SAID_AT_FIELD, said_to_the_hosted_app
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.hud_feed import HudFeed
@@ -32,7 +33,6 @@ from fun_time.origenerator_switches import (
     SATELLITE_MODE_COMMANDS,
     origenerator_shows,
 )
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_names import ORIGENERATOR_TITLE
@@ -73,7 +73,7 @@ def expectations(scratch: Path) -> dict:
 
 
 def _said_after_the_satellite(line: str) -> str:
-    for funestra in RoomFunestra.SATELLITES:
+    for funestra in FunTimeFunestra.SATELLITES:
         satellite = f"{funestra.label}_"
         if line.lower().startswith(satellite):
             return line[len(satellite):].lower()
@@ -101,11 +101,11 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_rooms_f_mode,
                      _each_hosted_satellite_told_whether_it_has_the_osr2,
                      _a_taken_over_copy_handed_back,
-                     _a_copy_parked_for_the_room_crossing_in),
+                     _a_copy_parked_for_the_app_crossing_in),
         *(what_an_adopted_app_is_told("{frames}", "{input}", in_a_headset=in_a_headset)
           for in_a_headset in (False, True)),
         *(said_to_the_hosted_app(funestra.label, "{words}")
-          for funestra in RoomFunestra.SATELLITES),
+          for funestra in FunTimeFunestra.SATELLITES),
     ]
     return {_as_published(line) for line in written
             if _said_after_the_satellite(line) not in LEFT_UNANSWERED}
@@ -120,24 +120,24 @@ def _as_published(line: str) -> str:
     return line if filtered is None else set_command(filtered[0], "{row}")
 
 
-def _written_in_a_sweep(room: BridgeConfig) -> list[str]:
-    return [line for written in sweep(room, (KINO_MODE, ORIGENERATOR_MODE)).values()
+def _written_in_a_sweep(app: BridgeConfig) -> list[str]:
+    return [line for written in sweep(app, (KINO_MODE, ORIGENERATOR_MODE)).values()
             for line in written.get("origenerator_cmd_file", ())]
 
 
-def _written_by(room: BridgeConfig, *acts) -> list[str]:
+def _written_by(app: BridgeConfig, *acts) -> list[str]:
     written = []
     for act in acts:
-        act(room)
-        written += drain(room).get("origenerator_cmd_file", [])
+        act(app)
+        written += drain(app).get("origenerator_cmd_file", [])
     return written
 
 
-def _each_satellites_own_mode_buttons(room: BridgeConfig) -> None:
+def _each_satellites_own_mode_buttons(app: BridgeConfig) -> None:
     for command, (funestra, mode) in SATELLITE_MODE_COMMANDS.items():
         away = KINO_MODE if origenerator_shows(mode) else ORIGENERATOR_MODE
         dispatch_command(command, BridgeState(origenerator_ready=True).with_satellite(
-            funestra, mode=away), room)
+            funestra, mode=away), app)
 
 
 def _both_shows_hosted() -> BridgeState:
@@ -151,21 +151,21 @@ def _each_hosted_satellite_told_whether_it_has_the_osr2(room: BridgeConfig) -> N
         feed.publish(replace(_both_shows_hosted(), osr2_funestra=funestra.value))
 
 
-def _the_rooms_f_mode(room: BridgeConfig) -> None:
-    for funestra in RoomFunestra.SATELLITES:
-        publish_the_show(room, funestra, f_mode=False)
+def _the_apps_f_mode(app: BridgeConfig) -> None:
+    for funestra in FunTimeFunestra.SATELLITES:
+        publish_the_show(app, funestra, f_mode=False)
     with patch("fun_time.f_mode.apply_fmode",
                return_value=SimpleNamespace(funestras=(), log_message="")):
-        dispatch_command("fmode_toggle", _both_shows_hosted(), room)
+        dispatch_command("fmode_toggle", _both_shows_hosted(), app)
 
 
-def _a_taken_over_copy_handed_back(room: BridgeConfig) -> None:
-    see_the_hosted_app_out(room.state_dir, None, room.origenerator_cmd_file,
+def _a_taken_over_copy_handed_back(app: BridgeConfig) -> None:
+    see_the_hosted_app_out(app.state_dir, None, app.origenerator_cmd_file,
                            keep=False, taken_over=True)
 
 
-def _a_copy_parked_for_the_room_crossing_in(room: BridgeConfig) -> None:
+def _a_copy_parked_for_the_app_crossing_in(app: BridgeConfig) -> None:
     with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window", return_value=1), \
          patch("fun_time.windows_bridge_orchestrator.hide_window"):
-        see_the_hosted_app_out(room.state_dir, ChildProcess(pid=1, created_at=1),
-                               room.origenerator_cmd_file, keep=True, taken_over=False)
+        see_the_hosted_app_out(app.state_dir, ChildProcess(pid=1, created_at=1),
+                               app.origenerator_cmd_file, keep=True, taken_over=False)

@@ -32,10 +32,10 @@ from PIL import Image
 from shared_ui.preview import Preview, window_title
 
 from fun_time.event_log import event_log_path
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import find_origenerators_window
 from fun_time.origenerator_switches import RfbMode
 from fun_time.process_tree import kill_process_tree
-from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
     read_shared_state,
@@ -302,7 +302,7 @@ _STUB_MAIN = textwrap.dedent(
     """
 )
 
-_FUNESTRAS = (RoomFunestra.PORTRAIT, RoomFunestra.LANDSCAPE)
+_FUNESTRAS = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
 _A_START_WITH_EVERY_CORE_BUSY_S = 2 * START_BUDGET_S
 # The session that comes back to the mode holds its own startup open for the
 # hosted app, so its start is that much longer than any other test's.
@@ -375,18 +375,18 @@ def hosted_session():
         session.stop()
 
 
-def _playing(session, funestra: RoomFunestra) -> str:
+def _playing(session, funestra: FunTimeFunestra) -> str:
     return read_satellite_status(session.config.satellite(funestra).status_file).video
 
 
-def _shows_the_stub(session, funestra: RoomFunestra) -> bool:
+def _shows_the_stub(session, funestra: FunTimeFunestra) -> bool:
     return Path(_playing(session, funestra)).name == f"{funestra.label}.png"
 
 
-def _own_clips(session, funestra: RoomFunestra) -> list[Path]:
+def _own_clips(session, funestra: FunTimeFunestra) -> list[Path]:
     """What *Funestra*'s playlist holds, once that is the session's own clips
     again rather than anything the hosted app wrote there."""
-    folders = (session.config.paths.portrait_dirs if funestra is RoomFunestra.PORTRAIT
+    folders = (session.config.paths.portrait_dirs if funestra is FunTimeFunestra.PORTRAIT
                else session.config.paths.landscape_dirs)
     listed = [item.path for item in read_playlist(session.config.satellite(funestra).playlist_file)]
     if listed and all(path.parent in folders for path in listed):
@@ -421,7 +421,7 @@ def _bring_the_satellites_home(session) -> None:
 
 
 def _press_once_origenerator_is_up(session, *commands: str) -> Path:
-    """Press *commands* once the hosted app is up to answer them: the room
+    """Press *commands* once the hosted app is up to answer them: Fun Time
     opens with the app booting on out of sight, and every Origenerator button
     is dim until it answers."""
     state_file = shared_state_path(session.config.paths.state_dir)
@@ -517,7 +517,7 @@ def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_b
              desc="the Portrait Funestra to play its own clips again")
 
 
-def _huds_worn_until(session, funestra: RoomFunestra, done) -> list:
+def _huds_worn_until(session, funestra: FunTimeFunestra, done) -> list:
     """Every HUD the session published for *Funestra* until *done*, each once."""
     hud_file, worn = session.config.satellite(funestra).hud_file, []
 
@@ -533,7 +533,7 @@ def _huds_worn_until(session, funestra: RoomFunestra, done) -> list:
     return [parse_hud(text) for text in worn]
 
 
-def _a_whole_huds_mode(hud, funestra: RoomFunestra, own: list[Path]) -> str:
+def _a_whole_huds_mode(hud, funestra: FunTimeFunestra, own: list[Path]) -> str:
     """Which mode's whole HUD *hud* is, or "" for one that is neither."""
     lit = [button.command for button in hud.rows[0] if button.lit] if hud.rows else []
     if lit == [f"{funestra.label}_kino_activate"] and hud.corner and Path(hud.corner.path) in own:
@@ -544,7 +544,7 @@ def _a_whole_huds_mode(hud, funestra: RoomFunestra, own: list[Path]) -> str:
     return ""
 
 
-def _wears(session, funestra: RoomFunestra, own: list[Path]) -> str:
+def _wears(session, funestra: FunTimeFunestra, own: list[Path]) -> str:
     hud = parse_hud(_published(session.config.satellite(funestra).hud_file))
     return "" if hud is None else _a_whole_huds_mode(hud, funestra, own)
 
@@ -657,7 +657,7 @@ def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
     try:
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S,
                       env_overrides={"FUN_TIME_DISABLE_DASHBOARD": "0"})
-        portrait = RoomFunestra.PORTRAIT
+        portrait = FunTimeFunestra.PORTRAIT
         own = wait_for(lambda: _own_clips(session, portrait),
                        desc="the Portrait Funestra to play a list of its own")
         wait_for(lambda: _wears(session, portrait, own) == "kino",
@@ -738,7 +738,7 @@ def _first_burial(funestras: dict[str, int], siblings: set[int]) -> str:
     return ""
 
 
-def _hud_of(hud_file: Path, funestra: RoomFunestra):
+def _hud_of(hud_file: Path, funestra: FunTimeFunestra):
     """The HUD published for *Funestra*, once it is the hosted app's own."""
     if not hud_file.exists():
         return None
@@ -792,7 +792,7 @@ def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
 
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
-def test_a_slideshow_open_in_an_origenerator_the_room_takes_over_goes_on_on_its_monitors_funestra():
+def test_a_slideshow_open_in_an_origenerator_the_app_takes_over_goes_on_on_its_monitors_funestra():
     portrait, landscape = _FUNESTRAS
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -827,7 +827,7 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
     _host_stub(config_path, stub_root)
     # By path rather than -m: a session's start reaps every `-m origenerator`
     # an earlier run left on this desktop, and this one is meant to be open.
-    # Open as a preview, the copy he most often has open when a room starts.
+    # Open as a preview, the copy he most often has open when a session starts.
     open_app = subprocess.Popen(
         [sys.executable, str(stub_root / "origenerator" / "__main__.py"), "--caption",
          window_title(ORIGENERATOR_TITLE, Preview(feature="a fabricated feature"))],

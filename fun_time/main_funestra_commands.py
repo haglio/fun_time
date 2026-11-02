@@ -19,11 +19,11 @@ from funestra.hud_controls import why_it_cannot_step
 
 from .aiming import FUNESTRA_SOURCES
 from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_buttons import MAIN_FUNESTRA_NOUN, SATELLITE_NOUN
 from .funestra_status import read_genau_status, read_main_funestra_status
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
-from .room_funestras import RoomFunestra
 from .satellite_control import read_satellite_status
 from .satellite_groups import send_satellite
 from .shared_state import BridgeState
@@ -70,16 +70,16 @@ MAIN_LOCK_COMMANDS = {
 }
 
 
-_PLAYHEAD_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
+_PLAYHEAD_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
     f"{funestra.label}_{act}": (funestra, verb)
-    for funestra in RoomFunestra
+    for funestra in FunTimeFunestra
     for act, verb in _PLAYHEAD_ACTS.items()
 }
 
 
-def _step_through(funestra: RoomFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if funestra is RoomFunestra.MAIN:
+    if funestra is FunTimeFunestra.MAIN:
         status = read_main_funestra_status(config.main_funestra_status_file)
         noun = MAIN_FUNESTRA_NOUN
     else:
@@ -89,7 +89,7 @@ def _step_through(funestra: RoomFunestra, verb: str, state: BridgeState, config:
     if cannot is not None:
         return state, [WindowOp(op="notice", key=cannot.capitalize(),
                                 source=FUNESTRA_SOURCES[funestra], level=logging.WARNING)]
-    if funestra is RoomFunestra.MAIN:
+    if funestra is FunTimeFunestra.MAIN:
         append_command(config.main_funestra_cmd_file, verb)
     else:
         send_satellite(config, funestra, verb)
@@ -119,7 +119,7 @@ def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: B
 
 def _skip_ahead_on_the_main_funestra(state: BridgeState, config: BridgeConfig,
                                      target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if kino_shows(state.main_mode) and (refused := skip_ahead_refused(RoomFunestra.MAIN, state)):
+    if kino_shows(state.main_mode) and (refused := skip_ahead_refused(FunTimeFunestra.MAIN, state)):
         return state, refused
     return _forward_to_main_funestra_on_screen(
         MAIN_FUNESTRA_CMD_MAP["main_funestra_funscript_jump"], state, config, target_path)

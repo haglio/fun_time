@@ -39,7 +39,7 @@ from shared_ui.type_scale import FONT_UI, SIZE_BODY, SIZE_HEADING
 
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
-from fun_time.room_funestras import RoomFunestra
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.voice_commands import (
     FAVORITES_PHRASE,
     VOICE_COMMANDS,
@@ -150,7 +150,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("relief_omnipause",),
             ),
             # The modes are rows, not a section of their own: each is one key
-            # and one phrase, like everything else here that reshapes the room.
+            # and one phrase, like everything else here that reshapes Fun Time.
             _Row(
                 f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot Hand "
                 "driving the OSR2",
@@ -193,7 +193,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("kino_activate",),
             ),
             # The hosted app's own vocabulary, said to one of its sides.  The
-            # session owns the room's microphone, so these are heard here and
+            # session owns Fun Time's microphone, so these are heard here and
             # posted there as the words themselves; one row, because they are
             # one idea — say the side, then what you would have said to
             # Origenerator.
@@ -273,7 +273,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "Park the OSR2, OSR2 control off: it settles home and is held "
                 f"there, and while the OSR2 is switched on Genau's {_FLICK.one} goes "
                 "there with it.  A funscript stands down for it too.  Unlike "
-                "OmniPause the room plays on, the motion included, unheard "
+                "OmniPause Fun Time plays on, the motion included, unheard "
                 "until OSR2 control is on again",
                 (),
                 ("robot_hand_park",),
@@ -665,7 +665,7 @@ def _display_voice(row: _Row, *, merge_scopes: bool) -> tuple[str, ...]:
 
 
 def _a_key_column_per_satellite(key_headers: tuple[str, ...]) -> bool:
-    return len(key_headers) == len(RoomFunestra.SATELLITES)
+    return len(key_headers) == len(FunTimeFunestra.SATELLITES)
 
 
 def build_reference_sections() -> tuple[ReferenceSection, ...]:

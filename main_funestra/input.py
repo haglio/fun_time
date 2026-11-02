@@ -2,7 +2,7 @@
 
 SDL hands the frame a queue of events; the Funestra answers the mouse and the
 window being closed, and a key reaches nothing: Fun Time's hotkeys are the
-keyboard for the whole room.  Nothing is decided here beyond WHICH event is
+keyboard for all of Fun Time.  Nothing is decided here beyond WHICH event is
 which, and the window size travels with the frame rather than being read off
 the window, so everything in one frame is answered against one window.
 """

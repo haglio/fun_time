@@ -1,4 +1,4 @@
-"""The room's Funestras playing their Latest lists, each handed what arrives in its
+"""Fun Time's Funestras playing their Latest lists, each handed what arrives in its
 library to play next."""
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from funestra.funestra_verbs import play_next
 
 from .arrivals import Arrivals
 from .bridge_records import BridgeConfig
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
 from .main_list import MainListSettings
 from .media_metadata import learn_indexed_clip
 from .mode_plan import kino_shows
 from .modes import collect_video_files, satellite_narrowing, scripted_item
 from .origenerator_switches import origenerator_shows
-from .room_funestras import RoomFunestra
 from .shared_state import BridgeState
 
 
@@ -45,8 +45,8 @@ class _TheMainFunestra:
 class _ASatellite:
     config: BridgeConfig
     state: BridgeState
-    funestra: RoomFunestra
-    coming_home: Collection[RoomFunestra]
+    funestra: FunTimeFunestra
+    coming_home: Collection[FunTimeFunestra]
 
     @property
     def name(self) -> str:
@@ -80,14 +80,14 @@ class LatestArrivals:
         self._satellites = {
             funestra: Arrivals(lambda funestra=funestra: collect_video_files(
                 config.satellite(funestra).sources))
-            for funestra in RoomFunestra.SATELLITES}
+            for funestra in FunTimeFunestra.SATELLITES}
 
     def look(self) -> None:
         for arrivals in (self._main, *self._satellites.values()):
             arrivals.look()
 
     def deliver(self, state: BridgeState, *,
-                coming_home: Collection[RoomFunestra] = ()) -> None:
+                coming_home: Collection[FunTimeFunestra] = ()) -> None:
         self._main.hand_to(_TheMainFunestra(self._config, state))
         for funestra, arrivals in self._satellites.items():
             arrivals.hand_to(_ASatellite(self._config, state, funestra, coming_home))

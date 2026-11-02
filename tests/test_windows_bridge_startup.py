@@ -22,6 +22,7 @@ from shared_ui.preview import Preview
 from fun_time import preview_marker
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.child_launch import no_child_log
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_deaths import (
     FunestraDied,
     LaunchedFunestra,
@@ -35,7 +36,6 @@ from fun_time.media_metadata import mark_favorite
 from fun_time.modes import SatelliteBuild
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_launch import SatelliteLaunch
 from fun_time.shared_state import (
     BridgeState,
@@ -468,9 +468,9 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+        portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                        WindowRect(x=2560, y=0, width=1440, height=2500)),
-        landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+        landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                         WindowRect(x=1664, y=0, width=896, height=1392)),
         main_funestra_status_file=state_dir / "main_player_status.txt",
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
@@ -610,7 +610,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
 
 def test_a_session_that_ended_hosting_resumes_its_own_clips_not_the_hosted_apps(
         tmp_path: Path):
-    """Every room is BUILT in kino mode, so a room whose last session ended with
+    """Every session is BUILT in kino mode, so a session whose last session ended with
     the hosted app holding the Funestras must not open playing that app's items
     — which it did, held on a still nothing would page.  The session's own list
     was waiting beside each of them the whole time."""
@@ -774,11 +774,11 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert (state.main_scripted_filter, state.satellite(RoomFunestra.PORTRAIT).favorites_filter) == (True, True)
-    assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
-    assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
-    assert state.satellite(RoomFunestra.PORTRAIT).loop == "seed"
-    assert state.satellite(RoomFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
+    assert (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter) == (True, True)
+    assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
+    assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
+    assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
+    assert state.satellite(FunTimeFunestra.PORTRAIT).map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
     # state, but the Main Funestra's own HUD can only know F-mode from being told — so it is
     # told, or the Main Funestra is the one display that comes back saying nothing.
@@ -820,7 +820,7 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     _run_start_core_session(kwargs)
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
-    assert (state.satellite(RoomFunestra.PORTRAIT).locked, state.satellite(RoomFunestra.LANDSCAPE).locked) == (True, False)
+    assert (state.satellite(FunTimeFunestra.PORTRAIT).locked, state.satellite(FunTimeFunestra.LANDSCAPE).locked) == (True, False)
     assert kwargs["portrait"].channels.command.read_text(encoding="utf-8").split() == ["LOCK_ON"]
     assert not kwargs["landscape"].channels.command.exists()
 
@@ -998,8 +998,8 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_playing(
     tmp_path: Path,
 ):
-    """Every room is BUILT in kino mode: the hosted app that owns those regions
-    is still booting when the room opens, and nothing waits for it any more.  So
+    """Every session is BUILT in kino mode: the hosted app that owns those regions
+    is still booting when Fun Time opens, and nothing waits for it any more.  So
     both Funestras come up playing whatever mode the last session ended in, and
     the switch into origenerator mode — which the dispatch loop makes once the
     app answers — is what pauses them.  Seeded paused off the resumed mode, they
@@ -1396,8 +1396,8 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
                    side_effect=[202, 303]) as launched:
             launch_core_apps(
                 python_exe="python.exe", satellite_module="satellite",
-                portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
-                landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
+                portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
+                landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
                 result_file=tmp_path / "core_apps.ini",
             )
 
@@ -1696,9 +1696,9 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
-            portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
+            portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
                            state_dir, portrait_rect),
-            landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
+            landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
                             state_dir, landscape_rect),
             result_file=result_file,
         )
@@ -2243,9 +2243,9 @@ def test_only_the_portrait_funestra_is_launched_to_tile(tmp_path):
                side_effect=[202, 303]) as launch:
         launch_core_apps(
             python_exe="fun_time_python.exe", satellite_module="satellite",
-            portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+            portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                            WindowRect(x=2560, y=0, width=1440, height=2500)),
-            landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+            landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                             WindowRect(x=1664, y=0, width=896, height=1392)),
             result_file=tmp_path / "core_apps.ini",
         )

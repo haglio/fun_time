@@ -58,7 +58,7 @@ class WatchSampler:
     def sample_due(self, *, now: float, paused: bool, hosted: Collection[int] = ()) -> None:
         """Sample every Funestra, if the cadence says it is time.
 
-        The clock advances whether or not the room is paused, so resuming does
+        The clock advances whether or not Fun Time is paused, so resuming does
         not fire an off-cadence sample the moment the pause lifts.  The
         satellites *hosted* book nothing: in their Origenerator mode they play
         the hosted app's items, which are no library videos to book a watch

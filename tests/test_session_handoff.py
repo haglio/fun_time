@@ -70,7 +70,7 @@ class TestTheRequestFile:
         assert take_handoff_request(tmp_path) is None
 
     def test_a_teardown_may_read_the_request_without_spending_it(self, tmp_path: Path):
-        """The teardown has to know the room is changing shape rather than
+        """The teardown has to know Fun Time is changing shape rather than
         closing; the orchestrator still has to find the request afterwards."""
         request_handoff(tmp_path, VR)
 

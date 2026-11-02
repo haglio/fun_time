@@ -13,7 +13,7 @@ OMNIPAUSE_TOGGLE = "omnipause_toggle"
 ENTER_OMNIPAUSE = "enter_omnipause"
 VOICE_TOGGLE = "voice_toggle"
 HELP_REFERENCE = "help_reference"
-# The room's F-mode and its reset — every Funestra at once — and the way across
+# Fun Time's F-mode and its reset — every Funestra at once — and the way across
 # to the headset.
 FMODE_TOGGLE = "fmode_toggle"
 RESET_ALL = "all_reset"

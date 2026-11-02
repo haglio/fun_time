@@ -6,8 +6,8 @@ from pathlib import Path
 
 from funestra.funestra import Channels
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.osr2_section import osr2_readout_path
-from fun_time.room_funestras import RoomFunestra
 
 from .cli import PLAY_POINTS, play_points_path
 
@@ -26,9 +26,9 @@ class MainChannels(Channels):
             console=args.console_file,
             dashboard_cmd=args.dashboard_cmd_file,
             drive=args.drive_file,
-            osr2_sender=RoomFunestra.MAIN.label,
+            osr2_sender=FunTimeFunestra.MAIN.label,
             osr2_port=args.osr2_port,
-            osr2_readout=(osr2_readout_path(args.state_dir, RoomFunestra.MAIN.label)
+            osr2_readout=(osr2_readout_path(args.state_dir, FunTimeFunestra.MAIN.label)
                           if args.state_dir else None),
         )
 
@@ -45,5 +45,5 @@ class MainChannels(Channels):
             console=Path(commands.main_funestra_console_file),
             dashboard_cmd=Path(commands.dashboard_cmd_file),
             drive=Path(commands.genau_drive_file),
-            osr2_readout=osr2_readout_path(state_dir, RoomFunestra.MAIN.label),
+            osr2_readout=osr2_readout_path(state_dir, FunTimeFunestra.MAIN.label),
         )

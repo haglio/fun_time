@@ -96,7 +96,7 @@ Origenerator held, and only then does the loading screen come down — on a room
 the way it was left. A room Origenerator held nothing of waits for nothing.
 
 The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
-died on its way up would otherwise hold the room shut; a room that gave up opens
+died on its way up would otherwise hold Fun Time shut; a session that gave up opens
 with Origenerator holding nothing and stays that way for the session, and the
 state file is corrected to say so, since that is what the satellite HUDs and the
 dashboard's strip draw and what the switches act on. An Origenerator that was
@@ -104,9 +104,9 @@ already open when the session began — one he opened himself and the session to
 over, or one a crossing kept — has no boot to wait out, so what it held is there
 as the loading screen lifts.
 
-A room also opens with Origenerator in the browser's place and on one satellite,
+A session also opens with Origenerator in the browser's place and on one satellite,
 whatever the last one was left in, when the Origenerator it takes over is showing
-a slideshow: he was watching it, so the room comes up with that show on the
+a slideshow: he was watching it, so Fun Time comes up with that show on the
 satellite of its shape and the other satellite as the last session left it (his
 calls, 2026-10-13 and 2026-10-17). A slideshow of both shapes puts Origenerator
 on both satellites instead, each playing the slideshow's items of its own
@@ -123,7 +123,7 @@ Coming back to a Funestra's Origenerator mode means putting back what the mode t
 has a satellite, that Funestra's playlist file holds the app's images and the
 session's own list waits beside it (`fun_time.funestra_handover`). A session quit
 there, or killed there, never brings the Funestra home — so `resume_playlists`
-takes every kept list back before it reads anything, and a room built in video
+takes every kept list back before it reads anything, and a session built in video
 mode opens on video lists, at the clip each Satellite was showing when it left.
 Without that, the session after a quit in Origenerator mode opened in Kino mode
 on two locked images, each with a one-square map and nothing to step to
@@ -158,7 +158,7 @@ the reset and a session that starts fresh.
 When a press leaves the buttons letting nothing through -- both 2D and VR off,
 both lengths off, or a mix no video passes, such as only VR with only clips --
 the build answers it one way, whichever press it was: the list is the video on
-screen alone, the Main Funestra is locked on it, and the room says "No videos
+screen alone, the Main Funestra is locked on it, and Fun Time says "No videos
 left". A session that starts with nothing let through holds the video on screen
 the same way; with no video to hold, it puts the buttons back where a fresh
 session has them, keeping the shuffle's number.
@@ -192,15 +192,15 @@ Some settings live in a Funestra process while it runs, so they are gone the
 moment a session ends: each Funestra's playback rate, each satellite's own level and
 mute, the Main Funestra's hold on
 the video it is playing and the loop it runs, and Genau's Amp, Speed and Center bars,
-shape, flick seconds and two switches. The room's state is still the one place they
+shape, flick seconds and two switches. Fun Time's state is still the one place they
 are kept: the dispatch loop writes each one down as its Funestra reports it
 (`fun_time.funestra_settings`), and every session re-sends them from that state, so
-the room that opens is the room the last one was showing, whether it was left by a
+Fun Time that opens is Fun Time the last one was showing, whether it was left by a
 crossing ([entering-vr.md](entering-vr.md)) or by quitting. The Funestras' status
 files are what they report through, never what a session comes back from. The mic's
 mute is kept the same way: the dispatch loop writes it into the state whenever it
 moves, and the next session starts its own controller muted. So is where the
-headset's screens hang and how far the room is tilted: the headset reports them in
+headset's screens hang and how far Fun Time is tilted: the headset reports them in
 `vr_layout.json` as they move, the dispatch loop keeps them in the state, and the
 next headset session opens on them (`fun_time_vr.layout.remembered_layout`).
 
@@ -220,13 +220,13 @@ HUD said F-mode was off — and then answered "F-mode" by reporting it *enabled*
 and changing nothing you could see. Satellites whose playlists had to be built
 fresh start over with them: what described those files (`DESCRIBES_THE_PLAYLIST`
 — each Satellite's lock, filter, F-mode, order, loop and map) is gone with them, and
-everything else the room was left in still comes back.
+everything else Fun Time was left in still comes back.
 
 **The dispatch loop opens on the state file, never on defaults.** Origenerator
 is put back under the loading screen before the loop's first tick, through the switches'
 own commands, and every command writes the loop's state to the file. A loop
 that held defaults until its first tick wrote them over everything startup had
-just resumed, so until 2026-10-16 every room left with Origenerator holding
+just resumed, so until 2026-10-16 every session left with Origenerator holding
 anything came back at full Max intensity, with every other setting at its
 default too.
 

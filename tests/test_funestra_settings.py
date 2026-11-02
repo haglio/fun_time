@@ -3,9 +3,9 @@ from __future__ import annotations
 from funestra.drive_readout import DriveHud
 from funestra.modes import LoopState, SatellitesMode
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_settings import FunestraReports, with_what_the_funestras_report
 from fun_time.funestra_status import GenauStatus, MainFunestraStatus
-from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import SatelliteStatus
 from fun_time.shared_state import BridgeState
 
@@ -16,10 +16,10 @@ class TestTheRoomRecordsWhatEachFunestraReports:
     def test_the_rate_each_funestra_plays_at(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(
             main=MainFunestraStatus(speed=1.5, read_at=PUBLISHED_AT),
-            satellites={RoomFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
+            satellites={FunTimeFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
 
-        assert (state.main_speed, state.satellite(RoomFunestra.PORTRAIT).speed,
-                state.satellite(RoomFunestra.LANDSCAPE).speed) == (1.5, 0.5, 1.0)
+        assert (state.main_speed, state.satellite(FunTimeFunestra.PORTRAIT).speed,
+                state.satellite(FunTimeFunestra.LANDSCAPE).speed) == (1.5, 0.5, 1.0)
 
     def test_whether_the_main_funestra_holds_its_video_and_the_loop_it_runs(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(
@@ -49,19 +49,19 @@ class TestTheRoomRecordsWhatEachFunestraReports:
             76, 60, 30, "sawtooth", 25, True, False)
 
     def test_not_the_rate_of_a_show_the_hosted_app_plays_on_a_satellite(self):
-        hosting = BridgeState().with_satellite(RoomFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
+        hosting = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
 
         state = with_what_the_funestras_report(hosting, FunestraReports(
-            satellites={RoomFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
+            satellites={FunTimeFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
 
-        assert state.satellite(RoomFunestra.PORTRAIT).speed == 1.0
+        assert state.satellite(FunTimeFunestra.PORTRAIT).speed == 1.0
 
     def test_the_level_and_mute_each_satellites_own_chip_is_at(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(satellites={
-            RoomFunestra.PORTRAIT: SatelliteStatus(volume=40, muted=False),
-            RoomFunestra.LANDSCAPE: SatelliteStatus()}))
+            FunTimeFunestra.PORTRAIT: SatelliteStatus(volume=40, muted=False),
+            FunTimeFunestra.LANDSCAPE: SatelliteStatus()}))
 
-        assert (state.satellite(RoomFunestra.PORTRAIT).volume,
-                state.satellite(RoomFunestra.PORTRAIT).muted) == (40, False)
-        assert (state.satellite(RoomFunestra.LANDSCAPE).volume,
-                state.satellite(RoomFunestra.LANDSCAPE).muted) == (100, True)
+        assert (state.satellite(FunTimeFunestra.PORTRAIT).volume,
+                state.satellite(FunTimeFunestra.PORTRAIT).muted) == (40, False)
+        assert (state.satellite(FunTimeFunestra.LANDSCAPE).volume,
+                state.satellite(FunTimeFunestra.LANDSCAPE).muted) == (100, True)

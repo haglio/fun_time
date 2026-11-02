@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pygame
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.room_funestras import RoomFunestra
 from fun_time.window_layout import WindowRect
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -28,8 +28,8 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
                side_effect=[202, 303]) as launched:
         launch_core_apps(
             python_exe="python.exe", satellite_module="satellite",
-            portrait=_launch(RoomFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
-            landscape=_launch(RoomFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
+            portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
+            landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
             result_file=tmp_path / "core_apps.ini",
         )
 

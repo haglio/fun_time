@@ -12,9 +12,9 @@ from app_support.flick_folder import flat_flicks_in
 from fun_time import config
 from fun_time.config import PROJECT_DIR as CONFIG_ROOT
 from fun_time.config import ProjectConfig, load_config
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
-from fun_time.room_funestras import RoomFunestra
 from tests.made_up_genau import point_the_shared_settings_at
 
 # ---------------------------------------------------------------------------
@@ -476,9 +476,9 @@ class TestOrigeneratorPaths:
     def test_each_satellites_hosted_hud_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
-        assert cfg.satellite(RoomFunestra.PORTRAIT).origenerator_hud_file == (
+        assert cfg.satellite(FunTimeFunestra.PORTRAIT).origenerator_hud_file == (
             state / "origenerator_portrait_hud.json")
-        assert cfg.satellite(RoomFunestra.LANDSCAPE).origenerator_hud_file == (
+        assert cfg.satellite(FunTimeFunestra.LANDSCAPE).origenerator_hud_file == (
             state / "origenerator_landscape_hud.json")
 
     def test_each_satellite_publishes_its_notices_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
@@ -486,8 +486,8 @@ class TestOrigeneratorPaths:
         Funestra does in main_player_notice.txt beside them."""
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
-        assert cfg.satellite(RoomFunestra.PORTRAIT).notice_file == state / "portrait_notice.txt"
-        assert cfg.satellite(RoomFunestra.LANDSCAPE).notice_file == state / "landscape_notice.txt"
+        assert cfg.satellite(FunTimeFunestra.PORTRAIT).notice_file == state / "portrait_notice.txt"
+        assert cfg.satellite(FunTimeFunestra.LANDSCAPE).notice_file == state / "landscape_notice.txt"
 
 
 class TestTheProjectsOwnPaths:

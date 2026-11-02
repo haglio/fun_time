@@ -17,7 +17,7 @@ from fun_time.win32_desktop import on_hidden_desktop
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="A Satellite Funestra of Fun Time's room")
+    p = argparse.ArgumentParser(description="A Satellite Funestra of Fun Time")
     p.add_argument("--playlist", type=Path, default=None,
                    help="Video or image list to play, one per line; a funscript "
                         "column after a TAB is ignored")

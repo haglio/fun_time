@@ -6,10 +6,10 @@ from funestra.hud_title import F_MODE_LABEL
 from funestra.satellite_hud import HudModel, hud_text
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.room_funestras import RoomFunestra
+from fun_time.fun_time_funestras import FunTimeFunestra
 
 
-def publish_the_show(config: BridgeConfig, funestra: RoomFunestra, *, f_mode: bool) -> None:
+def publish_the_show(config: BridgeConfig, funestra: FunTimeFunestra, *, f_mode: bool) -> None:
     hud = HudModel(funestra=funestra.label, rows=((
         Button(f"{funestra.label}_fmode", FMODE_ICON, F_MODE_LABEL, lit=f_mode),),))
     config.satellite(funestra).origenerator_hud_file.write_text(hud_text(hud), encoding="utf-8")

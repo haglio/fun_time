@@ -19,6 +19,7 @@ from funestra.modes import MainMode
 
 from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows_bridge_startup
 from fun_time.config import load_config
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
@@ -40,7 +41,6 @@ from fun_time.project_paths import (
     PROJECT_DIR,
     SIBLING_CHECKOUTS_OVERRIDE_NAME,
 )
-from fun_time.room_funestras import RoomFunestra
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -328,7 +328,7 @@ class TestOrigeneratorInVr:
                 orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
                 bring_up_the_hosted_app=MagicMock(return_value=HostedApp(
                     303, already_open=True, taken_over=True,
-                    slideshow_on=RoomFunestra.SATELLITES)),
+                    slideshow_on=FunTimeFunestra.SATELLITES)),
                 resume_playlists=MagicMock(return_value=True),
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
@@ -853,8 +853,8 @@ def _queued_when_the_funestra_launches(config, env: SessionEnvironment) -> dict[
 
     channels = {
         "main": config.main_funestra_cmd_file,
-        "portrait": config.satellite(RoomFunestra.PORTRAIT).cmd_file,
-        "landscape": config.satellite(RoomFunestra.LANDSCAPE).cmd_file,
+        "portrait": config.satellite(FunTimeFunestra.PORTRAIT).cmd_file,
+        "landscape": config.satellite(FunTimeFunestra.LANDSCAPE).cmd_file,
         "genau": config.genau_cmd_file,
     }
     queued: dict[str, list[str]] = {}

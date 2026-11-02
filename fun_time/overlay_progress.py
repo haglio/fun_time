@@ -164,8 +164,8 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
 ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", 0.5)
 STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", 0.5)
 
-# The room as it is built, that wait among the steps rather than after the last.
-ROOM_PHASES: tuple[Phase, ...] = (
+# Fun Time as it is built, that wait among the steps rather than after the last.
+APP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
     Phase("companions", "Launching companions...", 1.3),
@@ -176,7 +176,7 @@ ROOM_PHASES: tuple[Phase, ...] = (
     Phase("finalizing", "Finalizing...", 0.0),
 )
 
-STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *ROOM_PHASES)
+STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)
 
 # The teardown as the closing screen sees it.  NOT seconds: a part ends when
 # Windows says it has, so the bar walks the steps.  No weightless phase ends

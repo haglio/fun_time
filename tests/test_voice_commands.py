@@ -214,16 +214,16 @@ class TestVoiceCommands:
         # "upscales" is what the desk calls the images a hosted Origenerator
         # show can narrow to; the app hears it on its own mic, but this model
         # has no such token, so the relayed phrase is "enhanced only" (and the
-        # way back out is the room's own "clear filter", routed to the show).
+        # way back out is Fun Time's own "clear filter", routed to the show).
         oov_words = {"origenerator", "upscales", "unpause", "unpark", "unretract", "funscript",
                      "omnipause", "omniplay", "osr2", "2d"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
 
-    def test_the_holds_stop_the_device_without_pausing_the_room(self):
+    def test_the_holds_stop_the_device_without_pausing_the_app(self):
         """"stop" beside them is relief OmniPause — it freezes everything.  These
-        are the narrow gesture: the switch off parks the device and the room
+        are the narrow gesture: the switch off parks the device and Fun Time
         plays on, and the switch on drives it again.  Relief keeps "stop" (and
         Shift+Esc)."""
         assert VOICE_COMMANDS["park"] == "robot_hand_park"
@@ -404,13 +404,13 @@ class TestVoiceCommands:
     def test_bare_f_mode_reaches_the_active_funestra(self):
         """Bare means the active Funestra here as it does everywhere else in the
         grid — "lock", "next", "trash" all resolve that way, and F-mode reading
-        as the whole room instead is what made a spoken "f mode" report
-        "enabled" over a room that already looked narrowed."""
+        as all of Fun Time instead is what made a spoken "f mode" report
+        "enabled" over a session that already looked narrowed."""
         assert VOICE_COMMANDS["f mode"] == "active_fmode"
         assert VOICE_COMMANDS["f mode on"] == "active_fmode_on"
         assert VOICE_COMMANDS["f mode off"] == "active_fmode_off"
 
-    def test_all_f_mode_is_the_whole_room_in_either_order(self):
+    def test_all_f_mode_is_the_whole_app_in_either_order(self):
         """The whole-room gesture keeps a phrase of its own — "all" joins the
         side words, and reads in either order like every one of them."""
         for word, act in (("f mode", "fmode_toggle"),
@@ -460,7 +460,7 @@ class TestVoiceCommands:
 
     def test_the_scope_named_all_is_gone_from_the_grid(self):
         """"lock all" and "loop all" read "all" as everything pinning the clip,
-        where the room's other "all" — "all f mode" — means all Funestras.  Nothing
+        where Fun Time's other "all" — "all f mode" — means all Funestras.  Nothing
         in the phrase says which sense is meant, and both were second spellings
         of "lock" and "reset", so they went instead of being disambiguated."""
         for phrase in ("lock all", "loop all", "same all"):
@@ -492,7 +492,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["unlock main"] == "main_lock_off"
 
     def test_primary_is_no_longer_a_spoken_word_for_the_funestra(self):
-        """It names a monitor in this room — the Main Funestra and the secondary — and one
+        """It names a monitor in this session — the Main Funestra and the secondary — and one
         word cannot be both a screen and a Funestra, so the old synonym is gone rather
         than kept alongside "main"."""
         spoken = {phrase for phrase in VOICE_COMMANDS if "primary" in phrase}

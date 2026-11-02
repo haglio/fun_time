@@ -12,12 +12,12 @@ from main_funestra.genau_verbs import genau_f_mode
 from .aiming import FUNESTRA_SOURCES
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .event_log import FAVORITE, NOTICE, SOURCE_SYSTEM
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import show_f_mode
 from .main_list import MainListSettings
 from .main_list_commands import on_the_main_funestra
 from .mode_plan import kino_shows
 from .origenerator_switches import hosts
-from .room_funestras import RoomFunestra
 from .runtime_flow import FMODE_FUNESTRAS, SatelliteFmodeInputs, apply_fmode
 from .satellite_groups import cancel_lock, clear_satellite_grouping
 from .shared_state import BridgeState
@@ -26,7 +26,7 @@ from .voice_commands import FAVORITES_PHRASE, say_command
 logger = logging.getLogger(__name__)
 
 
-def _sided_fmode_command(funestra: RoomFunestra, target: bool | None) -> str:
+def _sided_fmode_command(funestra: FunTimeFunestra, target: bool | None) -> str:
     return f"{funestra.label}_fmode" + {None: "", True: "_on", False: "_off"}[target]
 
 
@@ -37,29 +37,29 @@ def _sided_fmode_command(funestra: RoomFunestra, target: bool | None) -> str:
 # a Funestra reaches that one alone, off its own HUD button or its own spoken
 # phrase.  ``both_fmode`` never arrives here: the dispatch loop expands every
 # both_* into its portrait/landscape pair first.
-_FMODE_COMMANDS: dict[str, tuple[tuple[RoomFunestra, ...], bool | None]] = {
+_FMODE_COMMANDS: dict[str, tuple[tuple[FunTimeFunestra, ...], bool | None]] = {
     "fmode_toggle": (FMODE_FUNESTRAS, None),
     "fmode_on": (FMODE_FUNESTRAS, True),
     "fmode_off": (FMODE_FUNESTRAS, False),
     **{_sided_fmode_command(funestra, target): ((funestra,), target)
-       for funestra in RoomFunestra for target in (None, True, False)},
+       for funestra in FunTimeFunestra for target in (None, True, False)},
     **{say_command(funestra.label, FAVORITES_PHRASE): ((funestra,), None)
-       for funestra in RoomFunestra.SATELLITES},
+       for funestra in FunTimeFunestra.SATELLITES},
 }
 
 
-def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: RoomFunestra) -> bool | None:
-    if funestra is RoomFunestra.MAIN:
+def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: FunTimeFunestra) -> bool | None:
+    if funestra is FunTimeFunestra.MAIN:
         return state.main_scripted_filter if kino_shows(state.main_mode) else state.genau_favorites_filter
     if hosts(funestra, state, config):
         return show_f_mode(config.satellite(funestra))
     return state.satellite(funestra).favorites_filter
 
 
-def _with_f_mode(state: BridgeState, funestras: tuple[RoomFunestra, ...], enabled: bool) -> BridgeState:
+def _with_f_mode(state: BridgeState, funestras: tuple[FunTimeFunestra, ...], enabled: bool) -> BridgeState:
     """*state* with each of *Funestras* put into F-mode, or out of it."""
     for funestra in funestras:
-        if funestra is not RoomFunestra.MAIN:
+        if funestra is not FunTimeFunestra.MAIN:
             state = state.with_satellite(funestra, favorites_filter=enabled)
         elif kino_shows(state.main_mode):
             state = replace(state, main_scripted_filter=enabled)
@@ -68,29 +68,29 @@ def _with_f_mode(state: BridgeState, funestras: tuple[RoomFunestra, ...], enable
     return state
 
 
-def _genau_among(funestras: tuple[RoomFunestra, ...], state: BridgeState) -> tuple[RoomFunestra, ...]:
+def _genau_among(funestras: tuple[FunTimeFunestra, ...], state: BridgeState) -> tuple[FunTimeFunestra, ...]:
     return () if kino_shows(state.main_mode) else tuple(
-        funestra for funestra in funestras if funestra is RoomFunestra.MAIN)
+        funestra for funestra in funestras if funestra is FunTimeFunestra.MAIN)
 
 
 def every_funestra_in_f_mode(state: BridgeState, config: BridgeConfig,
-                           funestras: tuple[RoomFunestra, ...] = FMODE_FUNESTRAS) -> bool:
+                           funestras: tuple[FunTimeFunestra, ...] = FMODE_FUNESTRAS) -> bool:
     return all(f_mode for funestra in funestras
                if (f_mode := _funestra_f_mode(state, config, funestra)) is not None)
 
 
-def _next_f_mode(state: BridgeState, config: BridgeConfig, funestras: tuple[RoomFunestra, ...]) -> bool:
+def _next_f_mode(state: BridgeState, config: BridgeConfig, funestras: tuple[FunTimeFunestra, ...]) -> bool:
     """What a toggle over *Funestras* should set them all to.
 
     One Funestra is an ordinary flip.  Several — the F key, or a spoken "f mode" —
     turn on unless every one of them is already on, so the key that means "narrow
-    everything" can never leave half the room narrowed and half not: it either
+    everything" can never leave half Fun Time narrowed and half not: it either
     completes the narrowing or lifts it.
     """
     return not every_funestra_in_f_mode(state, config, funestras)
 
 
-def _set_the_hosted_shows_f_mode(funestras: tuple[RoomFunestra, ...], enabled: bool,
+def _set_the_hosted_shows_f_mode(funestras: tuple[FunTimeFunestra, ...], enabled: bool,
                                  config: BridgeConfig) -> None:
     for funestra in funestras:
         if show_f_mode(config.satellite(funestra)) not in (None, enabled):
@@ -98,7 +98,7 @@ def _set_the_hosted_shows_f_mode(funestras: tuple[RoomFunestra, ...], enabled: b
 
 
 def _dispatch_fmode(
-    funestras: tuple[RoomFunestra, ...], target: bool | None,
+    funestras: tuple[FunTimeFunestra, ...], target: bool | None,
     state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put *Funestras* into F-mode or out of it, rebuilding only what moves.
@@ -132,7 +132,7 @@ def _dispatch_fmode(
                 recent=state.satellite(funestra).latest,
                 filter_query=state.satellite(funestra).filter,
             )
-            for funestra in RoomFunestra.SATELLITES
+            for funestra in FunTimeFunestra.SATELLITES
         },
         regen_metadata_root=config.regen_metadata_root,
     )
@@ -141,13 +141,13 @@ def _dispatch_fmode(
     state = _with_f_mode(state, (*result.funestras, *genau), enabled)
     # A rebuilt satellite got a new queue, which drops its lock, its group loop and
     # the widened seed row that rode on the loop — the same as any other rebuild.
-    for funestra in RoomFunestra.SATELLITES:
+    for funestra in FunTimeFunestra.SATELLITES:
         if funestra in result.funestras:
             state = cancel_lock(funestra, state, config)
             state = clear_satellite_grouping(state, funestra)
     # Flash which way it went, on the display it went on — a sided F-mode reports
-    # from that Funestra, the all-Funestras one from the room.  It goes off the Funestras
-    # *asked for*, not the ones that moved: "f mode" is a gesture at the room even
+    # from that Funestra, the all-Funestras one from Fun Time.  It goes off the Funestras
+    # *asked for*, not the ones that moved: "f mode" is a gesture at Fun Time even
     # on the press where only one Funestra was left to narrow.  Enabling is green,
     # since what it narrows to is the favorites and the funscripts; disabling is
     # an ordinary white notice.

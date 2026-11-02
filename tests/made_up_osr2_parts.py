@@ -9,11 +9,11 @@ from funestra.console_hud import ConsoleHud, ConsolePainter
 from funestra.drive_readout import DriveHud, publish_drive, read_drive
 from funestra.modes import MainMode, Osr2State
 
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.osr2_section import osr2_part, osr2_part_path, osr2_readout_path
-from fun_time.room_funestras import RoomFunestra
 
 
-def a_part(holder: RoomFunestra = RoomFunestra.MAIN, *, broker: bool = True) -> ConsoleModel:
+def a_part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, *, broker: bool = True) -> ConsoleModel:
     return osr2_part(holder, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
                      control=OSR2_DRIVING, paused=False, learned=False, shape="sine",
                      broker=broker, max_intensity=100)
@@ -30,7 +30,7 @@ def published(state_dir: Path, part: ConsoleModel) -> ConsoleModel:
     return read_console(path)
 
 
-def handed_on(state_dir: Path, holder: RoomFunestra, readout: DriveHud) -> DriveHud:
+def handed_on(state_dir: Path, holder: FunTimeFunestra, readout: DriveHud) -> DriveHud:
     """*readout* written where *holder* hands its readout on, as it reads back."""
     path = osr2_readout_path(state_dir, holder.label)
     publish_drive(path, readout)

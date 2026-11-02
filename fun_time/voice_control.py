@@ -124,7 +124,7 @@ class VoiceHolds:
         return self._changes[changes_by_then - 1][1] if changes_by_then else None
 
 
-def _holds_or_ends_the_room(command: str) -> bool:
+def _holds_or_ends_the_app(command: str) -> bool:
     return (
         command in {"quit", "relief_omnipause", "robot_hand_park"}
         or command.endswith("_reset")
@@ -152,7 +152,7 @@ def command_rules(commands: Mapping[str, str], *, confidence_threshold: float,
                        if command == "relief_omnipause")
     return CommandRules(
         phrases=frozenset(commands),
-        never_repaired=lambda phrase: _holds_or_ends_the_room(commands[phrase]),
+        never_repaired=lambda phrase: _holds_or_ends_the_app(commands[phrase]),
         confidence_threshold=confidence_threshold,
         stands_alone=(relief if confirm_commands else frozenset(commands)).__contains__,
         written=_written,
@@ -412,8 +412,8 @@ class VoiceController:
             self.done_starting.set()
 
 
-class RoomVoice:
-    """The room's hold on voice control: muted on command, suspended while the
+class AppVoice:
+    """Fun Time's hold on voice control: muted on command, suspended while the
     room is paused or the headset is off, the doubted phrase accepted on Enter."""
 
     def __init__(self) -> None:
@@ -431,7 +431,7 @@ class RoomVoice:
             return DURING_OMNIPAUSE
         return None
 
-    def suspend_as_the_room_is(self, *, paused: bool) -> None:
+    def suspend_as_the_app_is(self, *, paused: bool) -> None:
         if self.controller is None:
             return
         hold = self.hold(paused=paused)

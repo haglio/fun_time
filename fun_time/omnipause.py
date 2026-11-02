@@ -96,7 +96,7 @@ def apply_enter_omnipause(
     write_flag_file(landscape_paused_file, True)
     if origenerator_paused_file is not None:
         # The hosted Origenerator obeys the same flag idiom: its shows stop
-        # their dwell clocks and playing clips until the room resumes.
+        # their dwell clocks and playing clips until Fun Time resumes.
         write_flag_file(origenerator_paused_file, True)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
@@ -195,7 +195,7 @@ def _dispatch_leave_omnipause(
         osr2_control=state.osr2_control,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
+    # Un-minimize first, then re-band, then focus: leaving OmniPause is Fun Time
     # coming back, so a Funestra put away with its own minimize button comes back
     # with it — it has no HUD left to ask with, its HUD having gone down with the
     # window.  Before the bands, so the re-stack and the activate below land on

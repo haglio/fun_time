@@ -18,9 +18,9 @@ from app_support.config_reader import (
 )
 from app_support.flick_folder import flicks_folder_in
 
+from .fun_time_funestras import FunTimeFunestra
 from .loopback_server import LOOPBACK_PORT
 from .project_paths import PROJECT_DIR
-from .room_funestras import RoomFunestra
 
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
@@ -55,7 +55,7 @@ class PathsConfig:
     broker_tray_launcher: Path | None = None
     # The Origenerator checkout the session hosts (see
     # fun_time.origenerator_switches), and the python that runs it.  Absent,
-    # nothing in the room offers Origenerator at all.
+    # nothing in Fun Time offers Origenerator at all.
     origenerator_dir: Path | None = None
     origenerator_python_exe: Path | None = None
 
@@ -257,10 +257,10 @@ class ProjectConfig:
     def random_favs_browser_manifest_file(self) -> Path:
         return self.paths.state_dir / "random_favs_browser_urls.txt"
 
-    def satellite(self, funestra: RoomFunestra) -> SatelliteFiles:
+    def satellite(self, funestra: FunTimeFunestra) -> SatelliteFiles:
         """The four channel files and the HUD one satellite reads — here with the
         session's other file names, not where the manifest is serialized."""
-        label = RoomFunestra(funestra).label
+        label = FunTimeFunestra(funestra).label
         return SatelliteFiles(
             cmd_file=self.paths.state_dir / f"{label}_cmd.txt",
             paused_file=self.paths.state_dir / f"{label}_paused.txt",

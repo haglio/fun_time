@@ -30,9 +30,9 @@ from fun_time.console_buttons import (
     osr2_rows,
 )
 from fun_time.content import Noun
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
 from fun_time.osr2_section import osr2_button, osr2_part
-from fun_time.room_funestras import RoomFunestra
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
 CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
@@ -74,7 +74,7 @@ _EVERY_FACE_SLOTS = (
 
 def _every_button() -> list[Button]:
     declared = [b for facts in _EVERY_FACE_SLOTS for row in _every_row(facts) for b in row]
-    part = osr2_part(RoomFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
+    part = osr2_part(FunTimeFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
                      control=OSR2_DRIVING, paused=False, learned=False, shape="sine",
                      broker=True, max_intensity=100)
     return [*declared, *(b for row in part.osr2_rows for b in row), *part.osr2_controls]
@@ -510,7 +510,7 @@ class TestSkipAhead:
         facts = MainFunestraFacts(main_mode=MainMode.KINO, has_osr2=has_osr2)
 
         assert "main_funestra_funscript_jump" in self._transport_row(facts)
-        assert osr2_rows(facts) == ((osr2_button(RoomFunestra.MAIN, has_it=has_osr2),),)
+        assert osr2_rows(facts) == ((osr2_button(FunTimeFunestra.MAIN, has_it=has_osr2),),)
 
     @pytest.mark.parametrize(("has_osr2", "has_funscript", "why"), [
         (False, True, " (this Funestra doesn't have the OSR2)"),
@@ -541,13 +541,13 @@ class TestTheOsr2Button:
     def test_a_console_that_has_the_osr2_wears_its_button_lit_in_place_of_the_aim_row(self):
         facts = MainFunestraFacts(main_mode=MainMode.GENAU)
 
-        assert osr2_rows(facts) == ((osr2_button(RoomFunestra.MAIN, has_it=True),),)
+        assert osr2_rows(facts) == ((osr2_button(FunTimeFunestra.MAIN, has_it=True),),)
 
     def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
         facts = MainFunestraFacts(main_mode=MainMode.KINO, has_osr2=False)
 
-        assert osr2_rows(facts) == ((osr2_button(RoomFunestra.MAIN, has_it=False),),)
-        assert osr2_button(RoomFunestra.MAIN, has_it=False) not in [b for row in console_rows(facts) for b in row]
+        assert osr2_rows(facts) == ((osr2_button(FunTimeFunestra.MAIN, has_it=False),),)
+        assert osr2_button(FunTimeFunestra.MAIN, has_it=False) not in [b for row in console_rows(facts) for b in row]
 
 
 class TestState:

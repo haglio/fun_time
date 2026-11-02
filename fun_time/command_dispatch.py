@@ -32,6 +32,7 @@ from .bridge_records import (
     ignored,
 )
 from .filter_vocab import decode_filter_command, set_command
+from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import MainFunestraStatus
 from .genau_commands import about_genaus_flick
 from .hosted_contract import said_to_the_hosted_app, with_when_said
@@ -39,7 +40,6 @@ from .hud_moves import minimize_ops, placed_hud
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
 from .origenerator_switches import hosts, hosts_a_satellite
-from .room_funestras import RoomFunestra
 from .satellite_commands import (
     LOCK_STATE_COMMANDS,
     LOCK_TOGGLES,
@@ -54,9 +54,9 @@ from .voice_commands import said_to_a_satellite
 logger = logging.getLogger(__name__)
 
 
-def _addressed(funestra: RoomFunestra, command: str, state: BridgeState) -> BridgeState:
+def _addressed(funestra: FunTimeFunestra, command: str, state: BridgeState) -> BridgeState:
     state = replace(state, active_funestra=funestra)
-    if funestra is RoomFunestra.MAIN or is_hud_nav_command(command):
+    if funestra is FunTimeFunestra.MAIN or is_hud_nav_command(command):
         return state
     return state.with_satellite(funestra, nav_anchor="")
 
@@ -148,9 +148,9 @@ _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_act
 _THE_FUNESTRAS_LOCK = frozenset({*LOCK_TOGGLES, *LOCK_STATE_COMMANDS})
 
 
-def _satellite_said_to(command: str) -> RoomFunestra | None:
+def _satellite_said_to(command: str) -> FunTimeFunestra | None:
     head = command.removeprefix("filter_")
-    return next((funestra for funestra in RoomFunestra.SATELLITES
+    return next((funestra for funestra in FunTimeFunestra.SATELLITES
                  if head.startswith(f"{funestra.label}_")), None)
 
 
@@ -166,7 +166,7 @@ def _said_to_each_satellite(command: str) -> tuple[str, ...]:
     target = decode_filter_command(command)
     if target is None or target[0] != "both":
         return (command,)
-    return tuple(set_command(funestra.label, target[1]) for funestra in RoomFunestra.SATELLITES)
+    return tuple(set_command(funestra.label, target[1]) for funestra in FunTimeFunestra.SATELLITES)
 
 
 # One the session already says to a Funestra, which means the same thing to the
@@ -187,7 +187,7 @@ def _a_lock_said_in_the_hosted_apps_words(command: str, state: BridgeState,
     if (said is None or said[1] not in config.origenerator_lock_phrases
             or not routes_to_origenerator(command, state, config)):
         return command
-    return lock_said(RoomFunestra[said[0].upper()], True)
+    return lock_said(FunTimeFunestra[said[0].upper()], True)
 
 
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
@@ -196,13 +196,13 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     Everything said to a Satellite in its Origenerator mode about what it plays goes
     there (:func:`_about_a_satellite`), and so does the app's own spoken vocabulary
     about that Satellite, as the words themselves: the session hears them for the
-    whole room and the hosted app matches them.  Public because the dispatch loop
+    all of Fun Time and the hosted app matches them.  Public because the dispatch loop
     asks the same question -- its watch tracking must not book a show's step or
     cull against a library video.
     """
     spoken = _words_for_the_hosted_app(command)
     if spoken is not None:
-        return hosts(RoomFunestra[spoken[0].upper()], state, config)
+        return hosts(FunTimeFunestra[spoken[0].upper()], state, config)
     return all(_about_a_satellite(said) and hosts(_satellite_said_to(said), state, config)
                for said in _said_to_each_satellite(command))
 
@@ -239,13 +239,13 @@ def _origenerator_transport(
     return []
 
 
-def room_at_defaults(state: BridgeState, config: BridgeConfig, status: MainFunestraStatus) -> bool:
+def app_at_defaults(state: BridgeState, config: BridgeConfig, status: MainFunestraStatus) -> bool:
     return (main_funestra_at_defaults(state, config, status)
             and not hosts_a_satellite(state, config)
             and all(satellite_at_defaults(
                         state.satellite(funestra),
                         read_satellite_status(config.satellite(funestra).status_file))
-                    for funestra in RoomFunestra.SATELLITES))
+                    for funestra in FunTimeFunestra.SATELLITES))
 
 
 def _parsed_unresolved_active(command: str, state: BridgeState, _config: BridgeConfig,

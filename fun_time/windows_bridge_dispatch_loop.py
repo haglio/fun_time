@@ -28,7 +28,7 @@ from .aiming import notice_source, resolve_active_funestra_command
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
-from .command_dispatch import dispatch_command, room_at_defaults, routes_to_origenerator
+from .command_dispatch import app_at_defaults, dispatch_command, routes_to_origenerator
 from .crown import Seating
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -44,6 +44,7 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
 from .event_log import NOTICE, SOURCE_SYSTEM, notice
 from .f_mode import every_funestra_in_f_mode
+from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import FunTimeWindows
 from .funestra_handover import Departures, Homecoming, SatellitesChangingHands
 from .funestra_notices import FunestraNotices
@@ -66,7 +67,6 @@ from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
 from .origenerator_switches import RfbMode, hosts
 from .rfb_slideshow import RfbSlideshow
-from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .session_end import mark_session_end
@@ -76,7 +76,7 @@ from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
 from .text_field_clicks import Sightings, TypingWatch
 from .voice_commands import CommandLine, parse_command_line
-from .voice_control import NOTHING_TO_ACCEPT, RoomVoice
+from .voice_control import NOTHING_TO_ACCEPT, AppVoice
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import find_window_for_process, set_always_on_top, window_rect
@@ -165,7 +165,7 @@ class DispatchLoopRunner:
         press_and_caret_watch: Sightings | None = None,
         sync_interval_ms: int = 200,
         origenerator_already_open: bool = False,
-        origenerator_slideshow_on: tuple[RoomFunestra, ...] = (),
+        origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = (),
         secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
     ) -> None:
         self.config = config
@@ -210,7 +210,7 @@ class DispatchLoopRunner:
         self._batching_rfb = False
         self.notices = FunestraNotices(config)
         self.reporting = FunestraReporting()
-        self.voice = RoomVoice()
+        self.voice = AppVoice()
         self._answers = 0
         self._ignored_because = ""
         self.homecoming = Homecoming()
@@ -232,12 +232,12 @@ class DispatchLoopRunner:
             device_on=lambda: osr2_device.switched_on(config.broker_state),
             satellites={funestra: SatelliteLine(status_file=config.satellite(funestra).status_file,
                                               cmd_file=config.satellite(funestra).cmd_file)
-                        for funestra in RoomFunestra.SATELLITES},
+                        for funestra in FunTimeFunestra.SATELLITES},
         )
         self.satellite_speeds = SatelliteSpeeds(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_cmd_files=tuple(
-                config.satellite(funestra).cmd_file for funestra in RoomFunestra.SATELLITES),
+                config.satellite(funestra).cmd_file for funestra in FunTimeFunestra.SATELLITES),
         )
         self.lock_follower = LockFollower(what_the_main_funestra_holds(config))
         self.latest_arrivals = LatestArrivals(config)
@@ -245,7 +245,7 @@ class DispatchLoopRunner:
     def activate_origenerator(self, *, wait_for_the_app) -> None:
         owed = self.opening.take_what_is_owed(wait_for_the_app, self.shared_state_file)
         if owed:
-            self.state = self.opening.room_as_it_is(self.state)
+            self.state = self.opening.app_as_it_is(self.state)
         for command in owed:
             self._dispatch(command)
 
@@ -256,8 +256,8 @@ class DispatchLoopRunner:
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
             self.state = shared
-        # File or no file: this corrects a reading of the room, not the file.
-        self.state = self.opening.room_as_it_is(self.state)
+        # File or no file: this corrects a reading of Fun Time, not the file.
+        self.state = self.opening.app_as_it_is(self.state)
         self.state = self.reporting.recorded(self.state, self.config, now=time.monotonic())
         if shared is not None and shared != self.state:
             # Nothing else writes the file until a command is dispatched, which on
@@ -286,7 +286,7 @@ class DispatchLoopRunner:
             self.state = seated
             write_shared_state(self.shared_state_file, self.state)
 
-        self.voice.suspend_as_the_room_is(paused=self.state.omni_paused)
+        self.voice.suspend_as_the_app_is(paused=self.state.omni_paused)
 
         # Periodic sync: z-order enforcement, the satellites' rate, the dashboard
         now = time.monotonic()
@@ -302,7 +302,7 @@ class DispatchLoopRunner:
         if held:
             self._take(*a_lock_holds(held, self.state, self.config))
         self.watch.sample_due(now=now, paused=self.state.omni_paused,
-                              hosted=tuple(funestra for funestra in RoomFunestra.SATELLITES
+                              hosted=tuple(funestra for funestra in FunTimeFunestra.SATELLITES
                                            if hosts(funestra, self.state, self.config)))
         self.hud.publish_due(self.state, now=now)
         if self.rfb_slideshow is not None:
@@ -442,7 +442,7 @@ class DispatchLoopRunner:
                     voice_active=self.voice.active,
                     f_mode=every_funestra_in_f_mode(self.state, self.config),
                     in_vr=self.config.vr_main_funestra,
-                    nothing_to_reset=room_at_defaults(
+                    nothing_to_reset=app_at_defaults(
                         self.state, self.config,
                         read_main_funestra_status(self.config.main_funestra_status_file)),
                     headset_ready=the_headset_is_ready(self.config.state_dir),
@@ -699,7 +699,7 @@ def _headset(runner: DispatchLoopRunner, signal: str) -> None:
         return
     logger.info("The headset is %s", "off: only quit is heard" if off else "back on")
     append_command(runner.ahk_cmd_file, signal)
-    runner.voice.suspend_as_the_room_is(paused=runner.state.omni_paused)
+    runner.voice.suspend_as_the_app_is(paused=runner.state.omni_paused)
 
 
 _LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = {
@@ -806,11 +806,11 @@ def _publish_the_satellite_changing_hands(runner: DispatchLoopRunner, state: Bri
 
 
 def _run_hand_over_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    runner.departures.expect((RoomFunestra[op.key.upper()],), runner.config)
+    runner.departures.expect((FunTimeFunestra[op.key.upper()],), runner.config)
 
 
 def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    runner.homecoming.expect((RoomFunestra[op.key.upper()],), runner.config,
+    runner.homecoming.expect((FunTimeFunestra[op.key.upper()],), runner.config,
                              now=time.monotonic())
 
 

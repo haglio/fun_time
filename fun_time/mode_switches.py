@@ -8,6 +8,7 @@ from funestra.modes import SatellitesMode
 
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
+from .fun_time_funestras import FunTimeFunestra
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
 from .origenerator_switches import (
     BOTH_SATELLITES_MODE_COMMANDS,
@@ -18,7 +19,6 @@ from .origenerator_switches import (
     origenerator_shows,
 )
 from .rfb_mode import origenerator_refused, switch_the_rfb_mode
-from .room_funestras import RoomFunestra
 from .runtime_flow import apply_mode_switch, apply_satellite_switch
 from .shared_state import BridgeState
 
@@ -43,7 +43,7 @@ _MODE_SWITCH_COMMANDS: dict[str, str] = {
 }
 
 
-def _switch_satellite(funestra: RoomFunestra, target: SatellitesMode, state: BridgeState,
+def _switch_satellite(funestra: FunTimeFunestra, target: SatellitesMode, state: BridgeState,
                       config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_satellite_switch(
         funestra=funestra,
@@ -95,7 +95,7 @@ def _mode_switch(target: str, state: BridgeState, config: BridgeConfig,
     return _dispatch_mode_switch(target, state, config, [])
 
 
-def _satellite_switch(funestra: RoomFunestra, target: SatellitesMode, state: BridgeState,
+def _satellite_switch(funestra: FunTimeFunestra, target: SatellitesMode, state: BridgeState,
                       config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     refused = origenerator_refused(state, config, asked_for=origenerator_shows(target))
@@ -109,13 +109,13 @@ def _both_satellites_switch(target: SatellitesMode | None, state: BridgeState,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if target is None:
         held = all(origenerator_shows(state.satellite(funestra).mode)
-                   for funestra in RoomFunestra.SATELLITES)
+                   for funestra in FunTimeFunestra.SATELLITES)
         target = KINO_MODE if held else ORIGENERATOR_MODE
     refused = origenerator_refused(state, config, asked_for=origenerator_shows(target))
     if refused is not None:
         return state, refused
     ops: list[WindowOp] = []
-    for funestra in RoomFunestra.SATELLITES:
+    for funestra in FunTimeFunestra.SATELLITES:
         state, more = _switch_satellite(funestra, target, state, config)
         ops.extend(more)
     return state, ops

@@ -3,7 +3,7 @@
 He has reported this one over and over: "when I start up Fun Time, its windows
 still are not ready by the time the loading screen goes away."  Every earlier
 attempt asked the question a second or two AFTER startup settled, by which time
-the room has caught up and every check passes.  So this asks it at the one moment
+Fun Time has caught up and every check passes.  So this asks it at the one moment
 the complaint is about — the first poll on which the loading overlay's window is
 gone — and reports what was still missing then.
 
@@ -48,7 +48,7 @@ pytestmark = pytest.mark.skipif(
 # The windows a session puts on screen, by exact title.
 SHOWN_TITLES = ("Fun Time", "Portrait AI Funestra", "Landscape AI Funestra", "Main Funestra")
 
-# What the orchestrator logs when the room has been banded and settled.
+# What the orchestrator logs when Fun Time has been banded and settled.
 BANDED = "Post-loading window state corrected"
 
 _POLL_S = 0.02

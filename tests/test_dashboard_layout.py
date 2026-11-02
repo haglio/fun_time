@@ -78,7 +78,7 @@ def test_everything_sits_on_one_line_inside_the_bars_height():
         assert rect.y + rect.height <= layout.height
 
 
-def test_the_window_leaves_the_log_the_room_the_bar_does_not_take():
+def test_the_window_leaves_the_log_the_app_the_bar_does_not_take():
     layout = compute_dashboard_bar_layout()
 
     assert dashboard_window_height() - layout.height >= 150

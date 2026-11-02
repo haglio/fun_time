@@ -10,10 +10,10 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import LaunchManifest, write_manifest_data, write_windows_bridge_manifest
 from fun_time.mode_plan import MAIN_MODES
 from fun_time.origenerator_switches import origenerator_shows
-from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
@@ -36,7 +36,7 @@ def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeC
     """The bridge config a headset session runs on, built the way
     ``fun_time_vr.orchestrator.run_vr_bridge`` builds it: the VR manifest
     written out, read back, and handed to the dispatch loop's own builder."""
-    config = room_config(root, names_an_origenerator=names_an_origenerator)
+    config = app_at_hand(root, names_an_origenerator=names_an_origenerator)
     manifest = write_manifest_data(build_vr_manifest(config),
                                    config.paths.state_dir / "windows_bridge_launch.ini")
     return build_bridge_config_from_manifest(LaunchManifest.read(manifest), vr_main_funestra=True)
@@ -44,12 +44,12 @@ def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeC
 
 def desktop_manifest(root: Path) -> LaunchManifest:
     """The manifest a session on the monitors runs on, as its orchestrator writes it."""
-    config = room_config(root)
+    config = app_at_hand(root)
     return LaunchManifest.read(write_windows_bridge_manifest(
         config, config.paths.state_dir / "windows_bridge_launch.ini"))
 
 
-def room_config(root: Path, *, names_an_origenerator: bool = True):
+def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
     """A fabricated config that names an Origenerator checkout, as a real one
     does, unless told not to."""
     folders = {name: root / name for name in (
@@ -128,7 +128,7 @@ def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[st
     """
     drain(config)
     for status_file in (config.main_funestra_status_file,
-                        *(config.satellite(funestra).status_file for funestra in RoomFunestra.SATELLITES)):
+                        *(config.satellite(funestra).status_file for funestra in FunTimeFunestra.SATELLITES)):
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text(
             "video=C:/v/scene one.mp4\nduration_ms=3600000\nposition_ms=1800000\n",
@@ -138,7 +138,7 @@ def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[st
         for satellites_mode in satellites_modes:
             for command in every_command():
                 state = BridgeState(main_mode=main_mode, origenerator_ready=True)
-                for funestra in RoomFunestra.SATELLITES:
+                for funestra in FunTimeFunestra.SATELLITES:
                     state = state.with_satellite(
                         funestra, mode=satellites_mode,
                         handed_over=origenerator_shows(satellites_mode))

@@ -35,6 +35,7 @@ from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_file
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, SIBLING_CHECKOUTS_KEY, load_config
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import (
     MainFunestraStatus,
     read_main_funestra_status,
@@ -51,7 +52,6 @@ from fun_time.monitors import MonitorRect
 from fun_time.process_identity import NAMER
 from fun_time.process_sweep import processes_matching
 from fun_time.process_tree import kill_process_tree
-from fun_time.room_funestras import RoomFunestra
 from fun_time.win32 import find_window_by_title
 from fun_time.win32_process import (
     command_line_of,
@@ -508,8 +508,8 @@ class FunTimeIntegrationSession:
             f"{name} {published_ago(status_file, now)}"
             for name, status_file in (
                 ("Main Funestra", self.config.main_funestra_status_file),
-                ("portrait", self.config.satellite(RoomFunestra.PORTRAIT).status_file),
-                ("landscape", self.config.satellite(RoomFunestra.LANDSCAPE).status_file)))
+                ("portrait", self.config.satellite(FunTimeFunestra.PORTRAIT).status_file),
+                ("landscape", self.config.satellite(FunTimeFunestra.LANDSCAPE).status_file)))
 
     def _read_log_file(self, path: Path | None) -> str:
         if path is None or not path.exists():

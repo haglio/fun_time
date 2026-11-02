@@ -203,7 +203,7 @@ def test_a_room_banded_under_a_loading_screen_too_busy_to_answer_never_shows_thr
             + "; ".join(watcher.too_long())
         )
         assert all(is_window_topmost(hwnd) for hwnd in funestras.values()), (
-            "the room never made it into the topmost band"
+            "Fun Time never made it into the topmost band"
         )
 
 

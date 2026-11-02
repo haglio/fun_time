@@ -153,7 +153,7 @@ class TestWhatEscCancelsAtTheLoadingScreen:
 
         assert self._opened_line(tmp_path, cancelable=False).hint == ""
 
-    def test_an_esc_pressed_while_the_room_changed_over_calls_the_arrival_off(
+    def test_an_esc_pressed_while_the_app_changed_over_calls_the_arrival_off(
         self, tmp_path,
     ):
         """Nothing but the hotkey script left over from the session he left was
