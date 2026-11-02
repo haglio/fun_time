@@ -6,7 +6,7 @@ import inspect
 
 import pytest
 
-from fun_time_vr import app, funestras, layout, room
+from fun_time_vr import frame_loop, funestras, layout, room
 from fun_time_vr import room as under_test
 from fun_time_vr.pointer import Screen
 from fun_time_vr.room import Hanging
@@ -228,7 +228,7 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._screen_names() & named == set()
 
     @pytest.mark.parametrize("step", [
-        app._show_the_room, app._frame, app._quad_layers,
+        frame_loop.show_the_room, frame_loop.show_a_frame, frame_loop.quad_layers,
         funestras.Arrangement.arrange, funestras.Arrangement._move,
     ])
     def test_the_frame_loop_names_no_screen_of_its_own(self, step):
