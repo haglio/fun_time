@@ -51,7 +51,7 @@ class FakePlayback:
         self.played.append((video, funscript))
 
 
-class FakeNotices:
+class FakeMessages:
     def __init__(self) -> None:
         self.said: list[tuple[str, str]] = []
 
@@ -76,8 +76,8 @@ def _world(tmp_path: Path):
 
 def _jumps(nav, current: Path, funscripts=None, playlist=None):
     playback = FakePlayback(current, playlist)
-    notices = FakeNotices()
-    return ClipJumps(nav, playback, funscripts or {}, notices), playback, notices
+    messages = FakeMessages()
+    return ClipJumps(nav, playback, funscripts or {}, messages), playback, messages
 
 
 class CountingNav:
@@ -137,7 +137,7 @@ class TestWhatTheButtonsCanDoFromHere:
         nav, _first, second, scene = _world(tmp_path)
         counting = CountingNav(nav)
 
-        jumps, session, _notices = _jumps(counting, second)
+        jumps, session, _messages = _jumps(counting, second)
         for _ in range(5):
             assert jumps.jump_to == "scene"
         assert [video for name, video in counting.asked if name == "full_vid_of"] == [second]
@@ -157,7 +157,7 @@ class TestResume:
         nav, first, second, scene = _world(tmp_path)
         # The resumed playlist leads with a video from the ordinary browse, and
         # does not contain the clip that was on screen at all.
-        jumps, session, _notices = _jumps(nav, scene, playlist=[PlaylistItem(scene)])
+        jumps, session, _messages = _jumps(nav, scene, playlist=[PlaylistItem(scene)])
 
         jumps.resume("Vol6", second)
 
@@ -169,7 +169,7 @@ class TestResume:
         """Something rebuilt rather than resumed, and the remembered pair belongs
         to a session that is over."""
         nav, _first, second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, scene)
+        jumps, session, _messages = _jumps(nav, scene)
 
         jumps.resume("Vol10", second)
 
@@ -179,7 +179,7 @@ class TestResume:
 
     def test_nothing_remembered_resumes_to_nothing(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, scene)
+        jumps, session, _messages = _jumps(nav, scene)
 
         jumps.resume("", second)
         jumps.resume("Vol6", None)
@@ -189,7 +189,7 @@ class TestResume:
 
     def test_a_remembered_non_clip_resumes_to_nothing(self, tmp_path):
         nav, _first, _second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, scene)
+        jumps, session, _messages = _jumps(nav, scene)
 
         jumps.resume("Vol6", scene)
 
@@ -202,7 +202,7 @@ class TestEndCompilation:
         """Leaving is about what "next" will reach, not about what is playing —
         the clip on screen carries on, now in the length mode's playlist."""
         nav, _first, second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, second)
+        jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
         browse = [PlaylistItem(second), PlaylistItem(scene)]
 
@@ -218,7 +218,7 @@ class TestEndCompilation:
         compilation yanked the video away — which is exactly what leaving must
         not do."""
         nav, _first, second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, second)
+        jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
         without_it = [PlaylistItem(scene)]
 
@@ -229,7 +229,7 @@ class TestEndCompilation:
 
     def test_outside_a_compilation_it_does_nothing(self, tmp_path):
         nav, _first, _second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, scene)
+        jumps, session, _messages = _jumps(nav, scene)
 
         jumps.end_compilation([PlaylistItem(scene)])
 
@@ -239,18 +239,18 @@ class TestEndCompilation:
 class TestPlayCompilation:
     def test_swaps_the_playlist_for_the_volume_in_order(self, tmp_path):
         nav, first, second, _scene = _world(tmp_path)
-        jumps, session, notices = _jumps(nav, second)
+        jumps, session, messages = _jumps(nav, second)
 
         jumps.play_compilation()
 
         assert [video for video, _fs in session.replaced[0]] == [first, second]
-        assert notices.said == [("compilation: 2 clips", MessageLevel.NOTICE)]
+        assert messages.said == [("compilation: 2 clips", MessageLevel.NORMAL)]
 
     def test_remembers_which_compilation_is_holding_the_playlist(self, tmp_path):
         """The HUD reports this; it is the state the Funestra could get stuck in
         with nothing on screen naming it."""
         nav, _first, second, _scene = _world(tmp_path)
-        jumps, _session, _notices = _jumps(nav, second)
+        jumps, _session, _messages = _jumps(nav, second)
 
         assert jumps.compilation == ""
         jumps.play_compilation()
@@ -258,19 +258,19 @@ class TestPlayCompilation:
 
     def test_a_non_clip_says_so_and_leaves_the_playlist_alone(self, tmp_path):
         nav, _first, _second, scene = _world(tmp_path)
-        jumps, session, notices = _jumps(nav, scene)
+        jumps, session, messages = _jumps(nav, scene)
 
         jumps.play_compilation()
 
         assert session.replaced == []
-        assert notices.said == [("not a compilation clip", MessageLevel.WARNING)]
+        assert messages.said == [("not a compilation clip", MessageLevel.WARNING)]
         assert jumps.compilation == ""
 
     def test_leaving_forgets_it(self, tmp_path):
         """Saying "clips" or reloading rebuilds the playlist from elsewhere, so
         the compilation is no longer what is on screen."""
         nav, _first, second, _scene = _world(tmp_path)
-        jumps, _session, _notices = _jumps(nav, second)
+        jumps, _session, _messages = _jumps(nav, second)
         jumps.play_compilation()
 
         jumps.leave_compilation()
@@ -282,21 +282,21 @@ class TestSingleVideoJumps:
     def test_full_vid_plays_the_scene_the_clip_came_from(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
         script = tmp_path / "scene.funscript"
-        jumps, session, notices = _jumps(nav, second, {scene: script})
+        jumps, session, messages = _jumps(nav, second, {scene: script})
 
         jumps.play_full_vid()
 
         assert session.played == [(scene, script)]
-        assert notices.said == [("full video", MessageLevel.NOTICE)]
+        assert messages.said == [("full video", MessageLevel.NORMAL)]
 
     def test_clip_jump_plays_the_clip_carved_from_the_scene(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
-        jumps, session, notices = _jumps(nav, scene)
+        jumps, session, messages = _jumps(nav, scene)
 
         jumps.play_clip_jump()
 
         assert session.played == [(second, None)]
-        assert notices.said == [("clip jump", MessageLevel.NOTICE)]
+        assert messages.said == [("clip jump", MessageLevel.NORMAL)]
 
     def test_a_miss_says_so_rather_than_moving(self, tmp_path):
         """Most clips' source movies are not in the library at all, so having
@@ -304,18 +304,18 @@ class TestSingleVideoJumps:
         looking broken.  A warning, then, not an error: Fun Time flashes an error
         red, and nothing here went wrong."""
         nav, first, _second, _scene = _world(tmp_path)
-        jumps, session, notices = _jumps(nav, first)
+        jumps, session, messages = _jumps(nav, first)
 
         jumps.play_full_vid()
 
         assert session.played == []
-        assert notices.said == [("full video not available", MessageLevel.WARNING)]
+        assert messages.said == [("full video not available", MessageLevel.WARNING)]
 
     def test_neither_jump_disturbs_the_compilation_it_is_inside(self, tmp_path):
         """These two move to one video; only "compilation" replaces the playlist,
         so the HUD must keep naming the volume you are still walking."""
         nav, _first, second, _scene = _world(tmp_path)
-        jumps, _session, _notices = _jumps(nav, second)
+        jumps, _session, _messages = _jumps(nav, second)
         jumps.play_compilation()
 
         jumps.play_full_vid()
@@ -338,7 +338,7 @@ class TestWhatTheVideoIsCalled:
         nav, _first, second, _scene = _world(tmp_path)
         counting = CountingNav(nav)
 
-        jumps, _session, _notices = _jumps(counting, second)
+        jumps, _session, _messages = _jumps(counting, second)
         for _ in range(5):
             assert jumps.title == "Ann Bly - Alpha Scene 2"
             assert jumps.jump_to == "scene"

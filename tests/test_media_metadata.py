@@ -633,7 +633,7 @@ def test_widened_seed_items_never_leave_the_videos_own_action(tmp_path: Path):
 
 def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
     """An act nothing else in the library does has no wider seed row.  That is a
-    real answer — the caller's "widening net failed" notice — and the widen used to
+    real answer — the caller's "widening net failed" message — and the widen used to
     dodge it by handing back the nearest video of some other act."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "solo": _t2v("Zeta", "1", prompt="a, b, c"),   # the only Zeta

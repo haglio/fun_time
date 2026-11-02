@@ -251,7 +251,7 @@ class TestOrigeneratorInVr:
     def test_the_session_reads_back_as_hosting_one(self, hosted, tmp_path):
         """The join the rest hangs off: ``origenerator_enabled`` is what puts the
         mode pair on both HUDs, lets a resumed origenerator mode stand, and
-        answers the switch with the mode instead of a notice."""
+        answers the switch with the mode instead of a message."""
         path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
             LaunchManifest.read(path), vr_main_funestra=True)

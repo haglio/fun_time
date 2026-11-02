@@ -10,7 +10,7 @@ from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_ON, RELOAD_PLAYLIST, play_file
 
-from .event_log import SOURCE_MAIN, notice
+from .event_log import SOURCE_MAIN, flash_message
 from .main_list import MainList, MainListSettings
 from .modes import scripted_item
 
@@ -34,13 +34,13 @@ class MainListBuild:
         verbs = [RELOAD_PLAYLIST, *self.settings.labels]
         if written.nothing_left:
             verbs.append(LOCK_ON)
-            notice(logger, NO_OTHER_VIDEOS, source=SOURCE_MAIN, level=logging.WARNING)
+            flash_message(logger, NO_OTHER_VIDEOS, source=SOURCE_MAIN, level=logging.WARNING)
         elif self.start_at_top:
             verbs.append(play_file(scripted_item(written.videos[0], self.main_list.metadata_root)))
         for verb in verbs:
             append_command(Path(self.main_funestra_cmd_file), verb)
         if self.says and not written.nothing_left:
-            notice(logger, self.says, source=SOURCE_MAIN)
+            flash_message(logger, self.says, source=SOURCE_MAIN)
 
     def replacing(self, waiting: MainListBuild) -> MainListBuild:
         return replace(self, start_at_top=self.start_at_top or waiting.start_at_top)

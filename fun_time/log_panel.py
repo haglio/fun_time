@@ -52,7 +52,7 @@ from fun_time.event_log import (
     FAVORITE,
     LEVEL_NAMES,
     LEVELS_BY_NAME,
-    NOTICE,
+    MESSAGE,
     SOURCE_LABELS,
     SOURCES,
     EventRecord,
@@ -83,7 +83,7 @@ _SOURCE_LABELS = SOURCE_LABELS  # beside the sources now; the headset wears them
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,
     logging.INFO: TEXT_MUTED,
-    NOTICE: TEXT_PRIMARY,
+    MESSAGE: TEXT_PRIMARY,
     FAVORITE: GREEN,
     logging.WARNING: YELLOW,
     logging.ERROR: RED,

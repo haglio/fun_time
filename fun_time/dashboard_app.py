@@ -68,8 +68,8 @@ from fun_time.log_panel import LogPanelWidget
 from fun_time.log_panel_model import ui_state_path
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.notice_feed import NoticeFeed
-from fun_time.notice_overlay import NoticeOverlay
+from fun_time.message_feed import MessageFeed
+from fun_time.message_overlay import MessageOverlay
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
 from fun_time.session_end import mark_session_end
@@ -673,7 +673,7 @@ class DashboardWindow(QMainWindow):
         # The reference popup opens over the Random Favs Browser's screen rect.
         self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar,
                                          on_typing_invited=self._pause_for_typing)
-        # Read once; the notice feed below is seeded from this same answer.
+        # Read once; the message feed below is seeded from this same answer.
         self._reveal = LoadingReveal(app_config.state_dir)
 
         self._pressed: dict[str, float] = {}
@@ -740,7 +740,7 @@ class DashboardWindow(QMainWindow):
             app_config.state_dir / PRESS_PORT_FILENAME, listener_name="press-listener",
             on_arrival=self._press_received.emit)
 
-        self._notices = NoticeFeed(
+        self._messages = MessageFeed(
             layout=app_config.layout,
             rfb_mode_selector=app_config.rfb_mode_selector,
             event_log_dir=app_config.state_dir,
@@ -750,9 +750,9 @@ class DashboardWindow(QMainWindow):
             list_what_was_heard=self._log_widget.show_what_was_heard,
             shared_state_file=shared_state_path(app_config.state_dir),
         )
-        self._notice_timer = QTimer(self)
-        self._notice_timer.timeout.connect(self._notices.poll)
-        self._notice_timer.start(250)
+        self._message_timer = QTimer(self)
+        self._message_timer.timeout.connect(self._messages.poll)
+        self._message_timer.start(250)
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._refresh)
@@ -778,10 +778,10 @@ class DashboardWindow(QMainWindow):
         """
         self._press_channel.stop()
         self._refresh_timer.stop()
-        self._notice_timer.stop()
+        self._message_timer.stop()
         self._log_widget.shutdown()
         self._osr2.shutdown()
-        self._notices.shutdown()
+        self._messages.shutdown()
 
     def changeEvent(self, event: object) -> None:
         """Mirror the dashboard's own minimize/restore onto every managed window.

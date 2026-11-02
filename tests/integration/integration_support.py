@@ -438,11 +438,11 @@ class FunTimeIntegrationSession:
     def is_favorite(self, path: Path) -> bool:
         return is_favorite(path, self.config.regen.metadata_root)
 
-    def notices(self) -> list[EventRecord]:
+    def messages(self) -> list[EventRecord]:
         """Every announcement in this session's event log so far.
 
         The overlay flashes exactly what clears :func:`is_announcement`, so a
-        record here with the right source is a notice over the right Funestra —
+        record here with the right source is a message over the right Funestra —
         assertable without a QApplication.
         """
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))

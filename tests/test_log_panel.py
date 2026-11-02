@@ -23,7 +23,7 @@ from shared_ui.spacing import (
     MARGIN_STANDARD,
 )
 
-from fun_time.event_log import FAVORITE, NOTICE, EventRecord, event_line
+from fun_time.event_log import FAVORITE, MESSAGE, EventRecord, event_line
 from fun_time.log_panel import _COPY_ICON_SIZE, LogPanelWidget, level_color
 from fun_time.log_panel_model import (
     MAX_RECORDS,
@@ -51,7 +51,7 @@ class TestLogFilter:
         assert f.accepts(_record(level=logging.INFO))
 
     def test_rejects_a_record_below_the_verbosity_floor(self):
-        f = LogFilter(verbosity=NOTICE, sources=ALL_SOURCES)
+        f = LogFilter(verbosity=MESSAGE, sources=ALL_SOURCES)
         assert not f.accepts(_record(level=logging.INFO))
 
     def test_rejects_a_record_from_a_muted_source(self):
@@ -67,10 +67,10 @@ class TestVisibleRecords:
     def test_keeps_only_records_the_filter_accepts_in_order(self):
         records = [
             _record(level=logging.DEBUG, source="dash", message="chatter"),
-            _record(level=NOTICE, source="portrait", message="No other seeds"),
+            _record(level=MESSAGE, source="portrait", message="No other seeds"),
             _record(level=logging.ERROR, source="landscape", message="boom"),
         ]
-        f = LogFilter(verbosity=NOTICE, sources=frozenset({"portrait", "landscape"}))
+        f = LogFilter(verbosity=MESSAGE, sources=frozenset({"portrait", "landscape"}))
 
         assert [r.message for r in visible_records(records, f)] == ["No other seeds", "boom"]
 
@@ -93,13 +93,13 @@ class TestAppendRecords:
 
 class TestLevelColor:
     """What each level looks like — here in the stream, and on the flash the
-    notice overlay draws from the same table."""
+    message overlay draws from the same table."""
 
     def test_an_ordinary_announcement_is_white(self):
         """Green used to mean "a command did something", which put it on the
         volume, the browse order and every other confirmation.  It means one thing
         now: the favorites and the funscripts."""
-        assert level_color(NOTICE).getRgb()[:3] == (240, 240, 240)
+        assert level_color(MESSAGE).getRgb()[:3] == (240, 240, 240)
 
     def test_the_favorites_and_the_funscripts_keep_the_green(self):
         assert level_color(FAVORITE).getRgb()[:3] == (48, 160, 48)
@@ -147,7 +147,7 @@ class TestCopyButtonPosition:
 
 
 def _event_line(message: str) -> str:
-    return json.dumps({"ts": 0.0, "level": NOTICE, "source": "system", "msg": message}) + "\n"
+    return json.dumps({"ts": 0.0, "level": MESSAGE, "source": "system", "msg": message}) + "\n"
 
 
 @pytest.fixture
@@ -314,10 +314,10 @@ class TestTheSavedViewState:
 
         assert load_ui_state(path) == state
 
-    def test_a_missing_file_gives_notice_level_and_every_source(self, tmp_path: Path):
+    def test_a_missing_file_gives_message_level_and_every_source(self, tmp_path: Path):
         state = load_ui_state(tmp_path / "absent.ini")
 
-        assert state.verbosity == NOTICE
+        assert state.verbosity == MESSAGE
         assert state.sources == ALL_SOURCES
 
     def test_an_unreadable_file_falls_back_to_the_defaults(self, tmp_path: Path):
@@ -326,13 +326,13 @@ class TestTheSavedViewState:
 
         state = load_ui_state(path)
 
-        assert state.verbosity == NOTICE
+        assert state.verbosity == MESSAGE
         assert state.sources == ALL_SOURCES
 
     def test_saving_creates_the_parent_directory(self, tmp_path: Path):
         path = tmp_path / "nested" / "log_panel_state.ini"
 
-        save_ui_state(path, LogPanelState(verbosity=NOTICE, sources=ALL_SOURCES))
+        save_ui_state(path, LogPanelState(verbosity=MESSAGE, sources=ALL_SOURCES))
 
         assert path.exists()
 

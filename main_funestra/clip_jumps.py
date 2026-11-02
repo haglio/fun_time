@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class ClipJumps:
-    def __init__(self, nav, playback, funscripts: dict[Path, Path | None], notices) -> None:
+    def __init__(self, nav, playback, funscripts: dict[Path, Path | None], messages) -> None:
         self._nav = nav
         self._playback = playback
         self._funscripts = funscripts
-        self._notices = notices
+        self._messages = messages
         self._compilation = ""
         self._asked_about: Path | None = None
         self._reachable: tuple[bool, str, str] = (False, "", "")
@@ -89,10 +89,10 @@ class ClipJumps:
     def play_compilation(self) -> None:
         current = self._playback.current_video
         if not self._enter(current):
-            self._notices.say("not a compilation clip", level=MessageLevel.WARNING)
+            self._messages.say("not a compilation clip", level=MessageLevel.WARNING)
             return
-        self._notices.say(
-            f"compilation: {len(self._playback.playlist)} clips", level=MessageLevel.NOTICE)
+        self._messages.say(
+            f"compilation: {len(self._playback.playlist)} clips", level=MessageLevel.NORMAL)
 
     def _enter(self, current: Path) -> bool:
         siblings = self._nav.compilation_playlist(current)
@@ -111,7 +111,7 @@ class ClipJumps:
     def _jump(self, target: Path | None, what: str) -> None:
         if target is None:
             logger.info("%s: nothing matches %s", what, self._playback.current_video.name)
-            self._notices.say(f"{what} not available", level=MessageLevel.WARNING)
+            self._messages.say(f"{what} not available", level=MessageLevel.WARNING)
             return
         self._playback.play_file(target, self._funscripts.get(target))
-        self._notices.say(what, level=MessageLevel.NOTICE)
+        self._messages.say(what, level=MessageLevel.NORMAL)

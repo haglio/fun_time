@@ -239,7 +239,7 @@ class TestLeavingALoop:
 
 class TestWhatEachTickOfThePlayheadDoes:
     """`observe` is the half of a loop no gesture can say: a mark that ran to the
-    end of the file.  A clock that jumped is the Funestra's own to notice."""
+    end of the file.  A clock that jumped is the Funestra's own to message."""
 
     def test_a_tick_while_nothing_is_marked_or_running_asks_for_nothing(self):
         loops, _playback, _seeks, takeovers, _marks = _loops()

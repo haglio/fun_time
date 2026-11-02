@@ -44,7 +44,7 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     REFERENCE_OPEN_FILENAME,
 )
-from fun_time.event_log import NOTICE
+from fun_time.event_log import MESSAGE
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -80,7 +80,6 @@ from fun_time_vr.funestras import (
     LoadingScreenUnit,
     LoadingScreenWatch,
     VrSettings,
-    _BannerUnit,
     _ControllerPosts,
     _DashUnit,
     _GalleryUnit,
@@ -90,6 +89,7 @@ from fun_time_vr.funestras import (
     _LibraryUnit,
     _MainHudUnit,
     _MainUnit,
+    _MessageUnit,
     _PointerDrawing,
     _ReferenceUnit,
     _SatelliteUnit,
@@ -104,13 +104,13 @@ from fun_time_vr.hud_buttons import HudButtons
 from fun_time_vr.hud_sides import side_screen_name
 from fun_time_vr.hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG, toggle_screen_name
 from fun_time_vr.layout import (
-    BANNER,
     DASH,
     GALLERY,
     LANDSCAPE,
     LIBRARY,
     MAIN,
     MAIN_HUD,
+    MESSAGE_SCREEN,
     PORTRAIT,
     REFERENCE,
     Layout,
@@ -125,7 +125,7 @@ from fun_time_vr.loading_screen import (
     LoadingScreenWatcher,
 )
 from fun_time_vr.matrices import yaw_of_orientation
-from fun_time_vr.notices import NoticeBoard
+from fun_time_vr.messages import MessageBoard
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.perf import FramePerf
 from fun_time_vr.pointer import (
@@ -369,7 +369,7 @@ def test_kino_runs_on_it_through_the_library_and_the_memory_the_desktop_reads(
             is library.return_value.playlist.return_value)
 
 
-def test_the_library_names_the_sessions_notice_file_to_kino(tmp_path):
+def test_the_library_names_the_sessions_message_file_to_kino(tmp_path):
     manifest = _manifest_for_a_vr_session(tmp_path)
 
     library = funestras._TheLibrary(manifest, _A_SESSION, while_reading=lambda: None)
@@ -377,7 +377,7 @@ def test_the_library_names_the_sessions_notice_file_to_kino(tmp_path):
     assert library.args.notice_file == Path(manifest.commands.main_funestra_notice_file)
 
 
-def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_funestras_notices(
+def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_funestras_messages(
         tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path)
 
@@ -484,12 +484,12 @@ class TestGenauOnTheMainFunestra:
 
         assert built.fakes["Osr2Sender"].call_args == call(ROBOT_HAND, port=8123)
 
-    def test_what_it_says_goes_where_the_session_reads_the_main_funestras_notices(self, tmp_path):
+    def test_what_it_says_goes_where_the_session_reads_the_main_funestras_messages(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)
 
         assert built.fakes["MessageWriter"].call_args.args == (
             Path(built.manifest.commands.main_funestra_notice_file),)
-        assert (built.fakes["GenauInTheHeadset"].call_args.kwargs["notices"]
+        assert (built.fakes["GenauInTheHeadset"].call_args.kwargs["messages"]
                 is built.fakes["MessageWriter"].return_value)
 
 
@@ -799,7 +799,7 @@ class TestWhatEveryVideoUnitOwes:
 
     @pytest.mark.parametrize("pumped_class", _EVERYTHING_THE_WORKER_IS_HANDED)
     def test_everything_the_worker_is_handed_answers_both_calls(self, pumped_class):
-        """The list is not all video units -- the notice board and the layout
+        """The list is not all video units -- the message board and the layout
         keeper ride on it too -- so nothing about being a `_VideoUnit` covers
         it.  The board answered pump and not close, and since it is FIRST on
         the list the teardown died on its very first entry: every session, for
@@ -1533,7 +1533,7 @@ def _hang_a_room(tmp_path, *, present_the_loading_screen=lambda: None, loading_s
     listener of its own faked."""
     manifest = _manifest_for_a_vr_session(tmp_path)
     with patch("fun_time_vr.funestras.LibraryHost"), \
-            patch("fun_time_vr.funestras.UnloggedNotices"), \
+            patch("fun_time_vr.funestras.UnloggedMessages"), \
             patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
         return hang_the_room(
             manifest, _A_SESSION, _NO_GL_CONTEXTS, manifest_path=tmp_path / "launch.ini",
@@ -1616,7 +1616,7 @@ class TestHangingTheRoom:
     def test_everything_it_closes_when_it_ends_has_a_close(self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
-        assert any(isinstance(one, NoticeBoard) for one in the_room.closing)
+        assert any(isinstance(one, MessageBoard) for one in the_room.closing)
         assert the_room.posts in the_room.closing
         assert [type(one).__name__ for one in the_room.closing
                 if not callable(getattr(one, "close", None))] == []
@@ -1679,7 +1679,7 @@ class TestHangingTheRoom:
 
     def test_the_loading_screen_is_presented_between_the_funestras_being_built(
             self, tmp_path, faked_collaborators):
-        """Each opens media, which takes long enough to notice."""
+        """Each opens media, which takes long enough to message."""
         order: list[str] = []
         faked_collaborators["Funestra"].side_effect = (
             lambda *_args, **_kwargs: order.append("funestra") or MagicMock())
@@ -2178,65 +2178,65 @@ class TestTheReadoutOfAWrappedFrame:
         flashed = []
         unit = SimpleNamespace(
             _readout=WrapReadout(), screen_name=MAIN, wrap_readout="Fisheye · 158° · height 1.20",
-            _notices=SimpleNamespace(flash=lambda said, **how: flashed.append((said, how))))
+            _messages=SimpleNamespace(flash=lambda said, **how: flashed.append((said, how))))
 
         _MainUnit.flash_the_readout(unit, 1.0)
         _MainUnit.flash_the_readout(unit, 2.0)
 
         assert flashed == [("Fisheye · 158° · height 1.20",
-                            {"level": NOTICE, "screen": MAIN, "now": 1.0})]
+                            {"level": MESSAGE, "screen": MAIN, "now": 1.0})]
 
 
 class TestTheBannerOverAWrappedFrame:
     def _main_unit(self, *, wraps):
         return SimpleNamespace(
-            _notices=SimpleNamespace(banner=lambda _screen: "a banner"), wraps_the_viewer=wraps,
+            _messages=SimpleNamespace(flashed=lambda _screen: "a banner"), wraps_the_viewer=wraps,
             screen_name=MAIN)
 
     def test_a_flat_frame_takes_its_banner_into_itself(self):
-        assert _MainUnit.banner_into_the_frame(self._main_unit(wraps=False)) == "a banner"
+        assert _MainUnit.message_into_the_frame(self._main_unit(wraps=False)) == "a banner"
 
     def test_a_wrapped_frame_takes_none_into_itself(self):
-        assert _MainUnit.banner_into_the_frame(self._main_unit(wraps=True)) is None
+        assert _MainUnit.message_into_the_frame(self._main_unit(wraps=True)) is None
 
-    def _floating(self, *, wraps, banner):
+    def _floating(self, *, wraps, flashed):
         unit = SimpleNamespace(
             _main_unit=SimpleNamespace(wraps_the_viewer=wraps),
-            _notices=SimpleNamespace(banner=lambda _screen: banner),
+            _messages=SimpleNamespace(flashed=lambda _screen: flashed),
             _lock=threading.Lock(), _image=None, _uploaded=None, _painted=None,
             texture=SimpleNamespace(ready=True, texture=object(), aspect=6.0),
             screen=SimpleNamespace(placement=Placement(0.0, 24.0, 1.0)),
         )
-        _BannerUnit.pump(unit, None, now=0.0)
+        _MessageUnit.pump(unit, None, now=0.0)
         return unit
 
     def test_it_floats_the_banner_in_front_while_the_frame_wraps_the_viewer(self):
-        notice = SimpleNamespace(message="Fisheye · 158° · height 1.20", level=NOTICE)
+        flash_message = SimpleNamespace(message="Fisheye · 158° · height 1.20", level=MESSAGE)
 
-        unit = self._floating(wraps=True, banner=notice)
+        unit = self._floating(wraps=True, flashed=flash_message)
 
-        (hanging,) = _BannerUnit.hangings(unit)
+        (hanging,) = _MessageUnit.hangings(unit)
         assert hanging.in_front
         assert hanging.blend
-        assert hanging.screen.name == BANNER
+        assert hanging.screen.name == MESSAGE_SCREEN
         assert not hanging.screen.pressable
         assert not hanging.screen.movable
         assert unit._image is not None
         assert unit.screen.placement.width_deg == pytest.approx(
-            unit._image.width / funestras.BANNER_PX_PER_DEG)
+            unit._image.width / funestras.MESSAGE_PX_PER_DEG)
 
     def test_it_hangs_nothing_over_a_flat_frame_which_draws_its_own(self):
-        notice = SimpleNamespace(message="Flat", level=NOTICE)
+        flash_message = SimpleNamespace(message="Flat", level=MESSAGE)
 
-        assert _BannerUnit.hangings(self._floating(wraps=False, banner=notice)) == ()
+        assert _MessageUnit.hangings(self._floating(wraps=False, flashed=flash_message)) == ()
 
     def test_it_hangs_nothing_once_the_banner_has_faded(self):
-        unit = self._floating(wraps=True, banner=SimpleNamespace(message="Flat", level=NOTICE))
+        unit = self._floating(wraps=True, flashed=SimpleNamespace(message="Flat", level=MESSAGE))
 
-        unit._notices = SimpleNamespace(banner=lambda _screen: None)
-        _BannerUnit.pump(unit, None, now=3.0)
+        unit._messages = SimpleNamespace(flashed=lambda _screen: None)
+        _MessageUnit.pump(unit, None, now=3.0)
 
-        assert _BannerUnit.hangings(unit) == ()
+        assert _MessageUnit.hangings(unit) == ()
 
 
 class TestTheMainFunestraUnderThePointer:
@@ -2583,7 +2583,7 @@ def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
             _slot(wrapped=wrapped),
             remembered=remembered or {},
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            notices=NoticeBoard(tmp_path / "event_log.jsonl"),
+            messages=MessageBoard(tmp_path / "event_log.jsonl"),
             dashboard_state_file=tmp_path / "dashboard_state.ini",
             reference_flag=tmp_path / REFERENCE_OPEN_FILENAME,
             state_dir=tmp_path,

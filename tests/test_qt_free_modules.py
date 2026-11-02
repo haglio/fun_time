@@ -2,7 +2,7 @@
 
 Two GUI modules used to split themselves in half with a second block of PyQt6
 imports written 128 and 57 lines in — a real convention, for a good reason (the
-upper half tests without a QApplication, and the session's own notice feed reads
+upper half tests without a QApplication, and the session's own message feed reads
 the placement rules), with nothing enforcing it. A module boundary enforces it,
 and this is what says so.
 """
@@ -13,7 +13,7 @@ import sys
 
 QT_FREE = (
     "fun_time.log_panel_model",
-    "fun_time.notice_placement",
+    "fun_time.message_placement",
     "fun_time.event_log",
     "fun_time.dashboard_layout",
     "fun_time.dashboard_bridge",

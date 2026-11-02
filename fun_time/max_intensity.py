@@ -42,7 +42,7 @@ def parsed_max_intensity(command: str, state: BridgeState, config: BridgeConfig,
     max_intensity = max(0, min(FULL_INTENSITY, asked))
     publish_max_intensity(funestras_that_can_drive_the_osr2(config), max_intensity=max_intensity)
     return (replace(state, max_intensity=max_intensity),
-            [WindowOp(op="notice", key=f"Max intensity {max_intensity}%", source=SOURCE_MAIN)])
+            [WindowOp(op="message", key=f"Max intensity {max_intensity}%", source=SOURCE_MAIN)])
 
 
 PARSED_FORMS = (parsed_max_intensity,)

@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from funestra.funestra import User
 from funestra.main_hud_painter import ModeHud
-from funestra.notices import MessageWriter
+from funestra.messages import MessageWriter
 
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
@@ -97,7 +97,7 @@ class World:
             start_flick=start_flick,
             latest=latest,
             metadata_root=self.metadata_root,
-            notices=MessageWriter(self.notice_file),
+            messages=MessageWriter(self.notice_file),
             decode=lambda _path: _frames(),
             start_thread=start_thread,
             clock=lambda: self.now,
@@ -117,7 +117,7 @@ class World:
     def on_screen(self) -> Path | None:
         return self.genau.own_frame().flick
 
-    def notice(self) -> str:
+    def flash_message(self) -> str:
         if not self.notice_file.exists():
             return ""
         lines = self.notice_file.read_text(encoding="utf-8").splitlines()
@@ -194,14 +194,14 @@ class TestNarrowingToAShape:
 
         world.send("SHAPES flat")
 
-        assert world.notice() == "2D only"
+        assert world.flash_message() == "2D only"
 
     def test_a_shape_with_no_flicks_says_only_that_there_are_none(self, tmp_path):
         world = World(tmp_path)
 
         world.send("SHAPES flat")
 
-        assert world.notice() == no_other_flicks()
+        assert world.flash_message() == no_other_flicks()
 
     def test_a_flick_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
         world = World(tmp_path, flat_flicks=("delta.mp4",),

@@ -1137,7 +1137,7 @@ def test_the_launch_names_genaus_orientations_only_for_a_session_left_narrowed(t
     assert named((False, False)) == ["--genau-orientations"]
 
 
-def test_the_main_funestra_is_handed_where_its_notices_are_read(tmp_path: Path):
+def test_the_main_funestra_is_handed_where_its_messages_are_read(tmp_path: Path):
     command = _launched_main_funestra(tmp_path, notice_file="a-state-dir/main_player_notice.txt")
 
     assert command[command.index("--notice-file") + 1] == "a-state-dir/main_player_notice.txt"

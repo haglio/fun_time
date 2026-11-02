@@ -169,8 +169,8 @@ class TestOpenChildLog:
         with open_child_log(log_file, ["pythonw.exe", "-m", "satellite", "--title", "Portrait"]):
             pass
 
-        banner = log_file.read_text(encoding="utf-8")
-        assert "pythonw.exe -m satellite --title Portrait" in banner
+        flashed = log_file.read_text(encoding="utf-8")
+        assert "pythonw.exe -m satellite --title Portrait" in flashed
 
     def test_appends_so_a_prior_session_survives_the_next_launch(self, tmp_path: Path):
         log_file = tmp_path / "portrait_satellite.log"

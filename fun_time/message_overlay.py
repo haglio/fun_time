@@ -1,8 +1,8 @@
-"""The glanceable flash of a notice (:func:`fun_time.event_log.notice`), at the
+"""The glanceable flash of a message (:func:`fun_time.event_log.message`), at the
 top-center of the window it is about: a Main Funestra one over the Main Funestra/Genau
 display, a portrait/landscape one over that satellite.
 
-Which window and where on it are :mod:`fun_time.notice_placement`'s.
+Which window and where on it are :mod:`fun_time.message_placement`'s.
 """
 from __future__ import annotations
 
@@ -24,14 +24,14 @@ from shared_ui.notice_shape import (
 from fun_time.dashboard_layout import Rect, Size
 from fun_time.event_log import EventRecord
 from fun_time.log_panel import level_color
-from fun_time.notice_placement import top_center_position
+from fun_time.message_placement import top_center_position
 
-# How long a flashed notice lingers before fading out.
+# How long a flashed message lingers before fading out.
 NOTICE_LINGER_MS = 2200
 
 
-class NoticeOverlay(QLabel):
-    """A frameless, click-through banner that flashes a notice over a Funestra.
+class MessageOverlay(QLabel):
+    """A frameless, click-through message that flashes a message over a Funestra.
 
     It never takes focus -- this suite is acutely focus-sensitive -- so it is
     shown with ``WA_ShowWithoutActivating`` and the ``Tool`` window type, and

@@ -37,11 +37,11 @@ def test_discarding_a_favorite_is_a_demotion_not_a_condemnation():
     plan = build_discard_plan(funestra=3, current_path="C:/v/kept.mp4", is_favorite=True)
 
     assert plan.condemns is False
-    assert plan.notice_message == "Unfavorited"
+    assert plan.message_text == "Unfavorited"
 
 
 def test_discarding_a_non_favorite_condemns_it():
     plan = build_discard_plan(funestra=2, current_path="C:/v/odd.mp4", is_favorite=False)
 
     assert plan.condemns is True
-    assert plan.notice_message == "Sent to Trash"
+    assert plan.message_text == "Sent to Trash"

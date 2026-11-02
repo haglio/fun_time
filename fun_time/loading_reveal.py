@@ -27,7 +27,7 @@ class Showable(Protocol):
 
 class LoadingReveal:
     """Whether the panel is still waiting, and what happens when it stops.
-    Built before the native window exists: the notice feed starts held from the
+    Built before the native window exists: the message feed starts held from the
     same answer, and two reads of the progress file could disagree."""
 
     def __init__(self, state_dir: Path) -> None:

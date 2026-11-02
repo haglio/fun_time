@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from fun_time.event_log import (
-    NOTICE,
+    MESSAGE,
     SOURCES,
     EventRecord,
 )
@@ -88,7 +88,7 @@ class LogPanelState:
     sources: frozenset[str]
 
 
-DEFAULT_UI_STATE = LogPanelState(verbosity=NOTICE, sources=frozenset(SOURCES))
+DEFAULT_UI_STATE = LogPanelState(verbosity=MESSAGE, sources=frozenset(SOURCES))
 
 
 def ui_state_path(state_dir: str | Path) -> Path:

@@ -78,7 +78,7 @@ def _dispatch_main_reorder(
     # The order's own word alone, and self-reported — see _dispatch_reorder.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: the Main Funestra (%s)", label, "kino" if kino else "genau")
-    return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
+    return state, [WindowOp(op="message", key=label, source=SOURCE_MAIN)]
 
 
 def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
@@ -193,7 +193,7 @@ def _dispatch_inclusion(
         return state, [WindowOp(op=Op.NARROWING_ANSWERS)]
     if not any(wanted):
         append_command(config.genau_cmd_file, LOCK_ON)
-        return state, [WindowOp(op="notice", key=no_other_flicks(), source=SOURCE_MAIN,
+        return state, [WindowOp(op="message", key=no_other_flicks(), source=SOURCE_MAIN,
                                 level=logging.WARNING)]
     inclusions.tell_genau(config, wanted)
     return state, [WindowOp(op=Op.NARROWING_ANSWERS)]
@@ -239,7 +239,7 @@ def _dispatch_main_reset(
         for verb in _MAIN_FUNESTRA_RESET_VERBS:
             append_command(config.main_funestra_cmd_file, verb)
     logger.info("Reset Main Funestra")
-    return state, [WindowOp(op="notice", key="Reset", source=SOURCE_MAIN)]
+    return state, [WindowOp(op="message", key="Reset", source=SOURCE_MAIN)]
 
 
 def _include(pair: InclusionPair, wanted: Included, state: BridgeState, config: BridgeConfig,

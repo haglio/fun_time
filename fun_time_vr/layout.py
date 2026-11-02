@@ -25,7 +25,7 @@ MAIN_HUD = "panel"  # the name the headset layout file already saves its place u
 DASH = "dash"
 REFERENCE = "reference"
 LIBRARY = "library"
-BANNER = "banner"
+MESSAGE_SCREEN = "banner"
 GALLERY = "gallery"
 LAYOUT_FILENAME = HEADSET_LAYOUT_FILENAME
 

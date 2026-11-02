@@ -9,7 +9,7 @@ from funestra.main_hud_painter import _PAD, MainHud, MainHudPainter, ModeHud
 from funestra.osr2_visualizer import DriveHud
 from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
-from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.event_log import FAVORITE, MESSAGE
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
 from fun_time_vr.main_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
 
@@ -77,7 +77,7 @@ class TestWhichSideTheConsoleHangsOn:
 
 class TestTheColorOfANotice:
     def test_each_level_has_the_desktops_own_color(self):
-        assert level_color(NOTICE) == TEXT_PRIMARY
+        assert level_color(MESSAGE) == TEXT_PRIMARY
         assert level_color(FAVORITE) == GREEN
         assert level_color(logging.WARNING) == YELLOW
         assert level_color(logging.ERROR) == RED

@@ -101,7 +101,7 @@ from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
-from .unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
+from .unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from .voice_control import VoiceController
 from .win32 import (
     close_window,
@@ -754,13 +754,13 @@ def clear_last_sessions_leftovers(
     the session is up and its keys have something to reach, so a dead session's
     copy would put every key live over one that is still assembling.  An "exit"
     left in its mailbox would be read on its first tick, and a port the last
-    session published would send this session's presses and notices to whatever
+    session published would send this session's presses and messages to whatever
     answers there now.
     """
     dashboard_cmd_file = Path(commands.dashboard_cmd_file)
     for stale in (ahk_cmd_file, pids_file, dashboard_cmd_file,
                   dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
-                  state_dir / UNLOGGED_NOTICE_PORT_FILENAME,
+                  state_dir / UNLOGGED_MESSAGE_PORT_FILENAME,
                   Path(commands.dashboard_state_file), session_end_marker_path(state_dir),
                   state_dir / REFERENCE_OPEN_FILENAME, state_dir / LIBRARY_OPEN_FILENAME):
         stale.unlink(missing_ok=True)

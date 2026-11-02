@@ -10,7 +10,7 @@ from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRA
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 
 from .bridge_records import BridgeConfig, Handler, WindowOp
-from .event_log import FAVORITE, NOTICE
+from .event_log import FAVORITE, MESSAGE
 from .filter_vocab import decode_filter_command
 from .fun_time_funestras import FunTimeFunestra
 from .lock import build_discard_plan, unfavorite
@@ -136,9 +136,9 @@ def _discard(
         state, lock_ops = lock_a_loop_left_with_one_video(funestra, state, config, condemned)
         forget_indexed_video(condemned)
     logger.info(plan.log_message)
-    notice = WindowOp(op="notice", key=plan.notice_message, source=satellite_source(funestra),
-                      level=NOTICE if plan.condemns else FAVORITE)
-    return state, [notice, *lock_ops]
+    flashed = WindowOp(op="message", key=plan.message_text, source=satellite_source(funestra),
+                      level=MESSAGE if plan.condemns else FAVORITE)
+    return state, [flashed, *lock_ops]
 
 
 # The satellite and the variation axis each cycle command reaches.
@@ -242,7 +242,7 @@ def _dispatch_lock_action(
         return state, []
     action = video_action_label(current, config)
     if not action:
-        return state, [WindowOp(op="notice", key="No action metadata", source=satellite_source(funestra), level=logging.WARNING)]
+        return state, [WindowOp(op="message", key="No action metadata", source=satellite_source(funestra), level=logging.WARNING)]
     return _dispatch_set_filter((funestra,), action.lower(), state, config)
 
 
@@ -293,7 +293,7 @@ def _dispatch_reorder(
     state = state.with_satellite(funestra, locked=False)
     state = clear_satellite_grouping(state, funestra)
     funestra_name = FunTimeFunestra(funestra).label
-    # The order's own word and nothing else.  The notice flashes on the Funestra it
+    # The order's own word and nothing else.  The message flashes on the Funestra it
     # was said to, and this is what that Funestra's HUD calls the order it is now
     # in, so naming the Funestra and then spelling the order out a second time
     # ("Latest: portrait newest-first") only read as a log line that had escaped
@@ -301,7 +301,7 @@ def _dispatch_reorder(
     # use.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, funestra_name, result.count)
-    return state, [WindowOp(op="notice", key=label, source=satellite_source(funestra))]
+    return state, [WindowOp(op="message", key=label, source=satellite_source(funestra))]
 
 
 def _browse_at_defaults(satellite: SatelliteState) -> bool:
@@ -355,7 +355,7 @@ def _dispatch_reset(
             result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
             logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
         send_satellite(config, funestra, NORMAL_SPEED)
-        ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(funestra)))
+        ops.append(WindowOp(op="message", key="Reset", source=satellite_source(funestra)))
     return state, ops
 
 
@@ -407,9 +407,9 @@ def _dispatch_set_filter(
             state = clear_satellite_grouping(state, funestra)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
-        # so a warning like the other no-effect notices.
-        level = NOTICE if result.applied else logging.WARNING
-        ops.append(WindowOp(op="notice", key=result.log_message, source=satellite_source(funestra), level=level))
+        # so a warning like the other no-effect messages.
+        level = MESSAGE if result.applied else logging.WARNING
+        ops.append(WindowOp(op="message", key=result.log_message, source=satellite_source(funestra), level=level))
     return state, ops
 
 

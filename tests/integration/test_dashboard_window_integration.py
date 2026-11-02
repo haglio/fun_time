@@ -31,7 +31,7 @@ from fun_time.dashboard_app import (
 )
 from fun_time.dashboard_layout import RFB_MODE_SELECTOR_HEIGHT
 from fun_time.dashboard_runtime import DashboardSnapshot
-from fun_time.event_log import NOTICE, EventLogHandler, event_log_path, notice
+from fun_time.event_log import MESSAGE, EventLogHandler, event_log_path, flash_message
 from fun_time.log_panel import level_color
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.win32 import find_window_by_title, is_window_topmost
@@ -169,7 +169,7 @@ def test_log_filters_fit_one_row_inside_the_log_panel_and_lines_word_wrap(cfg_pa
         window.close()
 
 
-def test_a_notice_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path: Path):
+def test_a_message_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path: Path):
     """End to end over a real file: a NOTICE the dispatch loop would emit is
     picked up by the dashboard's tail and flashed, at the top-center of the
     window its source names — the overlay that replaced the AHK tooltip."""
@@ -178,28 +178,28 @@ def test_a_notice_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path:
         writer = logging.getLogger("integration.event_log.writer")
         writer.handlers.clear()
         writer.propagate = False
-        writer.setLevel(NOTICE)
+        writer.setLevel(MESSAGE)
         writer.addHandler(EventLogHandler(event_log_path(state_dir)))
 
-        notice(writer, "Clip saved", source="portrait")
-        window._notices.poll()
+        flash_message(writer, "Clip saved", source="portrait")
+        window._messages.poll()
 
-        overlay = window._notices.overlay
+        overlay = window._messages.overlay
         assert overlay is not None
         assert overlay.isVisible()
         assert overlay.text() == "Clip saved"
         # Centered across the Portrait Funestra's top, not the dashboard's.
-        portrait = window._notices.funestra_rects.portrait
+        portrait = window._messages.funestra_rects.portrait
         assert portrait.x <= overlay.x() <= portrait.x + portrait.width
         assert overlay.y() < portrait.y + portrait.height // 2
-        # A normal notice reads white; a dead end (WARNING) reads yellow.  The
+        # A normal message reads white; a dead end (WARNING) reads yellow.  The
         # flash color is applied by stylesheet, so assert against level_color directly.
-        assert level_color(NOTICE).name() in overlay.styleSheet()
-        notice(writer, "No other seeds", source="portrait", level=logging.WARNING)
-        window._notices.poll()
+        assert level_color(MESSAGE).name() in overlay.styleSheet()
+        flash_message(writer, "No other seeds", source="portrait", level=logging.WARNING)
+        window._messages.poll()
         assert overlay.text() == "No other seeds"
         assert level_color(logging.WARNING).name() in overlay.styleSheet()
-        assert level_color(NOTICE).name() != level_color(logging.WARNING).name()
+        assert level_color(MESSAGE).name() != level_color(logging.WARNING).name()
     finally:
         window.close()
 
@@ -262,15 +262,15 @@ def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path
     tail must stop with them."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     log = window._log_widget
-    overlay = window._notices.overlay
+    overlay = window._messages.overlay
 
     window.close()
 
     assert not window._press_channel.listening
     assert not window._refresh_timer.isActive()
-    assert not window._notice_timer.isActive()
+    assert not window._message_timer.isActive()
     assert not log._timer.isActive()
     assert not window._osr2._timer.isActive()
-    assert window._notices.overlay is None
+    assert window._messages.overlay is None
     if overlay is not None:
         assert not overlay.isVisible()

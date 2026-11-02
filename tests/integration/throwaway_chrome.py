@@ -112,10 +112,10 @@ class ThrowawayChrome:
         return await_window(marker, TAB_TIMEOUT_S)
 
     def hear_that_the_display_is_off(self) -> None:
-        notice = ctypes.create_string_buffer(GUID_SESSION_DISPLAY_STATUS.bytes_le + struct.pack(
+        power_notice = ctypes.create_string_buffer(GUID_SESSION_DISPLAY_STATUS.bytes_le + struct.pack(
             "<II", ctypes.sizeof(ctypes.wintypes.DWORD), POWER_MONITOR_OFF))
         for hwnd in _every_window(lambda hwnd: window_process(hwnd) == self._browser.pid):
-            _user32.SendMessageTimeoutW(hwnd, WM_POWERBROADCAST, PBT_POWERSETTINGCHANGE, ctypes.addressof(notice),
+            _user32.SendMessageTimeoutW(hwnd, WM_POWERBROADCAST, PBT_POWERSETTINGCHANGE, ctypes.addressof(power_notice),
                                         SMTO_ABORTIFHUNG, NOTICE_TIMEOUT_MS, None)
 
     def close(self) -> None:

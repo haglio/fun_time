@@ -18,7 +18,7 @@ from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 
 from fun_time import preview_marker
-from fun_time.event_log import NOTICE, EventLogHandler, event_log_path
+from fun_time.event_log import MESSAGE, EventLogHandler, event_log_path
 from fun_time.manifest import LaunchManifest
 from fun_time.project_paths import PROJECT_VR_ICON
 
@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = build_parser().parse_args(argv)
     manifest = LaunchManifest.read(args.manifest)
-    # The strip that shows this process's notices tails the session's event log,
+    # The strip that shows this process's messages tails the session's event log,
     # which is appended to per line so several processes can share it.
     _log_into_the_event_log(Path(manifest.commands.dashboard_cmd_file).parent)
     vr = VrSettings.read(args.manifest)
@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _log_into_the_event_log(state_dir: Path) -> None:
     handler = EventLogHandler(event_log_path(state_dir))
-    handler.setLevel(NOTICE)  # announcements only; the log file carries the rest
+    handler.setLevel(MESSAGE)  # announcements only; the log file carries the rest
     logging.getLogger("fun_time_vr").addHandler(handler)
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from funestra.control_registry import Control, Verb, bind, look_up
 
-from fun_time.event_log import SOURCE_MAIN, notice
+from fun_time.event_log import SOURCE_MAIN, flash_message
 from fun_time.media_metadata import recorded_for
 
 from .layout import clamp_tilt
@@ -213,9 +213,9 @@ class HeadsetVerbs:
         if start is not None:
             self._playback.seek_to(start)
         elif self._scene_starts:
-            notice(logger, none_there, source=SOURCE_MAIN)
+            flash_message(logger, none_there, source=SOURCE_MAIN)
         else:
-            notice(logger, "No scenes are marked in this video yet", source=SOURCE_MAIN)
+            flash_message(logger, "No scenes are marked in this video yet", source=SOURCE_MAIN)
 
     def cycle_projection(self) -> None:
         self.watch_in(next_projection(self.projection))

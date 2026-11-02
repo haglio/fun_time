@@ -54,7 +54,7 @@
     satellites' Funestras, Genau's registry, and the hosted app's as read from
     the `origenerator_contract.json` it publishes — so a gap is a red test
     rather than a discovery in the log.
-  - Every notice a command raises is a desktop overlay window the session does not
+  - Every message a command raises is a desktop overlay window the session does not
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
     session, say) shows nothing in the headset. What the HUD and the satellite
     HUDs draw is unaffected: those are in-scene surfaces, not windows.

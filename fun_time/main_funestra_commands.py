@@ -87,7 +87,7 @@ def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, conf
         noun = SATELLITE_NOUN
     cannot = why_it_cannot_step(verb, status, noun)
     if cannot is not None:
-        return state, [WindowOp(op="notice", key=cannot.capitalize(),
+        return state, [WindowOp(op="message", key=cannot.capitalize(),
                                 source=FUNESTRA_SOURCES[funestra], level=logging.WARNING)]
     if funestra is FunTimeFunestra.MAIN:
         append_command(config.main_funestra_cmd_file, verb)
@@ -159,7 +159,7 @@ def _save_video(state: BridgeState, _config: BridgeConfig,
     """Ask the loop for a genaumacher save — asked for, not run: genaumacher boots a
     sibling repo's interpreter (up to its 10 s timeout) and this runs on the
     20 Hz tick, so the loop saves on a worker thread and flashes the result
-    when it lands — the one notice that trails its keypress."""
+    when it lands — the one message that trails its keypress."""
     if state.main_mode == MAIN_GENAU_MODE:
         return ignored(state, IN_GENAU_MODE)
     return state, [WindowOp(op="save_clip")]

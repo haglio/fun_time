@@ -62,7 +62,7 @@ class TestGivingUpOnTheWait:
 
     def test_it_pumps_the_queue_even_with_nothing_in_it(self, monkeypatch):
         """The pump is the half that has nothing to do with quitting, and the
-        half Windows notices when it stops happening."""
+        half Windows messages when it stops happening."""
         pumped = []
         monkeypatch.setattr(
             pygame.event, "get", lambda: pumped.append(1) or [])

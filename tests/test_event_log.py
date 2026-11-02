@@ -8,12 +8,12 @@ import pytest
 
 from fun_time.event_log import (
     LEVEL_NAMES,
-    NOTICE,
+    MESSAGE,
     SOURCES,
     EventLogHandler,
     event_log_path,
+    flash_message,
     is_announcement,
-    notice,
     read_events,
     start_event_log,
 )
@@ -34,11 +34,11 @@ def _logger(log_path: Path, name: str) -> logging.Logger:
 
 
 class TestNoticeLevel:
-    def test_notice_sits_between_info_and_warning(self):
-        assert logging.INFO < NOTICE < logging.WARNING
+    def test_message_sits_between_info_and_warning(self):
+        assert logging.INFO < MESSAGE < logging.WARNING
 
-    def test_notice_level_has_a_name(self):
-        assert logging.getLevelName(NOTICE) == "NOTICE"
+    def test_message_level_has_a_name(self):
+        assert logging.getLevelName(MESSAGE) == "NOTICE"
 
     def test_level_names_are_ordered_least_to_most_severe(self):
         assert LEVEL_NAMES == ("DEBUG", "INFO", "NOTICE", "WARNING", "ERROR")
@@ -80,20 +80,20 @@ class TestEventLogHandler:
 
 
 class TestNotice:
-    def test_notice_logs_at_notice_level_with_its_source(self, log_path: Path):
-        logger = _logger(log_path, "test.event_log.notice")
+    def test_message_logs_at_notice_level_with_its_source(self, log_path: Path):
+        logger = _logger(log_path, "test.event_log.flash_message")
 
-        notice(logger, "Clip saved", source="main")
+        flash_message(logger, "Clip saved", source="main")
 
         payload = json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])
-        assert payload["level"] == NOTICE
+        assert payload["level"] == MESSAGE
         assert payload["source"] == "main"
         assert payload["msg"] == "Clip saved"
 
-    def test_a_notice_flashed_by_other_means_is_listed_but_not_announced(self, log_path: Path):
+    def test_a_message_flashed_by_other_means_is_listed_but_not_announced(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.flashed_elsewhere")
 
-        notice(logger, "unrecognized voice command (3 words)", source="main",
+        flash_message(logger, "unrecognized voice command (3 words)", source="main",
                level=logging.WARNING, flashes=False)
 
         [record], _offset = read_events(log_path)
@@ -103,7 +103,7 @@ class TestNotice:
     def test_a_line_about_something_said_carries_when_it_was_said(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.said")
 
-        notice(logger, "unrecognized voice command (3 words)", source="main",
+        flash_message(logger, "unrecognized voice command (3 words)", source="main",
                level=logging.WARNING, flashes=False, spoken_at=12.5)
 
         [record], _offset = read_events(log_path)
@@ -113,21 +113,21 @@ class TestNotice:
 class TestReadEvents:
     def test_reads_records_and_reports_the_new_offset(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.read")
-        notice(logger, "Clip saved", source="main")
+        flash_message(logger, "Clip saved", source="main")
 
         records, offset = read_events(log_path)
 
         assert [r.message for r in records] == ["Clip saved"]
         assert records[0].source == "main"
-        assert records[0].level == NOTICE
+        assert records[0].level == MESSAGE
         assert offset == log_path.stat().st_size
 
     def test_a_second_read_from_the_offset_returns_only_new_records(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.tail")
-        notice(logger, "first", source="main")
+        flash_message(logger, "first", source="main")
         _first, offset = read_events(log_path)
 
-        notice(logger, "second", source="portrait")
+        flash_message(logger, "second", source="portrait")
         records, _offset = read_events(log_path, offset)
 
         assert [r.message for r in records] == ["second"]

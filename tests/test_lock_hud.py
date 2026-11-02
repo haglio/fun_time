@@ -299,7 +299,7 @@ def test_a_running_action_loop_draws_every_video_it_cycles():
     )
 
     assert hud.action_siblings == [A1]
-    assert hud.action_count == 2      # the size the loop's own notice reports
+    assert hud.action_count == 2      # the size the loop's own message reports
 
 
 def test_a_looped_action_column_lights_the_twin_actually_playing():

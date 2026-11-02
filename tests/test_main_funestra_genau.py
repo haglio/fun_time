@@ -24,7 +24,7 @@ from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 from tests.genau_fakes import FakeNotifier, FakeSink
 
 
-class FakeNotices:
+class FakeMessages:
     def __init__(self) -> None:
         self.said: list[tuple[str, MessageLevel]] = []
 
@@ -91,14 +91,14 @@ class World:
             status=state / "genau_status.txt", drive=state / "genau_drive.txt")
         self.sink = FakeSink()
         self.notifier = FakeNotifier()
-        self.notices = FakeNotices()
+        self.messages = FakeMessages()
         self.clock = Clock()
         self.genau = Genau(
             flicks_folder=self.flicks_folder,
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
             notifier=self.notifier,
-            notices=self.notices,
+            messages=self.messages,
             tcode_sink=self.sink,
             start_flick=start_flick,
             latest=latest,
@@ -306,7 +306,7 @@ class TestFMode:
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
-        assert world.notices.said == [("Including no other pips", MessageLevel.WARNING)]
+        assert world.messages.said == [("Including no other pips", MessageLevel.WARNING)]
 
     def test_it_opens_in_f_mode_when_the_room_kept_it_on(self, tmp_path):
         world = World(tmp_path, favorites=("beta two.mp4",), f_mode=True)
@@ -322,7 +322,7 @@ class TestFMode:
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
-        assert world.notices.said == [("Including no other pips", MessageLevel.WARNING)]
+        assert world.messages.said == [("Including no other pips", MessageLevel.WARNING)]
 
 
 class TestItsFrame:
@@ -430,7 +430,7 @@ class TestTurnedAsAsked:
 
         world.genau.apply_command(genau_orientations((True, False)))
 
-        assert world.notices.said[-1] == ("Portrait only", MessageLevel.NOTICE)
+        assert world.messages.said[-1] == ("Portrait only", MessageLevel.NORMAL)
 
     def test_it_opens_turned_the_way_the_room_left_it(self, tmp_path):
         world = self._world(tmp_path, orientations=(True, False))

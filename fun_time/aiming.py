@@ -62,7 +62,7 @@ FUNESTRA_SOURCES = {
 }
 
 
-def notice_source(command: str, active_funestra: int | None) -> str:
+def message_source(command: str, active_funestra: int | None) -> str:
     funestra = active_funestra if command.startswith("active_") else command_funestra(command)
     return FUNESTRA_SOURCES.get(funestra, SOURCE_SYSTEM)
 

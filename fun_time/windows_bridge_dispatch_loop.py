@@ -24,7 +24,7 @@ from funestra.funestra_verbs import play_file
 from funestra.main_hud import BROKER_PRESS
 from funestra.playlist import PlaylistItem
 
-from .aiming import notice_source, resolve_active_funestra_command
+from .aiming import message_source, resolve_active_funestra_command
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
@@ -42,12 +42,12 @@ from .dashboard_actions import (
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
-from .event_log import NOTICE, SOURCE_SYSTEM, notice
+from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import FunTimeWindows
 from .funestra_handover import Departures, Homecoming, SatellitesChangingHands
-from .funestra_notices import FunestraNotices
+from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
 from .genaumacher_save import save_and_say
@@ -208,7 +208,7 @@ class DispatchLoopRunner:
         self._browser_process: subprocess.Popen | None = None
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
-        self.notices = FunestraNotices(config)
+        self.messages = FunestraMessages(config)
         self.reporting = FunestraReporting()
         self.voice = AppVoice()
         self._answers = 0
@@ -251,7 +251,7 @@ class DispatchLoopRunner:
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
-        self.notices.flash_new()
+        self.messages.flash_new()
 
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
@@ -320,7 +320,7 @@ class DispatchLoopRunner:
         self.config = replace(self.config, origenerator_lock_phrases=phrases)
 
     def _handle_line(self, line: CommandLine) -> None:
-        source = notice_source(line.command, self.state.active_funestra)
+        source = message_source(line.command, self.state.active_funestra)
         answers_before = self._answers
         self._ignored_because = ""
         resolved = resolve_active_funestra_command(line.command, self.state.active_funestra)
@@ -334,9 +334,9 @@ class DispatchLoopRunner:
         elif self._answers == answers_before:
             self._flash(line.said, source=source)
 
-    def _flash(self, message: str, *, source: str, level: int = NOTICE) -> None:
+    def _flash(self, message: str, *, source: str, level: int = MESSAGE) -> None:
         self._answers += 1
-        notice(logger, message, source=source, level=level)
+        flash_message(logger, message, source=source, level=level)
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
@@ -825,7 +825,7 @@ def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 _OP_HANDLERS = {
-    Op.NOTICE: _run_notice,
+    Op.MESSAGE: _run_notice,
     Op.SHOW_WINDOW: _run_show_window,
     Op.HIDE_WINDOW: _run_hide_window,
     Op.ACTIVATE_WINDOW: _run_activate_window,

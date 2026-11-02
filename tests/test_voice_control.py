@@ -127,7 +127,7 @@ class TestHandleHeard:
     ):
         vc = _controller(tmp_path)
         seen = []
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+        monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
 
         vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
@@ -148,7 +148,7 @@ class TestHandleHeard:
         vc = _controller(tmp_path)
         vc.suspend()
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
         vc.handle_heard(_heard(Recognition(phrase="landscape next")))
@@ -182,7 +182,7 @@ class TestHandleHeard:
         vc = _controller(tmp_path)
         vc.suspend(WHILE_NOT_WEARING_HEADSET)
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
         vc.handle_heard(_heard(Recognition(phrase="pause")))
@@ -205,7 +205,7 @@ class TestHandleHeard:
         vc.suspend()
         vc.mute()
         seen = []
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+        monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
 
         vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
@@ -215,7 +215,7 @@ class TestHandleHeard:
         vc = _controller(tmp_path)
         vc.mute()
         seen = []
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+        monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
 
         vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
@@ -266,7 +266,7 @@ class TestHandleHeard:
         report belongs, rather than on the Main Funestra."""
         vc = _controller(tmp_path)
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, _msg, *, source, **_: seen.append(source))
         monkeypatch.setattr(voice_control, "flash_unlogged",
                             lambda _dir, _msg, *, source, **_: seen.append(source))
@@ -283,7 +283,7 @@ class TestHandleHeard:
         vc = _controller(tmp_path)
         vc.mute()
         seen = []
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+        monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
         monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: seen.append(a))
 
         vc.handle_heard(_formed(Recognition(unrecognized_text="full length please")))
@@ -324,7 +324,7 @@ class TestHandleHeard:
     ):
         vc = _controller(tmp_path)
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
         vc.handle_heard(_formed(recognition))
@@ -425,7 +425,7 @@ class TestTheListenerItRuns:
         no warning."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
         vc.listener_events.recovered()
@@ -439,7 +439,7 @@ class TestTheListenerItRuns:
         So the moment the recognizer has words forming, it says so."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
 
         vc.listener_events.partial("enter")
@@ -451,7 +451,7 @@ class TestTheListenerItRuns:
         would bury the log under a single sentence."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
 
         for forming in ("enter", "enter v", "enter vr"):
@@ -463,7 +463,7 @@ class TestTheListenerItRuns:
         """An utterance settling clears the reading, and that is what re-arms it."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
 
         for forming in ("enter", "enter vr", "", "exit"):
@@ -478,7 +478,7 @@ class TestTheListenerItRuns:
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         getattr(vc, quieted)()
         seen = []
-        monkeypatch.setattr(voice_control, "notice",
+        monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
 
         vc.listener_events.partial("enter")

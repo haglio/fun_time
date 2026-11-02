@@ -123,7 +123,7 @@ def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[st
     controls route by mode and the padlock the headset's sweep was written for
     was dead in one and fine in the other — a failure has to say which.  The
     hosted app has always answered by the time a command is dispatched here, so
-    switching into its mode is a switch rather than a notice that it is still
+    switching into its mode is a switch rather than a message that it is still
     starting.
     """
     drain(config)

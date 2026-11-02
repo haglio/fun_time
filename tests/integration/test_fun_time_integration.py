@@ -576,12 +576,12 @@ def test_fun_time_main_funestra_nudge_seeks_playback(shared_integration_session:
 
 
 def _flashed_since(session: FunTimeIntegrationSession, count: int) -> list[tuple[str, str]]:
-    return [(notice.message, notice.source) for notice in session.notices()[count:]]
+    return [(flashed.message, flashed.source) for flashed in session.messages()[count:]]
 
 
 def _said_to_the_portrait_funestra(session: FunTimeIntegrationSession, command: str,
                                    said: str) -> int:
-    flashed_before = len(session.notices())
+    flashed_before = len(session.messages())
     session.write_dashboard_command(
         format_spoken_command(command, spoken_at=time.monotonic(), said=said))
     return flashed_before
@@ -847,7 +847,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     assert not any(p.name == demoted_path.name for p in s.weird_dir.iterdir())
 
     s.wait_until(
-        lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.notices()),
+        lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.messages()),
         description="an \"Unfavorited\" notice over the Landscape Funestra",
     )
 
@@ -904,7 +904,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     isolated_integration_session.wait_until(
         lambda: any(
             n.message == "Sent to Trash" and n.source == "portrait"
-            for n in isolated_integration_session.notices()
+            for n in isolated_integration_session.messages()
         ),
         description='a "Sent to Trash" notice over the Portrait Funestra',
     )

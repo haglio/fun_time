@@ -40,7 +40,7 @@ def open_child_log(
     ``Popen(stdout=…, stderr=…)`` gives the Python traceback *and* the native
     diagnostics libmpv writes to stderr a home on disk.
 
-    Opened for append and stamped with a banner naming the launch time and argv,
+    Opened for append and stamped with a message naming the launch time and argv,
     so a log spanning many sessions can be split by eye at the right one; a log
     that has grown past *max_bytes* is rolled aside first, so an every-day habit
     cannot grow one forever.
@@ -52,8 +52,8 @@ def open_child_log(
         handle = path.open("ab")
     except OSError:  # locked or full: raising killed the relay mid-crossing
         return open(os.devnull, "ab")  # noqa: SIM115 - the caller owns the handle
-    banner = f"{_LAUNCH_MARK}{time.strftime('%Y-%m-%d %H:%M:%S')} launch: {' '.join(str(a) for a in argv)}\n"
-    handle.write(banner.encode("utf-8", errors="replace"))
+    flashed = f"{_LAUNCH_MARK}{time.strftime('%Y-%m-%d %H:%M:%S')} launch: {' '.join(str(a) for a in argv)}\n"
+    handle.write(flashed.encode("utf-8", errors="replace"))
     handle.flush()
     return handle
 

@@ -118,7 +118,7 @@ _SKIP_AHEAD_NAMES = {
 def skip_ahead_refused(funestra: FunTimeFunestra, state: BridgeState) -> list[WindowOp]:
     if funestra_with_the_osr2(state) is funestra:
         return []
-    return [WindowOp(op="notice", key=f"The {_SKIP_AHEAD_NAMES[funestra]} doesn't have the OSR2",
+    return [WindowOp(op="message", key=f"The {_SKIP_AHEAD_NAMES[funestra]} doesn't have the OSR2",
                      level=logging.WARNING)]
 
 
