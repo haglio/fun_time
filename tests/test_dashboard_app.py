@@ -486,7 +486,7 @@ def test_minimize_routes_omniminimize_command(dashboard_window, dashboard_app_co
     if cmd_file.exists():
         cmd_file.unlink()
 
-    window._maybe_route_omniminimize(now_minimized=True, was_minimized=False)
+    window.setWindowState(Qt.WindowState.WindowMinimized)
 
     assert cmd_file.read_text(encoding="utf-8").strip() == "omniminimize"
 
@@ -495,17 +495,31 @@ def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboar
     """Only the not-minimized -> minimized transition routes; restore/repeat do not."""
 
     window = dashboard_window
+    window.setWindowState(Qt.WindowState.WindowMinimized)
 
+    cmd_file = dashboard_app_config.dashboard_cmd_file
+    cmd_file.unlink()
+
+    # Already minimized, state re-asserted — no new transition.
+    window.setWindowState(Qt.WindowState.WindowMinimized)
+    assert not cmd_file.exists()
+
+    # Restore (minimized -> normal) routes its own command, never this one.
+    window.setWindowState(Qt.WindowState.WindowNoState)
+    assert "omniminimize" not in cmd_file.read_text(encoding="utf-8")
+
+
+def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_config):
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
+        window = build_dashboard_window(dashboard_app_config)
     cmd_file = dashboard_app_config.dashboard_cmd_file
     if cmd_file.exists():
         cmd_file.unlink()
 
-    # Restore (minimized -> normal) must not route.
-    window._maybe_route_omniminimize(now_minimized=False, was_minimized=True)
-    # Already minimized, state re-asserted — no new transition.
-    window._maybe_route_omniminimize(now_minimized=True, was_minimized=True)
+    window.setWindowState(Qt.WindowState.WindowMinimized)
 
     assert not cmd_file.exists()
+    window.close()
 
 
 def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_config):
@@ -520,10 +534,13 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_con
     if cmd_file.exists():
         cmd_file.unlink()
 
-    window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+    window.setWindowState(Qt.WindowState.WindowMinimized)
+    window.setWindowState(Qt.WindowState.WindowNoState)
     assert not cmd_file.exists()  # the reveal's own edge routes nothing
 
-    window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+    window.setWindowState(Qt.WindowState.WindowMinimized)
+    cmd_file.unlink()
+    window.setWindowState(Qt.WindowState.WindowNoState)
     assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
     window.close()
 
@@ -549,20 +566,21 @@ def test_restore_routes_omnirestore_command(dashboard_window, dashboard_app_conf
     """Un-minimizing the dashboard writes omnirestore so the others come back too."""
 
     window = dashboard_window
+    window.setWindowState(Qt.WindowState.WindowMinimized)
 
     cmd_file = dashboard_app_config.dashboard_cmd_file
-    if cmd_file.exists():
-        cmd_file.unlink()
+    cmd_file.unlink()
 
     # Restore edge (minimized -> normal) routes omnirestore.
-    window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+    window.setWindowState(Qt.WindowState.WindowNoState)
     assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
 
-    # Minimize edge and steady state must not route omnirestore.
+    # Steady state and the minimize edge must not route omnirestore.
     cmd_file.unlink()
-    window._maybe_route_omnirestore(now_minimized=True, was_minimized=False)
-    window._maybe_route_omnirestore(now_minimized=False, was_minimized=False)
+    window.setWindowState(Qt.WindowState.WindowNoState)
     assert not cmd_file.exists()
+    window.setWindowState(Qt.WindowState.WindowMinimized)
+    assert "omnirestore" not in cmd_file.read_text(encoding="utf-8")
 
 
 def test_do_render_skips_geometry_reapply_while_minimized(dashboard_window, dashboard_app_config):
@@ -1520,6 +1538,16 @@ def test_a_datagram_becomes_a_press_on_the_queue(dashboard_window, dashboard_app
     assert "help_reference" in _drain(dashboard_window, "help_reference")
 
 
+def test_a_datagram_lights_the_control_it_names(dashboard_window, dashboard_app_config):
+    resting = _fill_of(dashboard_window, VOICE_TOGGLE)
+    port = int(_press_port_file(dashboard_app_config).read_text(encoding="utf-8"))
+
+    _send_press(port, VOICE_TOGGLE.encode("utf-8"))
+
+    _pump_until(lambda: _fill_of(dashboard_window, VOICE_TOGGLE) != resting)
+    assert _fill_of(dashboard_window, VOICE_TOGGLE) != resting
+
+
 def test_a_press_arrives_stripped_of_whatever_framed_it(
         dashboard_window, dashboard_app_config):
     """The sender writes the bare verb with no terminator, but the reader
@@ -1551,6 +1579,14 @@ def test_closing_the_window_asks_the_hotkey_script_to_end_the_session(dashboard_
 
     ahk_cmd_file = dashboard_app_config.state_dir / "ahk_cmd.txt"
     assert ahk_cmd_file.read_text(encoding="utf-8") == "end_session"
+
+
+def test_a_window_that_cannot_ask_the_hotkey_script_still_closes(dashboard_app_config):
+    window = build_dashboard_window(dashboard_app_config)
+    (dashboard_app_config.state_dir / "ahk_cmd.txt").mkdir()
+
+    assert window.close() is True
+    assert not window._press_channel.listening
 
 
 def test_closing_the_window_ends_the_listener(dashboard_app_config):
@@ -1594,6 +1630,25 @@ def test_the_dashboard_runs_on_an_application_made_where_it_is_let_go_of_safely(
     assert dashboard_app.main([str(manifest)]) == 7
     assert made == [[]]
     assert len(dressed) == 1
+
+
+def test_a_taskbar_that_refuses_the_sessions_identity_does_not_stop_the_dashboard(
+        cfg_path, monkeypatch):
+    @contextmanager
+    def application(_argv):
+        yield MagicMock(exec=MagicMock(return_value=7))
+
+    def refused(_identity):
+        raise OSError("refused")
+
+    monkeypatch.setattr(dashboard_app, "application", application)
+    monkeypatch.setattr(dashboard_app, "set_up_logging", lambda: None)
+    monkeypatch.setattr(dashboard_app, "set_app_user_model_id", refused)
+    monkeypatch.setattr(dashboard_app, "build_dashboard_window", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dashboard_app, "dress_application", lambda _app: None)
+    manifest = write_windows_bridge_manifest(load_config(cfg_path))
+
+    assert dashboard_app.main([str(manifest)]) == 7
 
 
 # --- the message feed ---------------------------------------------------------
