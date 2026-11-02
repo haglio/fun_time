@@ -1,6 +1,6 @@
-"""The live windows under the managed roles.
+"""The live windows under the managed windows.
 
-These pin :class:`fun_time.role_windows.WindowRoles` directly, which is the
+These pin :class:`fun_time.fun_time_windows.FunTimeWindows` directly, which is the
 point of it having been lifted out of the dispatch loop: the object needs the
 child pids, the browser's hwnd and the startup seed, and nothing else — no
 config, no session state, no runner.
@@ -12,19 +12,19 @@ from unittest.mock import patch
 
 from shared_ui.preview import Preview, window_title
 
-from fun_time.origenerator_switches import RfbMode
-from fun_time.role_windows import (
+from fun_time.fun_time_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
-    WindowRoles,
+    FunTimeWindows,
 )
+from fun_time.origenerator_switches import RfbMode
 from fun_time.window_layout import WindowRect
-from fun_time.window_roles import ORIGENERATOR_TITLE
+from fun_time.window_names import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
 )
-from tests.role_window_fakes import (
+from tests.fun_time_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
     HOSTED_HWND,
@@ -44,11 +44,11 @@ from tests.role_window_fakes import (
 )
 
 
-def make_windows(**overrides) -> WindowRoles:
+def make_windows(**overrides) -> FunTimeWindows:
     pids = dict(main_funestra=MAIN_FUNESTRA_PID, portrait=PORTRAIT_PID,
                 landscape=LANDSCAPE_PID, dashboard=DASHBOARD_PID)
     pids.update(overrides.pop("pids", {}))
-    return WindowRoles(pids=ChildPids(**pids), **overrides)
+    return FunTimeWindows(pids=ChildPids(**pids), **overrides)
 
 
 def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
@@ -56,7 +56,7 @@ def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
     map over; hidden windows are invisible to the pid/title lookups, so that
     seed is the only way back to one.  Nothing else is needed to answer for a
     role, which is what lets these windows be reasoned about on their own."""
-    windows = WindowRoles(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), role_hwnds={"main_funestra": MAIN_FUNESTRA_HWND})
+    windows = FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
 
     assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
@@ -74,8 +74,8 @@ class TestResolveRole:
             title_calls.append((title, exact))
             return 2002 if (title == "Main Funestra" and exact) else 0
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=title_lookup):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=title_lookup):
             hwnd = windows.hwnd("main_funestra")
 
         assert ("Main Funestra", True) in title_calls, "must try the exact-title fallback"
@@ -89,8 +89,8 @@ class TestResolveRole:
         def title_lookup(title, exact=False):
             return 9999 if title == "Fun Time" else 0
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=title_lookup):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=title_lookup):
             assert windows.hwnd("dashboard") == 9999
 
     def test_each_satellite_falls_back_to_its_own_exact_caption(self):
@@ -108,8 +108,8 @@ class TestResolveRole:
             return {SATELLITE_PORTRAIT_TITLE: PORTRAIT_HWND,
                     SATELLITE_LANDSCAPE_TITLE: LANDSCAPE_HWND}.get(title, 0)
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=title_lookup):
+        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=title_lookup):
             assert windows.hwnd("portrait") == PORTRAIT_HWND
             assert windows.hwnd("landscape") == LANDSCAPE_HWND
 
@@ -120,12 +120,12 @@ class TestResolveRole:
         this role heals its cache, so a dead handle must be re-resolved."""
         windows = make_windows(pids={"origenerator": HOSTED_PID})
 
-        with patch("fun_time.role_windows.find_window_for_process",
+        with patch("fun_time.fun_time_windows.find_window_for_process",
                    return_value=8888):
             assert windows.hwnd("origenerator") == 8888  # the splash, cached
 
-        with patch("fun_time.role_windows.window_exists", return_value=False), \
-             patch("fun_time.role_windows.find_window_for_process",
+        with patch("fun_time.fun_time_windows.window_exists", return_value=False), \
+             patch("fun_time.fun_time_windows.find_window_for_process",
                    side_effect=lookup_hosted):
             assert windows.hwnd("origenerator") == HOSTED_HWND
 
@@ -134,7 +134,7 @@ class TestResolveRole:
         the_preview = partial(lookup_hosted, caption=window_title(
             ORIGENERATOR_TITLE, Preview(feature="a fabricated feature")))
 
-        with patch("fun_time.role_windows.find_window_for_process", side_effect=the_preview):
+        with patch("fun_time.fun_time_windows.find_window_for_process", side_effect=the_preview):
             assert windows.hwnd("origenerator") == HOSTED_HWND
 
 
@@ -148,10 +148,10 @@ class TestParking:
         the frame or two that takes and the thumbnail keeps the video frame the
         Funestra was sitting on, which is the whole thing the blanking is for."""
         clock = FakeClock()
-        windows = make_windows(clock=clock, role_hwnds={"main_funestra": MAIN_FUNESTRA_HWND})
+        windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
 
         minimized: list[int] = []
-        with patch("fun_time.role_windows.minimize_window",
+        with patch("fun_time.fun_time_windows.minimize_window",
                    side_effect=lambda h, **kw: minimized.append(h)):
             windows.hide_after_settle("main_funestra")
             windows.flush_pending_hides()
@@ -173,10 +173,10 @@ class TestTopmostBands:
 
     def _promotions(self, windows, method, **kwargs) -> list[tuple[int, bool]]:
         calls: list[tuple[int, bool]] = []
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.find_window_for_process", side_effect=lookup_hosted), \
-             patch("fun_time.role_windows.set_always_on_top",
+        with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.fun_time_windows.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.fun_time_windows.find_window_for_process", side_effect=lookup_hosted), \
+             patch("fun_time.fun_time_windows.set_always_on_top",
                    side_effect=lambda h, v: calls.append((h, v))):
             getattr(windows, method)(**kwargs)
         return calls
@@ -262,13 +262,13 @@ class TestOrigeneratorWindowConverger:
             self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=0), \
-             patch("fun_time.role_windows.restore_window") as restore:
+             patch("fun_time.fun_time_windows.restore_window") as restore:
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
         restore.assert_not_called()  # still booting — nothing to drive
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.role_windows.is_window_minimized", return_value=True), \
-             patch("fun_time.role_windows.restore_window") as restore, \
-             patch("fun_time.role_windows.set_always_on_top"):
+             patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
+             patch("fun_time.fun_time_windows.restore_window") as restore, \
+             patch("fun_time.fun_time_windows.set_always_on_top"):
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
         restore.assert_called_once_with(4242, activate=False)
 
@@ -280,9 +280,9 @@ class TestOrigeneratorWindowConverger:
         the user digs it out of the taskbar."""
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.role_windows.is_window_minimized", return_value=True), \
-             patch("fun_time.role_windows.restore_window") as restore, \
-             patch("fun_time.role_windows.set_always_on_top"):
+             patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
+             patch("fun_time.fun_time_windows.restore_window") as restore, \
+             patch("fun_time.fun_time_windows.set_always_on_top"):
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
         assert restore.call_count == 2
@@ -292,28 +292,28 @@ class TestOrigeneratorWindowConverger:
         # re-bands it rather than reading "not minimized" as converged.
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-             patch("fun_time.role_windows.is_window_topmost", return_value=False), \
-             patch("fun_time.role_windows.restore_window") as restore, \
-             patch("fun_time.role_windows.set_always_on_top") as promote:
+             patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+             patch("fun_time.fun_time_windows.is_window_topmost", return_value=False), \
+             patch("fun_time.fun_time_windows.restore_window") as restore, \
+             patch("fun_time.fun_time_windows.set_always_on_top") as promote:
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
         restore.assert_not_called()
         promote.assert_any_call(4242, True)
 
     def test_a_browser_put_back_in_the_band_is_taken_out_from_under_origenerator(self):
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
-        with patch("fun_time.role_windows.find_window_for_process", side_effect=lookup_hosted), \
-             patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-             patch("fun_time.role_windows.is_window_topmost", return_value=True), \
-             patch("fun_time.role_windows.set_always_on_top") as band:
+        with patch("fun_time.fun_time_windows.find_window_for_process", side_effect=lookup_hosted), \
+             patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+             patch("fun_time.fun_time_windows.is_window_topmost", return_value=True), \
+             patch("fun_time.fun_time_windows.set_always_on_top") as band:
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
         assert band.call_args_list == [((RFB_HWND, False),), ((HOSTED_HWND, True),)]
 
     def test_the_browser_in_its_place_parks_a_window_left_up(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-             patch("fun_time.role_windows.minimize_window") as minimize:
+             patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+             patch("fun_time.fun_time_windows.minimize_window") as minimize:
             windows.converge_origenerator_window(RfbMode.RFB)
         minimize.assert_called_once_with(4242, activate=False)
 
@@ -328,33 +328,33 @@ TOP_STRIP = WindowRect(2560, 0, 1440, 940)
 
 
 def test_placing_a_window_moves_it_onto_its_rect():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND})
+    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
 
-    with patch("fun_time.role_windows.window_rect", return_value=(2560, 0, 1440, 2500)), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 2500)), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_STRIP)])
 
     place.assert_called_once_with(PORTRAIT_HWND, 2560, 0, 1440, 940)
 
 
 def test_a_window_already_on_its_rect_is_left_alone():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND})
+    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
 
-    with patch("fun_time.role_windows.window_rect", return_value=(2560, 0, 1440, 940)), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 940)), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_STRIP)])
 
     place.assert_not_called()
 
 
 def test_a_minimized_window_is_left_where_it_was_until_it_is_back():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND})
+    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
 
-    with patch("fun_time.role_windows.window_rect", return_value=(-32000, -32000, 160, 28)), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=True), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", return_value=(-32000, -32000, 160, 28)), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_STRIP)])
 
     place.assert_not_called()
@@ -363,23 +363,23 @@ def test_a_minimized_window_is_left_where_it_was_until_it_is_back():
 def test_a_window_nobody_has_found_yet_is_not_placed():
     windows = make_windows()
 
-    with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
-         patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-         patch("fun_time.role_windows.window_rect", return_value=None), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+         patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+         patch("fun_time.fun_time_windows.window_rect", return_value=None), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_STRIP)])
 
     place.assert_not_called()
 
 
 def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_room():
-    windows = make_windows(role_hwnds={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND})
+    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND})
     now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
-    with patch("fun_time.role_windows.window_rect", side_effect=now.get), \
-         patch("fun_time.role_windows.is_window_minimized", return_value=False), \
-         patch("fun_time.role_windows.place_window") as place:
+    with patch("fun_time.fun_time_windows.window_rect", side_effect=now.get), \
+         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("main_funestra", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_STRIP)])
 
     assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]

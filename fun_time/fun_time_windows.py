@@ -1,6 +1,6 @@
-"""The live windows under the managed roles.
+"""The live windows under the managed windows.
 
-:mod:`fun_time.window_roles` says which band a role belongs in — pure policy,
+:mod:`fun_time.window_names` says which band a window belongs in — pure policy,
 no window in sight.  This module holds the other half: the HWNDs the session's
 children put on screen, how they are found, and which ones have been put away.
 One instance per session, shared by the dispatch tick and the library browser's
@@ -32,13 +32,13 @@ from .win32 import (
     window_rect,
 )
 from .window_layout import SecondaryMonitorRects, WindowRect
-from .window_roles import (
-    FIXED_TOPMOST_ROLES,
-    MANAGED_ROLES,
-    ORIGENERATOR_ROLE,
-    RFB_MODE_ROLES,
+from .window_names import (
+    FIXED_TOPMOST_WINDOWS,
+    MANAGED_WINDOWS,
+    ORIGENERATOR_WINDOW,
+    RFB_MODE_WINDOWS,
     is_origenerators_caption,
-    role_topmost,
+    window_is_topmost,
 )
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 
 # How long Origenerator leaving the browser's place gives the hosted app's window
-# to act before it is minimized (see :meth:`WindowRoles.hide_after_settle`).
+# to act before it is minimized (see :meth:`FunTimeWindows.hide_after_settle`).
 # Generous next to the two frames a window needs; being early is the failure it
 # exists to avoid.
 MAIN_BLANK_SETTLE_S = 0.25
@@ -73,7 +73,7 @@ class ChildPids:
     origenerator: int = 0
 
 
-class WindowRoles:
+class FunTimeWindows:
     """Resolves a managed role to the window that is playing it."""
 
     def __init__(
@@ -81,7 +81,7 @@ class WindowRoles:
         *,
         pids: ChildPids,
         rfb_hwnd: int = 0,
-        role_hwnds: dict[str, int] | None = None,
+        hwnds_by_window: dict[str, int] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.pids = pids
@@ -90,13 +90,13 @@ class WindowRoles:
         # while it was still visible — startup then hides the inactive
         # windows of the Main Funestra, and hidden windows are invisible to the
         # pid/title lookups.
-        self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
+        self._hwnds_by_window: dict[str, int] = dict(hwnds_by_window or {})
         # The settle a mode switch's outgoing Funestra waits out is the one thing
         # here that is about elapsed time.  Injectable so a test can let it run
         # out rather than reach in and back-date the deadline.
         self.clock = clock
         # Windows of the Main Funestra waiting out MAIN_BLANK_SETTLE_S before they are
-        # minimized, by role -> the time they are due.
+        # minimized, by window -> the time they are due.
         self._pending_hides: dict[str, float] = {}
         # Windows a Funestra's own minimize button parked, kept apart from the two
         # other things that minimize around here: the mode switch parks the idle
@@ -107,22 +107,22 @@ class WindowRoles:
         self._parked_hwnds: list[int] = []
         self._minimized_hwnds: list[int] = []
 
-    def hwnd(self, role: str) -> int:
-        """HWND for a managed window role, cached on first sight.
+    def hwnd(self, window_name: str) -> int:
+        """HWND for a managed window, cached on first sight.
 
         Hidden windows are invisible to the pid/title lookups, so a
         window's HWND must be captured while it is visible (startup shows
         everything) and reused to show it again later.
         """
-        hwnd = self._role_hwnds.get(role, 0)
-        if hwnd and role == ORIGENERATOR_ROLE and not window_exists(hwnd):
+        hwnd = self._hwnds_by_window.get(window_name, 0)
+        if hwnd and window_name == ORIGENERATOR_WINDOW and not window_exists(hwnd):
             # The hosted app's boot can put a short-lived twin of this caption
             # up first (its splash), and caching that leaves every later
             # restore aimed at a dead handle — the switch that visibly did
             # nothing.  Only this role heals its cache: the other windows live
             # as long as the session, and their hidden phases (SW_HIDE under
             # the overlay) are exactly when a re-resolve would come up empty.
-            self._role_hwnds.pop(role, None)
+            self._hwnds_by_window.pop(window_name, None)
             hwnd = 0
         if hwnd:
             return hwnd
@@ -134,22 +134,22 @@ class WindowRoles:
         # lookup answers with whatever window it reaches first whose title
         # merely CONTAINS the name (see find_window_by_title), and handing one
         # Satellite's window to the other is the portrait/landscape visual swap.
-        if role == "main_funestra":
+        if window_name == "main_funestra":
             hwnd = find_window_by_pid(self.pids.main_funestra) or find_window_by_title("Main Funestra", exact=True)
-        elif role == "portrait":
+        elif window_name == "portrait":
             hwnd = (find_window_by_pid(self.pids.portrait)
                     or find_window_by_title(SATELLITE_PORTRAIT_TITLE, exact=True))
-        elif role == "landscape":
+        elif window_name == "landscape":
             hwnd = (find_window_by_pid(self.pids.landscape)
                     or find_window_by_title(SATELLITE_LANDSCAPE_TITLE, exact=True))
-        elif role == "dashboard":
+        elif window_name == "dashboard":
             hwnd = self._dashboard_hwnd()
-        elif role == "rfb":
+        elif window_name == "rfb":
             hwnd = self.rfb_hwnd
-        elif role == ORIGENERATOR_ROLE:
+        elif window_name == ORIGENERATOR_WINDOW:
             hwnd = find_origenerators_window(self.pids.origenerator)
         if hwnd:
-            self._role_hwnds[role] = hwnd
+            self._hwnds_by_window[window_name] = hwnd
         return hwnd
 
     def _dashboard_hwnd(self) -> int:
@@ -169,8 +169,8 @@ class WindowRoles:
 
     # -- putting windows down and bringing them back ------------------------
 
-    def show(self, role: str) -> None:
-        """Bring a role's window back — the mode switch's incoming Funestra.
+    def show(self, window_name: str) -> None:
+        """Bring a window's window back — the mode switch's incoming Funestra.
 
         Restore rather than SW_SHOW: the idle Main Funestra is parked by
         minimizing it (which keeps its taskbar button), so bringing it back is a
@@ -179,18 +179,18 @@ class WindowRoles:
         cancels the settle: the window being restored must not be minimized a
         moment later.
         """
-        self._pending_hides.pop(role, None)
-        hwnd = self.hwnd(role)
+        self._pending_hides.pop(window_name, None)
+        hwnd = self.hwnd(window_name)
         if hwnd:
             restore_window(hwnd, activate=False)
 
-    def activate(self, role: str) -> None:
-        """Hand a role's window the foreground."""
-        hwnd = self.hwnd(role)
+    def activate(self, window_name: str) -> None:
+        """Hand a window's window the foreground."""
+        hwnd = self.hwnd(window_name)
         if hwnd:
             activate_window(hwnd)
 
-    def hide_after_settle(self, role: str) -> None:
+    def hide_after_settle(self, window_name: str) -> None:
         """Park the window a mode switch is leaving — after a beat.
 
         Minimizing is what FREEZES a window's Alt-Tab thumbnail: Windows stops
@@ -198,28 +198,28 @@ class WindowRoles:
         thumbnail keeps showing until it is restored, and a window told to step
         aside needs a frame or two to present what it will be remembered by.
         """
-        self._pending_hides[role] = self.clock() + MAIN_BLANK_SETTLE_S
+        self._pending_hides[window_name] = self.clock() + MAIN_BLANK_SETTLE_S
 
     def flush_pending_hides(self) -> None:
         """Park each window of the Main Funestra whose settle time has run out."""
         if not self._pending_hides:
             return
         now = self.clock()
-        for role in [r for r, due in self._pending_hides.items() if now >= due]:
-            del self._pending_hides[role]
-            self.minimize(role)
+        for window_name in [r for r, due in self._pending_hides.items() if now >= due]:
+            del self._pending_hides[window_name]
+            self.minimize(window_name)
 
-    def minimize(self, role: str) -> None:
+    def minimize(self, window_name: str) -> None:
         # Minimize instead of SW_HIDE so the window keeps its taskbar button
         # (running indicator) the whole session — and, for a satellite parked
         # from its own HUD, so there is something left to click: that HUD goes
         # down with the window, so the taskbar button is the way back.
         # No-activate, so parking one Funestra never yanks focus to the next.
-        hwnd = self.hwnd(role)
+        hwnd = self.hwnd(window_name)
         if hwnd:
             minimize_window(hwnd, activate=False)
 
-    def park(self, role: str) -> None:
+    def park(self, window_name: str) -> None:
         """Minimize a window the user asked to have out of the way, and remember it.
 
         Remembered here rather than inside :meth:`minimize`, which the mode
@@ -227,10 +227,10 @@ class WindowRoles:
         when the mode brings it back, so putting it on this list would have the
         next resume drag a hidden window onto a rect another one is using.
         """
-        hwnd = self.hwnd(role)
+        hwnd = self.hwnd(window_name)
         if not hwnd:
             return
-        self.minimize(role)
+        self.minimize(window_name)
         if hwnd not in self._parked_hwnds:
             self._parked_hwnds.append(hwnd)
 
@@ -247,7 +247,7 @@ class WindowRoles:
             restore_window(hwnd, activate=False)
         self._parked_hwnds = []
 
-    def minimize_all(self, roles: Iterable[str]) -> None:
+    def minimize_all(self, window_names: Iterable[str]) -> None:
         """Minimize the windows the modes show — the "omniminimize" command.
 
         Only those are minimized (SW_MINIMIZE would drag a parked window back
@@ -256,8 +256,8 @@ class WindowRoles:
         remembered so :meth:`restore_minimized` brings back exactly these.
         """
         self._minimized_hwnds = []
-        for role in roles:
-            hwnd = self.hwnd(role)
+        for window_name in window_names:
+            hwnd = self.hwnd(window_name)
             if hwnd:
                 minimize_window(hwnd, activate=False)
                 self._minimized_hwnds.append(hwnd)
@@ -284,13 +284,13 @@ class WindowRoles:
             return True
         if not hosted_app or not process:
             return False
-        hwnd = self.hwnd(ORIGENERATOR_ROLE)
+        hwnd = self.hwnd(ORIGENERATOR_WINDOW)
         return bool(hwnd) and process == window_process(hwnd)
 
     def place(self, placements: Iterable[tuple[str, WindowRect]]) -> None:
         moves = []
-        for role, rect in placements:
-            hwnd = self.hwnd(role)
+        for window_name, rect in placements:
+            hwnd = self.hwnd(window_name)
             if not hwnd or is_window_minimized(hwnd):
                 continue
             now = window_rect(hwnd)
@@ -305,16 +305,16 @@ class WindowRoles:
     def remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
         the desktop)."""
-        for role in MANAGED_ROLES:
-            hwnd = self.hwnd(role)
+        for window_name in MANAGED_WINDOWS:
+            hwnd = self.hwnd(window_name)
             if hwnd:
                 set_always_on_top(hwnd, False)
 
     def restore_all_topmost(self, rfb_mode: RfbMode) -> None:
         """Re-apply the topmost bands after omnipause: the windows with a rect
         of their own, then the shared rect's pair in the order it stacks in."""
-        for role in FIXED_TOPMOST_ROLES:
-            hwnd = self.hwnd(role)
+        for window_name in FIXED_TOPMOST_WINDOWS:
+            hwnd = self.hwnd(window_name)
             if hwnd:
                 set_always_on_top(hwnd, True)
         self.restack_rfb_mode(rfb_mode)
@@ -326,10 +326,10 @@ class WindowRoles:
             return
         browser = self.hwnd("rfb")
         if browser:
-            set_always_on_top(browser, role_topmost("rfb", rfb_mode))
-        if not role_topmost(ORIGENERATOR_ROLE, rfb_mode):
+            set_always_on_top(browser, window_is_topmost("rfb", rfb_mode))
+        if not window_is_topmost(ORIGENERATOR_WINDOW, rfb_mode):
             return
-        hwnd = self.hwnd(ORIGENERATOR_ROLE)
+        hwnd = self.hwnd(ORIGENERATOR_WINDOW)
         if hwnd:
             set_always_on_top(hwnd, True)
 
@@ -350,7 +350,7 @@ class WindowRoles:
         """
         if not self.pids.origenerator:
             return
-        hwnd = self.hwnd(ORIGENERATOR_ROLE)
+        hwnd = self.hwnd(ORIGENERATOR_WINDOW)
         if not hwnd:
             return  # still booting — try again next sync
         minimized = is_window_minimized(hwnd)
@@ -363,8 +363,8 @@ class WindowRoles:
             minimize_window(hwnd, activate=False)
 
     def _an_rfb_mode_window_out_of_its_band(self, rfb_mode: RfbMode) -> bool:
-        return any(is_window_topmost(hwnd) != role_topmost(role, rfb_mode)
-                   for role in RFB_MODE_ROLES if (hwnd := self.hwnd(role)))
+        return any(is_window_topmost(hwnd) != window_is_topmost(window_name, rfb_mode)
+                   for window_name in RFB_MODE_WINDOWS if (hwnd := self.hwnd(window_name)))
 
     def topmost_report(self) -> str:
         """Every managed window's resolved hwnd and topmost state, one line.
@@ -374,8 +374,8 @@ class WindowRoles:
         diagnostic that names it.
         """
         parts = []
-        for role in MANAGED_ROLES:
-            hwnd = self.hwnd(role)
+        for window_name in MANAGED_WINDOWS:
+            hwnd = self.hwnd(window_name)
             state = is_window_topmost(hwnd) if hwnd else "n/a"
-            parts.append(f"{role}={hwnd}:{state}")
+            parts.append(f"{window_name}={hwnd}:{state}")
         return "  ".join(parts)

@@ -5,10 +5,10 @@ from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_notices import read_funestra_notice
-from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
-from tests.role_window_fakes import MAIN_FUNESTRA_PID
+from tests.fun_time_window_fakes import MAIN_FUNESTRA_PID
 
 
 def _runner(tmp_path: Path) -> DispatchLoopRunner:
@@ -39,7 +39,7 @@ def _runner(tmp_path: Path) -> DispatchLoopRunner:
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         shared_state_file=tmp_path / "shared_state.ini",
         ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-        windows=WindowRoles(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID)),
+        windows=FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID)),
         dashboard_enabled=False,
     )
 

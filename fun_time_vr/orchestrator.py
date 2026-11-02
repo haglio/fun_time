@@ -37,6 +37,7 @@ from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_
 from fun_time.child_launch import open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.event_log import open_event_log
+from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_deaths import (
     part_closed_message,
     show_funestra_died_alert,
@@ -89,7 +90,6 @@ from fun_time.overlay_progress import (
     what_the_flag_asks,
 )
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
-from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.room_funestras import RoomFunestra
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_end import session_end_marker_path
@@ -737,7 +737,7 @@ def _open_the_room(
         ahk_cmd_file=launch.ahk_cmd_file,
         # Every role pid stays 0: the roles are surfaces of the headset, and
         # unresolved HWNDs are what make the window ops no-ops.
-        windows=WindowRoles(pids=ChildPids()),
+        windows=FunTimeWindows(pids=ChildPids()),
         # There IS a dashboard now, hanging in the scene; this publishes what
         # its bar reads.
         dashboard_enabled=True,

@@ -212,7 +212,7 @@ def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
 def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Path):
     """The hotkeys & voice reference must free the desktop with everything else.
 
-    It is a top-level window of its own — not one of the bridge's managed roles
+    It is a top-level window of its own — not one of the bridge's managed windows
     the orchestrator can drop, and not a child riding the dashboard's band — so
     nothing took it out of WS_EX_TOPMOST and it stayed pinned over the desktop
     for the whole pause.  Read off the real HWND: only the native platform gives

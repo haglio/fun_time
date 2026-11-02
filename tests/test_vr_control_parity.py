@@ -76,7 +76,7 @@ from tests.test_windows_bridge_dispatch_loop import make_runner
 # flash that would confirm a key on the desktop confirms nothing in the
 # headset.  Listed so the sweep can tell a designed no-op from a new one.
 _OPS_WITH_NO_WINDOWS = frozenset({
-    Op.NOTICE, Op.SHOW_ROLE, Op.HIDE_ROLE, Op.ACTIVATE_ROLE, Op.MINIMIZE_ROLE,
+    Op.NOTICE, Op.SHOW_WINDOW, Op.HIDE_WINDOW, Op.ACTIVATE_WINDOW, Op.MINIMIZE_WINDOW,
     Op.RESTORE_PARKED, Op.RESTACK_RFB,
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })

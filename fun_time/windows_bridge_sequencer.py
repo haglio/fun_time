@@ -55,7 +55,7 @@ from .window_layout import (
     compute_main_media_rect,
     screen_layout,
 )
-from .window_roles import MANAGED_ROLES, role_topmost
+from .window_names import MANAGED_WINDOWS, window_is_topmost
 from .windows_bridge_random_favs_browser import (
     CHROME_WINDOW_CLASS,
     launch_random_favs_browser,
@@ -103,7 +103,7 @@ class StartupResult:
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
     # re-resolved by pid/title lookups).
-    role_hwnds: dict[str, int] = field(default_factory=dict)
+    hwnds_by_window: dict[str, int] = field(default_factory=dict)
 
 
 def _read_result_pids(result_file: str | Path) -> dict[str, int]:
@@ -117,7 +117,7 @@ def _build_unique_result_path(state_dir: Path, prefix: str) -> Path:
     return state_dir / f"{prefix}_{int(time.monotonic() * 1000)}.ini"
 
 
-def _startup_role_hwnds(
+def _startup_hwnds_by_window(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
@@ -125,10 +125,10 @@ def _startup_role_hwnds(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
-    """The managed windows by role, as resolved at startup.
+    """The managed windows by window, as resolved at startup.
 
     The hosted app's three are not among them: it is still booting when the room
-    opens, so none of them exists yet, and ``WindowRoles.hwnd`` resolves each
+    opens, so none of them exists yet, and ``FunTimeWindows.hwnd`` resolves each
     fresh the first time the dispatch loop asks for one.
     """
     return {
@@ -140,22 +140,22 @@ def _startup_role_hwnds(
     }
 
 
-def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0,
+def apply_topmost_bands(hwnds_by_window: dict[str, int], *, beneath: int = 0,
                         rfb_mode: RfbMode = RfbMode.RFB) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy — the same policy omnipause and mode switches honor, so they can
     never disagree.
 
-    Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
+    Walked in ``MANAGED_WINDOWS`` order rather than the mapping's, because
     ``HWND_TOPMOST`` inserts at the *top* of the band.
 
     *beneath* is the loading overlay, when this runs under it: each promotion
     lands directly under it, which keeps the same order one slot lower.
     """
-    for role in MANAGED_ROLES:
-        hwnd = role_hwnds.get(role, 0)
+    for window_name in MANAGED_WINDOWS:
+        hwnd = hwnds_by_window.get(window_name, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, rfb_mode), under=beneath)
+            set_always_on_top(hwnd, window_is_topmost(window_name, rfb_mode), under=beneath)
 
 
 def apply_startup_window_state(
@@ -174,15 +174,15 @@ def apply_startup_window_state(
     loading screen on top across the walk (:func:`apply_topmost_bands`).  Zero without a
     loading screen: the integration path, and the re-band after the loading screen has gone.
     """
-    role_hwnds = _startup_role_hwnds(
+    hwnds_by_window = _startup_hwnds_by_window(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         main_funestra_hwnd=main_funestra_hwnd,
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
-    apply_topmost_bands(role_hwnds, beneath=beneath, rfb_mode=rfb_mode)
-    return role_hwnds
+    apply_topmost_bands(hwnds_by_window, beneath=beneath, rfb_mode=rfb_mode)
+    return hwnds_by_window
 
 
 @dataclass
@@ -241,7 +241,7 @@ def run_startup_sequence(
 
     When *hide_windows* is True, the satellite windows launch under the loading
     overlay and all positioning is deferred to the end so everything appears at
-    once.  The window handles are returned in ``StartupResult.role_hwnds``.
+    once.  The window handles are returned in ``StartupResult.hwnds_by_window``.
 
     Each ``progress.advance`` is a cancellation checkpoint: if the loading
     screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
@@ -511,13 +511,13 @@ def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) ->
     _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=activate)
     logger.info("Core windows positioned")
 
-    role_hwnds = apply_startup_window_state(
+    hwnds_by_window = apply_startup_window_state(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
     )
     logger.info("Startup window state applied")
-    return role_hwnds
+    return hwnds_by_window
 
 
 def _launch_the_companions(
@@ -622,7 +622,7 @@ def _place_the_windows_under_the_loading_screen(
         if dashboard_pid
         else 0
     )
-    role_hwnds = _startup_role_hwnds(
+    hwnds_by_window = _startup_hwnds_by_window(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -630,7 +630,7 @@ def _place_the_windows_under_the_loading_screen(
         dashboard_hwnd=dash_hwnd,
     )
     logger.info("Startup windows resolved (bands deferred past the overlay)")
-    return role_hwnds
+    return hwnds_by_window
 
 
 def _settle_the_room_under_the_loading_screen(
@@ -687,9 +687,9 @@ def _run_startup_phases(
     raise_if_a_funestra_died(launched.funestras)
 
     # --- Phase 2: Position windows (layout computed up front) ---
-    role_hwnds: dict[str, int] = {}
+    hwnds_by_window: dict[str, int] = {}
     if not hide_windows:
-        role_hwnds = _position_windows_now(plan, env=env)
+        hwnds_by_window = _position_windows_now(plan, env=env)
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
@@ -730,7 +730,7 @@ def _run_startup_phases(
         origenerator_already_open=core.origenerator_already_open,
         origenerator_slideshow_on=core.origenerator_slideshow_on,
         main_mode=core.main_mode,
-        role_hwnds=role_hwnds,
+        hwnds_by_window=hwnds_by_window,
         rfb_hwnd=rfb_hwnd,
     )
 

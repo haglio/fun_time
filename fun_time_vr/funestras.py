@@ -234,7 +234,7 @@ class VrSettings:
     library_dirs: tuple[Path, ...]
     audio_device: str
     compositor_layers: bool
-    # Genau's role: its flicks folder, its companion's address, its engine's numbers.
+    # What Genau needs: its flicks folder, its companion's address, its engine's numbers.
     flicks_folder: Path | None = None
     notify_host: str = "127.0.0.1"
     notify_port: int = ports.AUDIO_COMPANION
@@ -1685,9 +1685,9 @@ def _close_channels(units: list, *, keep=None) -> None:
 
 
 class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of the log
-    def __init__(self, sink, role: str) -> None:
+    def __init__(self, sink, driver: str) -> None:
         self._sink = sink
-        self._role = role
+        self._driver = driver
         self._said = False
 
     def want(self, wanted: bool) -> None:
@@ -1696,7 +1696,7 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
     def send(self, command: str) -> None:
         if not self._said:
             self._said = True
-            logger.info("First T-Code from the %s role: %s", self._role, command)
+            logger.info("First T-Code from %s: %s", self._driver, command)
         self._sink.send(command)
 
     def close(self) -> None:
@@ -1903,7 +1903,7 @@ class Arrangement:
         self._pointer = pointer or Pointer()
         self._thumbs = Thumbs()
         self._stacking = Stacking()
-        # The recentering yaw, with the role's tilt read in beside it each frame.
+        # The recentering yaw, with the tilt read in beside it each frame.
         self.scene_yaw = 0.0
         self.scene_rotation = np.eye(4, dtype=np.float32)
 

@@ -35,7 +35,7 @@ from fun_time.origenerator_switches import (
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
-from fun_time.window_roles import ORIGENERATOR_TITLE
+from fun_time.window_names import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess, see_the_hosted_app_out
 from fun_time.windows_bridge_startup import ORIGENERATOR_MODULE, origenerator_session_args
