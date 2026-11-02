@@ -14,7 +14,7 @@ from pathlib import Path
 from fun_time.config import LayoutConfig
 from fun_time.crown import Crown
 from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement, read_events
-from fun_time.notice_placement import FunestraRects, notice_target_rect
+from fun_time.message_placement import FunestraRects, message_target_rect
 from fun_time.overlay_progress import loading_screen_is_up
 from fun_time.shared_state import read_shared_state
 from fun_time.unlogged_messages import UnloggedMessages

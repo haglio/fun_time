@@ -9,7 +9,7 @@ it back.
 The arithmetic lives here rather than in the test that uses it because it is
 where the measurement went wrong once: a stay used to be inferred from the gaps
 between samples of one window, with any gap under 20ms read as the same stay —
-and the loading screen answers a raise in 16ms, so two separate appearances either side
+and the loading screen answers a raise in 16ms, so two separate appearances either Satellite
 of the loading screen's own answer were reported as one stay twice as long.  It is unit
 tested next door in ``tests/test_above_the_loading_screen.py``.
 """

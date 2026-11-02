@@ -652,7 +652,7 @@ def _settle_the_funestras(funestras: Sequence[tuple[str, int, int]], *,
     decoding), so a promotion can time out through the stalled-window guard and
     land only when that thread next pumps — a maximized Chrome sat over the
     Landscape Funestra until the next full re-band, and the Main Funestra climbed
-    over the room a second after the loading screen lifted.  So walk the real z-order and
+    over Fun Time a second after the loading screen lifted.  So walk the real z-order and
     re-promote whoever is still buried.  The loading overlay covers everything
     on purpose, so it is not a burial, and a re-promotion under it goes under it.
     """
@@ -791,7 +791,7 @@ def _reveal_the_app(
     loading_screen: RaisedLoadingScreen,
     hud_publisher,
     hud_primed,
-    before_the_loading_screen_goes: Callable[[], RfbSlot] = lambda: RfbSlot.RFB,
+    before_the_loading_screen_goes: Callable[[], RfbMode] = lambda: RfbMode.RFB,
 ) -> None:
     """Take the loading screen down on a session that is finished under it.
 
@@ -803,18 +803,18 @@ def _reveal_the_app(
     if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
         logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
                        HUD_PRIME_TIMEOUT_S)
-    # Band the room and settle its z-order UNDER the loading screen.  Phase 4 left the
+    # Band Fun Time and settle its z-order UNDER the loading screen.  Phase 4 left the
     # bands off (each promotion inserts above the overlay), so nothing of the
     # session is topmost yet: revealing here would show Funestras sitting under
     # whatever was on those monitors, climbing over it a second later.
-    rfb_slot = before_the_loading_screen_goes()
+    rfb_mode = before_the_loading_screen_goes()
     # Before the pass below, which waits for the window the dashboard shows
     # itself in when this line fills the bar.
     loading_screen.progress.advance("finalizing")
 
-    role_hwnds = _fix_post_loading_windows(
-        result, overlay_hwnd=loading_screen.window(), rfb_slot=rfb_slot)
-    seat_the_secondary_monitor(manifest, role_hwnds)
+    hwnds_by_window = _fix_post_loading_windows(
+        result, overlay_hwnd=loading_screen.window(), rfb_mode=rfb_mode)
+    seat_the_secondary_monitor(manifest, hwnds_by_window)
 
     loading_screen.take_it_down()
 
@@ -974,7 +974,7 @@ def wait_for_voice_under_the_loading_screen(
                            "without them", VOICE_START_BUDGET_S)
 
 
-# Bounded: an app that died on its way up would hold the room's loading screen shut.
+# Bounded: an app that died on its way up would hold Fun Time's loading screen shut.
 ORIGENERATOR_BOOT_BUDGET_S = 120.0
 ORIGENERATOR_BOOT_POLL_S = 0.5
 
@@ -1008,10 +1008,10 @@ def finish_under_the_loading_screen(
     voice_controller: VoiceController | None,
     *,
     progress: ProgressReporter,
-) -> RfbSlot:
-    rfb_slot = activate_origenerator_under_the_loading_screen(runner, progress=progress)
+) -> RfbMode:
+    rfb_mode = activate_origenerator_under_the_loading_screen(runner, progress=progress)
     wait_for_voice_under_the_loading_screen(voice_controller, progress=progress)
-    return rfb_slot
+    return rfb_mode
 
 
 def _build_the_dispatch_loop(
@@ -1358,7 +1358,7 @@ def run_session(
 
         # The sequencer already positioned all windows in Phase 4 (the reveal).
         if env.show_overlays:
-            _reveal_the_room(result, manifest=manifest, loading_screen=loading_screen,
+            _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
                              hud_publisher=hud_publisher, hud_primed=hud_primed,
                              before_the_loading_screen_goes=finish)
         else:

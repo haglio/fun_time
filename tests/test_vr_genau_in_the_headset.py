@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from funestra.funestra import User
-from funestra.main_hud_painter import ModeHud
+from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
 
 from fun_time.arrivals import LOOK_EVERY_S

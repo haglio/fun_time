@@ -126,7 +126,7 @@ def loading_screen_is_up(state_dir: Path) -> bool:
 
 
 def startup_still_building(state_dir: Path) -> bool:
-    """True while startup is still assembling the room, so a companion window of
+    """True while startup is still assembling Fun Time, so a companion window of
     the session's own must stay out of the loading screen's way.  Goes False one phase
     EARLY, at the final weightless phase with the loading screen still up: a companion
     that waited for the lift would arrive late on a finished room."""
@@ -152,7 +152,7 @@ class Phase:
 # Startup as the loading screen sees it, in order.  The bar advances by TIME
 # rather than step count: an equal share per step parked it at 83% through the
 # one phase that waits on other processes.  The last is weightless so the bar
-# reads full while the room is settled under the loading screen.
+# reads full while Fun Time is settled under the loading screen.
 #
 # First, the launch's own work, before there is a room to report on.  The screen
 # opens on this one's words: anything else reads as a flicker on its first poll.

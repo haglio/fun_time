@@ -350,7 +350,7 @@ class TestWhatEscWouldCancel:
         assert window.panel.status == "Closing Funestras..."
 
     def test_esc_never_takes_a_loading_screen_down(self, tmp_path: Path):
-        """The loading screen is there to hide the room while it changes shape; a key
+        """The loading screen is there to hide Fun Time while it changes shape; a key
         that uncovered it was never wanted."""
         window = _loading_screen(tmp_path)
         for line in ("1/6|Preparing services...|Press Esc to cancel opening Fun Time",

@@ -12,7 +12,7 @@ from __future__ import annotations
 from functools import partial
 from pathlib import Path
 
-from funestra.main_hud_painter import ModeHud
+from funestra.main_hud import ModeHud
 
 from .clip_jumps import ClipJumps
 from .controls import KinoControls, apply_command

@@ -298,7 +298,7 @@ def wait_for_loading_screen_painted(
 
 LOADING_SCREEN_SIZE_PX = (512, 320)  # held: a changed size rescales the whole loading screen
 
-LOADING_SCREEN_WIDTH_DEG = 40.0  # wider than the console's 24: that is glanced at
+LOADING_SCREEN_WIDTH_DEG = 40.0  # wider than the HUD's 24: that is glanced at
 
 
 class LoadingScreenAnchor:

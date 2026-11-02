@@ -1,7 +1,7 @@
 """What the Main Funestra's HUD shows about Fun Time, and the file it reaches on: a
-:class:`~funestra.main_hud.ConsoleModel` carrying the buttons Fun Time
+:class:`~funestra.main_hud_painter.ConsoleModel` carrying the buttons Fun Time
 declares (:mod:`fun_time.console_buttons`), published as text and parsed back
-by ``funestra.main_hud``."""
+by ``funestra.main_hud_painter``."""
 from __future__ import annotations
 
 from dataclasses import dataclass

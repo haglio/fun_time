@@ -44,17 +44,17 @@ MANAGED_WINDOWS: tuple[str, ...] = FIXED_TOPMOST_WINDOWS + RFB_MODE_WINDOWS
 
 
 def window_is_topmost(window_name: str, rfb_mode: RfbMode = RfbMode.RFB) -> bool:
-    """Whether *role*'s window belongs in the TOPMOST band: every window with a
+    """Whether *window_name*'s window belongs in the TOPMOST band: every window with a
     rect of its own, and of the pair sharing the browser's rect only the one
     holding it -- promoting the covered one only puts it briefly ABOVE its
     window over it, since HWND_TOPMOST inserts at the top of the band."""
-    if role not in RFB_SLOT_ROLES:
+    if window_name not in RFB_MODE_WINDOWS:
         return True
     return (window_name == ORIGENERATOR_WINDOW) == (rfb_mode is RfbMode.ORIGENERATOR)
 
 
 def visible_windows(rfb_mode: RfbMode = RfbMode.RFB) -> list[str]:
-    """Every managed role whose window is kept on screen: the browser counts
+    """Every managed window_name whose window is kept on screen: the browser counts
     while the hosted window covers it, since it is covered, not parked."""
     held = RFB_MODE_WINDOWS if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",)
     return [*FIXED_TOPMOST_WINDOWS, *held]

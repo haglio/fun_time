@@ -309,7 +309,7 @@ class VideoEntry:
 @dataclass(frozen=True)
 class GroupIndex:
     """Grouping of a video library by generation identity: one
-    :class:`ClipEntry` per video keyed by :func:`normalize_path_key`, plus the two
+    :class:`VideoEntry` per video keyed by :func:`normalize_path_key`, plus the two
     inverted indexes answering "who else is in this group" (sorted lists of the
     original path strings)."""
 

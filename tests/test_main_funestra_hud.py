@@ -3,12 +3,7 @@ from __future__ import annotations
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.hud_button import Button
-from funestra.main_hud import (
-    MainHudModel,
-    main_hud_text,
-    parse_main_hud,
-    read_main_hud,
-)
+from funestra.main_hud import MainHudModel, main_hud_text, parse_main_hud, read_main_hud
 from funestra.main_hud_painter import MainHud, MainHudPainter, hud_xy
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 

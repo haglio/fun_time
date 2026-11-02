@@ -4,8 +4,8 @@ from __future__ import annotations
 import logging
 
 from funestra.hud_placement import HudEdge
-from funestra.main_hud import MainHudModel, _row_width, osr2_controls
-from funestra.main_hud_painter import _PAD, MainHud, MainHudPainter, ModeHud
+from funestra.main_hud import MainHudModel, ModeHud, _row_width, osr2_controls
+from funestra.main_hud_painter import _PAD, MainHud, MainHudPainter
 from funestra.osr2_visualizer import DriveHud
 from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 

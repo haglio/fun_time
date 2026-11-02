@@ -1859,7 +1859,7 @@ class TestOpeningAVrSession:
     def test_the_funestra_is_asked_to_hold_before_the_controls_come_down(self, config):
         """Letting go is the Funestra's longest act -- two worker threads joined
         and four videos closed -- and the session has its own controls and its
-        companion to bring down.  Asked first, the two run side by side; asked
+        companion to bring down.  Asked first, the two run side by Satellite; asked
         after, the crossing paid for them one at a time."""
         controls = MagicMock()
         asked_by_then: list[bool] = []

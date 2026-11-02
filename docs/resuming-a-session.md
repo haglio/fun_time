@@ -82,9 +82,9 @@ whether that is a video or one of Genau's flicks.
 
 Whatever Origenerator held comes back — each Satellite Funestra's own
 Origenerator mode, and Origenerator in the Random Favs Browser's place — and it
-comes back UNDER THE LOADING SCREEN. Every room is built with both Funestras in Kino mode
-and the browser in its place, so a room left otherwise has to be switched back,
-and switching it once the room is already his is what this must never do: the
+comes back UNDER THE LOADING SCREEN. Every session is built with both Funestras in Kino mode
+and the browser in its place, so a session left otherwise has to be switched back,
+and switching it once Fun Time is already his is what this must never do: the
 Funestras would rearrange themselves under whatever he had started, which was
 tried and rejected. So the loading screen stays up instead. The phase before its
 last, read on the loading screen as "Activating Origenerator...", comes after the
@@ -92,8 +92,8 @@ room is built and banded and waits for the hosted Origenerator to publish its
 status — re-written while it waits, since a loading screen takes itself down on a progress
 file nothing has touched for a minute (`overlay_progress`). The moment the app
 answers, the very commands the switches send are sent, one for each thing
-Origenerator held, and only then does the loading screen come down — on a room already
-the way it was left. A room Origenerator held nothing of waits for nothing.
+Origenerator held, and only then does the loading screen come down — on a session already
+the way it was left. A session Origenerator held nothing of waits for nothing.
 
 The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
 died on its way up would otherwise hold Fun Time shut; a session that gave up opens

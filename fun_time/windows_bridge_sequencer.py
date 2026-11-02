@@ -93,8 +93,8 @@ class StartupResult:
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
-    origenerator_slideshow_on: tuple[RoomFunestra, ...] = ()
-    # Which Funestra the main slot was revealed on — last session's, resumed.
+    origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
+    # Which Funestra the Main Funestra was revealed on — last session's, resumed.
     # Carried out because the orchestrator starts the Funestras once the loading screen
     # is gone, and starts the mode's.
     # The satellites have no such line: every session is BUILT with them in Kino mode.
@@ -633,7 +633,7 @@ def _place_the_windows_under_the_loading_screen(
     return hwnds_by_window
 
 
-def _settle_the_room_under_the_loading_screen(
+def _settle_the_app_under_the_loading_screen(
     m: LaunchManifest,
     *,
     core: _CoreSession,
@@ -705,7 +705,7 @@ def _run_startup_phases(
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
-        role_hwnds = _settle_the_room_under_the_loading_screen(
+        hwnds_by_window = _settle_the_app_under_the_loading_screen(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
             dashboard_pid=ui_pids["dashboard_pid"], progress=progress,
             funestras=launched.funestras)
