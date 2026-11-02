@@ -38,6 +38,7 @@ from .integration_support import (
     where_failed_runs_are_kept,
 )
 from .line_record import require_a_run_that_holds_the_machine
+from .run_pulse import PULSE_ENV, Pulse
 from .throwaway_chrome import ThrowawayChrome
 
 # Only on the desktop this suite is allowed to run on.  Importing this file is not
@@ -65,6 +66,7 @@ def refuse_a_run_that_may_not_start() -> None:
 
 
 _THE_RUNS_CLOCK = pytest.StashKey[tuple[run_clock.RunClock, float]]()
+_THE_RUNS_PULSE = pytest.StashKey[Pulse]()
 
 
 def pytest_configure(config):
@@ -73,6 +75,10 @@ def pytest_configure(config):
         config.stash[_THE_RUNS_CLOCK] = (clock, time.monotonic())
         config.add_cleanup(partial(run_clock.keep_time_by, run_clock.WALL))
         run_clock.keep_time_by(clock)
+        if told_where := os.environ.get(PULSE_ENV):
+            pulse = Pulse(Path(told_where))
+            config.stash[_THE_RUNS_PULSE] = pulse
+            config.add_cleanup(pulse.stop)
 
 
 def _say_how_much_of_the_run_was_its_own(clock: run_clock.RunClock, started: float) -> None:
@@ -89,6 +95,11 @@ def pytest_timeout_set_timer(item, settings):
     item.cancel_timeout = run_clock.watch_for_a_timeout(
         settings.timeout, partial(pytest_timeout.timeout_timer, item, settings))
     return True
+
+
+def pytest_runtest_protocol(item, nextitem):
+    if (pulse := item.config.stash.get(_THE_RUNS_PULSE, None)) is not None:
+        pulse.on_test(item.nodeid)
 
 
 def pytest_sessionstart(session):
