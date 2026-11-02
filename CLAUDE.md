@@ -34,7 +34,7 @@ Run the suite only through `hidden_desktop`: `pytest tests/integration/` refuses
 
 **Green means every collected test passes — zero failures, skips, or deselects.**
 
-`tests/test_dead_code.py::test_prose_does_not_outgrow_the_code_it_explains` is this repo's ceiling on comment and docstring lines across the packages and `tools/`, and it only ever ratchets down: a change that removes prose lowers `MAX_PROSE_LINES` with it, so what it freed cannot be spent by the next change.
+`tools/quality_baseline.json` holds each file's comment and docstring lines, among the family's other per-file numbers (app_support's README), and an entry only comes down: `python -m app_support.gates.baseline` lowers what fell and refuses every rise.
 
 Convenience wrapper (unit tests only): `bash test.sh`
 If `bash test.sh` fails because Git Bash cannot create its signal pipe, use the direct `.venv` command above.
