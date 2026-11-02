@@ -52,7 +52,7 @@ def test_no_module_reaches_into_another_ones_privates():
     )
 
 
-MAX_PROSE_LINES = 5480
+MAX_PROSE_LINES = 5479
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

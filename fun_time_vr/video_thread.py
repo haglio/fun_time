@@ -8,24 +8,15 @@ import numpy as np
 from app_support.threading_utils import start_daemon_thread
 from OpenGL import GL
 
-from .frame_relay import SLOTS, FrameRelay, StillAsked, capped_size
-from .paint_watch import (
-    FLUSH,
-    FLUSH_AFTER_S,
-    GIVE_UP,
-    GIVE_UP_AFTER_S,
-    WAIT,
-    FrameWatch,
-    GpuWait,
-)
+from .frame_relay import SLOTS, FrameRelay, StillAsked
+from .painting import Painting, Showing
 from .render import RenderTarget
 from .scheduling import scheduled_as_a_game
 
 logger = logging.getLogger(__name__)
 
 PAINT_POLL_S = 0.002
-# What the frame check reads a frame at: enough for a fisheye circle's edge,
-# small enough that painting one costs nothing beside a real frame.
+# A still: enough for a fisheye circle's edge, cheap beside a real frame.
 STILL_SIZE_PX = (512, 256)
 CLOSE_TIMEOUT_S = 10.0
 
@@ -49,6 +40,28 @@ class GpuMark:
         GL.glDeleteQueries(1, [self._query])
 
 
+class Gpu:
+    def mark(self) -> GpuMark:
+        return GpuMark()
+
+    def flush(self) -> None:
+        GL.glFlush()
+
+    def copy(self, frame, target: RenderTarget) -> None:
+        GL.glCopyImageSubData(
+            frame.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
+            target.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
+            frame.width, frame.height, 1,
+        )
+
+    def read_pixels(self, target: RenderTarget) -> np.ndarray:
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, target.fbo)
+        GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
+        pixels = GL.glReadPixels(0, 0, target.width, target.height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        return np.frombuffer(pixels, np.uint8).reshape(target.height, target.width, 4)
+
+
 class VideoThread:
     def __init__(self, contexts, build_engine, cap_px: int, *, name: str, perf=None) -> None:
         self._contexts = contexts
@@ -57,12 +70,10 @@ class VideoThread:
         self._perf = perf
         self._relay = FrameRelay()
         self._still = StillAsked()
+        self._showing = Showing(self._relay, gpu=Gpu(), name=name)
         self._stop = threading.Event()
         self._built = threading.Event()
         self._fault: BaseException | None = None
-        self._copy: GpuMark | None = None
-        self._copy_wait = GpuWait()
-        self._copying = False
         self.engine = None
         self._window = contexts.open(name)
         self._thread = start_daemon_thread(
@@ -87,28 +98,7 @@ class VideoThread:
         return self._still.take()
 
     def show_newest(self, target: RenderTarget) -> bool:
-        if self._copying:
-            if not self._finished_on_the_gpu(self._copy_wait, self._copy, "copy"):
-                return False
-            self._copying = False
-            self._relay.copied()
-        frame = self._relay.take()
-        if frame is None:
-            return False
-        if self._copy is None:
-            self._copy = GpuMark()
-        target.ensure(frame.width, frame.height)
-        target.video = frame.video
-        GL.glCopyImageSubData(
-            frame.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
-            target.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
-            frame.width, frame.height, 1,
-        )
-        self._copy.set()
-        GL.glFlush()
-        self._copying = True
-        target.painted = True
-        return True
+        return self._showing.show_newest(target)
 
     def close(self) -> None:
         self._stop.set()
@@ -119,31 +109,34 @@ class VideoThread:
                 "process to reap, since freeing it under a render is a crash",
                 self._name, CLOSE_TIMEOUT_S)
             return
-        if self._copy is not None:
-            self._copy.close()
-            self._copy = None
+        self._showing.close()
         self._contexts.close(self._window)
 
     def _paint_until_stopped(self, build_engine) -> None:
         self._contexts.make_current(self._window)
         targets: list[RenderTarget] = []
         still: RenderTarget | None = None
+        painting: Painting | None = None
         try:
             targets = [RenderTarget() for _ in range(SLOTS)]
             still = RenderTarget()
             still.ensure(*STILL_SIZE_PX)
             self.engine = build_engine()
+            painting = Painting(self.engine, name=self._name, cap_px=self._cap_px, gpu=Gpu(),
+                                relay=self._relay, still_asked=self._still, perf=self._perf)
         except BaseException as fault:  # noqa: BLE001 -- raised again on the frame loop's thread
             self._fault = fault
         finally:
             self._built.set()
         try:
-            if self._fault is None:
+            if painting is not None:
                 with scheduled_as_a_game():
-                    self._paint(targets, still)
+                    self._paint(painting, targets, still)
         except Exception:
             logger.exception("The %s video stopped painting", self._name)
         finally:
+            if painting is not None:
+                painting.close()
             if self.engine is not None:
                 self.engine.close()
             for target in (*targets, still):
@@ -151,77 +144,7 @@ class VideoThread:
                     target.close()
             self._contexts.make_current(None)
 
-    def _paint(self, targets: list[RenderTarget], still: RenderTarget | None) -> None:
-        mark = GpuMark()
-        wait, watch = GpuWait(), FrameWatch()
-        drawn: tuple[int, int, int, int, str] | None = None
-        try:
-            while not self._stop.is_set():
-                if drawn is not None:
-                    if not self._finished_on_the_gpu(wait, mark, "frame"):
-                        time.sleep(PAINT_POLL_S)
-                        continue
-                    slot, texture, width, height, video = drawn
-                    self._relay.painted(
-                        slot, texture=texture, width=width, height=height, video=video)
-                    if still is not None and self._still.wanted:
-                        self._still.leave(self._paint_a_still(still))
-                drawn = self._draw_next(targets, mark)
-                if drawn is not None:
-                    watch.drew()
-                    continue
-                now = time.monotonic()
-                if watch.wants_a_reading(now):
-                    gone = watch.read(position_ms=self.engine.position_ms, now=now)
-                    if gone is not None:
-                        logger.warning("The %s video has drawn nothing for %.0fs while it played on",
-                                       self._name, gone)
+    def _paint(self, painting: Painting, targets: list[RenderTarget], still: RenderTarget) -> None:
+        while not self._stop.is_set():
+            if painting.paint(targets, still):
                 time.sleep(PAINT_POLL_S)
-        finally:
-            mark.close()
-
-    def _finished_on_the_gpu(self, wait: GpuWait, mark: GpuMark, what: str) -> bool:
-        verdict = wait.judge(reached=mark.reached, now=time.monotonic())
-        if verdict == FLUSH:
-            logger.warning("The %s video's %s has waited %.0fs for the GPU; flushing",
-                           self._name, what, FLUSH_AFTER_S)
-            GL.glFlush()
-        elif verdict == GIVE_UP:
-            logger.error("The %s video's %s never finished on the GPU in %.0fs; showing it anyway",
-                         self._name, what, GIVE_UP_AFTER_S)
-        return verdict not in (WAIT, FLUSH)
-
-    def _paint_a_still(self, still: RenderTarget):
-        """The frame on screen, small, as RGBA rows top-first.
-
-        mpv draws it the way it draws every other frame -- into a framebuffer on
-        this thread, whose GL context is the one its render context was made on;
-        asking from any other thread is refused, not answered.
-        """
-        self.engine.render(still.fbo, still.width, still.height)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, still.fbo)
-        GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
-        pixels = GL.glReadPixels(0, 0, still.width, still.height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        return np.frombuffer(pixels, np.uint8).reshape(still.height, still.width, 4)
-
-    def _draw_next(self, targets: list[RenderTarget], mark: GpuMark):
-        if not self.engine.has_frame_to_draw:
-            return None
-        size = capped_size(self.engine.video_dims, self._cap_px)
-        if size is None:
-            return None
-        started = time.perf_counter()
-        slot = self._relay.slot_to_paint()
-        target = targets[slot]
-        target.ensure(*size)
-        # flip_y: mpv renders top-left-origin; the scene samples GL lower-left
-        # convention (verified against a top-half-white clip).
-        video = self.engine.render(target.fbo, target.width, target.height, flip_y=True)
-        mark.set()
-        GL.glFlush()
-        if self._perf is not None:
-            self._perf.note("paint", (time.perf_counter() - started) * 1e3)
-        if video is None:
-            return None
-        return slot, target.texture, target.width, target.height, video
