@@ -26,7 +26,7 @@ from fun_time.overlay_progress import (
     CANCELING,
     QUIT_WORD,
     cancel_file_for,
-    keep_the_cover_up,
+    keep_the_loading_screen_up,
     what_the_flag_asks,
 )
 from fun_time.process_identity import NAMER
@@ -46,7 +46,7 @@ HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
 # What the monitors read while the room changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
-COVER_STALE_S = 20.0  # how long a crossing may stop saying so before its cover is gone
+LOADING_SCREEN_STALE_S = 20.0  # how long a crossing may stop saying so before its loading screen is gone
 KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 
 HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
@@ -156,7 +156,7 @@ def _read_request(state_dir: str | Path, *, take: bool) -> Handoff | None:
 
 
 def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
-    """Cover the headset past this session; *stop_runtime* rides along."""
+    """Hold the loading screen in the headset past this session; *stop_runtime* rides along."""
     (Path(state_dir) / HEADSET_HELD_NAME).unlink(missing_ok=True)
     (Path(state_dir) / HEADSET_HOLD_NAME).write_text(
         _STOP_RUNTIME if stop_runtime else "", encoding="utf-8",
@@ -176,7 +176,7 @@ def headset_hold_stops_the_runtime(state_dir: str | Path) -> bool:
 
 
 def report_the_headset_held(state_dir: str | Path) -> None:
-    """The Funestra's answer: every channel let go of, only the cover left."""
+    """The Funestra's answer: every channel let go of, only the loading screen left."""
     (Path(state_dir) / HEADSET_HELD_NAME).write_text("", encoding="utf-8")
 
 
@@ -223,7 +223,7 @@ def crossing_progress_path(state_dir: str | Path) -> Path:
     return Path(state_dir) / CROSSING_PROGRESS_NAME
 
 
-def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
+def raise_transition_screen(state_dir: str | Path, target: HandoffTarget) -> Path:
     """Say the room is changing over to *target*."""
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -233,14 +233,14 @@ def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
 
 def returning_from_a_crossing(state_dir: str | Path) -> bool:
     path = crossing_progress_path(state_dir)
-    try:  # a cover file left over made every LATER startup read as a return
-        return time.time() - path.stat().st_mtime < COVER_STALE_S
+    try:  # a loading screen file left over made every LATER startup read as a return
+        return time.time() - path.stat().st_mtime < LOADING_SCREEN_STALE_S
     except OSError:
         return False
 
 
-def keep_the_crossing_cover(state_dir: str | Path) -> Callable[[], None]:
-    return keep_the_cover_up(crossing_progress_path(state_dir), name="crossing-cover")
+def keep_the_transition_screen(state_dir: str | Path) -> Callable[[], None]:
+    return keep_the_loading_screen_up(crossing_progress_path(state_dir), name="transition-screen")
 
 
 _CANCELED_LINE = f"1/2|{CANCELING}\n"
@@ -252,16 +252,16 @@ def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
         path.write_text(_CANCELED_LINE, encoding="utf-8")
 
 
-def launch_crossing_cover(
+def launch_transition_screen(
     state_dir: str | Path, target: HandoffTarget, *, sibling_checkouts: str,
 ) -> subprocess.Popen:
-    """Raise the monitors' crossing cover and leave it standing."""
+    """Raise the monitors' transition screen and leave it standing."""
     return _launch_transition_screen(
-        raise_crossing_cover(state_dir, target), sibling_checkouts=sibling_checkouts,
+        raise_transition_screen(state_dir, target), sibling_checkouts=sibling_checkouts,
     )
 
 
-def launch_the_way_back_cover(state_dir: str | Path, *, sibling_checkouts: str) -> subprocess.Popen:
+def launch_the_way_back_screen(state_dir: str | Path, *, sibling_checkouts: str) -> subprocess.Popen:
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_CANCELED_LINE, encoding="utf-8")
@@ -275,8 +275,8 @@ def _launch_transition_screen(progress_file: Path, *, sibling_checkouts: str) ->
     ], **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
 
 
-def drop_crossing_cover(state_dir: str | Path) -> None:
-    """Take the crossing cover down; a no-op where none is up."""
+def drop_transition_screen(state_dir: str | Path) -> None:
+    """Take the transition screen down; a no-op where none is up."""
     path = crossing_progress_path(state_dir)
     if path.exists():
         path.write_text("DONE\n", encoding="utf-8")
@@ -396,7 +396,7 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
 
 
 def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
-    drop_crossing_cover(state_dir)
+    drop_transition_screen(state_dir)
     release_the_headset(state_dir)
     # Late: the dispatch loop's orchestrator imports this module, so a
     # top-level import here is a cycle.
@@ -416,7 +416,7 @@ def _give_up(reason: str, log_file: Path, config) -> int:
 
 def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     state_dir = config.paths.state_dir
-    keep_the_crossing_cover(state_dir)  # the middle of the three
+    keep_the_transition_screen(state_dir)  # the middle of the three
     log_file = state_dir / target.launcher_log
     if not wait_for_the_session_to_let_go(
         mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)

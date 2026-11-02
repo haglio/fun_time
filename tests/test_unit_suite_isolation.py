@@ -30,7 +30,7 @@ def test_a_unit_test_never_waits_out_a_window_no_test_opened():
     """A unit test mocks the startup that would have opened the session's
     windows, so every lookup the orchestrator makes can only time out — and it
     times out on the wall clock, because the waiter polls with ``time.sleep``.
-    One startup pass is the loading cover plus five role resolutions, which was
+    One startup pass is the loading screen plus five role resolutions, which was
     20s a test and 359s of ``test_windows_bridge_orchestrator.py`` alone.
     """
     started = time.monotonic()
@@ -46,7 +46,7 @@ def test_a_unit_test_never_waits_out_a_window_no_test_opened():
 def test_a_unit_test_never_waits_out_a_startup_timeout():
     """The numbers under those waits, zeroed alongside the lookup itself.
 
-    The hold for the closing cover to report itself painted is timed by the
+    The hold for the closing screen to report itself painted is timed by the
     orchestrator rather than through the lookup at all; and the per-role budget
     is what the finishing pass hands each lookup, so a test that supplies a
     waiter of its own — a side effect that answers on a later call rather than
@@ -59,7 +59,7 @@ def test_a_unit_test_never_waits_out_a_startup_timeout():
 @pytest.mark.real_startup_waits
 def test_the_waits_are_stubbed_per_test_and_not_edited_out_of_the_module():
     """Both of those numbers are pinned elsewhere as production numbers — the
-    resolve budget against the cover's staleness guard, the closing-screen hold
+    resolve budget against the loading screen's staleness guard, the closing-screen hold
     by the tests that walk its three ways out.  Stub them for the session
     instead of per test and those pins read off zeros and stop pinning
     anything, which is a green suite saying nothing.

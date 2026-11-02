@@ -1,4 +1,4 @@
-"""The headset's cover: what it shows, and when it gets out of the way.
+"""The headset's loading screen: what it shows, and when it gets out of the way.
 
 Everything here drives the reading end with the WRITER the orchestrator uses --
 the desktop's own :class:`PhaseProgress` -- rather than hand-written file
@@ -30,32 +30,32 @@ from fun_time.overlay_progress import (
 )
 from fun_time.session_handoff import (
     DESKTOP,
-    drop_crossing_cover,
+    drop_transition_screen,
     hold_the_headset,
-    raise_crossing_cover,
+    raise_transition_screen,
     release_the_headset,
     say_the_crossing_is_cancelled,
 )
-from fun_time_vr.cover import (
+from fun_time_vr.loading_screen import (
     CLOSING_STATUS,
-    COVER_CLEAR,
-    COVER_DWELL_S,
-    COVER_SIZE_PX,
     HELD_STATUS,
+    LOADING_SCREEN_CLEAR,
+    LOADING_SCREEN_DWELL_S,
+    LOADING_SCREEN_SIZE_PX,
     SCENE_READY_FILENAME,
     SCENE_READY_GRACE_S,
     SHUTDOWN_STALE_TIMEOUT_S,
     STARTUP_STALE_TIMEOUT_S,
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
-    Cover,
-    CoverAnchor,
-    CoverDwell,
-    CoverWatcher,
+    LoadingScreen,
+    LoadingScreenAnchor,
+    LoadingScreenDwell,
+    LoadingScreenWatcher,
     SceneReady,
-    paint_cover,
+    paint_loading_screen,
     scene_ready_file,
-    wait_for_cover_painted,
+    wait_for_loading_screen_painted,
 )
 
 
@@ -106,7 +106,7 @@ class TestThePhases:
     def test_it_carries_the_waits_the_desktops_own_steps_announce(self):
         """The comeback to the mode the last session left and the voice commands
         starting are the desktop's own helpers, announcing their waits on this
-        cover too -- and like the desktop they are steps before the last line
+        loading screen too -- and like the desktop they are steps before the last line
         rather than after it."""
         keys = [phase.key for phase in VR_STARTUP_PHASES]
 
@@ -129,42 +129,42 @@ class TestThePhases:
         assert all(weight > 0 for weight in weights[:-1])
 
     def test_the_funestra_is_the_last_thing_teardown_reports(self):
-        """It is the thing wearing the cover, so its phase has to be last or the
+        """It is the thing wearing the loading screen, so its phase has to be last or the
         bar would claim the session was further along than it is."""
         assert VR_SHUTDOWN_PHASES[-1].key == "funestras"
 
-    def test_the_closing_cover_opens_on_its_first_phase_words(self):
+    def test_the_closing_screen_opens_on_its_first_phase_words(self):
         """Opening on anything else reads as a flicker on the first poll."""
         assert VR_SHUTDOWN_PHASES[0].message == CLOSING_STATUS
 
 
-class TestWhatTheCoverShows:
+class TestWhatTheLoadingScreenShows:
     def test_no_files_means_show_the_scene(self, tmp_path: Path):
-        assert CoverWatcher(tmp_path).read() is None
+        assert LoadingScreenWatcher(tmp_path).read() is None
 
     def test_a_startup_phase_shows_its_words_a_bar_and_the_way_out(self, tmp_path: Path):
         _startup_writer(tmp_path).advance("funestras")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == "Waiting for Funestras..."
-        assert cover.hint == ESC_WORDS
-        assert 0.0 < cover.fraction < 1.0
-        assert not cover.closing
+        assert loading_screen is not None
+        assert loading_screen.status == "Waiting for Funestras..."
+        assert loading_screen.hint == ESC_WORDS
+        assert 0.0 < loading_screen.fraction < 1.0
+        assert not loading_screen.closing
 
     def test_the_weightless_last_phase_fills_the_bar(self, tmp_path: Path):
         _startup_writer(tmp_path).advance("finalizing")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.fraction == pytest.approx(1.0)
+        assert loading_screen is not None
+        assert loading_screen.fraction == pytest.approx(1.0)
 
-    def test_done_takes_the_cover_down(self, tmp_path: Path):
+    def test_done_takes_the_loading_screen_down(self, tmp_path: Path):
         progress = _startup_writer(tmp_path)
         progress.advance("funestras")
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read() is not None
 
         progress.finish()
@@ -175,7 +175,7 @@ class TestWhatTheCoverShows:
         """Snapping the bar back to zero mid-launch would read as the session
         starting over."""
         _startup_writer(tmp_path).advance("funestras")
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         settled = watcher.read()
 
         (tmp_path / PROGRESS_FILENAME).write_text("47/", encoding="utf-8")
@@ -187,33 +187,33 @@ class TestWhatTheCoverShows:
         _startup_writer(tmp_path).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == CANCELING
-        assert cover.hint == ""
+        assert loading_screen is not None
+        assert loading_screen.status == CANCELING
+        assert loading_screen.hint == ""
 
     def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
         _startup_writer(tmp_path).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == "Waiting for Funestras..."
-        assert cover.hint == ESC_WORDS
+        assert loading_screen is not None
+        assert loading_screen.status == "Waiting for Funestras..."
+        assert loading_screen.hint == ESC_WORDS
 
-    def test_a_cover_offering_no_esc_goes_on_showing_its_phases(self, tmp_path: Path):
+    def test_a_loading_screen_offering_no_esc_goes_on_showing_its_phases(self, tmp_path: Path):
         """The way back after an Esc offers no second one, and the flag that
         started it can still be lying there."""
         _startup_writer(tmp_path, cancellable=False).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == "Waiting for Funestras..."
-        assert cover.hint == ""
+        assert loading_screen is not None
+        assert loading_screen.status == "Waiting for Funestras..."
+        assert loading_screen.hint == ""
 
     def test_a_phase_still_in_flight_cannot_flip_the_words_back(self, tmp_path: Path):
         """The teardown a cancel starts writes no phases of its own, but one
@@ -222,7 +222,7 @@ class TestWhatTheCoverShows:
         progress = _startup_writer(tmp_path)
         progress.advance("companions")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read().status == CANCELING
 
         (tmp_path / PROGRESS_FILENAME).write_text("70/1030|Waiting for Funestras...",
@@ -232,11 +232,11 @@ class TestWhatTheCoverShows:
 
     def test_the_cancelling_words_survive_the_flag_being_cleared(self, tmp_path: Path):
         """The orchestrator drops the flag at the END of the teardown it starts;
-        the cover must not go back to offering a way out at that moment."""
+        the loading screen must not go back to offering a way out at that moment."""
         _startup_writer(tmp_path).advance("funestras")
         cancel_file = tmp_path / CANCEL_FILENAME
         cancel_file.write_text("cancel\n", encoding="utf-8")
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read().status == CANCELING
 
         cancel_file.unlink()
@@ -247,49 +247,49 @@ class TestWhatTheCoverShows:
         _startup_writer(tmp_path).advance("funestras")
         _shutdown_writer(tmp_path).advance("companions")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.closing
-        assert cover.status == "Closing companions..."
+        assert loading_screen is not None
+        assert loading_screen.closing
+        assert loading_screen.status == "Closing companions..."
 
-    def test_the_closing_cover_says_what_esc_would_cancel(self, tmp_path: Path):
+    def test_the_closing_screen_says_what_esc_would_cancel(self, tmp_path: Path):
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES,
                       hint=CLOSING_ESC_WORDS).advance("companions")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == "Closing companions..."
-        assert cover.hint == CLOSING_ESC_WORDS
+        assert loading_screen is not None
+        assert loading_screen.status == "Closing companions..."
+        assert loading_screen.hint == CLOSING_ESC_WORDS
 
-    def test_esc_turns_the_closing_cover_to_canceling(self, tmp_path: Path):
+    def test_esc_turns_the_closing_screen_to_canceling(self, tmp_path: Path):
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES,
                       hint=CLOSING_ESC_WORDS).advance("companions")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover == Cover(status=CANCELING, fraction=cover.fraction, closing=True)
+        assert loading_screen == LoadingScreen(status=CANCELING, fraction=loading_screen.fraction, closing=True)
 
-    def test_the_funestra_can_raise_the_closing_cover_with_no_file_at_all(
+    def test_the_funestra_can_raise_the_closing_screen_with_no_file_at_all(
             self, tmp_path: Path):
         """Its own window closed, or an interrupt: nobody is going to write a
         shutdown file, and its units are about to go down one at a time."""
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read() is None
 
         watcher.closing_now()
 
-        cover = watcher.read()
-        assert cover is not None
-        assert cover.closing
-        assert cover.status == CLOSING_STATUS
+        loading_screen = watcher.read()
+        assert loading_screen is not None
+        assert loading_screen.closing
+        assert loading_screen.status == CLOSING_STATUS
 
 
-class TestTheHeldCover:
+class TestTheHeldLoadingScreen:
     """A hold outlives the session that asked for it, so nothing is writing its
-    progress file -- and the staleness rule that protects every other cover
+    progress file -- and the staleness rule that protects every other loading screen
     would take this one down mid-crossing (docs/entering-vr.md)."""
 
     def test_a_hold_puts_the_crossing_panel_up_with_no_progress_file_at_all(
@@ -297,16 +297,16 @@ class TestTheHeldCover:
     ):
         hold_the_headset(tmp_path, stop_runtime=False)
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == HELD_STATUS
-        assert cover.closing is True
+        assert loading_screen is not None
+        assert loading_screen.status == HELD_STATUS
+        assert loading_screen.closing is True
 
     def test_it_outranks_whatever_the_teardown_file_still_says(self, tmp_path: Path):
         """The teardown that raised it has ended; its last phase would otherwise
         go on reading "Closing Funestras..." for the whole crossing."""
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("funestras")
         assert watcher.read().status != HELD_STATUS
@@ -316,55 +316,55 @@ class TestTheHeldCover:
         assert watcher.read().status == HELD_STATUS
 
     def test_it_says_what_esc_would_cancel_on_the_crossing_it_covers(self, tmp_path: Path):
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         hold_the_headset(tmp_path, stop_runtime=False)
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == HELD_STATUS
-        assert cover.hint == "Press Esc to cancel exiting VR"
+        assert loading_screen is not None
+        assert loading_screen.status == HELD_STATUS
+        assert loading_screen.hint == "Press Esc to cancel exiting VR"
 
     def test_under_fun_time_s_loading_screen_it_says_what_that_screen_offers(
         self, tmp_path: Path,
     ):
-        """The desktop takes the crossing cover down as its own comes up, and
+        """The desktop takes the transition screen down as its own comes up, and
         its launch is still the crossing he can call off."""
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         hold_the_headset(tmp_path, stop_runtime=False)
         PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=STARTUP_PHASES,
                       hint="Press Esc to cancel exiting VR").advance("services")
-        drop_crossing_cover(tmp_path)
+        drop_transition_screen(tmp_path)
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == HELD_STATUS
-        assert cover.hint == "Press Esc to cancel exiting VR"
+        assert loading_screen is not None
+        assert loading_screen.status == HELD_STATUS
+        assert loading_screen.hint == "Press Esc to cancel exiting VR"
 
     def test_esc_turns_it_to_canceling(self, tmp_path: Path):
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         hold_the_headset(tmp_path, stop_runtime=False)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover == Cover(status=CANCELING, fraction=1.0, closing=True)
+        assert loading_screen == LoadingScreen(status=CANCELING, fraction=1.0, closing=True)
 
     def test_a_crossing_turned_back_says_so_once_the_flag_is_spent(self, tmp_path: Path):
-        raise_crossing_cover(tmp_path, DESKTOP)
+        raise_transition_screen(tmp_path, DESKTOP)
         hold_the_headset(tmp_path, stop_runtime=False)
         say_the_crossing_is_cancelled(tmp_path)
 
-        cover = CoverWatcher(tmp_path).read()
+        loading_screen = LoadingScreenWatcher(tmp_path).read()
 
-        assert cover is not None
-        assert cover.status == CANCELING
-        assert cover.hint == ""
+        assert loading_screen is not None
+        assert loading_screen.status == CANCELING
+        assert loading_screen.hint == ""
 
     def test_releasing_it_hands_the_view_back(self, tmp_path: Path):
         hold_the_headset(tmp_path, stop_runtime=False)
-        watcher = CoverWatcher(tmp_path)
+        watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read() is not None
 
         release_the_headset(tmp_path)
@@ -375,11 +375,11 @@ class TestTheHeldCover:
 class TestGivingUp:
     def test_a_startup_file_that_stops_moving_gives_the_headset_back(
             self, tmp_path: Path):
-        """The orchestrator died holding the cover up.  A headset must never be
+        """The orchestrator died holding the loading screen up.  A headset must never be
         left under a panel that will never move."""
         clock = _Clock()
         _startup_writer(tmp_path).advance("funestras")
-        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         assert watcher.read() is not None
 
         clock.now += STARTUP_STALE_TIMEOUT_S + 1
@@ -390,7 +390,7 @@ class TestGivingUp:
         clock = _Clock()
         progress = _startup_writer(tmp_path)
         progress.advance("services")
-        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
 
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
@@ -404,11 +404,11 @@ class TestGivingUp:
             self, tmp_path: Path):
         """A runner fast enough to write both steps within one timestamp tick
         gives them the same mtime, and a clock keyed on mtime never restarted --
-        so the cover came down mid-launch, on a session that was moving fine."""
+        so the loading screen came down mid-launch, on a session that was moving fine."""
         clock = _Clock()
         progress = _startup_writer(tmp_path)
         progress.advance("services")
-        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
         stamped = (tmp_path / PROGRESS_FILENAME).stat()
 
@@ -421,11 +421,11 @@ class TestGivingUp:
         assert watcher.read() is not None
 
     def test_teardowns_clock_is_the_short_one(self, tmp_path: Path):
-        """Nothing is left under a closing cover to wait for, so it gives up far
+        """Nothing is left under a closing screen to wait for, so it gives up far
         sooner than a launch's does."""
         clock = _Clock()
         _shutdown_writer(tmp_path).advance("controls")
-        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         assert watcher.read() is not None
 
         clock.now += SHUTDOWN_STALE_TIMEOUT_S + 1
@@ -442,7 +442,7 @@ class TestGivingUp:
         _shutdown_writer(tmp_path).advance("funestras")
         shutdown_file = tmp_path / SHUTDOWN_PROGRESS_FILENAME
         written_at = shutdown_file.stat().st_mtime
-        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
 
         for beat in range(1, round(SHUTDOWN_STALE_TIMEOUT_S * 2)):
@@ -453,13 +453,13 @@ class TestGivingUp:
         assert watcher.read() is not None
 
     def test_an_end_given_up_on_stays_given_up(self, tmp_path: Path):
-        """As the desktop's does: its cover is a destroyed window by then, and a
+        """As the desktop's does: its loading screen is a destroyed window by then, and a
         room half revealed cannot be covered back up."""
         clock = _Clock()
         progress = _startup_writer(tmp_path)
         progress.advance("funestras")
-        watcher = CoverWatcher(tmp_path, clock=clock)
-        watcher.read()  # the clock starts when the cover first sees the file
+        watcher = LoadingScreenWatcher(tmp_path, clock=clock)
+        watcher.read()  # the clock starts when the loading screen first sees the file
         clock.now += STARTUP_STALE_TIMEOUT_S + 1
         assert watcher.read() is None
 
@@ -472,19 +472,19 @@ class TestTheReadyFlag:
     def test_it_is_the_one_the_desktops_closing_screen_drops(self, tmp_path: Path):
         """Derived the desktop's way from the shutdown progress file, so the two
         ends agree on it without passing it around."""
-        assert CoverWatcher(tmp_path).ready_file == tmp_path / SHUTDOWN_READY_FILENAME
+        assert LoadingScreenWatcher(tmp_path).ready_file == tmp_path / SHUTDOWN_READY_FILENAME
 
     def test_the_flag_landing_is_what_teardown_was_waiting_for(self, tmp_path: Path):
         ready = tmp_path / SHUTDOWN_READY_FILENAME
         ready.write_text("", encoding="utf-8")
 
-        assert wait_for_cover_painted(
+        assert wait_for_loading_screen_painted(
             ready, still_alive=lambda: True, timeout_s=5.0, sleep=lambda _s: None)
 
     def test_a_funestra_that_is_already_gone_is_not_waited_for(self, tmp_path: Path):
         """No flag is ever coming, and every second here is a second the quit
         the user asked for has not happened."""
-        assert not wait_for_cover_painted(
+        assert not wait_for_loading_screen_painted(
             tmp_path / SHUTDOWN_READY_FILENAME,
             still_alive=lambda: False, timeout_s=5.0, sleep=lambda _s: None,
         )
@@ -495,37 +495,37 @@ class TestTheReadyFlag:
         def sleep(seconds: float) -> None:
             clock.now += seconds
 
-        assert not wait_for_cover_painted(
+        assert not wait_for_loading_screen_painted(
             tmp_path / SHUTDOWN_READY_FILENAME,
             still_alive=lambda: True, timeout_s=1.0, clock=clock, sleep=sleep,
         )
 
 
 class TestPainting:
-    @pytest.mark.parametrize("cover", [
-        Cover(status="Waiting for Funestras...", fraction=0.4, hint=ESC_WORDS),
-        Cover(status=CANCELING, fraction=0.4),
-        Cover(status="Closing Funestras...", fraction=1.0, closing=True),
-        Cover(status="", fraction=0.0),
+    @pytest.mark.parametrize("loading_screen", [
+        LoadingScreen(status="Waiting for Funestras...", fraction=0.4, hint=ESC_WORDS),
+        LoadingScreen(status=CANCELING, fraction=0.4),
+        LoadingScreen(status="Closing Funestras...", fraction=1.0, closing=True),
+        LoadingScreen(status="", fraction=0.0),
     ])
-    def test_every_cover_paints_at_the_one_size(self, cover: Cover):
+    def test_every_loading_screen_paints_at_the_one_size(self, loading_screen: LoadingScreen):
         """The screen carrying it has a fixed angular width, so a bitmap that
-        changed size between repaints would rescale the whole cover."""
-        image = paint_cover(cover)
+        changed size between repaints would rescale the whole loading screen."""
+        image = paint_loading_screen(loading_screen)
 
-        assert image.size == COVER_SIZE_PX
+        assert image.size == LOADING_SCREEN_SIZE_PX
         assert image.mode == "RGBA"
 
     def test_the_bar_is_clamped_to_the_panel(self):
         """A total the writer has not caught up with must not draw off the
         edge, and a negative one must not draw backwards."""
         for fraction in (-1.0, 2.0):
-            assert paint_cover(Cover(status="x", fraction=fraction)).size == COVER_SIZE_PX
+            assert paint_loading_screen(LoadingScreen(status="x", fraction=fraction)).size == LOADING_SCREEN_SIZE_PX
 
     def test_it_is_the_familys_loading_panel_on_that_ground(self):
         """The same panel every app's loading screen shows: the words in the
         family's status tone, the bar's fill in its accent."""
-        image = paint_cover(Cover(status="Waiting for Funestras...", fraction=0.5))
+        image = paint_loading_screen(LoadingScreen(status="Waiting for Funestras...", fraction=0.5))
 
         pixels = image.load()
         tones = {pixels[x, y][:3] for y in range(image.height) for x in range(image.width)}
@@ -535,13 +535,13 @@ class TestPainting:
     def test_the_ground_is_the_panels_own_tone(self):
         """The eye is cleared to this before the panel is drawn, so a mismatch
         would ring the panel with a rectangle of a different color."""
-        image = paint_cover(Cover(status="x", fraction=0.0))
+        image = paint_loading_screen(LoadingScreen(status="x", fraction=0.0))
 
-        assert tuple(round(c * 255) for c in COVER_CLEAR[:3]) == image.getpixel((0, 0))[:3]
+        assert tuple(round(c * 255) for c in LOADING_SCREEN_CLEAR[:3]) == image.getpixel((0, 0))[:3]
 
 
 def test_a_checkpoint_still_raises_for_the_vr_phases(tmp_path: Path):
-    """The cancel the cover offers rests on this: the same reporter, the same
+    """The cancel the loading screen offers rests on this: the same reporter, the same
     flag, raising the same exception the desktop's launch unwinds on."""
     progress = _startup_writer(tmp_path)
     (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
@@ -551,10 +551,10 @@ def test_a_checkpoint_still_raises_for_the_vr_phases(tmp_path: Path):
 
 
 class TestTheRoomComingUp:
-    """The signal the orchestrator holds the cover for.  Without it the reveal
+    """The signal the orchestrator holds the loading screen for.  Without it the reveal
     happens on the Funestra's first STATUS write -- a role having picked a video,
     not a frame of one having reached the headset -- and the four frames land
-    in the open, one at a time, which is the whole thing the cover is for."""
+    in the open, one at a time, which is the whole thing the loading screen is for."""
 
     def test_nothing_is_said_while_the_room_is_still_blank(self, tmp_path: Path):
         marker = tmp_path / SCENE_READY_FILENAME
@@ -565,7 +565,7 @@ class TestTheRoomComingUp:
 
         assert not marker.exists()
 
-    def test_nothing_is_said_while_the_cover_has_not_been_on_screen_long_enough(
+    def test_nothing_is_said_while_the_loading_screen_has_not_been_on_screen_long_enough(
             self, tmp_path: Path):
         marker = tmp_path / SCENE_READY_FILENAME
         ready = SceneReady(marker, clock=_Clock())
@@ -626,7 +626,7 @@ class TestTheRoomComingUp:
         assert "portrait" in caplog.text
         assert "panel" in caplog.text
 
-    def test_a_full_room_revealed_on_the_grace_blames_the_cover_not_a_screen(
+    def test_a_full_room_revealed_on_the_grace_blames_the_loading_screen_not_a_screen(
             self, tmp_path: Path, caplog):
         clock = _Clock()
         ready = SceneReady(tmp_path / SCENE_READY_FILENAME,
@@ -637,29 +637,29 @@ class TestTheRoomComingUp:
         with caplog.at_level(logging.WARNING):
             ready.note(blank=(), read=False)
 
-        assert "cover" in caplog.text
+        assert "loading screen" in caplog.text
         assert "blank" not in caplog.text
 
     def test_both_ends_derive_the_marker_from_the_state_dir(self, tmp_path: Path):
         assert scene_ready_file(tmp_path) == tmp_path / SCENE_READY_FILENAME
 
 
-class TestWhereTheCoverHangs:
+class TestWhereTheLoadingScreenHangs:
     """Drawn head-locked it turns with the eyes and reads as glued to the
     lenses; held to one heading it is a panel out in the world, which can be
     looked at and looked away from."""
 
     def test_the_first_heading_is_the_one_it_keeps(self):
-        anchor = CoverAnchor()
+        anchor = LoadingScreenAnchor()
 
         assert anchor.heading(1.2) == pytest.approx(1.2)
         assert anchor.heading(2.9) == pytest.approx(1.2)
         assert anchor.heading(-0.4) == pytest.approx(1.2)
 
     def test_a_released_anchor_takes_the_next_viewer_where_they_are(self):
-        """The closing cover must not hang where the loading one did, hours and
+        """The closing screen must not hang where the loading one did, hours and
         a headset-turn earlier."""
-        anchor = CoverAnchor()
+        anchor = LoadingScreenAnchor()
         anchor.heading(1.2)
 
         anchor.release()
@@ -669,7 +669,7 @@ class TestWhereTheCoverHangs:
     def test_a_heading_of_zero_is_a_heading(self):
         """Held as None-or-not rather than as a truthiness, or facing the
         reference space's forward would re-anchor every frame."""
-        anchor = CoverAnchor()
+        anchor = LoadingScreenAnchor()
         anchor.heading(0.0)
 
         assert anchor.heading(2.9) == pytest.approx(0.0)
@@ -680,7 +680,7 @@ class TestWhereTheCoverHangs:
         space's forward, while he was facing somewhere else.  It follows his
         head until the panel has actually been in front of him, so wherever he
         looks it is there; then it holds still to be read."""
-        anchor = CoverAnchor()
+        anchor = LoadingScreenAnchor()
 
         assert anchor.heading(1.2, settled=False) == pytest.approx(1.2)
         assert anchor.heading(2.9, settled=False) == pytest.approx(2.9)
@@ -690,7 +690,7 @@ class TestWhereTheCoverHangs:
         assert anchor.heading(2.9, settled=True) == pytest.approx(-0.4)
 
     def test_what_it_holds_is_readable_so_the_log_can_say_where_it_went(self):
-        anchor = CoverAnchor()
+        anchor = LoadingScreenAnchor()
         assert anchor.held is None
 
         anchor.heading(1.2)
@@ -700,13 +700,13 @@ class TestWhereTheCoverHangs:
 
 class TestBeingSeen:
     """A launch is over in six seconds and the headset is still on the desk;
-    the first two verifications of the cover saw nothing at all because of it.
+    the first two verifications of the loading screen saw nothing at all because of it.
     The reveal now waits for the panel to have been in front of a WORN headset,
     so what a viewer sees on putting it on is the loading screen."""
 
     def test_frames_that_reached_nobody_do_not_count(self):
         clock = _Clock()
-        seen = CoverDwell(clock=clock)
+        seen = LoadingScreenDwell(clock=clock)
 
         for _frame in range(500):
             seen.note(False)
@@ -716,43 +716,43 @@ class TestBeingSeen:
 
     def test_the_dwell_runs_from_the_first_frame_that_landed(self):
         clock = _Clock()
-        seen = CoverDwell(clock=clock)
+        seen = LoadingScreenDwell(clock=clock)
         clock.now += 60  # a minute on the desk
 
         seen.note(True)
         assert not seen.dwelt
 
-        clock.now += COVER_DWELL_S
+        clock.now += LOADING_SCREEN_DWELL_S
         assert seen.dwelt
 
     def test_a_headset_taken_off_after_the_dwell_does_not_restart_it(self):
         """Its wearer looked; asking them to look again from zero would hold a
         launch on a glance."""
         clock = _Clock()
-        seen = CoverDwell(clock=clock)
+        seen = LoadingScreenDwell(clock=clock)
         seen.note(True)
 
-        clock.now += COVER_DWELL_S
+        clock.now += LOADING_SCREEN_DWELL_S
         seen.note(False)
 
         assert seen.dwelt
 
     def test_a_gap_before_the_dwell_is_done_starts_it_over(self):
-        """The dwell is time the cover was THERE.  Timed from the first frame
+        """The dwell is time the loading screen was THERE.  Timed from the first frame
         alone it counted the gap between that frame and the frame loop --
         seconds in which the runtime had put its own environment back and the
-        cover was on screen for none of it."""
+        loading screen was on screen for none of it."""
         clock = _Clock()
-        seen = CoverDwell(clock=clock)
+        seen = LoadingScreenDwell(clock=clock)
 
-        seen.note(True)                     # the one frame _raise_the_cover gets
-        clock.now += COVER_DWELL_S - 0.1    # the gap: units built, nothing submitted
+        seen.note(True)                     # the one frame _raise_the_loading_screen gets
+        clock.now += LOADING_SCREEN_DWELL_S - 0.1    # the gap: units built, nothing submitted
         seen.note(False)
         clock.now += 1.0
 
         assert not seen.dwelt
 
         seen.note(True)                     # the loop, drawing it for real
-        clock.now += COVER_DWELL_S
+        clock.now += LOADING_SCREEN_DWELL_S
         seen.note(True)
         assert seen.dwelt

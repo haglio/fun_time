@@ -12,12 +12,12 @@ from __future__ import annotations
 from .overlay_progress import progress_file_argument, ready_file_for
 from .overlay_window import OverlayWindow
 
-# Distinct from the dashboard's "Fun Time", for the loading cover's reason.
+# Distinct from the dashboard's "Fun Time", for the loading screen's reason.
 WINDOW_TITLE = "Fun Time Closing"
 
 # The teardown says it is still going once a second while a part takes its time
 # to end, so a file unmoved this long means the orchestrator died, or stuck,
-# holding the cover up.  Far shorter than startup's: nothing is under it to wait for.
+# holding the loading screen up.  Far shorter than startup's: nothing is under it to wait for.
 STALE_TIMEOUT_S = 20.0
 
 

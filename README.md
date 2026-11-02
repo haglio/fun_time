@@ -424,9 +424,9 @@ The Funestra keeps running under it — its lock, loop and playlist are untouche
 
 ### Closing one window closes the session
 
-There is no window of a session you can close on its own. Every Funestra answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
+There is no window of a session you can close on its own. Every Funestra answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing screen, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
 
-However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing cover goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the cover still calls the quit off.
+However a session ends — any of those, or a crossing into or out of the headset — the room stops before the closing screen goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches the room; Esc on the loading screen still calls the quit off.
 
 The alternative was worse than it sounds: a Funestra that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the Funestras out one press at a time while the dashboard and the audio companion carried on. Launched by hand, outside a session, a satellite or the Main Funestra still closes on its own close, because then that is the whole application; Genau runs only inside a session. See `funestra.session_quit`.
 

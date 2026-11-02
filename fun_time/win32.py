@@ -456,7 +456,7 @@ def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -
 def windows_obscuring(
     target_hwnd: int, stack: list[StackedWindow]
 ) -> list[StackedWindow]:
-    """Windows in *stack* (ordered front-to-back) that cover *target_hwnd*.
+    """Windows in *stack* (ordered front-to-back) that loading screen *target_hwnd*.
 
     A window covers the target when it sits ABOVE it in the z-order and its
     rect overlaps the target's.  Returns [] when the target is frontmost over
@@ -552,7 +552,7 @@ def find_window_by_title(title: str, *, exact: bool = False, include_hidden: boo
 
     Four of this session's windows are called "Fun Time" and "Fun Time
     <something>", so the panel needs *exact*.  *include_hidden* also matches a
-    window with WS_VISIBLE cleared, which the dashboard is under the cover.
+    window with WS_VISIBLE cleared, which the dashboard is under the loading screen.
     """
     buf = ctypes.create_unicode_buffer(256)  # one for the whole walk
 

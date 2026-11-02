@@ -65,5 +65,5 @@ headset_hold_asked
 headset_hold_stops_the_runtime
 report_the_headset_held
 headset_is_held
-CANCEL_OPENING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's launch cover says it
-CANCEL_CLOSING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's closing cover says it
+CANCEL_OPENING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's launch loading screen says it
+CANCEL_CLOSING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's closing screen says it

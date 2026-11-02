@@ -720,7 +720,7 @@ def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
 
         funestras = {title: await_window(title, 10, exact=True) for title in _FUNESTRA_TITLES}
         # Ten seconds of it, because the burial he saw landed seconds after the
-        # image did.  The first cover wins: report it and stop.
+        # image did.  The first window over it wins: report it and stop.
         # Each other is not a burial: the faked monitors are small enough that
         # the two Funestras' rects overlap here, which they never do on his.
         siblings = set(funestras.values())
@@ -751,7 +751,7 @@ def _hud_of(hud_file: Path, funestra: RoomFunestra):
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
 def test_a_room_left_in_the_mode_opens_in_it_as_it_was_left():
     """A room left in origenerator mode opens in it, with no switch pressed: the
-    session holds its own cover up for the hosted app and takes the mode up under
+    session holds its own loading screen up for the hosted app and takes the mode up under
     it, so it is already in the mode when the room is shown.
 
     A real session runs first because the state file and the playlists the next

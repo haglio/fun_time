@@ -25,7 +25,7 @@ from fun_time.session_handoff import (
     a_session_is_playing,
     clear_handoff_request,
     crossing_progress_path,
-    drop_crossing_cover,
+    drop_transition_screen,
     forget_the_kept_origenerator,
     hand_over_if_asked,
     handoff_request_path,
@@ -36,9 +36,9 @@ from fun_time.session_handoff import (
     keep_the_origenerator,
     kept_origenerator,
     last_lines_of,
-    launch_crossing_cover,
+    launch_transition_screen,
     pending_handoff,
-    raise_crossing_cover,
+    raise_transition_screen,
     release_the_headset,
     report_a_failed_crossing,
     report_the_headset_held,
@@ -108,7 +108,7 @@ class TestTheRequestFile:
             assert handoff_request_path(tmp_path).read_text(encoding="utf-8").strip() == target.key
 
 
-class TestTheCoverThatSpansTheCrossing:
+class TestTheLoadingScreenThatSpansTheCrossing:
     """Raised by the session leaving, taken down by the one arriving -- the one
     thing a closing screen cannot do, and why the monitors went bare between
     them (docs/entering-vr.md)."""
@@ -117,7 +117,7 @@ class TestTheCoverThatSpansTheCrossing:
         ("target", "says"), [(VR, "Entering VR"), (DESKTOP, "Returning to Fun Time")],
     )
     def test_it_names_the_session_being_waited_for(self, tmp_path: Path, target, says):
-        raise_crossing_cover(tmp_path, target)
+        raise_transition_screen(tmp_path, target)
 
         assert says in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
 
@@ -126,28 +126,28 @@ class TestTheCoverThatSpansTheCrossing:
         [(VR, "Press Esc to cancel entering VR"), (DESKTOP, "Press Esc to cancel exiting VR")],
     )
     def test_it_says_what_esc_would_cancel(self, tmp_path: Path, target, offers):
-        raise_crossing_cover(tmp_path, target)
+        raise_transition_screen(tmp_path, target)
 
         line = parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8"))
         assert line.hint == offers
 
-    def test_dropping_it_is_what_the_cover_reads_as_finished(self, tmp_path: Path):
-        raise_crossing_cover(tmp_path, VR)
+    def test_dropping_it_is_what_the_loading_screen_reads_as_finished(self, tmp_path: Path):
+        raise_transition_screen(tmp_path, VR)
 
-        drop_crossing_cover(tmp_path)
+        drop_transition_screen(tmp_path)
 
         assert crossing_progress_path(tmp_path).read_text(encoding="utf-8").strip() == "DONE"
 
     def test_an_ordinary_startup_drops_nothing_and_leaves_nothing(self, tmp_path: Path):
-        """Every desktop startup asks; a DONE written where no cover was raised
+        """Every desktop startup asks; a DONE written where no loading screen was raised
         would leave a file for the next session to read as one."""
-        drop_crossing_cover(tmp_path)
+        drop_transition_screen(tmp_path)
 
         assert not crossing_progress_path(tmp_path).exists()
 
     def test_it_is_launched_as_the_transition_screen_over_that_file(self, tmp_path: Path):
         with patch.object(session_handoff.subprocess, "Popen") as popen:
-            launch_crossing_cover(tmp_path, VR, sibling_checkouts="")
+            launch_transition_screen(tmp_path, VR, sibling_checkouts="")
 
         command = popen.call_args.args[0]
         assert command[1:] == [
@@ -157,7 +157,7 @@ class TestTheCoverThatSpansTheCrossing:
     def test_the_way_back_goes_up_saying_it_is_canceling(self, tmp_path: Path):
         """Never, even for a poll, offering the Esc that already went."""
         with patch.object(session_handoff.subprocess, "Popen") as popen:
-            session_handoff.launch_the_way_back_cover(tmp_path, sibling_checkouts="")
+            session_handoff.launch_the_way_back_screen(tmp_path, sibling_checkouts="")
 
         line = parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8"))
         assert (line.message, line.hint) == (CANCELING, "")
@@ -166,9 +166,9 @@ class TestTheCoverThatSpansTheCrossing:
         ]
 
     def test_a_crossing_that_never_happened_uncovers_the_monitors(self, config):
-        """The cover is waiting for a session that is not coming, and its own
+        """The loading screen is waiting for a session that is not coming, and its own
         staleness timeout is minutes long."""
-        raise_crossing_cover(config.paths.state_dir, VR)
+        raise_transition_screen(config.paths.state_dir, VR)
         with patch.object(session_handoff, "wait_for_the_session_to_let_go",
                           return_value=False), \
              patch.object(session_handoff, "report_a_failed_crossing"):
@@ -475,7 +475,7 @@ class TestTheRelayEndToEnd:
         self, config,
     ):
         state_dir = config.paths.state_dir
-        raise_crossing_cover(state_dir, VR)
+        raise_transition_screen(state_dir, VR)
         (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
         with let_go, start as started, come_up, report as reported:
@@ -485,11 +485,11 @@ class TestTheRelayEndToEnd:
         assert started.call_args.kwargs["cancelable"] is False
         reported.assert_not_called()
 
-    def test_a_crossing_esc_turned_back_says_so_on_the_cover(self, config):
+    def test_a_crossing_esc_turned_back_says_so_on_the_loading_screen(self, config):
         """Still saying "Entering VR..." while it goes back the other way, the
-        cover reads as the Esc having done nothing."""
+        loading screen reads as the Esc having done nothing."""
         state_dir = config.paths.state_dir
-        raise_crossing_cover(state_dir, VR)
+        raise_transition_screen(state_dir, VR)
         (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
         with let_go, start, come_up, report:
@@ -502,7 +502,7 @@ class TestTheRelayEndToEnd:
         """One press, one crossing called off: left lying there, the same Esc
         would be read again by whatever looks next."""
         state_dir = config.paths.state_dir
-        raise_crossing_cover(state_dir, VR)
+        raise_transition_screen(state_dir, VR)
         flag = state_dir / CANCEL_FILENAME
         flag.write_text("cancel\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
@@ -514,7 +514,7 @@ class TestTheRelayEndToEnd:
     def test_the_quit_chord_during_the_crossing_opens_nothing(self, config):
         """It means end everything, and nothing failed: no session, no dialog."""
         state_dir = config.paths.state_dir
-        raise_crossing_cover(state_dir, VR)
+        raise_transition_screen(state_dir, VR)
         (state_dir / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
         with let_go, start as started, come_up, report as reported:
@@ -526,7 +526,7 @@ class TestTheRelayEndToEnd:
     def test_the_quit_chord_during_the_crossing_gives_everything_back(self, config):
         """Nothing is coming to take the covers down or adopt the hosted app."""
         state_dir = config.paths.state_dir
-        raise_crossing_cover(state_dir, VR)
+        raise_transition_screen(state_dir, VR)
         hold_the_headset(state_dir, stop_runtime=False)
         (state_dir / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
@@ -540,10 +540,10 @@ class TestTheRelayEndToEnd:
         closed.assert_called_once_with(Path(state_dir), config.origenerator_cmd_file)
 
     def test_a_way_back_is_never_turned_around_by_a_second_esc(self, config):
-        """One Esc per cover: a second press on the way back would leave him
+        """One Esc per loading screen: a second press on the way back would leave him
         going back and forth for as long as he kept pressing it."""
         state_dir = config.paths.state_dir
-        raise_crossing_cover(state_dir, DESKTOP)
+        raise_transition_screen(state_dir, DESKTOP)
         (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
         with let_go, start as started, come_up, report:

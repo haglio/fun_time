@@ -1,7 +1,7 @@
-"""The cover Fun Time puts over every monitor while its windows are changing.
+"""The loading screen Fun Time puts over every monitor while its windows are changing.
 
 A session's windows arrive one at a time and leave the same way, so both ends
-raise a cover and work under it.  Borderless and always on top; it closes on
+raise a loading screen and work under it.  Borderless and always on top; it closes on
 :mod:`overlay_progress`'s DONE — never on a full bar, which comes seconds
 earlier while the room is still being put in z-order.
 """
@@ -34,7 +34,7 @@ from .win32 import create_hidden_topmost_window, find_window_by_title, set_alway
 
 POLL_MS = 200
 
-# How long another window may sit over the cover -- not POLL_MS, which is how
+# How long another window may sit over the loading screen -- not POLL_MS, which is how
 # stale the bar may be.  At 200ms it was a fifth of a second of a Funestra through
 # the scrim per raise.  Re-asserted through SetWindowPos on our own HWND, not
 # Tk's ``-topmost``: WS_EX_TOPMOST is still set, so Tk may do nothing; only
@@ -43,7 +43,7 @@ TOPMOST_POLL_MS = 16
 
 
 def opening_panel(status: str) -> LoadingPanel:
-    """The panel as the cover first shows it: this app's icon and name, in the
+    """The panel as the loading screen first shows it: this app's icon and name, in the
     tone the dashboard writes the name in, over the launch's first words."""
     shown = preview_marker.shown_as()
     return LoadingPanel(
@@ -55,7 +55,7 @@ def opening_panel(status: str) -> LoadingPanel:
 
 
 class Canvas(Protocol):
-    """Where the panel is drawn: the one Tk label in the middle of the cover."""
+    """Where the panel is drawn: the one Tk label in the middle of the loading screen."""
 
     def show(self, panel: LoadingPanel) -> None: ...
 
@@ -111,9 +111,9 @@ class OverlayWindow:
         cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
         taking_over: TakingOver | None = None,
     ) -> OverlayWindow:
-        # Made first, so the cover goes up over it and it stays under the cover
-        # for good: a window put under the cover joins the topmost band only if
-        # some topmost window sits below the cover.
+        # Made first, so the loading screen goes up over it and it stays under the loading screen
+        # for good: a window put under the loading screen joins the topmost band only if
+        # some topmost window sits below the loading screen.
         create_hidden_topmost_window()
 
         ground = as_hex(LOADING_GROUND)
@@ -228,9 +228,9 @@ class OverlayWindow:
             self._canvas.show(panel)
 
     def run(self, on_shown: Callable[[], None] | None = None) -> None:
-        """Show the cover and hold it until the progress file says otherwise.
+        """Show the loading screen and hold it until the progress file says otherwise.
         ``update()`` returns only once Tk has created, shown and first painted
-        the window, so *on_shown* fires when the cover is genuinely on screen --
+        the window, so *on_shown* fires when the loading screen is genuinely on screen --
         a signal teardown can hold its first kill on."""
         if not (progress := self._read_progress()).malformed and not progress.done:
             self._show(progress)

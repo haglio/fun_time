@@ -68,18 +68,6 @@ from satellite.contract import SatelliteChannels
 from . import room
 from .console_hud import DEG_PER_PX, HUD_WIDTH_PX, hud_hangs_from
 from .controller_mesh import controllers_strip
-from .cover import (
-    COVER_DWELL_S,
-    COVER_WIDTH_DEG,
-    WEARER_STATUS,
-    Cover,
-    CoverAnchor,
-    CoverDwell,
-    CoverWatcher,
-    SceneReady,
-    paint_cover,
-    scene_ready_file,
-)
 from .dash_panel import (
     DASH_DEG_PER_PX,
     DASH_WIDTH_PX,
@@ -129,6 +117,18 @@ from .library_panel import (
     scroll_from_stick,
     scroll_line,
     waiting_panel,
+)
+from .loading_screen import (
+    LOADING_SCREEN_DWELL_S,
+    LOADING_SCREEN_WIDTH_DEG,
+    WEARER_STATUS,
+    LoadingScreen,
+    LoadingScreenAnchor,
+    LoadingScreenDwell,
+    LoadingScreenWatcher,
+    SceneReady,
+    paint_loading_screen,
+    scene_ready_file,
 )
 from .matrices import (
     fov_to_projection_matrix,
@@ -1395,7 +1395,7 @@ class _GalleryUnit:  # the hosted app's window
         self.screen.close()
 
 
-class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
+class LoadingScreenUnit:  # :mod:`fun_time_vr.loading_screen`, drawn in place of the scene
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, state_dir: Path) -> None:
@@ -1403,17 +1403,17 @@ class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
         self.holding = False  # render-thread-read, set on the pump's refresh
         self.awaiting_wearer = False  # set by the loop, read on the pump's refresh
         self.anchor_settled = False  # set by the loop: has it been read yet
-        self._watcher = CoverWatcher(state_dir)
+        self._watcher = LoadingScreenWatcher(state_dir)
         self._lock = threading.Lock()
         self._pending: tuple[object, bool] | None = None  # (image, closing)
-        self._cover: Cover | None = None
+        self._loading_screen: LoadingScreen | None = None
         self._reported = False
         self._uploaded = None
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(Placement(0.0, 0.0, COVER_WIDTH_DEG))
+        self.screen = _HangingScreen(Placement(0.0, 0.0, LOADING_SCREEN_WIDTH_DEG))
         # Render-thread-owned, read by the frame loop each frame.
         self.showing = False
-        self.anchor = CoverAnchor()
+        self.anchor = LoadingScreenAnchor()
         self.refresh()  # the loop's first renderable frame is already covered
 
     def hangings(self) -> tuple[Hanging, ...]:
@@ -1426,7 +1426,7 @@ class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
         pass  # it hangs where the viewer is looking, never in a remembered spot
 
     def point(self, frame: Frame) -> None:
-        pass  # a cover stands in place of everything there is to aim at
+        pass  # a loading screen stands in place of everything there is to aim at
 
     def closing_now(self) -> None:  # ending on its own: raise it unasked
         self._watcher.closing_now()
@@ -1438,7 +1438,7 @@ class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
 
     @property
     def closing(self) -> bool:
-        """Whether the painted cover is the teardown's.  Off the bitmap, not the
+        """Whether the painted loading screen is the teardown's.  Off the bitmap, not the
         texture, so a teardown holding its first kill is answered even where no
         frame was drawn."""
         with self._lock:
@@ -1447,14 +1447,14 @@ class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     def refresh(self) -> None:
         """Re-read the progress files and repaint if what they say has moved."""
         self.holding = headset_hold_asked(self._state_dir)
-        cover = self._watcher.read()
-        if cover is not None and not cover.closing and self.awaiting_wearer:
-            cover = replace(cover, status=WEARER_STATUS)
-        if cover == self._cover:
+        loading_screen = self._watcher.read()
+        if loading_screen is not None and not loading_screen.closing and self.awaiting_wearer:
+            loading_screen = replace(loading_screen, status=WEARER_STATUS)
+        if loading_screen == self._loading_screen:
             return
-        self._cover = cover
+        self._loading_screen = loading_screen
         with self._lock:
-            self._pending = (paint_cover(cover), cover.closing) if cover is not None else None
+            self._pending = (paint_loading_screen(loading_screen), loading_screen.closing) if loading_screen is not None else None
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self.refresh()
@@ -1474,9 +1474,9 @@ class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
         self.showing = self.texture.ready and self.screen.ready
 
     def settled(self) -> None:
-        """The closing cover is as visible as it will get: its frame reached the
+        """The closing screen is as visible as it will get: its frame reached the
         compositor, or nothing is presented at all — a quit made with the
-        headset off would else buy the timeout and no cover.
+        headset off would else buy the timeout and no loading screen.
         """
         if not self.closing or self._reported:
             return
@@ -1484,7 +1484,7 @@ class CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
         try:
             self._watcher.ready_file.write_text("", encoding="utf-8")
         except OSError:
-            logger.warning("Could not report the closing cover painted", exc_info=True)
+            logger.warning("Could not report the closing screen painted", exc_info=True)
 
     def close(self) -> None:
         self.texture.close()
@@ -1736,26 +1736,26 @@ class TheRoom:
     def __init__(
         self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
         console: _ConsoleUnit, reference: _ReferenceUnit, library: _LibraryUnit,
-        banner: _BannerUnit, gallery: _GalleryUnit, cover: CoverUnit, notices: NoticeBoard,
+        banner: _BannerUnit, gallery: _GalleryUnit, loading_screen: LoadingScreenUnit, notices: NoticeBoard,
         keeper: _LayoutKeeper, posts: _ControllerPosts, pointing: _PointerDrawing,
-        cover_watch: CoverWatch, stop: threading.Event,
+        loading_screen_watch: LoadingScreenWatch, stop: threading.Event,
     ) -> None:
         self.main_unit = main_unit
         self.satellites = tuple(satellites)
         self.console = console
         self.library = library
         self.gallery = gallery
-        self.cover = cover
+        self.loading_screen = loading_screen
         self.keeper = keeper
         self.posts = posts
         self.pointing = pointing
-        self.cover_watch = cover_watch
+        self.loading_screen_watch = loading_screen_watch
         self.stop = stop
         self.workers: tuple[threading.Thread, ...] = ()
         self.wear = HeadsetWear()
         # Dash before the console, which hangs off where the dashboard ended up.
         self.units = [main_unit, *self.satellites, dash, console, reference, library,
-                      banner, gallery, cover]
+                      banner, gallery, loading_screen]
         self.closing = [notices, *self.units, keeper, posts]
         self.pumped = [one for one in self.closing if one is not main_unit]
         self.where = room.where_they_hang(self.units)
@@ -1790,14 +1790,14 @@ class TheRoom:
     def hangings(self) -> list[Hanging]:
         return room.what_hangs(self.units)
 
-    def close(self, *, keep_the_cover: bool) -> None:
-        _close_channels(self.closing, keep=self.cover if keep_the_cover else None)
+    def close(self, *, keep_the_loading_screen: bool) -> None:
+        _close_channels(self.closing, keep=self.loading_screen if keep_the_loading_screen else None)
 
 
 def hang_the_room(
     manifest: LaunchManifest, vr: VrSettings, contexts, *, manifest_path: Path,
-    cover: CoverUnit, perf: FramePerf | None = None,
-    present_the_cover: Callable[[], object] = lambda: None,
+    loading_screen: LoadingScreenUnit, perf: FramePerf | None = None,
+    present_the_loading_screen: Callable[[], object] = lambda: None,
 ) -> TheRoom:
     commands = manifest.commands
     state_dir = Path(commands.dashboard_cmd_file).parent
@@ -1807,14 +1807,14 @@ def hang_the_room(
     notices = NoticeBoard(event_log_path(state_dir), unlogged=UnloggedNotices(state_dir))
     main_unit = _MainUnit(
         manifest, vr, contexts, remembered=remembered, stop=stop, notices=notices, perf=perf,
-        while_reading=present_the_cover)
-    present_the_cover()  # the Main Funestra has opened its media, and the satellites are next
+        while_reading=present_the_loading_screen)
+    present_the_loading_screen()  # the Main Funestra has opened its media, and the satellites are next
     satellites = [
         _SatelliteUnit(funestra, manifest, contexts, vr=vr, remembered=remembered.placements,
                        notices=notices, perf=perf)
         for funestra in (PORTRAIT, LANDSCAPE)
     ]
-    present_the_cover()
+    present_the_loading_screen()
     reference_flag = state_dir / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
         main_unit,
@@ -1844,36 +1844,36 @@ def hang_the_room(
         banner=_BannerUnit(main_unit, notices),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),
-        cover=cover, notices=notices,
+        loading_screen=loading_screen, notices=notices,
         keeper=_LayoutKeeper(state_dir / LAYOUT_FILENAME, remembered),
         posts=_ControllerPosts(Path(commands.dashboard_cmd_file)),
         pointing=_PointerDrawing(),
-        cover_watch=CoverWatch(cover, SceneReady(scene_ready_file(state_dir))),
+        loading_screen_watch=LoadingScreenWatch(loading_screen, SceneReady(scene_ready_file(state_dir))),
         stop=stop,
     )
 
 
-class CoverWatch:
-    """How long the cover has been in front of the eyes, and of a wearer's."""
+class LoadingScreenWatch:
+    """How long the loading screen has been in front of the eyes, and of a wearer's."""
 
-    def __init__(self, cover: CoverUnit, scene_ready: SceneReady, *,
-                 dwell_s: float = COVER_DWELL_S) -> None:
-        self._cover = cover
+    def __init__(self, loading_screen: LoadingScreenUnit, scene_ready: SceneReady, *,
+                 dwell_s: float = LOADING_SCREEN_DWELL_S) -> None:
+        self._loading_screen = loading_screen
         self._scene_ready = scene_ready
-        self._on_screen = CoverDwell(dwell_s=dwell_s)
-        self._worn = CoverDwell(dwell_s=dwell_s)
+        self._on_screen = LoadingScreenDwell(dwell_s=dwell_s)
+        self._worn = LoadingScreenDwell(dwell_s=dwell_s)
         self._up_at: float | None = None
         self._down_said = False
 
     def frame_began(self, *, blank: Sequence[str], focused: bool, views_tracked: bool) -> None:
-        self._cover.anchor_settled = self._worn.dwelt and views_tracked
-        self._cover.awaiting_wearer = not blank and not focused  # set before he looks
+        self._loading_screen.anchor_settled = self._worn.dwelt and views_tracked
+        self._loading_screen.awaiting_wearer = not blank and not focused  # set before he looks
         self._scene_ready.note(blank=blank, read=self._on_screen.dwelt)
 
     def drawing(self, now: float) -> None:
         if self._up_at is None:
             self._up_at = now
-            logger.info("Cover drawing to the headset")
+            logger.info("Loading screen drawing to the headset")
 
     def frame_ended(self, *, covered: bool, focused: bool, should_render: bool,
                     now: float) -> None:
@@ -1881,9 +1881,9 @@ class CoverWatch:
         self._worn.note(covered and focused)
         if self._up_at is not None and not covered and not self._down_said:
             self._down_said = True
-            logger.info("Cover down after %.1fs on screen", now - self._up_at)
+            logger.info("Loading screen down after %.1fs on screen", now - self._up_at)
         if covered or not should_render:
-            self._cover.settled()
+            self._loading_screen.settled()
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from fun_time import loading_screen, transition_screen
-from fun_time.session_handoff import VR, crossing_progress_path, launch_crossing_cover
+from fun_time.session_handoff import VR, crossing_progress_path, launch_transition_screen
 from fun_time.win32 import find_window_for_process
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import all_gone_within, pid_written_to, with_what_it_started
@@ -41,9 +41,9 @@ A_STARVED_SCREENS_SLACK_S = 90.0
 
 _RAISES_A_LOADING_SCREEN = """
 import pathlib, time
-from fun_time.loading_cover import open_the_cover
-cover = open_the_cover(pathlib.Path({state!r}), show_overlays=True, sibling_checkouts={dirs!r})
-pathlib.Path({report!r}).write_text(str(cover.process.pid))
+from fun_time.raising_the_loading_screen import open_the_loading_screen
+loading_screen = open_the_loading_screen(pathlib.Path({state!r}), show_overlays=True, sibling_checkouts={dirs!r})
+pathlib.Path({report!r}).write_text(str(loading_screen.process.pid))
 time.sleep(3600)
 """
 
@@ -81,7 +81,7 @@ def test_a_screen_whose_progress_file_goes_before_its_first_look_takes_itself_do
     poll on a minute."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    screen = launch_crossing_cover(state_dir, VR, sibling_checkouts=this_checkouts_siblings())
+    screen = launch_transition_screen(state_dir, VR, sibling_checkouts=this_checkouts_siblings())
     crossing_progress_path(state_dir).unlink()
     try:
         assert _its_window_came_up(screen.pid, transition_screen.WINDOW_TITLE, within_s=60.0), (

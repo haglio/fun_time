@@ -1,4 +1,4 @@
-"""The headset's frame loop, off the headset: what each frame shows, the cover
+"""The headset's frame loop, off the headset: what each frame shows, the loading screen
 in front of it, and the way the room comes down."""
 from __future__ import annotations
 
@@ -19,8 +19,15 @@ from fun_time.session_handoff import (
 )
 
 from . import vr_runtime
-from .cover import COVER_CLEAR
-from .funestras import Arranged, Arrangement, CoverUnit, TheRoom, draw_eyes, orientation_of
+from .funestras import (
+    Arranged,
+    Arrangement,
+    LoadingScreenUnit,
+    TheRoom,
+    draw_eyes,
+    orientation_of,
+)
+from .loading_screen import LOADING_SCREEN_CLEAR
 from .matrices import (
     fov_to_projection_matrix,
     pose_to_view_matrix,
@@ -32,9 +39,9 @@ from .render import SceneRenderer
 
 logger = logging.getLogger(__name__)
 
-TEARDOWN_COVER_TIMEOUT_S = 1.0  # a couple of frames; past this, not worth it
+TEARDOWN_LOADING_SCREEN_TIMEOUT_S = 1.0  # a couple of frames; past this, not worth it
 
-FIRST_COVER_TIMEOUT_S = 5.0  # the READY event, a frame or two after the session
+FIRST_LOADING_SCREEN_TIMEOUT_S = 5.0  # the READY event, a frame or two after the session
 
 # Past this no session is coming (docs/entering-vr.md).
 HEADSET_HOLD_TIMEOUT_S = 180.0
@@ -83,20 +90,20 @@ def refresh_quad_layer(headset: Headset, index: int, unit, arranged: Arranged) -
     )
 
 
-def draw_cover(headset: Headset, cover: CoverUnit, views) -> None:
-    """Fill both eyes with the cover: ground edge to edge, panel at the heading
-    he is facing, latched once he is at the lenses (:class:`CoverAnchor`), through
+def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, views) -> None:
+    """Fill both eyes with the loading screen: ground edge to edge, panel at the heading
+    he is facing, latched once he is at the lenses (:class:`LoadingScreenAnchor`), through
     the rotation-only view matrix the scene uses so it holds still as he turns."""
-    was_held = cover.anchor.held
-    heading = cover.anchor.heading(
-        yaw_of_orientation(orientation_of(views[0])), settled=cover.anchor_settled)
-    if was_held is None and cover.anchor.held is not None:
-        logger.info("Cover placed at heading %.0f°", math.degrees(heading))
+    was_held = loading_screen.anchor.held
+    heading = loading_screen.anchor.heading(
+        yaw_of_orientation(orientation_of(views[0])), settled=loading_screen.anchor_settled)
+    if was_held is None and loading_screen.anchor.held is not None:
+        logger.info("Loading screen placed at heading %.0f°", math.degrees(heading))
     hanging = yaw_rotation_matrix(heading)
     for eye_index, view in enumerate(views):
         headset.session.bind_eye_framebuffer(eye_index)
-        headset.renderer.begin_eye(COVER_CLEAR)
-        if cover.screen.ready:
+        headset.renderer.begin_eye(LOADING_SCREEN_CLEAR)
+        if loading_screen.screen.ready:
             projection = fov_to_projection_matrix(
                 view.fov.angle_left, view.fov.angle_right,
                 view.fov.angle_up, view.fov.angle_down,
@@ -104,49 +111,49 @@ def draw_cover(headset: Headset, cover: CoverUnit, views) -> None:
             )
             view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
             headset.renderer.draw_screen(
-                cover.screen.mesh, cover.texture.texture,
+                loading_screen.screen.mesh, loading_screen.texture.texture,
                 np.ascontiguousarray(projection @ view_matrix @ hanging, dtype=np.float32),
             )
         headset.session.release_eye_framebuffer(eye_index)
 
 
-def present_the_cover(headset: Headset, cover: CoverUnit) -> bool:
-    """One frame of cover; whether it reached the eyes.  Never at the cost of
+def present_the_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit) -> bool:
+    """One frame of the loading screen; whether it reached the eyes.  Never at the cost of
     the launch or quit it runs inside."""
     try:
         should_render, display_time, views = headset.session.frame_begin()
-        cover.render_latest_frame()
-        covered = bool(should_render and views and cover.showing)
+        loading_screen.render_latest_frame()
+        covered = bool(should_render and views and loading_screen.showing)
         if covered:
-            draw_cover(headset, cover, views)
+            draw_loading_screen(headset, loading_screen, views)
         headset.session.frame_end(display_time, views, project=covered)
         return covered
     except Exception:
-        logger.debug("Could not put the cover up", exc_info=True)
+        logger.debug("Could not put the loading screen up", exc_info=True)
         return False
 
 
-def raise_the_cover(
-    headset: Headset, cover: CoverUnit, *, clock: Clock = time.monotonic,
+def raise_the_loading_screen(
+    headset: Headset, loading_screen: LoadingScreenUnit, *, clock: Clock = time.monotonic,
     sleep: Sleep = time.sleep,
 ) -> None:
-    """Get the cover in front of the eyes BEFORE the Funestras are built: built
+    """Get the loading screen in front of the eyes BEFORE the Funestras are built: built
     first and shown after, it was up for the tail of a launch that had already
     finished.  One frame here carries through the mpv bring-up."""
-    if not cover.wanted:
+    if not loading_screen.wanted:
         return  # a Funestra with no orchestrator: nothing is coming to wait for
-    deadline = clock() + FIRST_COVER_TIMEOUT_S
+    deadline = clock() + FIRST_LOADING_SCREEN_TIMEOUT_S
     while headset.session.running and clock() < deadline:
         headset.session.poll_events()
-        if headset.session.session_ready and present_the_cover(headset, cover):
+        if headset.session.session_ready and present_the_loading_screen(headset, loading_screen):
             return
         sleep(0.005)
 
 
 def hold_the_headset(
-    headset: Headset, cover: CoverUnit, state_dir: Path, *, clock: Clock = time.monotonic,
+    headset: Headset, loading_screen: LoadingScreenUnit, state_dir: Path, *, clock: Clock = time.monotonic,
 ) -> None:
-    """Cover the headset until the next session releases it."""
+    """Hold the loading screen in the headset until the next session releases it."""
     report_the_headset_held(state_dir)
     deadline = clock() + HEADSET_HOLD_TIMEOUT_S
     try:
@@ -156,30 +163,30 @@ def hold_the_headset(
             headset.session.poll_events()
             if not headset.session.session_ready:
                 return  # nothing is being presented; there is nothing to hold
-            cover.refresh()
-            present_the_cover(headset, cover)
+            loading_screen.refresh()
+            present_the_loading_screen(headset, loading_screen)
     except Exception:
-        logger.debug("Could not hold the headset's cover", exc_info=True)
+        logger.debug("Could not hold the headset's loading screen", exc_info=True)
 
 
-def cover_the_teardown(headset: Headset, cover: CoverUnit, *, clock: Clock = time.monotonic) -> None:
-    """Raise the closing cover and hold it while this process comes apart.  The
+def closing_screen_over_the_teardown(headset: Headset, loading_screen: LoadingScreenUnit, *, clock: Clock = time.monotonic) -> None:
+    """Raise the closing screen and hold it while this process comes apart.  The
     ordinary quit asks through the shutdown progress file; this is the other way
     out -- window closed, interrupt, a runtime that ended the session."""
-    cover.closing_now()
+    loading_screen.closing_now()
     try:
-        cover.refresh()
-        deadline = clock() + TEARDOWN_COVER_TIMEOUT_S
+        loading_screen.refresh()
+        deadline = clock() + TEARDOWN_LOADING_SCREEN_TIMEOUT_S
         while headset.session.running and clock() < deadline:
             headset.session.poll_events()
             if not headset.session.session_ready:
                 break  # nothing is being presented; there is nothing to cover
-            if present_the_cover(headset, cover):
+            if present_the_loading_screen(headset, loading_screen):
                 break
     except Exception:
         # A compositor that has let go of us must not turn a quit into a crash.
-        logger.debug("Could not raise the closing cover", exc_info=True)
-    cover.settled()  # however that went, teardown has waited long enough
+        logger.debug("Could not raise the closing screen", exc_info=True)
+    loading_screen.settled()  # however that went, teardown has waited long enough
 
 
 class FrameLoop:
@@ -194,19 +201,19 @@ class FrameLoop:
 
     def show_the_room(self, glfw) -> None:
         session, the_room, clock = self._headset.session, self._room, self._clock
-        cover = the_room.cover
+        loading_screen = the_room.loading_screen
         last_frame_time = clock()
         while session.running and not the_room.stop.is_set():
             session.poll_events()
             the_room.note_the_wearer(session.focused, now=clock())
             if session.window_close_requested():
                 break
-            if cover.holding:
+            if loading_screen.holding:
                 break  # the session is crossing over; the teardown holds it up
             if not session.session_ready:
                 # The pump thread keeps every channel live while the headset
                 # warms up, so the orchestrator sees status the moment it asks.
-                cover.settled()  # nothing can be shown from here, cover included
+                loading_screen.settled()  # nothing can be shown from here, loading screen included
                 glfw.poll_events()
                 self._sleep(0.01)
                 continue
@@ -218,25 +225,25 @@ class FrameLoop:
     def show_a_frame(self, *, elapsed_s: float, now: float) -> None:
         headset, the_room = self._headset, self._room
         session, perf = headset.session, headset.perf
-        cover = the_room.cover
+        loading_screen = the_room.loading_screen
         t0 = time.perf_counter()
         should_render, display_time, views = session.frame_begin()
         t1 = time.perf_counter()
         the_room.render_latest_frames()
-        the_room.cover_watch.frame_began(
+        the_room.loading_screen_watch.frame_began(
             blank=the_room.still_blank(), focused=session.focused,
             views_tracked=session.views_tracked)
         t2 = time.perf_counter()
         quads: list[QuadLayer] = []
         project = covered = False
         t3 = t2
-        if should_render and views and cover.showing:
+        if should_render and views and loading_screen.showing:
             # No quads: the runtime composites those OVER our layer, so a
-            # screen submitted as one shows through the cover.
+            # screen submitted as one shows through the loading screen.
             covered = project = True
-            the_room.cover_watch.drawing(now)
+            the_room.loading_screen_watch.drawing(now)
             t3 = time.perf_counter()
-            draw_cover(headset, cover, views)
+            draw_loading_screen(headset, loading_screen, views)
         elif should_render and views:
             if session.focused:
                 the_room.route_audio()
@@ -250,7 +257,7 @@ class FrameLoop:
         t4 = time.perf_counter()
         session.frame_end(display_time, views, project=project, quads=quads)
         t5 = time.perf_counter()
-        the_room.cover_watch.frame_ended(
+        the_room.loading_screen_watch.frame_ended(
             covered=covered, focused=session.focused, should_render=should_render, now=now)
         perf.note("wait", (t1 - t0) * 1e3)
         perf.note("frames", (t2 - t1) * 1e3)
@@ -278,17 +285,17 @@ def tear_down(headset: Headset, the_room: TheRoom, state_dir: Path, *,
               clock: Clock = time.monotonic,
               stop_the_runtime: Callable[[Path], None] = vr_runtime.stop_the_runtime_a_session_started,
               ) -> None:
-    cover_the_teardown(headset, the_room.cover, clock=clock)
+    closing_screen_over_the_teardown(headset, the_room.loading_screen, clock=clock)
     the_room.stop.set()
     # Only to settle the file channels -- funestra.mpv_gate makes the closes safe.
     for worker in the_room.workers:
         worker.join(timeout=2.0)
     held = headset_hold_asked(state_dir)
     stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
-    the_room.close(keep_the_cover=held)
+    the_room.close(keep_the_loading_screen=held)
     if held:
-        hold_the_headset(headset, the_room.cover, state_dir, clock=clock)
-        the_room.cover.close()
+        hold_the_headset(headset, the_room.loading_screen, state_dir, clock=clock)
+        the_room.loading_screen.close()
     the_room.pointing.close()
     headset.renderer.close()
     headset.session.close()

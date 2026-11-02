@@ -95,7 +95,7 @@ class StartupResult:
     origenerator_already_open: bool = False
     origenerator_slideshow_on: tuple[RoomFunestra, ...] = ()
     # Which Funestra the main slot was revealed on — last session's, resumed.
-    # Carried out because the orchestrator starts the Funestras once the cover
+    # Carried out because the orchestrator starts the Funestras once the loading screen
     # is gone, and starts the mode's.
     # The satellites have no such line: every room is BUILT with them in Kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
@@ -171,8 +171,8 @@ def apply_startup_window_state(
     """Set the full window state the session opens with: the bands.
 
     *beneath* is the loading overlay when this runs under one, and keeps the
-    cover on top across the walk (:func:`apply_topmost_bands`).  Zero without a
-    cover: the integration path, and the re-band after the cover has gone.
+    loading screen on top across the walk (:func:`apply_topmost_bands`).  Zero without a
+    loading screen: the integration path, and the re-band after the loading screen has gone.
     """
     role_hwnds = _startup_role_hwnds(
         portrait_hwnd=portrait_hwnd,
@@ -218,10 +218,10 @@ def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
     its audio) in both, Kino's video in kino mode alone — so nothing plays out
     of sight or drives the OSR2 unasked.
 
-    Called by the sequencer on the path with no cover, and by the orchestrator on
-    the path with one — there, only once the cover has actually left the screen.
+    Called by the sequencer on the path with no loading screen, and by the orchestrator on
+    the path with one — there, only once the loading screen has actually left the screen.
     That is the whole reason it is a function of its own: released with the
-    phases, playback starts while the cover is still hiding it, and the first
+    phases, playback starts while the loading screen is still hiding it, and the first
     seconds of the video are spent under it.
     """
     write_flag_file(m.commands.main_funestra_paused_file, not kino_shows(main_mode))
@@ -504,7 +504,7 @@ _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
 def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) -> dict[str, int]:
-    """Phase 2, on the path with no cover: place and band every window at once."""
+    """Phase 2, on the path with no loading screen: place and band every window at once."""
     activate = not env.integration
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=activate)
@@ -564,7 +564,7 @@ def _wait_for_the_room_to_be_drawing(
     progress: ProgressReporter,
     funestras: list[LaunchedFunestra] = (),
 ) -> None:
-    """Hold the cover until every Funestra has a frame under it.
+    """Hold the loading screen until every Funestra has a frame under it.
 
     The Main Funestra is the third Funestra and by now the only one still loading: its window
     has been up since half a second after launch with its own loading screen
@@ -594,7 +594,7 @@ def _wait_for_the_room_to_be_drawing(
         )
 
 
-def _place_the_windows_under_the_cover(
+def _place_the_windows_under_the_loading_screen(
     *,
     plan: WindowLayoutPlan,
     portrait_hwnd: int,
@@ -633,7 +633,7 @@ def _place_the_windows_under_the_cover(
     return role_hwnds
 
 
-def _settle_the_room_under_the_cover(
+def _settle_the_room_under_the_loading_screen(
     m: LaunchManifest,
     *,
     core: _CoreSession,
@@ -655,7 +655,7 @@ def _settle_the_room_under_the_cover(
         funestras=funestras)
 
     progress.advance("windows")
-    return _place_the_windows_under_the_cover(
+    return _place_the_windows_under_the_loading_screen(
         plan=plan,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -705,7 +705,7 @@ def _run_startup_phases(
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
-        role_hwnds = _settle_the_room_under_the_cover(
+        role_hwnds = _settle_the_room_under_the_loading_screen(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
             dashboard_pid=ui_pids["dashboard_pid"], progress=progress,
             funestras=launched.funestras)
@@ -713,8 +713,8 @@ def _run_startup_phases(
     raise_if_a_funestra_died(launched.funestras)
 
     # A session with nothing to hide under starts playing as soon as it is
-    # built.  One with a cover does NOT: the orchestrator calls this once the
-    # cover is off, since a Funestra released under it loses its first seconds of
+    # built.  One with a loading screen does NOT: the orchestrator calls this once the
+    # loading screen is off, since a Funestra released under it loses its first seconds of
     # video (and Genau's audio) before anyone can see or hear them.
     if not hide_windows:
         release_the_funestras(m, core.main_mode)
@@ -764,7 +764,7 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
     )
 
 
-# How long the curtain waits for the two satellites to have a frame up.
+# How long the loading screen waits for the two satellites to have a frame up.
 # Their windows exist within a second of launch and stay BLACK until mpv has
 # opened the first clip and drawn a frame — on the 4K landscape library that is
 # several seconds — so a reveal timed on the windows alone lifts on two black

@@ -1,7 +1,7 @@
-"""The panel's wait under the loading cover, and how it comes out of it.
+"""The panel's wait under the loading screen, and how it comes out of it.
 
 Realized without being shown, and revealed at startup's last phase rather than
-when the cover goes a second or more later.  No Qt: it arrives as something
+when the loading screen goes a second or more later.  No Qt: it arrives as something
 with a ``show``.
 """
 from __future__ import annotations
@@ -66,23 +66,23 @@ class LoadingReveal:
         self.deferred = False
         self._routing_suppressed = False
         assert self._window is not None
-        cover = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
-        if cover:
-            self._reveal_beneath(cover)
+        loading_screen = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
+        if loading_screen:
+            self._reveal_beneath(loading_screen)
         else:
             self._reveal_where_it_sits()
 
-    def _reveal_beneath(self, cover: int) -> None:
+    def _reveal_beneath(self, loading_screen: int) -> None:
         """Out of the topmost band before the panel is visible, back into it
-        directly under the cover once it is.
+        directly under the loading screen once it is.
 
-        Between the two it is beneath the cover by Windows' own rule — a window
+        Between the two it is beneath the loading screen by Windows' own rule — a window
         that is not topmost cannot be above one that is — rather than by
         winning a race with whatever would otherwise have to put it back.
         """
         set_always_on_top(self._hwnd, False)
         self._reveal_where_it_sits()
-        set_always_on_top(self._hwnd, True, under=cover)
+        set_always_on_top(self._hwnd, True, under=loading_screen)
 
     def _reveal_where_it_sits(self) -> None:
         assert self._window is not None

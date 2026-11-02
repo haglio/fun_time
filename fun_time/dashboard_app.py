@@ -723,8 +723,8 @@ class DashboardWindow(QMainWindow):
         # What the title bar's two surviving controls route to: close through
         # closeEvent (quits everything), minimize through changeEvent
         # (omniminimize).  winId() realizes the native handle WITHOUT showing
-        # the window, so while the cover is up this one stays fully hidden and
-        # LoadingReveal shows it once the cover goes.
+        # the window, so while the loading screen is up this one stays fully hidden and
+        # LoadingReveal shows it once the loading screen goes.
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
         preview_marker.dress_the_window(_hwnd)
@@ -744,7 +744,7 @@ class DashboardWindow(QMainWindow):
             layout=app_config.layout,
             rfb_slot_strip=app_config.rfb_slot_strip,
             event_log_dir=app_config.state_dir,
-            cover_dir=app_config.state_dir,
+            loading_screen_dir=app_config.state_dir,
             make_overlay=NoticeOverlay,
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,

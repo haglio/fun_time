@@ -41,7 +41,7 @@ AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 ; overlay_progress.CANCEL_FILENAME — the loading screen drops the same file
 ; when Esc happens to land on it — so a test pins the two together.
 STARTUP_CANCEL_FILE := STATE_DIR . "\startup_cancel.flag"
-; The crossing cover's file, and how long it may go unrefreshed before the
+; The transition screen's file, and how long it may go unrefreshed before the
 ; crossing counts as over -- session_handoff's name and timeout, pinned by a test.
 CROSSING_PROGRESS_FILE := STATE_DIR . "\crossing_progress.txt"
 CROSSING_STALE_S := 20
@@ -298,7 +298,7 @@ KeepOrMarkSessionEnd(reason) {
 }
 
 ; The session ends here and the script does not: Esc and the quit chord stay
-; live over the closing cover.  The orchestrator stops the script once its
+; live over the closing screen.  The orchestrator stops the script once its
 ; teardown is done -- except over a crossing, where it goes on hearing Esc for
 ; the relay until the next session's own script replaces it.
 EndTheSession() {
@@ -310,8 +310,8 @@ EndTheSession() {
     SetTimer(WatchEnding, 500)
 }
 
-; Over the closing cover its orchestrator is still running, and over a crossing
-; the cover's file is kept fresh; with neither, nothing is left to hear Esc for.
+; Over the closing screen its orchestrator is still running, and over a crossing
+; the transition screen's file is kept fresh; with neither, nothing is left to hear Esc for.
 WatchEnding() {
     if (OrchestratorGone() && !CrossingUnderWay()) {
         Log("Nothing left to end or cross into; exiting")
@@ -349,7 +349,7 @@ PauseOrCancelStartup() {
 
 RequestStartupCancel(reason) {
     global STARTUP_CANCEL_FILE
-    ; The cover stays up until the orchestrator has torn down whatever it had
+    ; The closing screen stays up until the orchestrator has torn down whatever it had
     ; launched, so nothing half-started is ever revealed.  *reason* is "cancel"
     ; or "quit"; a second press costs one more line, and any "quit" among them
     ; is what the orchestrator reads.

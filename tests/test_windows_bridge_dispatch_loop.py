@@ -3672,7 +3672,7 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
 
 
 class TestOpeningInOrigeneratorMode:
-    """Startup hands the loop the wait under the room's cover, and the loop takes
+    """Startup hands the loop the wait under the room's loading screen, and the loop takes
     the mode up through the switch's own command once the hosted app answers."""
 
     @staticmethod
@@ -3760,7 +3760,7 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
 
-    def test_a_room_left_in_kino_mode_holds_its_cover_up_for_nothing(self, tmp_path):
+    def test_a_room_left_in_kino_mode_holds_its_loading_screen_up_for_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         waits: list[bool] = []
@@ -3771,12 +3771,12 @@ class TestOpeningInOrigeneratorMode:
 
         runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
 
-        assert not waits, "an ordinary room was held under its cover for the hosted app"
+        assert not waits, "an ordinary room was held under its loading screen for the hosted app"
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_an_app_the_wait_gave_up_on_leaves_the_room_in_kino_mode_for_good(self, tmp_path):
-        """The room the cover came off is the room he is using: the ticks after it
+        """The room the loading screen came off is the room he is using: the ticks after it
         switch nothing, even once the app turns up, and the file says kino too --
         the mode it records is the mode both HUDs draw and the switch acts on."""
         state_file = tmp_path / "shared_state.ini"

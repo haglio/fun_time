@@ -1,4 +1,4 @@
-"""Real-window checks for the cover a session goes out under.
+"""Real-window checks for the loading screen a session goes out under.
 
 The unit suite can only fake the tkinter overlay — building the real one puts a
 window over every monitor.  Here it is built for real on the hidden desktop,
@@ -23,7 +23,7 @@ from tests.integration import run_clock
 from tests.integration.integration_support import let_seconds_pass, this_checkouts_siblings
 
 pytestmark = [
-    # The cover is a real window on a real desktop, and the wait for it is the
+    # The loading screen is a real window on a real desktop, and the wait for it is the
     # thing under test; the unit conftest's zeroed startup waits do not apply.
     pytest.mark.real_startup_waits,
     pytest.mark.skipif(sys.platform != "win32", reason="launches a real Win32 window"),
@@ -34,7 +34,7 @@ pytestmark = [
 ]
 
 
-def test_the_real_cover_is_on_screen_for_the_whole_teardown(tmp_path: Path):
+def test_the_real_loading_screen_is_on_screen_for_the_whole_teardown(tmp_path: Path):
     """Everything teardown does happens between these two asserts, so the window
     being up at the first and gone by the second is the guarantee the feature is:
     no window of the session is ever seen going out on its own."""
@@ -44,21 +44,21 @@ def test_the_real_cover_is_on_screen_for_the_whole_teardown(tmp_path: Path):
     with _closing_screen(state_dir, enabled=True, sibling_checkouts=this_checkouts_siblings(),
                          now=run_clock.now) as progress:
         assert find_window_by_title(WINDOW_TITLE, exact=True), (
-            "the cover was not on screen when teardown was let go"
+            "the loading screen was not on screen when teardown was let go"
         )
         # The flag teardown waited on came from the screen itself, not from us.
         assert ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         progress.advance("funestras")
 
     assert not find_window_by_title(WINDOW_TITLE, exact=True), (
-        "the cover outlived the teardown it was hiding"
+        "the loading screen outlived the teardown it was hiding"
     )
     assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
 
-def test_the_real_cover_stays_up_while_a_part_takes_longer_than_its_guard_to_end(
+def test_the_real_loading_screen_stays_up_while_a_part_takes_longer_than_its_guard_to_end(
         tmp_path: Path):
-    """His quit on a busy machine: the parts took longer to end than the cover
+    """His quit on a busy machine: the parts took longer to end than the loading screen
     waits without news, and it went with the dashboard still on screen."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -66,8 +66,8 @@ def test_the_real_cover_stays_up_while_a_part_takes_longer_than_its_guard_to_end
     with _closing_screen(state_dir, enabled=True, sibling_checkouts=this_checkouts_siblings(),
                          now=run_clock.now) as progress:
         progress.advance("funestras")
-        with progress.cover_kept_up():
+        with progress.loading_screen_kept_up():
             let_seconds_pass(STALE_TIMEOUT_S + 2)
         still_up = bool(find_window_by_title(WINDOW_TITLE, exact=True))
 
-    assert still_up, "the cover went while a part it was hiding was still ending"
+    assert still_up, "the loading screen went while a part it was hiding was still ending"

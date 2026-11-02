@@ -436,9 +436,9 @@ class TestWindowsObscuring:
         assert windows_obscuring(1, [main_funestra, below]) == []
 
     def test_overlapping_window_above_is_reported(self):
-        cover = self._w(9, (50, 50, 100, 100))
+        loading_screen = self._w(9, (50, 50, 100, 100))
         main_funestra = self._w(1, (0, 0, 100, 100))
-        assert windows_obscuring(1, [cover, main_funestra]) == [cover]
+        assert windows_obscuring(1, [loading_screen, main_funestra]) == [loading_screen]
 
     def test_non_overlapping_window_above_is_ignored(self):
         # A window on another monitor sits above the Main Funestra in the topmost band but
@@ -572,7 +572,7 @@ class TestWindowTitle:
 
 
 class TestFindWindowByTitle:
-    """The lookup every role resolution and both covers go through.
+    """The lookup every role resolution and both screens go through.
 
     Only the integration suite has ever driven it against real windows, so its
     two switches — substring versus exact, and whether a hidden window counts —
@@ -605,21 +605,21 @@ class TestFindWindowByTitle:
 
     def test_exact_refuses_the_window_that_merely_contains_the_name(self):
         """The session opens three windows whose titles start "Fun Time" — the
-        dashboard, the loading cover and the library browser — so only the whole
-        caption tells the dashboard from the cover it hides under."""
+        dashboard, the loading screen and the library browser — so only the whole
+        caption tells the dashboard from the loading screen it hides under."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time", exact=True) == 12
 
     def test_a_substring_would_have_taken_the_wrong_one_of_those(self):
-        """The other half of the case above: without ``exact`` the cover
+        """The other half of the case above: without ``exact`` the loading screen
         answers a lookup meant for the dashboard."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time") == 11
 
     def test_a_hidden_window_is_skipped_unless_it_is_asked_for(self):
-        """The dashboard is SW_HIDE under the loading cover when startup has
+        """The dashboard is SW_HIDE under the loading screen when startup has
         to resolve it."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time")], visible=False)
@@ -947,7 +947,7 @@ class TestIterZorder:
         assert stacked[1].rect == (100, 0, 300, 400)
 
     def test_hidden_minimized_and_untitled_windows_are_left_out(self):
-        """None of the three can visibly cover anything, and the title filter is
+        """None of the three can visibly loading screen anything, and the title filter is
         what keeps the log line legible among the system's own surfaces."""
         with patch("fun_time.win32._user32") as mock:
             self._stack(mock, [

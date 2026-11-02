@@ -230,7 +230,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     child the bridge starts while the Funestra holds both — so Qt's own
     ``activateWindow`` did nothing, silently.
 
-    What this covers is the opening path itself, which nothing covered before:
+    What this loading screens is the opening path itself, which nothing covered before:
     the production launch, a real child process, a real window, and that window
     landing above one already sitting over the same rect.
 

@@ -11,13 +11,13 @@ class TestFromEnviron:
         assert env == SessionEnvironment(
             integration=False, show_overlays=True, dashboard_enabled=True)
 
-    def test_an_integration_run_gets_no_curtain(self):
+    def test_an_integration_run_gets_no_loading_screen(self):
         env = SessionEnvironment.from_environ({"FUN_TIME_RUN_INTEGRATION": "1"})
 
         assert env.integration is True
         assert env.show_overlays is False
 
-    def test_an_integration_run_can_ask_for_the_curtain_back(self):
+    def test_an_integration_run_can_ask_for_the_loading_screen_back(self):
         """The hidden desktop tests the exact startup a real session takes."""
         env = SessionEnvironment.from_environ(
             {"FUN_TIME_RUN_INTEGRATION": "1", "FUN_TIME_INTEGRATION_OVERLAYS": "1"})

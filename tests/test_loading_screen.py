@@ -23,7 +23,7 @@ class TestWhatTheScreenOpensOn:
 
 
 class TestTheLaunchersLoadingScreen:
-    def test_the_startup_cover_takes_over_from_the_one_its_launcher_showed(self, tmp_path, monkeypatch):
+    def test_the_startup_loading_screen_takes_over_from_the_one_its_launcher_showed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])
 
         with patch("fun_time.overlay_window.OverlayWindow") as window,              taking_over_stand_in() as taking_over:

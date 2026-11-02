@@ -61,7 +61,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
         # this returns the pass has run.
         session.start(wait_seconds=90.0,
                       env_overrides={"FUN_TIME_INTEGRATION_OVERLAYS": "1"})
-        # Prove the curtain actually ran — green through the overlay-less path
+        # Prove the loading screen actually ran — green through the overlay-less path
         # would be this test testing nothing.  The startup-phase messages land
         # in the session's event log (the windows-bridge routing begins later).
         events = event_log_path(session.config.paths.state_dir)

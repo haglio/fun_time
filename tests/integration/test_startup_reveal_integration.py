@@ -1,4 +1,4 @@
-"""What the room looks like at the exact instant the cover lifts.
+"""What the room looks like at the exact instant the loading screen lifts.
 
 He has reported this one over and over: "when I start up Fun Time, its windows
 still are not ready by the time the loading screen goes away."  Every earlier
@@ -8,11 +8,11 @@ the complaint is about — the first poll on which the loading overlay's window 
 gone — and reports what was still missing then.
 
 Two things have to be true at that instant.  Every window the session shows must
-be ON SCREEN: the dashboard hides itself under the cover and shows itself again
-on a cue, and taking that cue from the cover's own departure meant the control
+be ON SCREEN: the dashboard hides itself under the loading screen and shows itself again
+on a cue, and taking that cue from the loading screen's own departure meant the control
 panel arrived seconds after the room it controls.  And the pass that puts the
-room in z-order must ALREADY HAVE RUN: it is written to run under the cover, and
-a cover that leaves first turns it into a room sorting itself out in front of him.
+room in z-order must ALREADY HAVE RUN: it is written to run under the loading screen, and
+a loading screen that leaves first turns it into a room sorting itself out in front of him.
 
 Whether anything is COVERING those windows is a separate question, and one
 ``test_loading_screen_startup_integration`` already asks of the satellites.  It is
@@ -55,7 +55,7 @@ _POLL_S = 0.02
 
 
 class _AtTheReveal(threading.Thread):
-    """Watch for the cover's window to go, and photograph the room the instant it
+    """Watch for the loading screen's window to go, and photograph the room the instant it
     does.
 
     A thread because the reveal happens deep inside ``session.start()``, which
@@ -66,7 +66,7 @@ class _AtTheReveal(threading.Thread):
     def __init__(self, timeout_s: float = 240.0) -> None:
         super().__init__(daemon=True)
         self._timeout_s = timeout_s
-        self.cover_was_up = False
+        self.loading_screen_was_up = False
         self.lifted_at = 0.0
         self.hwnds: dict[str, int] = {}
         self.hidden_hwnds: dict[str, int] = {}
@@ -75,8 +75,8 @@ class _AtTheReveal(threading.Thread):
         budget = Budget(self._timeout_s)
         while not budget.expired():
             if find_window_by_title(LOADING_SCREEN_TITLE, exact=True):
-                self.cover_was_up = True
-            elif self.cover_was_up:
+                self.loading_screen_was_up = True
+            elif self.loading_screen_was_up:
                 break
             time.sleep(_POLL_S)
         else:
@@ -91,7 +91,7 @@ class _AtTheReveal(threading.Thread):
         }
         # And the same lookup counting hidden windows, so a failure says which
         # kind of missing it was: a window that never launched, or one that is
-        # up but still SW_HIDE under the cover it was meant to be revealed
+        # up but still SW_HIDE under the loading screen it was meant to be revealed
         # under.  The two want opposite fixes.
         self.hidden_hwnds = {
             title: find_window_by_title(title, exact=True, include_hidden=True)
@@ -99,7 +99,7 @@ class _AtTheReveal(threading.Thread):
         }
 
 
-def test_the_room_is_finished_when_the_cover_lifts():
+def test_the_room_is_finished_when_the_loading_screen_lifts():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
@@ -118,11 +118,11 @@ def test_the_room_is_finished_when_the_cover_lifts():
         messages = [record.message for record in records]
         assert any("Loading screen launched" in m for m in messages), (
             "the session did not take the loading-screen path, so there was no "
-            "cover to lift and this test proves nothing"
+            "loading screen to lift and this test proves nothing"
         )
-        assert watcher.cover_was_up, "the cover never appeared"
+        assert watcher.loading_screen_was_up, "the loading screen never appeared"
         assert watcher.hwnds, (
-            "the watcher never photographed the room, so the cover's window "
+            "the watcher never photographed the room, so the loading screen's window "
             "outlived its wait — nothing here has been measured"
         )
 
@@ -135,7 +135,7 @@ def test_the_room_is_finished_when_the_cover_lifts():
         # told from "a child that never launched".
         pids = session.read_child_pids()
         assert not missing, (
-            "the cover lifted on a room still missing "
+            "the loading screen lifted on a room still missing "
             + ", ".join(missing)
             + " — those windows arrive after the reveal, which is what 'the "
             "windows are not ready when the loading screen goes away' is"
@@ -146,7 +146,7 @@ def test_the_room_is_finished_when_the_cover_lifts():
         assert banded, f"the orchestrator never logged {BANDED!r}"
         assert banded[0] <= watcher.lifted_at, (
             f"the room was banded {banded[0] - watcher.lifted_at:.2f}s AFTER the "
-            "cover lifted, so he watched the z-order sort itself out"
+            "loading screen lifted, so he watched the z-order sort itself out"
         )
     finally:
         session.stop()

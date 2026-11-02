@@ -1,28 +1,28 @@
-"""Nothing shows through the loading cover for long enough to see.
+"""Nothing shows through the loading screen for long enough to see.
 
 His: "many things flash out for a split second from underneath the loading
 screen's scrim."  Nothing keeps a topmost window above the OTHER topmost
-windows — every raise a session makes while the cover is up (showing a Funestra,
+windows — every raise a session makes while the loading screen is up (showing a Funestra,
 moving it onto its rect, promoting it into the band) inserts that window ABOVE
-the cover, and Windows never tells a window it has been displaced.
+the loading screen, and Windows never tells a window it has been displaced.
 
-The cover answers by taking the top back every 16ms, which is what bounds a
+The loading screen answers by taking the top back every 16ms, which is what bounds a
 flash on an idle machine — measured at 27ms for one raise, against the 200ms
-the cover's first defense took.  It is no bound at all on a busy one: with
+the loading screen's first defense took.  It is no bound at all on a busy one: with
 twice as many busy processes as the machine has cores, ten of twenty-four
-raises sat over the cover past the budget and the worst sat there for 198ms.
-So a window that must not flash is never put above the cover in the first
+raises sat over the loading screen past the budget and the worst sat there for 198ms.
+So a window that must not flash is never put above the loading screen in the first
 place — the session's promotions land under it (``set_always_on_top(under=)``)
 and the panel leaves the topmost band before it becomes visible
-(:mod:`fun_time.loading_reveal`) — and the cover's own poll is the backstop
+(:mod:`fun_time.loading_reveal`) — and the loading screen's own poll is the backstop
 for whatever nobody thought of.
 
-This watches the window immediately above the cover, at 2ms, for the whole
-time the cover is up, and asks how LONG anything managed to stay there.  Not
+This watches the window immediately above the loading screen, at 2ms, for the whole
+time the loading screen is up, and asks how LONG anything managed to stay there.  Not
 whether anything ever got above it: a raise and the answer to it are two
 SetWindowPos calls and the gap between them is real, so the only truthful
 question is whether that gap is short enough that no frame is ever drawn from
-it.  :mod:`above_the_cover` holds the budget and the arithmetic.
+it.  :mod:`above_the_loading_screen` holds the budget and the arithmetic.
 """
 from __future__ import annotations
 
@@ -37,18 +37,18 @@ from pathlib import Path
 
 import pytest
 
-from fun_time import loading_cover, transition_screen
-from fun_time.loading_cover import open_the_cover
+from fun_time import raising_the_loading_screen, transition_screen
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.overlay_progress import PROGRESS_FILENAME
-from fun_time.session_handoff import DESKTOP, keep_the_crossing_cover, launch_crossing_cover
+from fun_time.raising_the_loading_screen import open_the_loading_screen
+from fun_time.session_handoff import DESKTOP, keep_the_transition_screen, launch_transition_screen
 from fun_time.win32 import find_window_for_process, is_window_topmost, show_own_window
 from fun_time.windows_bridge_sequencer import (
     apply_topmost_bands,
 )
 
-from .above_the_cover import AboveTheCover
+from .above_the_loading_screen import AboveTheLoadingScreen
 from .integration_support import (
     FunTimeIntegrationSession,
     await_window,
@@ -89,28 +89,28 @@ WM_QUIT = 0x0012
 THREAD_SUSPEND_RESUME = 0x0002
 
 
-def test_nothing_stays_over_the_cover_long_enough_to_be_seen():
+def test_nothing_stays_over_the_loading_screen_long_enough_to_be_seen():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
-    watcher = AboveTheCover()
+    watcher = AboveTheLoadingScreen()
     watcher.start()
     try:
         # With the dashboard, because it and its notice overlay are two of the
-        # topmost windows that can land over the cover.
+        # topmost windows that can land over the loading screen.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
         })
         joined_within(watcher, 60.0)
 
-        assert watcher.cover_was_up, "the cover never appeared"
+        assert watcher.loading_screen_was_up, "the loading screen never appeared"
         assert len(watcher.samples) > 100, (
             f"only {len(watcher.samples)} samples: the cover was barely up, so "
             "this measured nothing"
         )
         assert not watcher.too_long(), (
-            "these sat over the cover long enough to be drawn: "
+            "these sat over the loading screen long enough to be drawn: "
             + "; ".join(watcher.too_long())
         )
     finally:
@@ -153,7 +153,7 @@ class _Windows(threading.Thread):
 
 
 @contextmanager
-def _a_real_cover(progress_file: Path):
+def _a_real_loading_screen(progress_file: Path):
     progress_file.write_text("0/1|Positioning windows...", encoding="utf-8")
     process = subprocess.Popen(
         [sys.executable, "-m", "fun_time.loading_screen", str(progress_file)],
@@ -183,23 +183,23 @@ def _unable_to_run(hwnd: int):
         _kernel32.CloseHandle(thread)
 
 
-def _sampling(watcher: AboveTheCover) -> None:
+def _sampling(watcher: AboveTheLoadingScreen) -> None:
     watcher.start()
     assert seen_within(lambda: watcher.samples, seconds=5.0, every_s=0.005), (
-        "the watcher never sampled the cover")
+        "the watcher never sampled the loading screen")
 
 
-def test_a_room_banded_under_a_cover_too_busy_to_answer_never_shows_through_it(tmp_path):
-    watcher = AboveTheCover(timeout_s=60.0)
+def test_a_room_banded_under_a_loading_screen_too_busy_to_answer_never_shows_through_it(tmp_path):
+    watcher = AboveTheLoadingScreen(timeout_s=60.0)
     with _Windows("portrait", "landscape") as funestras:
-        with _a_real_cover(tmp_path / PROGRESS_FILENAME) as cover:
+        with _a_real_loading_screen(tmp_path / PROGRESS_FILENAME) as loading_screen:
             _sampling(watcher)
-            with _unable_to_run(cover):
-                apply_topmost_bands(funestras, beneath=cover)
+            with _unable_to_run(loading_screen):
+                apply_topmost_bands(funestras, beneath=loading_screen)
         joined_within(watcher, 15.0)
 
         assert not watcher.too_long(), (
-            "banded while the cover could not answer, these sat over it: "
+            "banded while the loading screen could not answer, these sat over it: "
             + "; ".join(watcher.too_long())
         )
         assert all(is_window_topmost(hwnd) for hwnd in funestras.values()), (
@@ -221,31 +221,31 @@ class _ShowsItself:
         show_own_window(self._hwnd)
 
 
-def test_the_panel_revealed_under_a_cover_too_busy_to_answer_never_shows_through_it(tmp_path):
-    """The panel comes out from under the cover one phase before the cover goes,
+def test_the_panel_revealed_under_a_loading_screen_too_busy_to_answer_never_shows_through_it(tmp_path):
+    """The panel comes out from under the loading screen one phase before the loading screen goes,
     and it is topmost, so showing it used to put it at the top of the band —
-    over the cover — until the call after it put it back.  That gap is whatever
+    over the loading screen — until the call after it put it back.  That gap is whatever
     the machine gives the two processes: 68ms of the panel drawn through the
-    scrim in one loaded run, and here the cover cannot answer at all.
+    scrim in one loaded run, and here the loading screen cannot answer at all.
     """
     progress_file = tmp_path / PROGRESS_FILENAME
-    watcher = AboveTheCover(timeout_s=60.0)
+    watcher = AboveTheLoadingScreen(timeout_s=60.0)
     with _Windows("panel", ex_style=WS_EX_TOPMOST) as windows:
         panel = windows["panel"]
-        with _a_real_cover(progress_file) as cover:
+        with _a_real_loading_screen(progress_file) as loading_screen:
             _sampling(watcher)
             reveal = LoadingReveal(tmp_path)
-            assert reveal.deferred, "the panel should be waiting under the cover"
+            assert reveal.deferred, "the panel should be waiting under the loading screen"
             reveal.attach(panel, _ShowsItself(panel))
             progress_file.write_text("1/1|Finalizing...", encoding="utf-8")
-            with _unable_to_run(cover):
+            with _unable_to_run(loading_screen):
                 reveal.maybe_reveal()
                 time.sleep(0.2)
             time.sleep(0.2)
         joined_within(watcher, 15.0)
 
         assert not watcher.too_long(), (
-            "revealed while the cover could not answer, these sat over it: "
+            "revealed while the loading screen could not answer, these sat over it: "
             + "; ".join(watcher.too_long())
         )
         # Inside the block that owns the window: a destroyed one reads as not
@@ -295,20 +295,20 @@ def _the_way_back(state_dir: Path, monkeypatch, *, waiting_s: float) -> _TheWayB
     """A launch from "Returning to Fun Time..." that waits *waiting_s* for its
     loading screen, with the launch's usual wait set to none at all -- so every
     loading screen is later than that -- watched until both have been seen."""
-    monkeypatch.setattr(loading_cover, "WINDOW_WAIT_S", 0.0)
-    monkeypatch.setattr(loading_cover, "WINDOW_WAIT_UNDER_A_CROSSING_S", waiting_s)
+    monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_S", 0.0)
+    monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_UNDER_A_CROSSING_S", waiting_s)
     launches = _Launches(subprocess.Popen)
     monkeypatch.setattr(subprocess, "Popen", launches)
     siblings = this_checkouts_siblings()
-    crossing = launch_crossing_cover(state_dir, DESKTOP, sibling_checkouts=siblings)
-    stop_keeping_it_up = keep_the_crossing_cover(state_dir)
+    crossing = launch_transition_screen(state_dir, DESKTOP, sibling_checkouts=siblings)
+    stop_keeping_it_up = keep_the_transition_screen(state_dir)
     try:
         assert seen_within(lambda: find_window_for_process(
             crossing.pid, transition_screen.WINDOW_TITLE), seconds=60.0), (
             '"Returning to Fun Time..." never came up')
         watcher = _TheWayBack(crossing, launches)
         watcher.start()
-        cover = open_the_cover(state_dir, show_overlays=True, sibling_checkouts=siblings)
+        loading_screen = open_the_loading_screen(state_dir, show_overlays=True, sibling_checkouts=siblings)
         try:
             assert ended_within(crossing, 30.0), (
                 '"Returning to Fun Time..." never handed over to the loading screen')
@@ -317,7 +317,7 @@ def _the_way_back(state_dir: Path, monkeypatch, *, waiting_s: float) -> _TheWayB
         finally:
             watcher.stopped.set()
             joined_within(watcher, 5.0)
-            cover.take_it_down()
+            loading_screen.take_it_down()
         return watcher
     finally:
         stop_keeping_it_up()

@@ -2,8 +2,8 @@
 
 Raised before the launch's own work -- the taskbar pin, the Funestras' engine, the
 session machinery's import -- which he watched a bare desktop through.  What is
-imported here is paid for before the cover is up, so there is a test that
-nothing else is (``test_the_launch_loads_nothing_the_cover_does_not_need``).
+imported here is paid for before the loading screen is up, so there is a test that
+nothing else is (``test_the_launch_loads_nothing_the_loading_screen_does_not_need``).
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from app_support import loading_screen
+from app_support import loading_screen as shared_loading_screen
 from app_support.subprocess_utils import tie_to_this_process
 
 from .checkout_overrides import sibling_checkouts_kwargs
@@ -34,14 +34,14 @@ from .session_handoff import (
     DESKTOP,
     VR,
     HandoffTarget,
-    drop_crossing_cover,
+    drop_transition_screen,
     returning_from_a_crossing,
 )
 from .win32 import find_window_for_process, wait_for_window
 
-# A child of the orchestrator's own logger: the cover is up before the session
+# A child of the orchestrator's own logger: the loading screen is up before the session
 # has handlers of its own, and the launch's log is where its timing is read back.
-logger = logging.getLogger("fun_time.orchestrator.cover")
+logger = logging.getLogger("fun_time.orchestrator.loading_screen")
 
 WINDOW_WAIT_S = 5.0
 WINDOW_WAIT_UNDER_A_CROSSING_S = 20.0
@@ -49,10 +49,10 @@ EXIT_WAIT_S = 3.0
 
 
 @dataclass(frozen=True)
-class LoadingCover:
+class RaisedLoadingScreen:
     """The loading screen, or the absence of one on the path without a curtain."""
 
-    process: subprocess.Popen | None  # None where a run wants no cover at all
+    process: subprocess.Popen | None  # None where a run wants no loading screen at all
     progress: ProgressReporter
     progress_file: Path
     cancel_file: Path
@@ -62,7 +62,7 @@ class LoadingCover:
         return find_window_for_process(self.process.pid, WINDOW_TITLE)
 
     def take_it_down(self) -> None:
-        """DONE, then hold until the screen is off the monitors: a cover left
+        """DONE, then hold until the screen is off the monitors: a loading screen left
         standing outlives the launch by its whole staleness guard."""
         self.progress.finish()
         if self.process is not None:
@@ -74,8 +74,8 @@ class LoadingCover:
         self.progress_file.unlink(missing_ok=True)
 
 
-def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: str,
-                   cancelable: bool = True) -> LoadingCover:
+def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_checkouts: str,
+                   cancelable: bool = True) -> RaisedLoadingScreen:
     returning = returning_from_a_crossing(state_dir)
     esc_cancels = ("" if not cancelable
                    else DESKTOP.crossing_hint if returning
@@ -88,12 +88,12 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: s
     if turns_back_to is None:
         cancel_file.unlink(missing_ok=True)
     if not show_overlays:
-        return LoadingCover(None, NullProgress(), progress_file, cancel_file, turns_back_to)
+        return RaisedLoadingScreen(None, NullProgress(), progress_file, cancel_file, turns_back_to)
 
     progress = PhaseProgress(progress_file, cancel_file=cancel_file, hint=esc_cancels)
     progress_file.parent.mkdir(parents=True, exist_ok=True)
     progress.announce(STARTUP_PHASES[0].key)
-    handed = loading_screen.handed_over(os.environ)
+    handed = shared_loading_screen.handed_over(os.environ)
     environment = sibling_checkouts_kwargs(sibling_checkouts).get("env", dict(os.environ))
     loading_proc = subprocess.Popen(
         [
@@ -106,13 +106,13 @@ def open_the_cover(state_dir: Path, *, show_overlays: bool, sibling_checkouts: s
     )
     tie_to_this_process(loading_proc)
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
-    cover = LoadingCover(loading_proc, progress, progress_file, cancel_file, turns_back_to)
+    loading_screen = RaisedLoadingScreen(loading_proc, progress, progress_file, cancel_file, turns_back_to)
     wait_s = WINDOW_WAIT_UNDER_A_CROSSING_S if returning else WINDOW_WAIT_S
-    if overlay_hwnd := wait_for_window(cover.window, wait_s):
-        logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
+    if overlay_hwnd := wait_for_window(loading_screen.window, wait_s):
+        logger.info("Loading screen resolved (hwnd=%d)", overlay_hwnd)
     else:
-        logger.warning("The loading cover's window was not up after %.0fs; the launch "
+        logger.warning("The loading screen's window was not up after %.0fs; the launch "
                        "goes on while it comes up", wait_s)
     # Handed over here, not at the reveal, which it would sit on top of.
-    drop_crossing_cover(state_dir)
-    return cover
+    drop_transition_screen(state_dir)
+    return loading_screen

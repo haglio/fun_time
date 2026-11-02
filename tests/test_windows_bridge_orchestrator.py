@@ -31,7 +31,6 @@ from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed_message
 from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary
-from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
@@ -56,6 +55,7 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
 )
+from fun_time.raising_the_loading_screen import open_the_loading_screen
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -68,7 +68,7 @@ from fun_time.session_handoff import (
     keep_the_origenerator,
     kept_origenerator,
     pending_handoff,
-    raise_crossing_cover,
+    raise_transition_screen,
     request_handoff,
     take_handoff_request,
 )
@@ -105,32 +105,32 @@ from fun_time.windows_bridge_orchestrator import (
     seat_the_secondary_monitor,
     silence_the_funestras,
     stop_everything,
-    wait_for_voice_under_the_cover,
+    wait_for_voice_under_the_loading_screen,
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
-from tests.cover_beats import heard_from_again_once_stale
+from tests.loading_screen_beats import heard_from_again_once_stale
 from tests.role_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
 from tests.sleeps import sleeps_in
 from tests.test_windows_bridge_dispatch_loop import make_config
 
 
 def _a_session(**kwargs) -> SessionOver:
-    """A session the way a launch runs one: under a cover raised before it.
+    """A session the way a launch runs one: under a loading screen raised before it.
 
-    The cover goes up in :mod:`fun_time.orchestrator`, before the checks and the
+    The loading screen goes up in :mod:`fun_time.orchestrator`, before the checks and the
     imports that used to run over a bare desktop, and is handed to the session
     already standing -- so a test that opened one inside ``run_session`` would be
     driving a shape nothing launches.
     """
     env = kwargs.get("env", ORDINARY_SESSION)
-    cover = open_the_cover(
+    loading_screen = open_the_loading_screen(
         Path(kwargs["state_dir"]),
         show_overlays=env.show_overlays,
         sibling_checkouts=LaunchManifest.read(kwargs["manifest_path"]).runtime.sibling_checkouts,
         cancelable=kwargs.pop("cancelable", True),
     )
-    return run_session(cover=cover, **kwargs)
+    return run_session(loading_screen=loading_screen, **kwargs)
 
 
 def _fake_startup_result() -> StartupResult:
@@ -212,7 +212,7 @@ class TestFixPostLoadingWindows:
         """The Main Funestra is decoding its first frame at the reveal, so its
         promotion times out through the stalled-window guard exactly as a
         satellite's does — and a timed-out SetWindowPos lands when that window
-        next pumps, which is the second after the cover lifts.  He watched the
+        next pumps, which is the second after the loading screen lifts.  He watched the
         Main Funestra climb over the room there, so it is walked and re-promoted
         with the other two rather than only logged."""
         result = _fake_startup_result()
@@ -271,7 +271,7 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(333, True, under=0)
 
-    def test_a_funestra_still_buried_under_the_curtain_is_re_promoted_under_it(self):
+    def test_a_funestra_still_buried_under_the_loading_screen_is_re_promoted_under_it(self):
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
@@ -298,7 +298,7 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(222, True, under=77)
 
-    def test_the_room_is_banded_under_the_curtain_and_the_curtain_left_alone(self):
+    def test_the_room_is_banded_under_the_loading_screen_and_the_loading_screen_left_alone(self):
         """Under the overlay is where this pass belongs: the bands decide what
         the reveal looks like."""
         result = _fake_startup_result()
@@ -321,16 +321,16 @@ class TestFixPostLoadingWindows:
         assert apply.call_args.kwargs["beneath"] == 77
         sequencer_banding.assert_not_called()
 
-    def test_the_curtain_is_not_a_burial(self):
+    def test_the_loading_screen_is_not_a_burial(self):
         """The overlay covers both Funestras by design, so counting it as a
         covering window would spend every pass re-promoting Funestras that are
         exactly where they belong — and each promotion would put one over the
         curtain."""
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
-        curtain = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
+        loading_screen = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
                                 rect=(0, 0, 4000, 2560))
-        stack = [curtain,
+        stack = [loading_screen,
                  StackedWindow(hwnd=222, title="Landscape AI Funestra",
                                topmost=True, rect=(854, 0, 1706, 1410)),
                  StackedWindow(hwnd=111, title="Portrait AI Funestra",
@@ -347,15 +347,15 @@ class TestFixPostLoadingWindows:
             "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack,
         ), patch(
             "fun_time.windows_bridge_sequencer.set_always_on_top"
-        ) as cover_back, patch(
+        ) as loading_screen_back, patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ) as promote, sleeps_in(windows_bridge_orchestrator) as slept, patch(
             "fun_time.windows_bridge_orchestrator._log_window_obstruction"
         ):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
-        # Neither Funestra is buried, and the curtain itself is never touched.
-        cover_back.assert_not_called()
+        # Neither Funestra is buried, and the loading screen itself is never touched.
+        loading_screen_back.assert_not_called()
         promote.assert_not_called()
         slept.assert_not_called()
 
@@ -363,8 +363,8 @@ class TestFixPostLoadingWindows:
         """This pass no longer looks for the hosted app at all.
 
         It used to, because a session could open already in origenerator mode:
-        the curtain was held for that app's boot, its window restored under the
-        cover, and the shows banded here as the roles that cover the Funestras.
+        the loading screen was held for that app's boot, its window restored under the
+        loading screen, and the shows banded here as the roles that loading screen the Funestras.
         Every room opens in kino mode now -- the boot is what made a launch
         long -- so the app is still coming up when this runs, and its three
         windows are the dispatch loop's to find and band when it has them.
@@ -653,10 +653,10 @@ class TestHotkeySuspendDuringIntegration:
 
 
 class TestRunPythonOrchestratedBridge:
-    def test_the_cover_then_the_hotkeys_then_the_startup_then_the_closing_screen(
+    def test_the_loading_screen_then_the_hotkeys_then_the_startup_then_the_closing_screen(
         self, cfg_factory, tmp_path,
     ):
-        """The cover, the hotkeys, the startup sequence, the closing screen, in that
+        """The loading screen, the hotkeys, the startup sequence, the closing screen, in that
         order.  Only those four are recorded: the session starts other processes
         from its own threads meanwhile (the thumbnail warming, for one), at no fixed
         moment, and the patched Popen is the one every module shares."""
@@ -920,7 +920,7 @@ class TestRunPythonOrchestratedBridge:
 
         It goes down inside the closing screen, with the other stops, because
         ``shutdown()`` blocks until ``serve_forever`` returns and that pause
-        must happen under the cover.
+        must happen under the loading screen.
         """
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -1086,13 +1086,13 @@ class TestLoadingScreenLifecycle:
         loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
 
-    def test_the_record_decides_the_curtain_and_the_environment_does_not(
+    def test_the_record_decides_the_loading_screen_and_the_environment_does_not(
             self, cfg_factory, tmp_path):
         """Read once at the process edge: nothing downstream re-reads the switch.
 
         The environment here is a production one -- conftest strips
         FUN_TIME_RUN_INTEGRATION from every unit test -- so a session that still
-        skips the curtain can only have been told to by its argument.
+        skips the loading screen can only have been told to by its argument.
         """
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -1330,7 +1330,7 @@ class TestKeepingTheHostedApp:
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
             _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                           at_cover_up=esc)
+                           at_loading_screen_up=esc)
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
@@ -1357,7 +1357,7 @@ class TestKeepingTheHostedApp:
                    "let_go_of_a_kept_origenerator") as closed:
             state_dir = _run_a_session(
                 cfg_factory, tmp_path, events=[], asked_to_end=True,
-                at_cover_up=lambda: flag.write_text("cancel\n", encoding="utf-8"))
+                at_loading_screen_up=lambda: flag.write_text("cancel\n", encoding="utf-8"))
 
         assert closed.call_count == 1
         assert closed.call_args.args[0] == state_dir
@@ -1493,7 +1493,7 @@ class TestKeepingTheHostedApp:
 
 def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
                    env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
-                   at_cover_up=lambda: None, asked_to_end: bool = False,
+                   at_loading_screen_up=lambda: None, asked_to_end: bool = False,
                    overrides: dict | None = None,
                    launches: dict[str, dict] | None = None,
                    result: StartupResult | None = None,
@@ -1526,10 +1526,10 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
         ):
             if module not in str(cmd):
                 continue
-            events.append("cover_up")
-            at_cover_up()
+            events.append("loading_screen_up")
+            at_loading_screen_up()
             if ready:
-                # What a real cover does the moment it is painted.
+                # What a real loading screen does the moment it is painted.
                 ready_file_for(progress).write_text("", encoding="utf-8")
             return fake_overlay_proc
         if "loading_screen" in str(cmd):
@@ -1562,7 +1562,7 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
 
 
 class TestClosingScreenLifecycle:
-    """The session's windows go out under a cover, the way they came in under
+    """The session's windows go out under a loading screen, the way they came in under
     one: raised before the first kill, dropped after the last."""
 
     def test_the_closing_screen_goes_the_moment_the_fun_time_that_raised_it_does(
@@ -1580,7 +1580,7 @@ class TestClosingScreenLifecycle:
             seen_at_launch.append(
                 (tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8"))
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_line)
+        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=read_the_line)
 
         assert parse_progress(seen_at_launch[0]).message == SHUTDOWN_PHASES[0].message
 
@@ -1591,19 +1591,19 @@ class TestClosingScreenLifecycle:
 
         tie.assert_not_called()
 
-    def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
+    def test_the_loading_screen_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         _run_a_session(cfg_factory, tmp_path, events=events)
 
-        assert events[0] == "cover_up"
+        assert events[0] == "loading_screen_up"
         assert set(events[1:]) == {
             "close_browser", "kill:200", "kill:300", "kill:400",
             "kill:500", "kill:700", "kill:800",
         }
 
-    def test_every_sound_is_paused_before_the_cover_goes_up(self, cfg_factory, tmp_path):
-        paused_at_cover_up: dict[str, str] = {}
+    def test_every_sound_is_paused_before_the_loading_screen_goes_up(self, cfg_factory, tmp_path):
+        paused_at_loading_screen_up: dict[str, str] = {}
 
         def read_the_sound_flags():
             commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
@@ -1612,12 +1612,12 @@ class TestClosingScreenLifecycle:
                 commands.portrait_paused_file, commands.landscape_paused_file,
                 commands.origenerator_paused_file,
             )):
-                paused_at_cover_up[flag.name] = (
+                paused_at_loading_screen_up[flag.name] = (
                     flag.read_text(encoding="utf-8").strip() if flag.exists() else "unwritten")
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_sound_flags)
+        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=read_the_sound_flags)
 
-        assert paused_at_cover_up == {
+        assert paused_at_loading_screen_up == {
             "main_player_paused.txt": "1",
             "audio_paused.txt": "1",
             "portrait_paused.txt": "1",
@@ -1626,10 +1626,10 @@ class TestClosingScreenLifecycle:
         }
 
     @pytest.mark.parametrize("crossing", [None, VR], ids=["quit", "crossing"])
-    def test_the_robot_hand_stops_and_the_osr2_parks_before_the_cover_goes_up(
+    def test_the_robot_hand_stops_and_the_osr2_parks_before_the_loading_screen_goes_up(
         self, cfg_factory, tmp_path, crossing,
     ):
-        last_word_at_cover_up: dict[str, str] = {}
+        last_word_at_loading_screen_up: dict[str, str] = {}
 
         def read_the_device_channels():
             commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
@@ -1637,12 +1637,12 @@ class TestClosingScreenLifecycle:
                                   ("broker", commands.broker_cmd_file)):
                 lines = (Path(channel).read_text(encoding="utf-8").splitlines()
                          if Path(channel).exists() else ["unwritten"])
-                last_word_at_cover_up[name] = lines[-1].strip()
+                last_word_at_loading_screen_up[name] = lines[-1].strip()
 
         _run_a_session(cfg_factory, tmp_path, events=[], crossing=crossing,
-                       at_cover_up=read_the_device_channels)
+                       at_loading_screen_up=read_the_device_channels)
 
-        assert last_word_at_cover_up == {"genau": "PAUSE", "broker": "PARK"}
+        assert last_word_at_loading_screen_up == {"genau": "PAUSE", "broker": "PARK"}
 
     def test_a_session_ended_with_the_osr2_retracted_leaves_it_retracted(
         self, cfg_factory, tmp_path,
@@ -1650,31 +1650,31 @@ class TestClosingScreenLifecycle:
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True)
         write_shared_state(shared_state_path(state_dir), BridgeState(osr2_control=OSR2_RETRACTED))
-        broker_at_cover_up: list[str] = []
+        broker_at_loading_screen_up: list[str] = []
 
         def read_the_broker_channel():
             commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
-            broker_at_cover_up.append(
+            broker_at_loading_screen_up.append(
                 Path(commands.broker_cmd_file).read_text(encoding="utf-8").strip())
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_broker_channel)
+        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=read_the_broker_channel)
 
-        assert broker_at_cover_up == ["RETRACT"]
+        assert broker_at_loading_screen_up == ["RETRACT"]
 
     def test_nothing_the_session_still_runs_can_set_the_robot_hand_going_again(
         self, cfg_factory, tmp_path,
     ):
-        genau_under_the_cover: list[str] = []
+        genau_under_the_loading_screen: list[str] = []
 
         def let_five_dispatch_ticks_pass():
             commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
             time.sleep(0.25)
-            genau_under_the_cover.append(
+            genau_under_the_loading_screen.append(
                 Path(commands.genau_cmd_file).read_text(encoding="utf-8").splitlines()[-1])
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=let_five_dispatch_ticks_pass)
+        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=let_five_dispatch_ticks_pass)
 
-        assert genau_under_the_cover == ["PAUSE"]
+        assert genau_under_the_loading_screen == ["PAUSE"]
 
     def test_a_manifest_without_an_origenerator_flag_still_silences_the_rest(
         self, cfg_factory, tmp_path,
@@ -1707,8 +1707,8 @@ class TestClosingScreenLifecycle:
         assert [r.getMessage() for r in caplog.records] == [
             "The dispatch loop was still busy 1.0s after the session ended"]
 
-    def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path):
-        """A tkinter process needs a moment to boot, and a cover that is not on
+    def test_nothing_is_killed_until_the_loading_screen_says_it_is_painted(self, cfg_factory, tmp_path):
+        """A tkinter process needs a moment to boot, and a loading screen that is not on
         screen yet hides nothing — so teardown holds until the screen's own
         ready flag lands, not merely until its process has been spawned."""
         events: list[str] = []
@@ -1726,7 +1726,7 @@ class TestClosingScreenLifecycle:
 
         assert seen_when_killing == [True]
 
-    def test_the_cover_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path):
+    def test_the_loading_screen_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         real_advance = PhaseProgress.advance
@@ -1789,19 +1789,19 @@ class TestClosingScreenLifecycle:
 
         assert heard == [False]
 
-    def test_a_crossing_wears_the_transition_cover_and_leaves_it_standing(
+    def test_a_crossing_wears_the_transition_screen_and_leaves_it_standing(
         self, cfg_factory, tmp_path,
     ):
-        """The whole point of it: this session's cover has to outlive this
+        """The whole point of it: this session's loading screen has to outlive this
         session, or the monitors go bare while the other one starts up
         (docs/entering-vr.md).  The arriving session writes the DONE."""
         events: list[str] = []
 
         state_dir = _run_a_session(cfg_factory, tmp_path, events=events, crossing=VR)
 
-        assert events[0] == "cover_up"
+        assert events[0] == "loading_screen_up"
         progress = crossing_progress_path(state_dir)
-        assert progress.exists(), "the crossing cover was never raised"
+        assert progress.exists(), "the transition screen was never raised"
         assert progress.read_text(encoding="utf-8").strip() != "DONE"
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
@@ -1813,7 +1813,7 @@ class TestClosingScreenLifecycle:
         mailbox = state_dir / "ahk_cmd.txt"
         assert not (mailbox.exists() and mailbox.read_text(encoding="utf-8") == "exit")
 
-    def test_an_ordinary_quit_still_takes_its_own_cover_down(self, cfg_factory, tmp_path):
+    def test_an_ordinary_quit_still_takes_its_own_loading_screen_down(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         state_dir = _run_a_session(cfg_factory, tmp_path, events=events)
@@ -1829,7 +1829,7 @@ class TestClosingScreenLifecycle:
                                        .read_text(encoding="utf-8")).hint)
 
         _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                       at_cover_up=read_the_closing_line)
+                       at_loading_screen_up=read_the_closing_line)
 
         assert said == ["Press Esc to cancel closing Fun Time"]
 
@@ -1840,7 +1840,7 @@ class TestClosingScreenLifecycle:
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
         state_dir = _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                                   at_cover_up=esc)
+                                   at_loading_screen_up=esc)
 
         taken = take_handoff_request(state_dir)
         assert taken is not None, "Esc let the quit go on"
@@ -1854,54 +1854,54 @@ class TestClosingScreenLifecycle:
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\nquit\n", encoding="utf-8")
 
         state_dir = _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                                   at_cover_up=esc_then_the_quit_chord)
+                                   at_loading_screen_up=esc_then_the_quit_chord)
 
         assert pending_handoff(state_dir) is None
 
     def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path):
         """An integration run has no eyes on it and no desktop of its own to
-        cover — the same reason it skips the loading screen."""
+        loading screen — the same reason it skips the loading screen."""
         events: list[str] = []
 
         _run_a_session(cfg_factory, tmp_path, events=events,
                        env=SessionEnvironment(integration=True, show_overlays=False))
 
-        assert "cover_up" not in events
+        assert "loading_screen_up" not in events
 
-    @pytest.mark.parametrize("cover", ["loading_screen", "closing_screen", "transition_screen"])
-    def test_a_cover_runs_the_sibling_checkouts_the_session_names(
-        self, cfg_factory, tmp_path, cover,
+    @pytest.mark.parametrize("loading_screen", ["loading_screen", "closing_screen", "transition_screen"])
+    def test_a_loading_screen_runs_the_sibling_checkouts_the_session_names(
+        self, cfg_factory, tmp_path, loading_screen,
     ):
         sibling = tmp_path / "sibling_checkout"
         sibling.mkdir()
         launches: dict[str, dict] = {}
 
         _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
-                       crossing=VR if cover == "transition_screen" else None,
+                       crossing=VR if loading_screen == "transition_screen" else None,
                        overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
 
-        (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
+        (launched,) = [kwargs for command, kwargs in launches.items() if loading_screen in command]
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
 
-    @pytest.mark.parametrize("cover", ["loading_screen", "closing_screen", "transition_screen"])
-    def test_no_cover_opens_a_console_window_of_its_own(self, cfg_factory, tmp_path, cover):
-        """A cover is started through a named copy of whichever interpreter the
+    @pytest.mark.parametrize("loading_screen", ["loading_screen", "closing_screen", "transition_screen"])
+    def test_no_loading_screen_opens_a_console_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
+        """A loading screen is started through a named copy of whichever interpreter the
         session runs under, and that is the CONSOLE one for a session launch.vbs
         started -- while a session the crossing relay started has no console at
         all, so Windows gives such a child a console window on screen.  The flag
         says no console; the absence of a startupinfo is the other half, since
-        the hiding one would hide the cover's own window too."""
+        the hiding one would hide the loading screen's own window too."""
         launches: dict[str, dict] = {}
 
         _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
-                       crossing=VR if cover == "transition_screen" else None)
+                       crossing=VR if loading_screen == "transition_screen" else None)
 
-        (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
+        (launched,) = [kwargs for command, kwargs in launches.items() if loading_screen in command]
         assert launched["creationflags"] & subprocess.CREATE_NO_WINDOW
         assert "startupinfo" not in launched
 
-    def test_the_way_back_cover_runs_those_checkouts_too(self, cfg_factory, tmp_path):
-        """Esc on the closing screen raises a cover of its own, and one that
+    def test_the_way_back_screen_runs_those_checkouts_too(self, cfg_factory, tmp_path):
+        """Esc on the closing screen raises a loading screen of its own, and one that
         cannot import the branch's siblings never comes up at all."""
         sibling = tmp_path / "sibling_checkout"
         sibling.mkdir()
@@ -1910,7 +1910,7 @@ class TestClosingScreenLifecycle:
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True, at_cover_up=esc,
+        _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True, at_loading_screen_up=esc,
                        launches=launches,
                        overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
 
@@ -2039,7 +2039,7 @@ def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
     state_dir = tmp_path / "state"
-    raise_crossing_cover(state_dir, DESKTOP)
+    raise_transition_screen(state_dir, DESKTOP)
     (state_dir / CANCEL_FILENAME).write_text(f"{word}\n", encoding="utf-8")
     if before is not None:
         before(state_dir)
@@ -2262,7 +2262,7 @@ class TestStartupCancellation:
 
         def launched(cmd, **_kwargs):
             if "transition_screen" in str(cmd):
-                events.append("way back cover")
+                events.append("way back screen")
             return MagicMock()
 
         def finished(self):
@@ -2273,12 +2273,12 @@ class TestStartupCancellation:
             state_dir = _cancel_a_launch_arriving_from_vr(
                 cfg_factory, tmp_path, word="cancel", popen=launched)
 
-        assert "way back cover" in events, "the monitors were left bare"
-        assert events.index("way back cover") < events.index("loading screen down")
+        assert "way back screen" in events, "the monitors were left bare"
+        assert events.index("way back screen") < events.index("loading screen down")
         line = parse_progress(crossing_progress_path(state_dir).read_text(encoding="utf-8"))
         assert (line.message, line.hint, line.done) == (CANCELING, "", False)
 
-    def test_that_cover_runs_the_sibling_checkouts_the_session_names(
+    def test_that_loading_screen_runs_the_sibling_checkouts_the_session_names(
         self, cfg_factory, tmp_path,
     ):
         sibling = tmp_path / "sibling_checkout"
@@ -2742,7 +2742,7 @@ class TestMainFunestraObstructionLog:
         assert "unresolved" in caplog.text
 
     def test_quiet_when_only_the_loading_overlay_covers_main_funestra(self, caplog):
-        """The cover is over everything on purpose while this runs under it."""
+        """The loading screen is over everything on purpose while this runs under it."""
         stack = [
             StackedWindow(hwnd=1010, title="Fun Time is starting", topmost=True,
                           rect=(0, 0, 4000, 3440)),
@@ -3045,13 +3045,13 @@ class TestOrigeneratorGracefulClose:
         close.assert_not_called()
 
 
-class TestTheFinishingPassFitsUnderTheCover:
+class TestTheFinishingPassFitsUnderTheLoadingScreen:
     def test_it_cannot_outlast_the_covers_staleness_guard(self):
-        """The room is banded and settled under the cover, and the cover comes
+        """The room is banded and settled under the loading screen, and the loading screen comes
         down on the DONE written at the end of that.  Nothing writes the progress
-        file in between, so the cover's staleness guard — its protection against
+        file in between, so the loading screen's staleness guard — its protection against
         an orchestrator that died holding the screen — is running the whole time.
-        Outlast it and the cover takes itself down mid-pass, which is the user
+        Outlast it and the loading screen takes itself down mid-pass, which is the user
         watching the z-order sort itself out: the exact thing it is up for.
 
         Every wait that pass can take, added up, has to clear that guard.  Four
@@ -3065,15 +3065,15 @@ class TestTheFinishingPassFitsUnderTheCover:
         assert budget < STALE_TIMEOUT_S
 
 
-class TestTheFunestrasStartWhenTheCoverIsGone:
-    """The Main Funestra's video and Genau's flicks must not run under the cover.
+class TestTheFunestrasStartWhenTheLoadingScreenIsGone:
+    """The Main Funestra's video and Genau's flicks must not run under the loading screen.
 
     The phase walk used to release them as its last act, which was also the
-    moment the cover came down {D} so they lined up.  Now the cover is held
+    moment the loading screen came down {D} so they lined up.  Now the loading screen is held
     through the finishing pass, and releasing with the phases would mean the
     video (and the audio, which he can hear through nothing) running for seconds
     under a scrim, its opening spent before he can see it.  So the release is
-    the orchestrator's, and it comes after the cover's process is gone.
+    the orchestrator's, and it comes after the loading screen's process is gone.
     """
 
     def _run(self, cfg_factory, tmp_path):
@@ -3086,7 +3086,7 @@ class TestTheFunestrasStartWhenTheCoverIsGone:
         fake_ahk_proc = MagicMock()
         fake_ahk_proc.wait.return_value = 0
         fake_loading_proc = MagicMock()
-        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("loading screen gone")
 
         def fake_popen(cmd, **kwargs):
             return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
@@ -3109,12 +3109,12 @@ class TestTheFunestrasStartWhenTheCoverIsGone:
             )
         return events
 
-    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path):
+    def test_the_release_waits_for_the_loading_screen_to_go(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path)
 
         assert "Funestras released" in events, "the Funestras were never started"
-        assert events.index("cover gone") < events.index("Funestras released"), (
-            "the Funestras were started while the cover was still up"
+        assert events.index("loading screen gone") < events.index("Funestras released"), (
+            "the Funestras were started while the loading screen was still up"
         )
 
 
@@ -3155,8 +3155,8 @@ class TestALoadingScreenSlowerThanTheLaunchsWait:
                    return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                    side_effect=fake_popen), \
-             patch("fun_time.loading_cover.wait_for_window", return_value=0), \
-             patch("fun_time.loading_cover.find_window_for_process",
+             patch("fun_time.raising_the_loading_screen.wait_for_window", return_value=0), \
+             patch("fun_time.raising_the_loading_screen.find_window_for_process",
                    side_effect=up_by_the_finishing_pass), \
              patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
                    side_effect=the_finishing_pass), \
@@ -3185,7 +3185,7 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
         fake_ahk_proc = MagicMock()
         fake_ahk_proc.wait.return_value = 0
         fake_loading_proc = MagicMock()
-        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("loading screen gone")
 
         def fake_popen(cmd, **kwargs):
             return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
@@ -3195,9 +3195,9 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
             controller = MagicMock()
 
             def waited(_timeout):
-                cover_says = parse_progress(
+                loading_screen_says = parse_progress(
                     (state_dir / PROGRESS_FILENAME).read_text(encoding="utf-8")).message
-                events.append(f"waited for voice under {cover_says!r}")
+                events.append(f"waited for voice under {loading_screen_says!r}")
                 return True
 
             controller.done_starting.wait.side_effect = waited
@@ -3222,34 +3222,34 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
             )
         return events
 
-    def test_the_cover_comes_down_once_voice_commands_listen_and_says_so_meanwhile(
+    def test_the_loading_screen_comes_down_once_voice_commands_listen_and_says_so_meanwhile(
             self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path)
 
         assert events == [
             "voice started",
             f"waited for voice under {STARTING_VOICE_COMMANDS.message!r}",
-            "cover gone",
+            "loading screen gone",
         ]
 
-    def test_the_cover_stays_up_however_long_voice_commands_take_to_listen(self, tmp_path):
+    def test_the_loading_screen_stays_up_however_long_voice_commands_take_to_listen(self, tmp_path):
         progress_file = tmp_path / PROGRESS_FILENAME
         controller = MagicMock()
         heard = []
         controller.done_starting.wait.side_effect = lambda _timeout: heard.append(
             heard_from_again_once_stale(progress_file, stale_after_s=STALE_TIMEOUT_S)) or True
 
-        wait_for_voice_under_the_cover(controller, progress=PhaseProgress(progress_file))
+        wait_for_voice_under_the_loading_screen(controller, progress=PhaseProgress(progress_file))
 
         assert heard == [True]
 
-    def test_voice_commands_that_never_listen_hold_the_cover_only_until_the_budget(
+    def test_voice_commands_that_never_listen_hold_the_loading_screen_only_until_the_budget(
             self, caplog):
         controller = MagicMock()
         controller.done_starting.wait.return_value = False
 
         with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_orchestrator"):
-            wait_for_voice_under_the_cover(controller, progress=NullProgress())
+            wait_for_voice_under_the_loading_screen(controller, progress=NullProgress())
 
         controller.done_starting.wait.assert_called_once_with(VOICE_START_BUDGET_S)
         assert "Voice commands were not listening after 30s" in caplog.text
@@ -3257,13 +3257,13 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
     def test_a_session_without_voice_commands_never_says_it_is_starting_them(self):
         progress = MagicMock()
 
-        wait_for_voice_under_the_cover(None, progress=progress)
+        wait_for_voice_under_the_loading_screen(None, progress=progress)
 
         progress.announce.assert_not_called()
 
 
 class TestARoomLeftInOrigeneratorMode:
-    """It opens already in that mode: the cover stays up while the hosted app
+    """It opens already in that mode: the loading screen stays up while the hosted app
     finishes starting, and the switch happens under it."""
 
     def _run(self, cfg_factory, tmp_path, *, the_app_answers: bool) -> list[str]:
@@ -3289,7 +3289,7 @@ class TestARoomLeftInOrigeneratorMode:
         fake_ahk_proc = MagicMock()
         fake_ahk_proc.wait.return_value = 0
         fake_loading_proc = MagicMock()
-        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("loading screen gone")
 
         def fake_popen(cmd, **kwargs):
             return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
@@ -3329,20 +3329,20 @@ class TestARoomLeftInOrigeneratorMode:
         assert "rfb out of the band" in events
         assert "rfb in the band" not in events
 
-    def test_the_slideshows_are_asked_for_before_the_cover_comes_down(self, cfg_factory, tmp_path):
+    def test_the_slideshows_are_asked_for_before_the_loading_screen_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
         assert "portrait_open_slideshow" in events, "the room never came back to origenerator mode"
-        assert events.index("portrait_open_slideshow") < events.index("cover gone"), (
+        assert events.index("portrait_open_slideshow") < events.index("loading screen gone"), (
             "the mode was taken up after the room was already his"
         )
 
-    def test_the_wait_is_named_on_the_cover_before_the_line_that_fills_the_bar(self):
+    def test_the_wait_is_named_on_the_loading_screen_before_the_line_that_fills_the_bar(self):
         """So the bar is still filling while the room waits, and "Finalizing..."
         is the last thing it says before the room is shown."""
         source = inspect.getsource(windows_bridge_orchestrator._reveal_the_room)
 
-        assert source.index("before_the_cover_goes()") < source.index('advance("finalizing")')
+        assert source.index("before_the_loading_screen_goes()") < source.index('advance("finalizing")')
         assert (source.index('advance("finalizing")')
                 < source.index("_fix_post_loading_windows")), (
             "the dashboard shows itself on the full bar, and the pass waits for its window"
@@ -3353,16 +3353,16 @@ class TestARoomLeftInOrigeneratorMode:
              patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_POLL_S", 0.01):
             events = self._run(cfg_factory, tmp_path, the_app_answers=False)
 
-        assert "cover gone" in events, "the room never opened"
+        assert "loading screen gone" in events, "the room never opened"
         assert "portrait_open_slideshow" not in events, (
             "the slideshows were asked for with no app to show them")
 
-    def test_the_wait_writes_the_cover_progress_more_often_than_its_staleness_guard(self):
+    def test_the_wait_writes_the_loading_screen_progress_more_often_than_its_staleness_guard(self):
         assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S
 
 
 class TestTheSessionEndsOnItsMarker:
-    """Ending a session leaves the hotkey script running over the closing cover,
+    """Ending a session leaves the hotkey script running over the closing screen,
     where Esc can still call the end off -- so the orchestrator cannot wait for
     the script to exit.  The marker it leaves is the end."""
 

@@ -599,7 +599,7 @@ class TestRunStartupSequence:
 
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
         # Handed on, because the orchestrator starts the mode's Funestra once the
-        # cover is gone.
+        # loading screen is gone.
         assert result.main_mode is MainMode.GENAU
 
     def test_a_genau_session_is_revealed_by_starting_genau_not_main_funestra(self, cfg_factory, tmp_path):
@@ -773,7 +773,7 @@ class TestTheOrderInsideTheStartupPhases:
             self, cfg_factory, tmp_path):
         """Startup holds every Funestra so nothing plays into a room that is
         still being built; the release is therefore the last thing the phases
-        do on the path with no cover to hide under."""
+        do on the path with no loading screen to hide under."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order[-1] == "release"
@@ -781,8 +781,8 @@ class TestTheOrderInsideTheStartupPhases:
 
     def test_a_covered_startup_releases_nothing_at_all(self, cfg_factory, tmp_path):
         """With a loading screen the release belongs to the orchestrator, once
-        the cover is off the screen: released here, a video (and Genau's audio)
-        runs under the cover and its first seconds are gone unseen."""
+        the loading screen is off the screen: released here, a video (and Genau's audio)
+        runs under the loading screen and its first seconds are gone unseen."""
         order = self._sequence(cfg_factory, tmp_path, hide_windows=True)
 
         assert "release" not in order
@@ -938,14 +938,14 @@ class TestLoadingScreenStartup:
         }
 
 
-class TestTheRoomIsBandedUnderTheCover:
-    """A promotion made while the cover is up goes straight under it, so no
-    window is ever over the cover waiting for the cover to take the top back --
+class TestTheRoomIsBandedUnderTheLoadingScreen:
+    """A promotion made while the loading screen is up goes straight under it, so no
+    window is ever over the loading screen waiting for the loading screen to take the top back --
     which, on a loaded machine, it does late."""
 
     ROLE_HWNDS: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
                   "main_funestra": 55}
-    COVER = 999
+    LOADING_SCREEN = 999
 
     def _calls(self, **kwargs):
         calls: list[tuple[int, bool, int]] = []
@@ -954,31 +954,31 @@ class TestTheRoomIsBandedUnderTheCover:
             windows_bridge_sequencer.apply_topmost_bands(dict(self.ROLE_HWNDS), **kwargs)
         return calls
 
-    def test_every_promotion_names_the_cover_to_sit_under(self):
-        promotions = [(h, under) for h, on, under in self._calls(beneath=self.COVER) if on]
+    def test_every_promotion_names_the_loading_screen_to_sit_under(self):
+        promotions = [(h, under) for h, on, under in self._calls(beneath=self.LOADING_SCREEN) if on]
 
         assert promotions, "nothing was promoted, so this proves nothing"
-        assert all(under == self.COVER for _h, under in promotions)
+        assert all(under == self.LOADING_SCREEN for _h, under in promotions)
 
     def test_the_walk_still_promotes_in_role_order(self):
-        """Each lands directly under the cover, so the last one promoted is still
+        """Each lands directly under the loading screen, so the last one promoted is still
         the highest: the order is what puts the hosted window over the browser."""
-        banded = [h for h, on, _under in self._calls(beneath=self.COVER) if on]
+        banded = [h for h, on, _under in self._calls(beneath=self.LOADING_SCREEN) if on]
         plain = [h for h, on, _under in self._calls() if on]
 
         assert banded == plain
 
     def test_the_walk_touches_only_the_windows_it_bands(self):
-        assert {h for h, _on, _under in self._calls(beneath=self.COVER)} <= set(
+        assert {h for h, _on, _under in self._calls(beneath=self.LOADING_SCREEN)} <= set(
             self.ROLE_HWNDS.values())
 
-    def test_without_a_cover_a_promotion_goes_to_the_top_of_the_band(self):
-        """The re-band after the cover has gone, and the path with no cover."""
+    def test_without_a_loading_screen_a_promotion_goes_to_the_top_of_the_band(self):
+        """The re-band after the loading screen has gone, and the path with no loading screen."""
         assert all(under == 0 for _h, _on, under in self._calls())
 
     def test_a_room_opening_with_origenerator_in_the_browsers_place_keeps_the_browser_under_it(
             self):
-        for beneath in (self.COVER, 0):
+        for beneath in (self.LOADING_SCREEN, 0):
             calls = self._calls(beneath=beneath, rfb_slot=RfbSlot.ORIGENERATOR)
             assert [on for h, on, _under in calls if h == self.ROLE_HWNDS["rfb"]] == [False]
 
@@ -989,7 +989,7 @@ class TestPhase4Reveal:
     def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
                     mode="kino"):
         title_map = title_to_hwnd or {"Fun Time": 5050, "Main Funestra": 2525}
-        # Both Funestras reporting frames: the curtain waits for that before it
+        # Both Funestras reporting frames: the loading screen waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
         # anything into it), so a run with no status files would hold it up.
         manifest = configparser.ConfigParser()
@@ -1009,13 +1009,13 @@ class TestPhase4Reveal:
             )
 
     def test_every_funestra_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
-        """The path with a cover does not start playing when its phases end.
+        """The path with a loading screen does not start playing when its phases end.
 
         The finishing pass — the bands, the settle — runs after this and under
-        the cover, so a Funestra released here plays for seconds he can neither see
-        nor hear, and the opening of the video is gone by the time the cover
+        the loading screen, so a Funestra released here plays for seconds he can neither see
+        nor hear, and the opening of the video is gone by the time the loading screen
         lifts.  The orchestrator calls ``release_the_funestras`` itself, once the
-        cover is off the screen.
+        loading screen is off the screen.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
@@ -1027,7 +1027,7 @@ class TestPhase4Reveal:
             assert flag.read_text(encoding="utf-8").strip() == "1", flag.name
 
     def test_the_release_starts_the_funestras_the_mode_shows(self, cfg_factory, tmp_path):
-        """And what the orchestrator calls once the cover is gone does start them:
+        """And what the orchestrator calls once the loading screen is gone does start them:
         The Main Funestra in kino mode, with Genau and its audio alongside."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
@@ -1723,7 +1723,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     It used to, and that wait WAS the length of a launch: the app's window
     lands ten to thirty seconds after its launch against five to eight for
     everything else, so every session sat on "Waiting for Origenerator..."
-    long after the room under the cover was finished.  The room opens in video
+    long after the room under the loading screen was finished.  The room opens in video
     mode instead and the app goes on booting out of sight; the dispatch loop
     opens its mode up once it answers.
     """
@@ -1761,7 +1761,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
 
     def test_the_sequencer_can_no_longer_reach_the_hosted_window_at_all(self):
-        """The window lookups it used to hold the curtain with are gone from the
+        """The window lookups it used to hold the loading screen with are gone from the
         module, which is the part a comment could not keep true."""
         assert not hasattr(windows_bridge_sequencer, "find_window_for_process")
         assert not hasattr(windows_bridge_sequencer, "restore_window")

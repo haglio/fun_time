@@ -32,7 +32,7 @@ in either orchestrator:
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
 | The mic being off | yes, from the room's state |
-| Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the cover before the room is shown |
+| Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the loading screen before the room is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
@@ -121,29 +121,29 @@ session raises go with it — so the monitors went bare between them, and the
 first thing "enter VR" showed was the desktop closing and FunTimeVR starting up
 in the space it left.
 
-The crossing cover is what spans that stretch. It is raised by the session that
+The transition screen is what spans that stretch. It is raised by the session that
 is LEAVING and taken down by the one that ARRIVES, which is the one thing the
 closing screen cannot do:
 
 - **Entering VR.** The desktop's teardown raises it instead of its closing
   screen, saying "Entering VR...", and leaves it standing. FunTimeVR's own
-  loading cover comes up in the headset meanwhile, so both devices are covered
-  at once. The cover comes down when the VR session reveals — the headset is
+  loading screen comes up in the headset meanwhile, so both devices are covered
+  at once. The loading screen comes down when the VR session reveals — the headset is
   showing content by then, which is the moment it was waiting for.
-- **Leaving VR.** FunTimeVR's teardown cover hangs in the headset, so the
-  monitors get a crossing cover of their own, saying "Returning to Fun Time...".
+- **Leaving VR.** FunTimeVR's teardown loading screen hangs in the headset, so the
+  monitors get a transition screen of their own, saying "Returning to Fun Time...".
   The arriving desktop session hands over to its own loading screen the moment
-  that is painted, rather than at its reveal, where a crossing cover would spend
+  that is painted, rather than at its reveal, where a transition screen would spend
   the whole startup sitting on top of it.
 
-`fun_time.transition_screen` is the cover itself; `fun_time.session_handoff`
+`fun_time.transition_screen` is the loading screen itself; `fun_time.session_handoff`
 raises and drops it. A relay whose crossing failed drops it too, so a session
-that never arrived does not leave the monitors covered; the cover's own
+that never arrived does not leave the monitors covered; the loading screen's own
 staleness timeout is the backstop for a relay that died outright.
 
 ### The headset's half
 
-The headset's cover is drawn by the headset, and the Funestra is the last thing
+The headset's loading screen is drawn by the headset, and the Funestra is the last thing
 a teardown kills -- so leaving the headset covered means keeping the Funestra
 alive past its own session. Its roles hold the very status and command files the
 arriving desktop session claims, which is why the hold is a handshake rather
@@ -155,7 +155,7 @@ than a delay:
    dispatch controls and killing the audio companion, so the Funestra spends
    those seconds letting go instead of waiting them out and starting after.
 2. The Funestra breaks its frame loop, stops both worker threads and closes every
-   unit but the cover. Only then does it answer with `vr_headset_held.flag`.
+   unit but the loading screen. Only then does it answer with `vr_headset_held.flag`.
    That close is guarded one unit at a time, the way the pump beside it is: a
    raise in any of them ended the teardown where it stood, and the answer never
    came at all.
@@ -165,7 +165,7 @@ than a delay:
    exited ends the wait then and there rather than at the deadline: nobody is
    left to write the answer, and every second of that wait is the desktop room
    not coming back.
-4. The Funestra keeps presenting the cover, which reads "Returning to Fun Time..."
+4. The Funestra keeps presenting the loading screen, which reads "Returning to Fun Time..."
    and is exempt from the staleness rule the others obey: nothing is writing its
    progress file, because the session that would have is gone.
 5. The arriving desktop session deletes the flag at its reveal, the moment the
@@ -176,14 +176,14 @@ A relay whose crossing failed releases the hold too, and the Funestra gives up o
 its own after three minutes: a headset under a panel forever is worse than the
 runtime's own view.
 
-## Esc calls off what a cover is covering
+## Esc calls off what a loading screen is covering
 
-Every cover says what Esc would cancel, and takes one Esc:
+Every loading screen says what Esc would cancel, and takes one Esc:
 
 - **Opening Fun Time or Fun Time VR** — the launch comes down and nothing opens.
 - **Entering VR** — the room goes back to Fun Time.
 - **Exiting VR** — the room goes back into Fun Time VR.
-- **Closing Fun Time or Fun Time VR** — the teardown finishes under its cover
+- **Closing Fun Time or Fun Time VR** — the teardown finishes under its loading screen
   and the same app opens again.
 
 Going back is a crossing of its own, started with `--no-cancel`: its covers
@@ -195,7 +195,7 @@ Esc is heard by the hotkey script, which needs no focus, and lands as the word
 script outlives the session that started it: the relay reads the flag once
 that session has let go, and the arriving session's own script replaces it
 (`#SingleInstance Force`). If nothing arrives, the script exits by itself once
-its orchestrator is gone and the crossing cover's file is done or stale. On
+its orchestrator is gone and the transition screen's file is done or stale. On
 the way back into VR the old Funestra holds the headset covered until the new
 session reaps it.
 
@@ -230,7 +230,7 @@ Funestras' own playlists, and the headset's satellites are Funestras
 it: the app's own window).
 The curtain waits for it only where the last session left Origenerator holding
 something -- a satellite in its Origenerator mode, or the Random Favs Browser's
-place: such a room holds its cover up until the app publishes a status, puts
+place: such a room holds its loading screen up until the app publishes a status, puts
 Origenerator back on what it held under it and opens already that way
 ([resuming-a-session.md](resuming-a-session.md)), while a room Origenerator held
 nothing of waits for nothing. A boot still costs a minute of
@@ -262,29 +262,29 @@ desktop session took over from an Origenerator that was already open is sent
 `RELEASE` and goes back to being a window of its own; a copy a session
 launched is closed. A record whose process is gone is simply forgotten.
 
-## What each cover waits on
+## What each loading screen waits on
 
-Every cover reads a progress file and gives up on one that stops moving, so
+Every loading screen reads a progress file and gives up on one that stops moving, so
 that a headset or a monitor is never left under a panel nothing will ever take
 down. The timeouts differ because what they are waiting out differs:
 
-- **The VR startup cover** (`STARTUP_STALE_TIMEOUT_S`, 120s) matches the
+- **The VR startup loading screen** (`STARTUP_STALE_TIMEOUT_S`, 120s) matches the
   orchestrator's own patience with the Funestra: startup's last phase writes
-  nothing for the length of it, and the cover cannot appear at all before the
+  nothing for the length of it, and the loading screen cannot appear at all before the
   Funestra holds an OpenXR session, well into "Waiting for Funestras...".
-- **The VR shutdown cover** (20s), like the desktop's closing screen, is kept
+- **The VR shutdown loading screen** (20s), like the desktop's closing screen, is kept
   up by the teardown itself while it waits for a part to end: it moves the
   file's time once a second then, so a part slow to end never uncovers the room.
   Anywhere else twenty seconds without a new step means the orchestrator died or
-  is stuck, and the cover goes rather than hold him in front of it for good.
-- **A held cover** is exempt: nothing is writing its file, because the session
+  is stuck, and the loading screen goes rather than hold him in front of it for good.
+- **A held loading screen** is exempt: nothing is writing its file, because the session
   that would have is gone.
-- **The crossing cover** on the monitors waits 20s too, kept up the same way by
+- **The transition screen** on the monitors waits 20s too, kept up the same way by
   each process the crossing passes through.
 
 `SceneReady` is a different question — whether the room is on screen, which a
 desktop orchestrator sees for itself and a headset cannot report. The dwell (2s)
-is how long the cover must have been drawn to the headset before the room may be
+is how long the loading screen must have been drawn to the headset before the room may be
 revealed; without one the loading screen was over before anyone had it on, which
 is what its first verifications saw — nothing at all. The grace (25s) is the cap
 on a screen that never gets a frame at all, which a satellite with an empty
@@ -297,8 +297,8 @@ grace for as long as he left it closed.
 Until 2026-10-13 the dwell counted only the frames that reached a WORN headset,
 and that cost the reveal the whole grace in 26 of the 40 sessions before it. He
 launches the room from the desktop and picks the headset up later, so nothing
-counted until he did: the room was full in two seconds, the crossing cover sat
+counted until he did: the room was full in two seconds, the transition screen sat
 on his monitors for twenty-five, and the give-up line blamed a blank screen that
-was never blank. Where the cover HANGS is still the wearer's question and still
+was never blank. Where the loading screen HANGS is still the wearer's question and still
 waits for one — latched on a frame nobody was at, the panel sits off to the side
 of wherever he is looking when he does put the headset on.

@@ -62,7 +62,7 @@ class TestOrigeneratorRoles:
 
     def test_the_browser_leaves_the_band_while_the_hosted_window_covers_it(self):
         """Promoting a window that is completely covered only puts it briefly
-        ABOVE its cover — HWND_TOPMOST inserts at the top of the band — so every
+        ABOVE its loading screen — HWND_TOPMOST inserts at the top of the band — so every
         re-band flashed the browser over Origenerator on its way past."""
         assert role_topmost("rfb", RfbSlot.RFB) is True
         assert role_topmost("rfb", RfbSlot.ORIGENERATOR) is False

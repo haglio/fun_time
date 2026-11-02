@@ -1,5 +1,5 @@
 """The headset's frame loop, run against a session, a renderer and a room that
-need no headset: what each frame shows, the cover, and the way the room comes down."""
+need no headset: what each frame shows, the loading screen, and the way the room comes down."""
 from __future__ import annotations
 
 import logging
@@ -12,22 +12,22 @@ import pytest
 
 from fun_time.session_handoff import headset_is_held, release_the_headset
 from fun_time.session_handoff import hold_the_headset as ask_for_the_hold
-from fun_time_vr.cover import COVER_CLEAR
 from fun_time_vr.frame_loop import (
-    FIRST_COVER_TIMEOUT_S,
+    FIRST_LOADING_SCREEN_TIMEOUT_S,
     HEADSET_HOLD_TIMEOUT_S,
-    TEARDOWN_COVER_TIMEOUT_S,
+    TEARDOWN_LOADING_SCREEN_TIMEOUT_S,
     FrameLoop,
     Headset,
     QuadLayer,
-    cover_the_teardown,
+    closing_screen_over_the_teardown,
     hold_the_headset,
-    present_the_cover,
-    raise_the_cover,
+    present_the_loading_screen,
+    raise_the_loading_screen,
     refresh_quad_layer,
     tear_down,
 )
 from fun_time_vr.funestras import Arranged
+from fun_time_vr.loading_screen import LOADING_SCREEN_CLEAR
 
 
 def _a_view(*, yaw_deg: float = 0.0):
@@ -131,8 +131,8 @@ def _a_headset(session=None, renderer=None) -> Headset:
     return Headset(session or _ASession(), renderer or _ARenderer(), _APerf())
 
 
-class _ACover:
-    """The cover as the loop reads it: what it shows, and what it is told."""
+class _ALoadingScreen:
+    """The loading screen as the loop reads it: what it shows, and what it is told."""
 
     def __init__(self, *, showing=True, wanted=True, screen_ready=True):
         self.showing = showing
@@ -140,7 +140,7 @@ class _ACover:
         self.holding = False
         self.anchor_settled = False
         self.anchor = SimpleNamespace(held=None, heading=self._heading)
-        self.screen = SimpleNamespace(ready=screen_ready, mesh="cover-mesh")
+        self.screen = SimpleNamespace(ready=screen_ready, mesh="loading-screen-mesh")
         self.texture = SimpleNamespace(texture=7)
         self.told: list[str] = []
 
@@ -181,59 +181,59 @@ def _a_frame(*, rendering=True, at=5, views=_BOTH_EYES):
     return (rendering, at, list(views) if rendering else [])
 
 
-class TestPresentingTheCover:
-    def test_a_frame_the_runtime_will_show_gets_the_cover_in_both_eyes(self):
-        session, renderer, cover = _ASession(_a_frame(at=5)), _ARenderer(), _ACover()
+class TestPresentingTheLoadingScreen:
+    def test_a_frame_the_runtime_will_show_gets_the_loading_screen_in_both_eyes(self):
+        session, renderer, loading_screen = _ASession(_a_frame(at=5)), _ARenderer(), _ALoadingScreen()
 
-        assert present_the_cover(_a_headset(session, renderer), cover) is True
-        assert renderer.begun == [COVER_CLEAR, COVER_CLEAR]
-        assert renderer.screens == [("cover-mesh", 7), ("cover-mesh", 7)]
+        assert present_the_loading_screen(_a_headset(session, renderer), loading_screen) is True
+        assert renderer.begun == [LOADING_SCREEN_CLEAR, LOADING_SCREEN_CLEAR]
+        assert renderer.screens == [("loading-screen-mesh", 7), ("loading-screen-mesh", 7)]
         assert session.ended == [(5, True, [])]
 
     def test_a_frame_the_runtime_will_not_show_is_ended_with_nothing_in_it(self):
         session, renderer = _ASession(_a_frame(rendering=False, at=5)), _ARenderer()
 
-        assert present_the_cover(_a_headset(session, renderer), _ACover()) is False
+        assert present_the_loading_screen(_a_headset(session, renderer), _ALoadingScreen()) is False
         assert renderer.begun == []
         assert session.ended == [(5, False, [])]
 
-    def test_a_cover_with_nothing_painted_yet_does_not_reach_the_eyes(self):
+    def test_a_loading_screen_with_nothing_painted_yet_does_not_reach_the_eyes(self):
         session = _ASession(_a_frame())
 
-        assert present_the_cover(_a_headset(session), _ACover(showing=False)) is False
+        assert present_the_loading_screen(_a_headset(session), _ALoadingScreen(showing=False)) is False
         assert session.ended == [(5, False, [])]
 
-    def test_a_session_that_refuses_the_frame_costs_nothing_but_the_cover(self):
+    def test_a_session_that_refuses_the_frame_costs_nothing_but_the_loading_screen(self):
         session = _ASession()
         session.frame_begin = lambda: (_ for _ in ()).throw(RuntimeError("gone"))
 
-        assert present_the_cover(_a_headset(session), _ACover()) is False
+        assert present_the_loading_screen(_a_headset(session), _ALoadingScreen()) is False
 
-    def test_the_cover_is_placed_once_at_the_heading_he_faces(self, caplog):
-        cover = _ACover()
+    def test_the_loading_screen_is_placed_once_at_the_heading_he_faces(self, caplog):
+        loading_screen = _ALoadingScreen()
         headset = _a_headset(_ASession(_a_frame(views=[_a_view(yaw_deg=90.0)] * 2), _a_frame()))
 
         with caplog.at_level(logging.INFO, logger="fun_time_vr.frame_loop"):
-            present_the_cover(headset, cover)
-            present_the_cover(headset, cover)
+            present_the_loading_screen(headset, loading_screen)
+            present_the_loading_screen(headset, loading_screen)
 
-        assert [m for m in caplog.messages if m.startswith("Cover placed")] == [
-            "Cover placed at heading 90°"]
+        assert [m for m in caplog.messages if m.startswith("Loading screen placed")] == [
+            "Loading screen placed at heading 90°"]
 
     def test_the_ground_fills_the_eyes_before_the_panel_has_been_painted(self):
         renderer = _ARenderer()
 
-        present_the_cover(_a_headset(_ASession(_a_frame()), renderer), _ACover(screen_ready=False))
+        present_the_loading_screen(_a_headset(_ASession(_a_frame()), renderer), _ALoadingScreen(screen_ready=False))
 
-        assert renderer.begun == [COVER_CLEAR, COVER_CLEAR]
+        assert renderer.begun == [LOADING_SCREEN_CLEAR, LOADING_SCREEN_CLEAR]
         assert renderer.screens == []
 
 
-class TestRaisingTheCover:
-    def test_a_cover_nobody_is_waiting_for_is_never_raised(self):
+class TestRaisingTheLoadingScreen:
+    def test_a_loading_screen_nobody_is_waiting_for_is_never_raised(self):
         session = _ASession(_a_frame())
 
-        raise_the_cover(_a_headset(session), _ACover(wanted=False))
+        raise_the_loading_screen(_a_headset(session), _ALoadingScreen(wanted=False))
 
         assert session.polled == 0
         assert session.ended == []
@@ -243,7 +243,7 @@ class TestRaisingTheCover:
         session = _ASession(_a_frame(rendering=False), _a_frame(), _a_frame(), ready=False)
         session.poll_events = lambda: setattr(session, "session_ready", True)
 
-        raise_the_cover(_a_headset(session), _ACover(), clock=clock, sleep=clock.sleep)
+        raise_the_loading_screen(_a_headset(session), _ALoadingScreen(), clock=clock, sleep=clock.sleep)
 
         assert [project for _at, project, _quads in session.ended] == [False, True]
         assert len(session.frames) == 1  # the third frame was never asked for
@@ -252,16 +252,16 @@ class TestRaisingTheCover:
         clock = _AClock()
         session = _ASession(ready=True)  # every frame ends unshown
 
-        raise_the_cover(_a_headset(session), _ACover(), clock=clock, sleep=clock.sleep)
+        raise_the_loading_screen(_a_headset(session), _ALoadingScreen(), clock=clock, sleep=clock.sleep)
 
-        assert clock.t >= FIRST_COVER_TIMEOUT_S
+        assert clock.t >= FIRST_LOADING_SCREEN_TIMEOUT_S
         assert session.ended, "it never tried"
 
 
 class TestHoldingTheHeadset:
     def test_it_covers_the_headset_until_the_hold_is_released(self, tmp_path):
         ask_for_the_hold(tmp_path, stop_runtime=False)
-        session, cover = _ASession(_a_frame(), _a_frame(), _a_frame()), _ACover()
+        session, loading_screen = _ASession(_a_frame(), _a_frame(), _a_frame()), _ALoadingScreen()
         frames_shown = 0
 
         def poll():
@@ -271,13 +271,13 @@ class TestHoldingTheHeadset:
                 release_the_headset(tmp_path)
         session.poll_events = poll
 
-        hold_the_headset(_a_headset(session), cover, tmp_path, clock=_AClock())
+        hold_the_headset(_a_headset(session), loading_screen, tmp_path, clock=_AClock())
 
         assert [project for _at, project, _quads in session.ended] == [True, True, True]
-        assert cover.told.count("refreshed") == 3
+        assert loading_screen.told.count("refreshed") == 3
 
     def test_it_says_the_headset_is_held_before_waiting(self, tmp_path):
-        hold_the_headset(_a_headset(_ASession(ready=False)), _ACover(), tmp_path, clock=_AClock())
+        hold_the_headset(_a_headset(_ASession(ready=False)), _ALoadingScreen(), tmp_path, clock=_AClock())
 
         assert headset_is_held(tmp_path)
 
@@ -285,7 +285,7 @@ class TestHoldingTheHeadset:
         ask_for_the_hold(tmp_path, stop_runtime=False)
         session = _ASession(_a_frame(), ready=False)
 
-        hold_the_headset(_a_headset(session), _ACover(), tmp_path, clock=_AClock())
+        hold_the_headset(_a_headset(session), _ALoadingScreen(), tmp_path, clock=_AClock())
 
         assert session.ended == []
 
@@ -295,44 +295,44 @@ class TestHoldingTheHeadset:
         session = _ASession()
         session.poll_events = lambda: clock.sleep(1.0)
 
-        hold_the_headset(_a_headset(session), _ACover(), tmp_path, clock=clock)
+        hold_the_headset(_a_headset(session), _ALoadingScreen(), tmp_path, clock=clock)
 
         assert clock.t >= HEADSET_HOLD_TIMEOUT_S
 
 
 class TestCoveringTheTeardown:
-    def test_the_closing_cover_is_raised_and_held_until_one_frame_reaches_the_eyes(self):
-        session, cover = _ASession(_a_frame(rendering=False), _a_frame(), _a_frame()), _ACover()
+    def test_the_closing_screen_is_raised_and_held_until_one_frame_reaches_the_eyes(self):
+        session, loading_screen = _ASession(_a_frame(rendering=False), _a_frame(), _a_frame()), _ALoadingScreen()
 
-        cover_the_teardown(_a_headset(session), cover, clock=_AClock())
+        closing_screen_over_the_teardown(_a_headset(session), loading_screen, clock=_AClock())
 
-        assert cover.told[:2] == ["closing", "refreshed"]
-        assert cover.told[-1] == "settled"
+        assert loading_screen.told[:2] == ["closing", "refreshed"]
+        assert loading_screen.told[-1] == "settled"
         assert [project for _at, project, _quads in session.ended] == [False, True]
 
     def test_it_settles_once_the_couple_of_frames_are_spent(self):
         clock = _AClock()
         session = _ASession()
         session.poll_events = lambda: clock.sleep(0.5)
-        cover = _ACover()
+        loading_screen = _ALoadingScreen()
 
-        cover_the_teardown(_a_headset(session), cover, clock=clock)
+        closing_screen_over_the_teardown(_a_headset(session), loading_screen, clock=clock)
 
-        assert clock.t >= TEARDOWN_COVER_TIMEOUT_S
-        assert cover.told[-1] == "settled"
+        assert clock.t >= TEARDOWN_LOADING_SCREEN_TIMEOUT_S
+        assert loading_screen.told[-1] == "settled"
 
-    def test_a_cover_that_cannot_be_read_still_settles(self):
-        cover = _ACover()
-        cover.refresh = lambda: (_ for _ in ()).throw(OSError("gone"))
+    def test_a_loading_screen_that_cannot_be_read_still_settles(self):
+        loading_screen = _ALoadingScreen()
+        loading_screen.refresh = lambda: (_ for _ in ()).throw(OSError("gone"))
 
-        cover_the_teardown(_a_headset(), cover, clock=_AClock())
+        closing_screen_over_the_teardown(_a_headset(), loading_screen, clock=_AClock())
 
-        assert cover.told == ["closing", "settled"]
+        assert loading_screen.told == ["closing", "settled"]
 
 
 class _ARoom:
-    def __init__(self, cover=None, *, main=None, satellites=(), blank=()):
-        self.cover = cover or _ACover(showing=False)
+    def __init__(self, loading_screen=None, *, main=None, satellites=(), blank=()):
+        self.loading_screen = loading_screen or _ALoadingScreen(showing=False)
         self.stop = threading.Event()
         self.workers: list[threading.Thread] = []
         self.main_unit = main or SimpleNamespace(
@@ -340,7 +340,7 @@ class _ARoom:
         self.satellites = list(satellites)
         self.pointing = SimpleNamespace(draw=lambda renderer, view_proj: None,
                                         close=lambda: self.told.append("pointing closed"))
-        self.cover_watch = SimpleNamespace(
+        self.loading_screen_watch = SimpleNamespace(
             frame_began=lambda **kw: self.told.append(("began", kw)),
             drawing=lambda now: self.told.append(("drawing", now)),
             frame_ended=lambda **kw: self.told.append(("ended", kw)))
@@ -364,8 +364,8 @@ class _ARoom:
     def route_audio(self) -> None:
         self.told.append("audio")
 
-    def close(self, *, keep_the_cover) -> None:
-        self.told.append(("closed", keep_the_cover))
+    def close(self, *, keep_the_loading_screen) -> None:
+        self.told.append(("closed", keep_the_loading_screen))
 
 
 class _Arranging:
@@ -400,8 +400,8 @@ class TestAFrame:
         loop.show_a_frame(elapsed_s=0.1, now=now)
         return loop
 
-    def test_a_showing_cover_is_drawn_in_place_of_the_room_with_no_quads(self):
-        session, the_room = _ASession(_a_frame(at=9)), _ARoom(_ACover(showing=True))
+    def test_a_showing_loading_screen_is_drawn_in_place_of_the_room_with_no_quads(self):
+        session, the_room = _ASession(_a_frame(at=9)), _ARoom(_ALoadingScreen(showing=True))
 
         loop = self._show(session, the_room, use_layers=True, now=3.0)
 
@@ -411,7 +411,7 @@ class TestAFrame:
         assert the_room.told[-1] == ("ended", {"covered": True, "focused": True,
                                                "should_render": True, "now": 3.0})
 
-    def test_the_room_is_arranged_and_drawn_once_the_cover_is_down(self):
+    def test_the_room_is_arranged_and_drawn_once_the_loading_screen_is_down(self):
         session, the_room = _ASession(_a_frame(at=9)), _ARoom()
 
         loop = self._show(session, the_room)
@@ -524,15 +524,15 @@ class TestShowingTheRoom:
 
         assert session.ended == []
 
-    def test_a_cover_held_for_the_next_session_ends_it(self):
+    def test_a_loading_screen_held_for_the_next_session_ends_it(self):
         the_room = _ARoom()
-        the_room.cover.holding = True
+        the_room.loading_screen.holding = True
 
         self._show(_ASession(_a_frame()), the_room)
 
         assert the_room.told == []
 
-    def test_a_session_not_yet_ready_is_polled_without_a_frame_and_the_cover_settled(self):
+    def test_a_session_not_yet_ready_is_polled_without_a_frame_and_the_loading_screen_settled(self):
         clock = _AClock()
         session = _ASession(_a_frame(), ready=False)
         the_room = _ARoom()
@@ -541,7 +541,7 @@ class TestShowingTheRoom:
         _loop, glfw = self._show(session, the_room, clock=clock)
 
         assert session.ended == []
-        assert the_room.cover.told == ["settled"] * 4
+        assert the_room.loading_screen.told == ["settled"] * 4
         assert glfw.polled == 4
 
     def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it(self):
@@ -555,30 +555,30 @@ class TestShowingTheRoom:
 
 
 class TestTearingDown:
-    def _a_room_with_workers(self, cover=None):
-        the_room = _ARoom(cover)
+    def _a_room_with_workers(self, loading_screen=None):
+        the_room = _ARoom(loading_screen)
         worker = threading.Thread(target=lambda: None)
         worker.start()
         the_room.workers = [worker]
         return the_room
 
-    def test_the_room_comes_down_under_the_closing_cover(self, tmp_path):
-        session, renderer, the_room = _ASession(_a_frame()), _ARenderer(), self._a_room_with_workers(_ACover())
+    def test_the_room_comes_down_under_the_closing_screen(self, tmp_path):
+        session, renderer, the_room = _ASession(_a_frame()), _ARenderer(), self._a_room_with_workers(_ALoadingScreen())
 
         tear_down(_a_headset(session, renderer), the_room, tmp_path, clock=_AClock())
 
-        assert the_room.cover.told[0] == "closing"
+        assert the_room.loading_screen.told[0] == "closing"
         assert the_room.stop.is_set()
         assert not the_room.workers[0].is_alive()
         assert the_room.told == [("closed", False), "pointing closed"]
         assert renderer.closed
         assert session.closed
 
-    def test_a_held_headset_keeps_its_cover_up_until_the_next_session_takes_it(self, tmp_path):
+    def test_a_held_headset_keeps_its_loading_screen_up_until_the_next_session_takes_it(self, tmp_path):
         ask_for_the_hold(tmp_path, stop_runtime=False)
-        session, the_room = _ASession(_a_frame(), _a_frame()), _ARoom(_ACover())
+        session, the_room = _ASession(_a_frame(), _a_frame()), _ARoom(_ALoadingScreen())
         polls = []
-        session.poll_events = lambda: (  # the closing cover polls once first
+        session.poll_events = lambda: (  # the closing screen polls once first
             polls.append(1), release_the_headset(tmp_path) if len(polls) == 2 else None)
         stopped = []
 
@@ -587,7 +587,7 @@ class TestTearingDown:
 
         assert the_room.told[0] == ("closed", True)
         assert [project for _at, project, _quads in session.ended] == [True, True]
-        assert the_room.cover.told[-1] == "closed"
+        assert the_room.loading_screen.told[-1] == "closed"
         assert stopped == []
 
     def test_a_hold_that_ends_the_runtime_ends_it_once_everything_is_closed(self, tmp_path):
@@ -595,7 +595,7 @@ class TestTearingDown:
         session = _ASession(ready=False)
         stopped = []
 
-        tear_down(_a_headset(session), _ARoom(_ACover()), tmp_path, clock=_AClock(),
+        tear_down(_a_headset(session), _ARoom(_ALoadingScreen()), tmp_path, clock=_AClock(),
                   stop_the_runtime=stopped.append)
 
         assert stopped == [tmp_path]

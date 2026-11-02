@@ -33,8 +33,8 @@ from fun_time.windows_bridge_orchestrator import SessionOver
 from tests.made_up_genau import point_the_shared_settings_at
 
 
-def _a_cover() -> MagicMock:
-    """A cover with the two things a launch asks of it: a line to name what it
+def _a_loading_screen() -> MagicMock:
+    """A loading screen with the two things a launch asks of it: a line to name what it
     is doing, and a way to take the screen down again."""
     return MagicMock(spec=["progress", "take_it_down"])
 
@@ -44,7 +44,7 @@ def _a_launch(**overrides):
     """``main()`` with every step that reaches the machine held off.
 
     They are held in one place because forgetting one is not a failing test:
-    an unpatched ``open_the_cover`` throws a real loading screen over his
+    an unpatched ``open_the_loading_screen`` throws a real loading screen over his
     monitors, and an unpatched engine check spends a second of subprocesses.
     Each is overridable by name, which is how a test says what it is about.
     """
@@ -55,7 +55,7 @@ def _a_launch(**overrides):
         "ensure_runtime_files": MagicMock(),
         "validate_config": MagicMock(),
         "open_event_log": MagicMock(),
-        "open_the_cover": MagicMock(return_value=_a_cover()),
+        "open_the_loading_screen": MagicMock(return_value=_a_loading_screen()),
         "stamp_shortcut_aumid": MagicMock(),
         "describe_the_session_on_the_taskbar": MagicMock(),
         "engine_missing_abort": MagicMock(return_value=False),
@@ -396,12 +396,12 @@ class TestRunController:
     def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
-        cover = _a_cover()
+        loading_screen = _a_loading_screen()
 
         with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
              patch("fun_time.windows_bridge_orchestrator.run_session",
                    return_value=SessionOver(0)) as bridge:
-            result = run_windows_bridge(cfg, logger, SessionEnvironment(), cover)
+            result = run_windows_bridge(cfg, logger, SessionEnvironment(), loading_screen)
 
         assert result == SessionOver(0)
         # The manifest is written from the config plus the one switch the
@@ -415,9 +415,9 @@ class TestRunController:
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
         assert call_kwargs["project_dir"] == cfg.project_dir
         assert call_kwargs["env"] == SessionEnvironment()
-        # The session runs under the cover the launch already raised, never one
-        # of its own: by the time it starts, that cover has been up for seconds.
-        assert call_kwargs["cover"] is cover
+        # The session runs under the loading screen the launch already raised, never one
+        # of its own: by the time it starts, that loading screen has been up for seconds.
+        assert call_kwargs["loading_screen"] is loading_screen
 
 
 # --- main() --check flag ---
@@ -454,7 +454,7 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
 
 
 class TestTheCheckoutsItsOwnCheckoutNames:
-    def test_the_session_and_its_cover_run_the_sibling_checkouts_this_checkout_names(
+    def test_the_session_and_its_loading_screen_run_the_sibling_checkouts_this_checkout_names(
             self, cfg_path: Path, tmp_path: Path, monkeypatch):
         """Whatever wrote its config: a production checkout from before
         2026-10-16 reads only the old name of the file that names them."""
@@ -467,7 +467,7 @@ class TestTheCheckoutsItsOwnCheckoutNames:
         with _a_launch() as launch:
             main(["--config", str(cfg_path)])
 
-        assert launch.open_the_cover.call_args.kwargs["sibling_checkouts"] == str(checkout)
+        assert launch.open_the_loading_screen.call_args.kwargs["sibling_checkouts"] == str(checkout)
         assert launch.run_windows_bridge.call_args.args[0].paths.sibling_checkouts == (checkout,)
 
 
@@ -476,7 +476,7 @@ class TestTheWayBackOffersNoEsc:
         with _a_launch() as launch:
             main(["--config", str(cfg_path), "--no-cancel"])
 
-        assert launch.open_the_cover.call_args.kwargs["cancelable"] is False
+        assert launch.open_the_loading_screen.call_args.kwargs["cancelable"] is False
 
 
 class TestMainCheckFlag:
@@ -487,13 +487,13 @@ class TestMainCheckFlag:
         assert result == 0
         launch.run_windows_bridge.assert_not_called()
 
-    def test_a_check_raises_no_cover_and_stamps_no_pin(self, cfg_path: Path):
-        """It validates and exits: a cover flashed over his monitors, and his
+    def test_a_check_raises_no_loading_screen_and_stamps_no_pin(self, cfg_path: Path):
+        """It validates and exits: a loading screen flashed over his monitors, and his
         taskbar pin relabelled, are a launch's doing and not a check's."""
         with _a_launch() as launch:
             main(["--config", str(cfg_path), "--check"])
 
-        launch.open_the_cover.assert_not_called()
+        launch.open_the_loading_screen.assert_not_called()
         launch.stamp_shortcut_aumid.assert_not_called()
 
 
@@ -657,22 +657,22 @@ class TestOrchestratorSingleInstance:
         show_msg.assert_called_once()
         assert "already running" in show_msg.call_args[0][0]
         launch.run_windows_bridge.assert_not_called()
-        # That message is a window of its own, and a cover raised over it would
+        # That message is a window of its own, and a loading screen raised over it would
         # leave him a monitor of nothing to answer.
-        launch.open_the_cover.assert_not_called()
+        launch.open_the_loading_screen.assert_not_called()
 
 
-class TestTheCoverGoesUpFirst:
+class TestTheLoadingScreenGoesUpFirst:
     """A launch used to do its own work over a bare desktop -- the engine
     probes, the session machinery's import, the taskbar pin -- and only cover
-    the monitors once all of it was done, six or seven seconds in.  The cover
+    the monitors once all of it was done, six or seven seconds in.  The loading screen
     goes up first now, and that work runs under it, named on it as it goes."""
 
     def _order_of(self, cfg_path: Path) -> list[str]:
         order: list[str] = []
-        cover = _a_cover()
+        loading_screen = _a_loading_screen()
         with _a_launch(
-            open_the_cover=MagicMock(side_effect=lambda *_a, **_k: order.append("cover") or cover),
+            open_the_loading_screen=MagicMock(side_effect=lambda *_a, **_k: order.append("loading_screen") or loading_screen),
             engine_missing_abort=MagicMock(
                 side_effect=lambda *_a, **_k: order.append("engine") or False),
             run_windows_bridge=MagicMock(
@@ -682,20 +682,20 @@ class TestTheCoverGoesUpFirst:
         return order
 
     def test_the_monitors_are_covered_before_the_engine_is_checked(self, cfg_path: Path):
-        assert self._order_of(cfg_path)[:2] == ["cover", "engine"]
+        assert self._order_of(cfg_path)[:2] == ["loading_screen", "engine"]
 
     def test_the_session_is_the_last_thing_under_it(self, cfg_path: Path):
         assert self._order_of(cfg_path)[-1] == "session"
 
-    def test_the_cover_says_the_engine_is_being_checked_while_it_is(self, cfg_path: Path):
+    def test_the_loading_screen_says_the_engine_is_being_checked_while_it_is(self, cfg_path: Path):
         """The bar is the only thing he can read the wait off, so the phase is
         named before the probes rather than after them."""
         said: list[str] = []
-        cover = _a_cover()
-        cover.progress.announce.side_effect = said.append
+        loading_screen = _a_loading_screen()
+        loading_screen.progress.announce.side_effect = said.append
 
         with _a_launch(
-            open_the_cover=MagicMock(return_value=cover),
+            open_the_loading_screen=MagicMock(return_value=loading_screen),
             engine_missing_abort=MagicMock(
                 side_effect=lambda *_a, **_k: said.append("probed") or False),
         ):
@@ -703,32 +703,32 @@ class TestTheCoverGoesUpFirst:
 
         assert said == ["engine", "probed"]
 
-    def test_a_launch_that_fails_under_the_cover_takes_it_down(self, cfg_path: Path):
+    def test_a_launch_that_fails_under_the_loading_screen_takes_it_down(self, cfg_path: Path):
         """Nothing else would: the screen sits out its whole staleness guard,
         topmost over every monitor, with the launcher's failure dialog stuck
         under it."""
-        cover = _a_cover()
+        loading_screen = _a_loading_screen()
 
         with _a_launch(
-            open_the_cover=MagicMock(return_value=cover),
+            open_the_loading_screen=MagicMock(return_value=loading_screen),
             engine_missing_abort=MagicMock(side_effect=OSError("the engine check failed")),
         ), pytest.raises(OSError, match="the engine check failed"):
             main(["--config", str(cfg_path)])
 
-        cover.take_it_down.assert_called_once()
+        loading_screen.take_it_down.assert_called_once()
 
     def test_a_missing_engine_is_told_to_uncover_before_it_says_so(self, cfg_path: Path):
-        """Its alert is a window like any other, and one raised under the cover
+        """Its alert is a window like any other, and one raised under the loading screen
         cannot be read or clicked."""
-        cover = _a_cover()
+        loading_screen = _a_loading_screen()
         abort = MagicMock(return_value=True)
 
-        with _a_launch(open_the_cover=MagicMock(return_value=cover),
+        with _a_launch(open_the_loading_screen=MagicMock(return_value=loading_screen),
                        engine_missing_abort=abort):
             result = main(["--config", str(cfg_path)])
 
         assert result == 1
-        assert abort.call_args.kwargs["uncover"] == cover.take_it_down
+        assert abort.call_args.kwargs["uncover"] == loading_screen.take_it_down
 
 
 # ---------------------------------------------------------------------------

@@ -176,7 +176,7 @@ def _never_mutate_a_real_window():
 
 
 @pytest.fixture(autouse=True)
-def _never_start_a_real_cover():
+def _never_start_a_real_loading_screen():
     """Override the unit suite's refusal of the screens over every monitor:
     the tests here start them for real, on the hidden desktop."""
     yield

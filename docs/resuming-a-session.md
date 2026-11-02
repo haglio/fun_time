@@ -82,17 +82,17 @@ whether that is a video or one of Genau's flicks.
 
 Whatever Origenerator held comes back — each Satellite Funestra's own
 Origenerator mode, and Origenerator in the Random Favs Browser's place — and it
-comes back UNDER THE COVER. Every room is built with both Funestras in Kino mode
+comes back UNDER THE LOADING SCREEN. Every room is built with both Funestras in Kino mode
 and the browser in its place, so a room left otherwise has to be switched back,
 and switching it once the room is already his is what this must never do: the
 Funestras would rearrange themselves under whatever he had started, which was
 tried and rejected. So the loading screen stays up instead. The phase before its
-last, read on the cover as "Activating Origenerator...", comes after the
+last, read on the loading screen as "Activating Origenerator...", comes after the
 room is built and banded and waits for the hosted Origenerator to publish its
-status — re-written while it waits, since a cover takes itself down on a progress
+status — re-written while it waits, since a loading screen takes itself down on a progress
 file nothing has touched for a minute (`overlay_progress`). The moment the app
 answers, the very commands the switches send are sent, one for each thing
-Origenerator held, and only then does the cover come down — on a room already
+Origenerator held, and only then does the loading screen come down — on a room already
 the way it was left. A room Origenerator held nothing of waits for nothing.
 
 The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
@@ -102,7 +102,7 @@ state file is corrected to say so, since that is what the satellite HUDs and the
 dashboard's strip draw and what the switches act on. An Origenerator that was
 already open when the session began — one he opened himself and the session took
 over, or one a crossing kept — has no boot to wait out, so what it held is there
-as the cover lifts.
+as the loading screen lifts.
 
 A room also opens with Origenerator in the browser's place and on one satellite,
 whatever the last one was left in, when the Origenerator it takes over is showing
@@ -223,7 +223,7 @@ fresh start over with them: what described those files (`DESCRIBES_THE_PLAYLIST`
 everything else the room was left in still comes back.
 
 **The dispatch loop opens on the state file, never on defaults.** Origenerator
-is put back under the cover before the loop's first tick, through the switches'
+is put back under the loading screen before the loop's first tick, through the switches'
 own commands, and every command writes the loop's state to the file. A loop
 that held defaults until its first tick wrote them over everything startup had
 just resumed, so until 2026-10-16 every room left with Origenerator holding
