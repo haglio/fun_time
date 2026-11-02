@@ -1835,3 +1835,9 @@ def test_the_osr2_part_stands_at_the_windows_right_end_from_its_top(placed_windo
     osr2 = placed_window._osr2
 
     assert _at(placed_window, osr2) == QPoint(placed_window.width() - osr2.width(), 0)
+
+
+def test_a_dashboard_that_cannot_leave_its_note_about_the_checkout_still_runs(tmp_path):
+    no_such_folder = tmp_path / "gone"
+
+    assert record_source_checkout(no_such_folder) == no_such_folder / SOURCE_CHECKOUT_FILENAME
