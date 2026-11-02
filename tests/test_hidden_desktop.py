@@ -12,6 +12,7 @@ import ctypes
 import ctypes.wintypes as wt
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -53,6 +54,7 @@ from tests.integration.hidden_desktop import (
 from tests.integration.line_record import RUN_RECORD_ENV
 from tests.integration.main_verifier import measured_run_environment, measured_sources
 from tests.integration.run_clock import keep_time_by
+from tests.integration.run_pulse import Pulse, PulseWatch
 from tests.integration.session_lock import Place, SingleInstanceLock, Waiting, hold_integration_lock
 from tests.made_up_clocks import StarvedRun
 from tests.thread_state import TIME_TO_END_S
@@ -232,7 +234,7 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
           patch.object(hidden_desktop, "files_with_a_changed_test", list_changed),
           patch.object(hidden_desktop, "_launch_on_desktop", launch),
           patch.object(hidden_desktop, "_close_process_handles", lambda pi: None),
-          patch.object(hidden_desktop, "_wait_for_the_run", lambda process, ceiling_s: 0),
+          patch.object(hidden_desktop, "_wait_for_the_run", lambda process, ceiling_s, pulse: 0),
           patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}")):
         hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
         hidden_desktop.run_on_hidden_desktop([])
@@ -258,7 +260,7 @@ def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), ex
             told.append(environment.get(RUN_RECORD_ENV))
         return SimpleNamespace(hProcess=None)
 
-    def wait(process, ceiling_s):
+    def wait(process, ceiling_s, pulse):
         if ceilings is not None:
             ceilings.append(ceiling_s)
         return next(codes, 0)
@@ -818,3 +820,115 @@ def test_a_change_no_integration_test_runs_starts_nothing_and_says_so(capsys):
 
     assert (code, launched) == (0, [])
     assert "no integration test runs what this change touched" in capsys.readouterr().err
+
+
+class _WoundByHand:
+    def __init__(self) -> None:
+        self.at = [0.0]
+
+    def seconds(self) -> float:
+        return self.at[0]
+
+
+@pytest.fixture
+def made_up_time():
+    clock = _WoundByHand()
+    keep_time_by(clock)
+    yield clock.at
+    keep_time_by(run_clock.WALL)
+
+
+def test_a_pulse_that_stops_changing_has_stopped_once_the_limit_has_gone_by(tmp_path, made_up_time):
+    pulse = tmp_path / "pulse"
+    pulse.write_text("1\ntests/integration/test_x.py::test_y", encoding="utf-8")
+    watch = PulseWatch(pulse, stopped_after_s=300)
+
+    assert not watch.has_stopped()
+    made_up_time[0] = 299.0
+    assert not watch.has_stopped()
+    made_up_time[0] = 300.0
+    assert watch.has_stopped()
+    assert watch.last_test() == "tests/integration/test_x.py::test_y"
+
+
+def test_a_pulse_that_changes_starts_its_limit_over(tmp_path, made_up_time):
+    pulse = tmp_path / "pulse"
+    pulse.write_text("1\n", encoding="utf-8")
+    watch = PulseWatch(pulse, stopped_after_s=300)
+    assert not watch.has_stopped()
+
+    made_up_time[0] = 299.0
+    pulse.write_text("2\n", encoding="utf-8")
+    assert not watch.has_stopped()
+    made_up_time[0] = 300.0
+
+    assert not watch.has_stopped()
+
+
+def test_a_run_that_has_not_pulsed_yet_or_has_finished_pulsing_has_not_stopped(tmp_path, made_up_time):
+    pulse = tmp_path / "pulse"
+    watch = PulseWatch(pulse, stopped_after_s=300)
+    made_up_time[0] = 1000.0
+    assert not watch.has_stopped()
+
+    pulse.write_text("1\n", encoding="utf-8")
+    assert not watch.has_stopped()
+    pulse.unlink()
+    made_up_time[0] = 2000.0
+
+    assert not watch.has_stopped()
+
+
+def test_a_pulse_keeps_changing_names_the_test_it_is_on_and_is_gone_once_stopped(tmp_path):
+    path = tmp_path / "pulse"
+    pulse = Pulse(path, every_s=0.01)
+    try:
+        pulse.on_test("the_test")
+        seen = set()
+        deadline = time.monotonic() + TIME_TO_END_S
+        while len(seen) < 2 and time.monotonic() < deadline:
+            with contextlib.suppress(OSError):
+                text = path.read_text(encoding="utf-8")
+                if text.endswith("the_test"):
+                    seen.add(text)
+    finally:
+        pulse.stop()
+
+    assert len(seen) == 2
+    assert not path.exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
+def test_a_run_stuck_in_native_code_holding_pythons_lock_is_ended_long_before_its_ceiling(capsys):
+    stuck_in_native_code = (
+        "import ctypes, os, pathlib, time\n"
+        "from tests.integration.run_pulse import PULSE_ENV, Pulse\n"
+        "pulse = Pulse(pathlib.Path(os.environ[PULSE_ENV]), every_s=0.01)\n"
+        "pulse.on_test('the_stuck_test')\n"
+        "time.sleep(0.2)\n"
+        "ctypes.PyDLL('kernel32').Sleep(600_000)\n"
+    )
+    with _launches_recorded() as launched, _timed_by_the_wall():
+        assert hidden_desktop._run_the_suite(_python("-c", stuck_in_native_code), sys.executable,
+                                             A_STARVED_CHILDS_START_S,
+                                             stopped_after_s=1.0) == hidden_desktop.WEDGED_EXIT_CODE
+
+    assert _wait_until_dead(launched[0])
+    assert "the_stuck_test" in capsys.readouterr().err
+
+
+def test_a_pulse_names_a_test_before_the_test_can_stop_it(tmp_path):
+    path = tmp_path / "pulse"
+    pulse = Pulse(path, every_s=3600)
+    try:
+        pulse.on_test("the_test")
+
+        assert path.read_text(encoding="utf-8").endswith("the_test")
+    finally:
+        pulse.stop()
+
+
+def test_a_test_that_lets_go_in_time_meets_its_own_clock_before_the_pulse_is_called_stopped():
+    per_test_limit = re.search(r"--timeout=(\d+)", (_repo_root() / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert int(per_test_limit[1]) < hidden_desktop.STOPPED_AFTER_S

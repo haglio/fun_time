@@ -45,6 +45,7 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from itertools import pairwise
@@ -62,6 +63,7 @@ from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_
 from .flake_gate_install import flake_gate_python
 from .line_record import RUN_RECORD_ENV, Visit
 from .run_clock import WALL, Budget, RunClock, keep_time_by
+from .run_pulse import PULSE_ENV, STOPPED_AFTER_S, PulseWatch
 from .session_lock import (
     FULL_RUN_GIVES_WAY_S,
     INTEGRATION_LOCK_NAME,
@@ -402,16 +404,18 @@ def _the_runs_own_time(job: JobObject) -> Iterator[None]:
         keep_time_by(WALL)
 
 
-def _wait_for_the_run(process: int, ceiling_s: float) -> int:
+def _wait_for_the_run(process: int, ceiling_s: float, pulse: PulseWatch | None = None) -> int:
     """pytest's exit code, as soon as pytest has decided it.
 
     A process can have exited and never be gone: Windows records its exit code,
     then may never finish taking it down, and a handle to it never signals."""
-    if (code := _exit_code_within(process, ceiling_s)) is None:
-        print(f"[hidden-desktop] the run went {ceiling_s / 60:g} minutes it could "
-              "have run without finishing, so it is being ended here; the job "
-              "object takes its children with it and the queue moves again",
-              file=sys.stderr, flush=True)
+    stopped = pulse.has_stopped if pulse else lambda: False
+    if (code := _exit_code_within(process, ceiling_s, stopped)) is None:
+        why = (f"pytest stopped running any Python during {pulse.last_test() or 'its startup'}, where no "
+               "test's own time limit can reach it" if stopped() else
+               f"the run went {ceiling_s / 60:g} minutes it could have run without finishing")
+        print(f"[hidden-desktop] {why}, so it is being ended here; the job object takes its "
+              "children with it and the queue moves again", file=sys.stderr, flush=True)
         return WEDGED_EXIT_CODE
     if _kernel32.WaitForSingleObject(process, _TEARDOWN_GRACE_MS) == WAIT_TIMEOUT:
         print(f"[hidden-desktop] pytest exited {code}, but Windows has not finished taking "
@@ -420,10 +424,10 @@ def _wait_for_the_run(process: int, ceiling_s: float) -> int:
     return code
 
 
-def _exit_code_within(process: int, seconds: float) -> int | None:
+def _exit_code_within(process: int, seconds: float, stopped: Callable[[], bool] = lambda: False) -> int | None:
     budget = Budget(seconds)
     while (code := _exit_code(process)) == STILL_ACTIVE:
-        if budget.expired():
+        if budget.expired() or stopped():
             return None
         _kernel32.WaitForSingleObject(process, _POLL_MS)
     return code
@@ -560,23 +564,26 @@ def files_with_a_changed_test(gate_python: str | Path, base: str, root: Path) ->
                    if test.startswith(INTEGRATION_DIR)})
 
 
-def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float) -> int:
+def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float,
+                   stopped_after_s: float = STOPPED_AFTER_S) -> int:
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
         raise ctypes.WinError(ctypes.get_last_error())
     print(f"[hidden-desktop] running the integration suite on '{HIDDEN_DESKTOP_NAME}' "
           f"(off-screen, focus-safe)…", file=sys.stderr, flush=True)
+    pulse = Path(tempfile.gettempdir()) / f"fun_time_integration_pulse_{os.getpid()}"
     try:
         cmdline = subprocess.list2cmdline(argv)
         with create_run_job() as job:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
-                                    environment=_venv_environment(venv_python))
+                                    environment={**_venv_environment(venv_python), PULSE_ENV: str(pulse)})
             try:
                 with _the_runs_own_time(job):
-                    return _wait_for_the_run(pi.hProcess, ceiling_s)
+                    return _wait_for_the_run(pi.hProcess, ceiling_s, PulseWatch(pulse, stopped_after_s))
             finally:
                 _close_process_handles(pi)
     finally:
+        pulse.unlink(missing_ok=True)
         _user32.CloseDesktop(hdesk)
 
 
