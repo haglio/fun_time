@@ -36,6 +36,7 @@
     "tests/test_windows_bridge_sequencer.py": 1
   },
   "methods": {
+    "fun_time/windows_bridge_dispatch_loop.py::DispatchLoopRunner": 22,
     "fun_time_vr/headset_verbs.py::HeadsetVerbs": 32
   },
   "mocks": {
@@ -449,7 +450,7 @@
     "tests/test_dashboard_osr2.py": 2,
     "tests/test_dashboard_osr2_model.py": 2,
     "tests/test_dashboard_runtime.py": 31,
-    "tests/test_dead_code.py": 46,
+    "tests/test_dead_code.py": 41,
     "tests/test_dependency_completeness.py": 13,
     "tests/test_device_arbiter.py": 23,
     "tests/test_event_log.py": 5,
