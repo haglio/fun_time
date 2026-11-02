@@ -40,6 +40,10 @@ def funestra_with_the_osr2(state) -> RoomFunestra:
         return RoomFunestra.MAIN
 
 
+def osr2_said_to(funestra: RoomFunestra, has_it: bool) -> str:
+    return f"{funestra.label}_osr2|{1 if has_it else 0}"
+
+
 def osr2_button(funestra: RoomFunestra, *, has_it: bool) -> Button:
     if has_it:
         return Button(take_osr2_command(funestra), "OSR2",

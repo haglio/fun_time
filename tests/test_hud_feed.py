@@ -935,6 +935,32 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert _published(tmp_path, "portrait").osr2_rows == (
             (osr2_button(RoomFunestra.PORTRAIT, has_it=False),),)
 
+    def test_a_side_the_hosted_app_holds_is_told_whether_it_has_the_osr2_as_that_changes(
+            self, tmp_path):
+        """Only the session knows which Funestra the OSR2 follows, and the hosted
+        app's own band grays its Skip ahead by it -- so the app is told, once
+        per change rather than every tick."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+
+        feed.publish(_hosted(BridgeState(osr2_funestra=3)))
+        feed.publish(_hosted(BridgeState(osr2_funestra=3)))
+        feed.publish(_hosted(BridgeState(osr2_funestra=2)))
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "portrait_osr2|0", "landscape_osr2|1", "portrait_osr2|1", "landscape_osr2|0"]
+
+    def test_a_side_back_in_origenerator_mode_is_told_again(self, tmp_path):
+        """The hosted app may have been restarted while the side was Kino's, and
+        what it was told then is gone with it."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+
+        feed.publish(_hosted(BridgeState(osr2_funestra=2), "portrait"))
+        feed.publish(BridgeState(osr2_funestra=2))
+        feed.publish(_hosted(BridgeState(osr2_funestra=2), "portrait"))
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "portrait_osr2|1", "portrait_osr2|1"]
+
 
 class TestASatelliteWithTheOsr2:
     def test_names_why_the_osr2_cannot_be_heard(self, tmp_path):
