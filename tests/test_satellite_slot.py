@@ -26,12 +26,12 @@ def _slot(funestra: RoomFunestra, tmp_path: Path) -> SatelliteSlot:
     )
 
 
-def test_for_side_hands_back_the_matching_slot(tmp_path: Path):
+def test_for_satellite_hands_back_the_matching_slot(tmp_path: Path):
     slot = _slot(RoomFunestra.PORTRAIT, tmp_path)
     assert for_funestra(slot, RoomFunestra.PORTRAIT) is slot
 
 
-def test_for_side_refuses_the_swap(tmp_path: Path):
+def test_for_satellite_refuses_the_swap(tmp_path: Path):
     """A mis-wired Funestra swaps the two Funestras' command files — the launch
     path's own comments warn about exactly this — so it fails loudly instead."""
     with pytest.raises(ValueError, match="portrait slot was handed to landscape"):

@@ -98,7 +98,7 @@ class TestResolveRole:
         interpreter that owns the SDL window, so on a cold cache the by-pid
         lookup finds nothing and resolution falls back to the caption — each
         side's own, exactly.  The captions differ only in their first word,
-        so a swapped or substring lookup here assigns one side's window to
+        so a swapped or substring lookup here assigns one Satellite's window to
         the other, which is the portrait/landscape visual swap."""
         windows = make_windows()
 

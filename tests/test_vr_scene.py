@@ -222,11 +222,11 @@ class TestAttachedAgainstASide:
         return attached_to(edge, self._FRAME, aspect=9 / 16, width_deg=20.0,
                            hanging_aspect=2.0, **extra)
 
-    def test_the_lower_side_is_where_it_hung_before(self):
+    def test_the_lower_satellite_is_where_it_hung_before(self):
         assert self._hanging(HudEdge.LOWER) == attached_below(
             self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
 
-    def test_against_the_upper_side_its_lower_edge_meets_the_screens_top(self):
+    def test_against_the_upper_satellite_its_lower_edge_meets_the_screens_top(self):
         hanging = self._hanging(HudEdge.UPPER)
         frame = surface_vertices(self._FRAME, aspect=9 / 16)
         strip = surface_vertices(hanging, aspect=2.0)
@@ -234,25 +234,25 @@ class TestAttachedAgainstASide:
         assert hanging.azimuth_deg == self._FRAME.azimuth_deg
         assert strip[:, 1].min() == pytest.approx(frame[:, 1].max(), abs=1e-6)
 
-    def test_against_a_left_or_right_side_it_keeps_the_screens_elevation(self):
+    def test_against_a_left_or_right_satellite_it_keeps_the_screens_elevation(self):
         for edge in (HudEdge.LEFT, HudEdge.RIGHT):
             hanging = self._hanging(edge)
             assert hanging.elevation_deg == self._FRAME.elevation_deg
             assert hanging.width_deg == 20.0
 
-    def test_against_the_right_side_it_starts_where_the_screen_ends(self):
+    def test_against_the_right_satellite_it_starts_where_the_screen_ends(self):
         hanging = self._hanging(HudEdge.RIGHT)
 
         assert hanging.azimuth_deg == pytest.approx(
             self._FRAME.azimuth_deg + 28.0 / 2 + 20.0 / 2)
 
-    def test_against_the_left_side_it_ends_where_the_screen_starts(self):
+    def test_against_the_left_satellite_it_ends_where_the_screen_starts(self):
         hanging = self._hanging(HudEdge.LEFT)
 
         assert hanging.azimuth_deg == pytest.approx(
             self._FRAME.azimuth_deg - 28.0 / 2 - 20.0 / 2)
 
-    def test_a_gap_holds_it_off_whichever_side_it_hangs_against(self):
+    def test_a_gap_holds_it_off_whichever_satellite_it_hangs_against(self):
         assert self._hanging(HudEdge.RIGHT, gap_deg=1.0).azimuth_deg == pytest.approx(
             self._hanging(HudEdge.RIGHT).azimuth_deg + 1.0)
         assert self._hanging(HudEdge.LEFT, gap_deg=1.0).azimuth_deg == pytest.approx(
@@ -266,7 +266,7 @@ class TestOneScreenInsideAnother:
                 outer: Placement = _WIDE) -> bool:
         return encloses(outer, inner, outer_aspect=16 / 9, inner_aspect=inner_aspect)
 
-    def test_a_narrower_screen_between_its_sides_is_inside_it(self):
+    def test_a_narrower_screen_between_its_satellites_is_inside_it(self):
         assert self._inside(Placement(azimuth_deg=20.0, elevation_deg=0.0, width_deg=20.0))
         assert not self._inside(Placement(azimuth_deg=30.0, elevation_deg=0.0, width_deg=20.0))
 

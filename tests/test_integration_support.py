@@ -517,19 +517,19 @@ def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
     library = root / "videos"
     films = library / "videos" / "films"
     scripts = library / "scripts" / "scripts" / "films"
-    sides = {side: library / "videos" / "made" / side for side in ("portrait", "landscape")}
-    for folder in (films / "full", scripts / "full", *sides.values()):
+    satellites = {satellite: library / "videos" / "made" / satellite for satellite in ("portrait", "landscape")}
+    for folder in (films / "full", scripts / "full", *satellites.values()):
         folder.mkdir(parents=True)
     for name in ("scene one", "scene two"):
         (films / "full" / f"{name}.mp4").write_bytes(b"")
         (scripts / "full" / f"{name}.funscript").write_text("{}", encoding="utf-8")
-    for folder in sides.values():
+    for folder in satellites.values():
         for name in ("alpha", "beta"):
             (folder / f"{name}.mp4").write_bytes(b"")
     config = _the_users_config()
     config["paths"].update(
         main_player_library_dirs=[str(films)],
-        portrait_dirs=[str(sides["portrait"])], landscape_dirs=[str(sides["landscape"])],
+        portrait_dirs=[str(satellites["portrait"])], landscape_dirs=[str(satellites["landscape"])],
         state_dir=str(root / "state"))
     config["main_player"]["videos_dir"] = str(films)
     config["regen"]["metadata_root"] = str(library / "metadata")
@@ -890,7 +890,7 @@ def test_the_main_funestras_draw_takes_only_the_videos_f_mode_plays(tmp_path, mo
     assert judged_against == {machines_metadata_root}
 
 
-def test_a_sides_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
+def test_a_satellites_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch):
     library = tmp_path / "drawn"
     library.mkdir()
     for name in ("one", "two"):
@@ -1143,7 +1143,7 @@ def _sets_or_checks_a_wall_deadline(node: ast.AST) -> bool:
     if isinstance(node, ast.BinOp):
         return isinstance(node.op, ast.Add) and (_reads_the_wall(node.left) or _reads_the_wall(node.right))
     return isinstance(node, ast.Compare) and any(
-        _reads_the_wall(part) for side in (node.left, *node.comparators) for part in ast.walk(side))
+        _reads_the_wall(part) for satellite in (node.left, *node.comparators) for part in ast.walk(satellite))
 
 
 def _waits_on_the_wall(tree: ast.AST) -> list[int]:

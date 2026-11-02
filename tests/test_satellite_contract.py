@@ -102,14 +102,14 @@ class TestNothingHasDrifted:
 class TestReadOutOfTheManifest:
     """The headset runs its satellites in its own process, so it is handed
     these rather than an argv -- the same group, through the manifest's own
-    per-side lookup."""
+    per-Satellite lookup."""
 
     def _commands(self) -> CommandFiles:
         spelled = {name: f"state/{name}" for name, field in CommandFiles.__dataclass_fields__.items()
                    if field.default is MISSING}
         return CommandFiles(**spelled)
 
-    def test_a_side_s_files_are_read_by_side_rather_than_spelled_out(self):
+    def test_a_satellite_s_files_are_read_by_satellite_rather_than_spelled_out(self):
         channels = SatelliteChannels.from_manifest(self._commands(), "portrait")
 
         assert channels.command == Path("state/portrait_cmd_file")
@@ -119,7 +119,7 @@ class TestReadOutOfTheManifest:
         assert channels.notice == Path("state/portrait_notice_file")
         assert channels.hud == Path("state/portrait_hud_file")
 
-    def test_the_two_sides_differ_in_every_file_of_their_own(self):
+    def test_the_two_satellites_differ_in_every_file_of_their_own(self):
         commands = self._commands()
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")
@@ -130,7 +130,7 @@ class TestReadOutOfTheManifest:
             assert getattr(portrait, field) != getattr(landscape, field), field
 
     def test_the_dashboard_s_command_file_is_the_session_s_one(self):
-        """Shared by every child rather than carried per side: a click on any
+        """Shared by every child rather than carried per Satellite: a click on any
         lock HUD posts to the same place."""
         commands = self._commands()
 
@@ -139,7 +139,7 @@ class TestReadOutOfTheManifest:
 
         assert portrait.dashboard_cmd == landscape.dashboard_cmd
 
-    def test_each_side_reaches_the_osr2_through_the_brokers_slot_under_its_own_name(self):
+    def test_each_satellite_reaches_the_osr2_through_the_brokers_slot_under_its_own_name(self):
         commands = replace(self._commands(), osr2_slot_port="50599")
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")
@@ -148,7 +148,7 @@ class TestReadOutOfTheManifest:
         assert (portrait.osr2_sender, portrait.osr2_port) == ("portrait", 50599)
         assert (landscape.osr2_sender, landscape.osr2_port) == ("landscape", 50599)
 
-    def test_the_motion_each_side_draws_is_the_one_genau_publishes(self):
+    def test_the_motion_each_satellite_draws_is_the_one_genau_publishes(self):
         commands = self._commands()
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")
@@ -157,7 +157,7 @@ class TestReadOutOfTheManifest:
         assert portrait.drive == landscape.drive == Path(commands.genau_drive_file)
         assert portrait.dashboard_cmd == Path("state/dashboard_cmd_file")
 
-    def test_each_side_hands_on_its_motion_to_a_file_of_its_own_in_the_state_folder(self):
+    def test_each_satellite_hands_on_its_motion_to_a_file_of_its_own_in_the_state_folder(self):
         commands = self._commands()
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")
@@ -168,7 +168,7 @@ class TestReadOutOfTheManifest:
         assert portrait.osr2_readout != landscape.osr2_readout
 
     def test_the_play_points_are_named_by_a_rule_rather_than_a_key(self):
-        """The manifest does not carry one: where a side left each clip is
+        """The manifest does not carry one: where a Satellite left each clip is
         named from the state directory, which is why it is passed in."""
         channels = SatelliteChannels.from_manifest(
             self._commands(), "portrait", play_points=Path("state/points.json"))

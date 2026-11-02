@@ -26,7 +26,7 @@ _.resizable  # pygame's Window property, set so SDL takes a resize from outside
 _.cbSize
 dwSize  # PROCESSENTRY32, for Toolhelp32
 
-# CommandFiles reaches these by side, through funestra_file: a satellite's
+# CommandFiles reaches these by Satellite, through funestra_file: a satellite's
 # channels are read as a group now (satellite.contract), so no module
 # spells either key.
 portrait_hud_file

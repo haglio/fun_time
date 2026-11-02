@@ -1,6 +1,6 @@
 """What each satellite's HUD shows.
 
-Assembles the HUD drawn over each satellite: the side's own state — locked,
+Assembles the HUD drawn over each satellite: the Satellite's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
@@ -31,9 +31,9 @@ from fun_time.thumbnail_cache import thumbnail_for
 def _title(
     locked: bool, loop_axis: str, latest: bool, filter_query: str, favorites_filter: bool
 ) -> str:
-    """The HUD's one title — everything the side is in, at a glance.
+    """The HUD's one title — everything the Satellite is in, at a glance.
 
-    This side's words in the slots :func:`funestra.hud_title.hud_title` lays
+    This Satellite's words in the slots :func:`funestra.hud_title.hud_title` lays
     out, which is where the grammar lives and why "Locked", "Unlocked" and "F-Mode"
     are not spelled here: every Funestra in the room says this line, and a reader
     glancing between two screens is reading one sentence in two places.
@@ -92,17 +92,17 @@ class SatelliteHud:
     seed_count: int = 0
     action_count: int = 0
     filter_query: str = ""
-    # Whether this side is the one a bare, side-less command reaches — the Funestra
-    # addressed most recently.  Global state, published per side so each HUD can
+    # Whether this Satellite is the one a bare, Satellite-less command reaches — the Funestra
+    # addressed most recently.  Global state, published per Satellite so each HUD can
     # answer "is it me?" without knowing what the others are.
     active: bool = False
-    # Which axis this side is looping ("" none / "action" / "seed").  While a loop
+    # Which axis this Satellite is looping ("" none / "action" / "seed").  While a loop
     # runs, ``current`` is frozen to the group's anchor so the map does not
     # re-orient, and ``playing`` names the cell actually on screen; with no loop
     # ``playing`` is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
-    # This side's own mode, or None for a session hosting no Origenerator —
+    # This Satellite's own mode, or None for a session hosting no Origenerator —
     # what draws the mode pair, the satellite counterpart of the main console's
     # Kino/Genau row.
     mode: SatellitesMode | None = None
@@ -110,7 +110,7 @@ class SatelliteHud:
     # session's first half-minute, over which that button is drawn dim.
     origenerator_ready: bool = True
     in_vr: bool = False
-    # Whether this side is already at every default, which leaves its reset
+    # Whether this Satellite is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
     has_other_versions: bool = False
@@ -279,7 +279,7 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
 class SatelliteInputs:
     """Everything one satellite's HUD is built from.
 
-    The two sides take an identical set, so they travel as one object each
+    The two Satellites take an identical set, so they travel as one object each
     rather than as ``portrait_``/``landscape_`` twins of every field.
     """
 
@@ -454,7 +454,7 @@ def build_hud(
     in_vr: bool = False,
     crowned: bool = False,
 ) -> SatelliteHud:
-    """One side's HUD HUD, from everything that side is (:class:`SatelliteInputs`).
+    """One Satellite's HUD HUD, from everything that Satellite is (:class:`SatelliteInputs`).
 
     ``inputs.widen_clip`` names the clip the seed row was widened around ("more
     seeds"); while it is in force the row grows past the exact parameter set to

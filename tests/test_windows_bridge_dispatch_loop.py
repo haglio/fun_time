@@ -261,7 +261,7 @@ def test_the_session_ends_a_line_said_aloud_the_way_its_origenerator_publishes(
         " @{said_at_epoch_seconds}")
 
 
-def test_each_side_reads_the_hosted_hud_where_the_manifest_names_it(cfg_factory, tmp_path):
+def test_each_satellite_reads_the_hosted_hud_where_the_manifest_names_it(cfg_factory, tmp_path):
     config = load_config(cfg_factory({}))
     manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
 
@@ -447,7 +447,7 @@ class TestPollDashboardCommands:
 
 
 class TestResolveActiveSideCommand:
-    """A side-agnostic 'active_*' command is rewritten onto whichever satellite
+    """A Satellite-agnostic 'active_*' command is rewritten onto whichever satellite
     is currently active; anything else passes through untouched."""
 
     def test_group_commands_ride_the_same_active_and_both_plumbing(self):
@@ -491,7 +491,7 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("active_reset", 3) == "landscape_reset"
 
     def test_end_loop_on_the_primary_means_main_funestras_own_loop(self):
-        """A side-agnostic phrase may mean a different thing on each Funestra: on a
+        """A Satellite-agnostic phrase may mean a different thing on each Funestra: on a
         satellite "end loop" ends a group loop, on the Main Funestra it cancels the Main Funestra's A-B
         loop.  The resolution is where that translation belongs."""
         assert resolve_active_funestra_command("active_no_loop", 1) == "main_funestra_loop_cancel"
@@ -1208,13 +1208,13 @@ class TestDispatchLoopRunner:
 
         assert read_shared_state(tmp_path / "shared_state.ini").mic_muted is False
 
-    def test_a_request_the_hosted_app_says_opened_on_a_side_is_passed_to_the_voice(
+    def test_a_request_the_hosted_app_says_opened_on_a_satellite_is_passed_to_the_voice(
             self, tmp_path):
         runner = make_runner(tmp_path)
         heard = []
         runner.voice.controller = SimpleNamespace(
-            request_opened=lambda side: heard.append(("opened", side)),
-            request_closed=lambda side: heard.append(("closed", side)),
+            request_opened=lambda satellite: heard.append(("opened", satellite)),
+            request_closed=lambda satellite: heard.append(("closed", satellite)),
             is_muted=False, unsuspend=lambda: None, suspend=lambda hold: None)
         (tmp_path / "dashboard_cmd.txt").write_text(
             "landscape_request_open\nlandscape_request_closed\n", encoding="utf-8")
@@ -1378,7 +1378,7 @@ class TestWhatASpokenCommandFlashes:
 
         assert len(flashed) == 1, flashed
 
-    def test_favorites_said_to_a_side_in_kino_mode_flashes_its_f_mode_going_on(self, tmp_path):
+    def test_favorites_said_to_a_satellite_in_kino_mode_flashes_its_f_mode_going_on(self, tmp_path):
         flashed = self._run_for_real(tmp_path, "landscape_say_favorites", "landscape favorites")
 
         assert flashed == [("F-Mode enabled", "landscape", FAVORITE)]
@@ -1410,7 +1410,7 @@ class TestWhatASpokenCommandFlashes:
         ("landscape_trash", "landscape weird"),
         ("landscape_wrong_action", "landscape wrong action"),
     ])
-    def test_a_judgement_on_a_side_that_has_named_no_video_says_what_was_heard(
+    def test_a_judgement_on_a_satellite_that_has_named_no_video_says_what_was_heard(
         self, tmp_path, command, said,
     ):
         flashed = self._run_for_real(tmp_path, command, said)
@@ -1472,7 +1472,7 @@ class TestWhatASpokenCommandFlashes:
         self, tmp_path, command, said,
     ):
         """On a Funestra F-mode flashes which way it went; in origenerator mode the
-        words go to the show on that side, which flashes nothing here."""
+        words go to the show on that Satellite, which flashes nothing here."""
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
@@ -1488,7 +1488,7 @@ class TestWhatASpokenCommandFlashes:
         assert flashed == [(said, "landscape")]
 
 
-def test_a_word_the_room_hears_as_a_lock_locks_a_side_showing_the_hosted_app(tmp_path):
+def test_a_word_the_room_hears_as_a_lock_locks_a_satellite_showing_the_hosted_app(tmp_path):
     runner = make_runner(tmp_path, config=_hosting(tmp_path))
     _the_hosted_app_answers(tmp_path)
     write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
@@ -3058,7 +3058,7 @@ class TestKinoModeFunscriptHandoff:
         sync.assert_called_once_with("kino", paused=True, control="driving",
                                      holder=RoomFunestra.MAIN)
 
-    def test_the_tick_tells_the_arbiter_when_a_side_funestra_has_the_osr2(self, tmp_path):
+    def test_the_tick_tells_the_arbiter_when_a_satellite_funestra_has_the_osr2(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.KINO, osr2_funestra=RoomFunestra.LANDSCAPE)
 
@@ -3120,9 +3120,9 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
         runner._last_sync = -999
         runner.tick()
 
-        for side in ("portrait", "landscape"):
-            sent = (tmp_path / f"{side}_cmd.txt").read_text(encoding="utf-8").splitlines()
-            assert [verb for verb in sent if verb.startswith("SET_SPEED")] == ["SET_SPEED 0.5"], side
+        for satellite in ("portrait", "landscape"):
+            sent = (tmp_path / f"{satellite}_cmd.txt").read_text(encoding="utf-8").splitlines()
+            assert [verb for verb in sent if verb.startswith("SET_SPEED")] == ["SET_SPEED 0.5"], satellite
 
 
 class TestExpandGroupCommand:
@@ -3169,7 +3169,7 @@ class TestBothSatelliteCommands:
         assert commands == ["portrait_next", "landscape_next"]
 
     def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
-        """"lock both" (both_lock_on) is the spoken lock said to each side: an
+        """"lock both" (both_lock_on) is the spoken lock said to each Satellite: an
         already-locked side is left alone, so only the unlocked one locks."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
@@ -3552,7 +3552,7 @@ def _hosting(tmp_path, **overrides):
                    landscape_origenerator_hud_file=tmp_path / "origenerator_landscape_hud.json")
 
 
-def _follow_the_sides(runner, *, now: float) -> None:
+def _follow_the_satellites(runner, *, now: float) -> None:
     runner.state = runner.changing_hands.follow(runner.state, runner.config, now=now)
 
 
@@ -3797,7 +3797,7 @@ class TestOpeningInOrigeneratorMode:
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):
-        """A second open restarts the show on a side already open."""
+        """A second open restarts the show on a Satellite already open."""
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
@@ -3855,7 +3855,7 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
 
 class TestTheAppTakesAFunestra:
-    """A side switched to Origenerator mode is the app's from the first HUD the
+    """A Satellite switched to Origenerator mode is the app's from the first HUD the
     app publishes for it after the switch, and wears that HUD at once."""
 
     def _switched(self, tmp_path):
@@ -3869,19 +3869,19 @@ class TestTheAppTakesAFunestra:
         runner._dispatch("portrait_origenerator_activate")
         return runner, channel
 
-    def test_the_side_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
+    def test_the_satellite_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
         runner, _channel = self._switched(tmp_path)
 
-        _follow_the_sides(runner, now=0.0)
+        _follow_the_satellites(runner, now=0.0)
 
         assert runner.state.portrait.handed_over is False
 
-    def test_the_apps_first_hud_hands_the_side_over_and_goes_up_at_once(self, tmp_path):
+    def test_the_apps_first_hud_hands_the_satellite_over_and_goes_up_at_once(self, tmp_path):
         runner, channel = self._switched(tmp_path)
         publish_whole(channel.origenerator_hud_file,
                       hud_text(HudModel(funestra="portrait", title="Stub slideshow")))
 
-        _follow_the_sides(runner, now=0.0)
+        _follow_the_satellites(runner, now=0.0)
 
         assert runner.state.portrait.handed_over is True
         published = (tmp_path / "portrait_hud.json").read_text(encoding="utf-8")
@@ -3916,20 +3916,20 @@ class TestTheFunestrasComeHome:
         cmd_file = config.satellite(funestra).cmd_file
         return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
-    def test_a_side_the_app_has_let_go_of_comes_home(self, tmp_path):
+    def test_a_satellite_the_app_has_let_go_of_comes_home(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path, locked=True)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        _follow_the_sides(runner, now=100.5)
+        _follow_the_satellites(runner, now=100.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
         assert self._queued(config, RoomFunestra.LANDSCAPE) == []    # still the app's
 
-    def test_a_side_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
+    def test_a_satellite_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
         """An app that has stalled or gone does not get to keep the Funestras."""
         runner, config = self._left_for_origenerator(tmp_path)
 
-        _follow_the_sides(runner, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
+        _follow_the_satellites(runner, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
         assert self._queued(config, RoomFunestra.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
@@ -3939,23 +3939,23 @@ class TestTheFunestrasComeHome:
         runner.state = _in_origenerator_mode(runner.state, RoomFunestra.PORTRAIT)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
 
-        _follow_the_sides(runner, now=100.5)
+        _follow_the_satellites(runner, now=100.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == []
         runner.state = runner.state.with_satellite(RoomFunestra.PORTRAIT,
                                                    mode=SatellitesMode.KINO)
-        _follow_the_sides(runner, now=100.6)
+        _follow_the_satellites(runner, now=100.6)
         assert self._queued(config, RoomFunestra.PORTRAIT) == []     # nothing owed any more
 
-    def test_a_side_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
+    def test_a_satellite_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
         """Out of the mode before the app had read the way in: it will still
-        write its list for the side, so handing the side's own back first would
+        write its list for the Satellite, so handing the Satellite's own back first would
         leave the Funestra on the app's."""
         runner, config = self._left_for_origenerator(tmp_path)
         self._lets_go_of(config, RoomFunestra.PORTRAIT)
         runner.homecoming.expect(RoomFunestra.SATELLITES, runner.config, now=101.0)
 
-        _follow_the_sides(runner, now=101.5)
+        _follow_the_satellites(runner, now=101.5)
 
         assert self._queued(config, RoomFunestra.PORTRAIT) == []
 

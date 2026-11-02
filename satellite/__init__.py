@@ -1,7 +1,7 @@
 """Fun Time's satellite program: a Funestra on a borderless window.
 
 Launched as ``python -m satellite`` by :mod:`fun_time.windows_bridge_startup`,
-one process per side, it opens the window the session places and runs a
+one process per Satellite, it opens the window the session places and runs a
 :class:`funestra.funestra.Funestra` on it, driven entirely through the files
 in ``state/``: a playlist, a command file, a paused flag, the published HUD,
 and a status file it writes back.

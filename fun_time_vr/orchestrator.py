@@ -629,7 +629,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
         (portrait_playlist, portrait_status.video),
         (landscape_playlist, landscape_status.video),
     ])
-    # And the state that session was in: F-mode, each side's filter, order and
+    # And the state that session was in: F-mode, each Satellite's filter, order and
     # lock, any group loop, the sound level.  The dispatch loop opens on this
     # file, so resuming the files without it leaves every HUD describing a
     # different session.  Read before the flags below are seeded, because two of

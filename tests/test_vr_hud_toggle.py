@@ -49,7 +49,7 @@ def _hung(toggle: HudToggle, edge: HudEdge = HudEdge.LOWER, *, minimized: bool =
 
 class TestWhereItHangs:
     @pytest.mark.parametrize("edge", list(HudEdge))
-    def test_against_the_side_the_hud_is_on_just_off_the_item(self, edge):
+    def test_against_the_satellite_the_hud_is_on_just_off_the_item(self, edge):
         toggle, _posted = _toggle()
 
         button = _hung(toggle, edge)

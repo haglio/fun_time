@@ -6,7 +6,7 @@ from fun_time_vr.satellite_hud import HUD, ITEM, hud_screen_name, screen_kind
 
 
 class TestScreenNames:
-    def test_a_satellites_hud_screen_is_named_after_its_side(self):
+    def test_a_satellites_hud_screen_is_named_after_its_satellite(self):
         assert screen_kind(hud_screen_name("portrait")) == HUD
         assert screen_kind("portrait") == ITEM
 

@@ -5,7 +5,7 @@ through the command/paused/status file quartet — ``append_command`` in,
 ``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
 Complements ``test_satellite_native_integration`` (which proves basic
 play/lock/pause) by covering navigation inverses, wrap-around, discard, playlist
-reload, PLAY_FILE, and a clip that arrives while the side plays its Latest list.
+reload, PLAY_FILE, and a clip that arrives while the Satellite plays its Latest list.
 
 Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
 """
@@ -133,7 +133,7 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
     Only the portrait quartet has to be real — the loop commands touch just the
     satellite they address — so every other file points somewhere beside it.
     """
-    # The state dir is where a rebuild writes the side's playlist, and the satellite
+    # The state dir is where a rebuild writes the Satellite's playlist, and the satellite
     # is already reading portrait_playlist.tsv there — the same name — so they have
     # to be the same directory or the rebuild would land beside the running Funestra.
     state_dir = satellite.folder

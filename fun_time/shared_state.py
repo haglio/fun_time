@@ -196,7 +196,7 @@ def _written(value: bool | int | float | str) -> str:
 
 def _session_fields():
     """The record's own fields.  A satellite's are :class:`SatelliteState`'s, and are
-    told apart by having no plain default -- each side is built by a factory."""
+    told apart by having no plain default -- each Satellite is built by a factory."""
     return [f for f in fields(BridgeState) if f.default is not MISSING]
 
 

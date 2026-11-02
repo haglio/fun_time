@@ -270,7 +270,7 @@ class TestWhichSessionIsWhich:
 
     def test_each_target_names_the_marker_its_orchestrator_really_writes(self):
         """The relay watches the file the incoming session drops, so a marker
-        renamed on one side and not the other would read every launch as wedged."""
+        renamed on one Satellite and not the other would read every launch as wedged."""
         assert DESKTOP.ready_marker == STARTUP_MARKER_NAME
         assert VR.ready_marker == VR_STARTUP_MARKER_NAME
 

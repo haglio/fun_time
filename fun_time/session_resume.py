@@ -159,9 +159,9 @@ def resume_satellite_volumes(carried: BridgeState,
                              satellite_cmd_files: Mapping[RoomFunestra, Path]) -> None:
     opens_at = SatelliteState()
     for funestra, command_file in satellite_cmd_files.items():
-        side = carried.satellite(funestra)
-        if (side.volume, side.muted) != (opens_at.volume, opens_at.muted):
-            append_command(Path(command_file), f"{SET_VOLUME} {side.volume} {int(side.muted)}")
+        satellite = carried.satellite(funestra)
+        if (satellite.volume, satellite.muted) != (opens_at.volume, opens_at.muted):
+            append_command(Path(command_file), f"{SET_VOLUME} {satellite.volume} {int(satellite.muted)}")
 
 
 def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:

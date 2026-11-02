@@ -114,7 +114,7 @@ def test_joining_the_line_forgets_runs_older_than_two_weeks(tmp_path):
     (MEASURING, {"what": ["tests/integration/test_crown_integration.py", WITHOUT_COVERAGE_FLAG],
                  "checkout": VERIFYING_MAIN}),
 ])
-def test_line_reads_the_kind_of_run_this_side_writes(tmp_path, expected, changes):
+def test_line_reads_the_kind_of_run_this_satellite_writes(tmp_path, expected, changes):
     visit = _join(tmp_path, **changes)
     visit.leave()
 

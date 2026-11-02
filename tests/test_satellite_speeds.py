@@ -17,8 +17,8 @@ def _main_plays_at(tmp_path: Path, rate: str) -> None:
         f"video=C:\\clip.mp4\nspeed={rate}\n", encoding="utf-8")
 
 
-def _sent(tmp_path: Path, side: str) -> list[str]:
-    path = tmp_path / f"{side}_cmd.txt"
+def _sent(tmp_path: Path, satellite: str) -> list[str]:
+    path = tmp_path / f"{satellite}_cmd.txt"
     return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
 

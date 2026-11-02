@@ -23,9 +23,9 @@ def shifted_state(state: BridgeState) -> BridgeState:
         f.name: _shifted(getattr(state, f.name)) for f in fields(state)
         if not isinstance(getattr(state, f.name), SatelliteState)})
     for funestra in RoomFunestra.SATELLITES:
-        side = shifted.satellite(funestra)
+        satellite = shifted.satellite(funestra)
         shifted = shifted.with_satellite(
-            funestra, **{f.name: _shifted(getattr(side, f.name)) for f in fields(side)})
+            funestra, **{f.name: _shifted(getattr(satellite, f.name)) for f in fields(satellite)})
     return shifted
 
 
@@ -33,7 +33,7 @@ def remembered_values(state: BridgeState) -> dict[str, object]:
     values = {name: getattr(state, name) for name in RESUMED_FIELDS
               if not isinstance(getattr(state, name), SatelliteState)}
     for funestra in RoomFunestra.SATELLITES:
-        side = state.satellite(funestra)
-        values |= {f"{funestra.label}_{name}": getattr(side, name)
+        satellite = state.satellite(funestra)
+        values |= {f"{funestra.label}_{name}": getattr(satellite, name)
                    for name in RESUMED_SATELLITE_FIELDS}
     return values

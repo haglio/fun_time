@@ -80,7 +80,7 @@ def _dispatch_mode_switch(
 
 def _kino_activate(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """"kino mode", said of no side: the main slot's video AND the satellites'
+    """"kino mode", said of no Satellite: the main slot's video AND the satellites'
     Funestras, each through its own switch — a session hosting no Origenerator
     has only the main slot's to make."""
     state, ops = _dispatch_mode_switch(MAIN_KINO_MODE, state, config, [])

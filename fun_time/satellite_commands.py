@@ -28,7 +28,7 @@ from .runtime_flow import SatelliteFilterFlowResult, apply_satellite_filter
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
     cancel_lock,
-    clear_side_grouping,
+    clear_satellite_grouping,
     cycle_variant,
     cycle_version,
     group_loop,
@@ -59,7 +59,7 @@ def _lock_as_said(
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
-        return _lock_a_hosted_side(funestra, lock_said(funestra, locked), state, config,
+        return _lock_a_hosted_satellite(funestra, lock_said(funestra, locked), state, config,
                                    target_path)
     if state.satellite(funestra).locked == locked:
         return state, []
@@ -70,11 +70,11 @@ def _toggle_lock(
     funestra: RoomFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
-        return _lock_a_hosted_side(funestra, _lock_pressed(funestra), state, config, target_path)
+        return _lock_a_hosted_satellite(funestra, _lock_pressed(funestra), state, config, target_path)
     return _set_lock(funestra, not state.satellite(funestra).locked, state, config, target_path)
 
 
-def _lock_a_hosted_side(
+def _lock_a_hosted_satellite(
     funestra: RoomFunestra, said: str, state: BridgeState, config: BridgeConfig,
     target_path: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -159,7 +159,7 @@ _VERSION_COMMANDS: dict[str, tuple[RoomFunestra, int]] = {
 
 
 # "more seeds" — see :func:`satellite_groups.more_seeds`.
-_MORE_SEEDS_SIDES = {"portrait_more_seeds": RoomFunestra.PORTRAIT,
+_MORE_SEEDS_SATELLITES = {"portrait_more_seeds": RoomFunestra.PORTRAIT,
                      "landscape_more_seeds": RoomFunestra.LANDSCAPE}
 
 
@@ -172,7 +172,7 @@ _LOOP_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
 }
 
 
-_LOCK_ACTION_SIDES: dict[str, RoomFunestra] = {
+_LOCK_ACTION_SATELLITES: dict[str, RoomFunestra] = {
     "portrait_lock_action": RoomFunestra.PORTRAIT,
     "landscape_lock_action": RoomFunestra.LANDSCAPE,
 }
@@ -199,28 +199,28 @@ LOCK_TOGGLES: dict[str, RoomFunestra] = {_lock_pressed(funestra): funestra
 
 # "reset" clears a satellite's filter and reshuffles it back to the default
 # browse; "both reset" expands to these two before dispatch.
-_RESET_SIDES: dict[str, tuple[RoomFunestra, ...]] = {
+_RESET_SATELLITES: dict[str, tuple[RoomFunestra, ...]] = {
     "portrait_reset": (RoomFunestra.PORTRAIT,),
     "landscape_reset": (RoomFunestra.LANDSCAPE,),
 }
 
 
 # "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
-_NO_LOOP_SIDES: dict[str, RoomFunestra] = {
+_NO_LOOP_SATELLITES: dict[str, RoomFunestra] = {
     "portrait_no_loop": RoomFunestra.PORTRAIT,
     "landscape_no_loop": RoomFunestra.LANDSCAPE,
 }
 
 
-_LOOP_CYCLE_SIDES: dict[str, RoomFunestra] = {
+_LOOP_CYCLE_SATELLITES: dict[str, RoomFunestra] = {
     "portrait_loop": RoomFunestra.PORTRAIT,
     "landscape_loop": RoomFunestra.LANDSCAPE,
 }
 
 
 # "no filter" drops just the filter — the narrow counterpart of reset, which puts
-# the whole side back to its defaults.
-_NO_FILTER_SIDES: dict[str, tuple[RoomFunestra, ...]] = {
+# the whole Satellite back to its defaults.
+_NO_FILTER_SATELLITES: dict[str, tuple[RoomFunestra, ...]] = {
     "portrait_no_filter": (RoomFunestra.PORTRAIT,),
     "landscape_no_filter": (RoomFunestra.LANDSCAPE,),
 }
@@ -228,7 +228,7 @@ _NO_FILTER_SIDES: dict[str, tuple[RoomFunestra, ...]] = {
 
 # "Wrong action" — the clip is fine, its label is not.  Per side, like every
 # other judgement of the clip on screen.
-_WRONG_ACTION_SIDES: dict[str, RoomFunestra] = {"portrait_wrong_action": RoomFunestra.PORTRAIT,
+_WRONG_ACTION_SATELLITES: dict[str, RoomFunestra] = {"portrait_wrong_action": RoomFunestra.PORTRAIT,
                                           "landscape_wrong_action": RoomFunestra.LANDSCAPE}
 
 
@@ -257,7 +257,7 @@ _NAV_DIRECTIONS = ("up", "down")
 
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
-    """``(slot, direction)`` for a ``<side>_nav_<dir>`` command, else None."""
+    """``(slot, direction)`` for a ``<satellite>_nav_<dir>`` command, else None."""
     for prefix, funestra in (("portrait_nav_", RoomFunestra.PORTRAIT),
                           ("landscape_nav_", RoomFunestra.LANDSCAPE)):
         if command.startswith(prefix):
@@ -269,7 +269,7 @@ def _parse_nav(command: str) -> tuple[int, str] | None:
 
 def is_hud_nav_command(command: str) -> bool:
     """Whether *command* drives HUD keyboard navigation — a direction step.  Those
-    manage the side's nav anchor themselves, so the generic "any other side
+    manage the Satellite's nav anchor themselves, so the generic "any other side
     command re-homes the map" rule leaves them alone."""
     return _parse_nav(command) is not None
 
@@ -279,10 +279,10 @@ def _dispatch_reorder(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
 
-    Either rescans that side's sources, so clips that have arrived since are picked
-    up, and keeps its filter.  The order is remembered per side — the two satellites
+    Either rescans that Satellite's sources, so clips that have arrived since are picked
+    up, and keeps its filter.  The order is remembered per Satellite — the two satellites
     can be in different ones — so a later filter or F-mode rebuild reloads it the
-    same way.  The rebuild replaces the queue, which drops the side's lock and any
+    same way.  The rebuild replaces the queue, which drops the Satellite's lock and any
     group loop (with the widened row that rode on it).
     """
     state = state.with_satellite(funestra, latest=recent)
@@ -291,27 +291,27 @@ def _dispatch_reorder(
     # the new order applying only after it.
     result = _rebuild_satellite(funestra, state.satellite(funestra).filter, state, config, start_at_top=True)
     state = state.with_satellite(funestra, locked=False)
-    state = clear_side_grouping(state, funestra)
+    state = clear_satellite_grouping(state, funestra)
     funestra_name = RoomFunestra(funestra).label
     # The order's own word and nothing else.  The notice flashes on the Funestra it
     # was said to, and this is what that Funestra's HUD calls the order it is now
     # in, so naming the Funestra and then spelling the order out a second time
     # ("Latest: portrait newest-first") only read as a log line that had escaped
-    # onto the screen.  The count and the side stay in the log, where they are of
+    # onto the screen.  The count and the Satellite stay in the log, where they are of
     # use.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, funestra_name, result.count)
     return state, [WindowOp(op="notice", key=label, source=satellite_source(funestra))]
 
 
-def _browse_at_defaults(side: SatelliteState) -> bool:
+def _browse_at_defaults(satellite: SatelliteState) -> bool:
     fresh = SatelliteState()
-    return replace(side, nav_anchor="", speed=fresh.speed, volume=fresh.volume,
+    return replace(satellite, nav_anchor="", speed=fresh.speed, volume=fresh.volume,
                    muted=fresh.muted) == fresh
 
 
-def satellite_at_defaults(side: SatelliteState, status: SatelliteStatus) -> bool:
-    return _browse_at_defaults(side) and status.speed == 1.0
+def satellite_at_defaults(satellite: SatelliteState, status: SatelliteStatus) -> bool:
+    return _browse_at_defaults(satellite) and status.speed == 1.0
 
 
 def _dispatch_reset(
@@ -320,17 +320,17 @@ def _dispatch_reset(
     """Put a satellite (or both) back to every default, not just its filter.
 
     The lock is released, the filter cleared, F-mode dropped, the order returned to
-    shuffled, any group loop and widened row and frozen map dropped, and the side
+    shuffled, any group loop and widened row and frozen map dropped, and the Satellite
     starts from the top of a freshly-built browse — one clip per subject.  "no
     filter" is the narrow gesture; this one is "put it back how it started".
 
     F-mode is one of those defaults, and is cleared here rather than left standing:
-    a side reset while it was narrowed to the favorites came back still narrowed to
+    a Satellite reset while it was narrowed to the favorites came back still narrowed to
     them, which is a browse of a few dozen clips wearing the label of the whole
     library.  The flag goes into the state before the rebuild, because the rebuild
     reads it back to decide how wide to build.
 
-    A side already sitting at those defaults is left alone entirely.  The rebuild
+    A Satellite already sitting at those defaults is left alone entirely.  The rebuild
     reshuffles and starts at the top, so a second press landed on a different clip
     than the first, and a third on another again: a button that says "put it back"
     was the fastest way to keep changing what was playing.  Nothing is narrowed by
@@ -339,9 +339,9 @@ def _dispatch_reset(
     ops: list[WindowOp] = []
     for funestra in funestras:
         # Every default is the empty value of its field, so "already reset" is
-        # the side's whole SatelliteState sitting at the default — a narrowing the
+        # the Satellite's whole SatelliteState sitting at the default — a narrowing the
         # reset clears cannot be one this test forgets.  (The nav anchor is
-        # already gone: every side command that is not itself a nav step clears
+        # already gone: every Satellite command that is not itself a nav step clears
         # it on the way in, so no reset has ever seen one set.)
         if satellite_at_defaults(state.satellite(funestra),
                                  read_satellite_status(config.satellite(funestra).status_file)):
@@ -351,7 +351,7 @@ def _dispatch_reset(
             state = cancel_lock(funestra, state, config)
             state = state.with_satellite(
                 funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
-            state = clear_side_grouping(state, funestra)
+            state = clear_satellite_grouping(state, funestra)
             result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
             logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
         send_satellite(config, funestra, NORMAL_SPEED)
@@ -366,7 +366,7 @@ def _rebuild_satellite(
     """Rebuild one satellite's browse under *query* and its own current ordering.
 
     The single place a satellite's playlist is rebuilt from its sources, so a
-    filter and a reorder cannot drift apart in how they read the side's state.
+    filter and a reorder cannot drift apart in how they read the Satellite's state.
     ``start_at_top`` is for the callers that mean "start over" — a reorder or a
     reset — since the reload otherwise keeps the clip on screen and carries on from
     where it sat, leaving the new order to apply only after it.
@@ -404,7 +404,7 @@ def _dispatch_set_filter(
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
             state = state.with_satellite(funestra, filter=query)
-            state = clear_side_grouping(state, funestra)
+            state = clear_satellite_grouping(state, funestra)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
         # so a warning like the other no-effect notices.
@@ -413,7 +413,7 @@ def _dispatch_set_filter(
     return state, ops
 
 
-# Plain playlist navigation, per side.
+# Plain playlist navigation, per Satellite.
 _TRANSPORT_COMMANDS: dict[str, tuple[RoomFunestra, str]] = {
     "portrait_prev": (RoomFunestra.PORTRAIT, PREV),
     "portrait_next": (RoomFunestra.PORTRAIT, NEXT),
@@ -465,7 +465,7 @@ def _set_filter(funestras: tuple[RoomFunestra, ...], query: str, state: BridgeSt
 
 def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """Keyboard navigation of the HUD map: "<side>_nav_<dir>" moves the
+    """Keyboard navigation of the HUD map: "<satellite>_nav_<dir>" moves the
     selection and switches the satellite to it."""
     nav = _parse_nav(command)
     if nav is None:
@@ -475,7 +475,7 @@ def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
 
 def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """A HUD thumbnail click: "<side>_play_video|<path>" switches straight to
+    """A HUD thumbnail click: "<satellite>_play_video|<path>" switches straight to
     that clip.  The path rides after the "|" ("|" is illegal in a Windows path,
     so it is an unambiguous delimiter)."""
     if "_play_video|" not in command:
@@ -488,7 +488,7 @@ def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
 
 def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """Double-click of a HUD thumbnail: "<side>_lock_video|<path>" — switch and lock."""
+    """Double-click of a HUD thumbnail: "<satellite>_lock_video|<path>" — switch and lock."""
     if "_lock_video|" not in command:
         return None
     head, _, path = command.partition("|")
@@ -545,18 +545,18 @@ HANDLERS: dict[str, Handler] = {
        for cmd, (funestra, kind) in _CYCLE_COMMANDS.items()},
     **{cmd: partial(cycle_version, funestra, delta)
        for cmd, (funestra, delta) in _VERSION_COMMANDS.items()},
-    **{cmd: partial(more_seeds, funestra) for cmd, funestra in _MORE_SEEDS_SIDES.items()},
-    **{cmd: partial(wrong_action, funestra) for cmd, funestra in _WRONG_ACTION_SIDES.items()},
+    **{cmd: partial(more_seeds, funestra) for cmd, funestra in _MORE_SEEDS_SATELLITES.items()},
+    **{cmd: partial(wrong_action, funestra) for cmd, funestra in _WRONG_ACTION_SATELLITES.items()},
     **{cmd: partial(group_loop, funestra, axis)
        for cmd, (funestra, axis) in _LOOP_COMMANDS.items()},
-    **{cmd: partial(loop_cycle, funestra) for cmd, funestra in _LOOP_CYCLE_SIDES.items()},
-    **{cmd: partial(_no_loop, funestra) for cmd, funestra in _NO_LOOP_SIDES.items()},
+    **{cmd: partial(loop_cycle, funestra) for cmd, funestra in _LOOP_CYCLE_SATELLITES.items()},
+    **{cmd: partial(_no_loop, funestra) for cmd, funestra in _NO_LOOP_SATELLITES.items()},
     **{cmd: partial(_dispatch_lock_action, funestra)
-       for cmd, funestra in _LOCK_ACTION_SIDES.items()},
+       for cmd, funestra in _LOCK_ACTION_SATELLITES.items()},
     **{cmd: partial(_reorder, funestra, recent)
        for cmd, (funestra, recent) in _REORDER_COMMANDS.items()},
-    **{cmd: partial(_reset, funestras) for cmd, funestras in _RESET_SIDES.items()},
-    **{cmd: partial(_set_filter, funestras, "") for cmd, funestras in _NO_FILTER_SIDES.items()},
+    **{cmd: partial(_reset, funestras) for cmd, funestras in _RESET_SATELLITES.items()},
+    **{cmd: partial(_set_filter, funestras, "") for cmd, funestras in _NO_FILTER_SATELLITES.items()},
 }
 
 PARSED_FORMS = (_parsed_nav, _parsed_play_video, _parsed_lock_video, _parsed_filter,

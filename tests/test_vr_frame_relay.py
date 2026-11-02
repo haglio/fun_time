@@ -1,6 +1,6 @@
 """Which frame the frame loop may show, and which texture a video may paint into.
 
-Every Funestra paints on a thread and a GL context of its own, so the two sides
+Every Funestra paints on a thread and a GL context of its own, so the two Satellites
 have to agree on three textures without either waiting on the other.  This is
 that agreement, apart from the GL calls it is made of.
 """

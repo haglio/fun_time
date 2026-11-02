@@ -103,9 +103,9 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     for clip, size in ((original, 100), (upscale, 900)):
         clip.parent.mkdir(parents=True, exist_ok=True)
         clip.write_bytes(b"x")
-        side = (meta / clip.relative_to(lib)).with_suffix(".json")
-        side.parent.mkdir(parents=True, exist_ok=True)
-        side.write_text(
+        satellite = (meta / clip.relative_to(lib)).with_suffix(".json")
+        satellite.parent.mkdir(parents=True, exist_ok=True)
+        satellite.write_text(
             json.dumps({"version": {"group": "example/Scene-One-abc", "processed": clip is upscale}}),
             encoding="utf-8",
         )

@@ -126,7 +126,7 @@ def test_either_enter_key_accepts_what_voice_was_not_sure_of():
 
 
 def test_cycle_action_and_seed_are_spoken_only():
-    """Cycling a clip's action or seed is a spoken command on both sides.
+    """Cycling a clip's action or seed is a spoken command on both Satellites.
 
     Each held a key once — Del/End on portrait, E/Q on landscape — and none of the
     four was ever used, so they went back to the pool; E now ends a landscape loop.
@@ -149,7 +149,7 @@ def test_cycle_action_and_seed_are_spoken_only():
         assert shown in owning[0].voice
 
 
-def test_the_group_loops_are_cycled_by_one_key_per_side():
+def test_the_group_loops_are_cycled_by_one_key_per_satellite():
     """Each satellite's whole loop lives on one key — Home for portrait, E for
     landscape — which steps it seeds → actions → off → seeds.
 
@@ -179,10 +179,10 @@ def _satellite_section() -> ReferenceSection:
     return {s.title: s for s in build_reference_sections()}["Satellites"]
 
 
-def test_every_scope_shares_one_grid_with_a_key_column_per_side():
+def test_every_scope_shares_one_grid_with_a_key_column_per_satellite():
     """Portrait, Landscape, Both, Active side and Filters ran the same list of
     actions, so they are one grid now: a row names every scope that has the
-    action, and puts each side's key in its own column.  Five sections said it
+    action, and puts each Satellite's key in its own column.  Five sections said it
     all five times and were free to drift apart."""
     section = _satellite_section()
     assert section.key_headers == ("Portrait", "Landscape")
@@ -254,7 +254,7 @@ def test_the_grid_carries_every_both_and_active_command():
 
 
 def test_the_bare_phrases_read_as_the_say_column():
-    """The side-agnostic phrases are what the grid shows — the whole point of
+    """The Satellite-agnostic phrases are what the grid shows — the whole point of
     folding the scope word out is that "next" is the entry a reader sees."""
     rows = _satellite_section().rows
     by_command = {cmd: r for r in rows for cmd in r.commands}
@@ -274,7 +274,7 @@ def test_the_bare_phrases_read_as_the_say_column():
         assert phrase in by_command[cmd].voice
 
 
-def test_the_f_mode_row_offers_favorites_only_with_a_side_named():
+def test_the_f_mode_row_offers_favorites_only_with_a_satellite_named():
     f_mode = next(r for r in _satellite_section().rows if "active_fmode" in r.commands)
 
     assert {"portrait favorites", "landscape favorites"} <= set(f_mode.voice)
@@ -439,10 +439,10 @@ def test_end_loop_follows_the_funestra_last_spoken_to():
     assert VOICE_COMMANDS["both end loop"] == "both_no_loop"
 
 
-def test_latest_and_shuffle_reach_one_side_or_both():
+def test_latest_and_shuffle_reach_one_satellite_or_both():
     """Both orderings were global-only, so "portrait premiere" parsed as nothing.
-    They join the side grid like every other satellite action — and shuffle has to
-    come too, or a side put in latest order could never be shuffled back alone."""
+    They join the Satellite grid like every other satellite action — and shuffle has to
+    come too, or a Satellite put in latest order could never be shuffled back alone."""
     for word, action in (("latest", "latest"), ("shuffle", "shuffle")):
         assert VOICE_COMMANDS[word] == f"active_{action}"
         assert VOICE_COMMANDS[f"portrait {word}"] == f"portrait_{action}"
@@ -514,7 +514,7 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
 def test_section_titles_run_global_robot_hand_genau_main_funestra_satellites():
     """Five sections, in the order the room is built: what governs everything,
     then the engine driving the OSR2, then the clips it plays under, then the
-    video, then the two side Funestras.  The hand leads because it drives in both
+    video, then the two Satellite Funestras.  The hand leads because it drives in both
     modes, Genau leads the Main Funestra because it owns the primary display in its own mode,
     and every satellite scope shares the last section."""
     titles = [s.title for s in build_reference_sections()]
@@ -533,7 +533,7 @@ def test_the_library_browser_has_the_key_the_retired_mode_had():
     assert "browse" in browser[0].voice
 
 
-def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
+def test_kino_mode_is_spoken_as_written_of_either_satellite_or_of_both():
     # Every word of these is in the vosk vocabulary, so they are heard as the
     # reference shows them.
     assert VOICE_COMMANDS["kino mode"] == "kino_activate"
@@ -700,11 +700,11 @@ def test_funscript_rows_show_the_joined_word_the_recognizer_cannot_hear():
     assert "jump to funscript" not in VOICE_COMMANDS  # display-only
 
     main = [r for r in _all_rows() if "main_funestra_funscript_jump" in r.commands]
-    sides = [r for r in _all_rows() if "portrait_funscript_jump" in r.commands]
-    assert len(main) == len(sides) == 1, "expected one funscript row per section"
+    satellites = [r for r in _all_rows() if "portrait_funscript_jump" in r.commands]
+    assert len(main) == len(satellites) == 1, "expected one funscript row per section"
     assert {"main jump to funscript", "main next funscripted"} <= set(main[0].voice)
-    assert sides[0].voice == ("jump to funscript", "next funscripted")
-    assert _keys(main[0]) == _keys(sides[0]) == ()
+    assert satellites[0].voice == ("jump to funscript", "next funscripted")
+    assert _keys(main[0]) == _keys(satellites[0]) == ()
     for row in _all_rows():
         for phrase in row.voice:
             assert "fun script" not in phrase, phrase
@@ -789,7 +789,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     # on fixture data in test_filter_vocab — only that none it does have leaks.
     assert not workarounds & set(set_row.voice), workarounds
     # Clearing scopes like every other action now, so its phrases derive with the
-    # rest and the side word never appears: "portrait clear filter", not "clear
+    # rest and the Satellite word never appears: "portrait clear filter", not "clear
     # portrait".
     drop_row = next(r for r in rows if r.description.startswith("Drop the filter"))
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}

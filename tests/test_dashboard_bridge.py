@@ -103,7 +103,7 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
 class TestTheSnapshotsEncoding:
     """One decoder for a file with one writer and two readers.
 
-    The panel's reader accepted utf-8-sig, utf-16 and utf-8; this side accepted
+    The panel's reader accepted utf-8-sig, utf-16 and utf-8; this Satellite accepted
     utf-16 and utf-8.  Both now ask the module that writes it.
     """
 
@@ -130,7 +130,7 @@ class TestTheSnapshotsEncoding:
         with pytest.raises(UnicodeDecodeError):
             decode_snapshot(b"\xff\xfe\xfd")
 
-    def test_this_side_never_fails_a_write_over_an_unreadable_file(self, tmp_path):
+    def test_this_satellite_never_fails_a_write_over_an_unreadable_file(self, tmp_path):
         """A snapshot it cannot read is one it has to overwrite, not raise on."""
         path = tmp_path / "dashboard_state.ini"
         path.write_bytes(b"\xff\xfe\xfd")

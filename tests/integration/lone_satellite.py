@@ -35,11 +35,11 @@ from .integration_support import (
 from .run_clock import Budget
 
 
-def library_clips_of(side: str, count: int) -> list[str]:
-    folder = getattr(load_config(real_config_path()).paths, f"{side}_dirs")[0]
+def library_clips_of(satellite: str, count: int) -> list[str]:
+    folder = getattr(load_config(real_config_path()).paths, f"{satellite}_dirs")[0]
     return sample_library_clips(
         glob.glob(os.path.join(str(folder), "**", "*.mp4"), recursive=True),
-        count, desc=f"{side} clips")
+        count, desc=f"{satellite} clips")
 
 
 class LoneSatellite:

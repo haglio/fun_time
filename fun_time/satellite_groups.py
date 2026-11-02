@@ -91,10 +91,10 @@ def lock_on_what_was_meant(funestra: RoomFunestra, config: BridgeConfig, aimed_a
 
 
 def cancel_lock(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig) -> BridgeState:
-    """Release a repeat-one lock so the side auto-advances again.
+    """Release a repeat-one lock so the Satellite auto-advances again.
 
     A locked satellite is holding one clip (``LOCK`` → mpv ``loop_file``); the
-    ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the side
+    ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the Satellite
     was not locked.
     """
     if state.satellite(funestra).locked:
@@ -102,7 +102,7 @@ def cancel_lock(funestra: RoomFunestra, state: BridgeState, config: BridgeConfig
     return state.with_satellite(funestra, locked=False)
 
 
-def clear_side_grouping(state: BridgeState, funestra: RoomFunestra) -> BridgeState:
+def clear_satellite_grouping(state: BridgeState, funestra: RoomFunestra) -> BridgeState:
     """Forget any group loop AND any widened seed row on *Funestra* satellite — its
     playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
     was set.  The widen only ever means something in the context of the clip/loop
@@ -314,11 +314,11 @@ def group_loop(
         return state, ops
     items, widened = _loop_items(funestra, axis, state, config, current)
     if len(items) <= 1:
-        return _locked_by_a_loop_control(funestra, clear_side_grouping(state, funestra), config,
+        return _locked_by_a_loop_control(funestra, clear_satellite_grouping(state, funestra), config,
                                          current)
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = cancel_lock(funestra, state, config)
-    # Write the group as the side's playlist with the current clip first, then
+    # Write the group as the Satellite's playlist with the current clip first, then
     # RELOAD_PLAYLIST: the native Funestra keeps the current clip playing when it
     # survives the reload, so the clip on screen is never restarted and only what
     # comes up next becomes the group, which then cycles by auto-advance.
@@ -347,7 +347,7 @@ def lock_a_loop_left_with_one_clip(
     if len(items) > 1:
         return state, []
     send_satellite(config, funestra, LOCK_ON)
-    state = clear_side_grouping(state.with_satellite(funestra, locked=True), funestra)
+    state = clear_satellite_grouping(state.with_satellite(funestra, locked=True), funestra)
     return state, [WindowOp(op="notice", key="Locked", source=satellite_source(funestra))]
 
 
@@ -365,8 +365,8 @@ def loop_cycle(
     current = target_path or satellite_current(config, funestra)
     if not current:
         return state, []
-    side = state.satellite(funestra)
-    stop = next_stop(standing_at(loop=side.loop, locked=side.locked),
+    satellite = state.satellite(funestra)
+    stop = next_stop(standing_at(loop=satellite.loop, locked=satellite.locked),
                      lambda axis: len(_loop_items(funestra, axis, state, config, current)[0]) > 1)
     if stop == LOCK:
         return _locked_by_a_loop_control(funestra, state, config, current)

@@ -157,11 +157,11 @@ class TestControllerManifest:
         cfg = load_config(cfg_path)
         commands = build_windows_bridge_manifest(cfg)["commands"]
         state = cfg.paths.state_dir
-        for side in ("portrait", "landscape"):
-            assert commands[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
-            assert commands[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
-            assert commands[f"{side}_status_file"] == str(state / f"{side}_status.txt")
-            assert commands[f"{side}_playlist_file"] == str(state / f"{side}_playlist.tsv")
+        for satellite in ("portrait", "landscape"):
+            assert commands[f"{satellite}_cmd_file"] == str(state / f"{satellite}_cmd.txt")
+            assert commands[f"{satellite}_paused_file"] == str(state / f"{satellite}_paused.txt")
+            assert commands[f"{satellite}_status_file"] == str(state / f"{satellite}_status.txt")
+            assert commands[f"{satellite}_playlist_file"] == str(state / f"{satellite}_playlist.tsv")
 
     def test_the_brokers_files_are_manifested_from_the_brokers_own_directory(
         self, tmp_path: Path, cfg_factory,

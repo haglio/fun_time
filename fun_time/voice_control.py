@@ -38,7 +38,7 @@ from fun_time.voice_commands import (
     build_voice_commands,
     format_spoken_command,
     friendly_voice,
-    said_to_a_side,
+    said_to_a_satellite,
 )
 
 logger = logging.getLogger(__name__)
@@ -190,8 +190,8 @@ class VoiceController:
         self.hosted = hosted
         self._hosted_cmd_file = hosted_cmd_file
         self._hosted_said_at_suffix = hosted_said_at_suffix
-        self._request_side: str | None = None
-        self.hosted_sides: Callable[[], frozenset[str]] = frozenset
+        self._request_satellite: str | None = None
+        self.hosted_satellites: Callable[[], frozenset[str]] = frozenset
         self._muted = threading.Event()
         self._clock = clock
         self._holds = VoiceHolds()
@@ -225,65 +225,65 @@ class VoiceController:
         self._listener = CommandListener(rules, self.listener_settings, self.listener_events,
                                          self.engines)
 
-    def request_opened(self, side: str) -> None:
-        self._request_side = side
+    def request_opened(self, satellite: str) -> None:
+        self._request_satellite = satellite
 
-    def request_closed(self, side: str) -> None:
-        if self._request_side == side:
-            self._request_side = None
+    def request_closed(self, satellite: str) -> None:
+        if self._request_satellite == satellite:
+            self._request_satellite = None
 
-    def _side_taking_a_request(self) -> str | None:
-        side = self._request_side
-        return side if side in self.hosted_sides() else None
+    def _satellite_taking_a_request(self) -> str | None:
+        satellite = self._request_satellite
+        return satellite if satellite in self.hosted_satellites() else None
 
     def _heard_through_a_request(self, heard: Heard) -> bool:
         phrase = heard.recognition.phrase
         return bool(phrase) and self.commands[phrase] in SUSPEND_EXEMPT_COMMANDS
 
-    def _hosted_side_leading(self, text: str | None) -> str | None:
+    def _hosted_satellite_leading(self, text: str | None) -> str | None:
         said = _words(text)
-        return said[0] if said and said[0] in self.hosted_sides() else None
+        return said[0] if said and said[0] in self.hosted_satellites() else None
 
-    def _side_a_request_opens_on(self, text: str | None) -> str | None:
+    def _satellite_a_request_opens_on(self, text: str | None) -> str | None:
         match _words(text):
             case [_, opener, *_] if opener in self.hosted.openers:
-                return self._hosted_side_leading(text)
+                return self._hosted_satellite_leading(text)
         return None
 
     def wants_words(self, heard: Heard) -> bool:
         if not self._listened_to_when(heard.spoken_at):
             return False
-        if self._side_taking_a_request() is not None:
+        if self._satellite_taking_a_request() is not None:
             return not self._heard_through_a_request(heard)
         recognition = heard.recognition
         if recognition.phrase:
             return False
         if recognition.unrecognized_text is not None:
-            return self._hosted_side_leading(recognition.heard) is not None
-        return self._side_a_request_opens_on(recognition.heard) is not None
+            return self._hosted_satellite_leading(recognition.heard) is not None
+        return self._satellite_a_request_opens_on(recognition.heard) is not None
 
     def handle_speech(self, words: str, heard: Heard) -> None:
-        side = self._side_taking_a_request()
-        if side is not None:
-            self._tell_the_hosted_app(side, words, heard)
+        satellite = self._satellite_taking_a_request()
+        if satellite is not None:
+            self._tell_the_hosted_app(satellite, words, heard)
             return
-        side = self._side_a_request_opens_on(words)
-        if side is not None:
-            self._tell_the_hosted_app(side, _without_its_first_word(words), heard)
+        satellite = self._satellite_a_request_opens_on(words)
+        if satellite is not None:
+            self._tell_the_hosted_app(satellite, _without_its_first_word(words), heard)
             return
         phrase = " ".join(_words(words))
-        if self._said_to_a_hosted_side(phrase):
+        if self._said_to_a_hosted_satellite(phrase):
             self._hand_on(phrase, spoken_at=heard.spoken_at)
             return
         self._report_a_miss(heard)
 
-    def _tell_the_hosted_app(self, side: str, words: str, heard: Heard) -> None:
+    def _tell_the_hosted_app(self, satellite: str, words: str, heard: Heard) -> None:
         append_command(self._hosted_cmd_file, with_when_said(
-            said_to_the_hosted_app(side, words), heard.spoken_at, self._hosted_said_at_suffix))
+            said_to_the_hosted_app(satellite, words), heard.spoken_at, self._hosted_said_at_suffix))
 
-    def _said_to_a_hosted_side(self, phrase: str) -> bool:
-        said = said_to_a_side(self.commands.get(phrase, ""))
-        return said is not None and said[0] in self.hosted_sides()
+    def _said_to_a_hosted_satellite(self, phrase: str) -> bool:
+        said = said_to_a_satellite(self.commands.get(phrase, ""))
+        return said is not None and said[0] in self.hosted_satellites()
 
     @property
     def is_muted(self) -> bool:
@@ -457,13 +457,13 @@ class RoomVoice:
             self.controller.mute()
         return self.controller.is_muted
 
-    def request_news(self, side: str, opened: bool) -> None:
+    def request_news(self, satellite: str, opened: bool) -> None:
         if self.controller is None:
             return
         if opened:
-            self.controller.request_opened(side)
+            self.controller.request_opened(satellite)
         else:
-            self.controller.request_closed(side)
+            self.controller.request_closed(satellite)
 
     def accept(self) -> bool:
         return (self.controller is not None

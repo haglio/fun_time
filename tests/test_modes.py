@@ -104,7 +104,7 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_satellite_playlists_writes_each_sides_own_favorites(tmp_path: Path):
+def test_build_satellite_playlists_writes_each_satellites_own_favorites(tmp_path: Path):
     portrait_root = tmp_path / "videos" / "videos" / "portrait"
     landscape_root = tmp_path / "videos" / "videos" / "landscape"
     metadata_root = tmp_path / "videos" / "metadata"
@@ -269,7 +269,7 @@ def test_a_kept_video_is_f_modes_unless_the_librarys_own_tree_marks_its_script(t
     assert not has_handcrafted_funscript(str(kept), metadata_root=metadata_root)
 
 
-def test_a_side_screens_playlist_pairs_each_video_with_its_funscript(tmp_path: Path):
+def test_a_satellite_screens_playlist_pairs_each_video_with_its_funscript(tmp_path: Path):
     library = tmp_path / "videos" / "videos" / "portrait"
     scripted, plain = library / "scripted.mp4", library / "plain.mp4"
     script = tmp_path / "videos" / "scripts" / "scripts" / "portrait" / "scripted.funscript"

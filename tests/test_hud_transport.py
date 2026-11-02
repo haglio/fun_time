@@ -76,7 +76,7 @@ def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
     assert model.corner == HudCell(path=clips[0], thumb=str(thumbnail_path(clips[0], cache)))
 
 
-def test_hud_payload_carries_whether_this_side_is_the_active_one():
+def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
     """The Funestra draws the dot; only fun_time knows which side has the floor."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         active = hud_model(_hud(active=True), Path("C:/state/thumbs"))
@@ -94,11 +94,11 @@ def test_hud_payload_carries_whether_the_clip_is_a_favorite():
 
 
 def _band(model) -> dict[str, object]:
-    """The side's own buttons, by what each is for."""
+    """The Satellite's own buttons, by what each is for."""
     return {button.command.removeprefix(f"{model.funestra}_"): button for button in model.rows[-1]}
 
 
-def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an_order():
+def test_hud_payload_declares_the_browse_order_pair_only_where_the_satellite_names_an_order():
     """The Funestra draws the Shuffle/Latest pair only for a HUD that declares
     it — so a satellite gets the pair, one of the two lit, and the
     origenerator-mode HUD, whose Funestra is black and paused under a show,
@@ -116,9 +116,9 @@ def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an
     assert "latest" not in unswitchable
 
 
-def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
-    """The lock and F-mode light off the side's state, and every button posts
-    that side's own verb -- what the dispatcher answers for it."""
+def test_hud_payload_declares_the_satellites_buttons_lit_off_its_own_state():
+    """The lock and F-mode light off the Satellite's state, and every button posts
+    that Satellite's own verb -- what the dispatcher answers for it."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         band = _band(hud_model(_hud(locked=True, favorites_filter=True), Path("C:/t")))
 
@@ -267,7 +267,7 @@ def test_every_hud_a_publisher_writes_names_the_camera_words_it_was_given(tmp_pa
     assert json.loads(hud_file.read_text(encoding="utf-8"))["camera_words"] == ["Side", "XYZ"]
 
 
-def test_publish_ignores_a_side_with_no_file(tmp_path: Path):
+def test_publish_ignores_a_satellite_with_no_file(tmp_path: Path):
     publisher = HudPublisher({}, tmp_path / "thumbs", ())
 
     assert publisher.publish("portrait", _hud()) is False

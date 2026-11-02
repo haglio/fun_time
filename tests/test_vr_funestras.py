@@ -493,7 +493,7 @@ class TestGenauOnTheMainFunestra:
                 is built.fakes["NoticeWriter"].return_value)
 
 
-def test_a_side_screen_hands_its_funestra_the_scripts_its_playlist_names(
+def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
         tmp_path, faked_collaborators):
     clip, script, unscripted = tmp_path / "v0.mp4", tmp_path / "v0.funscript", tmp_path / "v1.mp4"
     items = [PlaylistItem(clip, script), PlaylistItem(unscripted)]
@@ -505,7 +505,7 @@ def test_a_side_screen_hands_its_funestra_the_scripts_its_playlist_names(
     assert faked_collaborators["Funestra"].call_args.kwargs["playlist"] == items
 
 
-def test_a_side_screen_reaches_the_osr2_through_the_brokers_slot_with_its_clips_script(
+def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_clips_script(
         tmp_path, faked_collaborators):
     _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123),
                    _NO_GL_CONTEXTS, vr=_A_SESSION, remembered={})
@@ -1123,14 +1123,14 @@ class TestTheConsoleUnderTheSlot:
         console = surface_vertices(placed, aspect=_FakeConsoleTexture.aspect)
         assert over[:, 1].min() > button[:, 1].max() > button[:, 1].min() > console[:, 1].max()
 
-    def test_beside_a_wrapped_video_there_is_no_side_to_move_it_to(self):
+    def test_beside_a_wrapped_video_there_is_no_satellite_to_move_it_to(self):
         p = self._unit(wrapped=True)
 
         self._placed(p.unit)
 
         assert side_screen_name(MAIN, HudEdge.UPPER) not in self._hanging_names(p.unit)
 
-    def test_minimized_only_its_plus_hangs_with_the_sides_it_could_open_on(self):
+    def test_minimized_only_its_plus_hangs_with_the_satellites_it_could_open_on(self):
         p = self._unit(minimized=True)
 
         self._placed(p.unit)
@@ -1172,7 +1172,7 @@ class TestTheConsoleUnderTheSlot:
 
 class TestASatellitesButtonsInTheHeadset:
     """Beside a satellite's item hang its HUD, the minus between the two, and
-    a plus beside each side the HUD is not against."""
+    a plus beside each Satellite the HUD is not against."""
 
     @staticmethod
     def _unit(tmp_path, *, minimized=False):
@@ -1211,7 +1211,7 @@ class TestASatellitesButtonsInTheHeadset:
         assert hud_screen_name(PORTRAIT) not in names
         assert toggle_screen_name(PORTRAIT) in names
 
-    def test_a_squeeze_on_a_side_asks_the_room_for_the_hud_there(
+    def test_a_squeeze_on_a_satellite_asks_the_room_for_the_hud_there(
             self, tmp_path, faked_collaborators):
         unit = self._unit(tmp_path)
 
@@ -3389,7 +3389,7 @@ class TestPuttingTheRoomBack:
     the next one open the same way."""
 
     @pytest.mark.parametrize("funestra", [PORTRAIT, LANDSCAPE])
-    def test_a_satellite_goes_back_to_its_own_side(self, funestra):
+    def test_a_satellite_goes_back_to_its_own_satellite(self, funestra):
         unit = _like(_SatelliteUnit, SimpleNamespace(
             screen_name=funestra, screen=SimpleNamespace(placement=_DRAGGED_OFF)))
 

@@ -131,7 +131,7 @@ def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegratio
 
 
 @pytest.mark.timeout(ALONE_WITH_THE_SHARED_SESSION_BUDGET_S)
-def test_fun_time_spoken_favorites_flips_that_sides_f_mode(
+def test_fun_time_spoken_favorites_flips_that_satellites_f_mode(
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
@@ -480,8 +480,8 @@ def test_fun_time_the_satellites_take_the_main_funestras_playback_speed(
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
-    statuses = [s.config.paths.state_dir / f"{side}_status.txt"
-                for side in ("portrait", "landscape")]
+    statuses = [s.config.paths.state_dir / f"{satellite}_status.txt"
+                for satellite in ("portrait", "landscape")]
     s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
     s.wait_until(
@@ -788,7 +788,7 @@ def test_fun_time_the_osr2_taken_back_under_omnipause_hears_only_the_robot_hand_
     assert list(after_the_pause) == [ROBOT_HAND], after_the_pause
 
 
-def test_fun_time_the_max_intensity_holds_a_side_funestras_funscript_down_too(
+def test_fun_time_the_max_intensity_holds_a_satellite_funestras_funscript_down_too(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
@@ -805,20 +805,20 @@ def test_fun_time_the_max_intensity_holds_a_side_funestras_funscript_down_too(
     assert _osr2_still(held), held
 
 
-def _held_still(session: FunTimeIntegrationSession, side: SatelliteFiles) -> SatelliteStatus:
+def _held_still(session: FunTimeIntegrationSession, satellite: SatelliteFiles) -> SatelliteStatus:
     session.wait_until(
-        lambda: bool(read_satellite_status(side.status_file).video),
+        lambda: bool(read_satellite_status(satellite.status_file).video),
         description="the Funestra to name the clip it opened on",
     )
     session.wait_until(
-        lambda: write_flag(side.paused_file, True) and read_satellite_status(side.status_file).paused,
+        lambda: write_flag(satellite.paused_file, True) and read_satellite_status(satellite.status_file).paused,
         description="the Funestra to hold its clip",
     )
-    return published_status(read_satellite_status, side.status_file)
+    return published_status(read_satellite_status, satellite.status_file)
 
 
-def _showing(side: SatelliteFiles) -> Path:
-    return Path(read_satellite_status(side.status_file).video or "x").resolve()
+def _showing(satellite: SatelliteFiles) -> Path:
+    return Path(read_satellite_status(satellite.status_file).video or "x").resolve()
 
 
 def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
@@ -916,10 +916,10 @@ def test_fun_time_reset_all_leaves_every_funestra_unlocked(
     session = isolated_integration_session
     state_dir = session.config.paths.state_dir
     main_funestra_status = session.config.main_funestra_status_file
-    satellite_statuses = [state_dir / f"{side}_status.txt" for side in ("portrait", "landscape")]
-    for side in ("portrait", "landscape"):
-        session.write_dashboard_command(f"{side}_lock_on")
-        session.wait_for_new_log(f"Locked {side} satellite")
+    satellite_statuses = [state_dir / f"{satellite}_status.txt" for satellite in ("portrait", "landscape")]
+    for satellite in ("portrait", "landscape"):
+        session.write_dashboard_command(f"{satellite}_lock_on")
+        session.wait_for_new_log(f"Locked {satellite} satellite")
     session.wait_until(
         lambda: read_main_funestra_status(main_funestra_status).locked and all(
             read_satellite_status(path).locked for path in satellite_statuses),

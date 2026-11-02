@@ -56,14 +56,14 @@ class _ASatellite:
         return self.state.satellite(self.funestra).latest
 
     def plays_its_own_list(self) -> bool:
-        side = self.state.satellite(self.funestra)
-        return not (side.loop or self.funestra in self.coming_home
-                    or origenerator_shows(side.mode) or side.handed_over)
+        satellite = self.state.satellite(self.funestra)
+        return not (satellite.loop or self.funestra in self.coming_home
+                    or origenerator_shows(satellite.mode) or satellite.handed_over)
 
     def lets_through(self, paths: list[str]) -> list[str]:
-        side = self.state.satellite(self.funestra)
-        return satellite_narrowing(paths, side.favorites_filter,
-                                   filter_query=side.filter,
+        satellite = self.state.satellite(self.funestra)
+        return satellite_narrowing(paths, satellite.favorites_filter,
+                                   filter_query=satellite.filter,
                                    metadata_root=self.config.regen_metadata_root)
 
     def put_up_next(self, path: str) -> None:

@@ -70,8 +70,8 @@ def decode_filter_command(command: str) -> tuple[str, str] | None:
 
     ``scope`` is one of both/portrait/landscape.  Decoding is purely structural,
     so an unknown act still round-trips (and simply matches nothing downstream).
-    Dropping a filter is not one of these — that is ``<side>_no_filter``, in the
-    satellite grid with every other side action.
+    Dropping a filter is not one of these — that is ``<satellite>_no_filter``, in the
+    satellite grid with every other Satellite action.
     """
     if not command.startswith("filter_"):
         return None
@@ -91,8 +91,8 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
     for query, forms in acts.items():
         for form in forms:
             out[form] = set_command("both", query)
-            for side in _SCOPE_TOKENS:
-                out.update(named_first_or_last(side, form, set_command(side, query)))
+            for satellite in _SCOPE_TOKENS:
+                out.update(named_first_or_last(satellite, form, set_command(satellite, query)))
     return out
 
 

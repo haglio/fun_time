@@ -473,7 +473,7 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_input_file == (
             cfg.paths.state_dir / "origenerator_input.txt")
 
-    def test_each_sides_hosted_hud_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+    def test_each_satellites_hosted_hud_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
         assert cfg.satellite(RoomFunestra.PORTRAIT).origenerator_hud_file == (
@@ -481,7 +481,7 @@ class TestOrigeneratorPaths:
         assert cfg.satellite(RoomFunestra.LANDSCAPE).origenerator_hud_file == (
             state / "origenerator_landscape_hud.json")
 
-    def test_each_side_publishes_its_notices_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+    def test_each_satellite_publishes_its_notices_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         """Where a satellite says what came of a funscript move, as the Main
         Funestra does in main_player_notice.txt beside them."""
         cfg = load_config(cfg_path)

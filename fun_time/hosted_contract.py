@@ -55,9 +55,9 @@ def published_by(checkout: str | Path) -> dict | None:
 
 
 def declared_flags(contract: dict) -> frozenset[str]:
-    by_side = (flag for group in ("region_flags", "player_flags")
+    by_satellite = (flag for group in ("region_flags", "player_flags")
                for flags in contract[group].values() for flag in flags)
-    return frozenset({*contract["required_flags"], *by_side, *contract.get("headset_flags", ())})
+    return frozenset({*contract["required_flags"], *by_satellite, *contract.get("headset_flags", ())})
 
 
 def _each_flag_with_its_values(args: list[str]) -> list[list[str]]:
@@ -94,6 +94,6 @@ def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
     return line + suffix.replace(placeholder, f"{said_at:.3f}")
 
 
-def said_to_the_hosted_app(side: str, words: str) -> str:
-    return f"{side.upper()}_SAY:{words}"
+def said_to_the_hosted_app(satellite: str, words: str) -> str:
+    return f"{satellite.upper()}_SAY:{words}"
 

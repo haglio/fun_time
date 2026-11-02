@@ -5,7 +5,7 @@ AHK hotkey shell, the dashboard, the dispatch loop, the satellites and the VR
 orchestrator, with ``optionxform = str`` making the exact spelling of every key
 load-bearing.  Both halves of that schema live here — :func:`build_windows_bridge_manifest`
 writes it and :class:`LaunchManifest` reads it — so a key cannot be respelled on
-one side alone.
+one Satellite alone.
 """
 from __future__ import annotations
 
@@ -247,10 +247,10 @@ class CommandFiles:
     osr2_slot_port: str = str(ports.OSR2_SLOT)
 
     def funestra_file(self, funestra: str, kind: str) -> str:
-        """One satellite side's file of a given kind, asked for by side rather
+        """One Satellite's file of a given kind, asked for by Satellite rather
         than spelled out — ``funestra_file("portrait", "hud")`` is
         ``portrait_hud_file``.  Both the HUD publisher and the headset build
-        their sides in a loop and have nowhere to write the key by hand."""
+        their Satellites in a loop and have nowhere to write the key by hand."""
         return getattr(self, f"{funestra}_{kind}_file")
 
     @property

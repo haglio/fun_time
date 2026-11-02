@@ -180,7 +180,7 @@ class Homecoming:
         return landed
 
 
-class SidesChangingHands:
+class SatellitesChangingHands:
     def __init__(self, departures: Departures, homecoming: Homecoming, *,
                  left_on: Callable[[RoomFunestra], str],
                  changed: Callable[[BridgeState], None]) -> None:

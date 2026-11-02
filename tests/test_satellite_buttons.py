@@ -68,7 +68,7 @@ def test_the_band_breaks_into_the_groups_the_console_breaks_into():
 
 
 def test_the_states_light_and_nothing_else_does():
-    """The lock and F-mode are states the side sits in, in the favorites' green;
+    """The lock and F-mode are states the Satellite sits in, in the favorites' green;
     exactly one of the order pair is lit, saying which order the browse is in;
     a step, the bin, reset and minimize are things done, never lit."""
     band = _band(locked=True, favorites_filter=True, latest=True)

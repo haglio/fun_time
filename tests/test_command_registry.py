@@ -58,13 +58,13 @@ _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
 # The nav ids are parsed, not exact keys, so the handler map does not list
 # them; the AHK script and the reference both spell them out.
 _NAV_IDS = frozenset(
-    f"{side}_nav_{direction}"
-    for side in ("portrait", "landscape")
+    f"{satellite}_nav_{direction}"
+    for satellite in ("portrait", "landscape")
     for direction in ("left", "right", "up", "down")
 )
 
 #: Where each HUD sits, and whether it is collapsed: read off the dispatch's own
-#: tables, so a side or a verb added there needs nothing added here.
+#: tables, so a Satellite or a verb added there needs nothing added here.
 _HUD_PLACE_IDS = (frozenset(hud_moves._HUD_MOVES)
                   | frozenset(hud_moves.MAIN_HUD_TURNS)
                   | frozenset(hud_moves._HUD_COLLAPSES))
@@ -99,8 +99,8 @@ def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     targets: set[str] = set()
     residues: set[str] = set()
     for value in set(VOICE_COMMANDS.values()):
-        for side in (1, 2, 3):
-            for command in expand_group_command(resolve_active_funestra_command(value, side)):
+        for satellite in (1, 2, 3):
+            for command in expand_group_command(resolve_active_funestra_command(value, satellite)):
                 (residues if command.startswith("active_") else targets).add(command)
     return frozenset(targets), frozenset(residues)
 
@@ -161,7 +161,7 @@ def test_every_verb_the_console_posts_lands_on_a_handler():
 
 def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
     """The same surface, for the buttons Fun Time declares on each satellite's
-    HUD: each side's own verbs, its mode pair among them, and the minimize the
+    HUD: each Satellite's own verbs, its mode pair among them, and the minimize the
     loop answers by name."""
     answered = (_handler_ids() | _loop_branch_ids()
                 | frozenset(hud_moves._MINIMIZE_ROLES))
@@ -245,7 +245,7 @@ def test_the_reference_and_the_handlers_agree():
         | _families()
         | _NAV_IDS
         | _HUD_PLACE_IDS
-        # The reference documents the side-agnostic and group forms as such.
+        # The reference documents the Satellite-agnostic and group forms as such.
         | frozenset(c for c in reference
                     if c.startswith(("active_", *windows_bridge_dispatch_loop._FUNESTRA_GROUPS)))
     )
@@ -258,25 +258,25 @@ def test_the_reference_and_the_handlers_agree():
 
 def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode():
     """The routing guard runs ahead of the handler map, so what it may shadow is
-    pinned by rule: every side command about what the Funestra plays goes to the
+    pinned by rule: every Satellite command about what the Funestra plays goes to the
     hosted app, and the session keeps only what is about the Funestra itself --
     parking its window, the rate it plays at, and its mode, which is how it is
     taken back -- and its lock, which locks the Funestra the moment it is asked
-    for, since a slideshow moves on while the app has yet to read a press.  A side
+    for, since a slideshow moves on while the app has yet to read a press.  A Satellite
     command the session must go on answering while the app has the Funestra has
     to be argued here."""
-    side_commands = {command for command in command_dispatch._HANDLERS
+    satellite_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
-    kept = {command for command in side_commands
+    kept = {command for command in satellite_commands
             if not command_dispatch._about_a_satellite(command)}
 
     assert kept == {
-        f"{side}_{own}"
-        for side in ("portrait", "landscape")
+        f"{satellite}_{own}"
+        for satellite in ("portrait", "landscape")
         for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
                     "speed_min", "speed_max", "take_osr2", "kino_activate",
                     "origenerator_activate", "lock", "lock_on", "lock_off")
-    } & side_commands, sorted(kept)
+    } & satellite_commands, sorted(kept)
 
 
 def test_a_command_bound_in_two_domains_is_refused_at_import():

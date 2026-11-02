@@ -19,7 +19,7 @@ from .mode_plan import kino_shows
 from .origenerator_switches import hosts
 from .room_funestras import RoomFunestra
 from .runtime_flow import FMODE_FUNESTRAS, SatelliteFmodeInputs, apply_fmode
-from .satellite_groups import cancel_lock, clear_side_grouping
+from .satellite_groups import cancel_lock, clear_satellite_grouping
 from .shared_state import BridgeState
 from .voice_commands import FAVORITES_PHRASE, say_command
 
@@ -144,7 +144,7 @@ def _dispatch_fmode(
     for funestra in RoomFunestra.SATELLITES:
         if funestra in result.funestras:
             state = cancel_lock(funestra, state, config)
-            state = clear_side_grouping(state, funestra)
+            state = clear_satellite_grouping(state, funestra)
     # Flash which way it went, on the display it went on — a sided F-mode reports
     # from that Funestra, the all-Funestras one from the room.  It goes off the Funestras
     # *asked for*, not the ones that moved: "f mode" is a gesture at the room even

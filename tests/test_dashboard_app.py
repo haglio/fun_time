@@ -302,9 +302,9 @@ def test_the_pause_button_says_which_way_it_will_go():
         scene = _scene(_snapshot(omni_paused=paused))
         return next(i.pixmap for i in scene.images if i.rect == layout.omnipause_button)
 
-    side = _mark_side(layout.omnipause_button)
-    assert mark(False).toImage() == icon_pixmap("pause", side, TEXT_PRIMARY).toImage()
-    assert mark(True).toImage() == icon_pixmap("play", side, TEXT_PRIMARY).toImage()
+    satellite = _mark_side(layout.omnipause_button)
+    assert mark(False).toImage() == icon_pixmap("pause", satellite, TEXT_PRIMARY).toImage()
+    assert mark(True).toImage() == icon_pixmap("play", satellite, TEXT_PRIMARY).toImage()
 
 
 def test_pausing_everything_does_not_paint_the_button_a_state_color():
@@ -1239,8 +1239,8 @@ def test_every_control_on_the_bar_wears_a_drawn_mark():
     for rect, name in ((layout.quit_button, "power"),
                        (layout.help_button, "question"),
                        (layout.voice_panel, "mic")):
-        side = _mark_side(rect)
-        assert drawn[rect].toImage() == icon_pixmap(name, side, TEXT_PRIMARY).toImage(), name
+        satellite = _mark_side(rect)
+        assert drawn[rect].toImage() == icon_pixmap(name, satellite, TEXT_PRIMARY).toImage(), name
 
     assert [item.text for item in scene.texts] == ["Fun Time"]
 
@@ -1336,9 +1336,9 @@ class TestMarkCache:
         assert MarkCache().mark("power", rect).width() == _mark_side(rect)
 
 
-def _resized(rect, side: int):
+def _resized(rect, satellite: int):
     """*rect* with its own position and a square side, for the cache cases."""
-    return type(rect)(x=rect.x, y=rect.y, width=side, height=side)
+    return type(rect)(x=rect.x, y=rect.y, width=satellite, height=satellite)
 
 
 # --- the press channel -------------------------------------------------------

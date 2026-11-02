@@ -29,7 +29,7 @@ class RfbSlot(StrEnum):
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 
-# Said to the hosted app about one side: take its Funestra and put a slideshow on
+# Said to the hosted app about one Satellite: take its Funestra and put a slideshow on
 # it, or let it go.  A crossing parking the app lets go of every slideshow at once.
 OPEN_SLIDESHOW = "open_slideshow"
 CLOSE_SLIDESHOW = "close_slideshow"
@@ -40,12 +40,12 @@ def origenerator_shows(mode: SatellitesMode) -> bool:
     return mode == ORIGENERATOR_MODE
 
 
-def said_about(side: str, verb: str) -> str:
-    return f"{side}_{verb}"
+def said_about(satellite: str, verb: str) -> str:
+    return f"{satellite}_{verb}"
 
 
-def mode_command(side: str, mode: SatellitesMode) -> str:
-    return said_about(side, f"{mode}_activate")
+def mode_command(satellite: str, mode: SatellitesMode) -> str:
+    return said_about(satellite, f"{mode}_activate")
 
 
 SATELLITE_MODE_COMMANDS: dict[str, tuple[RoomFunestra, SatellitesMode]] = {

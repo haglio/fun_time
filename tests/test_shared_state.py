@@ -95,7 +95,7 @@ class TestSharedState:
 
     def test_active_funestra_roundtrips(self, tmp_path):
         """active_funestra must persist: tick() reloads state from this file every
-        iteration, so a side set by a nav command would be lost otherwise."""
+        iteration, so a Satellite set by a nav command would be lost otherwise."""
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, BridgeState(active_funestra=3))
 
@@ -171,7 +171,7 @@ class TestSharedState:
         assert loaded.satellite(RoomFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
-        """The HUD reads which clip each side's seed row is widened around from
+        """The HUD reads which clip each Satellite's seed row is widened around from
         this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(widen_clip="C:/v/a.mp4"),
@@ -184,7 +184,7 @@ class TestSharedState:
         assert loaded.satellite(RoomFunestra.LANDSCAPE).widen_clip == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
-        """The HUD reads which clip each side's map is frozen on for keyboard
+        """The HUD reads which clip each Satellite's map is frozen on for keyboard
         navigation from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(nav_anchor="C:/v/a.mp4"),
@@ -311,7 +311,7 @@ class TestTheSideLens:
     """BridgeState.Funestra / with_satellite — how a caller holding one satellite reaches
     that satellite's state and nothing else."""
 
-    def test_side_reads_the_state_of_that_satellite_alone(self):
+    def test_satellite_reads_the_state_of_that_satellite_alone(self):
         state = BridgeState(
             portrait=SatelliteState(
                 locked=True, filter="alpha", favorites_filter=True, latest=True, loop="seed",
@@ -343,7 +343,7 @@ class TestTheSideLens:
         with pytest.raises(TypeError):
             BridgeState().with_satellite(RoomFunestra.PORTRAIT, lokced=True)
 
-    def test_a_default_side_state_means_the_side_sits_at_its_defaults(self):
+    def test_a_default_satellite_state_means_the_satellite_sits_at_its_defaults(self):
         assert BridgeState().satellite(RoomFunestra.LANDSCAPE) == SatelliteState()
         assert BridgeState(landscape=SatelliteState(loop="seed")).satellite(
             RoomFunestra.LANDSCAPE) != SatelliteState()

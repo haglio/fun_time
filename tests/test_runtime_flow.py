@@ -327,7 +327,7 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
 
 
-def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path):
+def test_a_rebuild_can_start_the_satellite_at_the_top_of_the_new_list(tmp_path: Path):
     """"Latest" means "show me what has just arrived", and a plain reload keeps the
     clip on screen and carries on from where it sat — so the new order only ever
     applied *after* it and the newest clips were never reached.  A caller that means
@@ -473,7 +473,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     assert "lc.mp4" not in landscape
 
 
-def test_recents_honors_the_sides_filter_and_orders_newest_first(tmp_path: Path):
+def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     # Distinct prompts keep the two Alphas in distinct seed families, so the

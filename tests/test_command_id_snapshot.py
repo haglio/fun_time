@@ -382,7 +382,7 @@ def test_the_snapshot_is_sorted_and_duplicate_free():
 
 def test_the_prefixed_forms_keep_their_spellings():
     """The payload-carrying prefixes are cross-repo surface too: the satellite
-    HUDs build ``<side>_play_video|<path>`` / ``<side>_lock_video|<path>`` and
+    HUDs build ``<satellite>_play_video|<path>`` / ``<satellite>_lock_video|<path>`` and
     The Main Funestra's slider builds ``audio_set_volume|<level>`` in their own repos."""
     assert PREFIXED_COMMAND_FORMS == (
         "audio_set_volume|",

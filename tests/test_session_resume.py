@@ -180,7 +180,7 @@ class TestResumePlaylists:
 class TestResumeSharedState:
     """The other half of a resume: coming back in the mode you left in.
 
-    The playlist files carry F-mode, each side's filter and order, and any group
+    The playlist files carry F-mode, each Satellite's filter and order, and any group
     loop baked into them, so a session that resumed those files and opened on a
     default state described itself wrongly on every HUD — and answered the next
     "F-mode" by reporting it *enabled* while nothing visibly changed.
@@ -240,7 +240,7 @@ class TestResumeSharedState:
                 state.satellite(RoomFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
-        """A loop IS the group written out as the side's playlist, so resuming
+        """A loop IS the group written out as the Satellite's playlist, so resuming
         that file resumes the loop — the HUD has to keep its button lit and its
         map frozen where the loop left it, not read the queue as a browse."""
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -254,7 +254,7 @@ class TestResumeSharedState:
         assert state.satellite(RoomFunestra.LANDSCAPE).loop == "action"
         assert state.satellite(RoomFunestra.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
-    def test_carries_each_side_s_filter_and_order(self, tmp_path: Path):
+    def test_carries_each_satellite_s_filter_and_order(self, tmp_path: Path):
         """Both narrowed the playlist that just came back, so both are still in
         force and belong in the title."""
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -290,7 +290,7 @@ class TestResumeSharedState:
 
         assert state.genau_latest is True
 
-    def test_carries_the_sound_level_and_each_side_s_lock(self, tmp_path: Path):
+    def test_carries_the_sound_level_and_each_satellite_s_lock(self, tmp_path: Path):
         """Neither is a thing that should reset overnight, so both come back —
         and each has its world put back with it, the level seeded to both audio
         sinks at startup and the lock re-sent to its satellite."""
@@ -373,9 +373,9 @@ class TestResumeSharedState:
         assert names >= NOT_RESUMED, sorted(NOT_RESUMED - names)
         assert set(RESUMED_FIELDS) == names - NOT_RESUMED
 
-        side_names = {field.name for field in fields(SatelliteState)}
-        assert side_names >= NOT_RESUMED_PER_SATELLITE, sorted(NOT_RESUMED_PER_SATELLITE - side_names)
-        assert set(RESUMED_SATELLITE_FIELDS) == side_names - NOT_RESUMED_PER_SATELLITE
+        satellite_names = {field.name for field in fields(SatelliteState)}
+        assert satellite_names >= NOT_RESUMED_PER_SATELLITE, sorted(NOT_RESUMED_PER_SATELLITE - satellite_names)
+        assert set(RESUMED_SATELLITE_FIELDS) == satellite_names - NOT_RESUMED_PER_SATELLITE
 
 
 class TestResumeSatelliteLocks:
@@ -383,7 +383,7 @@ class TestResumeSatelliteLocks:
     process and has to be re-sent — unlike a filter or a loop, which ride back in
     on the playlist file the new Funestra reads."""
 
-    def test_queues_a_lock_for_the_side_that_was_holding_one(self, tmp_path: Path):
+    def test_queues_a_lock_for_the_satellite_that_was_holding_one(self, tmp_path: Path):
         portrait = tmp_path / "portrait_cmd.txt"
         landscape = tmp_path / "landscape_cmd.txt"
 

@@ -415,12 +415,12 @@ def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
 
 def test_seed_startup_states_holds_every_funestra_that_can_drive_the_osr2_to_its_max_intensity(
         tmp_path: Path):
-    sides = (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt")
+    satellites = (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt")
 
     _seed_startup_states(tmp_path, max_intensity=30)
 
     assert "SET_MAX_INTENSITY 30" in _main_funestra_verbs(tmp_path)
-    for command_file in (tmp_path / "genau_cmd.txt", *sides):
+    for command_file in (tmp_path / "genau_cmd.txt", *satellites):
         assert "SET_MAX_INTENSITY 30" in command_file.read_text(encoding="utf-8").splitlines()
 
 
@@ -536,7 +536,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # The two native satellites are launched with OUR python (the Funestra ships
     # from this repo), the satellite module, the builder's playlists, and each
     # side's file quartet.
-    # The whole launch bundle travels as the two slots — each side's file
+    # The whole launch bundle travels as the two slots — each Satellite's file
     # quartet, log, playlist, rect and HUD file in one value — plus the shared
     # settings, the sibling checkouts among them, because the satellites import
     # funestra as the Main Funestra does.
@@ -1711,7 +1711,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     # Each satellite gets OUR python, the satellite module, its own playlist,
     # and its own command/paused/status quartet.  Each also gets a DISTINCT title
     # so the sequencer can resolve each window to its slot by caption when the pid
-    # lookup fails — the portrait title on the portrait side, never swapped.
+    # lookup fails — the portrait title on the Portrait Satellite, never swapped.
     assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
     assert portrait_kwargs["placement"].title == "Portrait AI Funestra"
@@ -1728,7 +1728,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert landscape_kwargs["channels"].paused == state_dir / "landscape_paused.txt"
     assert landscape_kwargs["channels"].status == state_dir / "landscape_status.txt"
 
-    # Each side's crash log is its own file, so a death on one side is legible
+    # Each Satellite's crash log is its own file, so a death on one Satellite is legible
     # without untangling it from the other's output.
     assert portrait_kwargs["log_file"] == state_dir / "portrait_satellite.log"
     assert landscape_kwargs["log_file"] == state_dir / "landscape_satellite.log"
@@ -1752,7 +1752,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
 
 
 def _a_satellite_channels(**overrides) -> SatelliteChannels:
-    """One side's files, filled in: what a session hands a satellite."""
+    """One Satellite's files, filled in: what a session hands a satellite."""
     return SatelliteChannels(
         playlist=Path("state/portrait_playlist.tsv"),
         command=Path("state/portrait_cmd.txt"),
@@ -1770,18 +1770,18 @@ def _a_satellite_argv(*, title="Portrait AI Funestra", **channels) -> list[str]:
 
 
 def _slot(funestra, sources, state_dir, rect) -> SatelliteSlot:
-    """One side's launch bundle, spelled the way the sequencer spells it."""
-    side = funestra.label
+    """One Satellite's launch bundle, spelled the way the sequencer spells it."""
+    satellite = funestra.label
     return SatelliteSlot(
         funestra=funestra,
         sources=sources,
         channels=SatelliteChannels(
-            playlist=state_dir / f"{side}_playlist.tsv",
-            command=state_dir / f"{side}_cmd.txt",
-            paused=state_dir / f"{side}_paused.txt",
-            status=state_dir / f"{side}_status.txt",
-            play_points=Path(f"state/{side}_play_points.json")),
-        log_file=state_dir / f"{side}_satellite.log",
+            playlist=state_dir / f"{satellite}_playlist.tsv",
+            command=state_dir / f"{satellite}_cmd.txt",
+            paused=state_dir / f"{satellite}_paused.txt",
+            status=state_dir / f"{satellite}_status.txt",
+            play_points=Path(f"state/{satellite}_play_points.json")),
+        log_file=state_dir / f"{satellite}_satellite.log",
         rect=rect,
     )
 
@@ -1868,7 +1868,7 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
 def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
     """A satellite runs under ``pythonw``, which has no console: with nothing
     attached to its stdout/stderr an unhandled exception kills it leaving no
-    trace at all.  Both streams go to one per-side log so a death leaves the
+    trace at all.  Both streams go to one per-Satellite log so a death leaves the
     Python traceback and libmpv's own diagnostics on disk."""
     class FakeProc:
         pid = 51
@@ -1985,7 +1985,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
         assert Path(popen.call_args_list[0][0][0][0]).name == "FunTime-Dashboard.exe"
 
-    def test_each_satellite_under_the_side_it_plays(self, tmp_path: Path):
+    def test_each_satellite_under_the_satellite_it_plays(self, tmp_path: Path):
         class FakeProc:
             pid = 9
 
@@ -2063,13 +2063,13 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
 def _handed_funestras() -> dict[str, HandedFunestra]:
     return {
-        side: HandedFunestra(
-            playlist_file=f"state/{side}_playlist.tsv",
-            cmd_file=f"state/{side}_cmd.txt",
-            status_file=f"state/{side}_status.txt",
-            hud_file=f"state/origenerator_{side}_hud.json",
+        satellite: HandedFunestra(
+            playlist_file=f"state/{satellite}_playlist.tsv",
+            cmd_file=f"state/{satellite}_cmd.txt",
+            status_file=f"state/{satellite}_status.txt",
+            hud_file=f"state/origenerator_{satellite}_hud.json",
         )
-        for side in ("portrait", "landscape")
+        for satellite in ("portrait", "landscape")
     }
 
 
