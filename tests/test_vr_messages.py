@@ -101,11 +101,11 @@ class TestWhatItPicksUp:
         path = _log(tmp_path)
         board = MessageBoard(path)
         _write(path, "Voice command: landscape_next", level=logging.INFO)
-        _write(path, "No clip that way", level=logging.WARNING)
+        _write(path, "No video that way", level=logging.WARNING)
 
         board.pump(None, now=1.0)
 
-        assert board.flashed(MAIN).message == "No clip that way"
+        assert board.flashed(MAIN).message == "No video that way"
 
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)

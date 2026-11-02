@@ -44,6 +44,5 @@ def switch_the_rfb_mode(target: RfbMode, state: BridgeState, config: BridgeConfi
         return state, refused
     if state.rfb_mode is target:
         return state, []
-    logger.info("Origenerator in the Random Favs Browser's place"
-                if target is RfbMode.ORIGENERATOR else "The Random Favs Browser back in its place")
+    logger.info("Origenerator mode" if target is RfbMode.ORIGENERATOR else "Random Favs Browser mode")
     return replace(state, rfb_mode=target), _rfb_mode_ops(target)

@@ -472,7 +472,7 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hos
              desc="the hosted window to join the topmost band")
 
     session.write_dashboard_command("rfb_activate")
-    session.wait_for_new_log("The Random Favs Browser back in its place")
+    session.wait_for_new_log("Random Favs Browser mode")
     wait_for(lambda: is_window_minimized(hwnd),
              desc="the hosted window to park again")
 
@@ -848,7 +848,7 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         hwnd = wait_for(lambda: _parked_core(offered_pid),
                         desc="the open app's window to be parked by the takeover")
         session.write_dashboard_command("origenerator_activate")
-        session.wait_for_log("Origenerator in the Random Favs Browser's place")
+        session.wait_for_log("Origenerator mode")
         wait_for(lambda: not is_window_minimized(hwnd),
                  desc="the taken-over window to be restored")
         wait_for(lambda: is_window_topmost(hwnd),

@@ -623,7 +623,7 @@ def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_s
         assert start_ms < SEEK_STEP_MS, start_ms
 
         _refused_in_place(s, portrait, "portrait_nudge_prev", "portrait back",
-                          "Less than 10s into this clip")
+                          "Less than 10s into this video")
         _said_to_the_portrait_funestra(s, "portrait_nudge_next", "portrait skip")
         s.wait_until(
             lambda: abs(read_satellite_status(portrait.status_file).position_ms
@@ -631,7 +631,7 @@ def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_s
             description="the skip with room to go to land ten seconds on",
         )
         _refused_in_place(s, portrait, "portrait_nudge_next", "portrait skip",
-                          "Less than 10s left in this clip")
+                          "Less than 10s left in this video")
     finally:
         write_flag(portrait.paused_file, False)
         append_command(portrait.cmd_file, RELOAD_PLAYLIST)

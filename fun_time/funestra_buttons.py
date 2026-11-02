@@ -5,8 +5,7 @@ from __future__ import annotations
 from funestra.hud_button import Button
 from funestra.hud_icons import MINIMIZE_ICON
 
-MAIN_FUNESTRA_NOUN = "video"
-SATELLITE_NOUN = "clip"
+NOUN = "video"
 
 
 def minimize_button(funestra: str) -> Button:
