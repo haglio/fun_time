@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 SLOTS = 3
 
@@ -83,3 +83,11 @@ class FrameRelay:
     def copied(self) -> None:
         with self._lock:
             self._copying = None
+
+
+@dataclass(frozen=True)
+class FrameHandover:
+    name: str
+    cap_px: int
+    relay: FrameRelay = field(default_factory=FrameRelay)
+    still: StillAsked = field(default_factory=StillAsked)

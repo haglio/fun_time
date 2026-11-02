@@ -8,7 +8,7 @@ import numpy as np
 from app_support.threading_utils import start_daemon_thread
 from OpenGL import GL
 
-from .frame_relay import SLOTS, FrameRelay, StillAsked
+from .frame_relay import SLOTS, FrameHandover
 from .painting import Painting, Showing
 from .render import RenderTarget
 from .scheduling import scheduled_as_a_game
@@ -65,12 +65,10 @@ class Gpu:
 class VideoThread:
     def __init__(self, contexts, build_engine, cap_px: int, *, name: str, perf=None) -> None:
         self._contexts = contexts
-        self._cap_px = cap_px
         self._name = name
         self._perf = perf
-        self._relay = FrameRelay()
-        self._still = StillAsked()
-        self._showing = Showing(self._relay, gpu=Gpu(), name=name)
+        self._frames = FrameHandover(name, cap_px)
+        self._showing = Showing(self._frames, gpu=Gpu())
         self._stop = threading.Event()
         self._built = threading.Event()
         self._fault: BaseException | None = None
@@ -91,11 +89,11 @@ class VideoThread:
 
     def ask_for_a_still(self) -> None:
         """Have the next painted frame left as a small copy, for :meth:`take_a_still`."""
-        self._still.ask()
+        self._frames.still.ask()
 
     def take_a_still(self):
         """The small copy asked for, once one has been painted; else None."""
-        return self._still.take()
+        return self._frames.still.take()
 
     def show_newest(self, target: RenderTarget) -> bool:
         return self._showing.show_newest(target)
@@ -122,8 +120,7 @@ class VideoThread:
             still = RenderTarget()
             still.ensure(*STILL_SIZE_PX)
             self.engine = build_engine()
-            painting = Painting(self.engine, name=self._name, cap_px=self._cap_px, gpu=Gpu(),
-                                relay=self._relay, still_asked=self._still, perf=self._perf)
+            painting = Painting(self.engine, self._frames, gpu=Gpu(), perf=self._perf)
         except BaseException as fault:  # noqa: BLE001 -- raised again on the frame loop's thread
             self._fault = fault
         finally:

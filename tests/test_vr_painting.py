@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from types import SimpleNamespace
 
-from fun_time_vr.frame_relay import SLOTS, FrameRelay, StillAsked
+from fun_time_vr.frame_relay import SLOTS, FrameHandover, FrameRelay, StillAsked
 from fun_time_vr.headset_engine import HeadsetEngine
 from fun_time_vr.paint_watch import FLUSH_AFTER_S, GIVE_UP_AFTER_S, NO_FRAME_AFTER_S
 from fun_time_vr.painting import Painting, Showing
@@ -86,11 +86,13 @@ class _AClock:
         return self.t
 
 
+def _frames(relay=None, still=None) -> FrameHandover:
+    return FrameHandover("main-video", 1024, relay or FrameRelay(), still or StillAsked())
+
+
 def _a_painting(engine=None, *, gpu=None, relay=None, still=None, perf=None, clock=None):
-    return Painting(
-        engine or _AnEngine(), name="main-video", cap_px=1024, gpu=gpu or _AGpu(),
-        relay=relay or FrameRelay(), still_asked=still or StillAsked(), perf=perf,
-        clock=clock or _AClock())
+    return Painting(engine or _AnEngine(), _frames(relay, still), gpu=gpu or _AGpu(),
+                    perf=perf, clock=clock or _AClock())
 
 
 def _targets():
@@ -168,7 +170,8 @@ class TestPaintingAFrame:
         painting.paint(targets, None)
         painting.paint(targets, None)
 
-        assert engine.rendered and relay.take() is None
+        assert engine.rendered
+        assert relay.take() is None
 
     def test_each_paint_is_timed_for_the_perf_log(self):
         noted = []
@@ -241,14 +244,14 @@ class TestAVideoThatStopsDrawing:
 
 class TestShowingTheNewestFrame:
     def test_nothing_relayed_shows_nothing(self):
-        assert Showing(FrameRelay(), gpu=_AGpu(), name="main-video").show_newest(_ATarget(5)) is False
+        assert Showing(_frames(), gpu=_AGpu()).show_newest(_ATarget(5)) is False
 
     def test_a_relayed_frame_is_copied_into_the_screens_texture_at_its_own_size(self):
         gpu, relay = _AGpu(), FrameRelay()
         relay.painted(1, texture=21, width=640, height=360, video="c.mp4")
         target = _ATarget(5)
 
-        shown = Showing(relay, gpu=gpu, name="main-video").show_newest(target)
+        shown = Showing(_frames(relay), gpu=gpu).show_newest(target)
 
         assert shown is True
         assert gpu.copied == [(21, 25)]
@@ -259,14 +262,14 @@ class TestShowingTheNewestFrame:
         target = _ATarget(5)
         target.ensure(640, 360)
 
-        Showing(FrameRelay(), gpu=_AGpu(), name="main-video").show_newest(target)
+        Showing(_frames(), gpu=_AGpu()).show_newest(target)
 
         assert target.painted is False
 
     def test_the_relay_hears_the_copy_is_done_only_once_the_gpu_has_finished_it(self):
         gpu, relay = _AGpu(reaches_marks=False), FrameRelay()
         relay.painted(1, texture=21, width=640, height=360, video="c.mp4")
-        showing = Showing(relay, gpu=gpu, name="main-video")
+        showing = Showing(_frames(relay), gpu=gpu)
         showing.show_newest(_ATarget(5))
         relay.painted(2, texture=22, width=640, height=360, video="c.mp4")
 
@@ -278,7 +281,7 @@ class TestShowingTheNewestFrame:
     def test_closing_lets_go_of_the_copys_mark(self):
         gpu, relay = _AGpu(), FrameRelay()
         relay.painted(1, texture=21, width=640, height=360, video="c.mp4")
-        showing = Showing(relay, gpu=gpu, name="main-video")
+        showing = Showing(_frames(relay), gpu=gpu)
         showing.show_newest(_ATarget(5))
 
         showing.close()
