@@ -4,7 +4,7 @@ The loader's traps, each learned the slow way: graphics requirements queried
 before session creation, typed event casting, waiting for READY before the frame
 loop, and gating on view validity (an unlocated view reports an all-zero FOV, a
 division by zero in the projection matrix).  No per-eye depth buffers -- the
-scene draws in painter's order.  The OpenXR/GL shell: CLAUDE.md, "Standing rules".
+scene draws in painter's order.
 """
 from __future__ import annotations
 
@@ -21,9 +21,22 @@ from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
 
+from .controller_bindings import (
+    ACTION_TYPES,
+    AIM,
+    BACK,
+    CONTROLLER_BINDINGS,
+    FORWARD,
+    HAND_PATHS,
+    STICK_CLICK,
+    STICK_X,
+    STICK_Y,
+    TRIGGER,
+)
 from .gl_contexts import SharedContexts, hidden_gl_window
 from .pointer import LEFT, RIGHT, HandInput
 from .retiring import RetiredSwapchain, advance_retirements
+from .view_tracking import views_are_renderable, views_are_tracked
 
 if TYPE_CHECKING:
     from .frame_loop import QuadLayer
@@ -39,78 +52,8 @@ class SwapchainInfo:
     images: list[int] = field(default_factory=list)
 
 
-STICK_X = "thumbstick_x"
-STICK_Y = "thumbstick_y"
-STICK_CLICK = "thumbstick_click"
-AIM = "aim"
-TRIGGER = "trigger"
-FORWARD = "skip_forward"
-BACK = "skip_back"
-
-_HAND_PATHS = {LEFT: "/user/hand/left", RIGHT: "/user/hand/right"}
-
-
-def _either_hand(input_path: str) -> tuple[str, ...]:
-    return tuple(f"{hand}/input/{input_path}" for hand in _HAND_PATHS.values())
-
-
-def _by_hand(right_input: str, left_input: str) -> tuple[str, ...]:
-    return (f"{_HAND_PATHS[RIGHT]}/input/{right_input}",
-            f"{_HAND_PATHS[LEFT]}/input/{left_input}")
-
-
-CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
-    "/interaction_profiles/oculus/touch_controller": {
-        STICK_X: _either_hand("thumbstick/x"),
-        STICK_Y: _either_hand("thumbstick/y"),
-        STICK_CLICK: _either_hand("thumbstick/click"),
-        AIM: _either_hand("aim/pose"),
-        TRIGGER: _either_hand("trigger/value"),
-        FORWARD: _by_hand("a/click", "x/click"),
-        BACK: _by_hand("b/click", "y/click"),
-    },
-    "/interaction_profiles/valve/index_controller": {
-        STICK_X: _either_hand("thumbstick/x"),
-        STICK_Y: _either_hand("thumbstick/y"),
-        STICK_CLICK: _either_hand("thumbstick/click"),
-        AIM: _either_hand("aim/pose"),
-        TRIGGER: _either_hand("trigger/value"),
-        FORWARD: _either_hand("a/click"),
-        BACK: _either_hand("b/click"),
-    },
-    "/interaction_profiles/htc/vive_controller": {
-        STICK_X: _either_hand("trackpad/x"),
-        STICK_Y: _either_hand("trackpad/y"),
-        STICK_CLICK: _either_hand("trackpad/click"),
-        AIM: _either_hand("aim/pose"),
-        TRIGGER: _either_hand("trigger/value"),
-    },
-    "/interaction_profiles/khr/simple_controller": {
-        AIM: _either_hand("aim/pose"),
-        TRIGGER: _either_hand("select/click"),
-    },
-}
-
-_ACTION_TYPES = {
-    STICK_X: xr.ActionType.FLOAT_INPUT,
-    STICK_Y: xr.ActionType.FLOAT_INPUT,
-    STICK_CLICK: xr.ActionType.BOOLEAN_INPUT,
-    AIM: xr.ActionType.POSE_INPUT,
-    TRIGGER: xr.ActionType.FLOAT_INPUT,
-    FORWARD: xr.ActionType.BOOLEAN_INPUT,
-    BACK: xr.ActionType.BOOLEAN_INPUT,
-}
 _LOCATED = xr.SpaceLocationFlags.ORIENTATION_VALID_BIT | xr.SpaceLocationFlags.POSITION_VALID_BIT
 _NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
-
-
-def views_are_renderable(view_state_flags: int) -> bool:
-    return bool(view_state_flags & xr.ViewStateFlags.ORIENTATION_VALID_BIT)
-
-
-def views_are_tracked(view_state_flags: int) -> bool:
-    # Following a head, not merely valid -- VALID can be a guessed pose.
-    return bool(view_state_flags & xr.ViewStateFlags.ORIENTATION_TRACKED_BIT)
 
 
 class VRSession:
@@ -146,11 +89,8 @@ class VRSession:
             self._create_swapchains()
             self._fbo = GL.glGenFramebuffers(1)
         except Exception:
-            # A failed bring-up must leave nothing: the caller retries
-            # construction when the runtime's graphics side is still warming
-            # up (see the Funestra's bring-up loop), and every attempt makes a
-            # fresh window, instance and context.  close() is None-guarded
-            # throughout, so it tears down exactly what got made.
+            # The bring-up loop retries while the runtime's graphics side warms
+            # up, so a failed attempt tears down exactly what it got made.
             try:
                 self.close()
             except Exception:
@@ -228,7 +168,7 @@ class VRSession:
                 ),
             )
             self._hand_paths = {
-                hand: xr.string_to_path(self._instance, path) for hand, path in _HAND_PATHS.items()
+                hand: xr.string_to_path(self._instance, path) for hand, path in HAND_PATHS.items()
             }
             hand_paths = list(self._hand_paths.values())
             self._actions = {
@@ -241,7 +181,7 @@ class VRSession:
                         localized_action_name=name.replace("_", " ").title(),
                     ),
                 )
-                for name, action_type in _ACTION_TYPES.items()
+                for name, action_type in ACTION_TYPES.items()
             }
             for profile_path, bindings in CONTROLLER_BINDINGS.items():
                 try:

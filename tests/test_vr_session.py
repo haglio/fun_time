@@ -1,9 +1,6 @@
-"""The VR session's decisions that do not need a headset to check.
-
-Everything else in :mod:`fun_time_vr.vr_session` wants the OpenXR loader, a
-runtime and a live GL context; whether a located view is worth rendering from
-is pure, and so is what the runtime's own session states ask of the session --
-both decide whether anything reaches the headset at all.
+"""The OpenXR session's decisions that need no headset: whether a located view
+is worth drawing from, what the runtime's session states ask of the session, and
+what each controller binds.
 """
 from __future__ import annotations
 
@@ -15,9 +12,8 @@ from types import SimpleNamespace
 import pytest
 import xr
 
-from fun_time_vr.pointer import LEFT, RIGHT, HandInput
-from fun_time_vr.vr_session import (
-    _ACTION_TYPES,
+from fun_time_vr.controller_bindings import (
+    ACTION_TYPES,
     AIM,
     BACK,
     CONTROLLER_BINDINGS,
@@ -26,10 +22,10 @@ from fun_time_vr.vr_session import (
     STICK_X,
     STICK_Y,
     TRIGGER,
-    VRSession,
-    views_are_renderable,
-    views_are_tracked,
 )
+from fun_time_vr.pointer import LEFT, RIGHT, HandInput
+from fun_time_vr.view_tracking import views_are_renderable, views_are_tracked
+from fun_time_vr.vr_session import VRSession
 
 
 def test_a_fully_tracked_view_is_renderable():
@@ -211,7 +207,7 @@ class TestControllerBindings:
     def test_every_action_a_controller_binds_is_one_the_session_creates(self):
         bound = {name for bindings in CONTROLLER_BINDINGS.values() for name in bindings}
 
-        assert bound <= set(_ACTION_TYPES)
+        assert bound <= set(ACTION_TYPES)
 
     def test_the_suite_covers_the_headsets_this_family_meets(self):
         profiles = set(CONTROLLER_BINDINGS)
