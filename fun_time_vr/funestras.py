@@ -169,15 +169,7 @@ from .reference_panel import (
     paint_reference,
     reference_height,
 )
-from .render import (
-    FrameTexture,
-    RenderTarget,
-    SceneRenderer,
-    ScreenMesh,
-    Wrap,
-    angle_limits,
-    immersive_wrap,
-)
+from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh
 from .room import Hanging, Hangs
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
@@ -198,6 +190,7 @@ from .surfaces import HudBitmap, LatestFrame
 from .thumbs import Thumb, Thumbs, strongest
 from .video_thread import VideoThread
 from .wrap_readout import WrapReadout, readout
+from .wraps import Wrap, angle_limits, immersive_wrap
 
 logger = logging.getLogger(__name__)
 

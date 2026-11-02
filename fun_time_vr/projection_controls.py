@@ -6,8 +6,8 @@ from typing import Protocol
 from funestra.host_controls import BarHud, HostControlsHud
 
 from .projection import PROJECTIONS
-from .render import angle_limits, immersive_wrap
 from .wrap_readout import label
+from .wraps import angle_limits, immersive_wrap
 
 ANGLE_LABEL = "Angle"
 
