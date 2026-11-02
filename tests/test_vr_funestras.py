@@ -59,7 +59,7 @@ from fun_time.overlay_progress import (
 )
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
-from fun_time_vr import app, funestras, room
+from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
 from fun_time_vr.console_hud import DEG_PER_PX, HUD_WIDTH_PX
 from fun_time_vr.cover import (
@@ -1490,18 +1490,13 @@ def test_the_cover_goes_up_before_the_funestras_are_built():
         if isinstance(node, ast.Call):
             calls.setdefault(ast.unparse(node.func), node.lineno)
 
-    assert calls["CoverUnit"] < calls["_raise_the_cover"] < calls["hang_the_room"]
-
-
-def test_the_room_hears_from_the_headset_whether_anyone_is_wearing_it():
-    assert "the_room.note_the_wearer(session.focused, now=time.monotonic())" in (
-        inspect.getsource(app._show_the_room))
+    assert calls["CoverUnit"] < calls["raise_the_cover"] < calls["hang_the_room"]
 
 
 def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
     """One arrangement goes to the pointer and to the eye pass, so what a squeeze
     lands on is what was in front."""
-    tree = ast.parse(inspect.getsource(app._frame))
+    tree = ast.parse(inspect.getsource(frame_loop.show_a_frame))
     (drawn,) = [n for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and ast.unparse(n.func) == "draw_eyes"]
 

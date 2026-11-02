@@ -11,6 +11,7 @@ from __future__ import annotations
 import ctypes
 import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import glfw
 import xr
@@ -24,6 +25,9 @@ from .gl_contexts import SharedContexts, hidden_gl_window
 from .pointer import LEFT, RIGHT, HandInput
 from .retiring import RetiredSwapchain, advance_retirements
 
+if TYPE_CHECKING:
+    from .frame_loop import QuadLayer
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,21 +37,6 @@ class SwapchainInfo:
     width: int
     height: int
     images: list[int] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class QuadLayer:
-    """One flat screen for the runtime's compositor to place in the world.
-
-    The image is the most recently released one of the session's quad
-    swapchain *swapchain_index*; the pose and size come from
-    :func:`fun_time_vr.scene.quad_layer_placement`.
-    """
-
-    swapchain_index: int
-    position: tuple[float, float, float]
-    orientation: tuple[float, float, float, float]
-    size: tuple[float, float]
 
 
 STICK_X = "thumbstick_x"
