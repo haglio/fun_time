@@ -22,6 +22,7 @@ from types import SimpleNamespace
 
 import pytest
 from app_support.siblings import primary_checkout_of
+from app_support.win32 import Shortcut as ShortcutToWrite
 from app_support.win32 import mutex_name, write_shortcut
 from shared_ui.preview import Preview
 
@@ -535,13 +536,11 @@ def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_la
     launcher — and a shortcut of his that happens to start with the same word
     is left where it is."""
     decoy = primary_with_launcher.primary / "Verify something of his own.lnk"
-    write_shortcut(
-        str(decoy),
+    write_shortcut(str(decoy), ShortcutToWrite(
         target=str(tmp_path / "nothing.exe"),
         working_directory=str(tmp_path),
-        icon="",
         description="his own",
-    )
+    ))
 
     branch_session.prune_stale_shortcuts(primary_with_launcher.primary)
 

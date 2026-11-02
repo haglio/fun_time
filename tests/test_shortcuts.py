@@ -11,7 +11,7 @@ AN_EXE = r"C:\Windows\System32\notepad.exe"
 
 
 def _made(path, **fields):
-    win32.write_shortcut(str(path), **fields)
+    win32.write_shortcut(str(path), win32.Shortcut(**fields))
     return str(path)
 
 

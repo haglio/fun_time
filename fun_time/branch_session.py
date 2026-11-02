@@ -39,7 +39,7 @@ from pathlib import Path
 from app_support.dependencies import pinned_siblings
 from app_support.siblings import RENAMED_SIBLINGS, primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import TaskbarApp, describe_taskbar_app, write_shortcut
+from app_support.win32 import Shortcut, TaskbarApp, describe_taskbar_app, write_shortcut
 
 # PROJECT_DIR names whichever checkout imported the package, and this module is
 # the one place that has to tell two checkouts apart — so it is read through the
@@ -694,8 +694,7 @@ def write_launch_shortcut(
     arguments = [str(launcher), str(worktree), branch]
     if vr:
         arguments.append(VR_LAUNCH_FLAG)
-    write_shortcut(
-        str(destination),
+    write_shortcut(str(destination), Shortcut(
         # wscript rather than the .vbs itself: a shortcut's target has to be an
         # executable for arguments to reach the script.
         target=str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wscript.exe"),
@@ -703,7 +702,7 @@ def write_launch_shortcut(
         working_directory=str(primary),
         icon=str(primary / (VR_ICON_NAME if vr else DESKTOP_ICON_NAME)),
         description=f"Run Fun Time{' VR' if vr else ''} on {branch}",
-    )
+    ))
     prune_stale_shortcuts(primary)
     return destination
 

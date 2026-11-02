@@ -3,7 +3,19 @@ import time
 from datetime import datetime, timedelta
 
 import pytest
-from app_support.integration_runs import RunRecord, read_run
+from app_support.integration_runs import (
+    ALL,
+    CHANGED,
+    CHANGED_FLAG,
+    MEASURING,
+    NO_FLAKES,
+    REPEAT_CHANGED_FLAG,
+    VERIFYING_MAIN,
+    WITHOUT_COVERAGE_FLAG,
+    RunRecord,
+    kind_of,
+    read_run,
+)
 from app_support.win32 import process_started
 
 from tests.integration.line_record import (
@@ -93,3 +105,17 @@ def test_joining_the_line_forgets_runs_older_than_two_weeks(tmp_path):
 
     assert not old.exists()
     assert recent.exists()
+
+
+@pytest.mark.parametrize(("expected", "changes"), [
+    (ALL, {"what": ["-x"], "short": False}),
+    (CHANGED, {"what": [CHANGED_FLAG, "tests/integration/test_crown_integration.py"]}),
+    (NO_FLAKES, {"what": [REPEAT_CHANGED_FLAG, "origin/main"]}),
+    (MEASURING, {"what": ["tests/integration/test_crown_integration.py", WITHOUT_COVERAGE_FLAG],
+                 "checkout": VERIFYING_MAIN}),
+])
+def test_line_reads_the_kind_of_run_this_side_writes(tmp_path, expected, changes):
+    visit = _join(tmp_path, **changes)
+    visit.leave()
+
+    assert kind_of(read_run(visit.path)) == expected

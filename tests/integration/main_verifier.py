@@ -21,6 +21,7 @@ from typing import Protocol
 import coverage
 import pytest
 from app_support.file_channel import write_whole
+from app_support.integration_runs import VERIFYING_MAIN, WITHOUT_COVERAGE_FLAG
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
@@ -209,7 +210,7 @@ class MachineBench:
                  base_python: str = str(Path(sys._base_executable).with_name("python.exe"))) -> None:
         self.primary, self.shell, self.suite, self.base_python = primary, shell, suite, base_python
         self.claude = claude or claude_command()
-        self.checkout = primary / ".claude" / "worktrees" / "verifying-main"
+        self.checkout = primary / ".claude" / "worktrees" / VERIFYING_MAIN
         self.state = primary / STATE_DIRNAME
         self.venv = self.state / VERIFIER_VENV
         self.python = self.venv / "Scripts" / "python.exe"
@@ -281,7 +282,7 @@ class MachineBench:
                                                              cwd=self.checkout).split()):
             for left_over in measuring.glob(".coverage*"):
                 left_over.unlink()
-            self.suite(self._runner(test_file, "--no-cov"), self.checkout, self._log_for(commit),
+            self.suite(self._runner(test_file, WITHOUT_COVERAGE_FLAG), self.checkout, self._log_for(commit),
                        measured_run_environment(rcfile), asked_to_restart=self.asked_to_restart)
             ran[test_file] = measured_sources(measuring / ".coverage", self.checkout, sources)
         CoverageMap(commit, ran).save(the_machine_s_map(self.primary))
