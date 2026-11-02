@@ -49,7 +49,7 @@ def test_a_unit_test_never_waits_out_a_startup_timeout():
     The hold for the closing screen to report itself painted is timed by the
     orchestrator rather than through the lookup at all; and the per-role budget
     is what the finishing pass hands each lookup, so a test that supplies a
-    waiter of its own — a side effect that answers on a later call rather than
+    waiter of its own — a Satellite effect that answers on a later call rather than
     the first — would still spend it in full.
     """
     assert windows_bridge_orchestrator.CLOSING_SCREEN_READY_TIMEOUT_S == 0
