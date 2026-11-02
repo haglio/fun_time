@@ -126,7 +126,7 @@ def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1):
     fake = fake or _FakePygame()
     opens = _OpensAFunestra(_FakeFunestra(passes=passes))
     with patch("satellite.app.pygame", fake), \
-         patch("satellite.app.deliver_the_focusing_click"), \
+         patch("satellite.app.before_the_window_exists"), \
          patch("satellite.app.Funestra", opens):
         code = _run(args, playlist=resolve_playlist(args))
     return code, opens, fake

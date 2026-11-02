@@ -22,7 +22,6 @@ from funestra.funestra_priority import ahead_on_the_processor
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
 from funestra.notices import NoticeWriter
-from funestra.sdl_hints import deliver_the_focusing_click
 
 from fun_time.genau_config import GenauSettings
 
@@ -41,7 +40,7 @@ from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
 from .window import (
-    leave_out_the_input_methods_that_stall_band_changes,
+    before_the_window_exists,
     run_the_window,
     take_outside_resizes,
     wear_the_icon,
@@ -97,8 +96,7 @@ def _set_aumid(taskbar_identity: str | None) -> None:
 
 
 def _open_window(args):
-    deliver_the_focusing_click()
-    leave_out_the_input_methods_that_stall_band_changes()
+    before_the_window_exists()
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
