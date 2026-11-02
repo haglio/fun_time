@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from app_support.osr2_device import Osr2Mode
+from app_support.testing import file_channel_clock_at
 from funestra.console import OSR2_PARKED, ConsoleModel, read_console
 from funestra.drive_readout import DriveHud, publish_drive
 from funestra.hud_button import Button
@@ -553,8 +554,7 @@ class TestHudPublishing:
         (tmp_path / "main_player_status.txt").write_text(
             "video=C:/v/m.mp4\nhas_funscript=1\nfunscript_resting=0\n", encoding="utf-8")
 
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 200.0
+        with file_channel_clock_at(200.0):
             feed.publish(BridgeState(main_mode=MainMode.KINO))
 
         assert console(tmp_path)["osr2"] == Osr2State.OFF
@@ -864,8 +864,7 @@ class TestTheOsr2PartIsOnTheDashboard:
         (tmp_path / "portrait_status.txt").write_text(
             "video=C:/v/p.mp4\nhas_funscript=1\nfunscript_resting=0\n", encoding="utf-8")
 
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 110.0
+        with file_channel_clock_at(110.0):
             feed.publish(BridgeState(osr2_funestra=2))
 
         assert _dashboard_osr2(tmp_path).osr2 == Osr2State.FUNSCRIPT
@@ -919,8 +918,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         (tmp_path / "portrait_status.txt").write_text(
             "video=C:/v/p.mp4\nhas_funscript=1\nfunscript_resting=0\n", encoding="utf-8")
 
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 110.0
+        with file_channel_clock_at(110.0):
             feed.publish(BridgeState(osr2_funestra=2))
 
         assert _published(tmp_path, "portrait").osr2 == Osr2State.FUNSCRIPT
@@ -979,16 +977,14 @@ class TestOsr2Mode:
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "osr2_serial_tx.txt").write_text("199.0", encoding="utf-8")
 
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 200.0
+        with file_channel_clock_at(200.0):
             assert feed.osr2_mode() is Osr2Mode.OFF
 
     def test_one_taking_commands_is_controlled(self, tmp_path):
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
 
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 110.0
+        with file_channel_clock_at(110.0):
             assert feed.osr2_mode() is Osr2Mode.CONTROLLED
 
     def test_one_running_its_own_auto_mode_is_auto(self, tmp_path):
@@ -996,8 +992,7 @@ class TestOsr2Mode:
         (tmp_path / "osr2_serial_rx.txt").write_text("100.0", encoding="utf-8")
         (tmp_path / "broker_mode.txt").write_text("1", encoding="utf-8")
 
-        with patch("app_support.file_channel.time") as mock_time:
-            mock_time.time.return_value = 110.0
+        with file_channel_clock_at(110.0):
             assert feed.osr2_mode() is Osr2Mode.AUTO
 
 

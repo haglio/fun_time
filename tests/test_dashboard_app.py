@@ -20,11 +20,12 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
 from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.find_bar import FindBar
-from shared_ui.icon_geometry import ICONS, tooltip_for
+from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
 from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
 from shared_ui.preview import Preview
 from shared_ui.spacing import BUTTON_ICON_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
+from shared_ui.testing import icons_lacking
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -352,12 +353,11 @@ def test_every_control_names_itself_on_hover():
     assert all(text for _rect, text in scene.hover_texts)
 
 
-def test_a_control_whose_mark_this_version_lacks_says_why_on_hover(monkeypatch):
-    monkeypatch.delitem(ICONS, "power")
+def test_a_control_whose_mark_this_version_lacks_says_why_on_hover():
+    with icons_lacking("power"):
+        hover = dict(_scene().hover_texts)[compute_dashboard_bar_layout().quit_button]
 
-    hover = dict(_scene().hover_texts)[compute_dashboard_bar_layout().quit_button]
-
-    assert hover == tooltip_for("power", "Quit")
+        assert hover == tooltip_for("power", "Quit")
 
 
 def test_a_pressed_control_lightens_while_the_press_shows():

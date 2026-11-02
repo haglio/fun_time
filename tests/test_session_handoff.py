@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from shared_ui.testing import alert_shown
 
 from fun_time import session_handoff
 from fun_time.config import load_config
@@ -386,7 +387,7 @@ class TestReportingAFailedCrossing:
     def test_it_carries_the_tail_of_the_launcher_log(self, tmp_path: Path):
         log = tmp_path / "vr_launcher.log"
         log.write_text("\n".join(f"line {n}" for n in range(40)) + "\n\n\n", encoding="utf-8")
-        with patch("shared_ui.alert.show_alert") as alert:
+        with alert_shown() as alert:
             report_a_failed_crossing("FunTimeVR did not start.", log)
         message = alert.call_args.args[1]
         assert "FunTimeVR did not start." in message
@@ -394,7 +395,7 @@ class TestReportingAFailedCrossing:
         assert "line 24" not in message
 
     def test_a_log_that_cannot_be_read_still_gets_a_dialog(self, tmp_path: Path):
-        with patch("shared_ui.alert.show_alert") as alert:
+        with alert_shown() as alert:
             report_a_failed_crossing("Nothing came up.", tmp_path / "never_written.log")
         assert "Nothing came up." in alert.call_args.args[1]
 

@@ -6,11 +6,11 @@ import ast
 import ctypes
 import threading
 from pathlib import Path
-from unittest.mock import patch
 from uuid import uuid4
 
 from shared_ui.alert import Level
 from shared_ui.preview import Preview
+from shared_ui.testing import alert_shown
 
 from fun_time import preview_marker, single_instance
 from fun_time.project_paths import PROJECT_ICON
@@ -131,7 +131,7 @@ def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
 
 class TestShowAlreadyRunningMessage:
     def test_it_is_the_familys_notice_under_fun_times_icon(self):
-        with patch("shared_ui.alert.show_alert") as show_alert:
+        with alert_shown() as show_alert:
             show_already_running_message("Test text", "Test Title")
 
         show_alert.assert_called_once_with(
@@ -139,7 +139,7 @@ class TestShowAlreadyRunningMessage:
         )
 
     def test_default_title(self):
-        with patch("shared_ui.alert.show_alert") as show_alert:
+        with alert_shown() as show_alert:
             show_already_running_message("Some message")
 
         assert show_alert.call_args.args[0] == "Fun Time"
@@ -164,7 +164,7 @@ def test_a_branch_sessions_already_running_message_is_marked_as_the_preview(monk
     monkeypatch.setenv(preview_marker.FLAG, "1")
     monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature="the new crossing"))
     monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path)
-    with patch("shared_ui.alert.show_alert") as show_alert:
+    with alert_shown() as show_alert:
         show_already_running_message("Some message")
 
     assert show_alert.call_args.args[0] == "Fun Time \u2014 preview of the new crossing"

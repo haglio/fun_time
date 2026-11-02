@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from app_support.testing import mutex_free
 from funestra.modes import MainMode
 
 from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows_bridge_startup
@@ -586,14 +587,14 @@ class TestTheCheckRun:
 
     def test_a_valid_config_checks_out(self, config, monkeypatch, tmp_path):
         with patch.object(orchestrator, "load_config", return_value=config), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"):
             assert orchestrator.main(["--check"]) == 0
 
     def test_the_session_s_log_holds_its_own_lines_and_the_vr_runtime_s(self, config):
         assert orchestrator.logger.name == "fun_time_vr.orchestrator"
         with patch.object(orchestrator, "load_config", return_value=config), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"):
             orchestrator.main(["--check"])
         orchestrator.logger.info("a line of the session's own")
@@ -747,7 +748,7 @@ class TestTheCrossingBackToTheDesktop:
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
              patch.object(orchestrator, "install_exception_logging"), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             mutex_free(), \
              patch("fun_time.session_handoff.subprocess.Popen") as popen, \
              patch.object(orchestrator, "engine_missing_abort", return_value=False), \
              patch.object(orchestrator, "run_vr_bridge",
@@ -780,7 +781,7 @@ def _the_session_main_starts(config, argv: list[str]) -> MagicMock:
     with patch.object(orchestrator, "load_config", return_value=config), \
          patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
          patch.object(orchestrator, "install_exception_logging"), \
-         patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+         mutex_free(), \
          patch("fun_time.session_handoff.subprocess.Popen"), \
          patch.object(orchestrator, "engine_missing_abort", return_value=False), \
          patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
@@ -989,7 +990,7 @@ def test_an_error_that_ends_fun_time_vr_puts_the_runtime_fun_time_woke_to_sleep(
     with patch.object(orchestrator, "load_config", return_value=config), \
          patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
          patch.object(orchestrator, "install_exception_logging"), \
-         patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+         mutex_free(), \
          patch.object(orchestrator, "engine_missing_abort", return_value=False), \
          patch.object(orchestrator, "run_vr_bridge",
                       side_effect=RuntimeError("an error of its own")), \
@@ -1070,7 +1071,7 @@ class TestTheOnePin:
 
     def test_a_session_describes_the_button_of_the_checkout_it_runs_from(self, config):
         with patch.object(orchestrator, "load_config", return_value=config), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"), \
              patch.object(orchestrator, "describe_the_session_on_the_taskbar") as describe:
             orchestrator.main(["--check"])
@@ -1079,7 +1080,7 @@ class TestTheOnePin:
 
     def test_a_session_on_another_config_leaves_the_pin_alone(self, config):
         with patch.object(orchestrator, "load_config", return_value=config), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"), \
              patch.object(orchestrator, "stamp_shortcut_aumid") as stamp:
             orchestrator.main(["--check"])
@@ -1089,7 +1090,7 @@ class TestTheOnePin:
     def test_the_installed_app_stamps_the_one_pin(self, config):
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch.object(orchestrator, "DEFAULT_CONFIG_PATH", config.config_path), \
-             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"), \
              patch.object(orchestrator, "stamp_shortcut_aumid") as stamp:
             orchestrator.main(["--check"])

@@ -3,21 +3,17 @@ worn, whatever the room or a chip asks before then."""
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-from funestra.render_engine import MpvRenderEngine
+from funestra.testing import render_engine_radio_station, render_engine_without_mpv
 
 from fun_time_vr.headset_engine import HeadsetEngine
 
 
 @pytest.fixture
 def mpv_calls():
-    with patch.object(MpvRenderEngine, "__init__", return_value=None) as built, \
-            patch.object(MpvRenderEngine, "set_muted") as set_muted, \
-            patch.object(MpvRenderEngine, "set_audio_device_matching",
-                         return_value="Example Headset") as routed:
-        yield built, set_muted, routed
+    with render_engine_without_mpv(sound_routed_to="Example Headset") as calls:
+        yield calls
 
 
 def _an_engine() -> HeadsetEngine:
@@ -87,7 +83,7 @@ def test_the_sound_goes_live_once(mpv_calls):
 
 
 def test_no_radio_station_opens_before_the_headset_is_worn(mpv_calls):
-    with patch.object(MpvRenderEngine, "radio_station") as opened:
+    with render_engine_radio_station() as opened:
         engine = _an_engine()
 
         assert engine.radio_station([Path("alpha.mp4")]) is None
@@ -95,7 +91,7 @@ def test_no_radio_station_opens_before_the_headset_is_worn(mpv_calls):
 
 
 def test_once_worn_a_radio_station_opens_where_the_headsets_sound_goes(mpv_calls):
-    with patch.object(MpvRenderEngine, "radio_station", return_value="a station") as opened:
+    with render_engine_radio_station(return_value="a station") as opened:
         engine = _an_engine()
         engine.sound_goes_live("Example Headset")
 

@@ -12,6 +12,7 @@ import pytest
 from app_support import origenerator_handoff as handoff
 from app_support import ports
 from app_support.origenerator_handoff import hand_over, take_the_takeover
+from app_support.testing import origenerator_handed_over
 from app_support.win32 import process_started
 from funestra.modes import MainMode, SatellitesMode
 
@@ -1468,7 +1469,7 @@ class TestOrigeneratorLaunch:
             hand_over(place, **kw)
             handed.update(take_the_takeover(place)._asdict())
 
-        with patch("app_support.origenerator_handoff.hand_over", side_effect=answer):
+        with origenerator_handed_over(side_effect=answer):
             yield handed
 
     def test_an_origenerator_still_starting_is_taken_over_rather_than_launched(

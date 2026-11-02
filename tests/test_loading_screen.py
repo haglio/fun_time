@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from unittest.mock import patch
 
+from shared_ui.testing import taking_over_stand_in
+
 from fun_time.loading_screen import WINDOW_TITLE, main
 from fun_time.overlay_progress import STARTUP_PHASES
 
@@ -24,7 +26,7 @@ class TestTheLaunchersLoadingScreen:
     def test_the_startup_cover_takes_over_from_the_one_its_launcher_showed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])
 
-        with patch("fun_time.overlay_window.OverlayWindow") as window,              patch("shared_ui.loading_handover.TakingOver") as taking_over:
+        with patch("fun_time.overlay_window.OverlayWindow") as window,              taking_over_stand_in() as taking_over:
             main()
 
         assert window.over_every_monitor.call_args.kwargs["taking_over"] is (

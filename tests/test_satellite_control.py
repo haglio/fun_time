@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from app_support.testing import no_wait_for_a_held_file
+
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 
 
@@ -34,7 +36,7 @@ class TestReadSatelliteStatus:
     def test_a_read_that_meets_the_funestra_replacing_the_file_reads_it_again(self, tmp_path):
         replaced = [PermissionError(13, "Permission denied"), "video=C:/clips/a.mp4\n"]
         with (patch("pathlib.Path.read_text", side_effect=replaced),
-              patch("app_support.file_channel.time.sleep")):
+              no_wait_for_a_held_file()):
             assert read_satellite_status(tmp_path / "s.txt").video == "C:/clips/a.mp4"
 
     def test_a_file_held_past_every_reread_reads_empty(self, tmp_path):
