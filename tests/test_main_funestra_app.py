@@ -62,17 +62,10 @@ class TestWhatTheFunestraIsHanded:
 
         assert given["users"] == "_users(args, kino=kino_on(args, source=source, memory=memory))"
 
-    def test_the_window_is_measured_once_a_frame_and_both_parts_are_given_it(self):
-        loop = next(n for n in ast.walk(_function("_run")) if isinstance(n, ast.While))
+    def test_the_loop_is_the_shared_one_and_deals_the_windows_input(self):
+        call = _call(_function("_run"), "run_the_window")
 
-        assert _call(loop, "pygame.display.get_window_size")
-        assert [_said(a) for a in _call(loop, "window_input.deal").args] == ["pygame.event.get()", "window"]
-        assert _keywords(_call(loop, "funestra.tick")) == {"window": "window"}
-
-    def test_the_events_are_dealt_before_the_frame_is_ticked(self):
-        loop = next(n for n in ast.walk(_function("_run")) if isinstance(n, ast.While))
-
-        assert _call(loop, "window_input.deal").lineno < _call(loop, "funestra.tick").lineno
+        assert [_said(a) for a in call.args] == ["pygame", "funestra", "Input(funestra).deal"]
 
 
 class TestGenauRunsOnItToo:

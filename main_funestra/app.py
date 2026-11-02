@@ -40,7 +40,7 @@ from .genau import ROBOT_HAND, Genau, GenauChannels
 from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
-from .window import take_outside_resizes, wear_the_icon
+from .window import run_the_window, take_outside_resizes, wear_the_icon
 
 logger = logging.getLogger(__name__)
 
@@ -128,13 +128,5 @@ def _run(args) -> int:
         audible=not audio_muted(args), tiles=True, locked=True, sound_is_the_rooms=True,
         users=_users(args, kino=kino_on(args, source=source, memory=memory)),
     )
-    window_input = Input(funestra)
-    clock = pygame.time.Clock()
-    while not funestra.stopped:
-        window = pygame.display.get_window_size()
-        window_input.deal(pygame.event.get(), window)
-        funestra.tick(window=window)
-        clock.tick(60)
-    funestra.close()
-    pygame.quit()
+    run_the_window(pygame, funestra, Input(funestra).deal)
     return 0

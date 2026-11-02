@@ -17,7 +17,7 @@ from funestra.playlist import PlaylistItem
 from funestra.sdl_hints import deliver_the_focusing_click
 
 from main_funestra.input import Input
-from main_funestra.window import take_outside_resizes, wear_the_icon
+from main_funestra.window import run_the_window, take_outside_resizes, wear_the_icon
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .contract import SatelliteChannels, WindowPlacement
@@ -82,15 +82,5 @@ def _run(args, playlist: list[PlaylistItem]) -> int:
         _open_window(placement), channels=SatelliteChannels.from_args(args), playlist=playlist,
         audible=not audio_muted(args), tiles=placement.tiles,
     )
-    clock = pygame.time.Clock()
-    window_input = Input(funestra)
-    while not funestra.stopped:
-        # Before the events, which have to be placed against the window they
-        # landed in; the sequencer can move this one between passes.
-        window = pygame.display.get_window_size()
-        window_input.deal(pygame.event.get(), window)
-        funestra.tick(window=window)
-        clock.tick(60)
-    funestra.close()
-    pygame.quit()
+    run_the_window(pygame, funestra, Input(funestra).deal)
     return 0

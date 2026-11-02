@@ -6,6 +6,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+FRAMES_A_SECOND = 60
+
 
 def wear_the_icon(pygame, icon: Path | None) -> None:
     # Before set_mode: SDL takes the icon from the display as it makes the window.
@@ -33,3 +35,21 @@ def take_outside_resizes(pygame) -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         pygame.Window.from_display_module().resizable = True
+
+
+def run_until_stopped(funestra, *, window_size, events, deal, pace) -> None:
+    while not funestra.stopped:
+        # Before the events, which have to be placed against the window they
+        # landed in; the sequencer can move this one between passes.
+        window = window_size()
+        deal(events(), window)
+        funestra.tick(window=window)
+        pace()
+    funestra.close()
+
+
+def run_the_window(pygame, funestra, deal) -> None:
+    clock = pygame.time.Clock()
+    run_until_stopped(funestra, window_size=pygame.display.get_window_size, events=pygame.event.get,
+                      deal=deal, pace=lambda: clock.tick(FRAMES_A_SECOND))
+    pygame.quit()
