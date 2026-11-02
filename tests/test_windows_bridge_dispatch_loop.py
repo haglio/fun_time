@@ -540,10 +540,12 @@ class TestResolveActiveSideCommand:
             assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
-        """Main has no weird or cycle, so a bare satellite-only command while it
+        """Main has no cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
-        assert resolve_active_funestra_command("active_trash", 1) == "active_trash"
         assert resolve_active_funestra_command("active_cycle_seed", 1) == "active_cycle_seed"
+
+    def test_a_bare_trash_on_the_main_funestra_reaches_genaus_item(self):
+        assert resolve_active_funestra_command("active_trash", RoomFunestra.MAIN) == "genau_weird_flick"
 
 
 class TestDispatchLoopRunner:

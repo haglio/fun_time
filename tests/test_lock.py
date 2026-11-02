@@ -44,4 +44,4 @@ def test_discarding_a_non_favorite_condemns_it():
     plan = build_discard_plan(funestra=2, current_path="C:/v/odd.mp4", is_favorite=False)
 
     assert plan.condemns is True
-    assert plan.notice_message == "Marked weird"
+    assert plan.notice_message == "Sent to Trash"

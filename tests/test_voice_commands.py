@@ -158,10 +158,9 @@ class TestVoiceCommands:
     def test_genaus_flicks_are_said_in_the_overlays_word(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
-        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip", "weird pip")} == {
+        assert {phrase: said[phrase] for phrase in ("previous pip", "next pip")} == {
             "previous pip": "genau_prev_flick",
             "next pip": "genau_next_flick",
-            "weird pip": "genau_weird_flick",
         }
         assert [phrase for phrase, command in said.items()
                 if command.startswith("genau_") and "clip" in phrase.split()] == []
@@ -169,7 +168,9 @@ class TestVoiceCommands:
     def test_marking_a_flick_weird_names_it_where_bare_weird_means_the_active_satellite(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
-        assert (said["weird pip"], said["weird"]) == ("genau_weird_flick", "active_trash")
+        assert (said["trash"], said["main trash"]) == ("active_trash", "genau_weird_flick")
+        assert "weird" not in said
+        assert "trash pip" not in said
 
     def test_the_overlay_says_the_words_that_flip_genaus_flick(self):
         assert build_voice_commands(flick_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
@@ -377,7 +378,7 @@ class TestVoiceCommands:
             "unlock": "lock_off",
             "next": "next",
             "previous": "prev",
-            "weird": "trash",
+            "trash": "trash",
             "action": "cycle_action",
             "scene": "cycle_action",  # scene == action
             "seed": "cycle_seed",
@@ -402,7 +403,7 @@ class TestVoiceCommands:
 
     def test_bare_f_mode_reaches_the_active_funestra(self):
         """Bare means the active Funestra here as it does everywhere else in the
-        grid — "lock", "next", "weird" all resolve that way, and F-mode reading
+        grid — "lock", "next", "trash" all resolve that way, and F-mode reading
         as the whole room instead is what made a spoken "f mode" report
         "enabled" over a room that already looked narrowed."""
         assert VOICE_COMMANDS["f mode"] == "active_fmode"

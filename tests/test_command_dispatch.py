@@ -3121,7 +3121,7 @@ def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_slot(tmp_
     _, ops = dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "WEIRD\n"
-    assert [(op.op, op.key, op.source) for op in ops] == [("notice", "Marked weird", "main")]
+    assert [(op.op, op.key, op.source) for op in ops] == [("notice", "Sent to Trash", "main")]
 
 
 @pytest.mark.parametrize("command", [
@@ -5318,7 +5318,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
     assert weird.call_args[0][1] == Path("odd.mp4")
     assert "Discarding from Funestra 3: odd.mp4" in caplog.text
     assert [(op.op, op.key, op.source) for op in ops] == [
-        ("notice", "Marked weird", "landscape")
+        ("notice", "Sent to Trash", "landscape")
     ]
 
 
@@ -5385,7 +5385,7 @@ def test_an_unfavoriting_is_said_in_the_favorites_green_and_a_condemning_in_whit
     _state, condemned = _discard(3, _make_state(), config)
 
     assert [(op.key, op.level) for op in demoted] == [("Unfavorited", FAVORITE)]
-    assert [(op.key, op.level) for op in condemned] == [("Marked weird", NOTICE)]
+    assert [(op.key, op.level) for op in condemned] == [("Sent to Trash", NOTICE)]
 
 
 def test_discarding_a_locked_favorite_lets_the_side_go(tmp_path: Path):
@@ -5448,7 +5448,7 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
     _state, condemn_ops = _discard(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
     assert [op.key for op in demote_ops] == ["Unfavorited"]
-    assert [op.key for op in condemn_ops] == ["Marked weird"]
+    assert [op.key for op in condemn_ops] == ["Sent to Trash"]
     # And in different colors: undoing a favoriting is one of the things green
     # is kept for, condemning a clip that was never a favorite is not.
     assert [op.level for op in demote_ops] == [FAVORITE]

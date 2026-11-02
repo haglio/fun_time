@@ -99,7 +99,7 @@ class TestCommandRules:
                 ("go now", "go now mode", "next go now", "portrait go now")} == {"de"}
         flick = genau_flick_noun().one
         assert {rules.said_in(phrase) for phrase in
-                ("kino mode", f"{flick} seconds five", f"weird {flick}", "next")} == {None}
+                ("kino mode", f"{flick} seconds five", "trash", "next")} == {None}
 
     def test_the_verifying_listener_is_handed_genau_whichever_spelling_the_first_heard(self):
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
@@ -194,7 +194,7 @@ class TestHandleHeard:
         vc = _controller(tmp_path)
         vc.suspend(WHILE_NOT_WEARING_HEADSET)
 
-        for phrase in (f"weird {genau_flick_noun().one}", "play", "stop", "quit"):
+        for phrase in ("trash", "play", "stop", "quit"):
             vc.handle_heard(_heard(Recognition(phrase=phrase)))
 
         written = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()

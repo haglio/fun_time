@@ -9,7 +9,7 @@ from funestra.funestra_verbs import NEXT, PREV
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .event_log import SOURCE_MAIN
 from .funestra_status import read_genau_status
-from .lock import MARKED_WEIRD, unfavorite
+from .lock import SENT_TO_TRASH, unfavorite
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
@@ -83,7 +83,7 @@ def _mark_genaus_flick_weird(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     unfavorite(read_genau_status(config.genau_status_file).flick, config)
     append_command(config.genau_cmd_file, "WEIRD")
-    return state, [WindowOp(op="notice", key=MARKED_WEIRD, source=SOURCE_MAIN)]
+    return state, [WindowOp(op="notice", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 
 def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,

@@ -14,7 +14,6 @@ from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
 from funestra.console import console_text
 from funestra.drive_readout import read_drive
-from funestra.file_channel import append_command
 from funestra.hud_controls import longer_than_a_step
 from funestra.modes import MainMode, Osr2State, SatellitesMode
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
@@ -40,9 +39,10 @@ from .origenerator_switches import hosts, origenerator_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
+    forget_what_a_side_was_told_of_the_osr2,
     funestra_with_the_osr2,
     osr2_part,
-    osr2_said_to,
+    tell_a_hosted_side_whose_the_osr2_is,
 )
 from .room_funestras import RoomFunestra
 from .satellite_commands import satellite_at_defaults
@@ -148,20 +148,22 @@ class HudFeed:
                 mode=SatellitesMode.KINO if self.config.origenerator_enabled else None,
             )
 
+        told = self._osr2_told
         for funestra in RoomFunestra.SATELLITES:
             if hosts(funestra, state, self.config):
-                self._tell_the_hosted_app_whose_the_osr2_is(funestra, funestra is with_the_osr2)
+                tell_a_hosted_side_whose_the_osr2_is(self.config, told, funestra,
+                                                     funestra is with_the_osr2)
+                side = state.satellite(funestra)
                 self.publisher.publish_text(funestra.label, hud_text(hosted_model(
                     funestra.label, self._worn_hosted_hud(funestra, state),
                     active=state.active_funestra == funestra,
                     origenerator_ready=state.origenerator_ready,
                     in_vr=self.config.vr_main_funestra,
                     crowned=state.crowned == funestra.label, device=device(funestra),
-                    hud_corner=state.satellite(funestra).hud_corner,
-                    hud_edge=state.satellite(funestra).hud_edge,
-                    hud_minimized=state.satellite(funestra).hud_minimized)))
+                    hud_corner=side.hud_corner, hud_edge=side.hud_edge,
+                    hud_minimized=side.hud_minimized)))
                 continue
-            self._osr2_told.pop(funestra, None)
+            forget_what_a_side_was_told_of_the_osr2(told, funestra)
             self.publisher.publish(funestra.label, build_satellite_hud(
                 satellite(funestra), self.config.regen_metadata_root,
                 RoomFunestra.label_of(state.active_funestra),
@@ -208,12 +210,6 @@ class HudFeed:
             with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
             paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
             broker=broker_running, max_intensity=state.max_intensity)))
-
-    def _tell_the_hosted_app_whose_the_osr2_is(self, funestra: RoomFunestra, has_it: bool) -> None:
-        if self._osr2_told.get(funestra) == has_it:
-            return
-        append_command(self.config.origenerator_cmd_file, osr2_said_to(funestra, has_it))
-        self._osr2_told[funestra] = has_it
 
     def _holders_osr2(self, holder: RoomFunestra, main_mode: MainMode,
                       main_funestra: MainFunestraStatus, osr2_mode: Osr2Mode,

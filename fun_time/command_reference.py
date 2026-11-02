@@ -291,7 +291,7 @@ _SECTIONS: tuple[_Section, ...] = (
         (
             _Row(f"Previous Genau {_FLICK.one}", ("M",), ("genau_prev_flick",)),
             _Row(f"Next Genau {_FLICK.one}", (".",), ("genau_next_flick",)),
-            _Row(f"Mark the Genau {_FLICK.one} weird — skip it, and out of rotation", ("K",),
+            _Row(f"Send the Genau {_FLICK.one} to Trash — skip it, and out of rotation", ("K",),
                  ("genau_weird_flick",)),
             _Row(
                 f"Lock / unlock the Genau {_FLICK.one} — locked (the default) it repeats; "
@@ -495,7 +495,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _sided("funscript_jump", "next_funscripted"),
             ),
             _Row(
-                "Unfavorite the clip — or mark it weird when it is not a favorite",
+                "Unfavorite the clip — or send it to Trash when it is not a favorite",
                 ("Up",),
                 _sided("trash"),
                 hotkeys_alt=("W",),

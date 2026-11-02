@@ -221,7 +221,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                f"Flipped — this {flick.one} stays that way; press to put it back" if slot.flipped
                else f"Flip this {flick.one}, for one running opposite the OSR2 — it stays flipped",
                lit=slot.flipped, group_break=True),
-        Button("genau_weird_flick", TRASH_ICON, "Mark weird — move it out", danger=True),
+        Button("genau_weird_flick", TRASH_ICON, "Send to Trash — move it out", danger=True),
         *browse_order_buttons("main", latest=slot.latest),
         *_inclusion_buttons(slot, remembered=False, things=flick.many),
     )
