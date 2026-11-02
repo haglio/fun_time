@@ -52,7 +52,7 @@ from itertools import pairwise
 from pathlib import Path
 from time import monotonic
 
-from app_support.integration_runs import runs_dir
+from app_support.integration_runs import CHANGED_FLAG, REPEAT_CHANGED_FLAG, runs_dir
 from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import JobObject
@@ -80,9 +80,7 @@ MEASURED_PROCESS_STARTUP = Path(__file__).with_name("measured_process_startup")
 REFUSED_EXIT_CODE = 4
 
 
-REPEAT_CHANGED = "--repeat-changed"
 STOP_AT_THE_FIRST_FAILURE = "-x"
-CHANGED = "--changed"
 REPEAT_RUNS = 10
 # What a repeat may spend on runs, the whole-file runs before its repeats
 # included. A branch that renames a file changes every test in it, and ten runs
@@ -109,7 +107,7 @@ def build_gate_argv(base: str, budget_minutes: float) -> list[str]:
 
 
 def _is_a_repeat(extra_args: list[str]) -> bool:
-    return extra_args[:1] == [REPEAT_CHANGED]
+    return extra_args[:1] == [REPEAT_CHANGED_FLAG]
 
 
 def _base_of(repeat_args: list[str]) -> str:
@@ -468,7 +466,7 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     if _is_a_repeat(extra_args):
         return _repeat_what_changed(_base_of(extra_args))
-    if extra_args[:1] == [CHANGED]:
+    if extra_args[:1] == [CHANGED_FLAG]:
         return _run_what_this_change_needs(_base_of(extra_args))
     with _a_place_in_line(short=_is_short(extra_args), what=extra_args) as visit:
         return visit.ended_with(_run_the_suite(build_run_argv(extra_args), sys.executable, RUN_CEILING_S))
@@ -485,7 +483,7 @@ def _run_what_this_change_needs(base: str) -> int:
     if not (picked.everything or picked.files):
         return 0
     files = [] if picked.everything else sorted(picked.files)
-    with _a_place_in_line(short=bool(files), what=[CHANGED, *files]) as visit:
+    with _a_place_in_line(short=bool(files), what=[CHANGED_FLAG, *files]) as visit:
         return visit.ended_with(_run_the_suite(build_run_argv([*files, STOP_AT_THE_FIRST_FAILURE]),
                                                sys.executable, RUN_CEILING_S))
 
@@ -528,7 +526,7 @@ def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
 def _repeat_what_changed(base: str) -> int:
     gate_python = flake_gate_python(_repo_root() / "state")
     files = files_with_a_changed_test(gate_python, base, _repo_root())
-    with _a_place_in_line(short=True, what=["--repeat-changed", base]) as visit:
+    with _a_place_in_line(short=True, what=[REPEAT_CHANGED_FLAG, base]) as visit:
         minutes_left = REPEAT_BUDGET_MINUTES
         if files:
             started = monotonic()
