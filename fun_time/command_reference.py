@@ -249,7 +249,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
             # Neither the keys nor the words name an engine, so in kino mode they
             # follow the OSR2's driver — a held hand has no motion to nudge, so
-            # under a park or retract they reach the video; the console's own ±
+            # under a park or retract they reach the video; the HUD's own ±
             # marks, which sit on one readout or the other, stay with the engine
             # they sit on.
             _Row(

@@ -19,9 +19,9 @@ from app_support.file_channel import consume_command_file, read_flag
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import force_foreground_window, window_exists
 from funestra import broker
-from funestra.console import BROKER_PRESS
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import play_file
+from funestra.main_hud import BROKER_PRESS
 from funestra.playlist import PlaylistItem
 
 from .aiming import notice_source, resolve_active_funestra_command

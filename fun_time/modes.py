@@ -181,7 +181,7 @@ class VideoShapes:
     @property
     def offered(self) -> bool:
         """Whether this session has both shapes to choose between — which is what
-        puts the pair of buttons on the console."""
+        puts the pair of buttons on the HUD."""
         return bool(source_roots(self.vr_dirs))
 
     @property

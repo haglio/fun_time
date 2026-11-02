@@ -56,7 +56,7 @@
     rather than a discovery in the log.
   - Every notice a command raises is a desktop overlay window the session does not
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
-    session, say) shows nothing in the headset. What the console and the satellite
+    session, say) shows nothing in the headset. What the HUD and the satellite
     HUDs draw is unaffected: those are in-scene surfaces, not windows.
   - With `vr.compositor_layers` on, the controllers, their laser, the handles and
     the spot the laser lands on draw in the projection layer, which the runtime
@@ -64,7 +64,7 @@
     unseen. Off (the default, and the only mode the bundled runtime shows
     screens in) everything draws in one layer and the chrome sits on top.
   - For the same reason a squeeze cannot bring a screen forward across that
-    split: with it on, the videos taken as quads stay in front of the console,
+    split: with it on, the videos taken as quads stay in front of the HUD,
     the dashboard and the reference, and the satellites in front of the Main
     Funestra, whichever of them was taken hold of last.
 - Notes:

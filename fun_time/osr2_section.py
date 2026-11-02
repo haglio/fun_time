@@ -4,9 +4,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from funestra.console import ConsoleModel, aim_row, osr2_controls
 from funestra.file_channel import append_command
 from funestra.hud_button import Button
+from funestra.main_hud import MainHudModel, aim_row, osr2_controls
 from funestra.modes import MainMode, Osr2State
 from shared_ui.spacing import BUTTON_WORD_W
 
@@ -57,8 +57,8 @@ def osr2_button(funestra: FunTimeFunestra, *, has_it: bool) -> Button:
 
 def osr2_part(holder: FunTimeFunestra, *, main_mode: MainMode, osr2: Osr2State, control: str,
               paused: bool, learned: bool, shape: str, broker: bool,
-              max_intensity: int) -> ConsoleModel:
-    return ConsoleModel(
+              max_intensity: int) -> MainHudModel:
+    return MainHudModel(
         funestra=holder.label,
         main_mode=main_mode if holder is FunTimeFunestra.MAIN else MainMode.KINO,
         osr2=osr2, osr2_control=control, paused=paused,

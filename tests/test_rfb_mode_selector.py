@@ -17,7 +17,7 @@ from fun_time.satellite_buttons import mode_row
 def test_the_strip_offers_the_browser_then_origenerator():
     buttons = selector_buttons(RfbMode.RFB, origenerator_ready=True)
 
-    assert [(b.command, b.glyph, b.width) for b in buttons] == [
+    assert [(b.command, b.icon, b.width) for b in buttons] == [
         (RFB_ACTIVATE, "Random Favs Browser", FIT_THE_WORD),
         (ORIGENERATOR_ACTIVATE, "Origenerator", FIT_THE_WORD)]
 
@@ -51,13 +51,13 @@ def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
     hud = HudRenderer("portrait").render(HudModel(
         funestra="portrait", rows=(mode_row("portrait", mode=ORIGENERATOR_MODE),)))
     hud_rect = next(rect for rect, button in hud.targets.buttons
-                    if button.glyph == "Origenerator")
+                    if button.icon == "Origenerator")
     hud_rgb = _rgb(hud.bgra[:, :, [2, 1, 0, 3]], hud_rect)
 
     placed = place_selector(selector_buttons(RfbMode.ORIGENERATOR, origenerator_ready=True),
                          x=10, y=10)
     strip = np.asarray(paint_selector((400, 38), placed))
-    strip_rect = next(rect for rect, button in placed if button.glyph == "Origenerator")
+    strip_rect = next(rect for rect, button in placed if button.icon == "Origenerator")
 
     assert (strip_rect[2], strip_rect[3]) == (hud_rect[2], hud_rect[3])
     assert np.array_equal(_rgb(strip, strip_rect), hud_rgb)

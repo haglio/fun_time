@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from funestra.modes import NoticeLevel
+from funestra.modes import MessageLevel
 from funestra.playlist import PlaylistItem
 
 from main_funestra.clip_jumps import ClipJumps
@@ -83,7 +83,7 @@ def _jumps(nav, current: Path, funscripts=None, playlist=None):
 class CountingNav:
     """A nav that notes every library walk asked of it, for the caching tests.
 
-    Each of these questions ranges over the whole library, and the console asks
+    Each of these questions ranges over the whole library, and the HUD asks
     several times a second, so what the tests are pinning is how MANY walks one
     video costs -- hence a record of the calls rather than of the answers.
     """
@@ -110,7 +110,7 @@ class CountingNav:
 
 
 class TestWhatTheButtonsCanDoFromHere:
-    """The console draws its compilation and clip/scene buttons dim where a press
+    """The HUD draws its compilation and clip/scene buttons dim where a press
     would do nothing, and only this Funestra can say which case it is in."""
 
     def test_a_clip_says_it_belongs_to_a_compilation(self, tmp_path):
@@ -132,7 +132,7 @@ class TestWhatTheButtonsCanDoFromHere:
         assert _jumps(nav, first)[0].jump_to == ""
 
     def test_the_library_is_walked_once_per_video_rather_than_per_ask(self, tmp_path):
-        """The console asks several times a second, and each answer walks the
+        """The HUD asks several times a second, and each answer walks the
         clips against the scenes."""
         nav, _first, second, scene = _world(tmp_path)
         counting = CountingNav(nav)
@@ -244,7 +244,7 @@ class TestPlayCompilation:
         jumps.play_compilation()
 
         assert [video for video, _fs in session.replaced[0]] == [first, second]
-        assert notices.said == [("compilation: 2 clips", NoticeLevel.NOTICE)]
+        assert notices.said == [("compilation: 2 clips", MessageLevel.NOTICE)]
 
     def test_remembers_which_compilation_is_holding_the_playlist(self, tmp_path):
         """The HUD reports this; it is the state the Funestra could get stuck in
@@ -263,7 +263,7 @@ class TestPlayCompilation:
         jumps.play_compilation()
 
         assert session.replaced == []
-        assert notices.said == [("not a compilation clip", NoticeLevel.WARNING)]
+        assert notices.said == [("not a compilation clip", MessageLevel.WARNING)]
         assert jumps.compilation == ""
 
     def test_leaving_forgets_it(self, tmp_path):
@@ -287,7 +287,7 @@ class TestSingleVideoJumps:
         jumps.play_full_vid()
 
         assert session.played == [(scene, script)]
-        assert notices.said == [("full video", NoticeLevel.NOTICE)]
+        assert notices.said == [("full video", MessageLevel.NOTICE)]
 
     def test_clip_jump_plays_the_clip_carved_from_the_scene(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
@@ -296,7 +296,7 @@ class TestSingleVideoJumps:
         jumps.play_clip_jump()
 
         assert session.played == [(second, None)]
-        assert notices.said == [("clip jump", NoticeLevel.NOTICE)]
+        assert notices.said == [("clip jump", MessageLevel.NOTICE)]
 
     def test_a_miss_says_so_rather_than_moving(self, tmp_path):
         """Most clips' source movies are not in the library at all, so having
@@ -309,7 +309,7 @@ class TestSingleVideoJumps:
         jumps.play_full_vid()
 
         assert session.played == []
-        assert notices.said == [("full video not available", NoticeLevel.WARNING)]
+        assert notices.said == [("full video not available", MessageLevel.WARNING)]
 
     def test_neither_jump_disturbs_the_compilation_it_is_inside(self, tmp_path):
         """These two move to one video; only "compilation" replaces the playlist,
@@ -324,7 +324,7 @@ class TestSingleVideoJumps:
 
 
 class TestWhatTheVideoIsCalled:
-    """The console's muted line under the status names the video, and the
+    """The HUD's muted line under the status names the video, and the
     library's record of it beats the filename wherever there is one."""
 
     def test_it_is_the_name_evolver_recorded_for_the_video(self, tmp_path):

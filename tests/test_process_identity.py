@@ -109,8 +109,8 @@ class TestTheRolesThisRepoLaunches:
 
 
 class TestPrepareOrchestratorLauncher:
-    def test_names_a_copy_of_the_console_interpreter_beside_the_running_one(self, tmp_path: Path):
-        # The console one by name: launch.vbs runs python.exe, and reading
+    def test_names_a_copy_of_the_main_hud_interpreter_beside_the_running_one(self, tmp_path: Path):
+        # The HUD one by name: launch.vbs runs python.exe, and reading
         # sys.executable would name a copy after a copy on every launch after
         # the first -- FunTime-Orchestrator.exe copied to itself, once per run.
         # Run against a throwaway venv, which reads the copy back: which

@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import ClassVar
 
 from funestra import funestra_verbs
-from funestra.console import OSR2_PARKED, OSR2_RETRACTED
 from funestra.genau_controls import VERBS as GENAU_VERBS
+from funestra.main_hud import OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode, SatellitesMode
 
 from fun_time.bridge_records import SatelliteChannel

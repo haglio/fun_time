@@ -132,7 +132,7 @@ class TestVoiceCommands:
             "clip": "genaumacher_save",
             "save clip": "genaumacher_save",
             # Engine-agnostic: routed to whichever holds the OSR2, not to Genau
-            # by name (the console's own marks are the by-name pair).
+            # by name (the HUD's own marks are the by-name pair).
             "slow down": "speed_down",
             "speed down": "speed_down",
             "speed up": "speed_up",
@@ -177,7 +177,7 @@ class TestVoiceCommands:
 
     def test_holding_a_genau_flick_is_the_main_lock_and_nothing_of_its_own(self):
         """It was a phrase and a padlock beside auto advance's arming; the two
-        could disagree, and the console carried a second lock next to the Main Funestra's."""
+        could disagree, and the HUD carried a second lock next to the Main Funestra's."""
         assert "lock clip" not in VOICE_COMMANDS
         assert "auto advance" not in VOICE_COMMANDS
         assert "advance on" not in VOICE_COMMANDS
@@ -237,7 +237,7 @@ class TestVoiceCommands:
         assert "un retract" not in VOICE_COMMANDS
 
     def test_osr2_off_is_the_switch_off(self):
-        """Off parks the device, as the console's switch does.  Spelled with the
+        """Off parks the device, as the HUD's switch does.  Spelled with the
         letters vosk has, like "OSR2 resume", which is the way back."""
         for phrase in ("o s r two off", "oh es are two off"):
             assert VOICE_COMMANDS[phrase] == "robot_hand_park", phrase

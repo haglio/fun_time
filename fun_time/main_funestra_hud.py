@@ -1,33 +1,33 @@
-"""What the main console shows about Fun Time, and the file it reaches on: a
-:class:`~funestra.console.ConsoleModel` carrying the buttons Fun Time
+"""What the Main Funestra's HUD shows about Fun Time, and the file it reaches on: a
+:class:`~funestra.main_hud.ConsoleModel` carrying the buttons Fun Time
 declares (:mod:`fun_time.console_buttons`), published as text and parsed back
-by ``funestra.console``."""
+by ``funestra.main_hud``."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
-from funestra.console import ConsoleModel
 from funestra.hud_controls import longer_than_a_step
 from funestra.hud_placement import HudCorner, HudEdge
+from funestra.main_hud import MainHudModel
 from funestra.modes import LengthMode, MainMode, Osr2State
 
-from .console_buttons import MainFunestraFacts, console_rows, osr2_rows, title_filters
 from .funestra_status import GenauStatus, MainFunestraStatus
+from .main_hud_buttons import MainFunestraFacts, main_hud_rows, osr2_rows, title_filters
 from .mode_plan import kino_shows
 
-MAIN_FUNESTRA_CONSOLE_FILENAME = "main_player_console.json"
+MAIN_FUNESTRA_HUD_FILENAME = "main_player_console.json"
 
 def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: bool,
                trouble: Osr2Trouble | None = None) -> Osr2State:
-    """Which of the OSR2 states has the device, for the console to badge.
+    """Which of the OSR2 states has the device, for the HUD to badge.
 
     Only a Main Funestra that is *on screen* can be driving: ``funscript_driving`` is read
     off the Main Funestra's status file, which describes the video the Main Funestra is parked on whether or
     not it is playing, and in genau mode the Main Funestra is paused off screen with the last
     scripted video it showed still in that file.  Asked without the mode it said
-    "funscript" all through a genau-mode session, which is the console's word for
+    "funscript" all through a genau-mode session, which is the HUD's word for
     "something other than the Robot Hand has the device" — so every ± mark and
     draggable band on the drive readout went dead.
     """
@@ -37,7 +37,7 @@ def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: b
 
 @dataclass(frozen=True)
 class MainFunestraInputs:
-    """Everything the main console is built from — the satellites'
+    """Everything the Main Funestra's HUD is built from — the satellites'
     :class:`~fun_time.lock_hud.SatelliteInputs` for the Main Funestra.  The lock and
     the browse order are one flag each, resolved to whichever Funestra is on it."""
 
@@ -70,8 +70,8 @@ class MainFunestraInputs:
     has_osr2: bool = True
 
 
-def console_model(inputs: MainFunestraInputs) -> ConsoleModel:
-    """The console as the Main Funestra parses it: Fun Time around the
+def main_hud_model(inputs: MainFunestraInputs) -> MainHudModel:
+    """The HUD as the Main Funestra parses it: Fun Time around the
     drive readout, and the buttons declared from it."""
     main_funestra, genau = inputs.main_funestra, inputs.genau
     video = kino_shows(inputs.main_mode)
@@ -98,7 +98,7 @@ def console_model(inputs: MainFunestraInputs) -> ConsoleModel:
         has_osr2=inputs.has_osr2,
         has_funscript=main_funestra.has_funscript,
     )
-    return ConsoleModel(
+    return MainHudModel(
         main_mode=inputs.main_mode,
         hud_corner=inputs.hud_corner,
         hud_edge=inputs.hud_edge,
@@ -110,11 +110,11 @@ def console_model(inputs: MainFunestraInputs) -> ConsoleModel:
         locked=facts.locked,
         latest=facts.latest,
         filters=title_filters(facts),
-        rows=console_rows(facts, in_vr=inputs.in_vr),
+        rows=main_hud_rows(facts, in_vr=inputs.in_vr),
         osr2_rows=osr2_rows(facts),
         has_osr2=inputs.has_osr2,
     )
 
 
-def main_funestra_console_path(state_dir: Path) -> Path:
-    return state_dir / MAIN_FUNESTRA_CONSOLE_FILENAME
+def main_funestra_hud_path(state_dir: Path) -> Path:
+    return state_dir / MAIN_FUNESTRA_HUD_FILENAME

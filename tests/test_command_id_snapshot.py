@@ -2,7 +2,7 @@
 
 Command ids are public surface: windows_bridge_hotkeys.ahk queues them, the
 Funestra HUDs in funestra post them (``portrait_minimize``,
-``portrait_play_video|<path>``), the Main Funestra's console posts more, and the in-app
+``portrait_play_video|<path>``), the Main Funestra's HUD posts more, and the in-app
 reference prints them.  The command-registry restructure (audit item 33) may
 move where an id is *defined*, but no id may change spelling — this snapshot
 is the gate.  It unions every id the three in-repo surfaces name (the spoken
@@ -31,8 +31,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # dashboard's strip.  Each satellite's Kino / Origenerator pair is on its HUD, and
 # the strip's two buttons are the strip's own (the hosted Origenerator posts its
 # second one too, to be shown).  The three
-# minimize buttons live on the HUDs (funestra / the Main Funestra's console); the
-# padlock on that console locks whichever Funestra is on the main screen; the speed
+# minimize buttons live on the HUDs (funestra / the Main Funestra's HUD); the
+# padlock on that HUD locks whichever Funestra is on the main screen; the speed
 # pair is Genau's console's own ± marks beside its drive readout.  The two
 # scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (

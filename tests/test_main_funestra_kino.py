@@ -1,12 +1,12 @@
 """Kino as it runs on the Main Funestra: its verbs, its pass each frame, its lines
-in the status file and the console's top block, over a real Playback."""
+in the status file and the HUD's top block, over a real Playback."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
 from funestra.funestra import User
-from funestra.modes import LoopState, NoticeLevel
+from funestra.modes import LoopState, MessageLevel
 from funestra.playback import Playback
 from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
@@ -188,7 +188,7 @@ class TestItsPassEachFrame:
 
 
 class TestWhatItSays:
-    def test_the_console_leads_with_the_librarys_title_and_the_place_in_the_list(self, tmp_path):
+    def test_the_main_hud_leads_with_the_librarys_title_and_the_place_in_the_list(self, tmp_path):
         world = World(tmp_path)
 
         hud = world.kino.top_block()
@@ -233,7 +233,7 @@ class TestKinoOnTheLibrary:
         (tmp_path / "main_player_playlist.tsv").write_text(f"{world.second}\n", encoding="utf-8")
 
         made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)
-        made.keywords["notices"].say("a notice", level=NoticeLevel.NOTICE)
+        made.keywords["notices"].say("a notice", level=MessageLevel.NOTICE)
 
         assert made.keywords["source"] is world.source
         assert made.keywords["memory"] is world.memory

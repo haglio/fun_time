@@ -151,7 +151,7 @@ class HudPublisher:
     """Writes each Funestra's HUD file, skipping unchanged HUDs.
 
     Named for what it publishes to rather than what it publishes: the satellites
-    take a map of clips and the Main Funestra takes its console, and both want the same
+    take a map of clips and the Main Funestra takes its HUD, and both want the same
     write-only-on-change, publish-whole treatment.
     """
 

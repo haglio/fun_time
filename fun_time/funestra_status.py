@@ -46,7 +46,7 @@ class MainFunestraStatus(ScriptedStatus):
     ``funscript_resting`` is set).
 
     ``locked`` defaults on, unlike the family's: that is what a Main Funestra
-    with nothing to say is doing.  The main console draws the lock, and in
+    with nothing to say is doing.  the Main Funestra's HUD draws the lock, and in
     genau mode it is drawn by a Funestra with no such lock of its own to ask — so
     it comes through here, the way ``loop_state`` does.
     """

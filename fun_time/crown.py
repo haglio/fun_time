@@ -7,7 +7,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from funestra.hud_marks import shared_mark
+from funestra.hud_icons import shared_icon
 
 from .mode_plan import kino_shows
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .shared_state import BridgeState
     from .window_layout import SecondaryMonitorRects
 
-CROWN_ICON = shared_mark("crown")
+CROWN_ICON = shared_icon("crown")
 
 
 class Crown(StrEnum):

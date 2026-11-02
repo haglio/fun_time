@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from functools import cache
 
-from funestra.device_panel import DevicePanel
+from funestra.osr2_controls_host import Osr2ControlsHost
 from PIL import Image, ImageDraw
 from shared_ui.button_pil import button, slab
 from shared_ui.dropdown_pil import paint_field, paint_list
@@ -50,7 +50,7 @@ from fun_time.event_log import (
 from fun_time.log_panel_model import format_record
 from fun_time.project_paths import PROJECT_ICON
 
-from .console_hud import DEG_PER_PX, level_color
+from .main_hud import DEG_PER_PX, level_color
 
 _DIAL_W = 92  # the name and the arrow beside it
 _ROW_H = 16
@@ -277,7 +277,7 @@ class DashPointer:
     def __init__(self, *, post, state: DashState | None = None) -> None:
         self._post = post
         self.state = state or DashState()
-        self.part = DevicePanel(post=post)
+        self.part = Osr2ControlsHost(post=post)
         self._held = self._held_on_the_part = False
 
     def press(self, px: int, py: int) -> str | None:  # the action, or None

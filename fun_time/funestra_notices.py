@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from funestra.modes import NoticeLevel, read_mode
+from funestra.modes import MessageLevel, read_mode
 
 from .bridge_records import BridgeConfig
 from .event_log import (
@@ -18,10 +18,10 @@ from .fun_time_funestras import FunTimeFunestra
 
 logger = logging.getLogger(__name__)
 
-_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
+_LEVELS = {MessageLevel.WARNING: logging.WARNING, MessageLevel.HIGHLIGHT: FAVORITE}
 
 
-def read_funestra_notice(path) -> tuple[float, NoticeLevel, str]:
+def read_funestra_notice(path) -> tuple[float, MessageLevel, str]:
     """A Funestra's latest one-shot notice as (sequence, level, message); the
     Funestra bumps the sequence whenever it raises one, and (0, "", "") means
     there is nothing to read."""
@@ -32,7 +32,7 @@ def read_funestra_notice(path) -> tuple[float, NoticeLevel, str]:
             if "=" in line
         )
         return (float(values.get("seq", "0")),
-                read_mode(NoticeLevel, values.get("level", ""), NoticeLevel.NOTICE),
+                read_mode(MessageLevel, values.get("level", ""), MessageLevel.NOTICE),
                 values.get("message", ""))
     except (OSError, ValueError):
         return 0, "", ""

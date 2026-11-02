@@ -74,7 +74,7 @@ class TestTheVersionsAClipCanBeSwitchedBetween:
         assert renditions(str(upscaled), tmp_path) == [str(upscaled), str(original)]
 
     def test_a_clip_whose_original_is_gone_has_no_family(self, tmp_path: Path):
-        """One version is nothing to switch between, and the console's button is
+        """One version is nothing to switch between, and the HUD's button is
         dim for it."""
         upscaled = _upscaled(tmp_path, "abc_topaz.mp4")
 

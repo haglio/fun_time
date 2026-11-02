@@ -6,7 +6,7 @@ from itertools import pairwise
 
 import pytest
 from funestra.hud_button import FIT_THE_WORD, Button
-from funestra.hud_marks import (
+from funestra.hud_icons import (
     BACK_ICON,
     FMODE_ICON,
     FORWARD_ICON,
@@ -14,9 +14,9 @@ from funestra.hud_marks import (
     MINIMIZE_ICON,
     NEXT_ICON,
     PREVIOUS_ICON,
-    SHARED_MARK,
-    shared_mark,
-    shared_mark_name,
+    SHARED_ICON,
+    shared_icon,
+    shared_icon_name,
 )
 from funestra.modes import SatellitesMode
 from shared_ui.icon_geometry import icon_names
@@ -34,13 +34,13 @@ def _names(buttons: tuple[Button, ...]) -> list[str]:
 
 def _faces() -> dict[str, str]:
     band = _band(latest=False)
-    return dict(zip(_names(band), (button.glyph for button in band), strict=True))
+    return dict(zip(_names(band), (button.icon for button in band), strict=True))
 
 
-def test_the_band_is_the_funestras_own_controls_in_the_consoles_order():
+def test_the_band_is_the_funestras_own_controls_in_the_main_huds_order():
     """The browse pair with the ten-second steps between them, then the three about
     the clip on screen and the library it came from, then the reset, then the
-    browse order, then another rendition of the clip, as the console ends its own
+    browse order, then another rendition of the clip, as the HUD ends its own
     browse controls on it, then minimize — ending with the one that acts on the
     window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
@@ -57,10 +57,10 @@ def test_every_button_posts_that_funestras_own_verb():
             assert button.tooltip, button.command
 
 
-def test_the_band_breaks_into_the_groups_the_console_breaks_into():
+def test_the_band_breaks_into_the_groups_the_main_hud_breaks_into():
     """A run of evenly spaced squares reads as one long undifferentiated strip;
     the wider gap opens where the controls stop being about the same thing, at
-    the same seams the console's rows break at."""
+    the same seams the HUD's rows break at."""
     starts = [button.command.removeprefix("portrait_")
               for button in _band(latest=False) if button.group_break]
 
@@ -103,7 +103,7 @@ def test_the_bin_takes_something_away():
 
 
 def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
-    """A row of its own above the band, like the console's Kino/Genau row: the
+    """A row of its own above the band, like the HUD's Kino/Genau row: the
     side's current mode lit, minimize riding the row a group apart, and no such
     row at all for a session hosting no Origenerator."""
     rows = funestra_rows("portrait", mode=SatellitesMode.ORIGENERATOR)
@@ -112,14 +112,14 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
     assert [b.command for b in rows[0]] == [
         "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
         "portrait_crown"]
-    assert [b.glyph for b in rows[0][:2]] == ["Kino", "Origenerator"]
+    assert [b.icon for b in rows[0][:2]] == ["Kino", "Origenerator"]
     assert rows[0][0].tooltip == "Kino mode — this Funestra plays its own videos"
     assert rows[0][1].tooltip == (
         "Origenerator mode — this Funestra plays Origenerator's slideshows")
     assert [b.lit for b in rows[0]][:3] == [False, True, False]
     assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
     assert rows[0][2].group_break
-    assert rows[0][2].glyph == MINIMIZE_ICON
+    assert rows[0][2].icon == MINIMIZE_ICON
     assert "minimize" not in _names(rows[1])
     assert len(funestra_rows("portrait")) == 1
 
@@ -160,8 +160,8 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
     """The bin is the bin Origenerator's toolbar wears, reset the gear with the
     circular arrow, F-mode its magenta badge."""
     faces = _faces()
-    named = {name: shared_mark_name(face) for name, face in faces.items()
-             if face.startswith(SHARED_MARK)}
+    named = {name: shared_icon_name(face) for name, face in faces.items()
+             if face.startswith(SHARED_ICON)}
 
     assert named["trash"] == "trash"
     assert named["reset"] == "reset"
@@ -179,7 +179,7 @@ def test_the_gaps_fall_between_groups_and_nowhere_else():
 def test_skip_ahead_rides_the_transport_as_the_main_funestras_does():
     jump = {b.command: b for b in _band(has_osr2=True, has_funscript=True)}["portrait_funscript_jump"]
 
-    assert shared_mark_name(jump.glyph) == "funscript_jump"
+    assert shared_icon_name(jump.icon) == "funscript_jump"
     assert jump.tooltip == "Skip ahead to where this clip's scripting starts up again"
     assert not jump.group_break
     assert not jump.lit
@@ -208,7 +208,7 @@ def test_the_transport_the_lock_and_the_crown_wear_the_familys_marks():
     faces = _faces()
 
     assert [faces[name] for name in ("prev", "nudge_prev", "nudge_next", "next", "lock", "crown")] == [
-        PREVIOUS_ICON, BACK_ICON, FORWARD_ICON, NEXT_ICON, LOCK_ICON, shared_mark("crown")]
+        PREVIOUS_ICON, BACK_ICON, FORWARD_ICON, NEXT_ICON, LOCK_ICON, shared_icon("crown")]
 
 
 def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
@@ -224,7 +224,7 @@ def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
 
 
 def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
-    """The console's own versions mark, and dim where there is nothing to step
+    """The HUD's own versions mark, and dim where there is nothing to step
     to — the way the Main Funestra's is, with the hover saying so."""
     alone = {b.command: b for b in _band()}["portrait_cycle_version"]
     paired = {b.command: b for b in _band(has_other_versions=True)}["portrait_cycle_version"]
@@ -233,7 +233,7 @@ def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
     assert "none for this one" in alone.tooltip
     assert not paired.dim
     assert "none" not in paired.tooltip
-    assert shared_mark_name(_faces()["cycle_version"]) == "versions"
+    assert shared_icon_name(_faces()["cycle_version"]) == "versions"
 
 
 def test_the_portrait_funestras_crown_is_lit_while_it_holds_the_crown():

@@ -21,9 +21,9 @@ from dataclasses import MISSING, dataclass, field, fields, replace
 from enum import Enum
 from pathlib import Path
 
-from funestra.console import OSR2_DRIVING
 from funestra.flick_advance import FlickAdvanceState
 from funestra.hud_placement import HudCorner, HudEdge
+from funestra.main_hud import OSR2_DRIVING
 from funestra.modes import LengthMode, MainMode, SatellitesMode, read_mode
 from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 
@@ -115,7 +115,7 @@ class BridgeState:
     # Genau's own, kept apart from ``main_latest`` even though the two Funestras
     # share the Main Funestra: ``main_latest`` describes the playlist file we built
     # for the Main Funestra, and a Genau reorder rewrites nothing of the Main Funestra's.  One flag for both
-    # would light "Latest" on the Main Funestra's console over a playlist nobody reordered.
+    # would light "Latest" on the Main Funestra's HUD over a playlist nobody reordered.
     genau_latest: bool = False
     genau_plays_vr: bool = True
     genau_plays_flat: bool = True
@@ -147,7 +147,7 @@ class BridgeState:
     genau_locked: bool = True
     mic_muted: bool = False
     headset_layout: str = ""
-    osr2_control: str = OSR2_DRIVING  # the console's OSR2 switch sets it
+    osr2_control: str = OSR2_DRIVING  # the HUD's OSR2 switch sets it
     crowned: Crown = Crown.MAIN
     majority: Crown = Crown.PORTRAIT
     osr2_funestra: int = 1

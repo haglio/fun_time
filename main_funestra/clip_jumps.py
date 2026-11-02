@@ -7,7 +7,7 @@ actually do.
 
 Playing a compilation replaces the whole playlist, so it is a place you can be
 *stuck* -- unlike the other two, which move to one video and leave the playlist
-alone.  That is the state the console reports, so it lives here, with whatever
+alone.  That is the state the HUD reports, so it lives here, with whatever
 puts you in it.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from funestra.modes import NoticeLevel
+from funestra.modes import MessageLevel
 from funestra.playback import funscripts_of
 from funestra.playlist import PlaylistItem
 
@@ -89,10 +89,10 @@ class ClipJumps:
     def play_compilation(self) -> None:
         current = self._playback.current_video
         if not self._enter(current):
-            self._notices.say("not a compilation clip", level=NoticeLevel.WARNING)
+            self._notices.say("not a compilation clip", level=MessageLevel.WARNING)
             return
         self._notices.say(
-            f"compilation: {len(self._playback.playlist)} clips", level=NoticeLevel.NOTICE)
+            f"compilation: {len(self._playback.playlist)} clips", level=MessageLevel.NOTICE)
 
     def _enter(self, current: Path) -> bool:
         siblings = self._nav.compilation_playlist(current)
@@ -111,7 +111,7 @@ class ClipJumps:
     def _jump(self, target: Path | None, what: str) -> None:
         if target is None:
             logger.info("%s: nothing matches %s", what, self._playback.current_video.name)
-            self._notices.say(f"{what} not available", level=NoticeLevel.WARNING)
+            self._notices.say(f"{what} not available", level=MessageLevel.WARNING)
             return
         self._playback.play_file(target, self._funscripts.get(target))
-        self._notices.say(what, level=NoticeLevel.NOTICE)
+        self._notices.say(what, level=MessageLevel.NOTICE)

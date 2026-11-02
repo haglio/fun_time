@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app_support import osr2_hold
-from funestra.console import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
+from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode
 
 from fun_time.omnipause import build_omnipause_plan

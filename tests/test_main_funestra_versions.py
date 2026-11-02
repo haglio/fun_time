@@ -38,7 +38,7 @@ def _playing(playlist: list[Path], version_index) -> tuple[Versions, Playback, F
 
 
 class TestWhetherThereIsAnythingToCycleTo:
-    def test_the_console_draws_its_version_button_lit_only_where_a_press_would_do_something(self, tmp_path):
+    def test_the_main_hud_draws_its_version_button_lit_only_where_a_press_would_do_something(self, tmp_path):
         big, small, solo = _videos(tmp_path, "Jane-1080p.mp4", "Jane-540.mp4", "solo.mp4")
 
         paired, _playback, _engine = _playing([big], _families([big, small]))

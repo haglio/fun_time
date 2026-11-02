@@ -26,8 +26,8 @@ from app_support import osr2_hold
 from app_support.subprocess_utils import tie_to_this_process
 from app_support.threading_utils import wait_until
 from app_support.win32 import process_started
-from funestra.console import HOLD_VERB
 from funestra.file_channel import append_command
+from funestra.main_hud import HOLD_VERB
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 

@@ -32,7 +32,7 @@ _GENAU_CMD_MAP = {
     "genau_prev_flick": PREV,
     "genau_next_flick": NEXT,
     "genau_flip_ends": "FLIP_ENDS",
-    # The motion's rate as the console's own ± marks beside the wave send it —
+    # The motion's rate as the HUD's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is osr2_commands', following the OSR2.
     "robot_hand_speed_down": "SPEED_DOWN",
     "robot_hand_speed_up": "SPEED_UP",

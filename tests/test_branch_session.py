@@ -226,7 +226,7 @@ def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
     ``../broker`` opens its heartbeat, serial-activity, command and mode files
     from the one directory its own config names, and never learns that a session
     moved.  Letting them follow ``state_dir`` pointed a branch session at a
-    directory the broker has never written: the main console's broker light
+    directory the broker has never written: the Main Funestra's HUD's broker light
     red and its OSR2 light "off" while the device was plainly being driven, and
     park/resume written where nothing consumes them.
     """

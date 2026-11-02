@@ -34,7 +34,7 @@ from funestra.funestra import Funestra
 from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
 from funestra.modes import MainMode
-from funestra.notices import NoticeWriter
+from funestra.notices import MessageWriter
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
 from funestra.pointer import OMNIPAUSE_TOGGLE
@@ -66,7 +66,6 @@ from main_funestra.kino import Kino
 from satellite.contract import SatelliteChannels
 
 from . import room
-from .console_hud import DEG_PER_PX, HUD_WIDTH_PX, hud_hangs_from
 from .controller_mesh import controllers_strip
 from .dash_panel import (
     DASH_DEG_PER_PX,
@@ -88,7 +87,6 @@ from .hud_buttons import HudButtons, hud_button_names
 from .hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG
 from .layout import (
     BANNER,
-    CONSOLE,
     DASH,
     FUNESTRAS,
     GALLERY,
@@ -96,6 +94,7 @@ from .layout import (
     LAYOUT_FILENAME,
     LIBRARY,
     MAIN,
+    MAIN_HUD,
     PORTRAIT,
     REFERENCE,
     Layout,
@@ -492,7 +491,7 @@ class _MainUnit(_VideoUnit):
         self._notices = notices
         self._watch = PlaybackWatch()
         self._readout = WrapReadout()
-        self._presses = _Presses(MAIN, CONSOLE)
+        self._presses = _Presses(MAIN, MAIN_HUD)
         self._vr_dirs = () if vr.flicks_folder is None else (vr_flicks_in(vr.flicks_folder),)
         self.hud = HudBitmap(width=HUD_WIDTH_PX)
         self.users_frames = LatestFrame()
@@ -621,11 +620,11 @@ class _MainUnit(_VideoUnit):
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
-            if event.screen == CONSOLE:
+            if event.screen == MAIN_HUD:
                 self._press_on_the_hud(event)
             elif event.kind == PRESS:
                 self._post(OMNIPAUSE_TOGGLE)
-        self._hover_over_the_hud(self._presses.hover, CONSOLE)
+        self._hover_over_the_hud(self._presses.hover, MAIN_HUD)
 
     def _watch_progress(self, now: float) -> None:
         """Say it out loud when the video stops advancing, and reopen it once:
@@ -682,7 +681,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file)),
         notifier=GenauNotifier(vr.notify_host, vr.notify_port),
         tcode_sink=_osr2_slot(commands, ROBOT_HAND),
-        notices=NoticeWriter(Path(commands.main_funestra_notice_file)),
+        notices=MessageWriter(Path(commands.main_funestra_notice_file)),
         stop_event=stop,
         start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
         latest=resumed.genau_latest,
@@ -845,8 +844,8 @@ def _upload(unit) -> bool:
     return unit.texture.ready
 
 
-class _ConsoleUnit:
-    """The console the Main Funestra draws, hanging under whichever item
+class _MainHudUnit:
+    """The HUD the Main Funestra draws, hanging under whichever item
     fills the Main Funestra -- or, while that item wraps the viewer and there is
     nothing to dock to, under the dashboard."""
 
@@ -872,7 +871,7 @@ class _ConsoleUnit:
         if not (self._shown and self.texture.ready):
             return beside
         return (*beside, Hanging(
-            Screen(CONSOLE, self.screen.placement, self.texture.aspect, pressable=True),
+            Screen(MAIN_HUD, self.screen.placement, self.texture.aspect, pressable=True),
             mesh=self.screen, frame=self.texture, blend=True, docked_to=MAIN))
 
     def hangs_by(self) -> dict[str, Hangs]:
@@ -882,7 +881,7 @@ class _ConsoleUnit:
         pass  # it follows whatever it is docked under, back to that screen's own spot
 
     def point(self, frame: Frame) -> None:
-        self._presses.point(frame)  # a squeeze on the console itself is the Main Funestra's
+        self._presses.point(frame)  # a squeeze on the HUD itself is the Main Funestra's
 
     def pump(self, stop: threading.Event, now: float) -> None:
         for event in self._presses.drain():
@@ -939,13 +938,13 @@ def _at_the_dashs_own_width(placement: Placement) -> Placement:
 
 
 class _DashUnit:
-    # Painted like the console; the pair's handle while it carries one, and a spot for that.
+    # Painted like the HUD; the pair's handle while it carries one, and a spot for that.
 
     SPOTS: ClassVar[dict[str, Placement]] = {
         DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
                         width_deg=_DASH_WIDTH_DEG),
-        # Carrying the console, the video having wrapped the viewer: lower, under it.
-        CONSOLE: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
+        # Carrying the HUD, the video having wrapped the viewer: lower, under it.
+        MAIN_HUD: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
     }
 
     def __init__(self, main_unit: _MainUnit, *,
@@ -957,7 +956,7 @@ class _DashUnit:
         self._state_file = dashboard_state_file
         self._reference_flag = reference_flag
         self._floating = _at_the_dashs_own_width(remembered.get(DASH, self.SPOTS[DASH]))
-        self._wrapped = _at_the_dashs_own_width(remembered.get(CONSOLE, self.SPOTS[CONSOLE]))
+        self._wrapped = _at_the_dashs_own_width(remembered.get(MAIN_HUD, self.SPOTS[MAIN_HUD]))
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
         self._shown_as = preview_marker.shown_as()
@@ -973,12 +972,12 @@ class _DashUnit:
         self.screen = _HangingScreen(self._floating)
 
     @property
-    def carrying_the_console(self) -> bool:  # a wrapped video leaves it the only handle
+    def carrying_the_main_hud(self) -> bool:  # a wrapped video leaves it the only handle
         return self._main_unit.wraps_the_viewer
 
     @property
     def layout_key(self) -> str:  # which remembered spot a drag lands in
-        return CONSOLE if self.carrying_the_console else DASH
+        return MAIN_HUD if self.carrying_the_main_hud else DASH
 
     @property
     def placement(self) -> Placement:
@@ -987,13 +986,13 @@ class _DashUnit:
     @placement.setter
     def placement(self, placement: Placement) -> None:
         self.screen.placement = placement
-        if self.carrying_the_console:
+        if self.carrying_the_main_hud:
             self._wrapped = placement
         else:
             self._floating = placement
 
     def put_back(self) -> None:
-        self._floating, self._wrapped = self.SPOTS[DASH], self.SPOTS[CONSOLE]
+        self._floating, self._wrapped = self.SPOTS[DASH], self.SPOTS[MAIN_HUD]
         self.placement = self.SPOTS[self.layout_key]
 
     def hangings(self) -> tuple[Hanging, ...]:
@@ -1049,7 +1048,7 @@ class _DashUnit:
 
     def render_latest_frame(self) -> None:
         self.screen.placement = (
-            self._wrapped if self.carrying_the_console else self._floating)
+            self._wrapped if self.carrying_the_main_hud else self._floating)
         if _upload(self):
             self.screen.rehang(self.texture.aspect)
 
@@ -1063,9 +1062,9 @@ class _ReferenceUnit:
 
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
-    def __init__(self, dash: _DashUnit, console: _ConsoleUnit, *, flag: Path) -> None:
+    def __init__(self, dash: _DashUnit, main_hud_unit: _MainHudUnit, *, flag: Path) -> None:
         self._dash = dash
-        self._console = console
+        self._main_hud = main_hud_unit
         self._flag = flag
         self._pointer = ReferencePointer()
         self._presses = _Presses(REFERENCE)
@@ -1113,7 +1112,7 @@ class _ReferenceUnit:
     def render_latest_frame(self) -> None:
         if not _upload(self):
             return
-        under = self._console if self._dash.carrying_the_console else self._dash
+        under = self._main_hud if self._dash.carrying_the_main_hud else self._dash
         self.screen.placement = attached_below(
             under.screen.placement, aspect=under.texture.aspect,
             width_deg=REFERENCE_WIDTH_DEG, hanging_aspect=self.texture.aspect)
@@ -1250,7 +1249,7 @@ class _LibraryUnit:
 
 BANNER_ELEVATION_DEG = 24.0
 BANNER_PX_PER_DEG = 40.0
-# The family's small type as big as it reads on the console, drawn at the banner's density.
+# The family's small type as big as it reads on the HUD, drawn at the banner's density.
 BANNER_FONT_PX = round(in_pixels(SIZE_SMALL) * BANNER_PX_PER_DEG * DEG_PER_PX)
 BANNER_MAX_WIDTH_PX = 1600
 
@@ -1707,14 +1706,14 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
     return _SaysWhenItFirstMoves(Osr2Sender(sender, port=int(commands.osr2_slot_port)), sender)
 
 
-def _still_blank(main_unit, satellites: Sequence, console) -> tuple[str, ...]:
+def _still_blank(main_unit, satellites: Sequence, main_hud_unit) -> tuple[str, ...]:
     """Which screens the session opens with have yet to RENDER a frame, as
     against merely being sized (``has_frame``, never ``ready``); the Main Funestra
     counts once.  Named, so the reveal can say which one it gave up on."""
     frames = [(main_unit.screen_name, main_unit.texture_on_the_screen)]
     frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
-    if console.in_the_room:
-        frames.append((CONSOLE, console.texture))
+    if main_hud_unit.in_the_room:
+        frames.append((MAIN_HUD, main_hud_unit.texture))
     return tuple(name for name, frame in frames if not frame.has_frame)
 
 
@@ -1742,7 +1741,7 @@ class TheRoom:
     ) -> None:
         self.main_unit = main_unit
         self.satellites = tuple(satellites)
-        self.console = console
+        self.main_hud_unit = main_hud_unit
         self.library = library
         self.gallery = gallery
         self.loading_screen = loading_screen
@@ -1781,7 +1780,7 @@ class TheRoom:
             unit.render_latest_frame()
 
     def still_blank(self) -> tuple[str, ...]:
-        return _still_blank(self.main_unit, self.satellites, self.console)
+        return _still_blank(self.main_unit, self.satellites, self.main_hud_unit)
 
     def route_audio(self) -> None:
         for unit in self.videos:
@@ -1825,7 +1824,7 @@ def hang_the_room(
         reference_flag=reference_flag,
         state_dir=Path(commands.state_dir),
     )
-    console = _ConsoleUnit(main_unit, dash)
+    main_hud_unit = _MainHudUnit(main_unit, dash)
     library = _LibraryUnit(
         remembered=remembered.placements,
         flag=state_dir / LIBRARY_OPEN_FILENAME,
@@ -1839,8 +1838,8 @@ def hang_the_room(
         metadata_root=_metadata_root(manifest),
     )
     return TheRoom(
-        main_unit=main_unit, satellites=satellites, dash=dash, console=console,
-        reference=_ReferenceUnit(dash, console, flag=reference_flag), library=library,
+        main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
+        reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag), library=library,
         banner=_BannerUnit(main_unit, notices),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),

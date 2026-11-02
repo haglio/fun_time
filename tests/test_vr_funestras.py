@@ -23,12 +23,12 @@ import numpy as np
 import pytest
 from app_support import ports
 from app_support.file_channel import write_flag
-from funestra.console_hud import ConsoleHud, ModeHud
-from funestra.device_panel import DevicePanel
 from funestra.flick_overlay import FlickFrame
 from funestra.host_controls import BarHud, HostControlsHud
 from funestra.hud_placement import HudEdge
+from funestra.main_hud_painter import MainHud, ModeHud
 from funestra.modes import MainMode
+from funestra.osr2_controls_host import Osr2ControlsHost
 from funestra.outside_buttons import OutsideButtons
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem
@@ -81,7 +81,6 @@ from fun_time_vr.funestras import (
     LoadingScreenWatch,
     VrSettings,
     _BannerUnit,
-    _ConsoleUnit,
     _ControllerPosts,
     _DashUnit,
     _GalleryUnit,
@@ -89,6 +88,7 @@ from fun_time_vr.funestras import (
     _HangingScreen,
     _LayoutKeeper,
     _LibraryUnit,
+    _MainHudUnit,
     _MainUnit,
     _PointerDrawing,
     _ReferenceUnit,
@@ -105,12 +105,12 @@ from fun_time_vr.hud_sides import side_screen_name
 from fun_time_vr.hud_toggle import HUD_GAP_PAST_THE_TOGGLE_DEG, toggle_screen_name
 from fun_time_vr.layout import (
     BANNER,
-    CONSOLE,
     DASH,
     GALLERY,
     LANDSCAPE,
     LIBRARY,
     MAIN,
+    MAIN_HUD,
     PORTRAIT,
     REFERENCE,
     Layout,
@@ -300,7 +300,7 @@ def test_the_main_funestra_opens_at_the_tilt_the_last_session_left_it_at(
 def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
         tmp_path, faked_collaborators):
     """A spelling that no longer resolves raises here rather than on the
-    headset, where the unit is built with no console to say so."""
+    headset, where the unit is built with no main_hud_unit to say so."""
     manifest = _manifest_for_a_vr_session(tmp_path)
     vr = replace(_A_SESSION, audio_device="Example Headset")
 
@@ -325,7 +325,7 @@ def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
 def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
         tmp_path, faked_collaborators):
     """Locked and sounding as the room says, as the desktop's opens; its HUD
-    on a bitmap held to the console's one width, a User's frames handed over,
+    on a bitmap held to the HUD's one width, a User's frames handed over,
     and the headset's own verbs asked after what runs on it."""
     unit = _a_main_unit(tmp_path)
 
@@ -338,7 +338,7 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
     unit.verbs.apply.assert_called_once_with("TILT_UP")
 
 
-def test_its_console_carries_the_projection_list_and_angle_bar_for_kinos_video(
+def test_its_main_hud_carries_the_projection_list_and_angle_bar_for_kinos_video(
         tmp_path, faked_collaborators):
     unit = _a_main_unit(tmp_path)
     controls = faked_collaborators["Funestra"].call_args.kwargs["host_controls"]
@@ -436,7 +436,7 @@ class TestGenauOnTheMainFunestra:
         vr = replace(_A_SESSION, flicks_folder=flicks_folder)
         stop = threading.Event()
         with patch.multiple("fun_time_vr.funestras", GenauInTheHeadset=DEFAULT,
-                            GenauNotifier=DEFAULT, Osr2Sender=DEFAULT, NoticeWriter=DEFAULT) as fakes, \
+                            GenauNotifier=DEFAULT, Osr2Sender=DEFAULT, MessageWriter=DEFAULT) as fakes, \
                 patch("fun_time_vr.funestras.read_genau_status",
                       return_value=SimpleNamespace(flick="")), \
                 patch("fun_time_vr.funestras.read_shared_state", return_value=resumed) as read_state:
@@ -487,10 +487,10 @@ class TestGenauOnTheMainFunestra:
     def test_what_it_says_goes_where_the_session_reads_the_main_funestras_notices(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)
 
-        assert built.fakes["NoticeWriter"].call_args.args == (
+        assert built.fakes["MessageWriter"].call_args.args == (
             Path(built.manifest.commands.main_funestra_notice_file),)
         assert (built.fakes["GenauInTheHeadset"].call_args.kwargs["notices"]
-                is built.fakes["NoticeWriter"].return_value)
+                is built.fakes["MessageWriter"].return_value)
 
 
 def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
@@ -639,7 +639,7 @@ def _dashboard_asked(tmp_path) -> list[str]:
 
 class TestTheMainFunestrasPass:
     def test_the_main_screen_blends_nothing_into_its_frame(self, tmp_path, a_fake_engine):
-        """The console goes onto the bitmap hanging under the slot, wrapped or
+        """The HUD goes onto the bitmap hanging under the slot, wrapped or
         flat, so the frame itself comes through untouched."""
         unit = _a_main_unit(tmp_path)
 
@@ -662,7 +662,7 @@ class TestTheMainFunestrasPass:
         unit = _a_main_unit(tmp_path)
         unit.pump(threading.Event(), 0.0)
 
-        unit.point(Frame(events=(PressEvent(PRESS, CONSOLE, 0.999, 0.001), PressEvent(RELEASE, CONSOLE))))
+        unit.point(Frame(events=(PressEvent(PRESS, MAIN_HUD, 0.999, 0.001), PressEvent(RELEASE, MAIN_HUD))))
         unit.pump(threading.Event(), 0.0)
 
         assert _dashboard_asked(tmp_path) == []
@@ -716,39 +716,39 @@ class TestASqueezeOnAHangingHud:
     def test_a_press_is_placed_at_the_huds_own_pixel_where_it_was_drawn(self):
         unit, presses = self._unit()
 
-        unit._press_on_the_hud(PressEvent(PRESS, CONSOLE, 0.25, 0.5))
+        unit._press_on_the_hud(PressEvent(PRESS, MAIN_HUD, 0.25, 0.5))
 
         assert presses == [("press", 8 + 50, 300 + 50, (640, 480))]
 
     def test_a_drag_keeps_the_press_held_and_a_release_lets_go(self):
         unit, presses = self._unit()
 
-        unit._press_on_the_hud(PressEvent(PRESS, CONSOLE, 0.25, 0.5))
-        unit._press_on_the_hud(PressEvent(DRAG, CONSOLE, 0.5, 0.5))
-        unit._press_on_the_hud(PressEvent(RELEASE, CONSOLE))
+        unit._press_on_the_hud(PressEvent(PRESS, MAIN_HUD, 0.25, 0.5))
+        unit._press_on_the_hud(PressEvent(DRAG, MAIN_HUD, 0.5, 0.5))
+        unit._press_on_the_hud(PressEvent(RELEASE, MAIN_HUD))
 
         assert presses[1:] == [("motion", 8 + 100, 300 + 50, True), ("release",)]
 
     def test_hovering_the_hud_names_the_button_under_the_pointer(self):
         unit, presses = self._unit()
 
-        unit._hover_over_the_hud((CONSOLE, (0.25, 0.5)), CONSOLE)
+        unit._hover_over_the_hud((MAIN_HUD, (0.25, 0.5)), MAIN_HUD)
 
         assert presses == [("motion", 8 + 50, 300 + 50, False)]
 
     def test_a_pointer_off_the_hud_leaves_no_tooltip(self):
         unit, presses = self._unit()
 
-        unit._hover_over_the_hud((MAIN, (0.25, 0.5)), CONSOLE)
-        unit._hover_over_the_hud(None, CONSOLE)
+        unit._hover_over_the_hud((MAIN, (0.25, 0.5)), MAIN_HUD)
+        unit._hover_over_the_hud(None, MAIN_HUD)
 
         assert presses == [("motion", *OFF_THE_HUD, False)] * 2
 
     def test_a_held_press_is_not_moved_by_the_hover(self):
         unit, presses = self._unit()
-        unit._press_on_the_hud(PressEvent(PRESS, CONSOLE, 0.25, 0.5))
+        unit._press_on_the_hud(PressEvent(PRESS, MAIN_HUD, 0.25, 0.5))
 
-        unit._hover_over_the_hud((CONSOLE, (0.5, 0.5)), CONSOLE)
+        unit._hover_over_the_hud((MAIN_HUD, (0.5, 0.5)), MAIN_HUD)
 
         assert len(presses) == 1
 
@@ -756,7 +756,7 @@ class TestASqueezeOnAHangingHud:
         unit, presses = self._unit()
         unit.hud = HudBitmap()
 
-        unit._press_on_the_hud(PressEvent(PRESS, CONSOLE, 0.25, 0.5))
+        unit._press_on_the_hud(PressEvent(PRESS, MAIN_HUD, 0.25, 0.5))
 
         assert presses == []
 
@@ -992,8 +992,8 @@ class TestWhatTheControllersPost:
 _THE_DASHS_SHAPE = DASH_WIDTH_PX / dash_height()
 
 
-class _FakeConsoleTexture:
-    """A FrameTexture with real numbers where the console does arithmetic on them."""
+class _FakeMainHudTexture:
+    """A FrameTexture with real numbers where the HUD does arithmetic on them."""
 
     ready = True
     aspect = 280 / 120
@@ -1007,7 +1007,7 @@ class _FakeConsoleTexture:
 
 
 class TestTheConsoleUnderTheSlot:
-    """The console in the headset: the bitmap the Main Funestra draws, docked
+    """The HUD in the headset: the bitmap the Main Funestra draws, docked
     under whichever item fills the Main Funestra -- and, while the video wraps
     the viewer and there is nothing to dock to, under the dashboard."""
 
@@ -1027,14 +1027,14 @@ class TestTheConsoleUnderTheSlot:
             screen=SimpleNamespace(placement=SPOTS[MAIN]),
         ))
         dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=_THE_DASHS_SHAPE),
-                               screen=SimpleNamespace(placement=SPOTS[CONSOLE]))
-        with patch("fun_time_vr.funestras.FrameTexture", _FakeConsoleTexture):
-            unit = _ConsoleUnit(main_unit, dash)
+                               screen=SimpleNamespace(placement=SPOTS[MAIN_HUD]))
+        with patch("fun_time_vr.funestras.FrameTexture", _FakeMainHudTexture):
+            unit = _MainHudUnit(main_unit, dash)
         if not minimized:
             main_unit.hud.overlay(10, 8, 8, np.zeros((120, HUD_WIDTH_PX, 4), dtype=np.uint8))
         return SimpleNamespace(unit=unit, main_unit=main_unit, dash=dash, posted=posted)
 
-    def test_a_minimized_console_is_not_one_of_the_rooms_screens(self):
+    def test_a_minimized_main_hud_is_not_one_of_the_rooms_screens(self):
         assert not self._unit(minimized=True).unit.in_the_room
         assert self._unit().unit.in_the_room
 
@@ -1055,7 +1055,7 @@ class TestTheConsoleUnderTheSlot:
 
         assert p.unit.texture.uploaded.shape == (120, HUD_WIDTH_PX, 4)
 
-    def test_the_console_rides_under_the_main_funestra_wherever_it_goes(self):
+    def test_the_main_hud_rides_under_the_main_funestra_wherever_it_goes(self):
         """Docked the way a satellite's HUD is docked, rather than placed: and
         re-placed every frame, not only the ones that repaint it, so it cannot lag
         the Funestra it belongs to -- which is what left its old handle dragging
@@ -1081,7 +1081,7 @@ class TestTheConsoleUnderTheSlot:
         flick = p.main_unit.users_frame_texture.aspect
         assert placed == attached_below(
             shown_at(MAIN, p.main_unit.screen.placement, flick), aspect=flick,
-            width_deg=HUD_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakeConsoleTexture.aspect,
+            width_deg=HUD_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakeMainHudTexture.aspect,
             gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
 
     def test_it_hangs_along_the_edge_the_room_moved_it_to(self):
@@ -1091,7 +1091,7 @@ class TestTheConsoleUnderTheSlot:
 
         assert placed.elevation_deg > 0.0  # over the frame
 
-    def test_a_wrapped_console_hangs_from_the_dashboard_instead(self):
+    def test_a_wrapped_main_hud_hangs_from_the_dashboard_instead(self):
         """No item to dock to, so it docks to the one thing above it -- which
         is what carries the handle the pair is moved by."""
         p = self._unit(wrapped=True, edge=HudEdge.UPPER)
@@ -1100,7 +1100,7 @@ class TestTheConsoleUnderTheSlot:
 
         assert placed == attached_below(
             p.dash.screen.placement, aspect=p.dash.texture.aspect,
-            width_deg=HUD_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakeConsoleTexture.aspect,
+            width_deg=HUD_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakeMainHudTexture.aspect,
             gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
 
     @pytest.mark.parametrize("wrapped", [False, True])
@@ -1120,8 +1120,8 @@ class TestTheConsoleUnderTheSlot:
                   if hanging.screen.name == toggle_screen_name(MAIN))
         over = surface_vertices(p.dash.screen.placement, aspect=p.dash.texture.aspect)
         button = surface_vertices(minus.screen.placement, aspect=1.0)
-        console = surface_vertices(placed, aspect=_FakeConsoleTexture.aspect)
-        assert over[:, 1].min() > button[:, 1].max() > button[:, 1].min() > console[:, 1].max()
+        main_hud_unit = surface_vertices(placed, aspect=_FakeMainHudTexture.aspect)
+        assert over[:, 1].min() > button[:, 1].max() > button[:, 1].min() > main_hud_unit[:, 1].max()
 
     def test_beside_a_wrapped_video_there_is_no_satellite_to_move_it_to(self):
         p = self._unit(wrapped=True)
@@ -1136,7 +1136,7 @@ class TestTheConsoleUnderTheSlot:
         self._placed(p.unit)
 
         names = self._hanging_names(p.unit)
-        assert CONSOLE not in names
+        assert MAIN_HUD not in names
         assert toggle_screen_name(MAIN) in names
         assert side_screen_name(MAIN, HudEdge.UPPER) in names
 
@@ -1153,9 +1153,9 @@ class TestTheConsoleUnderTheSlot:
         p = self._unit()
         self._placed(p.unit)
 
-        hanging, = (one for one in p.unit.hangings() if one.screen.name == CONSOLE)
+        hanging, = (one for one in p.unit.hangings() if one.screen.name == MAIN_HUD)
 
-        assert hanging.screen.name == CONSOLE
+        assert hanging.screen.name == MAIN_HUD
         assert hanging.screen.pressable
         assert not hanging.screen.movable
         assert hanging.docked_to == MAIN
@@ -1183,7 +1183,7 @@ class TestASatellitesButtonsInTheHeadset:
                                         motion=lambda x, y, held, window: None)
         unit.video = SimpleNamespace(show_newest=lambda _target: False)
         unit.target = SimpleNamespace(ready=True, aspect=16 / 9, width=640, height=480)
-        unit.hud_texture = _FakeConsoleTexture()
+        unit.hud_texture = _FakeMainHudTexture()
         if not minimized:
             unit.hud.overlay(10, 0, 0, np.zeros((120, 280, 4), dtype=np.uint8))
         with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
@@ -1199,8 +1199,8 @@ class TestASatellitesButtonsInTheHeadset:
 
         assert unit.hud_screen.placement == attached_to(
             HudEdge.LEFT, unit.shown, aspect=16 / 9,
-            width_deg=_FakeConsoleTexture.width * DEG_PER_PX,
-            hanging_aspect=_FakeConsoleTexture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
+            width_deg=_FakeMainHudTexture.width * DEG_PER_PX,
+            hanging_aspect=_FakeMainHudTexture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
         assert {toggle_screen_name(PORTRAIT), hud_screen_name(PORTRAIT)} <= set(self._hanging_names(unit))
 
     def test_minimized_its_plus_hangs_where_the_minus_was_and_the_hud_does_not(
@@ -1421,12 +1421,12 @@ def _frame(painted):
     return SimpleNamespace(ready=True, has_frame=painted)
 
 
-def _room(*, main=True, portrait=True, landscape=True, console=True, console_in_the_room=True):
+def _room(*, main=True, portrait=True, landscape=True, main_hud_unit=True, main_hud_in_the_room=True):
     return dict(
         main_unit=SimpleNamespace(screen_name="main", texture_on_the_screen=_frame(main)),
         satellites=[SimpleNamespace(screen_name="portrait", target=_frame(portrait)),
                     SimpleNamespace(screen_name="landscape", target=_frame(landscape))],
-        console=SimpleNamespace(texture=_frame(console), in_the_room=console_in_the_room),
+        main_hud_unit=SimpleNamespace(texture=_frame(main_hud_unit), in_the_room=main_hud_in_the_room),
     )
 
 
@@ -1435,18 +1435,18 @@ class TestWhenTheRoomIsUp:
         assert _still_blank(**_room()) == ()
 
     @pytest.mark.parametrize(("blank", "screen"), [
-        ("main", MAIN), ("portrait", PORTRAIT), ("landscape", LANDSCAPE), ("console", CONSOLE)])
+        ("main", MAIN), ("portrait", PORTRAIT), ("landscape", LANDSCAPE), ("main_hud_unit", MAIN_HUD)])
     def test_a_screen_with_no_frame_is_named(self, blank, screen):
         """Revealed here, that one arrives in the open a moment later — and the
-        console among them, because a room with no controls in it is not up.
+        main_hud_unit among them, because a room with no controls in it is not up.
         Named rather than counted: the give-up line said only that some of the
         room was blank, and his sessions reached it with nothing blank at all."""
         assert _still_blank(**_room(**{blank: False})) == (screen,)
 
-    def test_a_console_the_room_does_not_show_is_not_waited_for(self):
+    def test_a_main_hud_the_room_does_not_show_is_not_waited_for(self):
         """Minimized, the Funestra paints nothing into it ever, so every reveal
         waited out the whole 25s grace for as long as he left it closed."""
-        assert _still_blank(**_room(console=False, console_in_the_room=False)) == ()
+        assert _still_blank(**_room(main_hud_unit=False, main_hud_in_the_room=False)) == ()
 
     def test_a_sized_texture_is_not_a_frame(self):
         """A video target is ready the moment mpv reports the clip's
@@ -2327,23 +2327,23 @@ class TestTheMainFunestraUnderThePointer:
             showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
         return room.arranged(Stacking(), room.what_hangs(
-            [*self._units(), _a_satellite(LANDSCAPE), _a_console(), dash, reference]))
+            [*self._units(), _a_satellite(LANDSCAPE), _a_main_hud(), dash, reference]))
 
     def test_the_main_funestra_is_listed_under_the_screens_that_overlap_it(self):
         """It is drawn first and it is the biggest, so a satellite tucked over its
-        edge — and the console under them all — has to win the ray.  The console
+        edge — and the HUD under them all — has to win the ray.  The HUD
         is pressed, never dragged: it rides on the Main Funestra now."""
         screens = self._the_room_around_the_slot()
 
-        assert [screen.name for screen in screens] == [MAIN, LANDSCAPE, CONSOLE]
-        console = screens[-1]
-        assert (console.pressable, console.movable, console.resizable) == (True, False, False)
+        assert [screen.name for screen in screens] == [MAIN, LANDSCAPE, MAIN_HUD]
+        main_hud_unit = screens[-1]
+        assert (main_hud_unit.pressable, main_hud_unit.movable, main_hud_unit.resizable) == (True, False, False)
 
-    def test_a_satellite_is_a_frame_and_the_console_is_not(self):
+    def test_a_satellite_is_a_frame_and_the_main_hud_is_not(self):
         screens = {screen.name: screen for screen in self._the_room_around_the_slot()}
 
         assert screens[LANDSCAPE].item
-        assert not screens[CONSOLE].item
+        assert not screens[MAIN_HUD].item
 
 
 class TestGenausFrameInTheSlot:
@@ -2457,14 +2457,14 @@ class TestEveryHangingScreenIsDrawn:
                                  flick=False)
         main_unit.target.texture = object()
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
-        console = _like(_ConsoleUnit, _hanging(CONSOLE, 1.2))
-        console._buttons, console._shown = _buttons_not_hanging_names(MAIN), True
+        main_hud_unit = _like(_MainHudUnit, _hanging(MAIN_HUD, 1.2))
+        main_hud_unit._buttons, main_hud_unit._shown = _buttons_not_hanging_names(MAIN), True
         dash = _like(_DashUnit, _hanging(DASH, 2.5))
         reference = _like(_ReferenceUnit, _hanging(REFERENCE, 1.7))
         reference.showing = showing
         library = _like(_LibraryUnit, _hanging(LIBRARY, 16 / 9))
         library.showing = browsing
-        hangings = room.what_hangs([main_unit, console, dash, reference, library])
+        hangings = room.what_hangs([main_unit, main_hud_unit, dash, reference, library])
         screens = room.arranged(stacking or Stacking(), hangings)
         draw_eyes(
             session, renderer, hangings,
@@ -2473,7 +2473,7 @@ class TestEveryHangingScreenIsDrawn:
         )
         return renderer
 
-    def test_the_console_reaches_the_eyes(self):
+    def test_the_main_hud_reaches_the_eyes(self):
         assert "panel" in self._draw().screens
 
     @pytest.mark.parametrize("projection", [None, FLAT, EQUIRECT_180_SBS])
@@ -2495,7 +2495,7 @@ class TestEveryHangingScreenIsDrawn:
 
     def test_the_browse_is_drawn_in_front_of_whatever_was_taken_last(self):
         stacking = Stacking()
-        stacking.take(CONSOLE)
+        stacking.take(MAIN_HUD)
 
         drawn = self._draw(projection=FLAT, browsing=True, stacking=stacking).screens
 
@@ -2503,11 +2503,11 @@ class TestEveryHangingScreenIsDrawn:
 
     def test_they_are_drawn_back_to_front_as_they_stand(self):
         stacking = Stacking()
-        stacking.take(CONSOLE)
+        stacking.take(MAIN_HUD)
 
         drawn = self._draw(projection=FLAT, stacking=stacking).screens
 
-        assert drawn.index(MAIN) < drawn.index(DASH) < drawn.index(CONSOLE)
+        assert drawn.index(MAIN) < drawn.index(DASH) < drawn.index(MAIN_HUD)
 
     def test_a_video_wrapped_round_the_viewer_is_drawn_first_however_it_was_taken(self):
         """Taken hold of while it was a flat screen, the wrap is still drawn before them."""
@@ -2517,7 +2517,7 @@ class TestEveryHangingScreenIsDrawn:
         drawn = self._draw(projection=EQUIRECT_180_SBS, stacking=stacking).screens
 
         assert drawn[0] == "immersive"
-        assert sorted(drawn[1:]) == sorted([CONSOLE, DASH])
+        assert sorted(drawn[1:]) == sorted([MAIN_HUD, DASH])
 
 
 
@@ -2563,11 +2563,11 @@ def _buttons_not_hanging_names(funestra: str) -> HudButtons:
     return HudButtons(funestra, post=lambda _command: None, texture=object, mesh=object)
 
 
-def _a_console(*, ready=True):
-    """The console as the pointer reads it: pressed, never dragged."""
-    return _like(_ConsoleUnit, SimpleNamespace(
+def _a_main_hud(*, ready=True):
+    """The HUD as the pointer reads it: pressed, never dragged."""
+    return _like(_MainHudUnit, SimpleNamespace(
         texture=SimpleNamespace(ready=ready, aspect=1.2),
-        screen=SimpleNamespace(placement=SPOTS[CONSOLE]),
+        screen=SimpleNamespace(placement=SPOTS[MAIN_HUD]),
         _buttons=_buttons_not_hanging_names(MAIN), _shown=True,
     ))
 
@@ -2629,7 +2629,7 @@ class TestTheDashUnderThePointer:
     def test_a_press_meant_for_another_screen_is_not_its(self, tmp_path):
         unit = self._unit(tmp_path)
 
-        unit.point(Frame(events=[PressEvent(PRESS, CONSOLE, *self._uv_of(QUIT_BUTTON))]))
+        unit.point(Frame(events=[PressEvent(PRESS, MAIN_HUD, *self._uv_of(QUIT_BUTTON))]))
         unit.pump(threading.Event(), 0.0)
 
         assert not (tmp_path / "dashboard_cmd.txt").exists()
@@ -2660,8 +2660,8 @@ class TestTheOsr2PartOnTheDash:
 
         self._pumped(unit)
 
-        drawn = with_the_osr2_part(paint_dash(DashState(), []), DevicePanel(post=[].append).drawing(
-            ConsoleHud(console=part, drive=readout)))
+        drawn = with_the_osr2_part(paint_dash(DashState(), []), Osr2ControlsHost(post=[].append).drawing(
+            MainHud(main_hud_model=part, drive=readout)))
         assert np.array_equal(self._in_its_room(unit._image), self._in_its_room(drawn))
 
     def test_until_the_room_publishes_one_the_room_kept_for_it_stays_empty(self, tmp_path):
@@ -2922,7 +2922,7 @@ class TestTheLibraryUnderThePointer:
     def test_the_browse_reaches_the_headset_only_while_it_is_up(self, tmp_path):
         host = _FakeLibraryHost()
         unit = _a_library(tmp_path, host)
-        unit.texture = _FakeConsoleTexture()
+        unit.texture = _FakeMainHudTexture()
         host.frames[1] = _a_frame()
         unit.pump(threading.Event(), 0.0)
         with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
@@ -3029,7 +3029,7 @@ class TestTheLibraryUnderThePointer:
 
 class TestWhatThePointerCanReach:
     def _screens(self, tmp_path, *, reference_showing=False, wrapped=False):
-        console = _a_console()
+        main_hud_unit = _a_main_hud()
         dash = _a_dash(tmp_path, wrapped=wrapped,
                        texture=SimpleNamespace(ready=True, aspect=2.5))
         main_unit = _slot(wrapped=wrapped)
@@ -3040,7 +3040,7 @@ class TestWhatThePointerCanReach:
             screen=SimpleNamespace(placement=_UNDER_THE_DASH),
         ))
         return {s.name: s for s in room.arranged(Stacking(), room.what_hangs(
-            [main_unit, console, dash, reference]))}
+            [main_unit, main_hud_unit, dash, reference]))}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)
@@ -3053,14 +3053,14 @@ class TestWhatThePointerCanReach:
 
     def test_it_can_be_pressed_and_dragged(self, tmp_path):
         """Movable is what gives a screen the bar it is dragged by; without it
-        there was no way to get it off what it was covering.  The console beside
+        there was no way to get it off what it was covering.  The HUD beside
         it is pressed and never dragged -- it rides on what is above it."""
         screens = self._screens(tmp_path)
 
         assert screens[DASH].pressable
         assert screens[DASH].movable
-        assert screens[CONSOLE].pressable
-        assert not screens[CONSOLE].movable
+        assert screens[MAIN_HUD].pressable
+        assert not screens[MAIN_HUD].movable
 
     def test_the_reference_is_pressed_but_offers_no_handles_of_its_own(self, tmp_path):
         """It moves with the dashboard it hangs from."""
@@ -3070,15 +3070,15 @@ class TestWhatThePointerCanReach:
         assert not reference.movable
         assert not reference.resizable
 
-    def test_the_dashboard_keeps_the_only_handle_when_it_carries_the_console(self, tmp_path):
+    def test_the_dashboard_keeps_the_only_handle_when_it_carries_the_main_hud(self, tmp_path):
         """It is the top of the pair then, so its bar is above both of them --
-        a bar on the console would sit between them instead."""
+        a bar on the HUD would sit between them instead."""
         screens = self._screens(tmp_path, wrapped=True)
 
         assert screens[DASH].movable
         assert not screens[DASH].resizable
-        assert screens[CONSOLE].pressable
-        assert not screens[CONSOLE].movable
+        assert screens[MAIN_HUD].pressable
+        assert not screens[MAIN_HUD].movable
 
 
 def _a_satellite(funestra: str, *, hud: bool = False):
@@ -3094,7 +3094,7 @@ def _a_satellite(funestra: str, *, hud: bool = False):
 
 
 class TestWhatComesForwardTogether:
-    def _arranged(self, stacking, satellites, *, console=None, dash=None, reference_up=False,
+    def _arranged(self, stacking, satellites, *, main_hud_unit=None, dash=None, reference_up=False,
                   wrapped=False):
         dash = dash or _like(_DashUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=False, aspect=2.5),
@@ -3104,7 +3104,7 @@ class TestWhatComesForwardTogether:
             screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
         return [screen.name for screen in room.arranged(stacking, room.what_hangs(
             [_slot(wrapped=wrapped), *satellites,
-             console or _a_console(ready=False), dash, reference]))]
+             main_hud_unit or _a_main_hud(ready=False), dash, reference]))]
 
     def test_the_reference_comes_forward_as_part_of_the_dashboard(self):
         stacking = Stacking()
@@ -3125,40 +3125,40 @@ class TestWhatComesForwardTogether:
         assert self._arranged(stacking, [_a_satellite(LANDSCAPE, hud=True)]) == [
             MAIN, LANDSCAPE, hud_screen_name(LANDSCAPE)]
 
-    def test_the_console_comes_forward_with_the_main_funestra_it_hangs_under(self):
+    def test_the_main_hud_comes_forward_with_the_main_funestra_it_hangs_under(self):
         stacking = Stacking()
         stacking.take(LANDSCAPE)
         stacking.take(MAIN)
 
-        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], console=_a_console()) == [
-            LANDSCAPE, MAIN, CONSOLE]
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], main_hud_unit=_a_main_hud()) == [
+            LANDSCAPE, MAIN, MAIN_HUD]
 
-    def test_the_dashboard_brings_no_console_forward_while_a_video_wraps_the_viewer(self, tmp_path):
-        """The console hangs from it then, but what stands in front is the dashboard's
+    def test_the_dashboard_brings_no_main_hud_forward_while_a_video_wraps_the_viewer(self, tmp_path):
+        """The HUD hangs from it then, but what stands in front is the dashboard's
         own business, the same as every other screen's."""
         stacking = Stacking()
         dash = _a_dash(tmp_path, wrapped=True, texture=SimpleNamespace(ready=True, aspect=2.5))
         stacking.take(LANDSCAPE)
         stacking.take(DASH)
 
-        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], console=_a_console(), dash=dash,
-                              wrapped=True) == [MAIN, CONSOLE, LANDSCAPE, DASH]
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], main_hud_unit=_a_main_hud(), dash=dash,
+                              wrapped=True) == [MAIN, MAIN_HUD, LANDSCAPE, DASH]
 
 
 class TestTheReferenceUnderTheDashboard:
     """The hotkeys and voice reference as a part of the dashboard: it hangs from
     it and goes wherever it goes, with no handles of its own."""
 
-    def _unit(self, tmp_path, *, carrying_the_console=False):
+    def _unit(self, tmp_path, *, carrying_the_main_hud=False):
         dash = SimpleNamespace(screen=SimpleNamespace(placement=SPOTS[DASH]),
                                texture=SimpleNamespace(aspect=_THE_DASHS_SHAPE),
-                               carrying_the_console=carrying_the_console)
-        console = SimpleNamespace(
+                               carrying_the_main_hud=carrying_the_main_hud)
+        main_hud_unit = SimpleNamespace(
             screen=SimpleNamespace(placement=Placement(0.0, 20.0, HUD_WIDTH_PX * DEG_PER_PX)),
             texture=SimpleNamespace(aspect=1.2))
-        with patch("fun_time_vr.funestras.FrameTexture", _FakeConsoleTexture):
-            unit = _ReferenceUnit(dash, console, flag=tmp_path / REFERENCE_OPEN_FILENAME)
-        return unit, dash, console
+        with patch("fun_time_vr.funestras.FrameTexture", _FakeMainHudTexture):
+            unit = _ReferenceUnit(dash, main_hud_unit, flag=tmp_path / REFERENCE_OPEN_FILENAME)
+        return unit, dash, main_hud_unit
 
     @staticmethod
     def _placed(unit) -> Placement:
@@ -3169,11 +3169,11 @@ class TestTheReferenceUnderTheDashboard:
     @staticmethod
     def _meets(upper: Placement, upper_aspect: float, lower: Placement) -> bool:
         above = surface_vertices(upper, aspect=upper_aspect)
-        below = surface_vertices(lower, aspect=_FakeConsoleTexture.aspect)
+        below = surface_vertices(lower, aspect=_FakeMainHudTexture.aspect)
         return below[:, 1].max() == pytest.approx(above[:, 1].min(), abs=1e-6)
 
     def test_it_hangs_from_the_dashboard_wherever_the_dashboard_goes(self, tmp_path):
-        unit, dash, _console = self._unit(tmp_path)
+        unit, dash, _main_hud = self._unit(tmp_path)
 
         under = self._placed(unit)
         dash.screen.placement = Placement(azimuth_deg=-40.0, elevation_deg=30.0, width_deg=40.0)
@@ -3185,24 +3185,24 @@ class TestTheReferenceUnderTheDashboard:
         assert self._meets(dash.screen.placement, _THE_DASHS_SHAPE, followed)
         assert under.width_deg == followed.width_deg == REFERENCE_WIDTH_DEG
 
-    def test_it_hangs_below_the_console_while_the_console_hangs_from_the_dashboard(
+    def test_it_hangs_below_the_console_while_the_main_hud_hangs_from_the_dashboard(
             self, tmp_path):
-        """A wrapped video leaves the console nowhere else to dock."""
-        unit, _dash, console = self._unit(tmp_path, carrying_the_console=True)
+        """A wrapped video leaves the HUD nowhere else to dock."""
+        unit, _dash, main_hud_unit = self._unit(tmp_path, carrying_the_main_hud=True)
 
         placed = self._placed(unit)
 
-        assert placed.azimuth_deg == console.screen.placement.azimuth_deg
-        assert self._meets(console.screen.placement, 1.2, placed)
+        assert placed.azimuth_deg == main_hud_unit.screen.placement.azimuth_deg
+        assert self._meets(main_hud_unit.screen.placement, 1.2, placed)
 
 
 class TestWhereTheDashboardHangs:
     """Two remembered spots: its own above the Main Funestra, and the one it takes
-    with the console under it -- dragged there, it must not drop over the
+    with the HUD under it -- dragged there, it must not drop over the
     video the next time a flat video comes back."""
 
     def _placed(self, tmp_path, *, wrapped=False, remembered=None):
-        dash = _a_dash(tmp_path, wrapped=wrapped, texture=_FakeConsoleTexture(),
+        dash = _a_dash(tmp_path, wrapped=wrapped, texture=_FakeMainHudTexture(),
                        remembered=remembered)
         with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
@@ -3210,11 +3210,11 @@ class TestWhereTheDashboardHangs:
 
     def test_it_keeps_its_own_place_while_a_frame_is_in_the_slot(self, tmp_path):
         """A flat video's dashboard is where the session left it, and where it
-        always was: the console docking under it is the wrapped case alone."""
+        always was: the HUD docking under it is the wrapped case alone."""
         assert self._placed(tmp_path).screen.placement == SPOTS[DASH]
 
-    def test_a_flat_video_does_not_move_it_with_the_console(self, tmp_path):
-        """The console rides under the video there, and the dashboard rides
+    def test_a_flat_video_does_not_move_it_with_the_main_hud(self, tmp_path):
+        """The HUD rides under the video there, and the dashboard rides
         nothing: dragging the Funestra must leave the dashboard alone."""
         dash = self._placed(tmp_path)
 
@@ -3233,14 +3233,14 @@ class TestWhereTheDashboardHangs:
         assert screens[DASH].pressable
         assert screens[DASH].movable
 
-    def test_it_takes_the_pairs_place_while_it_carries_the_console(self, tmp_path):
-        assert self._placed(tmp_path, wrapped=True).screen.placement == SPOTS[CONSOLE]
+    def test_it_takes_the_pairs_place_while_it_carries_the_main_hud(self, tmp_path):
+        assert self._placed(tmp_path, wrapped=True).screen.placement == SPOTS[MAIN_HUD]
 
     def test_a_drag_lands_in_the_spot_that_is_showing(self, tmp_path):
         put = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
         dash = self._placed(tmp_path, wrapped=True)
 
-        assert dash.layout_key == CONSOLE
+        assert dash.layout_key == MAIN_HUD
         dash.placement = put  # what the frame loop does with a settled drag
         with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
@@ -3255,7 +3255,7 @@ class TestWhereTheDashboardHangs:
         dash.placement = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
 
         assert dash._floating == SPOTS[DASH]
-        assert dash.layout_key == CONSOLE
+        assert dash.layout_key == MAIN_HUD
 
     def test_it_opens_in_whichever_of_the_two_the_last_session_left_it_in(self, tmp_path):
         """Both are remembered, so a dashboard dragged in one of them must not
@@ -3263,7 +3263,7 @@ class TestWhereTheDashboardHangs:
         own width, whatever width an older session wrote down beside the spot."""
         floating = Placement(azimuth_deg=-30.0, elevation_deg=40.0, width_deg=44.0)
         carrying = Placement(azimuth_deg=15.0, elevation_deg=-20.0, width_deg=36.0)
-        remembered = {DASH: floating, CONSOLE: carrying}
+        remembered = {DASH: floating, MAIN_HUD: carrying}
         own = DASH_WIDTH_PX * DASH_DEG_PER_PX
 
         assert self._placed(tmp_path, remembered=remembered).screen.placement == replace(
@@ -3281,7 +3281,7 @@ class TestWhereTheDashboardHangs:
             dash.render_latest_frame()
 
         assert dash.screen.placement == SPOTS[DASH]
-        assert (dash._floating, dash._wrapped) == (SPOTS[DASH], SPOTS[CONSOLE])
+        assert (dash._floating, dash._wrapped) == (SPOTS[DASH], SPOTS[MAIN_HUD])
 
 
 _DRAGGED_OFF = Placement(azimuth_deg=-110.0, elevation_deg=-30.0, width_deg=15.0)
@@ -3340,11 +3340,11 @@ class TestTheSpotEachScreenStartsIn:
                 >= _LibraryUnit.SPOTS[LIBRARY].width_deg)
 
     def test_only_the_screens_a_controller_places_keep_one(self):
-        """The console is one of them: a video that wraps the viewer leaves no
+        """The HUD is one of them: a video that wraps the viewer leaves no
         item to dock it under, so the dashboard carries it and keeps a second
         spot for that.  The reference is not -- it hangs from the dashboard,
         wherever that was put."""
-        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, CONSOLE, DASH, LIBRARY, GALLERY}
+        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, MAIN_HUD, DASH, LIBRARY, GALLERY}
 
     def test_every_one_of_them_is_already_inside_the_scene(self):
         """A spot outside the reach a drag is held to would be clamped the first
@@ -3450,4 +3450,4 @@ class TestWhereItHangsToStart:
         own = DASH_WIDTH_PX * DASH_DEG_PER_PX
 
         assert SPOTS[DASH].width_deg == pytest.approx(own)
-        assert SPOTS[CONSOLE].width_deg == pytest.approx(own)
+        assert SPOTS[MAIN_HUD].width_deg == pytest.approx(own)

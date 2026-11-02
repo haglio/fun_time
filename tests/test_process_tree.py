@@ -121,7 +121,7 @@ def test_the_zero_pid_of_a_child_that_was_never_launched_is_left_alone():
     assert windows.asked_for == []
 
 
-def test_ending_a_tree_starts_no_console_program_of_its_own():
+def test_ending_a_tree_starts_no_main_hud_program_of_its_own():
     """A session the crossing relay started runs under the windowed interpreter,
     so a console program it started would get a window of its own, on screen:
     quitting once flashed a row of black windows that way."""

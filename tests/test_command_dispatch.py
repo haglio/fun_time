@@ -12,13 +12,13 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support import osr2_hold
-from funestra.console import (
+from funestra.hud_placement import HudCorner, HudEdge
+from funestra.main_hud import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
-from funestra.hud_placement import HudCorner, HudEdge
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import genaumacher_save
@@ -575,7 +575,7 @@ def test_primary_prev_in_genau_mode_writes_main_funestra_cmd(tmp_path: Path):
 
 
 def test_primary_lock_toggles_the_main_funestras_hold_on_the_video(tmp_path: Path):
-    """The apostrophe and the console's padlock both send the toggle; the Main Funestra holds
+    """The apostrophe and the HUD's padlock both send the toggle; the Main Funestra holds
     the state, since only it knows what its own end of file is doing."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
@@ -601,7 +601,7 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     """The lock is about what is on screen, and in genau mode that is Genau's
-    flick — the same split the speed controls make.  One padlock on the console
+    flick — the same split the speed controls make.  One padlock on the HUD
     rather than one per Funestra, which is what left Kino mode with two."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
@@ -1014,7 +1014,7 @@ def test_funscript_nav_voice_phrases_are_split_for_vosk():
     """The small vosk model has no "funscript" token, so the recognizer listens
     for the two-word form; the reference rejoins it (see friendly_voice).  Said
     bare it follows the Funestra last navigated; with "main" it is the Main
-    Funestra's own, under the ids its console posts."""
+    Funestra's own, under the ids its HUD posts."""
     assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert VOICE_COMMANDS["next fun scripted"] == "active_next_funscripted"
     assert VOICE_COMMANDS["main jump to fun script"] == "main_funestra_funscript_jump"
@@ -1217,7 +1217,7 @@ def test_minimize_names_each_satellite_its_own_window(tmp_path: Path):
 
 
 def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Path):
-    """Kino and Genau both run on the Main Funestra's window, so the console's
+    """Kino and Genau both run on the Main Funestra's window, so the HUD's
     button parks that one window whichever of them has it."""
     config = _make_config(tmp_path)
 
@@ -2646,7 +2646,7 @@ def _set_main_funestra_driving(config, *, driving: bool) -> None:
 
 
 def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
-    """The console's ± marks sit on one readout or the other, so each must move
+    """The HUD's ± marks sit on one readout or the other, so each must move
     the engine it sits on: Genau's pair stayed on the motion even mid-funscript,
     from when one shared pair made pressing Genau's − move the playback rate
     across the HUD instead."""
@@ -3008,7 +3008,7 @@ def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb
 
 
 class TestOsr2ControlState:
-    """The console's OSR2 switch and the words for it set one field, which is
+    """The HUD's OSR2 switch and the words for it set one field, which is
     what the switch lights off and what the arbiter reads."""
 
     def test_each_button_leaves_the_session_in_the_state_it_names(self, tmp_path: Path):
@@ -4353,7 +4353,7 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
     """``main_latest`` says which order the playlist file we built for the Main Funestra is in —
     an F-mode rebuild reads it to reload the same way round — so setting it for a
     Genau reorder would light "Latest" over a Main Funestra playlist nobody reordered.  Genau
-    keeps its own, which is what the console draws while Genau is showing."""
+    keeps its own, which is what the HUD draws while Genau is showing."""
     config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
@@ -5523,7 +5523,7 @@ class TestAClickInACorner:
         assert state.satellite(FunTimeFunestra.PORTRAIT).hud_corner is HudCorner.LOWER_RIGHT
         assert state.satellite(FunTimeFunestra.PORTRAIT).hud_minimized is False
 
-    def test_on_the_main_funestra_it_moves_the_console_there_and_opens_it(self, tmp_path):
+    def test_on_the_main_funestra_it_moves_the_main_hud_there_and_opens_it(self, tmp_path):
         config = _make_config(tmp_path)
         state, _ops = dispatch_command("main_hud_minimize", BridgeState(), config)
 

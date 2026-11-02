@@ -24,7 +24,7 @@ a session that ended long ago.  The click does nothing, and the app starts on a
 later click only because the stray has finally gone.
 
 **That it opens no console window.** A session ``launch.vbs`` started runs
-under the console interpreter and has a console of its own, which the launcher
+under the HUD interpreter and has a console of its own, which the launcher
 hides -- so a console child inherits somewhere invisible to put a console.  A
 session the crossing relay started runs under the WINDOWED interpreter and has
 no console at all, and Windows answers a console child of a console-less parent
@@ -140,7 +140,7 @@ def test_every_child_says_where_its_output_goes(path: Path, call: ast.Call):
     [pytest.param(path, call, id=f"{path.name}:{call.lineno}")
      for path, call in _spawn_calls()],
 )
-def test_every_child_asks_for_no_console_window(path: Path, call: ast.Call):
+def test_every_child_asks_for_no_main_hud_window(path: Path, call: ast.Call):
     assert _asks_for_no_console(call), (
         f"{path.relative_to(ROOT)}:{call.lineno}: spawn with no creationflags. "
         "A session the crossing relay started runs under the windowed "
@@ -156,7 +156,7 @@ def test_the_helper_sends_the_pair_to_devnull():
         "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 
-def test_the_console_helper_carries_the_flag_and_nothing_else():
+def test_the_main_hud_helper_carries_the_flag_and_nothing_else():
     """No ``startupinfo``: the hiding one would hide the child's own first
     window, and a loading screen nobody can see covers nothing."""
     assert no_console_window() == {"creationflags": subprocess.CREATE_NO_WINDOW}

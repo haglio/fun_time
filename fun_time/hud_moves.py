@@ -11,7 +11,7 @@ from .origenerator_switches import hosts
 from .shared_state import BridgeState
 
 # A Funestra's own minimize button (``fun_time.satellite_buttons``, and the Main
-# Funestra's on its console, ``fun_time.console_buttons``), by the window the
+# Funestra's on its HUD, ``fun_time.console_buttons``), by the window the
 # dispatch loop resolves it to.  Every Funestra's window here is borderless, so
 # none of them carries a minimize button of its own, and the only other way to
 # park one was the dashboard's minimize — which takes all of Fun Time down

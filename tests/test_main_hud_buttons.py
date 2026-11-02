@@ -1,8 +1,16 @@
-"""The buttons Fun Time declares on the main console, row by row."""
+"""The buttons Fun Time declares on the Main Funestra's HUD, row by row."""
 from __future__ import annotations
 
 import pytest
-from funestra.console import (
+from funestra.hud_button import BUTTON, Button
+from funestra.hud_controls import LATEST_ICON
+from funestra.hud_icons import (
+    MINIMIZE_ICON,
+    SHARED_ICON,
+    shared_icon,
+    shared_icon_name,
+)
+from funestra.main_hud import (
     GAP,
     GROUP_GAP,
     OSR2_DRIVING,
@@ -10,46 +18,38 @@ from funestra.console import (
     place_rows,
     tooltip_at,
 )
-from funestra.hud_button import BUTTON, Button
-from funestra.hud_controls import LATEST_ICON
-from funestra.hud_marks import (
-    MINIMIZE_ICON,
-    SHARED_MARK,
-    shared_mark,
-    shared_mark_name,
-)
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import icon_names
 
-from fun_time import console_buttons
-from fun_time.console_buttons import (
-    MainFunestraFacts,
-    console_rows,
-    osr2_rows,
-)
+from fun_time import main_hud_buttons
 from fun_time.content import Noun
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
+from fun_time.main_hud_buttons import (
+    MainFunestraFacts,
+    main_hud_rows,
+    osr2_rows,
+)
 from fun_time.osr2_section import osr2_button, osr2_part
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
 CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
 PORTRAIT_ICON, LANDSCAPE_ICON = ORIENTATION.first.mark, ORIENTATION.second.mark
 
-_MINUS, _PLUS = shared_mark("minus"), shared_mark("plus")
+_MINUS, _PLUS = shared_icon("minus"), shared_icon("plus")
 
 
 @pytest.fixture
 def pips(monkeypatch):
     """Genau's flicks under a word only this test uses, so a tooltip that names
     them can only have taken the word from the overlay."""
-    monkeypatch.setattr(console_buttons, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+    monkeypatch.setattr(main_hud_buttons, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
 
 def _every_row(facts: MainFunestraFacts) -> tuple[tuple[Button, ...], ...]:
-    return (*console_rows(facts), *osr2_rows(facts))
+    return (*main_hud_rows(facts), *osr2_rows(facts))
 
 
 def _actions(facts: MainFunestraFacts) -> list[str]:
@@ -105,7 +105,7 @@ class TestTransport:
     def test_genau_can_flip_the_flick_up_half_a_loop(self):
         flip = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_flip_ends")
 
-        assert shared_mark_name(flip.glyph) == "flip_ends"
+        assert shared_icon_name(flip.icon) == "flip_ends"
         assert flip.lit is False
         assert _button(MainFunestraFacts(main_mode=MainMode.GENAU, flipped=True), "genau_flip_ends").lit is True
 
@@ -123,7 +123,7 @@ class TestTransport:
         kino = _button(MainFunestraFacts(main_mode=MainMode.KINO), "browse_library")
         genau = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "browse_library")
 
-        assert (kino.glyph, kino.tooltip) == (genau.glyph, "Browse the library")
+        assert (kino.icon, kino.tooltip) == (genau.icon, "Browse the library")
         assert genau.tooltip == "Browse the pips"
 
     def test_genaus_transport_names_its_flicks_in_the_overlays_word(self, pips):
@@ -189,7 +189,7 @@ class TestReset:
 class TestBrowseOrder:
     """Shuffle and Latest: which way round what plays was put in order."""
 
-    def test_both_funestras_can_be_reordered_from_the_console(self):
+    def test_both_funestras_can_be_reordered_from_the_main_hud(self):
         for mode in MainMode:
             actions = _actions(MainFunestraFacts(main_mode=mode, latest=False))
             assert "main_shuffle" in actions
@@ -228,9 +228,9 @@ class TestProjectionPair:
     """Flat and VR, as the two shapes of video each button includes."""
 
     def _flat_and_vr(self, *, flat, vr, **over) -> tuple[Button, ...]:
-        rows = console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
+        rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
                                      plays_flat=flat, plays_vr=vr, **over))
-        by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_projection")}
+        by_face = {b.icon: b for row in rows for b in row if b.command.startswith("main_projection")}
         return tuple(by_face[face] for face in (FLAT_ICON, VR_ICON) if face in by_face)
 
     def test_both_shapes_is_both_of_them_lit(self):
@@ -259,9 +259,9 @@ class TestProjectionPair:
         assert (flat.command, vr.command) == ("main_projection_flat", "main_projection_vr")
 
     def test_flat_leads_vr_in_a_group_of_their_own(self):
-        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False,
+        placed = place_rows(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False,
                                                   plays_flat=True, plays_vr=True)), x=0, y=0)
-        rect_of = {b.glyph: rect for rect, b in placed}
+        rect_of = {b.icon: rect for rect, b in placed}
         latest, flat, vr = rect_of[LATEST_ICON], rect_of[FLAT_ICON], rect_of[VR_ICON]
 
         assert flat[0] - (latest[0] + latest[2]) == GROUP_GAP
@@ -281,12 +281,12 @@ class TestGenausProjectionPair:
     """The same pair over Genau's flicks, where its folders hold both shapes."""
 
     def _pair(self, plays_vr, plays_flat):
-        rows = console_rows(MainFunestraFacts(main_mode=MainMode.GENAU, latest=False,
+        rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU, latest=False,
                                      plays_vr=plays_vr, plays_flat=plays_flat))
         return [b for row in rows for b in row if b.command.startswith("main_projection")]
 
     def _faces_after_latest(self, main_mode: MainMode) -> list[str]:
-        faces = [b.glyph for row in console_rows(MainFunestraFacts(main_mode=main_mode, latest=False,
+        faces = [b.icon for row in main_hud_rows(MainFunestraFacts(main_mode=main_mode, latest=False,
                                                            plays_vr=True, plays_flat=True))
                  for b in row]
         return faces[faces.index(LATEST_ICON) + 1:][:2]
@@ -309,8 +309,8 @@ class TestLengthPair:
     """Clips and full, as the two lengths each button includes."""
 
     def _clips_and_full(self, length_mode: LengthMode, **over) -> tuple[Button, ...]:
-        rows = console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=length_mode, **over))
-        by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_funestra_length")}
+        rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=length_mode, **over))
+        by_face = {b.icon: b for row in rows for b in row if b.command.startswith("main_funestra_length")}
         return tuple(by_face[face] for face in (CLIPS_ICON, FULL_ICON) if face in by_face)
 
     def test_mixed_is_both_of_them_lit(self):
@@ -343,9 +343,9 @@ class TestLengthPair:
         assert (clips.command, full.command) == ("main_funestra_length_clips", "main_funestra_length_full")
 
     def test_clips_lead_full_in_a_group_of_their_own(self):
-        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False,
+        placed = place_rows(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False,
                                                   length_mode=LengthMode.MIXED)), x=0, y=0)
-        rect_of = {b.glyph: rect for rect, b in placed}
+        rect_of = {b.icon: rect for rect, b in placed}
         latest, clips, full = rect_of[LATEST_ICON], rect_of[CLIPS_ICON], rect_of[FULL_ICON]
 
         assert clips[0] - (latest[0] + latest[2]) == GROUP_GAP
@@ -375,7 +375,7 @@ class TestCompilationAndJumps:
         assert self._button_for("main_funestra_compilation").dim is True
 
     def test_inside_a_compilation_the_order_and_length_read_as_held(self):
-        rows = console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
+        rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
                                      compilation="Volume 6"))
         held = [b for row in rows for b in row
                 if b.command in ("main_shuffle", "main_funestra_length_clips")]
@@ -387,7 +387,7 @@ class TestCompilationAndJumps:
         to_scene = self._button_for("main_funestra_full_vid", jump_to="scene")
         to_clip = self._button_for("main_funestra_clip_jump", jump_to="clip")
 
-        assert to_scene.glyph != to_clip.glyph
+        assert to_scene.icon != to_clip.icon
         assert to_scene.dim is False
         assert to_clip.dim is False
 
@@ -459,22 +459,22 @@ class TestPaceRows:
         assert "main_funestra_speed_down" not in actions
 
     def test_the_rate_is_a_read_out_between_the_arrows_that_the_funestra_fills(self):
-        row = next(row for row in console_rows(MainFunestraFacts(main_mode=MainMode.KINO))
+        row = next(row for row in main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO))
                    if any(b.command == "main_funestra_speed_down" for b in row))
 
-        assert [b.glyph or b.host_value for b in row] == [
+        assert [b.icon or b.host_value for b in row] == [
             "Playback speed", _MINUS, "playback_speed", _PLUS]
 
     def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self, pips):
-        row = next(row for row in console_rows(MainFunestraFacts(main_mode=MainMode.GENAU))
+        row = next(row for row in main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU))
                    if any(b.command == "genau_flick_seconds_down" for b in row))
 
-        assert [b.glyph or b.host_value for b in row] == [
+        assert [b.icon or b.host_value for b in row] == [
             "Pip seconds", _MINUS, "advance_interval", _PLUS]
         assert row[-1].tooltip == "Leave each pip longer"
 
     def test_a_read_out_is_not_a_hit_target(self):
-        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
+        placed = place_rows(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
         rect = next(r for r, b in placed if b.host_value == "playback_speed")
 
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == ""
@@ -487,7 +487,7 @@ class TestPaceRows:
         satellite = [button.tooltip for _rect, button in rendered.targets.buttons
                      if button.command.startswith("landscape_speed_")]
         console = [button.tooltip
-                   for row in console_rows(MainFunestraFacts(main_mode=MainMode.KINO))
+                   for row in main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO))
                    for button in row if button.command.startswith("main_funestra_speed_")]
 
         assert satellite == console != []
@@ -497,7 +497,7 @@ class TestSkipAhead:
     @staticmethod
     def _transport_row(facts: MainFunestraFacts) -> list[str]:
         return [button.command for button in next(
-            row for row in console_rows(facts) if any(b.command == "main_prev" for b in row))]
+            row for row in main_hud_rows(facts) if any(b.command == "main_prev" for b in row))]
 
     def test_skip_ahead_follows_previous_and_next_as_on_every_satellite(self):
         row = self._transport_row(MainFunestraFacts(main_mode=MainMode.KINO))
@@ -531,23 +531,23 @@ class TestSkipAhead:
 
 class TestDriveControls:
 
-    def test_the_axis_arrows_are_not_console_buttons(self):
+    def test_the_axis_arrows_are_not_main_hud_buttons(self):
         actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
         for action in ("robot_hand_amplitude_up", "robot_hand_center_down", "robot_hand_speed_up"):
             assert action not in actions
 
 class TestTheOsr2Button:
-    def test_a_console_that_has_the_osr2_wears_its_button_lit_in_place_of_the_aim_row(self):
+    def test_a_main_hud_that_has_the_osr2_wears_its_button_lit_in_place_of_the_aim_row(self):
         facts = MainFunestraFacts(main_mode=MainMode.GENAU)
 
         assert osr2_rows(facts) == ((osr2_button(FunTimeFunestra.MAIN, has_it=True),),)
 
-    def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
+    def test_a_main_hud_that_gave_the_osr2_away_offers_it_back_there(self):
         facts = MainFunestraFacts(main_mode=MainMode.KINO, has_osr2=False)
 
         assert osr2_rows(facts) == ((osr2_button(FunTimeFunestra.MAIN, has_it=False),),)
-        assert osr2_button(FunTimeFunestra.MAIN, has_it=False) not in [b for row in console_rows(facts) for b in row]
+        assert osr2_button(FunTimeFunestra.MAIN, has_it=False) not in [b for row in main_hud_rows(facts) for b in row]
 
 
 class TestState:
@@ -584,20 +584,20 @@ class TestState:
 
 class TestLayout:
     def test_the_mode_pair_names_kino_and_genau(self):
-        first = console_rows(MainFunestraFacts())[0]
+        first = main_hud_rows(MainFunestraFacts())[0]
 
-        assert [(b.command, b.glyph, b.tooltip) for b in first[:2]] == [
+        assert [(b.command, b.icon, b.tooltip) for b in first[:2]] == [
             ("main_kino_activate", "Kino", "Kino mode"), ("genau_activate", "Genau", "Genau mode")]
 
     def test_the_mode_row_leads_so_it_holds_its_place_across_modes(self):
         for mode in MainMode:
-            first = console_rows(MainFunestraFacts(main_mode=mode))[0]
+            first = main_hud_rows(MainFunestraFacts(main_mode=mode))[0]
             assert [b.command for b in first][:4] == [
                 "main_kino_activate", "genau_activate", "main_minimize", "main_crown"]
 
     def test_the_browse_rides_the_mode_row_in_both_modes_and_the_rest_only_over_a_video(self):
-        video = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.KINO))[0]]
-        genau = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.GENAU))[0]]
+        video = [b.command for b in main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO))[0]]
+        genau = [b.command for b in main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU))[0]]
 
         assert video[4:] == ["browse_library", "main_funestra_record_tap", "genaumacher_save"]
         assert genau[4:] == ["browse_library"]
@@ -635,11 +635,11 @@ class TestLayout:
 
         assert minimize[0] - (genau[0] + genau[2]) == GROUP_GAP
 
-    def test_a_console_in_the_headset_has_no_window_to_minimize(self):
+    def test_a_main_hud_in_the_headset_has_no_window_to_minimize(self):
         """The Funestras under it are screens in the scene there, not windows, so
         the mode pair runs straight on into the file controls."""
-        video = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.KINO), in_vr=True)[0]]
-        genau = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.GENAU), in_vr=True)[0]]
+        video = [b.command for b in main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO), in_vr=True)[0]]
+        genau = [b.command for b in main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU), in_vr=True)[0]]
 
         assert video == ["main_kino_activate", "genau_activate",
                          "browse_library", "main_funestra_record_tap", "genaumacher_save"]
@@ -648,18 +648,18 @@ class TestLayout:
     def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):
         button = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "main_minimize")
 
-        assert button.glyph == MINIMIZE_ICON
+        assert button.icon == MINIMIZE_ICON
         assert "taskbar" in button.tooltip
 
     def test_a_press_finds_the_button_under_it_and_names_it(self):
-        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
+        placed = place_rows(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
         rect = next(r for r, b in placed if b.command == "main_next")
 
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == "main_next"
         assert tooltip_at(placed, rect[0] + 1, rect[1] + 1) == "Next video"
 
     def test_the_buttons_are_the_familys_size(self):
-        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
+        placed = place_rows(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
 
         assert all(rect[3] == BUTTON for rect, _b in placed)
 
@@ -668,11 +668,11 @@ class TestFaces:
     def test_no_button_types_a_face_of_its_own(self):
         """Every face is one of the family's marks or a word: a typed symbol is
         a font's drawing of the control rather than the family's."""
-        assert not {b.glyph for b in _every_button() if len(b.glyph) == 1 and not b.glyph.isalnum()}
+        assert not {b.icon for b in _every_button() if len(b.icon) == 1 and not b.icon.isalnum()}
 
     def test_every_mark_a_button_names_is_one_the_family_draws(self):
-        named = {shared_mark_name(b.glyph) for b in _every_button()
-                 if b.glyph.startswith(SHARED_MARK)}
+        named = {shared_icon_name(b.icon) for b in _every_button()
+                 if b.icon.startswith(SHARED_ICON)}
 
         assert {"trash", "reset", "wave", "crown", "folder", "chevron_left", "lock"} <= named
         assert not named - set(icon_names())
@@ -685,13 +685,13 @@ class TestOrientationPair:
     """Portrait and landscape, the same way 2D/VR and clips/full let theirs in."""
 
     def _pair(self, main_mode=MainMode.KINO, *, things=None, **over) -> tuple[Button, ...]:
-        rows = console_rows(MainFunestraFacts(main_mode=main_mode, latest=False, **over))
-        by_face = {b.glyph: b for row in rows for b in row
+        rows = main_hud_rows(MainFunestraFacts(main_mode=main_mode, latest=False, **over))
+        by_face = {b.icon: b for row in rows for b in row
                    if b.command.startswith("main_orientation")}
         return tuple(by_face[face] for face in (PORTRAIT_ICON, LANDSCAPE_ICON) if face in by_face)
 
     def test_they_wear_the_familys_portrait_and_landscape_marks(self):
-        assert (shared_mark_name(PORTRAIT_ICON), shared_mark_name(LANDSCAPE_ICON)) == (
+        assert (shared_icon_name(PORTRAIT_ICON), shared_icon_name(LANDSCAPE_ICON)) == (
             "portrait", "landscape")
         assert {"portrait", "landscape"} <= set(icon_names())
 
@@ -710,8 +710,8 @@ class TestOrientationPair:
             "main_orientation_both", "main_orientation_none")
 
     def test_they_sit_right_after_clips_and_full_in_a_group_of_their_own(self):
-        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False)), x=0, y=0)
-        rect_of = {b.glyph: rect for rect, b in placed}
+        placed = place_rows(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False)), x=0, y=0)
+        rect_of = {b.icon: rect for rect, b in placed}
         full, portrait, landscape = rect_of[FULL_ICON], rect_of[PORTRAIT_ICON], rect_of[LANDSCAPE_ICON]
 
         assert portrait[0] - (full[0] + full[2]) == GROUP_GAP

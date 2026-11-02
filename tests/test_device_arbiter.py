@@ -8,13 +8,13 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from funestra.console import (
+from funestra.file_channel import append_command as real_append
+from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
+from funestra.main_hud import (
     OSR2_DRIVING,
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
-from funestra.file_channel import append_command as real_append
-from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -94,7 +94,7 @@ class TestNobodyDriving:
 
     def test_a_hold_gates_the_funscript_and_switches_genaus_output_off(self, tmp_path):
         """The broker walks the device to that end; Genau plays on with its output
-        off, so the console can still draw the motion the hand would be making."""
+        off, so the HUD can still draw the motion the hand would be making."""
         for mode in ("kino", "genau"):
             driver = make_driver(tmp_path / f"park-{mode}")
             publish_main_funestra(driver)

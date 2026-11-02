@@ -17,7 +17,7 @@ from app_support import ports, state_files
 
 from .config import LayoutConfig, RegenConfig
 from .fun_time_funestras import FunTimeFunestra
-from .main_funestra_console import main_funestra_console_path
+from .main_funestra_hud import main_funestra_hud_path
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
@@ -73,13 +73,13 @@ def build_windows_bridge_manifest(
             "main_funestra_cmd_file": str(config.main_funestra_cmd_file),
             "main_funestra_paused_file": str(config.main_funestra_paused_file),
             "main_funestra_status_file": str(config.main_funestra_status_file),
-            "main_funestra_console_file": str(main_funestra_console_path(config.paths.state_dir)),
+            "main_funestra_console_file": str(main_funestra_hud_path(config.paths.state_dir)),
             "main_funestra_playlist_file": str(config.main_funestra_playlist_file),
             **_satellite_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
             # The broker's own directory, so a child needing a broker file not
             # named here resolves it against the broker and not the session --
-            # which had put the console's broker and OSR2 lights on an empty dir.
+            # which had put the HUD's broker and OSR2 lights on an empty dir.
             "broker_state_dir": str(config.paths.broker_state_dir),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
             "audio_paused_file": str(config.audio_paused_file),

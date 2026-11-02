@@ -10,12 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from funestra.console_hud import ModeHud
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
 from funestra.flick_overlay import FlickFrame
-from funestra.modes import NoticeLevel
-from funestra.notices import NoticeWriter
+from funestra.main_hud_painter import ModeHud
+from funestra.modes import MessageLevel
+from funestra.notices import MessageWriter
 from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
@@ -52,7 +52,7 @@ class Genau:
         channels: GenauChannels,
         notifier,
         tcode_sink,
-        notices: NoticeWriter | None = None,
+        notices: MessageWriter | None = None,
         start_flick: Path | None = None,
         latest: bool = False,
         f_mode: bool = False,
@@ -166,11 +166,11 @@ class Genau:
 
     def _say_no_other_flicks(self) -> None:
         if self._notices is not None:
-            self._notices.say(no_other_flicks(), level=NoticeLevel.WARNING)
+            self._notices.say(no_other_flicks(), level=MessageLevel.WARNING)
 
     def _say(self, words: str) -> None:
         if self._notices is not None:
-            self._notices.say(words, level=NoticeLevel.NOTICE)
+            self._notices.say(words, level=MessageLevel.NOTICE)
 
     def _scan(self) -> list[Path]:
         return self._kept_of(self._browsed())

@@ -20,7 +20,7 @@ NAMER = ProcessNamer("Fun Time", icon=PROJECT_ICON)
 def prepare_orchestrator_launcher() -> None:
     """Make the copy ``launch.vbs`` runs the orchestrator through next time.
 
-    The console interpreter by name -- not the windowed one the namer would pick
+    The HUD interpreter by name -- not the windowed one the namer would pick
     by itself -- because that is the one ``launch.vbs`` runs.  Why it is one
     launch late, why it is derived beside the running interpreter rather than
     from it, and why it can never cost the launch:
