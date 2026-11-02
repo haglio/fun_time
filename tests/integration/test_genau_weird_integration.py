@@ -8,7 +8,7 @@ import pytest
 from app_support.flick_folder import flat_flicks_in, flicks_folder_in, weird_pile_in
 
 from fun_time.funestra_status import read_genau_status
-from fun_time.lock import MARKED_WEIRD
+from fun_time.lock import SENT_TO_TRASH
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 from .integration_support import (
@@ -67,7 +67,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
 
         session.wait_until(
             lambda: _condemned(weird) and any(
-                n.message == MARKED_WEIRD and n.source == "main" for n in session.notices()),
+                n.message == SENT_TO_TRASH and n.source == "main" for n in session.notices()),
             timeout=15, description='the flick on screen marked weird, and "Marked weird" flashed')
         let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
