@@ -163,7 +163,8 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
     named = {name: shared_mark_name(face) for name, face in faces.items()
              if face.startswith(SHARED_MARK)}
 
-    assert named["trash"] == "trash" and named["reset"] == "reset"
+    assert named["trash"] == "trash"
+    assert named["reset"] == "reset"
     assert not set(named.values()) - set(icon_names())
     assert faces["fmode"] == FMODE_ICON
 
