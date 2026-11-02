@@ -54,9 +54,9 @@ from time import monotonic
 from app_support.integration_runs import runs_dir
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import JobObject
+from app_support.win32_loader import load_dll, win_functype
 
 from fun_time.checkout_overrides import primary_of
-from fun_time.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python

@@ -25,6 +25,7 @@ from pathlib import Path
 from app_support import osr2_hold
 from app_support.subprocess_utils import tie_to_this_process
 from app_support.threading_utils import wait_until
+from app_support.win32 import process_started
 from funestra.console import HOLD_VERB
 from funestra.file_channel import append_command
 from voice_core.listener import why_unavailable
@@ -113,7 +114,6 @@ from .win32 import (
     windows_obscuring,
 )
 from .win32_events import PressAndCaretWatch
-from .win32_process import get_process_creation_time
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -177,7 +177,7 @@ def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     children: dict[str, ChildProcess] = {}
     for key in _CHILD_PID_KEYS:
         pid = getattr(result, key)
-        children[key] = ChildProcess(pid=pid, created_at=get_process_creation_time(pid) or 0)
+        children[key] = ChildProcess(pid=pid, created_at=process_started(pid) or 0)
     return children
 
 
@@ -223,7 +223,7 @@ def kill_recorded_child(child: ChildProcess) -> None:
     """Kill *child* and its descendants, but only if its PID still names it."""
     if not child.pid:
         return
-    created_at = get_process_creation_time(child.pid)
+    created_at = process_started(child.pid)
     if created_at is None:
         logger.info("Not killing PID %d: process already exited", child.pid)
         return
@@ -259,7 +259,7 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     close_window(hwnd)
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        if get_process_creation_time(child.pid) != child.created_at:
+        if process_started(child.pid) != child.created_at:
             return  # exited (or the pid was never ours) — nothing left to wait on
         time.sleep(0.2)
     logger.warning("Origenerator did not close within 5s; the kill sweep takes it")
@@ -308,7 +308,7 @@ def let_go_of_a_kept_origenerator(state_dir: Path, command_file: Path) -> None:
     forget_the_kept_origenerator(state_dir)
     if kept is None:
         return
-    if get_process_creation_time(kept.pid) != kept.created_at:
+    if process_started(kept.pid) != kept.created_at:
         return  # gone already, or that pid is somebody else's now
     if kept.taken_over:
         append_command(command_file, RELEASE)

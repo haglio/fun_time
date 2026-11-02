@@ -21,13 +21,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from app_support.win32 import mutex_name
+from app_support.win32 import mutex_name, write_shortcut
 from shared_ui.preview import Preview
 
 from fun_time import branch_session, preview_marker
 from fun_time.config import ProjectConfig, load_config
 from fun_time.genau_config import GenauSettings
-from fun_time.shortcuts import Shortcut, read_shortcuts, write_shortcut
+from fun_time.shortcuts import Shortcut, read_shortcuts
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from tests.git_repo import git
@@ -533,10 +533,9 @@ def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_la
     is left where it is."""
     decoy = primary_with_launcher.primary / "Verify something of his own.lnk"
     write_shortcut(
-        decoy,
+        str(decoy),
         target=str(tmp_path / "nothing.exe"),
-        arguments="",
-        working_dir=str(tmp_path),
+        working_directory=str(tmp_path),
         icon="",
         description="his own",
     )

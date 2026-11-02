@@ -18,9 +18,9 @@ import threading
 from pathlib import Path
 
 import pytest
+from app_support.win32_loader import get_last_error, load_dll
 
 from fun_time.config import load_config
-from fun_time.win32_loader import get_last_error, load_dll
 from fun_time.windows_bridge_orchestrator import _AppendOnWriteHandler
 from tests.ahk_script import function_source
 

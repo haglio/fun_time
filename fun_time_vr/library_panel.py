@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from app_support.frame_channel import FrameReader
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command, consume_command_file
 from PIL import Image, ImageDraw
@@ -15,7 +16,6 @@ from shared_ui.type_scale import SIZE_HEADING, in_pixels
 
 from fun_time.process_identity import NAMER
 
-from .frame_channel import FrameReader
 from .pointer import RELEASE, PressEvent, surface_pixel
 from .thumbs import CONTROLLER_DEADZONE
 

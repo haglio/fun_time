@@ -4,7 +4,7 @@ import ctypes
 import ctypes.wintypes
 from pathlib import Path
 
-from fun_time.win32_loader import get_last_error, load_dll
+from app_support.win32_loader import get_last_error, load_dll
 
 _kernel32 = load_dll("kernel32", use_last_error=True)
 

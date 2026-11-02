@@ -8,13 +8,14 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from app_support.frame_channel import FrameWriter
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command, consume_command_file
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
 from PyQt6.QtGui import QImage, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 from shared_ui.application import application
-from shared_ui.chrome import family_stylesheet
+from shared_ui.colors import dress_application
 
 from fun_time.library_browser import (
     FLICKS_TOP_LEVEL_NAME,
@@ -27,7 +28,6 @@ from fun_time.library_handles import LibraryHandle, handles_by_shape
 from fun_time.modes import collect_video_files
 from fun_time.win32_process import is_process_alive
 
-from .frame_channel import FrameWriter
 from .library_listing_cache import remembered_listing
 from .library_panel import (
     DISMISSED,
@@ -241,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     os.environ.setdefault("QT_QPA_FONTDIR", str(_windows_fonts_offscreen_qt_lacks()))
     with application([sys.argv[0], "-platform", "offscreen"]) as app:
-        app.setStyleSheet(family_stylesheet())
+        dress_application(app)
         config = load_browser_config(args.manifest_path)
         flicks = load_flick_browser_config(args.manifest_path)
         width, height = LIBRARY_SIZE_PX

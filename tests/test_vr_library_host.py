@@ -9,13 +9,13 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from app_support.frame_channel import FrameReader, FrameWriter
 from PyQt6.QtCore import QPoint
 
 from fun_time import library_browser
 from fun_time.library_browser import FLICKS_TOP_LEVEL_NAME, TOP_LEVEL_NAME
 from fun_time.library_handles import LibraryHandle
 from fun_time_vr import library_host
-from fun_time_vr.frame_channel import FrameReader, FrameWriter
 from fun_time_vr.library_host import (
     LISTING_FILENAME,
     HeadsetBrowse,
@@ -442,7 +442,7 @@ def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_s
     monkeypatch.setattr(library_host, "application", application)
     monkeypatch.setenv("QT_QPA_FONTDIR", str(tmp_path))
     for name in ("load_browser_config", "load_flick_browser_config", "FrameWriter",
-                 "HeadsetBrowse", "start_daemon_thread"):
+                 "HeadsetBrowse", "start_daemon_thread", "dress_application"):
         monkeypatch.setattr(library_host, name, MagicMock())
 
     ran = library_host.main([str(tmp_path / "manifest.ini"), "--input", str(tmp_path / "in.txt"),
@@ -451,3 +451,4 @@ def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_s
 
     assert ran == 7
     assert made == [[sys.argv[0], "-platform", "offscreen"]]
+    library_host.dress_application.assert_called_once()

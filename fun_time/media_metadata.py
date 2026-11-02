@@ -22,8 +22,9 @@ from pathlib import Path
 from app_support import favorites
 from app_support.json_store import locked_update
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
+from app_support.video_names import clip_title, version_group_of
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
-from funestra.video_families import action_group_key, normalized_text, seed_group_key
+from funestra.video_families import action_group_key, filter_keeps, normalized_text, seed_group_key
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
 
 
@@ -107,14 +108,6 @@ def recorded_duration_seconds(payload: dict) -> float | None:
 WATCH_BLOCK = "watch"
 
 
-def clip_title(payload: dict) -> str:
-    """What *payload*'s clip record calls the scene -- "performer - movie", and
-    ``""`` for a video that is not a carved clip."""
-    clip = payload.get("clip")
-    if not isinstance(clip, dict):
-        return ""
-    parts = (str(clip.get(field, "") or "").strip() for field in ("performer", "source"))
-    return " - ".join(part for part in parts if part)
 
 
 # A bare number in brackets at the end of a name is how a download names a
@@ -122,11 +115,6 @@ def clip_title(payload: dict) -> str:
 _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
-def version_group_of(payload: dict) -> str:
-    version = payload.get("version")
-    if not isinstance(version, dict):
-        return ""
-    return str(version.get("group") or "")
 
 
 def recorded_group(payload: dict, video: str | Path) -> str:
@@ -264,16 +252,8 @@ def filter_haystack(metadata: dict) -> str:
 
 
 def matches_query(metadata: dict, query: str) -> bool:
-    """Whether *metadata* satisfies *query* — an empty query matches everything.
-
-    A query matches when it appears as a contiguous substring of the video's
-    act, so "alpha" catches the "Alpha, Theta Motion" action and "beta gamma"
-    catches the "Beta Gamma" action while ignoring word order noise.
-    """
-    normalized = normalized_text(query)
-    if not normalized:
-        return True
-    return normalized in filter_haystack(metadata)
+    """Whether the filter *query* keeps *metadata*'s video -- an empty query keeps every one."""
+    return filter_keeps(filter_haystack(metadata), query)
 
 
 def path_matches_query(

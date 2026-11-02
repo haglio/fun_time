@@ -4,9 +4,10 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
+from app_support.win32_loader import load_dll
+
 from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.win32_loader import load_dll
 
 # ``app_support.win32.mutex_name`` adds the session's identity, so a branch
 # session, which borrows the live one's, refuses it and is refused by it.  The

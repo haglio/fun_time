@@ -420,7 +420,7 @@ class TestFixPostLoadingWindows:
 class TestKillRecordedChild:
     def test_kills_the_child_whose_pid_still_names_it(self):
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             return_value=111_000,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill:
             kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
@@ -431,7 +431,7 @@ class TestKillRecordedChild:
         """The recorded child died and Windows handed its PID to something else —
         an integration run's pytest, say.  Killing it would take that process down."""
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             return_value=222_000,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
@@ -443,7 +443,7 @@ class TestKillRecordedChild:
     def test_says_how_long_the_child_took_to_end(self, caplog):
         """His quit took half a minute once, and nothing said which part held it."""
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             return_value=111_000,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree", return_value=[]), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
@@ -453,7 +453,7 @@ class TestKillRecordedChild:
 
     def test_names_what_outlived_the_wait(self, caplog):
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             return_value=111_000,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                  return_value=[1234, 5678]), \
@@ -467,7 +467,7 @@ class TestKillRecordedChild:
 
     def test_skips_an_already_exited_child_without_a_recycle_warning(self, caplog):
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             return_value=None,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
@@ -481,7 +481,7 @@ class TestKillRecordedChild:
 class TestIdentifyChildren:
     def test_pins_every_launched_pid_to_its_creation_time(self):
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=lambda pid: pid * 10,
         ):
             children = identify_children(_fake_startup_result())
@@ -493,7 +493,7 @@ class TestIdentifyChildren:
         """A PID whose creation time cannot be read is already gone; recording
         0 means no later creation time can ever match it."""
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             return_value=None,
         ):
             children = identify_children(_fake_startup_result())
@@ -533,7 +533,7 @@ class TestShutdownChildren:
         )
         live_creation_times = {200: 111, 300: 999}  # 300 was recycled
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=live_creation_times.get,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              patch("fun_time.windows_bridge_orchestrator.close_window"):
@@ -546,7 +546,7 @@ class TestShutdownChildren:
         seventh child cannot be launched and pinned yet never killed."""
         killed: list[int] = []
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=lambda pid: pid * 10,
         ), patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
@@ -563,7 +563,7 @@ class TestShutdownChildren:
         talking to it), launched detached with its handle discarded — so a normal
         exit must leave it running."""
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=lambda pid: pid * 10,
         ):
             children = identify_children(_fake_startup_result())
@@ -574,7 +574,7 @@ class TestShutdownChildren:
 class TestWritePidsFile:
     def _write(self, tmp_path):
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=lambda pid: pid * 10,
         ):
             children = identify_children(_fake_startup_result())
@@ -694,7 +694,7 @@ class TestRunPythonOrchestratedBridge:
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
-             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time", side_effect=lambda pid: pid * 10), \
+             patch("fun_time.windows_bridge_orchestrator.process_started", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
 
             ended = _a_session(
@@ -1450,7 +1450,7 @@ class TestKeepingTheHostedApp:
 
     def test_a_record_whose_process_is_gone_is_forgotten_not_killed(self, tmp_path):
         keep_the_origenerator(tmp_path, pid=999999, created_at=1)
-        with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+        with patch("fun_time.windows_bridge_orchestrator.process_started",
                    return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
             windows_bridge_orchestrator.let_go_of_a_kept_origenerator(
@@ -1461,7 +1461,7 @@ class TestKeepingTheHostedApp:
 
     def test_a_record_that_still_matches_is_closed(self, tmp_path):
         keep_the_origenerator(tmp_path, pid=999999, created_at=1)
-        with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+        with patch("fun_time.windows_bridge_orchestrator.process_started",
                    return_value=1), \
              patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
                    ) as closed, \
@@ -1476,7 +1476,7 @@ class TestKeepingTheHostedApp:
     def test_a_kept_app_that_was_taken_over_is_handed_back_not_closed(self, tmp_path):
         channel = tmp_path / "origenerator_cmd.txt"
         keep_the_origenerator(tmp_path, pid=999999, created_at=1, taken_over=True)
-        with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+        with patch("fun_time.windows_bridge_orchestrator.process_started",
                    return_value=1), \
              patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
                    ) as closed, \
@@ -1542,7 +1542,7 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
                side_effect=start_up if result is None else None,
                return_value=result), \
          patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
-         patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+         patch("fun_time.windows_bridge_orchestrator.process_started",
                side_effect=lambda pid: pid * 10), \
          patch("fun_time.windows_bridge_orchestrator.close_window",
                side_effect=lambda hwnd: events.append("close_browser")), \
@@ -3017,7 +3017,7 @@ class TestOrigeneratorGracefulClose:
         follows is the backstop, not the normal death."""
         closed: list[int] = []
         with patch(
-            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=[8000, None],  # recorded alive, then exited after the close
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_origenerators_window",
@@ -3400,7 +3400,7 @@ class TestTheSessionEndsOnItsMarker:
              patch("fun_time.windows_bridge_orchestrator.start_voice_control",
                    side_effect=the_user_quits), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"), \
-             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+             patch("fun_time.windows_bridge_orchestrator.process_started",
                    side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
@@ -3622,7 +3622,7 @@ class TestStartingVoice:
              patch.object(windows_bridge_orchestrator, "start_voice_control",
                           side_effect=voice_starts), \
              patch.object(windows_bridge_orchestrator, "DispatchLoopRunner"), \
-             patch.object(windows_bridge_orchestrator, "get_process_creation_time",
+             patch.object(windows_bridge_orchestrator, "process_started",
                           side_effect=lambda pid: pid * 10), \
              patch.object(windows_bridge_orchestrator, "close_window"), \
              patch.object(windows_bridge_orchestrator, "kill_process_tree"):

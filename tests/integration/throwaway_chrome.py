@@ -15,11 +15,11 @@ import uuid
 from pathlib import Path
 
 import pytest
+from app_support.win32_loader import load_dll
 
 from fun_time.process_tree import kill_process_tree
 from fun_time.shortcuts import Shortcut
 from fun_time.win32 import _every_window, close_window, window_process
-from fun_time.win32_loader import load_dll
 from fun_time.win32_process import list_child_pids
 from tests.integration.integration_support import await_window, ended_within
 from tests.integration.run_clock import Budget

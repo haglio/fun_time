@@ -8,10 +8,11 @@ import sys
 import time
 
 import pytest
+from app_support.win32_loader import load_dll
 
 from fun_time.text_field_clicks import LATE_S, TextFieldClicks
+from fun_time.win32 import Win32Rect
 from fun_time.win32_events import PressAndCaretWatch
-from fun_time.win32_loader import Win32Rect, load_dll
 from tests.integration.integration_support import await_window
 from tests.integration.run_clock import Budget
 from tests.integration.throwaway_chrome import TAB_TIMEOUT_S, WINDOW_TIMEOUT_S

@@ -11,9 +11,9 @@ import sys
 import time
 
 import pytest
+from app_support.win32 import process_started
 
 from fun_time.process_tree import kill_process_tree
-from fun_time.win32_process import get_process_creation_time
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -31,7 +31,7 @@ ROOM_CLOSES_WITHIN_S = 30.0
 
 
 def _still_up(child) -> bool:
-    return bool(child.created_at) and get_process_creation_time(child.pid) == child.created_at
+    return bool(child.created_at) and process_started(child.pid) == child.created_at
 
 
 def test_a_funestra_closing_mid_session_closes_the_whole_room():

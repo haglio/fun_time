@@ -154,7 +154,7 @@ def test_stop_taskkills_every_recorded_child(session):
         },
     )
     killed: list[int] = []
-    with patch.object(windows_bridge_orchestrator, "get_process_creation_time", side_effect=lambda pid: pid * 10), \
+    with patch.object(windows_bridge_orchestrator, "process_started", side_effect=lambda pid: pid * 10), \
          patch.object(windows_bridge_orchestrator, "kill_process_tree", killed.append):
         session.stop()
 
@@ -176,7 +176,7 @@ def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
         asked.append(pid)
         return alive.pop(0)
 
-    with patch.object(windows_bridge_orchestrator, "get_process_creation_time",
+    with patch.object(windows_bridge_orchestrator, "process_started",
                       side_effect=lambda pid: pid * 10), \
          patch.object(windows_bridge_orchestrator, "kill_process_tree", lambda _pid: None), \
          patch.object(integration_support, "is_process_alive", side_effect=is_alive), \
@@ -190,7 +190,7 @@ def test_stop_gives_up_on_a_child_that_never_goes(session):
     """Bounded: a pid Windows will not reap must not hold the suite for good."""
     _write_bridge_pids(session, {"main_funestra_pid": ChildProcess(201, 2010)})
 
-    with patch.object(windows_bridge_orchestrator, "get_process_creation_time",
+    with patch.object(windows_bridge_orchestrator, "process_started",
                       side_effect=lambda pid: pid * 10), \
          patch.object(windows_bridge_orchestrator, "kill_process_tree", lambda _pid: None), \
          patch.object(integration_support, "is_process_alive", return_value=True), \
@@ -203,7 +203,7 @@ def test_stop_does_not_kill_a_recorded_pid_windows_recycled(session):
     dead child's PID now belongs to somebody else."""
     _write_bridge_pids(session, {"audio_pid": ChildProcess(205, 2050)})
     killed: list[int] = []
-    with patch.object(windows_bridge_orchestrator, "get_process_creation_time", return_value=9999), \
+    with patch.object(windows_bridge_orchestrator, "process_started", return_value=9999), \
          patch.object(windows_bridge_orchestrator, "kill_process_tree", killed.append):
         session.stop()
 
