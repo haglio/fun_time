@@ -409,7 +409,7 @@ class TestKinoModeFunscriptHandoff:
 
 
 class TestASideFunestraThatHasTheOsr2:
-    def test_drives_it_from_its_own_clips_funscript(self, tmp_path):
+    def test_drives_it_from_its_own_videos_funscript(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
         publish_satellite(tmp_path, FunTimeFunestra.PORTRAIT)
@@ -420,7 +420,7 @@ class TestASideFunestraThatHasTheOsr2:
         assert genau(driver) == HAND_YIELDS
         assert main_funestra(driver) == [TCODE_OFF]
 
-    def test_leaves_the_stretches_its_clip_does_not_script_to_the_robot_hand(self, tmp_path):
+    def test_leaves_the_stretches_its_video_does_not_script_to_the_robot_hand(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, has_funscript=True, resting=False)
         publish_satellite(tmp_path, FunTimeFunestra.PORTRAIT, resting=True)

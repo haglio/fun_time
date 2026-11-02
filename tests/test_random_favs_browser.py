@@ -237,7 +237,7 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     assert len(targets) == 1
     assert targets[0].url.startswith("https://example.com/video#ft=")
     assert targets[0].label == "https://example.com/image/abc"
-    # The tab plays the clip you are deciding whether to recreate.
+    # The tab plays the video you are deciding whether to recreate.
     assert targets[0].video_path == str(video)
 
 

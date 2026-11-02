@@ -78,7 +78,7 @@ from fun_time.log_panel_model import (
 _SOURCE_LABELS = SOURCE_LABELS  # beside the sources now; the headset wears them too
 
 # An ordinary announcement is white; green is kept for the one family it means
-# across this whole app — the favorites, the lock that puts a clip in them,
+# across this whole app — the favorites, the lock that puts a video in them,
 # F-mode, and the funscripts (see :data:`fun_time.event_log.FAVORITE`).
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,

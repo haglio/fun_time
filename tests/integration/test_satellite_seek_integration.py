@@ -1,4 +1,4 @@
-"""Integration: a real satellite steps through the clip on screen ten seconds at a
+"""Integration: a real satellite steps through the video on screen ten seconds at a
 time, as the back and forward 10s buttons on its HUD ask.
 
 Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
@@ -15,7 +15,7 @@ from funestra.funestra_verbs import SEEK_BACK, SEEK_FWD
 from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import read_satellite_status
 
-from .integration_support import clip_of_a_test_pattern, published_status
+from .integration_support import published_status, video_of_a_test_pattern
 from .lone_satellite import a_lone_satellite
 
 pytestmark = [
@@ -29,12 +29,12 @@ pytestmark = [
 SEEK_SLACK_MS = 1_000
 
 
-def test_seek_steps_a_held_clip_ten_seconds_either_way():
-    """A clip made for the test rather than a sample, since stepping ten seconds
+def test_seek_steps_a_held_video_ten_seconds_either_way():
+    """A video made for the test rather than a sample, since stepping ten seconds
     both ways needs one longer than most of the library's."""
     satellite = a_lone_satellite()
-    clip = clip_of_a_test_pattern(satellite.sources / "test_pattern.mp4", size="360x640", seconds=40)
-    with satellite.launched([str(clip)], width=640, height=360, hud=True):
+    video = video_of_a_test_pattern(satellite.sources / "test_pattern.mp4", size="360x640", seconds=40)
+    with satellite.launched([str(video)], width=640, height=360, hud=True):
         satellite.wait_until_playing()
         write_flag_file(satellite.paused, True)
         satellite.wait_for(lambda: read_satellite_status(satellite.status).paused,

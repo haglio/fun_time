@@ -4,7 +4,7 @@ Run from the project root:
 
     ./.venv/Scripts/python.exe -m fun_time.breeding_report [--top N | --all]
 
-Each stamped clip is ranked by the playback weight on its sidecar (the same
+Each stamped video is ranked by the playback weight on its sidecar (the same
 number the shuffled satellite builds use — Evolver's sum of what every app
 watched), with its generation identity — action, image seed, prompt — pulled
 from the same sidecar so the ranking reads as a harem leaderboard rather than
@@ -48,7 +48,7 @@ def _orientation_of(path: str) -> str:
 
 
 def _identity_of(metadata: dict) -> tuple[str, str, str]:
-    """(action, seed, prompt) from the clip's sidecar, blanks when absent."""
+    """(action, seed, prompt) from the video's sidecar, blanks when absent."""
     video = metadata.get("video") or {}
     source = metadata.get("source_image") or {}
     action = _norm_text(video.get("action"))
@@ -68,7 +68,7 @@ def build_breeding_rows(
     video_paths: Iterable[str],
     metadata_root: str | Path | None,
 ) -> list[BreedingRow]:
-    """Every stamped clip as a row, heaviest (most loved) first."""
+    """Every stamped video as a row, heaviest (most loved) first."""
     rows: list[BreedingRow] = []
     for path in video_paths:
         metadata = recorded_for(path, metadata_root)
@@ -96,7 +96,7 @@ _PROMPT_WIDTH = 42
 
 # ASCII-only output: Windows consoles on legacy codepages mangle em-dashes
 # and ellipses, and this report exists to be read in one.
-def _clip(text: str, width: int) -> str:
+def _video(text: str, width: int) -> str:
     if len(text) <= width:
         return text
     return text[: width - 3] + "..."
@@ -107,9 +107,9 @@ def _format_row(rank: int, row: BreedingRow) -> str:
         f"{rank:>3}  x{row.weight:.2f}  "
         f"{row.completions:>3} {row.locks:>3} {row.skips:>3}  "
         f"{row.orientation}  "
-        f"{_clip(row.action, 16):<16}  "
-        f"{_clip(row.seed, 12):<12}  "
-        f"{_clip(row.prompt, _PROMPT_WIDTH):<{_PROMPT_WIDTH}}  "
+        f"{_video(row.action, 16):<16}  "
+        f"{_video(row.seed, 12):<12}  "
+        f"{_video(row.prompt, _PROMPT_WIDTH):<{_PROMPT_WIDTH}}  "
         f"{Path(row.path).name}"
     )
 
@@ -131,7 +131,7 @@ def _section(title: str, rows: list[BreedingRow], top: int) -> list[str]:
 
 
 def render_breeding_report(rows: list[BreedingRow], *, top: int) -> str:
-    """The leaderboard as monospace text: loved clips first, fading clips last.
+    """The leaderboard as monospace text: loved videos first, fading videos last.
 
     C/L/S = completions / locks / skips; O = orientation (P portrait,
     L landscape). Weight is the same multiplier the shuffled builds use.

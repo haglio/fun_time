@@ -321,7 +321,7 @@ class VRSession:
     def ensure_quad_swapchain(self, index: int, width: int, height: int) -> None:
         """Have quad swapchain *index* exist at exactly *width* x *height*.
 
-        Sized to the video texture and recreated when the clip's size changes
+        Sized to the video texture and recreated when the video's size changes
         (rare), so submission always uses the full image rect — no sub-rect,
         whose origin convention differs per graphics API.  The replaced chain
         is retired, not destroyed: frames in flight may still composite it.

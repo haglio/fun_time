@@ -55,7 +55,7 @@ def _i2v_meta(image_seed: str, action: str) -> dict:
 
 
 def _stamp_weight(metadata_root: Path, video: str, weight: float) -> None:
-    """The weight Evolver would have summed onto the clip's sidecar."""
+    """The weight Evolver would have summed onto the video's sidecar."""
     sidecar = metadata_path_for(video, metadata_root)
     payload = load_metadata(sidecar)
     payload["watch"] = {"weight": weight}
@@ -192,7 +192,7 @@ def test_a_video_outside_the_mirrored_tree_names_no_funscript():
     assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
 
 
-def test_a_clip_in_the_library_needs_only_its_own_path_to_find_its_script(tmp_path: Path):
+def test_a_video_in_the_library_needs_only_its_own_path_to_find_its_script(tmp_path: Path):
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
     script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
     script.parent.mkdir(parents=True)
@@ -393,7 +393,7 @@ def test_shuffling_nothing_leaves_nothing():
     assert shuffle_paths([]) == []
 
 
-def test_shuffling_one_clip_leaves_that_clip():
+def test_shuffling_one_video_leaves_that_video():
     assert shuffle_paths(["only.mp4"]) == ["only.mp4"]
 
 
@@ -477,7 +477,7 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
 
 def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
     """Latest shows one entry per action group even while reviewing arrivals:
-    the group's newest item represents it, ungrouped clips pass through, and
+    the group's newest item represents it, ungrouped videos pass through, and
     the whole list stays newest-first."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_old": _i2v_meta("111", "Alpha"),
@@ -629,7 +629,7 @@ def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
 
 def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
     """A filtered view has already pinned the act, so same-params-different-seed
-    clips are one seed family and collapse to a single entry."""
+    videos are one seed family and collapse to a single entry."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Alpha", "1"),
         "clip_b": _t2v_meta("Alpha", "2"),
@@ -646,7 +646,7 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
 
 
 def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
-    """Unfiltered browsing keeps today's one-clip-per-subject (action group),
+    """Unfiltered browsing keeps today's one-video-per-subject (action group),
     so two different-seed subjects both appear."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Alpha", "1"),
@@ -664,7 +664,7 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
 
 def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     """Seed-family collapse must not merge different acts: the t2v family pins
-    the action, so a Theta clip stays its own family."""
+    the action, so a Theta video stays its own family."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Side Alpha", "1"),
         "clip_b": _t2v_meta("Side Alpha", "2"),

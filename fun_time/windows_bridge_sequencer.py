@@ -571,7 +571,7 @@ def _wait_for_the_app_to_be_drawing(
     painted into it, so revealing on the window alone shows his progress bar
     instead of a video.  The two satellites are the same case one step earlier —
     their windows exist within a second of launch and stay BLACK until mpv has
-    opened the first clip, which is what "the windows are not ready when the
+    opened the first video, which is what "the windows are not ready when the
     loading screen goes away" looks like.
 
     Neither wait gets to keep the desktop: a Funestra that never arrives is
@@ -766,7 +766,7 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
 
 # How long the loading screen waits for the two satellites to have a frame up.
 # Their windows exist within a second of launch and stay BLACK until mpv has
-# opened the first clip and drawn a frame — on the 4K landscape library that is
+# opened the first video and drawn a frame — on the 4K landscape library that is
 # several seconds — so a reveal timed on the windows alone lifts on two black
 # rectangles.  Bounded like the Main Funestra's: a Funestra that never gets there does not get
 # to keep the desktop.
@@ -781,7 +781,7 @@ def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
 
     The window existing is not the signal, and neither is the process running:
     a satellite opens its window immediately, then spends seconds asking mpv for
-    the first clip.  Its status file says ``position_ms`` once frames are
+    the first video.  Its status file says ``position_ms`` once frames are
     actually going out, which is the same thing the integration suite waits on
     to call a Funestra started.
 

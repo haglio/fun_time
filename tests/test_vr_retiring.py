@@ -21,7 +21,7 @@ def test_a_replaced_swapchain_survives_the_frames_already_in_flight():
 
 
 def test_each_replaced_swapchain_waits_out_its_own_frames():
-    """Two clips resizing a frame apart retire a frame apart."""
+    """Two videos resizing a frame apart retire a frame apart."""
     first = [RetiredSwapchain(handle="first")]
     first, _ = advance_retirements(first)
     both = [*first, RetiredSwapchain(handle="second")]

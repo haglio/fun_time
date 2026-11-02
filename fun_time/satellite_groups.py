@@ -1,4 +1,4 @@
-"""The satellites' clip-grouping engine: sibling cycles, group loops, the loop
+"""The satellites' video-grouping engine: sibling cycles, group loops, the loop
 key's cycle, seed widening and HUD map navigation.  The dispatcher owns which
 command id reaches which entry point."""
 from __future__ import annotations
@@ -42,7 +42,7 @@ def satellite_source(funestra: FunTimeFunestra) -> str:
 
 
 def same_video(left: str, right: str) -> bool:
-    """Whether two paths name the same clip, under the library's path normalization."""
+    """Whether two paths name the same video, under the library's path normalization."""
     return normalize_path_key(left) == normalize_path_key(right)
 
 
@@ -61,10 +61,10 @@ def send_satellite(config: BridgeConfig, funestra: FunTimeFunestra, verb: str) -
 
 
 def play_video(config: BridgeConfig, funestra: FunTimeFunestra, path: str) -> None:
-    """Make *path* the satellite's current clip.
+    """Make *path* the satellite's current video.
 
-    ``PLAY_FILE`` is the native Funestra's jump-or-splice: it jumps to the clip if
-    it is already queued, else splices it in after the current clip and plays it.
+    ``PLAY_FILE`` is the native Funestra's jump-or-splice: it jumps to the video if
+    it is already queued, else splices it in after the current video and plays it.
     """
     send_satellite(config, funestra, play_file(scripted_item(path, config.regen_metadata_root)))
 
@@ -93,7 +93,7 @@ def lock_on_what_was_meant(funestra: FunTimeFunestra, config: BridgeConfig, aime
 def cancel_lock(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig) -> BridgeState:
     """Release a repeat-one lock so the Satellite auto-advances again.
 
-    A locked satellite is holding one clip (``LOCK`` → mpv ``loop_file``); the
+    A locked satellite is holding one video (``LOCK`` → mpv ``loop_file``); the
     ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the Satellite
     was not locked.
     """
@@ -105,9 +105,9 @@ def cancel_lock(funestra: FunTimeFunestra, state: BridgeState, config: BridgeCon
 def clear_satellite_grouping(state: BridgeState, funestra: FunTimeFunestra) -> BridgeState:
     """Forget any group loop AND any widened seed row on *Funestra* satellite — its
     playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
-    was set.  The widen only ever means something in the context of the clip/loop
+    was set.  The widen only ever means something in the context of the video/loop
     it was taken around, so a rebuild that drops the loop drops the widen with it."""
-    return state.with_satellite(funestra, loop="", map_anchor="", widen_clip="")
+    return state.with_satellite(funestra, loop="", map_anchor="", widen_video="")
 
 
 def _satellite_group_index(funestra: FunTimeFunestra, config: BridgeConfig, current: str) -> GroupIndex:
@@ -223,13 +223,13 @@ def cycle_variant(
 def more_seeds(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Widen the seed row the HUD draws around the current clip — "more seeds".
+    """Widen the seed row the HUD draws around the current video — "more seeds".
 
-    This does NOT change what is playing; it records that this clip's net is
+    This does NOT change what is playing; it records that this video's net is
     widened, and the HUD redraws its seed row with the near-matches ranked in.  It
     then loops that pool — the point of a wider row is to cycle it — which also
     re-shapes a seed loop that was already running onto exactly what the HUD now
-    shows.  The widen never leaves the clip's own action, so the dead end here is
+    shows.  The widen never leaves the video's own action, so the dead end here is
     "nothing else in the library does this act", which is a real answer rather
     than a reason to hand back some other act."""
     source = satellite_source(funestra)
@@ -242,8 +242,8 @@ def more_seeds(
     wide = {normalize_path_key(m) for m in widened_seed_items(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=logging.WARNING)]
-    state = state.with_satellite(funestra, widen_clip=current)
-    # Loop the pool that was just widened: the widen anchor now matches the clip on
+    state = state.with_satellite(funestra, widen_video=current)
+    # Loop the pool that was just widened: the widen anchor now matches the video on
     # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
     # where none was running and re-shapes one that was.  Its notices are dropped —
     # "More seeds" is the one thing that happened, from the user's side.
@@ -254,14 +254,14 @@ def more_seeds(
 def wrong_action(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Strike the act out of the current clip's sidecar — "wrong action".
+    """Strike the act out of the current video's sidecar — "wrong action".
 
-    Nothing about playback changes: the clip is not bad, only mislabeled, so it
-    plays on.  What changes is the library: with no ``video.action`` the clip
+    Nothing about playback changes: the video is not bad, only mislabeled, so it
+    plays on.  What changes is the library: with no ``video.action`` the video
     reads as still needing one, which is what brings it back around in Evolver's
     backfill tool to be named again.
 
-    The clip judged is the one the speaker was looking at (*target_path*) rather
+    The video judged is the one the speaker was looking at (*target_path*) rather
     than whatever an auto-advancing satellite has moved on to, exactly as for
     "weird" and the cycles.
     """
@@ -285,18 +285,18 @@ def wrong_action(
 def _loop_items(
     funestra: FunTimeFunestra, axis: str, state: BridgeState, config: BridgeConfig, current: str
 ) -> tuple[list[str], bool]:
-    """The clips *axis*'s loop would run on satellite *Funestra* around *current*, and
+    """The videos *axis*'s loop would run on satellite *Funestra* around *current*, and
     whether that pool is the widened seed row rather than the exact family.
 
-    Fewer than two items means the group holds only this clip, so there is no loop
+    Fewer than two items means the group holds only this video, so there is no loop
     to be had on that axis — which is what turns the loop into a lock below and what
     makes the loop key step past the axis.  The group index under this is cached,
     so asking a second time before dispatching costs nothing.
     """
     index = _satellite_group_index(funestra, config, current)
     # Loop what the HUD is showing: if the seed row has been widened around this
-    # very clip ("more seeds"), loop that wider pool, not just the exact family.
-    widened = axis == "seed" and same_video(state.satellite(funestra).widen_clip, current)
+    # very video ("more seeds"), loop that wider pool, not just the exact family.
+    widened = axis == "seed" and same_video(state.satellite(funestra).widen_video, current)
     gather = widened_seed_items if widened else (
         action_group_items if axis == "action" else seed_family_items
     )
@@ -306,7 +306,7 @@ def _loop_items(
 def group_loop(
     funestra: FunTimeFunestra, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Loop the satellite around the current clip's action group or seed family."""
+    """Loop the satellite around the current video's action group or seed family."""
     source = satellite_source(funestra)
     ops: list[WindowOp] = []
     current = target_path or satellite_current(config, funestra)
@@ -318,9 +318,9 @@ def group_loop(
                                          current)
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = cancel_lock(funestra, state, config)
-    # Write the group as the Satellite's playlist with the current clip first, then
-    # RELOAD_PLAYLIST: the native Funestra keeps the current clip playing when it
-    # survives the reload, so the clip on screen is never restarted and only what
+    # Write the group as the Satellite's playlist with the current video first, then
+    # RELOAD_PLAYLIST: the native Funestra keeps the current video playing when it
+    # survives the reload, so the video on screen is never restarted and only what
     # comes up next becomes the group, which then cycles by auto-advance.
     items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
     write_playlist_file(config.satellite(funestra).playlist_file, items,
@@ -332,18 +332,18 @@ def group_loop(
     # Anchor the widen on the loop iff it is the loose family being looped, so the
     # HUD reads a running seed loop as widened exactly when it truly is — and a
     # plain exact-family loop drops any stale anchor.
-    state = state.with_satellite(funestra, widen_clip=current if widened else "")
+    state = state.with_satellite(funestra, widen_video=current if widened else "")
     ops.append(WindowOp(op="notice", key=message, source=source))
     return state, ops
 
 
-def lock_a_loop_left_with_one_clip(
-    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, clip_that_left: str
+def lock_a_loop_left_with_one_video(
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, video_that_left: str
 ) -> tuple[BridgeState, list[WindowOp]]:
     axis = state.satellite(funestra).loop
     if not axis:
         return state, []
-    items, _widened = _loop_items(funestra, axis, state, config, clip_that_left)
+    items, _widened = _loop_items(funestra, axis, state, config, video_that_left)
     if len(items) > 1:
         return state, []
     send_satellite(config, funestra, LOCK_ON)
@@ -386,14 +386,14 @@ def _loop_and_lock_off(
 
 
 def _browse_after(browse: list[str], current: str) -> list[str]:
-    """*browse*, guaranteed to still hold *current* — the clip on screen.
+    """*browse*, guaranteed to still hold *current* — the video on screen.
 
-    The Funestra keeps its clip across a playlist reload only while the new list
+    The Funestra keeps its video across a playlist reload only while the new list
     still holds it, and a loop item usually is not in the browse: the browse
-    picks one clip per group and the loop was cycling that group's others.  So the
-    clip on screen heads the restored list — it plays to its own end and the browse
+    picks one video per group and the loop was cycling that group's others.  So the
+    video on screen heads the restored list — it plays to its own end and the browse
     is simply what comes up next.  A browse that already holds it keeps its own
-    order, which the reload resumes from wherever the clip sits.
+    order, which the reload resumes from wherever the video sits.
     """
     if not current or any(same_video(path, current) for path in browse):
         return browse
@@ -411,7 +411,7 @@ def no_loop(
     """End a group loop, returning the queue to the browse — but keep the filter.
 
     A loop shrank the queue to the group; ending it reshapes the queue back to
-    the satellite's default browse *in place*, so the clip on screen keeps
+    the satellite's default browse *in place*, so the video on screen keeps
     playing to its end and only what comes up next returns to browsing.  The
     satellite's own filter is kept (reset, by contrast, also clears it), so the
     restored browse still honors it.
@@ -426,7 +426,7 @@ def no_loop(
         regen_metadata_root=config.regen_metadata_root,
     )
     # A non-empty filter that now matches nothing would blank the queue, so the
-    # browse is only reshaped when it actually has clips; otherwise the loop's
+    # browse is only reshaped when it actually has videos; otherwise the loop's
     # queue keeps playing and just the flag clears.
     if browse:
         write_playlist_file(config.satellite(funestra).playlist_file, _browse_after(browse, current),
@@ -444,10 +444,10 @@ def cycle_version(
     funestra: FunTimeFunestra, delta: int, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Step the clip on screen to another of its renditions, either way."""
+    """Step the video on screen to another of its renditions, either way."""
     current = satellite_current(config, funestra)
-    clip = target_path or current
-    family = renditions(clip, config.regen_media_root)
+    video = target_path or current
+    family = renditions(video, config.regen_media_root)
     if not family:
         return state, [WindowOp(op="notice", key="No other version",
                                 source=satellite_source(funestra), level=logging.WARNING)]
@@ -462,7 +462,7 @@ def switch_to_video(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Switch a satellite straight to *path* — the command a HUD thumbnail click
     sends.  Plays it from the playlist if it is already there, else splices it in
-    after the current clip, exactly as cycling to a sibling does."""
+    after the current video, exactly as cycling to a sibling does."""
     if not path:
         return state, []
     play_video(config, funestra, path)
@@ -473,10 +473,10 @@ def navigate_hud(
     funestra: FunTimeFunestra, direction: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Move the HUD map's keyboard selection one step and switch the satellite to
-    the picked clip, keeping the map frozen on the clip navigation began from.
+    the picked video, keeping the map frozen on the video navigation began from.
 
     The selection is wherever the satellite is now playing on the frozen map; the
-    step lands on a neighbouring cell, whose clip becomes the new current video.
+    step lands on a neighbouring cell, whose video becomes the new current video.
     A satellite that auto-advanced off the frozen map re-anchors on whatever is
     now playing.  Each axis wraps, so running off its end comes round to the
     anchor; only a step with genuinely nowhere to go — sideways off the action
@@ -486,7 +486,7 @@ def navigate_hud(
     A vertical step from a seed cell dives into THAT seed's own action column —
     the one the HUD draws under the lit cell (``build_hud`` hangs it
     there) — re-rooting the map on the seed it stepped down from.  The frozen
-    anchor's own acts belong to the corner's seed, which is a different clip.
+    anchor's own acts belong to the corner's seed, which is a different video.
     """
     source = satellite_source(funestra)
     current = satellite_current(config, funestra)
@@ -497,7 +497,7 @@ def navigate_hud(
     if anchor:
         seeds, actions = hud_map_cells(index, anchor)
         if locate_cell(current, anchor, seeds, actions) is None:
-            anchor = ""  # drifted off the frozen map — start over from the live clip
+            anchor = ""  # drifted off the frozen map — start over from the live video
     if not anchor:
         anchor = current
     root = anchor

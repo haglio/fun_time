@@ -29,10 +29,10 @@ _LAST_SESSIONS_STATE = (
     "omni_paused = 0\nmain_latest = 0\nmain_plays_vr = 1\nmain_plays_flat = 1\n"
     "genau_latest = 0\nactive_side = 3\nvolume = 40\nmuted = 1\n"
     "locked2 = 1\nportrait_filter = alpha\nportrait_f_mode = 1\nportrait_latest = 0\n"
-    "portrait_loop = seed\nportrait_map_anchor = C:/v/a.mp4\nportrait_widen_clip = \n"
+    "portrait_loop = seed\nportrait_map_anchor = C:/v/a.mp4\nportrait_widen_video = \n"
     "portrait_nav_anchor = \nlocked3 = 0\nlandscape_filter = \nlandscape_f_mode = 0\n"
     "landscape_latest = 1\nlandscape_loop = \nlandscape_map_anchor = \n"
-    "landscape_widen_clip = \nlandscape_nav_anchor = \n"
+    "landscape_widen_video = \nlandscape_nav_anchor = \n"
 )
 
 

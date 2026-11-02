@@ -5,7 +5,7 @@ through the command/paused/status file quartet — ``append_command`` in,
 ``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
 Complements ``test_satellite_native_integration`` (which proves basic
 play/lock/pause) by covering navigation inverses, wrap-around, discard, playlist
-reload, PLAY_FILE, and a clip that arrives while the Satellite plays its Latest list.
+reload, PLAY_FILE, and a video that arrives while the Satellite plays its Latest list.
 
 Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
 """
@@ -33,8 +33,8 @@ from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 
-from .integration_support import clip_of_a_test_pattern, published_status
-from .lone_satellite import LoneSatellite, a_lone_satellite, library_clips_of
+from .integration_support import published_status, video_of_a_test_pattern
+from .lone_satellite import LoneSatellite, a_lone_satellite, library_videos_of
 from .run_clock import Budget
 
 pytestmark = [
@@ -49,18 +49,18 @@ pytestmark = [
 @pytest.fixture
 def satellite():
     lone = a_lone_satellite()
-    with lone.launched(library_clips_of("portrait", 4), width=800, height=600, hud=True):
+    with lone.launched(library_videos_of("portrait", 4), width=800, height=600, hud=True):
         lone.wait_until_playing()
-        # Lock so the clip on screen never auto-advances mid-test, making each
+        # Lock so the video on screen never auto-advances mid-test, making each
         # navigation's effect unambiguous.  A locked satellite still obeys NEXT/PREV
-        # (they load a new clip); it just does not walk on its own.
+        # (they load a new video); it just does not walk on its own.
         lone.send(LOCK_ON)
         lone.wait_for(lambda: read_satellite_status(lone.status).locked,
                       desc="the satellite to lock")
         yield lone
 
 
-def test_next_changes_the_clip(satellite):
+def test_next_changes_the_video(satellite):
     start = satellite.video()
     assert start.endswith(".mp4")
     satellite.send("NEXT")
@@ -87,7 +87,7 @@ def test_navigation_wraps_around(satellite):
     assert current == start, f"stepping the whole list should wrap to {start!r}, got {current!r}"
 
 
-def test_play_file_switches_to_a_specific_clip(satellite):
+def test_play_file_switches_to_a_specific_video(satellite):
     """A line of the playlist is a video and, where it has one, a TAB and its
     funscript, and ``PLAY_FILE`` carries that whole line -- so what the Funestra
     then reports playing is the video half of it."""
@@ -102,23 +102,23 @@ def test_play_file_switches_to_a_specific_clip(satellite):
         f"PLAY_FILE should jump to {target.path}, got {after!r}")
 
 
-def test_trash_advances_off_the_discarded_clip(satellite):
+def test_trash_advances_off_the_discarded_video(satellite):
     condemned = satellite.video()
     satellite.send("TRASH")
     after = satellite.wait_for_video(other_than=condemned)
     assert after != condemned
 
 
-def test_reload_playlist_keeps_the_current_clip(satellite):
-    """A loop/filter reshape writes a new playlist that still contains the clip on
-    screen and sends RELOAD_PLAYLIST; the native Funestra keeps that clip playing."""
+def test_reload_playlist_keeps_the_current_video(satellite):
+    """A loop/filter reshape writes a new playlist that still contains the video on
+    screen and sends RELOAD_PLAYLIST; the native Funestra keeps that video playing."""
     current = satellite.video()
     videos = [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
-    # Rebuild the playlist with the current clip kept and the order changed.
+    # Rebuild the playlist with the current video kept and the order changed.
     reshaped = [current] + [v for v in videos if v != current]
     write_playlist_file(satellite.playlist, reshaped)
     satellite.send("RELOAD_PLAYLIST")
-    # The clip on screen must survive the reload — never restarted to item 0.
+    # The video on screen must survive the reload — never restarted to item 0.
     time.sleep(1.0)
     assert satellite.video() == current, "RELOAD_PLAYLIST should keep the current clip"
 
@@ -190,11 +190,11 @@ def _drained(satellite: LoneSatellite) -> None:
     satellite.wait_for(empty, desc="the Funestra to drain its command file")
 
 
-def test_latest_puts_the_newest_clip_on_screen(satellite):
+def test_latest_puts_the_newest_video_on_screen(satellite):
     """The user-visible contract of "portrait latest": the newest arrival is what
     comes up.
 
-    Reordering the queue is not enough — the reload keeps the clip on screen playing
+    Reordering the queue is not enough — the reload keeps the video on screen playing
     while it survives the new list, so the newest-first order applied only *after*
     it and the top of the list was never reached.  This drives the production
     dispatch over a small real source tree with mtimes we set, so "newest" is a fact
@@ -202,10 +202,10 @@ def test_latest_puts_the_newest_clip_on_screen(satellite):
     """
     made: list[str] = []
     for i in range(4):
-        clip = clip_of_a_test_pattern(satellite.sources / f"clip{i}.mp4", size="240x426",
+        video = video_of_a_test_pattern(satellite.sources / f"clip{i}.mp4", size="240x426",
                                       seconds=3)
-        os.utime(clip, (1000 + i * 1000, 1000 + i * 1000))
-        made.append(str(clip))
+        os.utime(video, (1000 + i * 1000, 1000 + i * 1000))
+        made.append(str(video))
     oldest, newest = made[0], made[-1]
 
     # Start on the oldest, which the rebuilt list still holds: without the jump to
@@ -220,14 +220,14 @@ def test_latest_puts_the_newest_clip_on_screen(satellite):
                        desc="the newest clip to come up")
 
 
-def test_a_clip_that_arrives_under_latest_comes_up_after_the_one_on_screen(satellite):
-    """What the session hands a Funestra that plays its Latest list when a clip comes
-    into its library, read by the real Funestra: the clip on screen stays up, and
-    the next one is the clip that came in."""
-    clip_of_a_test_pattern(satellite.sources / "already there.mp4", size="240x426", seconds=3)
+def test_a_video_that_arrives_under_latest_comes_up_after_the_one_on_screen(satellite):
+    """What the session hands a Funestra that plays its Latest list when a video comes
+    into its library, read by the real Funestra: the video on screen stays up, and
+    the next one is the video that came in."""
+    video_of_a_test_pattern(satellite.sources / "already there.mp4", size="240x426", seconds=3)
     arrivals = LatestArrivals(_bridge_config(satellite))
     arrivals.look()
-    arrived = clip_of_a_test_pattern(satellite.sources / "arrived.mp4", size="240x426",
+    arrived = video_of_a_test_pattern(satellite.sources / "arrived.mp4", size="240x426",
                                      seconds=3)
     arrivals.look()
     on_screen = satellite.video()
@@ -241,16 +241,16 @@ def test_a_clip_that_arrives_under_latest_comes_up_after_the_one_on_screen(satel
     assert still_up == on_screen
 
 
-def test_no_loop_keeps_the_clip_on_screen_playing(satellite):
-    """Turning a loop OFF must leave the clip on screen alone, changing only what
+def test_no_loop_keeps_the_video_on_screen_playing(satellite):
+    """Turning a loop OFF must leave the video on screen alone, changing only what
     comes up next — the whole contract of the loop toggle.
 
     The interesting case is the real one: a loop cycles a group whose items are
-    NOT in the browse it returns to (the browse holds one clip per group), and a
-    Funestra whose clip is missing from a reloaded playlist restarts at the top.  So
+    NOT in the browse it returns to (the browse holds one video per group), and a
+    Funestra whose video is missing from a reloaded playlist restarts at the top.  So
     this drives the production ``portrait_no_loop`` against a real Funestra with
     exactly that shape of browse — stubbing only where the browse's *contents* come
-    from, since the real library might happen to include the clip on screen and
+    from, since the real library might happen to include the video on screen and
     then never exercise the case at all.
     """
     config = _bridge_config(satellite)
@@ -266,7 +266,7 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite):
     assert satellite.video() == playing, "loop off must never switch the clip on screen"
 
 
-def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite):
+def test_next_leaves_a_loop_down_to_one_video_for_another_video(satellite):
     config = _bridge_config(satellite)
     playing = satellite.video()
     browse = [v for v in _playlist_videos(satellite) if v != playing]
@@ -282,11 +282,11 @@ def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite):
 
 
 def _decoding(satellite: LoneSatellite) -> bool:
-    """Whether the Funestra still has a decoded clip on screen.
+    """Whether the Funestra still has a decoded video on screen.
 
     ``duration_ms`` and ``position_ms`` are mpv's own ``duration`` / ``time_pos``,
     which are None — published as 0 — the moment mpv has no file open.  A Funestra
-    showing a black window reads exactly that way, so this is what tells a clip
+    showing a black window reads exactly that way, so this is what tells a video
     still being drawn from an empty video output.
     """
     status = published_status(read_satellite_status, satellite.status)
@@ -295,20 +295,20 @@ def _decoding(satellite: LoneSatellite) -> bool:
 
 def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
     """"More seeds" reshapes a seed loop's playlist a second time, seconds after
-    the loop itself reshaped it — and the Funestra must still be drawing its clip.
+    the loop itself reshaped it — and the Funestra must still be drawing its video.
 
-    This is the sequence off the HUD's expand button: lock a clip, start its seed
+    This is the sequence off the HUD's expand button: lock a video, start its seed
     loop (one playlist rewrite + RELOAD_PLAYLIST), then widen the net (another).
-    Only the widening pool is stubbed, so which clips come back is fixed while
+    Only the widening pool is stubbed, so which videos come back is fixed while
     every reshape, verb and reload is the production one — the point is what two
     reloads in a row do to a real mpv, not what the library ranks.
 
     On the landscape library at a landscape slot's size, because that is where the
-    load is: those clips are the upscaled 4K ones, prefetch has mpv opening the
+    load is: those videos are the upscaled 4K ones, prefetch has mpv opening the
     next while the current still decodes, and widening is exactly what puts a
     satellite into a tight loop over a handful of them.
     """
-    videos = library_clips_of("landscape", 8)
+    videos = library_videos_of("landscape", 8)
     satellite = a_lone_satellite()
     with satellite.launched(videos[:3], width=1706, height=1410, hud=True):
         satellite.wait_until_playing()
@@ -347,11 +347,11 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
         _drained(satellite)
         assert satellite.video() == playing, "widening must never switch the clip on screen"
         assert _decoding(satellite), "the Funestra went black when the seed row widened"
-        # Then let the widened loop run through several clip boundaries: the reload
+        # Then let the widened loop run through several video boundaries: the reload
         # lands wherever the click happened to fall, so what has to hold is that the
         # video output survives every auto-advance the reshaped queue then makes.
         #
-        # A clip mpv had not finished prefetching cold-opens at the boundary and
+        # A video mpv had not finished prefetching cold-opens at the boundary and
         # reads 0/0 for a beat, so what fails this is a blank that OUTLASTS any
         # transition — the Funestra having lost its file for good, which is the black
         # window that never comes back.

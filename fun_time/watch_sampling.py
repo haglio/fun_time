@@ -1,6 +1,6 @@
 """Watch tracking: which video each Funestra is on, and what a departure meant.
 
-Every Funestra's current clip is sampled twice a second and fed to the trackers,
+Every Funestra's current video is sampled twice a second and fed to the trackers,
 which classify playback into completions and skips for the stats file.  The two
 satellites also feed a history of what each had on screen, so a spoken command can be
 back-dated to the video on screen when the speaker started talking.
@@ -17,7 +17,7 @@ from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
 from .watch_stats import WatchTracker, record_watch_event
 
-# Twice a second: the cadence for sampling every Funestra's current clip (both
+# Twice a second: the cadence for sampling every Funestra's current video (both
 # satellites and the Main Funestra feed).  A satellite video switch is only ever
 # bracketed by two samples, so this also bounds how far a back-dated command can
 # misplace a switch (the history halves it again by dating the switch to the

@@ -289,7 +289,7 @@ def _area(placement: Placement, aspect: float) -> float:
 
 
 class TestAFrameKeepsItsArea:
-    def test_a_clip_taller_than_it_is_wide_covers_what_a_widescreen_one_does_in_the_main_funestra(
+    def test_a_video_taller_than_it_is_wide_covers_what_a_widescreen_one_does_in_the_main_funestra(
             self):
         slot = Placement(0.0, 0.0, 80.0)
 

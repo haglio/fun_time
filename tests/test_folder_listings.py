@@ -7,7 +7,7 @@ from fun_time.folder_listings import FolderListings
 from tests.drive_fakes import files_that_never_answer, folders_listed
 
 
-def _clip(folder: Path, name: str, *, size: int, modified: float) -> Path:
+def _video(folder: Path, name: str, *, size: int, modified: float) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     video = folder / name
     video.write_bytes(b"x" * size)
@@ -16,7 +16,7 @@ def _clip(folder: Path, name: str, *, size: int, modified: float) -> Path:
 
 
 def test_a_file_s_size_and_date_come_from_its_folder(tmp_path: Path):
-    video = _clip(tmp_path / "vids", "clip.mp4", size=7, modified=1000)
+    video = _video(tmp_path / "vids", "clip.mp4", size=7, modified=1000)
 
     with files_that_never_answer(tmp_path / "vids"):
         listings = FolderListings()
@@ -26,10 +26,10 @@ def test_a_file_s_size_and_date_come_from_its_folder(tmp_path: Path):
 
 
 def test_a_folder_is_listed_once_however_many_of_its_files_are_asked_about(tmp_path: Path):
-    """The map under the Main Funestra asks about a dozen clips each time it is
+    """The map under the Main Funestra asks about a dozen videos each time it is
     drawn, and the browse about hundreds -- one listing has to serve them all."""
     folder = tmp_path / "vids"
-    videos = [_clip(folder, f"clip{index}.mp4", size=index + 1, modified=1000 + index)
+    videos = [_video(folder, f"clip{index}.mp4", size=index + 1, modified=1000 + index)
               for index in range(5)]
     listings = FolderListings()
 
@@ -48,8 +48,8 @@ def test_a_video_no_longer_in_its_folder_has_no_size_or_date(tmp_path: Path):
 
 
 def test_each_folder_of_a_library_is_listed_in_its_turn(tmp_path: Path):
-    one = _clip(tmp_path / "vids", "clip.mp4", size=3, modified=1000)
-    two = _clip(tmp_path / "vids" / "deeper", "other.mp4", size=9, modified=2000)
+    one = _video(tmp_path / "vids", "clip.mp4", size=3, modified=1000)
+    two = _video(tmp_path / "vids" / "deeper", "other.mp4", size=9, modified=2000)
 
     with files_that_never_answer(tmp_path / "vids"):
         listings = FolderListings()

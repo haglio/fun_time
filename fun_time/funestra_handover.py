@@ -1,7 +1,7 @@
 """A Satellite Funestra handed to the hosted Origenerator, and taken back.
 
 The app writes the Funestra's own playlist file, so the session's list is kept
-aside — turned onto the clip on screen — and put back when the Funestra comes home,
+aside — turned onto the video on screen — and put back when the Funestra comes home,
 where the Funestra opens at its top: exactly where it left off.
 """
 from __future__ import annotations
@@ -80,7 +80,7 @@ def _kept(playlist_file: Path) -> Path:
 
 
 def keep_aside(channel: SatelliteChannel) -> None:
-    """Keep *channel*'s list, turned onto the clip the Funestra is showing.
+    """Keep *channel*'s list, turned onto the video the Funestra is showing.
 
     A Funestra already holding a kept list never came home, and the list it
     has now is the hosted app's, not the session's.

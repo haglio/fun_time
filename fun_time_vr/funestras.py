@@ -8,7 +8,7 @@ frame.  The process around them is :mod:`fun_time_vr.app`.
 can stall for arbitrary milliseconds: the satellites' Funestras and the room's
 panels on one worker, the Main Funestra on a worker of its own at Genau's
 rate; each video paints on a thread and GL context of its own
-(:mod:`fun_time_vr.video_thread`), since a clip change costs mpv whole frames.
+(:mod:`fun_time_vr.video_thread`), since a video change costs mpv whole frames.
 """
 from __future__ import annotations
 

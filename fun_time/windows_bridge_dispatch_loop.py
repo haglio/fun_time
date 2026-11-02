@@ -357,7 +357,7 @@ class DispatchLoopRunner:
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
         # A press bound for an Origenerator show steps that show, and booking
-        # it here would count a library clip as skipped or discarded.
+        # it here would count a library video as skipped or discarded.
         if not routes_to_origenerator(command, self.state, self.config):
             self.watch.note_command(command)
         self._take(*dispatch_command(
@@ -747,7 +747,7 @@ def _run_minimize_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
     # A Funestra's own HUD minimize button, parking that one window — straight
     # away, unlike the settled hide of the Main Funestra: the window goes down still
     # showing its video, which is what was pressed for, and its frozen
-    # thumbnail is then the clip it holds.
+    # thumbnail is then the video it holds.
     runner.windows.park(op.key)
 
 
@@ -776,7 +776,7 @@ def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._pending_rfb_urls.append(op.key)
 
 
-def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+def _run_save_video(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # Slow work runs beside the loop, like the browse; the thread flashes the
     # result when the save lands.
     runner._answers += 1
@@ -837,7 +837,7 @@ _OP_HANDLERS = {
     Op.SUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
-    Op.SAVE_CLIP: _run_save_clip,
+    Op.SAVE_CLIP: _run_save_video,
     Op.MAIN_FUNESTRA_ANSWERS: _run_an_answer_given_elsewhere,
     Op.NARROWING_ANSWERS: _run_an_answer_given_elsewhere,
     Op.IGNORED: _run_ignored,

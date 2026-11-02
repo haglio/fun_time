@@ -69,7 +69,7 @@ def test_a_cached_still_is_found_for_a_video_its_drive_will_not_answer_about(tmp
     assert found == thumbnail_path(video, cache)
 
 
-def test_a_map_of_one_folder_s_clips_lists_that_folder_once(tmp_path: Path):
+def test_a_map_of_one_folder_s_videos_lists_that_folder_once(tmp_path: Path):
     folder = tmp_path / "vids"
     folder.mkdir()
     videos = []
@@ -158,7 +158,7 @@ def test_a_cached_thumbnail_is_offered_only_while_its_file_is_there(tmp_path: Pa
 def test_prewarming_covers_every_path_it_is_handed(tmp_path: Path):
     """Stills are extracted up front so a first use never blocks on a frame grab
     — the source of the multi-second map lag.  Each caller decides *which*
-    videos: a satellite warms every clip in its library, the main library browser
+    videos: a satellite warms every video in its library, the main library browser
     warms one per handle, off the cheapest rendition of it."""
     cache_dir = tmp_path / "thumbs"
     warmed: list[tuple[str, object]] = []

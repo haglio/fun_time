@@ -3,7 +3,7 @@
 Handing a Funestra over costs the session its own list for that Funestra — the hosted
 app writes the Funestra's playlist file — so the list is kept aside first and put
 back when the Funestra comes home.  What these pin is that coming home lands the
-Funestra on the clip it was showing when it left.
+Funestra on the video it was showing when it left.
 """
 from __future__ import annotations
 
@@ -35,9 +35,9 @@ def _playing(channel: SatelliteChannel, video: str) -> None:
     channel.status_file.write_text(f"video={video}\n", encoding="utf-8")
 
 
-def test_coming_home_lands_the_funestra_on_the_clip_it_left(tmp_path):
-    """The kept list is turned onto the clip on screen, and a Funestra handed a
-    list it is not playing opens at the top of it — which is that clip."""
+def test_coming_home_lands_the_funestra_on_the_video_it_left(tmp_path):
+    """The kept list is turned onto the video on screen, and a Funestra handed a
+    list it is not playing opens at the top of it — which is that video."""
     channel = _channel(tmp_path)
     write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / name)
                                         for name in ("one.mp4", "two.mp4", "three.mp4")])
@@ -51,7 +51,7 @@ def test_coming_home_lands_the_funestra_on_the_clip_it_left(tmp_path):
     assert consume_command_file(channel.cmd_file, uppercase=False) == ["RELOAD_PLAYLIST"]
 
 
-def test_coming_home_lands_on_the_clip_it_had_moved_on_to_before_the_app_took_it(tmp_path):
+def test_coming_home_lands_on_the_video_it_had_moved_on_to_before_the_app_took_it(tmp_path):
     """The app takes seconds to fill the Satellite, and the Funestra plays on meanwhile."""
     channel = _channel(tmp_path)
     write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / name)

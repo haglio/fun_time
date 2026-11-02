@@ -151,7 +151,7 @@ def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
                             paused: bool = False, locked: bool = False) -> None:
     """Write a native satellite's status file the way its Funestra publishes it.
 
-    ``fraction`` sets how far through the clip the Funestra reports: None writes a
+    ``fraction`` sets how far through the video the Funestra reports: None writes a
     not-yet-known duration (``read_satellite_status().fraction`` is then None, so
     the sample is dropped), otherwise position/duration encode the fraction.
     """
@@ -1398,7 +1398,7 @@ class TestWhatASpokenCommandFlashes:
 
         assert flashed == [("ignored in Genau mode: compilation", "main", logging.WARNING)]
 
-    def test_a_clip_save_with_no_main_funestra_to_save_from_says_genau_mode_ignored_it(
+    def test_a_video_save_with_no_main_funestra_to_save_from_says_genau_mode_ignored_it(
         self, tmp_path,
     ):
         flashed = self._run_for_real(
@@ -1439,7 +1439,7 @@ class TestWhatASpokenCommandFlashes:
 
         assert flashed == []
 
-    def test_a_clip_save_that_answers_once_it_lands_says_nothing_now(self, tmp_path):
+    def test_a_video_save_that_answers_once_it_lands_says_nothing_now(self, tmp_path):
         spoken = format_spoken_command("genaumacher_save", spoken_at=1.0, said="save clip")
 
         with patch.object(windows_bridge_dispatch_loop, "save_and_say"):
@@ -2141,7 +2141,7 @@ class TestBrowseLibrary:
         assert runner.config.main_funestra_cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
 
-    def test_genau_browses_its_clips_over_the_main_funestras_window_from_the_clip_it_has_up(self, tmp_path):
+    def test_genau_browses_its_videos_over_the_main_funestras_window_from_the_video_it_has_up(self, tmp_path):
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
@@ -2161,7 +2161,7 @@ class TestBrowseLibrary:
             playing="C:/library/genau/flicks/Scene One.mp4", flicks=True, runner=runner._run_browser,
         )
 
-    def test_a_clip_picked_in_genau_mode_goes_to_genau_not_the_main_funestra(self, tmp_path):
+    def test_a_video_picked_in_genau_mode_goes_to_genau_not_the_main_funestra(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
 
@@ -2838,7 +2838,7 @@ class TestIdempotentVoiceCommands:
 
     # -- genaumacher save --
 
-    def test_save_clip_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
+    def test_save_video_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
         """The save boots a sibling repo's interpreter (up to its 10 s timeout),
         so the tick hands it to a thread and the notice lands when it does —
         the one command whose confirmation trails the keypress."""
@@ -2863,7 +2863,7 @@ class TestIdempotentVoiceCommands:
         # writes unknown ops verbatim into ahk_cmd.txt).
         assert not runner.ahk_cmd_file.exists()
 
-    def test_save_clip_failure_flashes_nothing(self, tmp_path, caplog):
+    def test_save_video_failure_flashes_nothing(self, tmp_path, caplog):
         """save_clip_session answers "" on failure and has already logged why;
         an empty notice would flash an empty rectangle."""
         runner = make_runner(tmp_path)
@@ -3891,7 +3891,7 @@ class TestTheAppTakesAFunestra:
 class TestTheFunestrasComeHome:
     """Leaving origenerator mode asks the hosted app to let go of the two
     Funestras, and each comes home once it has: its own list back, turned onto
-    the clip it left, with the session's own hold put back on it."""
+    the video it left, with the session's own hold put back on it."""
 
     def _left_for_origenerator(self, tmp_path, *, locked=False):
         config = _hosting(tmp_path)

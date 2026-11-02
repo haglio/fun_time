@@ -94,7 +94,7 @@ class TestLeavingACompilationWithoutNamingALength:
 
         assert jumps.ended_with == [THE_MAIN_LIST]
 
-    def test_the_clip_on_screen_keeps_playing(self):
+    def test_the_video_on_screen_keeps_playing(self):
         modes, playback, _jumps = _modes(compilation="Vol6")
 
         modes.end_compilation()
@@ -198,7 +198,7 @@ class TestWhatIsPublishedAboutThePlaceInTheLibrary:
 
 
 class TestWhatIsWrittenDownForTheNextSession:
-    def test_inside_a_compilation_the_clip_is_its_anchor(self):
+    def test_inside_a_compilation_the_video_is_its_anchor(self):
         modes, _playback, _jumps = _modes(compilation="Vol6", current=SECOND)
 
         assert modes.remembered == RememberedMode(compilation="Vol6", video=str(SECOND))

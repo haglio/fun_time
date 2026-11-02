@@ -73,10 +73,10 @@ def test_a_funestra_stopped_before_the_first_pass_is_only_closed():
 
 
 def _a_funestra(tmp_path) -> tuple[Funestra, FakeEngine]:
-    clip = tmp_path / "one.mp4"
-    clip.write_bytes(b"")
+    video = tmp_path / "one.mp4"
+    video.write_bytes(b"")
     playlist = tmp_path / "playlist.tsv"
-    playlist.write_text(f"{clip}\n", encoding="utf-8")
+    playlist.write_text(f"{video}\n", encoding="utf-8")
     channels = Channels(playlist=playlist, command=tmp_path / "cmd.txt",
                         paused=tmp_path / "paused.txt", status=tmp_path / "status.txt")
     engine = FakeEngine()

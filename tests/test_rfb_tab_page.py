@@ -74,7 +74,7 @@ def test_render_tab_page_without_a_video_embeds_an_empty_source():
 
 
 def test_render_tab_page_embeds_no_video_for_a_relative_path():
-    """A path that is not absolute has no file URI; the page just omits the clip."""
+    """A path that is not absolute has no file URI; the page just omits the video."""
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path="clip.mp4"))
 
     assert 'var video = "";' in html

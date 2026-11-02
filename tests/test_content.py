@@ -34,7 +34,7 @@ class TestLoadContent:
         result = load_content(tmp_path / "missing.json", EXAMPLE_CONTENT)
         assert result == _example()
 
-    def test_missing_clip_jump_phrases_is_backfilled_from_the_example(self, tmp_path: Path):
+    def test_missing_video_jump_phrases_is_backfilled_from_the_example(self, tmp_path: Path):
         # The reported crash: a real overlay omitting this phrase list made
         # voice_commands' ``load_content()["clip_jump_phrases"]`` raise KeyError
         # at import.  A phrase list sensibly falls back to the example.

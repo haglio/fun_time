@@ -1,4 +1,4 @@
-"""How a projection wraps the viewer: whether a clip wraps around him or hangs as
+"""How a projection wraps the viewer: whether a video wraps around him or hangs as
 a screen, and by which math -- the difference he watches."""
 from __future__ import annotations
 

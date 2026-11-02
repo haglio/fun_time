@@ -8,7 +8,7 @@ window of its own and no z-order to fight (see :mod:`funestra.satellite_hud`).
 This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.SatelliteHud`
 into the :class:`~funestra.satellite_hud.HudModel` the Funestra parses back, and
 writes its text only when it actually changed, so a Funestra polling the file
-re-renders per clip change rather than per tick.  The Main Funestra's console
+re-renders per video change rather than per tick.  The Main Funestra's console
 rides the same publisher, and so does a Satellite the hosted Origenerator holds —
 whose HUD is that app's own, under the session's row.
 """
@@ -39,10 +39,10 @@ def _cell(path: str, thumb: object, label: str = "") -> HudCell:
 
 def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit: int,
            labels: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
-    """The drawable siblings: up to *limit* clips whose thumbnail is already cached.
+    """The drawable siblings: up to *limit* videos whose thumbnail is already cached.
 
     Cached-only, never extracting: a cv2 frame grab takes seconds on HEVC, and the
-    map has to keep up with ~5 s clips.  A sibling whose frame the background
+    map has to keep up with ~5 s videos.  A sibling whose frame the background
     prewarm has not produced yet is simply not on the map this publish, and appears
     on a later one.
     """
@@ -57,12 +57,12 @@ def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit
 
 def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
                 labels: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
-    """Every clip a running loop cycles, in the loop's own order.
+    """Every video a running loop cycles, in the loop's own order.
 
     Neither capped nor cached-only, unlike the browse map: the Funestra windows this
-    list around the clip on screen, so it needs the whole loop to window over, and
+    list around the video on screen, so it needs the whole loop to window over, and
     an item whose frame is not ready yet has to hold its place (as a placeholder)
-    rather than renumber the cells after it and slide the window off the clip
+    rather than renumber the cells after it and slide the window off the video
     playing.
     """
     by_path = dict(zip(paths, labels, strict=False))
@@ -80,7 +80,7 @@ def hud_model(hud: SatelliteHud, cache_dir: Path,
     thumbnail it drew.
     """
     listings = FolderListings()
-    # The looped axis is published whole — the Funestra windows it around the clip on
+    # The looped axis is published whole — the Funestra windows it around the video on
     # screen; the other axis is the ordinary browse map, drawn to its cap.
     seeds = (
         _loop_cells(hud.seed_siblings, cache_dir, listings) if hud.active_loop == "seed"
@@ -151,7 +151,7 @@ class HudPublisher:
     """Writes each Funestra's HUD file, skipping unchanged HUDs.
 
     Named for what it publishes to rather than what it publishes: the satellites
-    take a map of clips and the Main Funestra takes its HUD, and both want the same
+    take a map of videos and the Main Funestra takes its HUD, and both want the same
     write-only-on-change, publish-whole treatment.
     """
 

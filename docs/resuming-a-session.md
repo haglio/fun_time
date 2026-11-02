@@ -1,6 +1,6 @@
 # Resuming a session
 
-`fun_time.session_resume` brings a reopened session back to the clip each Funestra
+`fun_time.session_resume` brings a reopened session back to the video each Funestra
 was on, and the mode they were in. Both orchestrators call it, so a desktop
 reopen, a VR reopen and a crossing between the two
 ([entering-vr.md](entering-vr.md)) all resume the same way.
@@ -13,10 +13,10 @@ across a dozen docstrings it is free to drift apart in eleven of them.
 
 Every Funestra starts at the top of the playlist file fun_time hands it, and
 startup used to overwrite all three with a fresh weighted shuffle — so reopening
-Fun Time landed on three clips you had never chosen and lost whatever you were
+Fun Time landed on three videos you had never chosen and lost whatever you were
 watching. Resume keeps the satellites' last playlists and rotates each onto the
-clip that was on screen: the Funestra's first entry is where you left off, and
-because a playlist wraps, the clips that were coming up still come up in the
+video that was on screen: the Funestra's first entry is where you left off, and
+because a playlist wraps, the videos that were coming up still come up in the
 same order. The Main Funestra's list is never kept; it is built again, from the
 video that was on screen ([below](#the-main-funestras-one-list)).
 
@@ -34,14 +34,14 @@ power cut too, where a shutdown hook would not.
 ## What comes back, and why
 
 `RESUMED_FIELDS` is the list. Most of it is what shaped the playlist files: each
-Funestra's own F-mode and each Satellite's filter decide which clips are in them,
+Funestra's own F-mode and each Satellite's filter decide which videos are in them,
 Latest fixes their order, a group loop *is* the group written out as the
-playlist, with the map anchored (and the seed row widened) on the clip it
+playlist, with the map anchored (and the seed row widened) on the video it
 started from, and the Main Funestra's buttons, with the number its shuffle is
 dealt from, are what its one list is built from. The rest is what the session was simply *left* in —
 the sound level, the OSR2's max intensity, each Satellite's lock, whether the OSR2
 was let go of or held at one end, whether Genau was browsing Latest — and there
-is no more reason for those to reset overnight than for the clip on screen to.
+is no more reason for those to reset overnight than for the video on screen to.
 
 Some of them have a live counterpart to re-assert, since none of those lives in
 a file a new process reads:
@@ -124,7 +124,7 @@ has a satellite, that Funestra's playlist file holds the app's images and the
 session's own list waits beside it (`fun_time.funestra_handover`). A session quit
 there, or killed there, never brings the Funestra home — so `resume_playlists`
 takes every kept list back before it reads anything, and a session built in video
-mode opens on video lists, at the clip each Satellite was showing when it left.
+mode opens on video lists, at the video each Satellite was showing when it left.
 Without that, the session after a quit in Origenerator mode opened in Kino mode
 on two locked images, each with a one-square map and nothing to step to
 (2026-09-19). The kept lists are taken back even when the resume goes on to find
@@ -134,7 +134,7 @@ time that Funestra came home.
 ## The Main Funestra's one list
 
 The Main Funestra plays one list, and `fun_time.main_list` is the one place it is
-built. It is built from the Main Funestra's buttons — 2D and VR, clips and full
+built. It is built from the Main Funestra's buttons — 2D and VR, videos and full
 videos, F-mode, Latest or Shuffle — every time one of them is pressed and every
 time a session starts, and no session reads back the list the last one left: a
 kept list is one more thing that can disagree with the buttons, and with the
@@ -156,14 +156,14 @@ that arrived since dealt in among them. Shuffle deals a new number, and so do
 the reset and a session that starts fresh.
 
 When a press leaves the buttons letting nothing through -- both 2D and VR off,
-both lengths off, or a mix no video passes, such as only VR with only clips --
+both lengths off, or a mix no video passes, such as only VR with only videos --
 the build answers it one way, whichever press it was: the list is the video on
 screen alone, the Main Funestra is locked on it, and Fun Time says "No videos
 left". A session that starts with nothing let through holds the video on screen
 the same way; with no video to hold, it puts the buttons back where a fresh
 session has them, keeping the shuffle's number.
 
-Whether a video is a clip or a full video is the kind Evolver recorded for it.
+Whether a video is a video or a full video is the kind Evolver recorded for it.
 A video with no record counts as a full video, and so does every video in a VR
 folder, which is never asked about at all: the VR library is on the cloud drive,
 where one question about one file can hang for hours.
@@ -175,7 +175,7 @@ A/B loop is a range inside one video. Both live in a Funestra process that has
 just been replaced, so unlike a filter or an order neither can ride back in on a
 file the new Funestra reads — each is queued on the Funestra's command file before
 that Funestra launches, and drains on its first tick. By then the Funestra has
-loaded the clip at the top of its playlist, which is the clip the
+loaded the video at the top of its playlist, which is the video the
 lock was on and the video the loop was cut from. The Main Funestra holds the seek until mpv
 has the file open (its `restore_loop`), so the loop lands however slowly the
 file opens.
@@ -232,8 +232,8 @@ default too.
 
 ## Where the video was left
 
-Resume puts the clip that was on screen back at the top of each playlist; the
-point inside that clip is the Funestras' own, and is kept for every video rather
+Resume puts the video that was on screen back at the top of each playlist; the
+point inside that video is the Funestras' own, and is kept for every video rather
 than only the one a session ended on. `main_funestra.play_points` is the whole of
 it — a JSON file in the state dir keyed by video path, read when a Funestra opens
 a file and written as it plays. Every Funestra that shows a video takes it: the
@@ -244,7 +244,7 @@ Funestras again.
 Each Funestra keeps its own file — `<who>_play_points.json`. One file between them
 would have each Funestra's whole-file write erasing what the others had added
 since it started, which is the lost update `app_support.json_store` exists for
-elsewhere; separate files need no lock, and no clip is played by two of them.
+elsewhere; separate files need no lock, and no video is played by two of them.
 
 Every video is remembered, whatever its length, and wherever in it the playhead
 was. There is no minimum watched and no "near enough to the end to count as
@@ -252,8 +252,8 @@ finished": the library is mostly short videos, and a threshold at either end
 would have excluded most of it. Two things clear a point rather than move it: a
 video wound back to its very top, which is the same thing as opening at the top,
 and a video that ran out — the end of the file, exactly, not a window near it.
-Without that second one a satellite would be unplayable: its clips auto-advance
-at end-of-file, so every clip it had ever shown would open at its last frame and
+Without that second one a satellite would be unplayable: its videos auto-advance
+at end-of-file, so every video it had ever shown would open at its last frame and
 step straight on, and the playlist would race.
 
 Leaving a video — stepping off it, or closing the Funestra — writes the exact
@@ -264,12 +264,12 @@ back on.
 
 One more number is not a preference. Only a tick whose clock moved forward by
 less than `PLAYED_ON_MS` is written down periodically — a larger jump is a seek,
-a wrap at end-of-file, or the clip just left, whose position mpv goes on
+a wrap at end-of-file, or the video just left, whose position mpv goes on
 reporting for a tick or two after it is told to open another. And `REMEMBERED`
 videos keep a point, the least recently watched dropping off the end, so a file
 rewritten while a video plays cannot grow without bound.
 
 The seek is held until the Funestra reports a duration, the way the restored A/B
 loop above is, so a video opens *at* its point rather than visibly jumping there
-once the file is up. A satellite rolls onto its prefetched next clip by itself,
-so there the seek lands a tick or two into the clip rather than before it.
+once the file is up. A satellite rolls onto its prefetched next video by itself,
+so there the seek lands a tick or two into the video rather than before it.

@@ -1,7 +1,7 @@
 """Lazy-load landing pages for Random Favs Browser tabs.
 
 A tab first lands on a tiny local page that holds its real destination, shows
-the clip you might want to recreate, and navigates on the first reload (Ctrl+R)
+the video you might want to recreate, and navigates on the first reload (Ctrl+R)
 or click.  The RFB opens ten favorites at once and the lock hotkey opens one
 mid-session; both go through here rather than loading a heavy generate page
 straight away.
@@ -30,7 +30,7 @@ _PAGE_GLOB = "*.html"
 
 @dataclass(frozen=True)
 class TabTarget:
-    """Where a tab should land, how to name it, and the clip it came from."""
+    """Where a tab should land, how to name it, and the video it came from."""
 
     url: str
     label: str

@@ -21,13 +21,13 @@ in either orchestrator:
 
 | | Carries |
 |---|---|
-| Both satellites' playlists, rotated onto the clip each had on screen | yes — the two libraries are the same in either app |
+| Both satellites' playlists, rotated onto the video each had on screen | yes — the two libraries are the same in either app |
 | Each satellite's lock | yes, re-queued on its command file |
 | F-mode per Funestra, each Satellite's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
 | The Main Funestra's mode (video / Genau) | yes |
-| The Main Funestra's clip | yes, when the arriving session can play it |
-| The Main Funestra's A/B loop | yes, when the clip carried — re-queued on the command file |
+| The Main Funestra's video | yes, when the arriving session can play it |
+| The Main Funestra's A/B loop | yes, when the video carried — re-queued on the command file |
 | Every Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
@@ -47,7 +47,7 @@ headset's library is the VR library and the desktop's together, so no session
 opens on the list the last one left: every session builds the Main Funestra's
 one list again, from its own library and the buttons it carries
 ([resuming-a-session.md](resuming-a-session.md#the-main-funestras-one-list)),
-starting from the clip that was on screen. You keep watching what you were
+starting from the video that was on screen. You keep watching what you were
 watching, and the list under it is the arriving library narrowed the way the
 buttons say — so entering VR carries the video into the headset, and with only
 VR lit, the next video is a VR one.
@@ -56,10 +56,10 @@ It cannot always be kept. A VR master on the way back to the desktop is not in
 the desktop's library, because the desktop cannot play it; that crossing opens
 at the top of the new list. The log line says which of the two happened.
 
-The A/B loop follows the clip, in both directions. It is a range inside one
+The A/B loop follows the video, in both directions. It is a range inside one
 video and lives nowhere but in the Funestra holding it, so each session publishes
 it and the arriving one is sent it back on the command file — and only when the
-clip it was cut from is what the new list leads with, since otherwise
+video it was cut from is what the new list leads with, since otherwise
 those bounds would mark out a stretch of a video nobody chose. Both
 orchestrators ask `session_resume.resume_main_loop` for it, which decides that
 for both.

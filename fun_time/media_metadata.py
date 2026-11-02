@@ -75,7 +75,7 @@ FULL_LENGTH = "full_length"
 def video_type_of(payload: dict) -> str:
     """The kind *payload* records, or ``""`` when it records none.
 
-    The one older record still read here is the ``clip`` object: it says a
+    The one older record still read here is the ``video`` object: it says a
     scene was carved out of a longer one, which is what :data:`EXCERPT` says,
     and it was on these sidecars before there was a kind to write.  So a
     library Evolver has not been over since keeps its cuts in their own band
@@ -133,7 +133,7 @@ TITLE_FIELD = "title"
 
 def video_title(payload: dict, video: str | Path) -> str:
     """What to call *video*: the name Evolver recorded, else the pair recorded
-    for the clip, else the family it was grouped under, else its filename."""
+    for the video, else the family it was grouped under, else its filename."""
     return (
         str(payload.get(TITLE_FIELD, "") or "").strip()
         or clip_title(payload)
@@ -189,10 +189,10 @@ def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
 
 
 # Where a struck-out act is kept once a viewer has said it is wrong.  Clearing
-# ``video.action`` is what puts the clip back in front of Evolver's backfill tool
-# (a clip with no act is one that still needs one); this key is what tells that
-# tool the clip was *rejected* rather than never labeled, so it can ask about it
-# first and whatever the clip's source.  Evolver reads it in ``util/sidecar.py``
+# ``video.action`` is what puts the video back in front of Evolver's backfill tool
+# (a video with no act is one that still needs one); this key is what tells that
+# tool the video was *rejected* rather than never labeled, so it can ask about it
+# first and whatever the video's source.  Evolver reads it in ``util/sidecar.py``
 # and drops it again the moment a new act is recorded.
 WRONG_ACTION_FIELD = "wrong_action"
 
@@ -200,7 +200,7 @@ WRONG_ACTION_FIELD = "wrong_action"
 def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> str:
     """Strike the act out of *video_path*'s sidecar; return the act that went.
 
-    Writes nothing, and answers ``""``, for a clip with no sidecar, a sidecar
+    Writes nothing, and answers ``""``, for a video with no sidecar, a sidecar
     recording no act, and a document this app cannot parse -- which is somebody
     else's record, not ours to replace.  Everything else on it is left alone.
 
@@ -234,17 +234,17 @@ def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> s
 def filter_haystack(metadata: dict) -> str:
     """Lowercased, whitespace-collapsed text a filter query is matched against.
 
-    The clip's recorded act, and nothing else.  The generation prompts used to be
+    The video's recorded act, and nothing else.  The generation prompts used to be
     matched too (the video prompt and the source image's positive prompt), and
     they say what was *asked for* — the still's pose, the motion requested — not
-    what the finished clip was judged to show, so they drag in clips doing
+    what the finished video was judged to show, so they drag in videos doing
     something else entirely.  Nothing downstream can recover from that: a filter
-    is spoken from the act vocabulary and every clip in the HUD map is labeled
-    with its act, so a clip pulled in by prompt text sits under a row naming some
+    is spoken from the act vocabulary and every video in the HUD map is labeled
+    with its act, so a video pulled in by prompt text sits under a row naming some
     other act — or "(unknown)" where no act was recorded at all.  Half of one
     two-word act's browse arrived that way in this library.
 
-    A clip with no act recorded is therefore out of every filter: it is the
+    A video with no act recorded is therefore out of every filter: it is the
     backfill tool's backlog (see :data:`WRONG_ACTION_FIELD`), not something to
     guess at from its prompt.
     """
@@ -276,9 +276,9 @@ def scene_tags(metadata: dict) -> frozenset[str]:
     """The scene a video shows, as the set of its prompt's comma-separated tags.
 
     These prompts are tag lists ("redacted, bangs, big bright eyes, …"), so
-    how much two clips have in common is how much their tag sets overlap — the
+    how much two videos have in common is how much their tag sets overlap — the
     measure "more seeds" ranks by.  The source image's prompt describes the
-    subject for an image-to-video clip; a text-to-video clip has only its own.
+    subject for an image-to-video video; a text-to-video video has only its own.
     """
     source = metadata.get("source_image") or {}
     text = source.get("positive_prompt") or (metadata.get("video") or {}).get("prompt") or ""
@@ -293,8 +293,8 @@ def _tag_overlap(one: frozenset[str], other: frozenset[str]) -> float:
 
 
 @dataclass(frozen=True)
-class ClipEntry:
-    """Everything the index knows about one clip.  A clip with no sidecar still
+class VideoEntry:
+    """Everything the index knows about one video.  A video with no sidecar still
     gets one: the defaults ARE "nothing is recorded about it"."""
 
     path: str
@@ -309,15 +309,15 @@ class ClipEntry:
 @dataclass(frozen=True)
 class GroupIndex:
     """Grouping of a video library by generation identity: one
-    :class:`ClipEntry` per clip keyed by :func:`normalize_path_key`, plus the two
+    :class:`ClipEntry` per video keyed by :func:`normalize_path_key`, plus the two
     inverted indexes answering "who else is in this group" (sorted lists of the
     original path strings)."""
 
-    entries: dict[str, ClipEntry]
+    entries: dict[str, VideoEntry]
     action_items: dict[str, list[str]]
     seed_items: dict[str, list[str]]
 
-    def entry(self, path: str) -> ClipEntry:
+    def entry(self, path: str) -> VideoEntry:
         return self.entries.get(normalize_path_key(path)) or _UNKNOWN_CLIP
 
     def contains(self, path: str) -> bool:
@@ -351,11 +351,11 @@ class GroupIndex:
         return entry.path if entry is not None else fallback
 
 
-_UNKNOWN_CLIP = ClipEntry(path="")
+_UNKNOWN_CLIP = VideoEntry(path="")
 
 
 def action_group_items(index: GroupIndex, path: str) -> list[str]:
-    """Every clip of *path*'s subject — the same subject(s)+scene, each action."""
+    """Every video of *path*'s subject — the same subject(s)+scene, each action."""
     key = index.entry(path).action_key
     if key is None:
         return []
@@ -368,7 +368,7 @@ def indexed_act(index: GroupIndex, path: str) -> str:
 
     The seed axis asks "is this the same act?" to decide who is in a row, so a raw
     string compare splits one act into pools that cannot see each other the moment
-    two clips are labeled with different casing — and a clip alone in its spelling
+    two videos are labeled with different casing — and a video alone in its spelling
     has no seed row at all.  One act spelled two ways -- title case beside
     capitals -- is the ordinary case in a hand-labeled library, and this is what
     keeps it from mattering.
@@ -377,11 +377,11 @@ def indexed_act(index: GroupIndex, path: str) -> str:
 
 
 def seed_family_items(index: GroupIndex, path: str) -> list[str]:
-    """Every clip of *path*'s parameter set doing *path*'s action, each seed.
+    """Every video of *path*'s parameter set doing *path*'s action, each seed.
 
     A text-to-video family already pins the action, but an image-to-video family
     is keyed on the source image alone, so its items are narrowed here to the
-    current clip's action — "the same act, another subject".
+    current video's action — "the same act, another subject".
     """
     seed_key = index.entry(path).seed_key
     if seed_key is None:
@@ -397,7 +397,7 @@ def seed_family_items(index: GroupIndex, path: str) -> list[str]:
 
 # How many near-matches "more seeds" adds to the exact family.  Six fills the
 # HUD's seed row; the point of the cap is that widening must never dump the
-# whole action (hundreds of clips) into a row meant to show a few close kin.
+# whole action (hundreds of videos) into a row meant to show a few close kin.
 WIDEN_ADDITIONS = 6
 
 
@@ -405,7 +405,7 @@ def widened_seed_items(
     index: GroupIndex, path: str, additions: int = WIDEN_ADDITIONS
 ) -> list[str]:
     """The widened seed row for *path* — "more seeds": its exact seed family plus
-    the *additions* clips of *path*'s own action whose scene is closest to it.
+    the *additions* videos of *path*'s own action whose scene is closest to it.
 
     The action is a hard bound, not a preference.  The seed axis means "the same
     act, another subject", so a widened row that ranked other acts in was
@@ -416,12 +416,12 @@ def widened_seed_items(
 
     Within the action, candidates are ranked:
 
-    1. **Same generation kind.**  An image-to-video clip and a text-to-video one
+    1. **Same generation kind.**  An image-to-video video and a text-to-video one
        look drastically different however alike their prompts read, so the widen
        prefers the kind it started in.
     2. **Prompt-tag overlap** (:func:`scene_tags`) — how alike the scenes are.
 
-    Both are preferences, so a lone clip of its kind falls through to the
+    Both are preferences, so a lone video of its kind falls through to the
     next-best thing rather than to nothing.  The bound does mean a widen can come
     up empty — an act nothing else in the library does has no wider row, and the
     caller says so rather than reaching for a stranger.
@@ -429,7 +429,7 @@ def widened_seed_items(
     key = normalize_path_key(path)
     items = list(seed_family_items(index, path))
     if not any(normalize_path_key(item) == key for item in items):
-        # A clip with no exact family of its own (no sidecar, no seed) is still
+        # A video with no exact family of its own (no sidecar, no seed) is still
         # the row it anchors, so the pool always opens with it.
         items.insert(0, index.indexed_path(key, path))
     seen = {normalize_path_key(item) for item in items} | {key}
@@ -478,8 +478,8 @@ def action_label(index: GroupIndex, path: str) -> str:
 
 
 
-def _entry_for(path: str, metadata: dict) -> ClipEntry:
-    return ClipEntry(
+def _entry_for(path: str, metadata: dict) -> VideoEntry:
+    return VideoEntry(
         path=path,
         action=str((metadata.get("video") or {}).get("action") or "").strip(),
         action_key=action_group_key(metadata),
@@ -507,7 +507,7 @@ def build_group_index(
 
 class GroupIndexCache:
     """Indexes held per library key, so a ~1000-file scan happens once: one is
-    rebuilt only when a probe path is missing from it, and learns a clip that
+    rebuilt only when a probe path is missing from it, and learns a video that
     arrives while it is held.  The session runs on :data:`SESSION_INDEXES`;
     anything wanting its own — over another library, or to drop without touching
     the session's — makes one of these."""
@@ -548,5 +548,5 @@ SESSION_INDEXES = GroupIndexCache()
 
 cached_group_index = SESSION_INDEXES.index_for
 reset_group_index_cache = SESSION_INDEXES.clear
-learn_indexed_clip = SESSION_INDEXES.learn
-forget_indexed_clip = SESSION_INDEXES.forget
+learn_indexed_video = SESSION_INDEXES.learn
+forget_indexed_video = SESSION_INDEXES.forget

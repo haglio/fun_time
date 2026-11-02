@@ -1,6 +1,6 @@
 """How the integration suite presses its way back out of the hosted app's mode.
 
-The wait that follows the press — each Funestra playing its own clips again —
+The wait that follows the press — each Funestra playing its own videos again —
 cannot tell a Funestra handed its list back from one the app never took.  So the
 press has to come after the app has both Funestras, or it is answered by a session
 that never entered the mode at all, and the app's lists land on the Funestras
@@ -24,26 +24,26 @@ _LOOKS_BEFORE_THE_APP_ANSWERS = 2
 class _Satellite:
     """One Funestra's playlist and status files, as the session addresses them."""
 
-    def __init__(self, app: _App, funestra: FunTimeFunestra, own_clip: Path, image: Path):
+    def __init__(self, app: _App, funestra: FunTimeFunestra, own_video: Path, image: Path):
         self._app = app
         self._funestra = funestra
-        self._own_clip = own_clip
+        self._own_video = own_video
         self._image = image
         self.playlist_file = app.state_dir / f"{funestra.label}_playlist.tsv"
         self.status_file = app.state_dir / f"{funestra.label}_status.txt"
         self.taken = False
         self.looks = 0
-        self._play(own_clip)
+        self._play(own_video)
 
-    def _play(self, clip: Path) -> None:
-        self.playlist_file.write_text(f"{clip}\n", encoding="utf-8")
-        self.status_file.write_text(f"video={clip}\n", encoding="utf-8")
+    def _play(self, video: Path) -> None:
+        self.playlist_file.write_text(f"{video}\n", encoding="utf-8")
+        self.status_file.write_text(f"video={video}\n", encoding="utf-8")
 
     def looked_at(self) -> None:
         self.looks += 1
         if self._app.pressed:
             self.taken = False
-            self._play(self._own_clip)
+            self._play(self._own_video)
         elif self.looks >= _LOOKS_BEFORE_THE_APP_ANSWERS:
             self.taken = True
             self._play(self._image)

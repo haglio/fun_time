@@ -14,7 +14,7 @@ def discover_entries(videos_dir: Path, *, metadata_root: Path | None) -> list[Li
 
     Videos without a matching funscript get ``funscript=None`` — they play
     normally; with no script the OSR2 rests at its parked position and loop
-    recording falls back to raw clip ranges. File size is read here so the
+    recording falls back to raw video ranges. File size is read here so the
     library layer can pick the largest of several versions without re-stat'ing.
     Order is stable (sorted); randomization is the library layer's job.
     """

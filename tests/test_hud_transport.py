@@ -25,7 +25,7 @@ def _hud(**overrides) -> SatelliteHud:
 
 
 def _thumb(path: str) -> Path:
-    """A stand-in cached thumbnail: <name>.jpg beside the clip."""
+    """A stand-in cached thumbnail: <name>.jpg beside the video."""
     return Path(path).with_suffix(".jpg")
 
 
@@ -54,26 +54,26 @@ def test_hud_payload_names_the_librarys_camera_words():
 
 
 def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
-    """The map is built on the dispatch loop, so a question per clip is a question
-    per clip put to the library drive -- and a drive stuck on one of them takes
+    """The map is built on the dispatch loop, so a question per video is a question
+    per video put to the library drive -- and a drive stuck on one of them takes
     every button and spoken command in the session down with it."""
     folder = tmp_path / "vids"
     folder.mkdir()
     cache = tmp_path / "thumbs"
     cache.mkdir()
-    clips = []
+    videos = []
     for name in ("cur", "s1", "a1"):
-        clip = folder / f"{name}.mp4"
-        clip.write_bytes(b"x")
-        thumbnail_path(clip, cache).write_bytes(b"jpeg")
-        clips.append(str(clip))
+        video = folder / f"{name}.mp4"
+        video.write_bytes(b"x")
+        thumbnail_path(video, cache).write_bytes(b"jpeg")
+        videos.append(str(video))
 
-    hud = _hud(current=clips[0], seed_siblings=[clips[1]], action_siblings=[clips[2]])
+    hud = _hud(current=videos[0], seed_siblings=[videos[1]], action_siblings=[videos[2]])
     with folders_listed() as read:
         model = hud_model(hud, cache)
 
     assert len(read) == 1
-    assert model.corner == HudCell(path=clips[0], thumb=str(thumbnail_path(clips[0], cache)))
+    assert model.corner == HudCell(path=videos[0], thumb=str(thumbnail_path(videos[0], cache)))
 
 
 def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
@@ -85,7 +85,7 @@ def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
     assert active.active is True
     assert idle.active is False
 
-def test_hud_payload_carries_whether_the_clip_is_a_favorite():
+def test_hud_payload_carries_whether_the_video_is_a_favorite():
     """The dashboard's HUD said this by turning green; the HUD marks it instead,
     so the flag has to reach the Funestra along with the map."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
@@ -141,7 +141,7 @@ def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerat
 
 
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
-    """The corner is the clip on screen, so it stays (the Funestra draws a
+    """The corner is the video on screen, so it stays (the Funestra draws a
     placeholder); a sibling whose frame the prewarm hasn't produced simply isn't
     on the map yet, exactly as the Qt HUD skipped it."""
     with patch("fun_time.hud_transport.cached_thumbnail", return_value=None):
@@ -172,10 +172,10 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
 
 
 def test_a_running_loop_publishes_every_item_it_cycles():
-    """The Funestra windows the looped axis around the clip on screen, so it has to be
+    """The Funestra windows the looped axis around the video on screen, so it has to be
     given the whole loop.  Capping it at the handful of cells a map can draw is what
     left the highlight nowhere to be once the loop advanced past them — the user saw
-    three thumbnails, then a stretch with nothing lit and an unrecognisable clip."""
+    three thumbnails, then a stretch with nothing lit and an unrecognisable video."""
     seeds = [f"C:/v/s{i}.mp4" for i in range(12)]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
 
@@ -188,7 +188,7 @@ def test_a_running_loop_publishes_every_item_it_cycles():
 
 def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
     """Dropping it would renumber every cell after it and slide the Funestra's window
-    off the clip on screen, so a loop item with no frame yet is published with an
+    off the video on screen, so a loop item with no frame yet is published with an
     empty thumbnail — drawn as a placeholder, in the loop's own order."""
     seeds = ["C:/v/s0.mp4", "C:/v/s1.mp4", "C:/v/s2.mp4"]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[2])
@@ -214,7 +214,7 @@ def test_the_axis_a_loop_is_not_running_on_stays_capped():
     assert len(payload.actions) == ACTION_LIMIT
 
 
-def test_hud_payload_falls_back_to_the_corner_for_an_off_map_clip():
+def test_hud_payload_falls_back_to_the_corner_for_an_off_map_video():
     """A satellite that auto-advanced off the drawn map has no cell to light, so
     the corner stays bright rather than nothing at all."""
     hud = _hud(playing="C:/v/elsewhere.mp4")
@@ -226,7 +226,7 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_clip():
 
 def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
     """The Funestra re-renders whenever the file changes, so an unchanged tick must
-    not rewrite it — the dispatch loop publishes many times per clip."""
+    not rewrite it — the dispatch loop publishes many times per video."""
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 

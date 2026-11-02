@@ -25,8 +25,8 @@ class HeadsetEngine(MpvRenderEngine):
         if self._sound_live:
             super().set_muted(muted)
 
-    def radio_station(self, clips):
-        return super().radio_station(clips) if self._sound_live else None
+    def radio_station(self, videos):
+        return super().radio_station(videos) if self._sound_live else None
 
     def sound_goes_live(self, device: str) -> str | None:
         if self._sound_live:

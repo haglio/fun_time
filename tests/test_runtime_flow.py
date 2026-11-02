@@ -329,8 +329,8 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
 
 def test_a_rebuild_can_start_the_satellite_at_the_top_of_the_new_list(tmp_path: Path):
     """"Latest" means "show me what has just arrived", and a plain reload keeps the
-    clip on screen and carries on from where it sat — so the new order only ever
-    applied *after* it and the newest clips were never reached.  A caller that means
+    video on screen and carries on from where it sat — so the new order only ever
+    applied *after* it and the newest videos were never reached.  A caller that means
     "start over" asks for the head, which the Funestra takes as PLAY_FILE."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
@@ -351,8 +351,8 @@ def test_a_rebuild_can_start_the_satellite_at_the_top_of_the_new_list(tmp_path: 
     ]
 
 
-def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
-    """A filter change is not a "start over": the reload keeps the clip playing while
+def test_a_rebuild_leaves_the_video_on_screen_alone_by_default(tmp_path: Path):
+    """A filter change is not a "start over": the reload keeps the video playing while
     it survives, so only a caller that asks gets moved to the head."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
@@ -419,7 +419,7 @@ def test_recents_repicks_up_new_files(tmp_path: Path):
 
 def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
     """Recents honors action groups too: with the provider roots supplied,
-    same-source-image clips collapse to one entry, its newest item."""
+    same-source-image videos collapse to one entry, its newest item."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -446,7 +446,7 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
 def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
-    p_clip = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    p_video = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
     l_twirl = _make_action_video(landscape_root, metadata_root, "lt", "Twirling")
     _make_action_video(landscape_root, metadata_root, "lc", "Alpha")
@@ -467,7 +467,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
     landscape = "\n".join(_satellite_lines(tmp_path / "state", "landscape"))
-    assert p_clip in portrait
+    assert p_video in portrait
     assert "pt.mp4" not in portrait
     assert l_twirl in landscape
     assert "lc.mp4" not in landscape
@@ -493,7 +493,7 @@ def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: 
 def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    p_clip = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    p_video = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
     portrait_cmd_file = tmp_path / "portrait_cmd.txt"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
@@ -515,7 +515,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     assert _reloaded(portrait_cmd_file)
     assert not landscape_cmd_file.exists()
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
-    assert p_clip in portrait
+    assert p_video in portrait
     assert "pt.mp4" not in portrait
 
 
@@ -572,7 +572,7 @@ def test_a_satellites_browse_is_the_filter_applied_to_the_library(tmp_path: Path
     the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    clip = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    video = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
 
     paths = satellite_browse_paths(
@@ -583,7 +583,7 @@ def test_a_satellites_browse_is_the_filter_applied_to_the_library(tmp_path: Path
         regen_metadata_root=metadata_root,
     )
 
-    assert clip in paths
+    assert video in paths
     assert not any("pt.mp4" in p for p in paths)
 
 

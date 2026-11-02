@@ -39,8 +39,8 @@ def _faces() -> dict[str, str]:
 
 def test_the_band_is_the_funestras_own_controls_in_the_main_huds_order():
     """The browse pair with the ten-second steps between them, then the three about
-    the clip on screen and the library it came from, then the reset, then the
-    browse order, then another rendition of the clip, as the HUD ends its own
+    the video on screen and the library it came from, then the reset, then the
+    browse order, then another rendition of the video, as the HUD ends its own
     browse controls on it, then minimize — ending with the one that acts on the
     window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
@@ -211,8 +211,8 @@ def test_the_transport_the_lock_and_the_crown_wear_the_familys_marks():
         PREVIOUS_ICON, BACK_ICON, FORWARD_ICON, NEXT_ICON, LOCK_ICON, shared_icon("crown")]
 
 
-def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
-    """There is nothing to step through, and a step would only end the clip."""
+def test_the_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter():
+    """There is nothing to step through, and a step would only end the video."""
     short = {b.command: b for b in _band(longer_than_a_step=False)}
     longer = {b.command: b for b in _band(longer_than_a_step=True)}
 
@@ -223,7 +223,7 @@ def test_the_ten_second_steps_are_dim_on_a_clip_of_ten_seconds_or_shorter():
         assert "shorter" not in longer[step].tooltip
 
 
-def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
+def test_the_versions_button_is_dim_where_the_video_has_only_itself():
     """The HUD's own versions mark, and dim where there is nothing to step
     to — the way the Main Funestra's is, with the hover saying so."""
     alone = {b.command: b for b in _band()}["portrait_cycle_version"]

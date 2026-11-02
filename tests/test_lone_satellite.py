@@ -112,7 +112,7 @@ def test_a_satellite_that_never_published_says_so_and_where_its_log_is(tmp_path:
     assert str(satellite.log) in said
 
 
-def test_a_satellite_says_where_its_clip_had_got_to_and_never_which_clip(tmp_path: Path):
+def test_a_satellite_says_where_its_video_had_got_to_and_never_which_video(tmp_path: Path):
     satellite = LoneSatellite(tmp_path)
     _publishes(satellite, video="C:/videos/Jane Doe scene one.mp4", position_ms=0,
                duration_ms=7546, playlist_length=3)

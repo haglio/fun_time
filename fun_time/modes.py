@@ -201,10 +201,10 @@ def _collapse_axis(
 ) -> tuple[Callable[[str], str | None], Callable[[str], list[str]]]:
     """The (group-of-path, items-of-group) accessors for a collapse axis.
 
-    Unfiltered browsing collapses **action groups** — one clip per subject — so
+    Unfiltered browsing collapses **action groups** — one video per subject — so
     the playlist shows variety and "cycle action" explores a subject's other
     acts.  A filtered view has already pinned the act, so it collapses **seed
-    families** instead — one clip per parameter set — and the
+    families** instead — one video per parameter set — and the
     same-params-different-seed siblings are reached through "cycle seed" rather than
     repeating back-to-back in the playlist.
     """
@@ -253,7 +253,7 @@ def _collapse_and_weigh(
 
     Chronically-skipped videos sit the build out proportionally to their
     weight; each group contributes a single item, drawn weighted so preferred
-    clips surface more.  The final order is a weighted shuffle: loved videos
+    videos surface more.  The final order is a weighted shuffle: loved videos
     land early, and with nothing stamped every step degenerates to a uniform
     shuffle.  See :func:`_collapse_axis` for which axis groups.
     """
@@ -281,9 +281,9 @@ def _collapse_recent(
     """Newest-first, one item per group — the Latest review order.
 
     New arrivals stay the focus: each group is represented by its most recent
-    item and sits at that item's position, so the freshest clip of a group
+    item and sits at that item's position, so the freshest video of a group
     surfaces once, near the top.  Watch weighting is deliberately not applied —
-    a chronically-skipped clip still appears; recency alone ranks.
+    a chronically-skipped video still appears; recency alone ranks.
     """
     dates = FolderListings()
     ordered = sort_paths_by_recency(paths, dates)
@@ -344,7 +344,7 @@ def rotated_onto[T](entries: list[T], last_video: str, *,
     Unchanged when that video is not among them — it was deleted since, or the
     Funestra published no status at all; the queue comes back from its top rather
     than being thrown away.  A Funestra handed a list it is not playing opens at
-    the top, which is what makes this a way back to the clip it left.
+    the top, which is what makes this a way back to the video it left.
     """
     key = normalize_path_key(last_video)
     for position, item in enumerate(entries):

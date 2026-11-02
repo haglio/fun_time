@@ -102,7 +102,7 @@ def group_versions(
 ) -> list[VersionGroup]:
     """Fold entries into same-content version groups.
 
-    With *group_id_of* — a resolver for a clip's recorded version-family id
+    With *group_id_of* — a resolver for a video's recorded version-family id
     (Evolver's metadata sidecar) — an entry that has an id is grouped by it,
     the authoritative source, and entries without one fall back to the name
     heuristic below. Without the resolver, everything groups by name.

@@ -2,10 +2,10 @@
 
 Entering one swaps the Main Funestra's playlist *in memory only* — the list Fun
 Time writes never holds it — so being inside a compilation is remembered here or
-not at all.  The clip that was on screen comes too, because it is the anchor the
+not at all.  The video that was on screen comes too, because it is the anchor the
 compilation is rebuilt around: Fun Time opens its list on the video its Funestra
 last showed, but only when that video is *in* the list, and a compilation's
-clips often are not.
+videos often are not.
 """
 from __future__ import annotations
 

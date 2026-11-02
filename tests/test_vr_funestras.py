@@ -495,8 +495,8 @@ class TestGenauOnTheMainFunestra:
 
 def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
         tmp_path, faked_collaborators):
-    clip, script, unscripted = tmp_path / "v0.mp4", tmp_path / "v0.funscript", tmp_path / "v1.mp4"
-    items = [PlaylistItem(clip, script), PlaylistItem(unscripted)]
+    video, script, unscripted = tmp_path / "v0.mp4", tmp_path / "v0.funscript", tmp_path / "v1.mp4"
+    items = [PlaylistItem(video, script), PlaylistItem(unscripted)]
 
     with patch("fun_time_vr.funestras.read_playlist", return_value=items):
         _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
@@ -505,7 +505,7 @@ def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
     assert faked_collaborators["Funestra"].call_args.kwargs["playlist"] == items
 
 
-def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_clips_script(
+def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_videos_script(
         tmp_path, faked_collaborators):
     _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123),
                    _NO_GL_CONTEXTS, vr=_A_SESSION, remembered={})
@@ -1449,7 +1449,7 @@ class TestWhenTheRoomIsUp:
         assert _still_blank(**_room(main_hud_unit=False, main_hud_in_the_room=False)) == ()
 
     def test_a_sized_texture_is_not_a_frame(self):
-        """A video target is ready the moment mpv reports the clip's
+        """A video target is ready the moment mpv reports the video's
         dimensions, a frame or more before it presents anything -- so the room
         read as up almost as soon as the loop began, the loading screen came off in a
         blink nobody saw, and the OSR2 was released onto black."""
@@ -1497,7 +1497,7 @@ def test_the_headset_builds_kino_with_the_desktops_own_builder():
     """The Main Funestra's Kino in the headset comes off the very function the
     desktop's Main Funestra builds its own with, so a change to one cannot miss
     the other: the headset's own copy went on asking the library for Genau's
-    clips after the desktop had stopped playing them."""
+    videos after the desktop had stopped playing them."""
     tree = ast.parse(inspect.getsource(funestras._TheLibrary.kino).lstrip())
     calls = {ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
 

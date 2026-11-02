@@ -41,7 +41,7 @@ class TestStatusFields:
         assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("0", "0")
 
     def test_the_videos_place_in_the_library_is_published_for_the_main_huds_buttons(self):
-        """Fun Time lights the compilation, version and clip-jump buttons from
+        """Fun Time lights the compilation, version and video-jump buttons from
         these lines -- only Kino knows them, and a Funestra that says nothing
         leaves them dim."""
         library = LibraryStatus(compilation="Vol 3", has_compilation=True,

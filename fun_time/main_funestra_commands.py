@@ -154,7 +154,7 @@ def _lock_kino_on_the_main_funestra(verb: str, state: BridgeState, config: Bridg
     return _main_lock(verb, state, config, target_path)
 
 
-def _save_clip(state: BridgeState, _config: BridgeConfig,
+def _save_video(state: BridgeState, _config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Ask the loop for a genaumacher save — asked for, not run: genaumacher boots a
     sibling repo's interpreter (up to its 10 s timeout) and this runs on the
@@ -196,5 +196,5 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_forward_to_main_funestra_on_screen, verb)
        for cmd, verb in MAIN_FUNESTRA_CMD_MAP.items() if cmd != SKIP_AHEAD},
     SKIP_AHEAD: _skip_ahead_on_the_main_funestra,
-    "genaumacher_save": _save_clip,
+    "genaumacher_save": _save_video,
 }

@@ -13,7 +13,7 @@ from .bridge_records import BridgeConfig
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
 from .main_list import MainListSettings
-from .media_metadata import learn_indexed_clip
+from .media_metadata import learn_indexed_video
 from .mode_plan import kino_shows
 from .modes import collect_video_files, satellite_narrowing, scripted_item
 from .origenerator_switches import origenerator_shows
@@ -68,7 +68,7 @@ class _ASatellite:
 
     def put_up_next(self, path: str) -> None:
         channel = self.config.satellite(self.funestra)
-        learn_indexed_clip(channel.sources, path, self.config.regen_metadata_root)
+        learn_indexed_video(channel.sources, path, self.config.regen_metadata_root)
         append_command(channel.cmd_file,
                        play_next(scripted_item(path, self.config.regen_metadata_root)))
 

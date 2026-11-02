@@ -247,14 +247,14 @@ def run_within(argv: list[str], seconds: float, *, check: bool = False,
     return done
 
 
-def clip_of_a_test_pattern(clip: Path, *, size: str, seconds: float, rate: int = 30) -> Path:
+def video_of_a_test_pattern(video: Path, *, size: str, seconds: float, rate: int = 30) -> Path:
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
         pytest.fail("ffmpeg is what makes this test's clips, and it is not on PATH")
     run_within([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}",
-                "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)],
+                "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
                60.0, check=True, **hidden_subprocess_kwargs())
-    return clip
+    return video
 
 
 def _holding(needle: str, text: str) -> str:
@@ -741,7 +741,7 @@ def real_config_path() -> Path:
     still carry a copy; ones made since have none, and every integration run in
     them died at setup on a missing file.
 
-    A run needs the real one (it links its sample clips out of the actual
+    A run needs the real one (it links its sample videos out of the actual
     library), and the overlay describes the machine rather than the checkout, so
     a worktree borrows the primary checkout's.  ``--git-common-dir`` is what
     names it: worktrees share one git dir, and its parent is that checkout.
@@ -984,13 +984,13 @@ def _remove_each(roots) -> list[tuple[Path, OSError]]:
 
 
 # How long a draw may spend probing what it drew before it gives up.  Every
-# skipped clip costs a real wait, so a slow library could otherwise outlast
+# skipped video costs a real wait, so a slow library could otherwise outlast
 # pytest's own per-test timeout -- and that timeout runs on a thread, which
 # cannot interrupt a blocked read.
 PROBE_BUDGET_S = 90.0
 
 
-def library_clips(roots) -> list[Path]:
+def library_videos(roots) -> list[Path]:
     """Every video under *roots*.  Point it at local folders only: a walk that
     reaches into the cloud drive can block inside its driver, where nothing ends
     it and the process can never finish exiting."""
@@ -1003,11 +1003,11 @@ def library_clips(roots) -> list[Path]:
     ]
 
 
-def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
+def sample_library_videos(candidates, count: int, *, desc: str, readable=None,
                          budget_s: float = PROBE_BUDGET_S, now=run_clock.now) -> list:
-    """*count* clips drawn at random from *candidates*, reproducibly.
+    """*count* videos drawn at random from *candidates*, reproducibly.
 
-    A fresh draw each run — the same clips every run masks bugs that only one
+    A fresh draw each run — the same videos every run masks bugs that only one
     codec, aspect or duration shows — but never an unrepeatable one: the seed
     comes from ``FUN_TIME_INTEGRATION_SEED`` when set (re-running a failure on
     the same media) or is drawn fresh, and the seed is printed either way, so a
@@ -1017,7 +1017,7 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
     a library smaller than *count* fails saying so instead of raising
     ``Sample larger than population`` from inside a test.
 
-    With *readable* (see :func:`readable_at_speed`), a drawn clip the machine
+    With *readable* (see :func:`readable_at_speed`), a drawn video the machine
     cannot serve right now is skipped, named, and replaced by the next draw --
     for at most *budget_s*, since every skip costs a real wait and a whole cold
     library would otherwise outlast the test.
@@ -1034,11 +1034,11 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
     else:
         chosen = []
         stop_at = now() + budget_s
-        for clip in rng.sample(candidates, len(candidates)):
+        for video in rng.sample(candidates, len(candidates)):
             if len(chosen) == count or now() >= stop_at:
                 break
-            if readable(clip):
-                chosen.append(clip)
+            if readable(video):
+                chosen.append(video)
             else:
                 print("[integration]   skipped one not readable at speed")
         assert len(chosen) == count, (
@@ -1048,9 +1048,9 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
     return chosen
 
 
-def one_clip_per_video(clips, version_index) -> list[Path]:
+def one_video_per_video(videos, version_index) -> list[Path]:
     return [item.path for item in collapse_playlist_versions(
-        [PlaylistItem(clip) for clip in clips], version_index)]
+        [PlaylistItem(video) for video in videos], version_index)]
 
 
 def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read=None) -> bool:
@@ -1090,14 +1090,14 @@ def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,
     machines_metadata_root = real_config.regen.metadata_root
     candidates = [(candidate, source_root)
                   for source_root in real_config.paths.main_funestra_library_dirs
-                  for candidate in library_clips([source_root])
+                  for candidate in library_videos([source_root])
                   if plays_in_f_mode(str(candidate), machines_metadata_root)]
     if not candidates:
         raise FileNotFoundError(
             "Could not find a main-library video F-mode plays for integration config "
             "-- a session built without one would come up empty"
         )
-    chosen = sample_library_clips(
+    chosen = sample_library_videos(
         candidates, min(count, len(candidates)), desc="funscripted main-library clips")
     targets: list[Path] = []
     seen_names: set[str] = set()
@@ -1119,7 +1119,7 @@ def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,
 
 
 def _link_sample_files(source_dirs: tuple[Path, ...], dest_dir: Path, *, count: int) -> list[Path]:
-    chosen = sample_library_clips(library_clips(source_dirs), count, desc="sample media files")
+    chosen = sample_library_videos(library_videos(source_dirs), count, desc="sample media files")
     for candidate in chosen:
         _safe_link(candidate, dest_dir / candidate.name)
     return [dest_dir / candidate.name for candidate in chosen]

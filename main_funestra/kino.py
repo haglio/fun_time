@@ -2,7 +2,7 @@
 
 The Funestra plays the list and draws; Kino is what only the library side
 knows: which files are the same video at different qualities, the length modes,
-the compilation a clip belongs to and the scene it was cut from, the mode
+the compilation a video belongs to and the scene it was cut from, the mode
 written down for the next session, and the loop a video is being marked into.  The Funestra asks Kino about every command first, gives it
 a pass of its own each frame before the playback advances, publishes its lines
 after its own, and heads the HUD with what Kino says it is playing.

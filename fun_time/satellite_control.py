@@ -2,7 +2,7 @@
 
 The native Satellite Funestras (this repo's ``satellite`` package) are driven
 through a file quartet; verbs go in through ``funestra.file_channel``'s
-append (``satellite_groups.send_satellite``), and where the clip has got to is
+append (``satellite_groups.send_satellite``), and where the video has got to is
 read back here from the status file the Funestra publishes.
 
 Its sibling ``broker_control`` is the same idea for the OSR2 broker.
@@ -20,7 +20,7 @@ from .funestra_status import ScriptedStatus, scripted_fields
 
 @dataclass(frozen=True)
 class SatelliteStatus(ScriptedStatus):
-    """The family's seven, its clip's script, and how many clips its playlist holds."""
+    """The family's seven, its video's script, and how many videos its playlist holds."""
 
     playlist_length: int = 0
     volume: int | None = None
@@ -28,7 +28,7 @@ class SatelliteStatus(ScriptedStatus):
 
     @property
     def fraction(self) -> float | None:
-        """How far through the clip, 0..1 — None when the duration is not yet known."""
+        """How far through the video, 0..1 — None when the duration is not yet known."""
         if self.duration_ms <= 0:
             return None
         return self.position_ms / self.duration_ms

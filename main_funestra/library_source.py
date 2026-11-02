@@ -1,5 +1,5 @@
 """The library Kino knows the Main Funestra's videos by: which files are versions
-of one video, and the clips a compilation was carved into."""
+of one video, and the videos a compilation was carved into."""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -34,7 +34,7 @@ class LibrarySource:
 
     @cached_property
     def version_index(self) -> dict[Path, list[PlaylistItem]]:
-        """Version-cycle map over every video (main entries and clips).
+        """Version-cycle map over every video (main entries and videos).
 
         Uses the metadata sidecars when a *metadata_root* is set, else names.
         Cached because the answer is already fixed for the session: the two
@@ -52,7 +52,7 @@ def build_library_source(
     metadata_root: Path | None = None,
     on_progress: Callable[[str], None] | None = None,
 ) -> LibrarySource:
-    """Discover videos + clips.  *metadata_root*, when given, makes version
+    """Discover videos + videos.  *metadata_root*, when given, makes version
     grouping read Evolver's sidecars instead of guessing from names.
 
     *on_progress* is called with the phase before the walk.  It may raise to

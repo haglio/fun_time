@@ -1,4 +1,4 @@
-"""Bring a reopened session back to the clip each Funestra was on, and the state
+"""Bring a reopened session back to the video each Funestra was on, and the state
 that shaped its playlists: ``docs/resuming-a-session.md``."""
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ NOT_RESUMED = frozenset({
 NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor", "handed_over"})
 
 DESCRIBES_THE_PLAYLIST = frozenset({
-    "locked", "filter", "favorites_filter", "latest", "loop", "map_anchor", "widen_clip",
+    "locked", "filter", "favorites_filter", "latest", "loop", "map_anchor", "widen_video",
 })
 
 RESUMED_FIELDS: tuple[str, ...] = tuple(
@@ -81,7 +81,7 @@ def playlist_opens_on(playlist_file: Path, video: str) -> bool:
 
 
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
-    """Last session's playlist, minus clips trashed or pruned since: handing mpv
+    """Last session's playlist, minus videos trashed or pruned since: handing mpv
     a path to nothing is how a satellite comes up stuck."""
     return [item for item in read_playlist(playlist_file) if item.path.exists()]
 
@@ -192,8 +192,8 @@ def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
                      playlist_file: Path) -> None:
     """Queue SET_LOOP for the loop *carried* was left running.
 
-    Only when *playlist_file* really does lead with the clip that loop was cut
-    from: a rebuild, or a clip deleted since, leaves another video leading, and
+    Only when *playlist_file* really does lead with the video that loop was cut
+    from: a rebuild, or a video deleted since, leaves another video leading, and
     those bounds would then mark out a stretch of a video nobody chose.
     """
     if carried.main_loop_out_ms <= carried.main_loop_in_ms:

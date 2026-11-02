@@ -49,7 +49,7 @@ from .satellite_commands import satellite_at_defaults
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
 
-# The satellites play ~5 s clips, so the HUD map has to track the current clip
+# The satellites play ~5 s videos, so the HUD map has to track the current video
 # almost the instant it changes — but not at the loop's own 20 Hz.  Building a
 # HUD is index lookups plus a stat per thumbnail, and the publisher skips the
 # write entirely when the HUD is unchanged, so an idle tick is nearly free.
@@ -58,7 +58,7 @@ PUBLISH_INTERVAL_S = 0.15
 
 class _RecordedFavorites:
     """Whether a video is a favorite, each record re-read only once it has moved:
-    every publish asks it of the clip on screen, ~7x a second."""
+    every publish asks it of the video on screen, ~7x a second."""
 
     def __init__(self) -> None:
         self._read: dict[Path, tuple[tuple[int, int], bool]] = {}
@@ -133,7 +133,7 @@ class HudFeed:
                 filter_query=values.filter,
                 loop_axis=values.loop,
                 map_anchor=values.map_anchor,
-                widen_clip=values.widen_clip,
+                widen_video=values.widen_video,
                 nav_anchor=values.nav_anchor,
                 latest=values.latest,
                 favorites_filter=values.favorites_filter,
@@ -258,8 +258,8 @@ class HudFeed:
         """What *Funestra* last said about its own videos, held over a read that
         comes back blank or names what the hosted app had on it.
 
-        A satellite always has a clip — it cannot discard its way to an empty
-        playlist — so once one has named a clip, a blank status means the read
+        A satellite always has a video — it cannot discard its way to an empty
+        playlist — so once one has named a video, a blank status means the read
         lost a race with the Funestra's own republish, not that the Funestra has
         nothing.  Believing the blank builds an empty HUD, and publishing that
         blanks the map on screen until the next tick puts it back.  Before a

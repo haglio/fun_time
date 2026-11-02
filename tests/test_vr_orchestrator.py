@@ -480,7 +480,7 @@ class TestTheModeASessionComesBackIn:
 
     def test_the_loop_the_main_funestra_was_running_is_queued_for_it(self):
         """A loop lives nowhere but in the Funestra holding it, so entering VR used
-        to drop one even though the clip it was cut from came across."""
+        to drop one even though the video it was cut from came across."""
         (resume,) = self._calls("run_vr_bridge", "resume_main_loop")
 
         assert [ast.unparse(arg) for arg in resume.args] == [
@@ -490,7 +490,7 @@ class TestTheModeASessionComesBackIn:
         ]
 
     def test_it_is_queued_after_the_playlists_are_stocked(self):
-        """The rebuild and its rotation are what decide whether the clip the loop
+        """The rebuild and its rotation are what decide whether the video the loop
         was cut from is the one this session opens on."""
         source = _the_session_as_one_source()
 
@@ -630,10 +630,10 @@ class TestStockingThePlaylists:
     @staticmethod
     def _library(tmp_path) -> tuple[Path, Path]:
         library = tmp_path / "library"
-        vr_clip, flat = library / "VR" / "finished" / "scene one.mp4", library / "2D" / "scene two.mp4"
-        for clip in (vr_clip, flat):
-            clip.write_bytes(b"")
-        return vr_clip, flat
+        vr_video, flat = library / "VR" / "finished" / "scene one.mp4", library / "2D" / "scene two.mp4"
+        for video in (vr_video, flat):
+            video.write_bytes(b"")
+        return vr_video, flat
 
     def test_a_fresh_session_gets_all_three(self, config, tmp_path):
         self._library(tmp_path)
@@ -643,21 +643,21 @@ class TestStockingThePlaylists:
         written = sorted(p.name for p in (tmp_path / "state").glob("*playlist*.tsv"))
         assert len(written) == 3, written
 
-    def test_the_main_list_comes_up_on_the_clip_it_was_on_and_the_headsets_library_under_it(
+    def test_the_main_list_comes_up_on_the_video_it_was_on_and_the_headsets_library_under_it(
         self, config, tmp_path,
     ):
-        """Crossing in from the desktop: the clip on screen comes first, which the
+        """Crossing in from the desktop: the video on screen comes first, which the
         headset can play because this session's sources include the desktop's,
         and the headset's own library is in the queue under it (docs/entering-vr.md)."""
-        vr_clip, flat = self._library(tmp_path)
+        vr_video, flat = self._library(tmp_path)
         (tmp_path / "state").mkdir()
         (tmp_path / "state" / "main_player_playlist.tsv").write_text(f"{flat}\n", encoding="utf-8")
 
         self._stock(config, tmp_path, resumed=True, main_video=str(flat))
 
-        assert self._main_list(tmp_path) == [str(flat), str(vr_clip)]
+        assert self._main_list(tmp_path) == [str(flat), str(vr_video)]
 
-    def test_a_clip_gone_since_opens_the_main_list_at_its_top(self, config, tmp_path):
+    def test_a_video_gone_since_opens_the_main_list_at_its_top(self, config, tmp_path):
         """Rather than on a dead path."""
         self._library(tmp_path)
 
@@ -670,18 +670,18 @@ class TestStockingThePlaylists:
         """The bug this closes: a session reopened its last list whenever it held
         a VR video at all, so "VR only" came back over a list that still held 2D
         videos, and Next played them."""
-        vr_clip, flat = self._library(tmp_path)
+        vr_video, flat = self._library(tmp_path)
         (tmp_path / "state").mkdir()
         (tmp_path / "state" / "main_player_playlist.tsv").write_text(
-            f"{flat}\n{vr_clip}\n", encoding="utf-8")
+            f"{flat}\n{vr_video}\n", encoding="utf-8")
 
         self._stock(config, tmp_path, resumed=True, main_video=str(flat),
                     carried=BridgeState(main_plays_flat=False))
 
-        assert self._main_list(tmp_path) == [str(vr_clip)]
+        assert self._main_list(tmp_path) == [str(vr_video)]
 
     def test_2d_only_holds_every_2d_video_and_no_vr_one(self, config, tmp_path):
-        _vr_clip, flat = self._library(tmp_path)
+        _vr_video, flat = self._library(tmp_path)
         arrived = tmp_path / "library" / "2D" / "scene three.mp4"
         arrived.write_bytes(b"")
 
@@ -693,12 +693,12 @@ class TestStockingThePlaylists:
     def test_a_session_left_playing_neither_shape_reopens_on_the_video_it_was_left_on(
         self, config, tmp_path,
     ):
-        vr_clip, _flat = self._library(tmp_path)
+        vr_video, _flat = self._library(tmp_path)
 
-        self._stock(config, tmp_path, resumed=True, main_video=str(vr_clip),
+        self._stock(config, tmp_path, resumed=True, main_video=str(vr_video),
                     carried=BridgeState(main_plays_vr=False, main_plays_flat=False))
 
-        assert self._main_list(tmp_path) == [str(vr_clip)]
+        assert self._main_list(tmp_path) == [str(vr_video)]
 
 
 class TestResumeGenausShapes:
