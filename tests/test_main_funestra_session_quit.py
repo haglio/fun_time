@@ -26,7 +26,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 # Every link of the chain, and the call it must make.
 FUNESTRA_LOOPS = {
-    REPO / "main_funestra" / "app.py": "deal",
+    REPO / "main_funestra" / "window.py": "deal",
     REPO / "main_funestra" / "input.py": "close_requested",
 }
 
