@@ -53,7 +53,7 @@ def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool
         funscript_jump_button(f"{funestra}_funscript_jump", noun=SATELLITE_NOUN,
                               has_osr2=has_osr2, has_funscript=has_funscript),
         lock_button(funestra, locked=locked, tooltip=lock_tooltip(locked, SATELLITE_NOUN)),
-        trash_button(funestra, "Unfavorite it — or mark weird when it is not a favorite"),
+        trash_button(funestra),
         fmode_button(funestra, favorites_only_tooltip(), lit=favorites_filter),
         reset_button(funestra, nothing_to_reset=nothing_to_reset, tooltip=RESET_TOOLTIP),
         *browse_order_buttons(funestra, latest=latest),

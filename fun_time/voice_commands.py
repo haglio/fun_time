@@ -211,11 +211,6 @@ def build_voice_commands(
         "human inspired off": "robot_hand_learned_off",
         f"previous {flick}": "genau_prev_flick",
         f"next {flick}": "genau_next_flick",
-        # Bare "weird" already addresses the active satellite, so Genau's own
-        # action names the flick.  There is no spoken hold to go with it: holding
-        # one is the Main Funestra's lock, said as "main lock" or bare while the
-        # Main Funestra has the floor.
-        f"weird {flick}": "genau_weird_flick",
         # "voice off" / "mic off" both mute voice control (there is no spoken way
         # back — a muted recognizer hears nothing; the dashboard mic button or a
         # restart re-enables it).
@@ -269,10 +264,10 @@ def build_voice_commands(
         "previous": "prev",
         "skip": "nudge_next",
         "back": "nudge_prev",
-        "weird": "trash",
+        "trash": "trash",
         # The clip is fine; what its metadata says it shows is not.  Strikes the act
         # out of the sidecar, which puts the clip back in front of Evolver's backfill
-        # tool to be named again — the metadata counterpart of "weird".
+        # tool to be named again — the metadata counterpart of "trash".
         "wrong action": "wrong_action",
         "action": "cycle_action",
         # "scene" is a synonym for "action" — a scene IS an act — so it cycles the

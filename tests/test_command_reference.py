@@ -263,7 +263,7 @@ def test_the_bare_phrases_read_as_the_say_column():
         "active_lock_off": "unlock",
         "active_prev": "previous",
         "active_next": "next",
-        "active_trash": "weird",
+        "active_trash": "trash",
         "active_cycle_action": "action",
         "active_cycle_seed": "seed",
         "active_wrong_action": "wrong action",

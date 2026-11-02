@@ -180,7 +180,7 @@ def test_every_spoken_phrase_lands_on_a_handler():
 
 
 def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
-    """A bare "weird" or "cycle seed" spoken while the Main Funestra holds the
+    """A bare "cycle seed" spoken while the Main Funestra holds the
     floor resolves to nothing on purpose — but only for actions whose sided
     forms ARE handled, or the residue would be hiding a genuinely dead phrase."""
     _, residues = _voice_resolutions()

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from funestra.console import ConsoleModel, aim_row, osr2_controls
+from funestra.file_channel import append_command
 from funestra.hud_button import Button
 from funestra.modes import MainMode, Osr2State
 from shared_ui.spacing import BUTTON_WORD_W
@@ -82,3 +83,16 @@ class DeviceBlock:
 
     def worn_by(self, model: HudModel) -> HudModel:
         return replace(model, osr2_rows=self.rows, osr2=self.osr2)
+
+
+def tell_a_hosted_side_whose_the_osr2_is(config, told: dict[RoomFunestra, bool],
+                                         funestra: RoomFunestra, has_it: bool) -> None:
+    if told.get(funestra) == has_it:
+        return
+    append_command(config.origenerator_cmd_file, osr2_said_to(funestra, has_it))
+    told[funestra] = has_it
+
+
+def forget_what_a_side_was_told_of_the_osr2(told: dict[RoomFunestra, bool],
+                                            funestra: RoomFunestra) -> None:
+    told.pop(funestra, None)

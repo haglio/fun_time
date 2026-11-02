@@ -16,7 +16,7 @@ from .room_funestras import RoomFunestra
 from .shared_state import BridgeState
 from .watch_stats import record_watch_event, watch_stats_path
 
-MARKED_WEIRD = "Marked weird"
+SENT_TO_TRASH = "Sent to Trash"
 _GO_TO = "GO_TO"
 
 
@@ -72,4 +72,4 @@ def build_discard_plan(
     return DiscardPlan(
         condemns=True,
         log_message=f"Discarding from Funestra {funestra}: {current_path}",
-        notice_message=MARKED_WEIRD)
+        notice_message=SENT_TO_TRASH)
