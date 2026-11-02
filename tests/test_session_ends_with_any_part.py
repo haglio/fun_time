@@ -55,7 +55,7 @@ class _StillRunning:
 
 
 def test_the_session_ends_when_a_part_of_its_room_closes(tmp_path, monkeypatch):
-    monkeypatch.setattr(funestra_deaths, "get_process_creation_time", _born(30))
+    monkeypatch.setattr(funestra_deaths, "process_started", _born(30))
 
     ended = _wait_for_the_session_to_end(
         _StillRunning(), tmp_path, children=_room(portrait_pid=30, origenerator_pid=40),

@@ -39,7 +39,6 @@ from fun_time.win32 import (
 )
 from fun_time.win32_process import (
     command_line_of,
-    get_process_creation_time,
     get_process_image_name,
     is_process_alive,
     process_table,
@@ -373,15 +372,6 @@ class TestGetProcessImageName:
             mock.QueryFullProcessImageNameW.return_value = 0
             assert get_process_image_name(4242) is None
         mock.CloseHandle.assert_called_once_with(42)
-
-
-class TestGetProcessCreationTime:
-    def test_this_process_has_one_creation_time_however_often_it_is_asked(self):
-        first = get_process_creation_time(os.getpid())
-
-        assert first is not None
-        assert first > 0
-        assert get_process_creation_time(os.getpid()) == first
 
 
 class TestIsProcessAlive:

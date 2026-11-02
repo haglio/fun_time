@@ -11,7 +11,7 @@ def test_a_process_older_than_its_parent_was_started_by_an_earlier_owner_of_the_
         monkeypatch):
     created = {756: 200, 764: 100, 900: 300}
     monkeypatch.setattr(child_reports, "list_child_pids", lambda pid: [764, 900] if pid == 756 else [])
-    monkeypatch.setattr(child_reports, "get_process_creation_time", created.get)
+    monkeypatch.setattr(child_reports, "process_started", created.get)
 
     assert with_what_it_started(756) == [StartedProcess(756, 200), StartedProcess(900, 300)]
 

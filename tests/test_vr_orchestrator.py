@@ -416,7 +416,7 @@ class TestWaitForSessionEnd:
     def test_any_other_part_of_the_room_closing_ends_the_session(self, tmp_path, monkeypatch):
         """His rule (2026-10-08): if one part of Fun Time dies, the whole thing
         dies with it, rather than carrying on without it."""
-        monkeypatch.setattr(funestra_deaths, "get_process_creation_time", lambda pid: None)
+        monkeypatch.setattr(funestra_deaths, "process_started", lambda pid: None)
 
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0,
@@ -1628,7 +1628,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         stock_the_playlists=MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
         launch_audio_companion=MagicMock(return_value=MagicMock(pid=101)),
         launch_vr_funestras=MagicMock(return_value=MagicMock(pid=202)),
-        get_process_creation_time=MagicMock(return_value=7),
+        process_started=MagicMock(return_value=7),
         _wait_for_funestra=MagicMock(return_value=True),
         _wait_for_the_room=MagicMock(),
         start_hud_priming=MagicMock(return_value=(None, threading.Event())),

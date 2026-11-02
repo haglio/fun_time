@@ -44,14 +44,14 @@ def _publishes(satellite: LoneSatellite, *, video: str, position_ms: int, durati
 
 
 def test_a_launched_child_is_named_by_its_pid_and_the_moment_it_was_born():
-    with patch.object(lone_satellite, "get_process_creation_time", return_value=4200) as born:
+    with patch.object(lone_satellite, "process_started", return_value=4200) as born:
         assert identify_child(4242) == ChildProcess(pid=4242, created_at=4200)
 
     born.assert_called_once_with(4242)
 
 
 def test_a_child_already_gone_when_named_is_one_no_live_process_can_match():
-    with patch.object(lone_satellite, "get_process_creation_time", return_value=None):
+    with patch.object(lone_satellite, "process_started", return_value=None):
         assert identify_child(4242) == ChildProcess(pid=4242, created_at=0)
 
 
@@ -128,7 +128,7 @@ def test_a_satellite_whose_process_is_gone_says_so(tmp_path: Path):
     satellite = LoneSatellite(tmp_path)
     satellite.process = ChildProcess(pid=4242, created_at=1)
 
-    with patch.object(lone_satellite, "get_process_creation_time", return_value=None):
+    with patch.object(lone_satellite, "process_started", return_value=None):
         assert "its process has ended" in satellite.what_it_last_said()
 
 
@@ -136,6 +136,6 @@ def test_a_satellite_still_running_says_so(tmp_path: Path):
     satellite = LoneSatellite(tmp_path)
     satellite.process = ChildProcess(pid=4242, created_at=1)
 
-    with patch.object(lone_satellite, "get_process_creation_time", return_value=1), \
+    with patch.object(lone_satellite, "process_started", return_value=1), \
             patch.object(lone_satellite, "is_process_alive", return_value=True):
         assert "its process is still running" in satellite.what_it_last_said()

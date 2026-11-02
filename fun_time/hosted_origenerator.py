@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from app_support import origenerator_handoff as handoff
+from app_support.win32 import process_started
 from funestra.file_channel import append_command
 
 from .hosted_contract import (
@@ -26,7 +27,6 @@ from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .standalone_origenerator import OpenOrigenerator, claim_the_osr2, the_open_origenerator
-from .win32_process import get_process_creation_time
 from .window_layout import WindowLayoutPlan, screen_layout
 from .windows_bridge_startup import (
     HandedFunestra,
@@ -58,7 +58,7 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
     state_dir = Path(m.commands.origenerator_status_file).parent
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
-    if kept is None or get_process_creation_time(kept.pid) != kept.created_at:
+    if kept is None or process_started(kept.pid) != kept.created_at:
         return None  # gone since, or that pid is somebody else's now
     write_flag_file(m.commands.origenerator_paused_file, False)
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
