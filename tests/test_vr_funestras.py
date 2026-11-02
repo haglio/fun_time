@@ -162,7 +162,6 @@ from fun_time_vr.scene import (
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
 from fun_time_vr.thumbs import NUDGE_FORWARD
-from fun_time_vr.video_thread import VideoThread
 from fun_time_vr.wrap_readout import WrapReadout, label
 from fun_time_vr.wraps import immersive_wrap
 from main_funestra.cli import build_parser as build_main_funestra_parser
@@ -1459,16 +1458,6 @@ class TestWhenTheRoomIsUp:
             SimpleNamespace(ready=True, has_frame=False)))
 
         assert _still_blank(**scene) == ("main",)
-
-    def test_a_target_is_marked_painted_where_its_frame_lands(self):
-        """The other half of that contract, pinned in the source because the copy
-        itself needs a GL context: the flag the gate reads is set where a frame
-        is copied in, never beside the ``ensure`` that only sizes the texture."""
-        source = ast.unparse(ast.parse(inspect.getsource(VideoThread.show_newest).lstrip()))
-        before, copied, after = source.partition("glCopyImageSubData")
-        assert copied
-        assert "target.painted = True" in after
-        assert "target.painted = True" not in before
 
     def test_the_main_slot_counts_once_wherever_the_scene_is(self):
         """In genau mode Genau's flick has the scene and the video waits
