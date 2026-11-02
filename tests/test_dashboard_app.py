@@ -47,7 +47,7 @@ from fun_time.dashboard_app import (
     SOURCE_CHECKOUT_FILENAME,
     DashboardLaunchGeometry,
     DashboardWidget,
-    MarkCache,
+    IconCache,
     ReferenceDialog,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
@@ -95,7 +95,7 @@ from tests.sleeps import sleeps_in
 
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
-    kwargs.setdefault("marks", MarkCache())
+    kwargs.setdefault("icons", IconCache())
     return build_dashboard_scene(layout, snapshot, width=layout.width, **kwargs)
 
 
@@ -287,8 +287,8 @@ def test_a_branch_session_names_itself_in_the_preview_ink_and_says_what_it_demos
     title = next(item for item in scene.texts if item.text == "Fun Time")
     assert title.color == QColor(as_hex(PREVIEW_INK))
     assert (layout.app_title, "Fun Time \u2014 preview of the new reference popup") in scene.hover_texts
-    mark = next(item for item in scene.images if item.rect == layout.app_icon)
-    middle = mark.pixmap.toImage().pixelColor(mark.pixmap.width() // 2, mark.pixmap.height() // 2)
+    icon = next(item for item in scene.images if item.rect == layout.app_icon)
+    middle = icon.pixmap.toImage().pixelColor(icon.pixmap.width() // 2, icon.pixmap.height() // 2)
     assert (middle.red(), middle.green(), middle.blue()) == PREVIEW_INK
 
 
@@ -298,13 +298,13 @@ def test_the_pause_button_says_which_way_it_will_go():
     layout = compute_dashboard_bar_layout()
 
 
-    def mark(paused: bool):
+    def its_icon(paused: bool):
         scene = _scene(_snapshot(omni_paused=paused))
         return next(i.pixmap for i in scene.images if i.rect == layout.omnipause_button)
 
-    satellite = _mark_side(layout.omnipause_button)
-    assert mark(False).toImage() == icon_pixmap("pause", satellite, TEXT_PRIMARY).toImage()
-    assert mark(True).toImage() == icon_pixmap("play", satellite, TEXT_PRIMARY).toImage()
+    edge = _icon_side(layout.omnipause_button)
+    assert its_icon(False).toImage() == icon_pixmap("pause", edge, TEXT_PRIMARY).toImage()
+    assert its_icon(True).toImage() == icon_pixmap("play", edge, TEXT_PRIMARY).toImage()
 
 
 def test_pausing_everything_does_not_paint_the_button_a_state_color():
@@ -335,14 +335,14 @@ def test_the_microphone_is_the_one_the_family_shares():
     """Origenerator's toolbar wears this same drawing.
 
     The two apps sit on one screen at once, and while each painted its own
-    microphone the two marks came out visibly different shapes -- one control
-    reading as two.  So the mark on the panel has to be the shared glyph itself,
+    microphone the two icons came out visibly different shapes -- one control
+    reading as two.  So the icon on the panel has to be the shared glyph itself,
     pixel for pixel, rather than a copy that can drift from it again.
     """
     panel = compute_dashboard_bar_layout().voice_panel
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
-    expected = icon_pixmap("mic", _mark_side(panel), TEXT_PRIMARY)
+    expected = icon_pixmap("mic", _icon_side(panel), TEXT_PRIMARY)
     assert drawn[panel].toImage() == expected.toImage()
 
 
@@ -1183,7 +1183,7 @@ def test_lighten_color_caps_at_255():
 def test_dashboard_widget_emits_action_on_click():
     """Clicking inside an action rect should emit action_triggered with the action ID."""
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.width, marks=MarkCache())
+    scene = build_dashboard_scene(layout, width=layout.width, icons=IconCache())
 
     widget = DashboardWidget()
     widget.set_scene(scene)
@@ -1210,7 +1210,7 @@ def test_dashboard_widget_emits_action_on_click():
 def test_dashboard_widget_ignores_click_outside_actions():
     """Clicking outside any action rect should not emit."""
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.width, marks=MarkCache())
+    scene = build_dashboard_scene(layout, width=layout.width, icons=IconCache())
 
     widget = DashboardWidget()
     widget.set_scene(scene)
@@ -1229,7 +1229,7 @@ def test_dashboard_widget_ignores_click_outside_actions():
 def test_every_control_on_the_bar_wears_a_drawn_mark():
     """Typed as font characters, each control came out at whatever weight its
     face gave it -- the help "?" was set in the body face rather than a symbol
-    one and was visibly smaller than every mark beside it, and quit's power
+    one and was visibly smaller than every icon beside it, and quit's power
     symbol was a different weight from the one Evolver draws.  So the bar's
     controls are drawn now, and only the app's own name is set in type."""
     layout = compute_dashboard_bar_layout()
@@ -1239,7 +1239,7 @@ def test_every_control_on_the_bar_wears_a_drawn_mark():
     for rect, name in ((layout.quit_button, "power"),
                        (layout.help_button, "question"),
                        (layout.voice_panel, "mic")):
-        satellite = _mark_side(rect)
+        satellite = _icon_side(rect)
         assert drawn[rect].toImage() == icon_pixmap(name, satellite, TEXT_PRIMARY).toImage(), name
 
     assert [item.text for item in scene.texts] == ["Fun Time"]
@@ -1291,7 +1291,7 @@ def test_a_pressed_control_keeps_the_edge_its_state_gave_it():
                 if item.rect == layout.voice_panel) == BLUE
 
 
-def _mark_side(rect) -> int:
+def _icon_side(rect) -> int:
     return min(rect.width, rect.height) - 2 * BUTTON_ICON_INSET
 
 
@@ -1299,41 +1299,41 @@ class TestMarkCache:
     """The pixmaps the bar is painted from, and who owns them.
 
     Both were module-level dicts that grew for the life of the process and were
-    never cleared: one keyed marks by (name, width, height) under an annotation
+    never cleared: one keyed icons by (name, width, height) under an annotation
     that said (name, height), the other icons by (file, height).
     """
 
     def test_the_same_mark_at_the_same_size_is_drawn_once(self):
-        marks = MarkCache()
+        icons = IconCache()
         rect = compute_dashboard_bar_layout().quit_button
 
-        assert marks.mark("power", rect) is marks.mark("power", rect)
+        assert icons.family_icon("power", rect) is icons.family_icon("power", rect)
 
     def test_a_control_of_another_size_gets_its_own(self):
-        marks = MarkCache()
+        icons = IconCache()
         layout = compute_dashboard_bar_layout()
 
-        assert marks.mark("power", layout.quit_button) is not marks.mark(
+        assert icons.family_icon("power", layout.quit_button) is not icons.family_icon(
             "power", _resized(layout.quit_button, layout.quit_button.width // 2))
 
     def test_the_icon_is_rescaled_once_per_height(self):
-        marks = MarkCache()
+        icons = IconCache()
 
 
-        assert marks.icon(PROJECT_ICON, 24) is marks.icon(PROJECT_ICON, 24)
-        assert marks.icon(PROJECT_ICON, 24) is not marks.icon(PROJECT_ICON, 25)
+        assert icons.icon(PROJECT_ICON, 24) is icons.icon(PROJECT_ICON, 24)
+        assert icons.icon(PROJECT_ICON, 24) is not icons.icon(PROJECT_ICON, 25)
 
     def test_a_second_bar_paints_out_of_a_cache_of_its_own(self):
         """The point of the owner: nothing is shared between two bars, and a
         test starts with an empty one instead of whatever ran before it."""
         rect = compute_dashboard_bar_layout().quit_button
 
-        assert MarkCache().mark("power", rect) is not MarkCache().mark("power", rect)
+        assert IconCache().family_icon("power", rect) is not IconCache().family_icon("power", rect)
 
     def test_a_mark_is_inset_from_its_button_as_far_as_a_huds_is(self):
         rect = compute_dashboard_bar_layout().quit_button
 
-        assert MarkCache().mark("power", rect).width() == _mark_side(rect)
+        assert IconCache().family_icon("power", rect).width() == _icon_side(rect)
 
 
 def _resized(rect, satellite: int):
@@ -1737,7 +1737,7 @@ def test_the_dashboards_config_names_the_one_directory_its_files_live_in(tmp_pat
     assert app_config.dashboard_cmd_file == manifest_path.parent / "dashboard_cmd.txt"
 
 
-# --- the strip under the log ----------------------------------------------------
+# --- the mode selector under the log ----------------------------------------------------
 
 
 def _strip_app_config(cfg_factory, tmp_path):
@@ -1749,7 +1749,7 @@ def _strip_app_config(cfg_factory, tmp_path):
 
 
 @pytest.fixture
-def strip_window(cfg_factory, tmp_path):
+def mode_selector_window(cfg_factory, tmp_path):
     window = build_dashboard_window(
         _strip_app_config(cfg_factory, tmp_path),
         launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=600, height=400))
@@ -1760,8 +1760,8 @@ def strip_window(cfg_factory, tmp_path):
 
 
 def _press_the_strip(window, label: str) -> None:
-    rect = next(rect for rect, button in window._strip.placed if button.icon == label)
-    QTest.mouseClick(window._strip, Qt.MouseButton.LeftButton,
+    rect = next(rect for rect, button in window._mode_selector.placed if button.icon == label)
+    QTest.mouseClick(window._mode_selector, Qt.MouseButton.LeftButton,
                      pos=QPoint(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2))
 
 
@@ -1778,42 +1778,42 @@ def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part
         cfg_factory, tmp_path, dashboard_window):
     window = _placed_where_a_session_places_it(_strip_app_config(cfg_factory, tmp_path))
     try:
-        bar, log, strip, osr2 = window._widget, window._log_widget, window._strip, window._osr2
+        bar, log, strip, osr2 = window._widget, window._log_widget, window._mode_selector, window._osr2
 
         assert _at(window, bar) == QPoint(0, 0)
         assert _at(window, log) == QPoint(0, bar.height())
         assert _at(window, strip) == QPoint(0, bar.height() + log.height())
         assert log.width() == strip.width() == _at(window, osr2).x()
         assert (strip.height(), strip.y() + strip.height()) == (RFB_MODE_SELECTOR_HEIGHT, window.height())
-        assert dashboard_window._strip is None
+        assert dashboard_window._mode_selector is None
     finally:
         window.close()
 
 
-def test_the_strip_lights_whatever_holds_the_browsers_place(strip_window):
-    strip_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True),
+def test_the_strip_lights_whatever_holds_the_browsers_place(mode_selector_window):
+    mode_selector_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True),
                             frozenset())
 
-    assert [(button.icon, button.lit, button.dim) for _rect, button in strip_window._strip.placed] == [
+    assert [(button.icon, button.lit, button.dim) for _rect, button in mode_selector_window._mode_selector.placed] == [
         ("Random Favs Browser", False, False), ("Origenerator", True, False)]
 
 
-def test_a_press_on_the_strip_asks_for_that_one_in_the_browsers_place(strip_window, tmp_path):
-    strip_window._do_render(_snapshot(origenerator_ready=True), frozenset())
+def test_a_press_on_the_strip_asks_for_that_one_in_the_browsers_place(mode_selector_window, tmp_path):
+    mode_selector_window._do_render(_snapshot(origenerator_ready=True), frozenset())
 
-    _press_the_strip(strip_window, "Origenerator")
-    _press_the_strip(strip_window, "Random Favs Browser")
+    _press_the_strip(mode_selector_window, "Origenerator")
+    _press_the_strip(mode_selector_window, "Random Favs Browser")
 
-    assert poll_dashboard_commands(strip_window._app_config.dashboard_cmd_file) == [
+    assert poll_dashboard_commands(mode_selector_window._app_config.dashboard_cmd_file) == [
         "origenerator_activate", "rfb_activate"]
 
 
-def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(strip_window):
-    strip_window._do_render(_snapshot(origenerator_ready=False), frozenset())
+def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(mode_selector_window):
+    mode_selector_window._do_render(_snapshot(origenerator_ready=False), frozenset())
 
-    _press_the_strip(strip_window, "Origenerator")
+    _press_the_strip(mode_selector_window, "Origenerator")
 
-    assert poll_dashboard_commands(strip_window._app_config.dashboard_cmd_file) == []
+    assert poll_dashboard_commands(mode_selector_window._app_config.dashboard_cmd_file) == []
 
 
 # --- the OSR2 part at the window's right end -------------------------------------

@@ -102,7 +102,7 @@ class HudFeed:
     def publish(self, state: BridgeState) -> None:
         """Rebuild both satellites' HUD HUDs and publish the ones that changed.
 
-        Runs under OmniPause too: playback is frozen, but the map stays up so the
+        Runs under OmniPause too: playback is frozen, but the nav map stays up so the
         user can still see — and click — what each satellite is holding.
         """
         if self.publisher is None:
@@ -132,7 +132,7 @@ class HudFeed:
                 hud_minimized=values.hud_minimized,
                 filter_query=values.filter,
                 loop_axis=values.loop,
-                map_anchor=values.map_anchor,
+                nav_map_anchor=values.nav_map_anchor,
                 widen_video=values.widen_video,
                 nav_anchor=values.nav_anchor,
                 latest=values.latest,
@@ -262,7 +262,7 @@ class HudFeed:
         playlist — so once one has named a video, a blank status means the read
         lost a race with the Funestra's own republish, not that the Funestra has
         nothing.  Believing the blank builds an empty HUD, and publishing that
-        blanks the map on screen until the next tick puts it back.  Before a
+        blanks the nav map on screen until the next tick puts it back.  Before a
         satellite's first status there is nothing to hold, and an empty map is
         the truth.
         """

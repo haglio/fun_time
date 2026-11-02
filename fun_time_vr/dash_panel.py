@@ -1,7 +1,7 @@
 """The dashboard, hanging in the headset: the control bar, the log, the OSR2 part.
 
 The desktop's is a Qt window a VR session never launches, so this paints the
-same thing with Pillow -- the bar's own geometry, the family's own marks and
+same thing with Pillow -- the bar's own geometry, the family's own icons and
 metrics, the same action names and the same window labels, off dashboard_layout,
 shared_ui and event_log rather than drawn to match.
 """
@@ -37,7 +37,7 @@ from shared_ui.spacing import (
 from shared_ui.type_scale import SIZE_SMALL, SIZE_TINY, in_pixels
 
 from fun_time import preview_marker
-from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
+from fun_time.dashboard_controls import BarControl, bar_controls, icon_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.dashboard_osr2_model import room_for_a_whole_part
 from fun_time.event_log import (
@@ -60,7 +60,7 @@ LOG_ROWS = 8
 
 # The dial, and one action per stop while it is open, named so a press carries
 # which stop it landed on.
-VERBOSITY_CHIP = "dash_verbosity"
+VERBOSITY_DROPDOWN = "dash_verbosity"
 VERBOSITY_STOP = "dash_verbosity:"
 
 
@@ -104,15 +104,15 @@ def dial_rect() -> Rect:
     return Rect(PAD, compute_dashboard_bar_layout().height + PAD, _DIAL_W, BUTTON_SIZE_HUD)
 
 
-def source_chips() -> dict[str, Rect]:  # left to right, in SOURCES order
+def source_buttons() -> dict[str, Rect]:  # left to right, in SOURCES order
     dial = dial_rect()
-    chips: dict[str, Rect] = {}
+    buttons_of_a_row: dict[str, Rect] = {}
     x = dial.x + dial.width + BUTTON_GROUP_GAP
     for source in SOURCES:
         width = int(load_font(_LABEL_PX).getlength(SOURCE_LABELS[source])) + 2 * BUTTON_PAD_H_TIGHT
-        chips[source] = Rect(x, dial.y, width, BUTTON_SIZE_HUD)
+        buttons_of_a_row[source] = Rect(x, dial.y, width, BUTTON_SIZE_HUD)
         x += width + BUTTON_GAP
-    return chips
+    return buttons_of_a_row
 
 
 @cache
@@ -138,8 +138,8 @@ def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
     """Every pressable rect, by its action; the list's stops only while open."""
     actions = {control.action: control.rect
                for control in bar_controls(compute_dashboard_bar_layout(), in_vr=True)}
-    actions[VERBOSITY_CHIP] = dial_rect()
-    actions.update(source_chips())
+    actions[VERBOSITY_DROPDOWN] = dial_rect()
+    actions.update(source_buttons())
     if dial_open:  # over the log, and pressed before anything under it
         actions = dial_stops() | actions
     return actions
@@ -221,23 +221,23 @@ def paint_dash(state: DashState, records,
     bar = compute_dashboard_bar_layout()
     wordmark, small = load_font(_WORDMARK_PX, WORDMARK_FACE), load_font(_LABEL_PX)
 
-    mark = _app_mark(bar.app_icon.height, shown_as)
-    if mark is not None:
-        panel.alpha_composite(mark, (bar.app_icon.x, bar.app_icon.y))
+    icon = _app_mark(bar.app_icon.height, shown_as)
+    if icon is not None:
+        panel.alpha_composite(icon, (bar.app_icon.x, bar.app_icon.y))
     draw.text((bar.app_title.x, bar.app_title.y + 4), preview_marker.APP_TITLE,
               font=wordmark, fill=preview_marker.wordmark_ink(shown_as))
     for control in state.controls():
         rect = control.rect
         button(draw, rect, control.lit or BG_BUTTON, lit=not control.dim and _on(rect, hover))
-        size = mark_side(rect)
+        size = icon_side(rect)
         panel.alpha_composite(
-            pil_icon(control.mark, size, control.ink),
+            pil_icon(control.icon, size, control.ink),
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
         )
 
     paint_field(panel, dial_rect(), verbosity_name(state.verbosity), small,
                 lit=_on(dial_rect(), hover))
-    for source, rect in source_chips().items():
+    for source, rect in source_buttons().items():
         on = source in state.sources
         _chip(draw, rect, SOURCE_LABELS[source], on=on, font=small, hover=hover)
 
@@ -312,7 +312,7 @@ class DashPointer:
             self.part.leave()
 
     def _act(self, action: str) -> None:
-        if action == VERBOSITY_CHIP:
+        if action == VERBOSITY_DROPDOWN:
             self.state = replace(self.state, dial_open=not self.state.dial_open)
         elif action.startswith(VERBOSITY_STOP):
             self.state = replace(

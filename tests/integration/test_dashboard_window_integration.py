@@ -142,7 +142,7 @@ def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edg
     window, _state_dir = _build_merged_dashboard(
         cfg_factory({"paths": {"origenerator_dir": str(tmp_path / "origenerator")}}))
     try:
-        central, log, strip = window.centralWidget(), window._log_widget, window._strip
+        central, log, strip = window.centralWidget(), window._log_widget, window._mode_selector
         assert strip.height() == RFB_MODE_SELECTOR_HEIGHT
         assert strip.width() == log.width()
         assert strip.y() == log.y() + log.height()

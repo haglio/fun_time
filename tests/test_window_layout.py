@@ -185,14 +185,14 @@ def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_pa
             secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
             layout_config=load_config(cfg_path).layout, **strip)
 
-    without, with_strip = plan(), plan(rfb_mode_selector=True)
+    without, with_mode_selector = plan(), plan(rfb_mode_selector=True)
 
-    taller = with_strip.dashboard.height - without.dashboard.height
+    taller = with_mode_selector.dashboard.height - without.dashboard.height
     assert taller == RFB_MODE_SELECTOR_HEIGHT
-    assert without.random_favs_browser.height - with_strip.random_favs_browser.height == taller
-    assert with_strip.random_favs_browser.y == (
-        with_strip.dashboard.y + with_strip.dashboard.height)
-    assert with_strip.dashboard.height == dashboard_window_height(rfb_mode_selector=True)
+    assert without.random_favs_browser.height - with_mode_selector.random_favs_browser.height == taller
+    assert with_mode_selector.random_favs_browser.y == (
+        with_mode_selector.dashboard.y + with_mode_selector.dashboard.height)
+    assert with_mode_selector.dashboard.height == dashboard_window_height(rfb_mode_selector=True)
 
 
 

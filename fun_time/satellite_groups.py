@@ -14,7 +14,7 @@ from .bridge_records import BridgeConfig, WindowOp
 from .event_log import FAVORITE
 from .fun_time_funestras import FunTimeFunestra
 from .lock import a_lock_holds
-from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
+from .lock_hud import cell_path, locate_cell, nav_map_cells, navigate_cell
 from .media_metadata import (
     GroupIndex,
     action_group_items,
@@ -107,7 +107,7 @@ def clear_satellite_grouping(state: BridgeState, funestra: FunTimeFunestra) -> B
     playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
     was set.  The widen only ever means something in the context of the video/loop
     it was taken around, so a rebuild that drops the loop drops the widen with it."""
-    return state.with_satellite(funestra, loop="", map_anchor="", widen_video="")
+    return state.with_satellite(funestra, loop="", nav_map_anchor="", widen_video="")
 
 
 def _satellite_group_index(funestra: FunTimeFunestra, config: BridgeConfig, current: str) -> GroupIndex:
@@ -328,7 +328,7 @@ def group_loop(
     send_satellite(config, funestra, RELOAD_PLAYLIST)
     message = f"Loop {FunTimeFunestra(funestra).label}: {len(items)} {axis}s"
     logger.info(message)
-    state = state.with_satellite(funestra, loop=axis, map_anchor=current)
+    state = state.with_satellite(funestra, loop=axis, nav_map_anchor=current)
     # Anchor the widen on the loop iff it is the loose family being looped, so the
     # HUD reads a running seed loop as widened exactly when it truly is — and a
     # plain exact-family loop drops any stale anchor.
@@ -432,9 +432,9 @@ def no_loop(
         write_playlist_file(config.satellite(funestra).playlist_file, _browse_after(browse, current),
                             metadata_root=config.regen_metadata_root)
         send_satellite(config, funestra, RELOAD_PLAYLIST)
-    # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
+    # Only the loop itself goes.  The nav map anchor and any widened row stay, so the HUD
     # keeps hanging exactly where it was and switching a loop off takes away the lit
-    # button and the rectangle and nothing else; the map lets go by itself once the
+    # button and the rectangle and nothing else; the nav map lets go by itself once the
     # browse moves on past the group.
     state = state.with_satellite(funestra, loop="")
     return state, [WindowOp(op="message", key="Loop off", source=satellite_source(funestra))]
@@ -473,11 +473,11 @@ def navigate_hud(
     funestra: FunTimeFunestra, direction: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Move the HUD map's keyboard selection one step and switch the satellite to
-    the picked video, keeping the map frozen on the video navigation began from.
+    the picked video, keeping the nav map frozen on the video navigation began from.
 
-    The selection is wherever the satellite is now playing on the frozen map; the
+    The selection is wherever the satellite is now playing on the frozen nav map; the
     step lands on a neighbouring cell, whose video becomes the new current video.
-    A satellite that auto-advanced off the frozen map re-anchors on whatever is
+    A satellite that auto-advanced off the frozen nav map re-anchors on whatever is
     now playing.  Each axis wraps, so running off its end comes round to the
     anchor; only a step with genuinely nowhere to go — sideways off the action
     column, or along an axis holding just the anchor — is a dead end, reported
@@ -485,7 +485,7 @@ def navigate_hud(
 
     A vertical step from a seed cell dives into THAT seed's own action column —
     the one the HUD draws under the lit cell (``build_hud`` hangs it
-    there) — re-rooting the map on the seed it stepped down from.  The frozen
+    there) — re-rooting the nav map on the seed it stepped down from.  The frozen
     anchor's own acts belong to the corner's seed, which is a different video.
     """
     source = satellite_source(funestra)
@@ -495,20 +495,20 @@ def navigate_hud(
     index = _satellite_group_index(funestra, config, current)
     anchor = state.satellite(funestra).nav_anchor
     if anchor:
-        seeds, actions = hud_map_cells(index, anchor)
+        seeds, actions = nav_map_cells(index, anchor)
         if locate_cell(current, anchor, seeds, actions) is None:
-            anchor = ""  # drifted off the frozen map — start over from the live video
+            anchor = ""  # drifted off the frozen nav map — start over from the live video
     if not anchor:
         anchor = current
     root = anchor
-    seeds, actions = hud_map_cells(index, root)
+    seeds, actions = nav_map_cells(index, root)
     cell = locate_cell(current, root, seeds, actions) or ("corner", 0)
     if cell[0] == "seed" and direction in ("down", "up"):
         # Dive into the lit seed's own column: step as if from the corner of the
         # map homed on it.  Committed below only if the step actually lands, so a
         # seed with no other acts stays a dead end on an unmoved map.
         root, cell = current, ("corner", 0)
-        seeds, actions = hud_map_cells(index, root)
+        seeds, actions = nav_map_cells(index, root)
     target_cell = navigate_cell(cell, direction, action_count=len(actions))
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):

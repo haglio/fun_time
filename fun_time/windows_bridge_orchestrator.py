@@ -572,7 +572,7 @@ def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
 def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
                               rfb_mode: RfbMode = RfbMode.RFB) -> dict[str, int]:
     """Resolve every managed window, band it, and settle the z-order until each
-    Funestra is actually frontmost — returning the role hwnds it resolved.
+    Funestra is actually frontmost — returning the window handles it resolved.
 
     ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
     curtain, which is where it belongs: the bands decide what the reveal looks

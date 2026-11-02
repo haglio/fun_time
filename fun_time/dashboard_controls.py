@@ -25,13 +25,13 @@ Color = tuple[int, int, int]
 class BarControl:
     action: str
     rect: Rect
-    mark: str
+    icon: str
     ink: Color = TEXT_PRIMARY
     lit: Color | None = None
     dim: bool = False
 
 
-def mark_side(rect: Rect) -> int:
+def icon_side(rect: Rect) -> int:
     return min(rect.width, rect.height) - 2 * BUTTON_ICON_INSET
 
 

@@ -112,7 +112,7 @@ NON_LETTER_HEADING = "#"
 UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
 
-# The hairline between a folder tile's four stills, so they read as four
+# The hairline between a folder tile's four thumbnails, so they read as four
 # thumbnails rather than one.
 MONTAGE_GAP = HAIRLINE
 
@@ -226,18 +226,18 @@ class LibraryGrid(BrowseList):
         return self._thumbnailed_item(handle.title, handle.preview, listings)
 
     def _folder_item(self, child: SubFolder, listings: FolderListings) -> QListWidgetItem:
-        """A folder tile: its name, how much is in it, and stills from inside."""
+        """A folder tile: its name, how much is in it, and thumbnails from inside."""
         item = QListWidgetItem(f"{child.name}  ({child.count})")
         item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
         item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
-        stills = [
+        thumbnails = [
             cached for cached in (
                 cached_thumbnail(preview, self._thumbnail_cache, listings)
                 for preview in child.previews
             ) if cached is not None
         ]
-        if stills:
-            item.setIcon(montage_icon(stills))
+        if thumbnails:
+            item.setIcon(montage_icon(thumbnails))
         return item
 
     def _up_item(self, parent: tuple[str, ...]) -> QListWidgetItem:
@@ -283,21 +283,21 @@ class LibraryGrid(BrowseList):
         while not extraction.extracted.empty():
             row = extraction.extracted.get_nowait()
             item, what = self.item(row), self.rows[row]
-            stills = [
+            thumbnails = [
                 cached for cached in (
                     cached_thumbnail(preview, self._thumbnail_cache, listings)
                     for preview in previews_of(what)
                 ) if cached is not None
             ]
-            if stills:
-                item.setIcon(montage_icon(stills) if isinstance(what, SubFolder)
-                             else fitted_icon(stills[0]))
+            if thumbnails:
+                item.setIcon(montage_icon(thumbnails) if isinstance(what, SubFolder)
+                             else fitted_icon(thumbnails[0]))
         if finished:
             self._collect_timer.stop()
 
 
 class _ThumbnailExtraction(threading.Thread):
-    """One folder's missing stills, off the event loop: a cold cache is hundreds
+    """One folder's missing thumbnails, off the event loop: a cold cache is hundreds
     of HEVC decodes, and the browse must never wait on them."""
 
     def __init__(self, pending: Sequence[tuple[int, Sequence[str]]], thumbnail_cache: Path) -> None:
@@ -708,23 +708,23 @@ def _fitted(still: str | Path, width: int, height: int) -> QPixmap:
     )
 
 
-def montage_icon(stills: Sequence[str | Path]) -> QIcon:
-    """*stills* laid out two by two across one tile, each keeping its shape.
+def montage_icon(thumbnails: Sequence[str | Path]) -> QIcon:
+    """*thumbnails* laid out two by two across one tile, each keeping its shape.
 
     A folder of hundreds said almost nothing when it was drawn with a single
     still, so it is drawn with four of its videos instead.  One still gets the
     whole tile — there is nothing to quarter it around — and a folder that holds
     two or three leaves the spare cells empty rather than repeating itself.
     """
-    if len(stills) == 1:
-        return fitted_icon(stills[0])
+    if len(thumbnails) == 1:
+        return fitted_icon(thumbnails[0])
     cell_width = (ICON_WIDTH - MONTAGE_GAP) // 2
     cell_height = (ICON_HEIGHT - MONTAGE_GAP) // 2
     canvas = QPixmap(ICON_WIDTH, ICON_HEIGHT)
     canvas.fill(Qt.GlobalColor.transparent)
     painter = QPainter(canvas)
     try:
-        for index, still in enumerate(stills[:4]):
+        for index, still in enumerate(thumbnails[:4]):
             thumbnail = _fitted(still, cell_width, cell_height)
             left = (index % 2) * (cell_width + MONTAGE_GAP)
             top = (index // 2) * (cell_height + MONTAGE_GAP)
@@ -814,7 +814,7 @@ def browse_library(
 
 @dataclass(frozen=True)
 class BrowserConfig:
-    """Where the browser reads the library, its families, and its stills from."""
+    """Where the browser reads the library, its families, and its thumbnails from."""
 
     sources: str
     vr_sources: str

@@ -563,7 +563,7 @@ def test_the_sidebar_is_alphabetical_where_the_grid_is_ranked(browser, tmp_path:
 
     Folder tiles come up in the library's own ranking — biggest source folder
     first — so an alphabetical walk across the grid is a walk across a wrapped
-    grid of stills.  The sidebar puts the same folder up sorted by name instead.
+    grid of thumbnails.  The sidebar puts the same folder up sorted by name instead.
     """
     window = browser(
         [
@@ -1251,7 +1251,7 @@ def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(browser, tmp_path
 
     A tall video and a wide one are the same tile, so one of the two axes always
     has room to spare; filling both would squash whichever thumbnail does not share
-    the tile's shape.  The cached stills are capped well below the tile, so this
+    the tile's shape.  The cached thumbnails are capped well below the tile, so this
     scales *up* as well as down — a still left at its own size sits in a corner
     of the space it was given.
     """
