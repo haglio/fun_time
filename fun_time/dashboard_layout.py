@@ -32,6 +32,9 @@ class Rect:
     def __iter__(self):
         return iter((self.x, self.y, self.width, self.height))
 
+    def holds(self, x: int, y: int) -> bool:
+        return self.x <= x < self.x + self.width and self.y <= y < self.y + self.height
+
 
 def add_rect_arguments(parser, *, prefix: str = "") -> None:
     """Declare ``--x/--y/--width/--height``, optionally prefixed, on *parser*."""

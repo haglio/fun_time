@@ -4,7 +4,7 @@ import argparse
 import configparser
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from math import ceil
 from pathlib import Path
@@ -23,7 +23,7 @@ from shared_ui.colors import (
     hovered,
 )
 from shared_ui.find_bar import FindBar
-from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
+from shared_ui.fonts import FONT_UI, SIZE_BODY
 from shared_ui.foreground import bring_to_front
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
@@ -118,9 +118,8 @@ DashboardLaunchGeometry = Rect
 class DashboardTextItem:
     text: str
     rect: Rect
-    color: QColor = field(default_factory=lambda: COLOR_TEXT)
-    anchor: str = "center"
-    font: QFont | None = None
+    color: QColor
+    font: QFont
 
 
 @dataclass(frozen=True)
@@ -145,6 +144,15 @@ class DashboardScene:
     actions: tuple[tuple[str, Rect], ...]
     hover_texts: tuple[tuple[Rect, str], ...] = ()
     images: tuple[DashboardImageItem, ...] = ()
+
+    def action_at(self, x: int, y: int) -> str | None:
+        return next((action for action, rect in self.actions if rect.holds(x, y)), None)
+
+    def control_at(self, x: int, y: int) -> Rect | None:
+        return next((rect for _action, rect in self.actions if rect.holds(x, y)), None)
+
+    def name_at(self, x: int, y: int) -> str | None:
+        return next((text for rect, text in self.hover_texts if rect.holds(x, y)), None)
 
 
 def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
@@ -281,7 +289,7 @@ def build_dashboard_scene(
     # icon, so the bar carries one weight across it.
     texts = (
         DashboardTextItem(preview_marker.APP_TITLE, layout.app_title,
-                          color=QColor(*preview_marker.wordmark_ink(shown_as)), anchor="w", font=_font_app),
+                          color=QColor(*preview_marker.wordmark_ink(shown_as)), font=_font_app),
     )
     images = (
         DashboardImageItem(icons.icon(preview_marker.icon_file(PROJECT_ICON, shown_as),
@@ -317,18 +325,22 @@ from PyQt6.QtGui import QBrush, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
+def _pointer_at(event: object) -> tuple[int, int]:
+    pos = event.position()
+    return int(pos.x()), int(pos.y())
+
+
 class DashboardWidget(QWidget):
     """Custom widget that paints a DashboardScene using QPainter."""
 
     action_triggered = pyqtSignal(str)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, scene: DashboardScene, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.icons = IconCache()
-        self._scene: DashboardScene | None = None
         # Which control the pointer is over, so it can be drawn one step lighter.
         self._hovered: Rect | None = None
         self.setMouseTracking(True)
+        self.set_scene(scene)
 
     def set_scene(self, scene: DashboardScene) -> None:
         self._scene = scene
@@ -337,13 +349,9 @@ class DashboardWidget(QWidget):
 
     def paintEvent(self, event: object) -> None:
         scene = self._scene
-        if scene is None:
-            return
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.fillRect(self.rect(), QBrush(COLOR_BG))
-
-        _default_font = make_font(FONT_UI, SIZE_SMALL, bold=True)
 
         for item in scene.rects:
             # Rounded, on a subtle edge: the shape Origenerator's toolbar buttons
@@ -358,21 +366,12 @@ class DashboardWidget(QWidget):
             )
 
         for item in scene.texts:
-            if item.rect.width == 0 and item.rect.height == 0:
-                continue
             p.setPen(QPen(item.color))
-            p.setFont(item.font if item.font is not None else _default_font)
-            rect = QRectF(item.rect.x, item.rect.y, item.rect.width, item.rect.height)
-            flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
-            if item.anchor == "w":
-                flags = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-            elif item.anchor == "n":
-                flags = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop
-            p.drawText(rect, flags, item.text)
+            p.setFont(item.font)
+            p.drawText(QRectF(item.rect.x, item.rect.y, item.rect.width, item.rect.height),
+                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, item.text)
 
         for item in scene.images:
-            if item.pixmap.isNull():
-                continue
             # Center the square pixmap within the (possibly wider) rect
             px_x = item.rect.x + (item.rect.width - item.pixmap.width()) // 2
             px_y = item.rect.y + (item.rect.height - item.pixmap.height()) // 2
@@ -381,31 +380,18 @@ class DashboardWidget(QWidget):
         p.end()
 
     def mousePressEvent(self, event: object) -> None:
-        scene = self._scene
-        if scene is None:
-            return
-        pos = event.position()
-        x, y = int(pos.x()), int(pos.y())
-        for action_id, rect in scene.actions:
-            if rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height:
-                self.action_triggered.emit(action_id)
-                return
+        action = self._scene.action_at(*_pointer_at(event))
+        if action is not None:
+            self.action_triggered.emit(action)
 
     def mouseMoveEvent(self, event: object) -> None:
-        scene = self._scene
-        if scene is None:
-            return
-        pos = event.position()
-        x, y = int(pos.x()), int(pos.y())
-        self._set_hovered(next(
-            (rect for _action, rect in scene.actions
-             if rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height),
-            None))
-        for rect, text in scene.hover_texts:
-            if rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height:
-                QToolTip.showText(self.mapToGlobal(event.position().toPoint()), text, self)
-                return
-        QToolTip.hideText()
+        x, y = _pointer_at(event)
+        self._set_hovered(self._scene.control_at(x, y))
+        name = self._scene.name_at(x, y)
+        if name is None:
+            QToolTip.hideText()
+        else:
+            QToolTip.showText(self.mapToGlobal(event.position().toPoint()), name, self)
 
     def leaveEvent(self, event: object) -> None:
         self._set_hovered(None)
@@ -692,7 +678,8 @@ class DashboardWindow(QMainWindow):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        self._widget = DashboardWidget()
+        self._icons = IconCache()
+        self._widget = DashboardWidget(self._bar_scene(frozenset()))
         self._widget.action_triggered.connect(self._on_action)
         self._log_widget = LogPanelWidget(
             event_log_path(app_config.state_dir), ui_state_path(app_config.state_dir))
@@ -861,7 +848,7 @@ class DashboardWindow(QMainWindow):
             self._bar_layout,
             self._last_snapshot,
             width=self._bar_layout.width,
-            icons=self._widget.icons,
+            icons=self._icons,
             pressed_actions=pressed_actions,
             reference_open=self._reference.is_open,
             shown_as=self._shown_as,

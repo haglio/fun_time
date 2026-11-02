@@ -14,11 +14,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
-from PyQt6.QtCore import QPoint, QRect, Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
-from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
+from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QToolTip, QWidget
+from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY, hovered
 from shared_ui.find_bar import FindBar
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
@@ -1224,8 +1224,7 @@ def test_dashboard_widget_emits_action_on_click():
     layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, width=layout.width, icons=IconCache())
 
-    widget = DashboardWidget()
-    widget.set_scene(scene)
+    widget = DashboardWidget(scene)
     received: list[str] = []
     widget.action_triggered.connect(received.append)
 
@@ -1251,8 +1250,7 @@ def test_dashboard_widget_ignores_click_outside_actions():
     layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, width=layout.width, icons=IconCache())
 
-    widget = DashboardWidget()
-    widget.set_scene(scene)
+    widget = DashboardWidget(scene)
     received: list[str] = []
     widget.action_triggered.connect(received.append)
 
@@ -1263,6 +1261,100 @@ def test_dashboard_widget_ignores_click_outside_actions():
     assert received == []
 
 
+
+
+def _point_at(widget, x: int, y: int) -> None:
+    QApplication.sendEvent(widget, QMouseEvent(
+        QEvent.Type.MouseMove, QPointF(x, y), widget.mapToGlobal(QPointF(x, y)),
+        Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+
+
+def _leave(widget) -> None:
+    QApplication.sendEvent(widget, QEvent(QEvent.Type.Leave))
+
+
+def _center(rect) -> tuple[int, int]:
+    return rect.x + rect.width // 2, rect.y + rect.height // 2
+
+
+def _pixel_on_the_controls_ground(image, rect) -> QColor:
+    return image.pixelColor(rect.x + BUTTON_ICON_INSET // 2, rect.y + rect.height // 2)
+
+
+def _colors_in(image, rect) -> set[int]:
+    return {image.pixel(x, y)
+            for x in range(rect.x, rect.x + rect.width)
+            for y in range(rect.y, rect.y + rect.height)}
+
+
+@pytest.fixture
+def bar(dashboard_window):
+    try:
+        yield dashboard_window._widget
+    finally:
+        QToolTip.hideText()
+
+
+def test_each_control_is_painted_on_the_ground_its_scene_gives_it(bar):
+    image = bar.grab().toImage()
+
+    assert [_pixel_on_the_controls_ground(image, item.rect) for item in bar._scene.rects] == [
+        item.fill for item in bar._scene.rects]
+
+
+def test_each_mark_and_the_apps_name_and_icon_are_painted_on_the_bar(bar):
+    image = bar.grab().toImage()
+    layout = compute_dashboard_bar_layout()
+
+    for rect in (*(item.rect for item in bar._scene.images), layout.app_title, layout.app_icon):
+        assert len(_colors_in(image, rect)) > 1
+
+
+def test_the_control_under_the_pointer_is_painted_one_step_lighter(bar):
+    item = bar._scene.rects[0]
+
+    _point_at(bar, *_center(item.rect))
+
+    assert _pixel_on_the_controls_ground(bar.grab().toImage(), item.rect) == hovered(item.fill)
+
+
+def test_a_control_goes_back_to_its_ground_when_the_pointer_leaves_the_bar(bar):
+    item = bar._scene.rects[0]
+    _point_at(bar, *_center(item.rect))
+
+    _leave(bar)
+
+    assert _pixel_on_the_controls_ground(bar.grab().toImage(), item.rect) == item.fill
+
+
+def test_a_control_under_the_pointer_names_itself(bar):
+    action, rect = next(pair for pair in bar._scene.actions if pair[0] == QUIT_BUTTON)
+
+    _point_at(bar, *_center(rect))
+
+    assert QToolTip.text() == dict((r, text) for r, text in bar._scene.hover_texts)[rect]
+    assert "Quit" in QToolTip.text()
+
+
+def test_the_name_goes_away_when_the_pointer_is_off_every_control(bar):
+    _point_at(bar, *_center(bar._scene.rects[0].rect))
+
+    _point_at(bar, 0, 0)
+
+    _pump_until(lambda: not QToolTip.isVisible())
+    assert not QToolTip.isVisible()
+
+
+def test_a_control_that_takes_no_press_names_itself_but_does_not_light_under_the_pointer(
+        dashboard_window, bar):
+    dashboard_window._do_render(_snapshot(nothing_to_reset=True), frozenset())
+    rect = compute_dashboard_bar_layout().reset_all_button
+    ground = next(item.fill for item in bar._scene.rects if item.rect == rect)
+
+    _point_at(bar, *_center(rect))
+
+    assert "Reset" in QToolTip.text()
+    assert _pixel_on_the_controls_ground(bar.grab().toImage(), rect) == ground
 
 
 def test_every_control_on_the_bar_wears_a_drawn_mark():
