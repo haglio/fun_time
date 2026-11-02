@@ -21,6 +21,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from app_support.siblings import primary_checkout_of
 from app_support.win32 import mutex_name, write_shortcut
 from shared_ui.preview import Preview
 
@@ -410,7 +411,7 @@ def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
 def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
     """Worktrees share the Main Funestra's git directory, so the launcher finds the
     machine's real config and overlays from any of them."""
-    assert branch_session.primary_checkout(repo_with_worktrees.newer) == (
+    assert primary_checkout_of(repo_with_worktrees.newer).resolve() == (
         repo_with_worktrees.primary.resolve()
     )
 
@@ -1246,8 +1247,13 @@ class TestTheSessionOnTheTaskbar:
         described: dict = {}
         monkeypatch.setattr(branch_session, "describe_taskbar_app",
                             lambda app_id, app: described.update({app_id: app}))
-        branch_session.describe_the_session_on_the_taskbar(
-            tmp_path / "fun_time" / ".claude" / "worktrees" / "a-feature")
+        primary = tmp_path / "fun_time"
+        primary.mkdir()
+        git(primary, "init")
+        git(primary, "commit", "--allow-empty", "-m", "First commit", when="2026-01-01T12:00:00")
+        worktree = primary / ".claude" / "worktrees" / "a-feature"
+        git(primary, "worktree", "add", "-b", "example/a-feature", str(worktree))
+        branch_session.describe_the_session_on_the_taskbar(worktree)
         return described
 
     def test_a_branch_session_names_its_button_and_inks_its_letter(self, monkeypatch, tmp_path):

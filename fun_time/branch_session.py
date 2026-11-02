@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.dependencies import pinned_siblings
-from app_support.siblings import RENAMED_SIBLINGS
+from app_support.siblings import RENAMED_SIBLINGS, primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import TaskbarApp, describe_taskbar_app, write_shortcut
 
@@ -47,7 +47,7 @@ from app_support.win32 import TaskbarApp, describe_taskbar_app, write_shortcut
 from . import config as config_module
 from . import preview_marker
 from .branch_seeding import mirror_private_overlays, seed_derived_caches, top_up_thumbnails
-from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME, primary_of
+from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME
 from .child_launch import no_console_window
 from .config import (
     DEFAULT_CONFIG_PATH,
@@ -108,17 +108,8 @@ def _git(args: list[str], cwd: Path, *, stdin: str | None = None) -> str:
     return result.stdout
 
 
-def primary_checkout(start: Path | None = None) -> Path:
-    """The checkout the live session runs from, found from any of them.
-
-    Every worktree shares the primary's git directory, so that directory's
-    parent names the primary wherever this is called from — the same lookup
-    ``integration_support.real_config_path`` uses to find the machine's real
-    config from a worktree.
-    """
-    start = start or config_module.PROJECT_DIR
-    common = _git(["rev-parse", "--git-common-dir"], start).strip()
-    return (start / common).resolve().parent
+def primary_checkout() -> Path:
+    return primary_checkout_of(config_module.PROJECT_DIR)
 
 
 def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]]:
@@ -287,7 +278,7 @@ def describe_the_session_on_the_taskbar(worktree: Path) -> None:
         name=preview_marker.app_title(shown),
         icon=preview_marker.icon_file(PROJECT_ICON, shown),
         relaunch=subprocess.list2cmdline(
-            ["wscript.exe", str(primary_of(worktree) / LAUNCHER_NAME), str(worktree)]),
+            ["wscript.exe", str(primary_checkout_of(worktree) / LAUNCHER_NAME), str(worktree)]),
     ))
 
 

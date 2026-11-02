@@ -26,11 +26,7 @@ def _genaumacher_project_dir() -> Path:
     """
     from .branch_session import primary_checkout  # noqa: PLC0415 (no launcher import here)
 
-    try:
-        beside = primary_checkout().parent
-    except (OSError, subprocess.SubprocessError):
-        beside = Path(__file__).resolve().parents[1].parent
-    return beside / "genaumacher"
+    return primary_checkout().parent / "genaumacher"
 
 
 def _genaumacher_python() -> str:

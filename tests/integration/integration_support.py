@@ -24,6 +24,7 @@ from unittest import mock
 import pytest
 from app_support import haglio_settings
 from app_support.osr2_slot import Osr2Slot
+from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
@@ -31,7 +32,7 @@ from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import PlaylistItem
 
 from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_filename
-from fun_time.checkout_overrides import STATE_DIRNAME, primary_of
+from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, SIBLING_CHECKOUTS_KEY, load_config
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
 from fun_time.funestra_status import (
@@ -747,11 +748,7 @@ def real_config_path() -> Path:
     """
     if DEFAULT_CONFIG_PATH.exists():
         return DEFAULT_CONFIG_PATH
-    common_dir = subprocess.run(
-        ["git", "-C", str(PROJECT_DIR), "rev-parse", "--git-common-dir"],
-        capture_output=True, text=True, check=True,
-    ).stdout.strip()
-    return (PROJECT_DIR / common_dir).resolve().parent / DEFAULT_CONFIG_PATH.name
+    return primary_checkout_of(PROJECT_DIR) / DEFAULT_CONFIG_PATH.name
 
 
 def isolate_shared_resources(config: dict) -> None:
@@ -928,7 +925,7 @@ def genau_where_this_machine_keeps_it() -> Iterator[None]:
 
 
 def where_failed_runs_are_kept(checkout: Path) -> Path:
-    return primary_of(checkout) / STATE_DIRNAME / "integration_failures"
+    return primary_checkout_of(checkout) / STATE_DIRNAME / "integration_failures"
 
 
 def keep_what_the_run_logged(keep_in: Path) -> Path | None:

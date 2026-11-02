@@ -2177,8 +2177,13 @@ def test_a_hosted_worktree_is_run_from_the_primary_checkouts_install(tmp_path: P
     own preview sessions run from."""
     primary = tmp_path / "origenerator"
     worktree = primary / ".claude" / "worktrees" / "my-branch"
+    for command in (["init", str(primary)],
+                    ["-C", str(primary), "-c", "user.name=Example", "-c", "user.email=example@example.com",
+                     "commit", "--allow-empty", "-m", "Example"],
+                    ["-C", str(primary), "worktree", "add", str(worktree)]):
+        subprocess.run(["git", *command], check=True, capture_output=True)
 
-    assert origenerator_interpreter(worktree) == primary / ".venv" / "Scripts" / "python.exe"
+    assert origenerator_interpreter(worktree).resolve() == (primary / ".venv" / "Scripts" / "python.exe").resolve()
 
 
 class TestLaunchingTheAudioCompanionOnItsOwn:
