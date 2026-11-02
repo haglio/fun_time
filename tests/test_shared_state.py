@@ -16,7 +16,7 @@ from fun_time import shared_state
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
 from fun_time.origenerator_switches import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.origenerator_switches import ORIGENERATOR_MODE as SATELLITES_ORIGENERATOR_MODE
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.room_funestras import RoomFunestra
 from fun_time.shared_state import (
     _LAST_SESSIONS_KEYS,
@@ -362,7 +362,7 @@ class TestTheSideLens:
         assert state.origenerator_holds_a_satellite() is holds
 
     def test_origenerator_in_the_browsers_place_holds_no_satellite(self):
-        assert not BridgeState(rfb_slot=RfbSlot.ORIGENERATOR).origenerator_holds_a_satellite()
+        assert not BridgeState(rfb_mode=RfbMode.ORIGENERATOR).origenerator_holds_a_satellite()
 
     def test_the_lens_survives_the_ini_round_trip(self, tmp_path):
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -376,7 +376,7 @@ class TestTheSideLens:
 
 
 def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp_path: Path):
-    """The main slot's main_player and hybrid modes became one mode, called video
+    """The Main Funestra's main_player and hybrid modes became one mode, called video
     until it was renamed kino, and the satellites' player mode followed it both
     times.  A file saved under any of those words has to come back as the mode
     they are now: an unrecognized one used to answer False to every question and
@@ -409,7 +409,7 @@ _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
     "main_mode": "kino", "portrait_mode": "kino", "landscape_mode": "kino",
     "portrait_handed_over": "0", "landscape_handed_over": "0",
-    "rfb_slot": "rfb",
+    "rfb_mode": "rfb",
     "origenerator_ready": "0",
     "main_scripted_filter": "0", "portrait_favorites_filter": "0", "landscape_favorites_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",

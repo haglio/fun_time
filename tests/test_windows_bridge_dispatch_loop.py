@@ -44,7 +44,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.media_metadata import normalize_path_key
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
 from fun_time.role_windows import (
@@ -1726,7 +1726,7 @@ class TestTheRfbSlideshow:
         runner = make_runner(tmp_path, config=config, origenerator_pid=700,
                              origenerator_already_open=True, rfb_slideshow=slideshow)
         write_shared_state(tmp_path / "shared_state.ini",
-                           BridgeState(rfb_slot=RfbSlot.ORIGENERATOR))
+                           BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
         runner.tick()
 
@@ -2780,13 +2780,13 @@ class TestIdempotentVoiceCommands:
             self, tmp_path):
         """For the strip under its log, which draws that pair."""
         runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
-        runner.state = replace(runner.state, rfb_slot=RfbSlot.ORIGENERATOR,
+        runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
                                origenerator_ready=True)
 
         runner._update_dashboard()
 
         snapshot = load_dashboard_snapshot(runner.config.dashboard_state_file)
-        assert (snapshot.rfb_slot, snapshot.origenerator_ready) == (RfbSlot.ORIGENERATOR, True)
+        assert (snapshot.rfb_mode, snapshot.origenerator_ready) == (RfbMode.ORIGENERATOR, True)
 
     def test_a_room_hosting_origenerator_never_says_it_has_nothing_to_reset(self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(
@@ -3259,7 +3259,7 @@ class TestOrigeneratorShows:
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
                              origenerator_paused_file=tmp_path / "origenerator_paused.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
-        runner.state = replace(runner.state, rfb_slot=RfbSlot.ORIGENERATOR)
+        runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR)
         return runner
 
     def test_rfb_tabs_hold_while_origenerator_covers_the_browser(self, tmp_path):
@@ -3294,7 +3294,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.GENAU,
-                               rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
+                               rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
         return runner
 
     @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])  # the padlock, the comma
@@ -3346,7 +3346,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
     def test_a_lock_asks_origenerator_to_go_to_the_flick_with_the_browser_in_its_place(
             self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
-        runner.state = replace(runner.state, rfb_slot=RfbSlot.RFB)
+        runner.state = replace(runner.state, rfb_mode=RfbMode.RFB)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
         runner._dispatch("main_lock_on")
@@ -3379,7 +3379,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
-                               rfb_slot=RfbSlot.RFB, origenerator_ready=True)
+                               rfb_mode=RfbMode.RFB, origenerator_ready=True)
         return runner
 
     def test_origenerator_is_asked_to_go_to_the_video_once_the_main_funestra_holds_it(
@@ -3420,7 +3420,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
                                   arguments=""))
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
-                               rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True)
+                               rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
         made_by_a_website = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
         _the_main_funestra_publishes(tmp_path, locked=False, video=made_by_a_website)
         calls: list[tuple[str, object]] = []
@@ -3431,7 +3431,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
             _the_main_funestra_publishes(tmp_path, locked=True, video=made_by_a_website)
             runner.tick()
 
-        assert runner.state.rfb_slot is RfbSlot.RFB
+        assert runner.state.rfb_mode is RfbMode.RFB
         assert [what for what, _ in calls] == ["activate", "open"]
         assert _what_the_gallery_heard(tmp_path) == []
 
@@ -3445,7 +3445,7 @@ class TestOrigeneratorWindowConverger:
         room is stopped — so a converger firing inside it would restore or
         park the hosted app against what the pause just did."""
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner.state = replace(runner.state, rfb_slot=RfbSlot.ORIGENERATOR,
+        runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
                                omni_paused=True)
 
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
@@ -3456,12 +3456,12 @@ class TestOrigeneratorWindowConverger:
     def test_outside_omnipause_the_windows_object_is_asked_for_the_browsers_place(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
-                               rfb_slot=RfbSlot.ORIGENERATOR)
+                               rfb_mode=RfbMode.ORIGENERATOR)
 
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
             runner._converge_origenerator_window()
 
-        converge.assert_called_once_with(RfbSlot.ORIGENERATOR)
+        converge.assert_called_once_with(RfbMode.ORIGENERATOR)
 
 
 class TestOrigeneratorWatchGuard:
@@ -3522,23 +3522,23 @@ class TestASessionThatHostsNoOrigenerator:
     def test_a_resumed_origenerator_mode_reads_as_kino(self, tmp_path):
         runner = make_runner(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(rfb_slot=RfbSlot.ORIGENERATOR)))
+            BridgeState(rfb_mode=RfbMode.ORIGENERATOR)))
 
         runner.tick()
 
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert runner.state.rfb_slot is RfbSlot.RFB
+        assert runner.state.rfb_mode is RfbMode.RFB
 
     def test_with_an_origenerator_that_is_up_the_mode_stands(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(rfb_slot=RfbSlot.ORIGENERATOR), RoomFunestra.LANDSCAPE))
+            BridgeState(rfb_mode=RfbMode.ORIGENERATOR), RoomFunestra.LANDSCAPE))
 
         runner.tick()
 
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
-        assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
 
 
 def _hosting(tmp_path, **overrides):
@@ -3655,7 +3655,7 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
 
     def test_a_funestra_that_has_reported_nothing_leaves_what_the_room_remembers(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
-        remembered = replace(shifted_state(BridgeState()), rfb_slot=RfbSlot.RFB)
+        remembered = replace(shifted_state(BridgeState()), rfb_mode=RfbMode.RFB)
         for funestra in RoomFunestra.SATELLITES:
             remembered = remembered.with_satellite(funestra, mode=SatellitesMode.KINO)
         write_shared_state(state_file, remembered)
@@ -3682,7 +3682,7 @@ class TestOpeningInOrigeneratorMode:
     def test_it_puts_origenerator_back_on_what_it_held_when_the_last_session_was_left(
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(rfb_slot=RfbSlot.ORIGENERATOR), RoomFunestra.LANDSCAPE))
+            BridgeState(rfb_mode=RfbMode.ORIGENERATOR), RoomFunestra.LANDSCAPE))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
@@ -3690,14 +3690,14 @@ class TestOpeningInOrigeneratorMode:
             wait_for_the_app=self._the_app_answers)
 
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
-        assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "landscape_open_slideshow"]
 
     def test_every_setting_the_room_was_left_in_comes_back_with_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, _in_origenerator_mode(
-            replace(shifted_state(BridgeState()), rfb_slot=RfbSlot.ORIGENERATOR)))
+            replace(shifted_state(BridgeState()), rfb_mode=RfbMode.ORIGENERATOR)))
         left_in = resume_shared_state(state_file, resumed=True)
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
@@ -3709,14 +3709,14 @@ class TestOpeningInOrigeneratorMode:
     def test_a_room_left_with_only_the_browsers_place_to_origenerator_waits_for_it_too(
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini",
-                           BridgeState(rfb_slot=RfbSlot.ORIGENERATOR))
+                           BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
         assert runner.opening.activates
         runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
 
-        assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
 
     def test_a_slideshow_taken_over_opens_on_the_satellite_of_its_monitor_beside_the_app(
@@ -3729,7 +3729,7 @@ class TestOpeningInOrigeneratorMode:
             wait_for_the_app=self._the_app_answers)
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow"]
 
@@ -3758,7 +3758,7 @@ class TestOpeningInOrigeneratorMode:
             wait_for_the_app=self._the_app_answers)
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert runner.state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
 
     def test_a_room_left_in_kino_mode_holds_its_loading_screen_up_for_nothing(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
@@ -3781,19 +3781,19 @@ class TestOpeningInOrigeneratorMode:
         the mode it records is the mode both HUDs draw and the switch acts on."""
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, _in_origenerator_mode(
-            BridgeState(rfb_slot=RfbSlot.ORIGENERATOR)))
+            BridgeState(rfb_mode=RfbMode.ORIGENERATOR)))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
 
         runner.activate_origenerator(wait_for_the_app=lambda _: False)
         assert _modes(read_shared_state(state_file)) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert read_shared_state(state_file).rfb_slot is RfbSlot.RFB
+        assert read_shared_state(state_file).rfb_mode is RfbMode.RFB
 
         _the_hosted_app_answers(tmp_path)
         runner.tick()
         runner.tick()
 
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert runner.state.rfb_slot is RfbSlot.RFB
+        assert runner.state.rfb_mode is RfbMode.RFB
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):

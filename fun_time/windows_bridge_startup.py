@@ -51,7 +51,7 @@ from .rfb_tab_page import tabs_dir, write_tab_pages
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
-from .satellite_slot import SatelliteSlot, for_funestra
+from .satellite_launch import SatelliteLaunch, for_funestra
 from .session_resume import (
     open_the_main_list,
     resume_main_loop,
@@ -235,7 +235,7 @@ def seed_startup_states(
     main_list: MainListSettings | None = None,
     mode: MainMode = STARTUP_MAIN_MODE,
 ) -> None:
-    """Seed the cross-process flags the main slot opens on: Kino and Genau both
+    """Seed the cross-process flags the Main Funestra opens on: Kino and Genau both
     held until the sequencer's reveal starts whichever the mode puts on screen,
     and the sound, the Main list's narrowing and mode this session comes back in.
 
@@ -321,8 +321,8 @@ def start_core_session(
     main_funestra_cmd_file: str | Path,
     satellite_python_exe: str | Path,
     satellite_module: str,
-    portrait: SatelliteSlot,
-    landscape: SatelliteSlot,
+    portrait: SatelliteLaunch,
+    landscape: SatelliteLaunch,
     main_funestra_status_file: str | Path,
     main_sources: str,
     state_dir: str | Path,
@@ -331,7 +331,7 @@ def start_core_session(
     regen_metadata_root: Path | None = None,
     sibling_checkouts: str | None = None,
 ) -> str:
-    """Launch the session's media stack, returning the mode its main slot
+    """Launch the session's media stack, returning the mode its Main Funestra
     opens in — which the caller needs because parking the Main Funestra/Genau pair to match
     takes window handles only the sequencer has."""
     portrait = for_funestra(portrait, RoomFunestra.PORTRAIT)
@@ -359,9 +359,9 @@ def start_core_session(
     main_funestra_status = read_main_funestra_status(Path(main_funestra_status_file))
     portrait_status = read_satellite_status(Path(portrait.channels.status))
     landscape_status = read_satellite_status(Path(landscape.channels.status))
-    for slot in (portrait, landscape):
-        if take_back_the_list(Path(slot.channels.playlist)):
-            logger.info("Took %s's own clips back from the hosted app", slot.funestra.label)
+    for launch in (portrait, landscape):
+        if take_back_the_list(Path(launch.channels.playlist)):
+            logger.info("Took %s's own clips back from the hosted app", launch.funestra.label)
     resumed = resume_playlists([
         (Path(portrait.channels.playlist), portrait_status.video),
         (Path(landscape.channels.playlist), landscape_status.video),
@@ -376,8 +376,8 @@ def start_core_session(
         shared_state_path(state_path), resumed=resumed,
         last_reported=reports_published_in(
             state_path, main_status_file=Path(main_funestra_status_file),
-            satellite_status_files={slot.funestra: Path(slot.channels.status)
-                                    for slot in (portrait, landscape)}))
+            satellite_status_files={launch.funestra: Path(launch.channels.status)
+                                    for launch in (portrait, landscape)}))
     main_list = MainList(sources=main_sources, state_dir=state_path,
                          metadata_root=regen_metadata_root)
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
@@ -416,8 +416,8 @@ def start_core_session(
     resume_main_loop(Path(main_funestra_cmd_file), carried, main_list.file)
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(main_funestra_cmd_file),
-        satellite_cmd_files={slot.funestra: Path(slot.channels.command)
-                             for slot in (portrait, landscape)},
+        satellite_cmd_files={launch.funestra: Path(launch.channels.command)
+                             for launch in (portrait, landscape)},
         genau_cmd_file=Path(genau_cmd_file),
     )
     launch_core_apps(
@@ -800,8 +800,8 @@ def launch_core_apps(
     *,
     python_exe: str | Path,
     satellite_module: str,
-    portrait: SatelliteSlot,
-    landscape: SatelliteSlot,
+    portrait: SatelliteLaunch,
+    landscape: SatelliteLaunch,
     result_file: str | Path,
     dashboard_cmd_file: str | Path | None = None,
     sibling_checkouts: str | None = None,
@@ -811,14 +811,14 @@ def launch_core_apps(
     portrait = for_funestra(portrait, RoomFunestra.PORTRAIT)
     landscape = for_funestra(landscape, RoomFunestra.LANDSCAPE)
 
-    def _launch(slot: SatelliteSlot, title: str, role: str, *, tiles: bool) -> int:
+    def _launch(launch: SatelliteLaunch, title: str, role: str, *, tiles: bool) -> int:
         return launch_satellite(
             python_exe=python_exe,
             satellite_module=satellite_module,
-            channels=replace(slot.channels, dashboard_cmd=dashboard_cmd_file),
+            channels=replace(launch.channels, dashboard_cmd=dashboard_cmd_file),
             placement=WindowPlacement(
-                x=slot.rect.x, y=slot.rect.y,
-                width=slot.rect.width, height=slot.rect.height,
+                x=launch.rect.x, y=launch.rect.y,
+                width=launch.rect.width, height=launch.rect.height,
                 title=title,
                 # One of Fun Time's windows rather than an application of its
                 # own -- see taskbar_identity_args.
@@ -826,7 +826,7 @@ def launch_core_apps(
                 icon=Path(_the_session_icon()),
                 tiles=tiles),
             role=role,
-            log_file=slot.log_file,
+            log_file=launch.log_file,
             sibling_checkouts=sibling_checkouts,
         )
 

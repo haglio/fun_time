@@ -10,7 +10,7 @@ from pathlib import Path
 
 from funestra.modes import MainMode, SatellitesMode
 
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.room_funestras import RoomFunestra
 from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import (
@@ -56,6 +56,14 @@ class TestTheSharedStateFile:
         assert state.satellite(RoomFunestra.PORTRAIT).filter == "alpha"
         assert state.satellite(RoomFunestra.LANDSCAPE).latest is True
 
+    def test_the_mode_selector_under_the_log_keeps_its_mode_under_its_new_key(self, tmp_path: Path):
+        state_file = tmp_path / SHARED_STATE_FILENAME
+        state_file.write_text("[state]\nrfb_slot = origenerator\n", encoding="utf-8")
+
+        migrate_shared_state(state_file)
+
+        assert read_shared_state(state_file).rfb_mode is RfbMode.ORIGENERATOR
+
     def test_the_old_keys_are_gone_from_the_file_afterwards(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
@@ -76,8 +84,8 @@ class TestTheSharedStateFile:
 
         state = read_shared_state(state_file)
         assert (state.main_mode, *(state.satellite(funestra).mode
-                                   for funestra in RoomFunestra.SATELLITES), state.rfb_slot) == (
-            MainMode.KINO, SatellitesMode.KINO, SatellitesMode.KINO, RfbSlot.RFB)
+                                   for funestra in RoomFunestra.SATELLITES), state.rfb_mode) == (
+            MainMode.KINO, SatellitesMode.KINO, SatellitesMode.KINO, RfbMode.RFB)
 
     def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
             self, tmp_path: Path):
@@ -93,7 +101,7 @@ class TestTheSharedStateFile:
         state = read_shared_state(state_file)
         assert [state.satellite(funestra).mode for funestra in RoomFunestra.SATELLITES] == [
             SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert state.rfb_slot is RfbSlot.ORIGENERATOR
+        assert state.rfb_mode is RfbMode.ORIGENERATOR
         assert "satellites_mode" not in state_file.read_text(encoding="utf-8")
 
     def test_a_file_already_in_todays_spelling_is_left_untouched(self, tmp_path: Path):

@@ -62,7 +62,7 @@ from fun_time.dashboard_layout import (
     GAP,
     GROUP_GAP,
     LOG_LIST_HEIGHT,
-    RFB_SLOT_STRIP_HEIGHT,
+    RFB_MODE_SELECTOR_HEIGHT,
     Rect,
     compute_dashboard_bar_layout,
     dashboard_window_height,
@@ -77,7 +77,7 @@ from fun_time.event_log import (
 )
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_notices import flash_unlogged
@@ -140,7 +140,7 @@ def _lay_out(widget: QWidget) -> None:
 def _placed_where_a_session_places_it(app_config):
     plan = compute_window_layout(
         primary_monitor=Rect(0, 0, 2560, 1392), secondary_monitor=Rect(2560, 0, 1440, 3440),
-        layout_config=app_config.layout, rfb_slot_strip=app_config.rfb_slot_strip)
+        layout_config=app_config.layout, rfb_mode_selector=app_config.rfb_mode_selector)
     window = build_dashboard_window(app_config, launch_geometry=plan.dashboard)
     _lay_out(window)
     return window
@@ -1770,8 +1770,8 @@ def test_only_a_session_hosting_origenerator_gives_its_dashboard_the_strip(
     plain = load_dashboard_app_config(
         write_windows_bridge_manifest(load_config(cfg_path), tmp_path / "plain_manifest.ini"))
 
-    assert _strip_app_config(cfg_factory, tmp_path).rfb_slot_strip is True
-    assert plain.rfb_slot_strip is False
+    assert _strip_app_config(cfg_factory, tmp_path).rfb_mode_selector is True
+    assert plain.rfb_mode_selector is False
 
 
 def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part(
@@ -1784,14 +1784,14 @@ def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part
         assert _at(window, log) == QPoint(0, bar.height())
         assert _at(window, strip) == QPoint(0, bar.height() + log.height())
         assert log.width() == strip.width() == _at(window, osr2).x()
-        assert (strip.height(), strip.y() + strip.height()) == (RFB_SLOT_STRIP_HEIGHT, window.height())
+        assert (strip.height(), strip.y() + strip.height()) == (RFB_MODE_SELECTOR_HEIGHT, window.height())
         assert dashboard_window._strip is None
     finally:
         window.close()
 
 
 def test_the_strip_lights_whatever_holds_the_browsers_place(strip_window):
-    strip_window._do_render(_snapshot(rfb_slot=RfbSlot.ORIGENERATOR, origenerator_ready=True),
+    strip_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True),
                             frozenset())
 
     assert [(button.glyph, button.lit, button.dim) for _rect, button in strip_window._strip.placed] == [

@@ -33,12 +33,12 @@ from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .room_funestras import RoomFunestra
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
-from .satellite_slot import SatelliteSlot
+from .satellite_launch import SatelliteLaunch
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
@@ -141,7 +141,7 @@ def _startup_role_hwnds(
 
 
 def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0,
-                        rfb_slot: RfbSlot = RfbSlot.RFB) -> None:
+                        rfb_mode: RfbMode = RfbMode.RFB) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy — the same policy omnipause and mode switches honor, so they can
     never disagree.
@@ -155,7 +155,7 @@ def apply_topmost_bands(role_hwnds: dict[str, int], *, beneath: int = 0,
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, rfb_slot), under=beneath)
+            set_always_on_top(hwnd, role_topmost(role, rfb_mode), under=beneath)
 
 
 def apply_startup_window_state(
@@ -166,7 +166,7 @@ def apply_startup_window_state(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     beneath: int = 0,
-    rfb_slot: RfbSlot = RfbSlot.RFB,
+    rfb_mode: RfbMode = RfbMode.RFB,
 ) -> dict[str, int]:
     """Set the full window state the session opens with: the bands.
 
@@ -181,7 +181,7 @@ def apply_startup_window_state(
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
     )
-    apply_topmost_bands(role_hwnds, beneath=beneath, rfb_slot=rfb_slot)
+    apply_topmost_bands(role_hwnds, beneath=beneath, rfb_mode=rfb_mode)
     return role_hwnds
 
 
@@ -271,7 +271,7 @@ def run_startup_sequence(
 
 @dataclass(frozen=True)
 class _CoreSession:
-    """The children phase 1 leaves, and the main slot's mode it resumed into."""
+    """The children phase 1 leaves, and the Main Funestra's mode it resumed into."""
 
     main_mode: MainMode
     portrait_pid: int
@@ -289,7 +289,7 @@ class _CoreSession:
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
     """Every window's rect, from the monitors and the manifest's layout section,
     made before the first child so each Funestra opens where it plays."""
-    return screen_layout(m.layout, rfb_slot_strip=m.runtime.hosts_origenerator)
+    return screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator)
 
 
 def _launch_the_satellites(
@@ -311,8 +311,8 @@ def _launch_the_satellites(
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Each satellite's whole launch bundle, built once where the manifest is read.
 
-    def _slot(funestra: RoomFunestra, satellite: str, sources: str, playlist: str, rect):
-        return SatelliteSlot(
+    def _launch(funestra: RoomFunestra, satellite: str, sources: str, playlist: str, rect):
+        return SatelliteLaunch(
             funestra=funestra,
             sources=sources,
             channels=replace(
@@ -324,12 +324,12 @@ def _launch_the_satellites(
             rect=rect,
         )
 
-    portrait_slot = _slot(RoomFunestra.PORTRAIT, "portrait", m.media.portrait_dirs,
+    portrait_launch = _launch(RoomFunestra.PORTRAIT, "portrait", m.media.portrait_dirs,
                           PLAYLIST_PORTRAIT, plan.portrait)
-    landscape_slot = _slot(RoomFunestra.LANDSCAPE, "landscape", m.media.landscape_dirs,
+    landscape_launch = _launch(RoomFunestra.LANDSCAPE, "landscape", m.media.landscape_dirs,
                            PLAYLIST_LANDSCAPE, plan.landscape)
-    portrait_logs = logs_as_they_stand(portrait_slot.log_file)
-    landscape_logs = logs_as_they_stand(landscape_slot.log_file)
+    portrait_logs = logs_as_they_stand(portrait_launch.log_file)
+    landscape_logs = logs_as_they_stand(landscape_launch.log_file)
     main_mode = start_core_session(
         config_path=m.runtime.config_path,
         broker_cmd_file=m.commands.broker_cmd_file,
@@ -344,8 +344,8 @@ def _launch_the_satellites(
         main_funestra_cmd_file=m.commands.main_funestra_cmd_file,
         satellite_python_exe=m.executables.python_exe,
         satellite_module=m.modules.satellite_module,
-        portrait=portrait_slot,
-        landscape=landscape_slot,
+        portrait=portrait_launch,
+        landscape=landscape_launch,
         main_funestra_status_file=m.commands.main_funestra_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         main_sources=m.media.main_funestra_library_sources,
@@ -385,7 +385,7 @@ def _launch_the_main_funestra(
     """
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Launched as early as possible so it can initialise pygame, scan media and
-    # decode first frames while the rest of startup continues.  The main slot's
+    # decode first frames while the rest of startup continues.  The Main Funestra's
     # rect depends only on the secondary monitor + main_top_ratio (already
     # computed above).
     main_media_rect = compute_main_media_rect(

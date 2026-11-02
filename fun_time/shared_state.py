@@ -30,7 +30,7 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .mode_plan import STARTUP_MAIN_MODE
-from .origenerator_switches import KINO_MODE, RfbSlot, origenerator_shows
+from .origenerator_switches import KINO_MODE, RfbMode, origenerator_shows
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .room_funestras import RoomFunestra
 
@@ -89,7 +89,7 @@ class BridgeState:
     portrait: SatelliteState = field(default_factory=SatelliteState)
     landscape: SatelliteState = field(default_factory=SatelliteState)
     main_mode: MainMode = STARTUP_MAIN_MODE
-    rfb_slot: RfbSlot = RfbSlot.RFB
+    rfb_mode: RfbMode = RfbMode.RFB
     # Whether the hosted Origenerator is up.  Every room opens without waiting
     # out its boot, so Origenerator is offered nowhere for a session's first
     # half-minute; the dispatch loop reads the app's status file and writes the
@@ -113,7 +113,7 @@ class BridgeState:
     main_plays_portrait: bool = True
     main_plays_landscape: bool = True
     # Genau's own, kept apart from ``main_latest`` even though the two Funestras
-    # share the main slot: ``main_latest`` describes the playlist file we built
+    # share the Main Funestra: ``main_latest`` describes the playlist file we built
     # for the Main Funestra, and a Genau reorder rewrites nothing of the Main Funestra's.  One flag for both
     # would light "Latest" on the Main Funestra's console over a playlist nobody reordered.
     genau_latest: bool = False
@@ -122,7 +122,7 @@ class BridgeState:
     genau_plays_portrait: bool = True
     genau_plays_landscape: bool = True
     genau_favorites_filter: bool = False
-    # The Funestra most recently navigated, as a :class:`Funestra` slot.  Any command
+    # The Funestra most recently navigated, as a :class:`Funestra` number.  Any command
     # naming a Funestra, or a main next/prev, updates it; the "active_*" commands, which
     # name none, resolve against it — nav reaches all three, the satellite-only
     # actions only the two.  Starts on the Main Funestra: it is the display the eye
@@ -260,7 +260,8 @@ _LAST_SESSIONS_KEYS = {
     "landscape_f_mode": ("landscape_favorites_filter",),
     "active_player": ("active_funestra",),
     "osr2_player": ("osr2_funestra",),
-    "satellites_mode": ("portrait_mode", "landscape_mode", "rfb_slot"),
+    "satellites_mode": ("portrait_mode", "landscape_mode", "rfb_mode"),
+    "rfb_slot": ("rfb_mode",),
 }
 
 

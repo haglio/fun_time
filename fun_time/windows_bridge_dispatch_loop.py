@@ -56,14 +56,14 @@ from .hud_transport import HudPublisher
 from .latest_arrivals import LatestArrivals
 from .library_browser import browse_library
 from .lock import a_lock_holds
-from .lock_follower import LockFollower, what_the_main_slot_holds
+from .lock_follower import LockFollower, what_the_main_funestra_holds
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
 from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
-from .origenerator_switches import RfbSlot, hosts
+from .origenerator_switches import RfbMode, hosts
 from .rfb_slideshow import RfbSlideshow
 from .role_windows import WindowRoles
 from .room_funestras import RoomFunestra
@@ -239,7 +239,7 @@ class DispatchLoopRunner:
             satellite_cmd_files=tuple(
                 config.satellite(funestra).cmd_file for funestra in RoomFunestra.SATELLITES),
         )
-        self.lock_follower = LockFollower(what_the_main_slot_holds(config))
+        self.lock_follower = LockFollower(what_the_main_funestra_holds(config))
         self.latest_arrivals = LatestArrivals(config)
 
     def activate_origenerator(self, *, wait_for_the_app) -> None:
@@ -307,7 +307,7 @@ class DispatchLoopRunner:
         self.hud.publish_due(self.state, now=now)
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
-                                    or self.state.rfb_slot is RfbSlot.ORIGENERATOR)
+                                    or self.state.rfb_mode is RfbMode.ORIGENERATOR)
 
     def _pause_for_a_click_into_a_text_field(self) -> None:
         if not self.typing.clicked_into_a_text_field(now=time.monotonic()):
@@ -404,7 +404,7 @@ class DispatchLoopRunner:
         of flushing: opening a tab would force Chrome over it.  The locks queue,
         and putting the browser back in its place flushes them.
         """
-        if self.state.rfb_slot is RfbSlot.ORIGENERATOR:
+        if self.state.rfb_mode is RfbMode.ORIGENERATOR:
             return
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
@@ -448,7 +448,7 @@ class DispatchLoopRunner:
                     headset_ready=the_headset_is_ready(self.config.state_dir),
                     origenerator_ready=(self.config.origenerator_enabled
                                         and self.state.origenerator_ready),
-                    rfb_slot=self.state.rfb_slot,
+                    rfb_mode=self.state.rfb_mode,
                 ),
             )
         except OSError as exc:
@@ -462,7 +462,7 @@ class DispatchLoopRunner:
         window state is its own."""
         if self.state.omni_paused:
             return
-        self.windows.converge_origenerator_window(self.state.rfb_slot)
+        self.windows.converge_origenerator_window(self.state.rfb_mode)
 
     def _publish_panel(self, filename: str, *, toggling: bool) -> None:
         path = Path(self.config.state_dir) / filename
@@ -500,7 +500,7 @@ class DispatchLoopRunner:
             append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
         try:
-            # Over the main slot's window: the pick plays there, so the browse
+            # Over the Main Funestra's window: the pick plays there, so the browse
             # stands where it will, and covers nothing else on either monitor.
             genau = not kino_shows(self.state.main_mode)
             funestra_hwnd = self.windows.hwnd("main_funestra")
@@ -519,7 +519,7 @@ class DispatchLoopRunner:
                 append_command(self.config.main_funestra_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if manage_session:
-                self.windows.restore_all_topmost(self.state.rfb_slot)
+                self.windows.restore_all_topmost(self.state.rfb_mode)
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
@@ -606,7 +606,7 @@ def _omniminimize(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
     """Minimize the windows the modes show, and only those (SW_MINIMIZE would
     drag a parked window back into view); the set is remembered so omnirestore
     brings back exactly these windows."""
-    runner.windows.minimize_all(visible_roles(runner.state.rfb_slot))
+    runner.windows.minimize_all(visible_roles(runner.state.rfb_mode))
 
 
 def _omnirestore(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
@@ -745,7 +745,7 @@ def _run_hide_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 def _run_minimize_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
     # A Funestra's own HUD minimize button, parking that one window — straight
-    # away, unlike the settled main-slot hide: the window goes down still
+    # away, unlike the settled hide of the Main Funestra: the window goes down still
     # showing its video, which is what was pressed for, and its frozen
     # thumbnail is then the clip it holds.
     runner.windows.park(op.key)
@@ -761,7 +761,7 @@ def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_restack_rfb(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restack_rfb_slot(runner.state.rfb_slot, paused=runner.state.omni_paused)
+    runner.windows.restack_rfb_mode(runner.state.rfb_mode, paused=runner.state.omni_paused)
 
 
 def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
@@ -769,7 +769,7 @@ def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
 
 
 def _run_restore_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restore_all_topmost(runner.state.rfb_slot)
+    runner.windows.restore_all_topmost(runner.state.rfb_mode)
 
 
 def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:

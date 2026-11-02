@@ -501,7 +501,7 @@ class TestVoiceCommands:
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its Funestra:
-        Kino drives the main slot, Genau its own flick."""
+        Kino drives the Main Funestra, Genau its own flick."""
         for base, (next_command, previous_command) in (
                 ("kino", ("main_next", "main_prev")),
                 ("genau", ("genau_next_flick", "genau_prev_flick")),

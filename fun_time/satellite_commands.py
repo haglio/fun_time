@@ -257,7 +257,7 @@ _NAV_DIRECTIONS = ("up", "down")
 
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
-    """``(slot, direction)`` for a ``<satellite>_nav_<dir>`` command, else None."""
+    """``(funestra, direction)`` for a ``<satellite>_nav_<dir>`` command, else None."""
     for prefix, funestra in (("portrait_nav_", RoomFunestra.PORTRAIT),
                           ("landscape_nav_", RoomFunestra.LANDSCAPE)):
         if command.startswith(prefix):

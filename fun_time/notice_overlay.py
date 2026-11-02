@@ -1,5 +1,5 @@
 """The glanceable flash of a notice (:func:`fun_time.event_log.notice`), at the
-top-center of the window it is about: a main-slot one over the Main Funestra/Genau
+top-center of the window it is about: a Main Funestra one over the Main Funestra/Genau
 display, a portrait/landscape one over that satellite.
 
 Which window and where on it are :mod:`fun_time.notice_placement`'s.

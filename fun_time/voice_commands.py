@@ -138,7 +138,7 @@ def build_voice_commands(
 
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
         # Kino mode, said of a Satellite or of neither: the bare phrase puts the
-        # main slot AND the satellites on their Funestras, each Satellite's own phrase
+        # Main Funestra AND the satellites on their Funestras, each Satellite's own phrase
         # just that Satellite.
         "kino mode": "kino_activate",
         # Both satellites' other mode, spoken as explicit modes rather than a
@@ -364,7 +364,7 @@ def build_voice_commands(
     commands.update(named_first_or_last("all", "reset", "all_reset"))
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
-    # that mode's Funestra.  Kino drives the main slot's video; Genau steps its own
+    # that mode's Funestra.  Kino drives the Main Funestra's video; Genau steps its own
     # flick.
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)

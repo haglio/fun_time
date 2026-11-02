@@ -49,9 +49,9 @@ from .room_funestras import RoomFunestra
 
 
 @dataclass(frozen=True)
-class MainSlot:
+class MainFunestraFacts:
     """What the console's buttons are lit and named from: the room's own state
-    of the main slot, then what the Main Funestra published about its video,
+    of the Main Funestra, then what the Main Funestra published about its video,
     each defaulting to "cannot" until the Funestra says otherwise."""
 
     main_mode: MainMode = MainMode.KINO
@@ -95,113 +95,113 @@ MODE_BUTTONS = (
 )
 
 
-def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
+def console_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
     """The mode row (with minimize outside the headset, and the file controls riding
     it), the transport, and the pace of what it steps."""
     return (
         (
             *(
                 Button(command, label, f"{label} mode", width=BUTTON_WORD_W,
-                       lit=slot.main_mode is main_mode)
+                       lit=facts.main_mode is main_mode)
                 for command, label, main_mode in MODE_BUTTONS
             ),
             *(() if in_vr else (
                 minimize_button("main"),
                 Button(Crown.MAIN.command, CROWN_ICON,
                        "Crowned — a portrait video here takes most of the secondary "
-                       "monitor" if slot.crowned else
+                       "monitor" if facts.crowned else
                        "Give this Funestra the crown — its portrait videos take "
-                       "most of the secondary monitor", lit=slot.crowned),
+                       "most of the secondary monitor", lit=facts.crowned),
             )),
-            *_file_controls(slot),
+            *_file_controls(facts),
         ),
-        _transport_row(slot),
-        _playback_speed_row() if kino_shows(slot.main_mode) else _flick_seconds_row(),
+        _transport_row(facts),
+        _playback_speed_row() if kino_shows(facts.main_mode) else _flick_seconds_row(),
     )
 
 
-def osr2_rows(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
-    return (_control_row(slot),)
+def osr2_rows(facts: MainFunestraFacts) -> tuple[tuple[Button, ...], ...]:
+    return (_control_row(facts),)
 
 
-def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
-    if not kino_shows(slot.main_mode):
+def _file_controls(facts: MainFunestraFacts) -> tuple[Button, ...]:
+    if not kino_shows(facts.main_mode):
         return (Button("browse_library", OPEN_ICON, f"Browse the {genau_flick_noun().many}",
                        group_break=True),)
     return (
         Button("browse_library", OPEN_ICON, "Browse the library", group_break=True),
         Button("main_funestra_record_tap", RECORD_ICON,
                "Stop recording — mark the loop's out point"
-               if slot.loop_state is LoopState.RECORDING else
-               "Looping — press to drop the loop" if slot.loop_state is LoopState.LOOPING
+               if facts.loop_state is LoopState.RECORDING else
+               "Looping — press to drop the loop" if facts.loop_state is LoopState.LOOPING
                else "Record loop",
-               warn=slot.loop_state is LoopState.RECORDING,
-               hold=slot.loop_state is LoopState.LOOPING, group_break=True),
+               warn=facts.loop_state is LoopState.RECORDING,
+               hold=facts.loop_state is LoopState.LOOPING, group_break=True),
         Button("genaumacher_save", SAVE_ICON, "Save clip"),
     )
 
 
-def _inclusions(slot: MainSlot) -> tuple[tuple[InclusionPair, Included], ...]:
+def _inclusions(facts: MainFunestraFacts) -> tuple[tuple[InclusionPair, Included], ...]:
     shown = []
-    if slot.plays_vr is not None and slot.plays_flat is not None:
-        shown.append((PROJECTION, (bool(slot.plays_flat), bool(slot.plays_vr))))
-    if kino_shows(slot.main_mode):
-        shown.append((LENGTH, lengths_included(slot.length_mode)))
-    shown.append((ORIENTATION, (slot.plays_portrait, slot.plays_landscape)))
+    if facts.plays_vr is not None and facts.plays_flat is not None:
+        shown.append((PROJECTION, (bool(facts.plays_flat), bool(facts.plays_vr))))
+    if kino_shows(facts.main_mode):
+        shown.append((LENGTH, lengths_included(facts.length_mode)))
+    shown.append((ORIENTATION, (facts.plays_portrait, facts.plays_landscape)))
     return tuple(shown)
 
 
-def title_filters(slot: MainSlot) -> tuple[str, ...]:
-    return tuple(word for pair, included in _inclusions(slot)
+def title_filters(facts: MainFunestraFacts) -> tuple[str, ...]:
+    return tuple(word for pair, included in _inclusions(facts)
                  if (word := pair.title_word(included)))
 
 
-def _inclusion_buttons(slot: MainSlot, *, remembered: bool, things: str) -> tuple[Button, ...]:
-    return tuple(button for pair, included in _inclusions(slot)
+def _inclusion_buttons(facts: MainFunestraFacts, *, remembered: bool, things: str) -> tuple[Button, ...]:
+    return tuple(button for pair, included in _inclusions(facts)
                  for button in pair.buttons(included, remembered=remembered, things=things))
 
 
-def _compilation_button(slot: MainSlot) -> Button:
-    inside = bool(slot.compilation)
+def _compilation_button(facts: MainFunestraFacts) -> Button:
+    inside = bool(facts.compilation)
     return Button(
         "main_funestra_end_compilation" if inside else "main_funestra_compilation",
         COMPILATION_ICON,
         "Playing this compilation in order — press to leave it" if inside
         else "Play this video's compilation, in order"
-        + ("" if slot.has_compilation else " (this one belongs to none)"),
-        lit=inside, dim=not (inside or slot.has_compilation), group_break=True,
+        + ("" if facts.has_compilation else " (this one belongs to none)"),
+        lit=inside, dim=not (inside or facts.has_compilation), group_break=True,
     )
 
 
-def _clip_scene_button(slot: MainSlot) -> Button:
-    to_scene = slot.jump_to == "scene"
+def _clip_scene_button(facts: MainFunestraFacts) -> Button:
+    to_scene = facts.jump_to == "scene"
     return Button(
         "main_funestra_full_vid" if to_scene else "main_funestra_clip_jump",
         CLIP_TO_SCENE_ICON if to_scene else SCENE_TO_CLIP_ICON,
         "Play the full scene this clip came from" if to_scene
-        else "Back to the clip taken from this scene" if slot.jump_to == "clip"
+        else "Back to the clip taken from this scene" if facts.jump_to == "clip"
         else "Play the full scene this clip came from"
              " (no full scene in the library for this one)",
-        dim=not slot.jump_to, group_break=True,
+        dim=not facts.jump_to, group_break=True,
     )
 
 
-def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
-    if kino_shows(slot.main_mode):
-        remembered = bool(slot.compilation)
+def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
+    if kino_shows(facts.main_mode):
+        remembered = bool(facts.compilation)
         return (
-            *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=slot.longer_than_a_step),
+            *transport("main", noun=MAIN_FUNESTRA_NOUN, longer_than_a_step=facts.longer_than_a_step),
             funscript_jump_button("main_funestra_funscript_jump", noun=MAIN_FUNESTRA_NOUN,
-                                  has_osr2=slot.has_osr2, has_funscript=slot.has_funscript),
-            lock_button("main", locked=slot.locked, tooltip=lock_tooltip(slot.locked, MAIN_FUNESTRA_NOUN)),
-            fmode_button("main", "F-Mode — play only the well funscripted videos", lit=slot.f_mode),
-            reset_button("main", nothing_to_reset=slot.nothing_to_reset, tooltip=RESET_TOOLTIP),
-            *browse_order_buttons("main", latest=slot.latest, remembered=remembered),
-            *_inclusion_buttons(slot, remembered=remembered, things="videos"),
-            _compilation_button(slot),
-            _clip_scene_button(slot),
+                                  has_osr2=facts.has_osr2, has_funscript=facts.has_funscript),
+            lock_button("main", locked=facts.locked, tooltip=lock_tooltip(facts.locked, MAIN_FUNESTRA_NOUN)),
+            fmode_button("main", "F-Mode — play only the well funscripted videos", lit=facts.f_mode),
+            reset_button("main", nothing_to_reset=facts.nothing_to_reset, tooltip=RESET_TOOLTIP),
+            *browse_order_buttons("main", latest=facts.latest, remembered=remembered),
+            *_inclusion_buttons(facts, remembered=remembered, things="videos"),
+            _compilation_button(facts),
+            _clip_scene_button(facts),
             versions_button("main_funestra_cycle_version", noun=MAIN_FUNESTRA_NOUN,
-                            has_other_versions=slot.has_other_versions),
+                            has_other_versions=facts.has_other_versions),
         )
     flick = genau_flick_noun()
     return (
@@ -209,21 +209,21 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
         Button("genau_next_flick", NEXT_ICON, f"Next {flick.one}"),
         Button("main_lock", LOCK_ICON,
                f"Locked — this {flick.one} repeats; press to move on every "
-               f"{slot.pace_s}s" if slot.locked
+               f"{facts.pace_s}s" if facts.locked
                else "Unlocked — moving on every "
-                    f"{slot.pace_s}s; press to hold this {flick.one}",
-               lit=slot.locked, favorite=True, group_break=True),
+                    f"{facts.pace_s}s; press to hold this {flick.one}",
+               lit=facts.locked, favorite=True, group_break=True),
         Button("main_fmode", FMODE_ICON,
-               "Showing the favorites only — press for all of them" if slot.f_mode
+               "Showing the favorites only — press for all of them" if facts.f_mode
                else "F-Mode — play only the favorites",
-               lit=slot.f_mode, favorite=True),
+               lit=facts.f_mode, favorite=True),
         Button("genau_flip_ends", FLIP_ENDS_ICON,
-               f"Flipped — this {flick.one} stays that way; press to put it back" if slot.flipped
+               f"Flipped — this {flick.one} stays that way; press to put it back" if facts.flipped
                else f"Flip this {flick.one}, for one running opposite the OSR2 — it stays flipped",
-               lit=slot.flipped, group_break=True),
+               lit=facts.flipped, group_break=True),
         Button("genau_weird_flick", TRASH_ICON, "Send to Trash — move it out", danger=True),
-        *browse_order_buttons("main", latest=slot.latest),
-        *_inclusion_buttons(slot, remembered=False, things=flick.many),
+        *browse_order_buttons("main", latest=facts.latest),
+        *_inclusion_buttons(facts, remembered=False, things=flick.many),
     )
 
 
@@ -247,5 +247,5 @@ def _flick_seconds_row() -> tuple[Button, ...]:
     )
 
 
-def _control_row(slot: MainSlot) -> tuple[Button, ...]:
-    return (osr2_button(RoomFunestra.MAIN, has_it=slot.has_osr2),)
+def _control_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
+    return (osr2_button(RoomFunestra.MAIN, has_it=facts.has_osr2),)

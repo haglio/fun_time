@@ -39,7 +39,7 @@ def _genaumacher_python() -> str:
 def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
     """The Main Funestra's current video path and playback time (seconds).
 
-    The Main Funestra owns the main slot in kino mode and
+    The Main Funestra owns the Main Funestra in kino mode and
     publishes both in its status file; the path is empty when nothing is playing.
     """
     status = read_main_funestra_status(config.main_funestra_status_file)

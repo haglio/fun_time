@@ -7,13 +7,13 @@ the Main Funestra stranded on top after entering omnipause.
 The satellite, dashboard and Main Funestra windows each own a screen rect and
 never overlap, so they are unconditionally topmost.  One pair SHARES a rect and
 stacks against each other: the Random Favs Browser under the hosted
-Origenerator's window (``restack_rfb_slot``).
+Origenerator's window (``restack_rfb_mode``).
 """
 from __future__ import annotations
 
 from shared_ui.preview import Preview, window_title
 
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
@@ -28,7 +28,7 @@ ORIGENERATOR_ROLE = "origenerator"
 # The browser and the hosted app's window share the RFB's rect.  While the
 # hosted window holds it the browser leaves the band, so no promotion, however
 # late it lands, can stack the browser back over it.
-RFB_SLOT_ROLES: tuple[str, ...] = ("rfb", ORIGENERATOR_ROLE)
+RFB_MODE_ROLES: tuple[str, ...] = ("rfb", ORIGENERATOR_ROLE)
 
 # The caption that window wears, resolved together with the app's PID: by
 # title alone a standalone Origenerator of his would match.
@@ -40,21 +40,21 @@ def is_origenerators_caption(caption: str) -> bool:
     return caption == ORIGENERATOR_TITLE or caption.startswith(_A_PREVIEWS_CAPTION)
 
 # Every window role the bridge manages, in promotion order.
-MANAGED_ROLES: tuple[str, ...] = FIXED_TOPMOST_ROLES + RFB_SLOT_ROLES
+MANAGED_ROLES: tuple[str, ...] = FIXED_TOPMOST_ROLES + RFB_MODE_ROLES
 
 
-def role_topmost(role: str, rfb_slot: RfbSlot = RfbSlot.RFB) -> bool:
+def role_topmost(role: str, rfb_mode: RfbMode = RfbMode.RFB) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band: every window with a
     rect of its own, and of the pair sharing the browser's rect only the one
     holding it -- promoting the covered one only puts it briefly ABOVE its
     window over it, since HWND_TOPMOST inserts at the top of the band."""
     if role not in RFB_SLOT_ROLES:
         return True
-    return (role == ORIGENERATOR_ROLE) == (rfb_slot is RfbSlot.ORIGENERATOR)
+    return (role == ORIGENERATOR_ROLE) == (rfb_mode is RfbMode.ORIGENERATOR)
 
 
-def visible_roles(rfb_slot: RfbSlot = RfbSlot.RFB) -> list[str]:
+def visible_roles(rfb_mode: RfbMode = RfbMode.RFB) -> list[str]:
     """Every managed role whose window is kept on screen: the browser counts
     while the hosted window covers it, since it is covered, not parked."""
-    held = RFB_SLOT_ROLES if rfb_slot is RfbSlot.ORIGENERATOR else ("rfb",)
+    held = RFB_MODE_ROLES if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",)
     return [*FIXED_TOPMOST_ROLES, *held]

@@ -9,7 +9,7 @@ from funestra.playlist import read_playlist
 
 from fun_time import polled_files
 from fun_time.modes import write_playlist_file
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.runtime_flow import write_flag_file
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 
@@ -61,6 +61,6 @@ def test_the_room_state_lands_though_a_reader_is_partway_through_reading_it(tmp_
     write_shared_state(state_file, BridgeState())
 
     with _held_open_for(state_file, 0.1):
-        write_shared_state(state_file, BridgeState(rfb_slot=RfbSlot.ORIGENERATOR))
+        write_shared_state(state_file, BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
-    assert read_shared_state(state_file).rfb_slot is RfbSlot.ORIGENERATOR
+    assert read_shared_state(state_file).rfb_mode is RfbMode.ORIGENERATOR

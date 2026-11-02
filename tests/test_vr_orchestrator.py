@@ -427,7 +427,7 @@ class TestWaitForSessionEnd:
 
 class TestTheModeASessionComesBackIn:
     """The desktop session shares this state dir, and the headset hosts both
-    of the main slot's Funestras now -- so the mode it was closed in comes across
+    of the Main Funestra's Funestras now -- so the mode it was closed in comes across
     with everything else, and the session is seeded and revealed in it."""
 
     @staticmethod

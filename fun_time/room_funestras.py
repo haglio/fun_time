@@ -1,6 +1,6 @@
 """The three Funestras, as one identity.
 
-The dispatcher counts Funestras in slots (1=main, 2=portrait, 3=landscape);
+The dispatcher counts Funestras by number (1=main, 2=portrait, 3=landscape);
 everything that *draws* them names them.  An IntEnum so ``active_funestra`` keeps
 its INI wire value (``str(Funestra.PORTRAIT)`` is ``"2"``) and int-keyed tables
 keep working, with :attr:`label` as the one crossing to the drawing names."""
@@ -20,11 +20,11 @@ class RoomFunestra(IntEnum):
         return self.name.lower()
 
     @classmethod
-    def label_of(cls, slot: int) -> str:
-        """:attr:`label` for *slot*, or "" for a slot no Funestra holds — a
+    def label_of(cls, number: int) -> str:
+        """:attr:`label` for *number*, or "" for a number no Funestra holds — a
         hand-edited state file can carry any int, and the HUD keeps drawing."""
         try:
-            return cls(slot).label
+            return cls(number).label
         except ValueError:
             return ""
 

@@ -6,14 +6,14 @@ import logging
 from dataclasses import replace
 
 from .bridge_records import BridgeConfig, WindowOp
-from .origenerator_switches import RfbSlot
+from .origenerator_switches import RfbMode
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
 
 
-def _rfb_slot_ops(rfb_slot: RfbSlot) -> list[WindowOp]:
-    if rfb_slot is RfbSlot.ORIGENERATOR:
+def _rfb_mode_ops(rfb_mode: RfbMode) -> list[WindowOp]:
+    if rfb_mode is RfbMode.ORIGENERATOR:
         return [
             WindowOp(op="show_role", key="origenerator"),
             WindowOp(op="activate_role", key="origenerator"),
@@ -37,13 +37,13 @@ def origenerator_refused(state: BridgeState, config: BridgeConfig, *,
     return None
 
 
-def switch_the_rfb_slot(target: RfbSlot, state: BridgeState, config: BridgeConfig,
+def switch_the_rfb_mode(target: RfbMode, state: BridgeState, config: BridgeConfig,
                         _target_path: str = "") -> tuple[BridgeState, list[WindowOp]]:
-    refused = origenerator_refused(state, config, asked_for=target is RfbSlot.ORIGENERATOR)
+    refused = origenerator_refused(state, config, asked_for=target is RfbMode.ORIGENERATOR)
     if refused is not None:
         return state, refused
-    if state.rfb_slot is target:
+    if state.rfb_mode is target:
         return state, []
     logger.info("Origenerator in the Random Favs Browser's place"
-                if target is RfbSlot.ORIGENERATOR else "The Random Favs Browser back in its place")
-    return replace(state, rfb_slot=target), _rfb_slot_ops(target)
+                if target is RfbMode.ORIGENERATOR else "The Random Favs Browser back in its place")
+    return replace(state, rfb_mode=target), _rfb_mode_ops(target)

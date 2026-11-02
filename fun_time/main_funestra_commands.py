@@ -57,7 +57,7 @@ _VERBS_THE_MAIN_FUNESTRA_ANSWERS = frozenset({
 })
 
 
-# The main slot's lock: repeat what is on screen, or let it move on — the Main Funestra's
+# The Main Funestra's lock: repeat what is on screen, or let it move on — the Main Funestra's
 # video into the next playlist entry, Genau's flick into the next flick after its
 # interval.  Both Funestras answer these three verbs and both open locked (the
 # routing is :func:`_main_lock`'s).  The toggle is the key and the button; the
@@ -98,7 +98,7 @@ def _step_through(funestra: RoomFunestra, verb: str, state: BridgeState, config:
 
 def _forward_to_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The Main Funestra owns the main slot in kino mode; in genau mode the paused Main Funestra
+    """The Main Funestra owns the Main Funestra in kino mode; in genau mode the paused Main Funestra
     still navigates in the background, and its SEEK commands apply to a live
     local clock, so rapid nudges stack naturally."""
     append_command(config.main_funestra_cmd_file, verb)
@@ -108,7 +108,7 @@ def _forward_to_main_funestra(verb: str, state: BridgeState, config: BridgeConfi
 def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Loop recording, versions and length only make sense while the Main Funestra owns the
-    main slot — kino mode, not genau."""
+    Main Funestra — kino mode, not genau."""
     if not kino_shows(state.main_mode):
         return ignored(state, IN_GENAU_MODE)
     append_command(config.main_funestra_cmd_file, verb)

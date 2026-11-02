@@ -32,7 +32,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
-from fun_time.origenerator_switches import RfbSlot
+from fun_time.origenerator_switches import RfbMode
 from fun_time.overlay_progress import (
     NullProgress,
     StartupCancelled,
@@ -305,13 +305,13 @@ class TestRunStartupSequence:
         assert core_called["satellite_module"] == "satellite"
         state = cfg.paths.state_dir
         for satellite in ("portrait", "landscape"):
-            slot = core_called[satellite]
-            assert slot.funestra.label == satellite
-            assert slot.channels.command == Path(state / f"{satellite}_cmd.txt")
-            assert slot.channels.paused == Path(state / f"{satellite}_paused.txt")
-            assert slot.channels.status == Path(state / f"{satellite}_status.txt")
-            assert slot.log_file == tmp_path / f"{satellite}_satellite.log"
-            assert slot.channels.playlist == tmp_path / f"{satellite}_playlist.tsv"
+            launch = core_called[satellite]
+            assert launch.funestra.label == satellite
+            assert launch.channels.command == Path(state / f"{satellite}_cmd.txt")
+            assert launch.channels.paused == Path(state / f"{satellite}_paused.txt")
+            assert launch.channels.status == Path(state / f"{satellite}_status.txt")
+            assert launch.log_file == tmp_path / f"{satellite}_satellite.log"
+            assert launch.channels.playlist == tmp_path / f"{satellite}_playlist.tsv"
         # The Main Funestra's status file rides along too: startup resumes each Funestra onto
         # the video its status file names, and the Main Funestra is the third of the three.
         assert core_called["main_funestra_status_file"] == str(cfg.main_funestra_status_file)
@@ -358,7 +358,7 @@ class TestRunStartupSequence:
             cfg_factory, tmp_path, paths={"origenerator_dir": str(tmp_path / "origenerator")},
             launch_origenerator=dict(side_effect=_fake_origenerator))
 
-        assert ui_called["dashboard_height"] == dashboard_window_height(rfb_slot_strip=True)
+        assert ui_called["dashboard_height"] == dashboard_window_height(rfb_mode_selector=True)
         assert ui_called["rfb_y"] == ui_called["dashboard_y"] + ui_called["dashboard_height"]
 
     def test_launches_the_main_funestra_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
@@ -373,7 +373,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # The Main Funestra is wired from the manifest [modules]/[commands] keys and the main slot's rect.
+        # The Main Funestra is wired from the manifest [modules]/[commands] keys and the Main Funestra's rect.
         assert main_funestra_kwargs == {
             "python_exe": str(cfg.paths.python_exe),
             "main_funestra_module": "main_funestra",
@@ -1738,7 +1738,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         if left_in_origenerator:
             write_shared_state(shared_state_path(tmp_path), BridgeState(
                 portrait=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
-                rfb_slot=RfbSlot.ORIGENERATOR))
+                rfb_mode=RfbMode.ORIGENERATOR))
         return cfg, manifest_path
 
     def test_a_session_resumed_into_origenerator_mode_still_opens_in_kino_mode(

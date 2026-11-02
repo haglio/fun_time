@@ -25,7 +25,7 @@ from shared_ui.icon_geometry import icon_names
 
 from fun_time import console_buttons
 from fun_time.console_buttons import (
-    MainSlot,
+    MainFunestraFacts,
     console_rows,
     osr2_rows,
 )
@@ -48,32 +48,32 @@ def pips(monkeypatch):
     monkeypatch.setattr(console_buttons, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
 
-def _every_row(slot: MainSlot) -> tuple[tuple[Button, ...], ...]:
-    return (*console_rows(slot), *osr2_rows(slot))
+def _every_row(facts: MainFunestraFacts) -> tuple[tuple[Button, ...], ...]:
+    return (*console_rows(facts), *osr2_rows(facts))
 
 
-def _actions(slot: MainSlot) -> list[str]:
-    return [b.command for row in _every_row(slot) for b in row if b.command]
+def _actions(facts: MainFunestraFacts) -> list[str]:
+    return [b.command for row in _every_row(facts) for b in row if b.command]
 
 
-def _button(slot: MainSlot, action: str) -> Button:
-    return next(b for row in _every_row(slot) for b in row if b.command == action)
+def _button(facts: MainFunestraFacts, action: str) -> Button:
+    return next(b for row in _every_row(facts) for b in row if b.command == action)
 
 
-def _placed(slot: MainSlot) -> dict[str, tuple]:
-    return {b.command: rect for rect, b in place_rows(_every_row(slot), x=0, y=0)}
+def _placed(facts: MainFunestraFacts) -> dict[str, tuple]:
+    return {b.command: rect for rect, b in place_rows(_every_row(facts), x=0, y=0)}
 
 
 _EVERY_FACE_SLOTS = (
-    MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED, plays_vr=True, plays_flat=True,
+    MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED, plays_vr=True, plays_flat=True,
              has_compilation=True, has_other_versions=True, jump_to="scene"),
-    MainSlot(main_mode=MainMode.KINO, jump_to="clip"),
-    MainSlot(main_mode=MainMode.GENAU, latest=False),
+    MainFunestraFacts(main_mode=MainMode.KINO, jump_to="clip"),
+    MainFunestraFacts(main_mode=MainMode.GENAU, latest=False),
 )
 
 
 def _every_button() -> list[Button]:
-    declared = [b for slot in _EVERY_FACE_SLOTS for row in _every_row(slot) for b in row]
+    declared = [b for facts in _EVERY_FACE_SLOTS for row in _every_row(facts) for b in row]
     part = osr2_part(RoomFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
                      control=OSR2_DRIVING, paused=False, learned=False, shape="sine",
                      broker=True, max_intensity=100)
@@ -85,50 +85,50 @@ class TestTransport:
     is — with the actions that only make sense for each."""
 
     def test_kino_mode_steps_the_video_and_acts_on_it(self):
-        actions = _actions(MainSlot(main_mode=MainMode.KINO))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
         for action in ("main_prev", "main_next", "main_nudge_prev",
                        "main_nudge_next", "main_fmode", "browse_library",
                        "genaumacher_save", "main_funestra_record_tap"):
             assert action in actions, action
 
     def test_f_mode_is_the_main_funestras_own_and_lights_while_it_is_on(self):
-        assert _button(MainSlot(main_mode=MainMode.KINO), "main_fmode").lit is False
-        assert _button(MainSlot(main_mode=MainMode.KINO, f_mode=True), "main_fmode").lit is True
+        assert _button(MainFunestraFacts(main_mode=MainMode.KINO), "main_fmode").lit is False
+        assert _button(MainFunestraFacts(main_mode=MainMode.KINO, f_mode=True), "main_fmode").lit is True
 
     def test_genau_steps_its_own_flicks_and_can_mark_one_weird(self):
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
         assert "genau_prev_flick" in actions
         assert "genau_next_flick" in actions
         assert "genau_weird_flick" in actions
 
     def test_genau_can_flip_the_flick_up_half_a_loop(self):
-        flip = _button(MainSlot(main_mode=MainMode.GENAU), "genau_flip_ends")
+        flip = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_flip_ends")
 
         assert shared_mark_name(flip.glyph) == "flip_ends"
         assert flip.lit is False
-        assert _button(MainSlot(main_mode=MainMode.GENAU, flipped=True), "genau_flip_ends").lit is True
+        assert _button(MainFunestraFacts(main_mode=MainMode.GENAU, flipped=True), "genau_flip_ends").lit is True
 
     def test_a_video_has_no_flick_to_flip(self):
-        assert "genau_flip_ends" not in _actions(MainSlot(main_mode=MainMode.KINO))
+        assert "genau_flip_ends" not in _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
     def test_genau_offers_no_video_only_actions(self):
         """Nudge, flick and record act on a video; Genau's flicks are not one."""
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
         for action in ("main_nudge_prev", "genaumacher_save", "main_funestra_record_tap"):
             assert action not in actions
 
     def test_genau_browses_its_flicks_from_the_same_button_kino_browses_its_library(self, pips):
-        kino = _button(MainSlot(main_mode=MainMode.KINO), "browse_library")
-        genau = _button(MainSlot(main_mode=MainMode.GENAU), "browse_library")
+        kino = _button(MainFunestraFacts(main_mode=MainMode.KINO), "browse_library")
+        genau = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "browse_library")
 
         assert (kino.glyph, kino.tooltip) == (genau.glyph, "Browse the library")
         assert genau.tooltip == "Browse the pips"
 
     def test_genaus_transport_names_its_flicks_in_the_overlays_word(self, pips):
-        def tips(**slot):
-            return {b.command: b.tooltip for b in _every_row(MainSlot(main_mode=MainMode.GENAU, **slot))[1]}
+        def tips(**facts):
+            return {b.command: b.tooltip for b in _every_row(MainFunestraFacts(main_mode=MainMode.GENAU, **facts))[1]}
 
         held, loose = tips(locked=True, pace_s=7), tips(locked=False, pace_s=7)
 
@@ -142,15 +142,15 @@ class TestTransport:
 
 class TestKinosFMode:
     def test_it_plays_only_the_well_funscripted_videos(self):
-        button = _button(MainSlot(main_mode=MainMode.KINO), "main_fmode")
+        button = _button(MainFunestraFacts(main_mode=MainMode.KINO), "main_fmode")
 
         assert button.tooltip == "F-Mode — play only the well funscripted videos"
 
 
 class TestGenausFMode:
     def test_it_keeps_the_favorites_and_says_so(self):
-        off = _button(MainSlot(main_mode=MainMode.GENAU), "main_fmode")
-        on = _button(MainSlot(main_mode=MainMode.GENAU, f_mode=True), "main_fmode")
+        off = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "main_fmode")
+        on = _button(MainFunestraFacts(main_mode=MainMode.GENAU, f_mode=True), "main_fmode")
 
         assert (off.lit, on.lit) == (False, True)
         assert off.tooltip == "F-Mode — play only the favorites"
@@ -159,7 +159,7 @@ class TestGenausFMode:
 
     def test_it_holds_the_place_it_holds_in_kino_mode_straight_after_the_lock(self):
         for mode in MainMode:
-            actions = _actions(MainSlot(main_mode=mode))
+            actions = _actions(MainFunestraFacts(main_mode=mode))
             assert actions.index("main_fmode") == actions.index("main_lock") + 1, mode
 
 
@@ -167,20 +167,20 @@ class TestReset:
     """The way back out: drop everything narrowing what the Main Funestra plays."""
 
     def test_the_main_funestra_can_be_reset_wherever_main_funestra_is_on_screen(self):
-        assert "main_reset" in _actions(MainSlot(main_mode=MainMode.KINO))
+        assert "main_reset" in _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
     def test_it_is_not_offered_where_there_is_no_main_funestra_playlist(self):
-        assert "main_reset" not in _actions(MainSlot(main_mode=MainMode.GENAU))
+        assert "main_reset" not in _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
     def test_it_is_a_thing_done_rather_than_a_state_held(self):
         for scripted_filter in (False, True):
-            button = _button(MainSlot(main_mode=MainMode.KINO, f_mode=scripted_filter),
+            button = _button(MainFunestraFacts(main_mode=MainMode.KINO, f_mode=scripted_filter),
                              "main_reset")
             assert button.lit is False
             assert button.favorite is False
 
     def test_it_stands_clear_of_the_switches_it_turns_off(self):
-        by_action = _placed(MainSlot(main_mode=MainMode.KINO))
+        by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO))
         fmode, reset = by_action["main_fmode"], by_action["main_reset"]
 
         assert reset[0] - (fmode[0] + fmode[2]) == GROUP_GAP
@@ -191,12 +191,12 @@ class TestBrowseOrder:
 
     def test_both_funestras_can_be_reordered_from_the_console(self):
         for mode in MainMode:
-            actions = _actions(MainSlot(main_mode=mode, latest=False))
+            actions = _actions(MainFunestraFacts(main_mode=mode, latest=False))
             assert "main_shuffle" in actions
             assert "main_latest" in actions
 
     def test_exactly_one_of_the_pair_is_lit(self):
-        shuffled, newest = MainSlot(main_mode=MainMode.KINO, latest=False), MainSlot(main_mode=MainMode.KINO, latest=True)
+        shuffled, newest = MainFunestraFacts(main_mode=MainMode.KINO, latest=False), MainFunestraFacts(main_mode=MainMode.KINO, latest=True)
 
         assert _button(shuffled, "main_shuffle").lit is True
         assert _button(shuffled, "main_latest").lit is False
@@ -205,12 +205,12 @@ class TestBrowseOrder:
 
     def test_neither_of_the_pair_wears_a_color_of_its_own(self):
         for action in ("main_shuffle", "main_latest"):
-            button = _button(MainSlot(main_mode=MainMode.KINO, latest=False), action)
+            button = _button(MainFunestraFacts(main_mode=MainMode.KINO, latest=False), action)
             assert button.favorite is False
             assert button.enhanced is False
 
     def test_the_pair_is_its_own_group_after_the_reset(self):
-        by_action = _placed(MainSlot(main_mode=MainMode.KINO, latest=False))
+        by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO, latest=False))
         reset = by_action["main_reset"]
         shuffle, latest = by_action["main_shuffle"], by_action["main_latest"]
 
@@ -218,7 +218,7 @@ class TestBrowseOrder:
         assert latest[0] - (shuffle[0] + shuffle[2]) == GAP
 
     def test_a_host_with_no_browse_order_is_offered_neither(self):
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
         assert "main_shuffle" not in actions
         assert "main_latest" not in actions
@@ -228,7 +228,7 @@ class TestProjectionPair:
     """Flat and VR, as the two shapes of video each button includes."""
 
     def _flat_and_vr(self, *, flat, vr, **over) -> tuple[Button, ...]:
-        rows = console_rows(MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
+        rows = console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
                                      plays_flat=flat, plays_vr=vr, **over))
         by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_projection")}
         return tuple(by_face[face] for face in (FLAT_ICON, VR_ICON) if face in by_face)
@@ -259,7 +259,7 @@ class TestProjectionPair:
         assert (flat.command, vr.command) == ("main_projection_flat", "main_projection_vr")
 
     def test_flat_leads_vr_in_a_group_of_their_own(self):
-        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO, latest=False,
+        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False,
                                                   plays_flat=True, plays_vr=True)), x=0, y=0)
         rect_of = {b.glyph: rect for rect, b in placed}
         latest, flat, vr = rect_of[LATEST_ICON], rect_of[FLAT_ICON], rect_of[VR_ICON]
@@ -281,12 +281,12 @@ class TestGenausProjectionPair:
     """The same pair over Genau's flicks, where its folders hold both shapes."""
 
     def _pair(self, plays_vr, plays_flat):
-        rows = console_rows(MainSlot(main_mode=MainMode.GENAU, latest=False,
+        rows = console_rows(MainFunestraFacts(main_mode=MainMode.GENAU, latest=False,
                                      plays_vr=plays_vr, plays_flat=plays_flat))
         return [b for row in rows for b in row if b.command.startswith("main_projection")]
 
     def _faces_after_latest(self, main_mode: MainMode) -> list[str]:
-        faces = [b.glyph for row in console_rows(MainSlot(main_mode=main_mode, latest=False,
+        faces = [b.glyph for row in console_rows(MainFunestraFacts(main_mode=main_mode, latest=False,
                                                            plays_vr=True, plays_flat=True))
                  for b in row]
         return faces[faces.index(LATEST_ICON) + 1:][:2]
@@ -309,7 +309,7 @@ class TestLengthPair:
     """Clips and full, as the two lengths each button includes."""
 
     def _clips_and_full(self, length_mode: LengthMode, **over) -> tuple[Button, ...]:
-        rows = console_rows(MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=length_mode, **over))
+        rows = console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=length_mode, **over))
         by_face = {b.glyph: b for row in rows for b in row if b.command.startswith("main_funestra_length")}
         return tuple(by_face[face] for face in (CLIPS_ICON, FULL_ICON) if face in by_face)
 
@@ -343,7 +343,7 @@ class TestLengthPair:
         assert (clips.command, full.command) == ("main_funestra_length_clips", "main_funestra_length_full")
 
     def test_clips_lead_full_in_a_group_of_their_own(self):
-        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO, latest=False,
+        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False,
                                                   length_mode=LengthMode.MIXED)), x=0, y=0)
         rect_of = {b.glyph: rect for rect, b in placed}
         latest, clips, full = rect_of[LATEST_ICON], rect_of[CLIPS_ICON], rect_of[FULL_ICON]
@@ -361,7 +361,7 @@ class TestCompilationAndJumps:
     """The set a video belongs to, the scene it came from, and its other cuts."""
 
     def _button_for(self, action: str, **over):
-        return _button(MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED, **over), action)
+        return _button(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED, **over), action)
 
     def test_the_compilation_button_enters_and_the_lit_one_leaves(self):
         outside = self._button_for("main_funestra_compilation", has_compilation=True)
@@ -375,7 +375,7 @@ class TestCompilationAndJumps:
         assert self._button_for("main_funestra_compilation").dim is True
 
     def test_inside_a_compilation_the_order_and_length_read_as_held(self):
-        rows = console_rows(MainSlot(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
+        rows = console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
                                      compilation="Volume 6"))
         held = [b for row in rows for b in row
                 if b.command in ("main_shuffle", "main_funestra_length_clips")]
@@ -403,12 +403,12 @@ class TestLock:
     """The padlock: whether the video repeats or plays on into the playlist."""
 
     def test_it_is_lit_while_the_video_is_held(self):
-        assert _button(MainSlot(main_mode=MainMode.KINO, locked=True), "main_lock").lit is True
-        assert _button(MainSlot(main_mode=MainMode.KINO, locked=False), "main_lock").lit is False
+        assert _button(MainFunestraFacts(main_mode=MainMode.KINO, locked=True), "main_lock").lit is True
+        assert _button(MainFunestraFacts(main_mode=MainMode.KINO, locked=False), "main_lock").lit is False
 
     def test_it_says_which_way_a_press_goes(self):
-        held = _button(MainSlot(main_mode=MainMode.KINO, locked=True), "main_lock")
-        loose = _button(MainSlot(main_mode=MainMode.KINO, locked=False), "main_lock")
+        held = _button(MainFunestraFacts(main_mode=MainMode.KINO, locked=True), "main_lock")
+        loose = _button(MainFunestraFacts(main_mode=MainMode.KINO, locked=False), "main_lock")
 
         assert held.tooltip.startswith("Locked")
         assert "play on" in held.tooltip
@@ -416,7 +416,7 @@ class TestLock:
         assert "hold this video" in loose.tooltip
 
     def test_it_pairs_with_f_mode_and_stands_apart_from_everything_else(self):
-        by_action = _placed(MainSlot(main_mode=MainMode.KINO))
+        by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO))
         step, skip = by_action["main_next"], by_action["main_funestra_funscript_jump"]
         lock = by_action["main_lock"]
         fmode, reset = by_action["main_fmode"], by_action["main_reset"]
@@ -428,13 +428,13 @@ class TestLock:
 
     def test_every_mode_offers_exactly_one_padlock_lit_while_whatever_shows_is_held(self):
         for mode in MainMode:
-            assert _actions(MainSlot(main_mode=mode)).count("main_lock") == 1, mode
-            assert _button(MainSlot(main_mode=mode, locked=True), "main_lock").lit is True
-            assert _button(MainSlot(main_mode=mode, locked=False), "main_lock").lit is False
+            assert _actions(MainFunestraFacts(main_mode=mode)).count("main_lock") == 1, mode
+            assert _button(MainFunestraFacts(main_mode=mode, locked=True), "main_lock").lit is True
+            assert _button(MainFunestraFacts(main_mode=mode, locked=False), "main_lock").lit is False
 
     def test_in_genau_it_says_what_the_clip_does_and_how_fast(self):
-        held = _button(MainSlot(main_mode=MainMode.GENAU, locked=True, pace_s=7), "main_lock")
-        loose = _button(MainSlot(main_mode=MainMode.GENAU, locked=False, pace_s=7), "main_lock")
+        held = _button(MainFunestraFacts(main_mode=MainMode.GENAU, locked=True, pace_s=7), "main_lock")
+        loose = _button(MainFunestraFacts(main_mode=MainMode.GENAU, locked=False, pace_s=7), "main_lock")
 
         assert held.tooltip.startswith("Locked")
         assert "every 7s" in held.tooltip
@@ -447,26 +447,26 @@ class TestPaceRows:
     a named row, a read-out the drawing host fills, and the pair around it."""
 
     def test_the_video_rate_has_controls_where_main_funestra_is_on_screen(self):
-        actions = _actions(MainSlot(main_mode=MainMode.KINO))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
         assert "main_funestra_speed_down" in actions
         assert "main_funestra_speed_up" in actions
         assert "genau_flick_seconds_down" not in actions
 
     def test_genau_has_the_pace_and_no_video_rate(self):
-        actions = _actions(MainSlot(main_mode=MainMode.GENAU))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
         assert "genau_flick_seconds_down" in actions
         assert "genau_flick_seconds_up" in actions
         assert "main_funestra_speed_down" not in actions
 
     def test_the_rate_is_a_read_out_between_the_arrows_that_the_funestra_fills(self):
-        row = next(row for row in console_rows(MainSlot(main_mode=MainMode.KINO))
+        row = next(row for row in console_rows(MainFunestraFacts(main_mode=MainMode.KINO))
                    if any(b.command == "main_funestra_speed_down" for b in row))
 
         assert [b.glyph or b.host_value for b in row] == [
             "Playback speed", _MINUS, "playback_speed", _PLUS]
 
     def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self, pips):
-        row = next(row for row in console_rows(MainSlot(main_mode=MainMode.GENAU))
+        row = next(row for row in console_rows(MainFunestraFacts(main_mode=MainMode.GENAU))
                    if any(b.command == "genau_flick_seconds_down" for b in row))
 
         assert [b.glyph or b.host_value for b in row] == [
@@ -474,7 +474,7 @@ class TestPaceRows:
         assert row[-1].tooltip == "Leave each pip longer"
 
     def test_a_read_out_is_not_a_hit_target(self):
-        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO)), x=0, y=0)
+        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
         rect = next(r for r, b in placed if b.host_value == "playback_speed")
 
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == ""
@@ -487,7 +487,7 @@ class TestPaceRows:
         satellite = [button.tooltip for _rect, button in rendered.targets.buttons
                      if button.command.startswith("landscape_speed_")]
         console = [button.tooltip
-                   for row in console_rows(MainSlot(main_mode=MainMode.KINO))
+                   for row in console_rows(MainFunestraFacts(main_mode=MainMode.KINO))
                    for button in row if button.command.startswith("main_funestra_speed_")]
 
         assert satellite == console != []
@@ -495,22 +495,22 @@ class TestPaceRows:
 
 class TestSkipAhead:
     @staticmethod
-    def _transport_row(slot: MainSlot) -> list[str]:
+    def _transport_row(facts: MainFunestraFacts) -> list[str]:
         return [button.command for button in next(
-            row for row in console_rows(slot) if any(b.command == "main_prev" for b in row))]
+            row for row in console_rows(facts) if any(b.command == "main_prev" for b in row))]
 
     def test_skip_ahead_follows_previous_and_next_as_on_every_satellite(self):
-        row = self._transport_row(MainSlot(main_mode=MainMode.KINO))
+        row = self._transport_row(MainFunestraFacts(main_mode=MainMode.KINO))
 
         assert row[:6] == ["main_prev", "main_nudge_prev", "main_nudge_next", "main_next",
                            "main_funestra_funscript_jump", "main_lock"]
 
     @pytest.mark.parametrize("has_osr2", [True, False])
     def test_skip_ahead_is_there_whether_or_not_the_main_funestra_has_the_osr2(self, has_osr2):
-        slot = MainSlot(main_mode=MainMode.KINO, has_osr2=has_osr2)
+        facts = MainFunestraFacts(main_mode=MainMode.KINO, has_osr2=has_osr2)
 
-        assert "main_funestra_funscript_jump" in self._transport_row(slot)
-        assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=has_osr2),),)
+        assert "main_funestra_funscript_jump" in self._transport_row(facts)
+        assert osr2_rows(facts) == ((osr2_button(RoomFunestra.MAIN, has_it=has_osr2),),)
 
     @pytest.mark.parametrize(("has_osr2", "has_funscript", "why"), [
         (False, True, " (this Funestra doesn't have the OSR2)"),
@@ -519,57 +519,57 @@ class TestSkipAhead:
     ])
     def test_skip_ahead_grays_out_without_the_osr2_or_a_funscript(self, has_osr2, has_funscript,
                                                                   why):
-        jump = _button(MainSlot(main_mode=MainMode.KINO, has_osr2=has_osr2,
+        jump = _button(MainFunestraFacts(main_mode=MainMode.KINO, has_osr2=has_osr2,
                                 has_funscript=has_funscript), "main_funestra_funscript_jump")
 
         assert jump.dim is bool(why)
         assert jump.tooltip == f"Skip ahead to where this video's scripting starts up again{why}"
 
     def test_skip_ahead_rides_a_video_alone(self):
-        assert "main_funestra_funscript_jump" not in _actions(MainSlot(main_mode=MainMode.GENAU))
+        assert "main_funestra_funscript_jump" not in _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
 
 class TestDriveControls:
 
     def test_the_axis_arrows_are_not_console_buttons(self):
-        actions = _actions(MainSlot(main_mode=MainMode.KINO))
+        actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
         for action in ("robot_hand_amplitude_up", "robot_hand_center_down", "robot_hand_speed_up"):
             assert action not in actions
 
 class TestTheOsr2Button:
     def test_a_console_that_has_the_osr2_wears_its_button_lit_in_place_of_the_aim_row(self):
-        slot = MainSlot(main_mode=MainMode.GENAU)
+        facts = MainFunestraFacts(main_mode=MainMode.GENAU)
 
-        assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=True),),)
+        assert osr2_rows(facts) == ((osr2_button(RoomFunestra.MAIN, has_it=True),),)
 
     def test_a_console_that_gave_the_osr2_away_offers_it_back_there(self):
-        slot = MainSlot(main_mode=MainMode.KINO, has_osr2=False)
+        facts = MainFunestraFacts(main_mode=MainMode.KINO, has_osr2=False)
 
-        assert osr2_rows(slot) == ((osr2_button(RoomFunestra.MAIN, has_it=False),),)
-        assert osr2_button(RoomFunestra.MAIN, has_it=False) not in [b for row in console_rows(slot) for b in row]
+        assert osr2_rows(facts) == ((osr2_button(RoomFunestra.MAIN, has_it=False),),)
+        assert osr2_button(RoomFunestra.MAIN, has_it=False) not in [b for row in console_rows(facts) for b in row]
 
 
 class TestState:
     def test_the_mode_you_are_in_is_lit_and_the_others_are_not(self):
-        slot = MainSlot(main_mode=MainMode.KINO)
+        facts = MainFunestraFacts(main_mode=MainMode.KINO)
 
-        assert _button(slot, "main_kino_activate").lit is True
-        assert _button(slot, "genau_activate").lit is False
+        assert _button(facts, "main_kino_activate").lit is True
+        assert _button(facts, "genau_activate").lit is False
 
     def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
-        colored = [b.command for row in _every_row(MainSlot(main_mode=MainMode.GENAU, locked=True))
+        colored = [b.command for row in _every_row(MainFunestraFacts(main_mode=MainMode.GENAU, locked=True))
                    for b in row if b.warn or b.hold]
 
         assert colored == []
 
     def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
-        assert _button(MainSlot(main_mode=MainMode.KINO, f_mode=True), "main_fmode").favorite is True
+        assert _button(MainFunestraFacts(main_mode=MainMode.KINO, f_mode=True), "main_fmode").favorite is True
 
     def test_the_record_button_tells_marking_from_looping(self):
-        idle = _button(MainSlot(main_mode=MainMode.KINO), "main_funestra_record_tap")
-        marking = _button(MainSlot(main_mode=MainMode.KINO, loop_state=LoopState.RECORDING), "main_funestra_record_tap")
-        looping = _button(MainSlot(main_mode=MainMode.KINO, loop_state=LoopState.LOOPING), "main_funestra_record_tap")
+        idle = _button(MainFunestraFacts(main_mode=MainMode.KINO), "main_funestra_record_tap")
+        marking = _button(MainFunestraFacts(main_mode=MainMode.KINO, loop_state=LoopState.RECORDING), "main_funestra_record_tap")
+        looping = _button(MainFunestraFacts(main_mode=MainMode.KINO, loop_state=LoopState.LOOPING), "main_funestra_record_tap")
 
         assert (idle.warn, idle.hold) == (False, False)
         assert (marking.warn, marking.hold) == (True, False)
@@ -578,32 +578,32 @@ class TestState:
     def test_the_record_button_says_which_press_comes_next(self):
         for loop_state, wanted in ((LoopState.NORMAL, "Record"), (LoopState.RECORDING, "out point"),
                                    (LoopState.LOOPING, "drop the loop")):
-            assert wanted in _button(MainSlot(main_mode=MainMode.KINO, loop_state=loop_state),
+            assert wanted in _button(MainFunestraFacts(main_mode=MainMode.KINO, loop_state=loop_state),
                                      "main_funestra_record_tap").tooltip
 
 
 class TestLayout:
     def test_the_mode_pair_names_kino_and_genau(self):
-        first = console_rows(MainSlot())[0]
+        first = console_rows(MainFunestraFacts())[0]
 
         assert [(b.command, b.glyph, b.tooltip) for b in first[:2]] == [
             ("main_kino_activate", "Kino", "Kino mode"), ("genau_activate", "Genau", "Genau mode")]
 
     def test_the_mode_row_leads_so_it_holds_its_place_across_modes(self):
         for mode in MainMode:
-            first = console_rows(MainSlot(main_mode=mode))[0]
+            first = console_rows(MainFunestraFacts(main_mode=mode))[0]
             assert [b.command for b in first][:4] == [
                 "main_kino_activate", "genau_activate", "main_minimize", "main_crown"]
 
     def test_the_browse_rides_the_mode_row_in_both_modes_and_the_rest_only_over_a_video(self):
-        video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.KINO))[0]]
-        genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU))[0]]
+        video = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.KINO))[0]]
+        genau = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.GENAU))[0]]
 
         assert video[4:] == ["browse_library", "main_funestra_record_tap", "genaumacher_save"]
         assert genau[4:] == ["browse_library"]
 
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
-        by_action = _placed(MainSlot(main_mode=MainMode.KINO))
+        by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO))
         crown, browse = by_action["main_crown"], by_action["browse_library"]
         record, save = by_action["main_funestra_record_tap"], by_action["genaumacher_save"]
 
@@ -612,25 +612,25 @@ class TestLayout:
         assert save[0] - (record[0] + record[2]) == GAP
 
     def test_the_crown_is_lit_while_the_main_funestra_holds_it(self):
-        held = _button(MainSlot(crowned=True), "main_crown")
-        given_away = _button(MainSlot(crowned=False), "main_crown")
+        held = _button(MainFunestraFacts(crowned=True), "main_crown")
+        given_away = _button(MainFunestraFacts(crowned=False), "main_crown")
 
         assert (held.lit, given_away.lit) == (True, False)
         assert held.tooltip.startswith("Crowned")
 
     def test_the_crown_sits_beside_minimize(self):
-        by_action = _placed(MainSlot(main_mode=MainMode.KINO))
+        by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO))
         minimize, crown = by_action["main_minimize"], by_action["main_crown"]
 
         assert crown[0] - (minimize[0] + minimize[2]) == GAP
 
     def test_minimize_rides_the_row_that_never_changes(self):
-        video, genau = _placed(MainSlot(main_mode=MainMode.KINO)), _placed(MainSlot(main_mode=MainMode.GENAU))
+        video, genau = _placed(MainFunestraFacts(main_mode=MainMode.KINO)), _placed(MainFunestraFacts(main_mode=MainMode.GENAU))
 
         assert video["main_minimize"] == genau["main_minimize"]
 
     def test_minimize_stands_apart_from_the_modes_it_sits_beside(self):
-        by_action = _placed(MainSlot(main_mode=MainMode.KINO))
+        by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO))
         genau, minimize = by_action["genau_activate"], by_action["main_minimize"]
 
         assert minimize[0] - (genau[0] + genau[2]) == GROUP_GAP
@@ -638,28 +638,28 @@ class TestLayout:
     def test_a_console_in_the_headset_has_no_window_to_minimize(self):
         """The Funestras under it are screens in the scene there, not windows, so
         the mode pair runs straight on into the file controls."""
-        video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.KINO), in_vr=True)[0]]
-        genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU), in_vr=True)[0]]
+        video = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.KINO), in_vr=True)[0]]
+        genau = [b.command for b in console_rows(MainFunestraFacts(main_mode=MainMode.GENAU), in_vr=True)[0]]
 
         assert video == ["main_kino_activate", "genau_activate",
                          "browse_library", "main_funestra_record_tap", "genaumacher_save"]
         assert genau == ["main_kino_activate", "genau_activate", "browse_library"]
 
     def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):
-        button = _button(MainSlot(main_mode=MainMode.GENAU), "main_minimize")
+        button = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "main_minimize")
 
         assert button.glyph == MINIMIZE_ICON
         assert "taskbar" in button.tooltip
 
     def test_a_press_finds_the_button_under_it_and_names_it(self):
-        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO)), x=0, y=0)
+        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
         rect = next(r for r, b in placed if b.command == "main_next")
 
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == "main_next"
         assert tooltip_at(placed, rect[0] + 1, rect[1] + 1) == "Next video"
 
     def test_the_buttons_are_the_familys_size(self):
-        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO)), x=0, y=0)
+        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO)), x=0, y=0)
 
         assert all(rect[3] == BUTTON for rect, _b in placed)
 
@@ -678,14 +678,14 @@ class TestFaces:
         assert not named - set(icon_names())
 
     def test_the_bin_takes_something_away(self):
-        assert _button(MainSlot(main_mode=MainMode.GENAU), "genau_weird_flick").danger is True
+        assert _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_weird_flick").danger is True
 
 
 class TestOrientationPair:
     """Portrait and landscape, the same way 2D/VR and clips/full let theirs in."""
 
     def _pair(self, main_mode=MainMode.KINO, *, things=None, **over) -> tuple[Button, ...]:
-        rows = console_rows(MainSlot(main_mode=main_mode, latest=False, **over))
+        rows = console_rows(MainFunestraFacts(main_mode=main_mode, latest=False, **over))
         by_face = {b.glyph: b for row in rows for b in row
                    if b.command.startswith("main_orientation")}
         return tuple(by_face[face] for face in (PORTRAIT_ICON, LANDSCAPE_ICON) if face in by_face)
@@ -710,7 +710,7 @@ class TestOrientationPair:
             "main_orientation_both", "main_orientation_none")
 
     def test_they_sit_right_after_clips_and_full_in_a_group_of_their_own(self):
-        placed = place_rows(console_rows(MainSlot(main_mode=MainMode.KINO, latest=False)), x=0, y=0)
+        placed = place_rows(console_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False)), x=0, y=0)
         rect_of = {b.glyph: rect for rect, b in placed}
         full, portrait, landscape = rect_of[FULL_ICON], rect_of[PORTRAIT_ICON], rect_of[LANDSCAPE_ICON]
 

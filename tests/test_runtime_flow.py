@@ -690,7 +690,7 @@ def test_apply_leave_omnipause_in_genau_mode_lifts_genaus_flags_and_leaves_its_h
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
     assert not flow_files["main_funestra_paused_file"].exists(), "the Main Funestra pause state untouched"
-    # Both satellites are unfrozen regardless of the main slot's mode.
+    # Both satellites are unfrozen regardless of the Main Funestra's mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 

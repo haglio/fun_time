@@ -13,7 +13,7 @@ from .window_layout import WindowRect
 
 
 @dataclass(frozen=True)
-class SatelliteSlot:
+class SatelliteLaunch:
     funestra: RoomFunestra
     sources: str
     channels: SatelliteChannels
@@ -21,8 +21,8 @@ class SatelliteSlot:
     rect: WindowRect
 
 
-def for_funestra(slot: SatelliteSlot, funestra: RoomFunestra) -> SatelliteSlot:
-    """*slot*, after refusing one that belongs to the other Funestra."""
-    if slot.funestra is not funestra:
-        raise ValueError(f"a {slot.funestra.label} slot was handed to {funestra.label}")
-    return slot
+def for_funestra(launch: SatelliteLaunch, funestra: RoomFunestra) -> SatelliteLaunch:
+    """*launch*, after refusing one that belongs to the other Funestra."""
+    if launch.funestra is not funestra:
+        raise ValueError(f"a {launch.funestra.label} launch was handed to {funestra.label}")
+    return launch

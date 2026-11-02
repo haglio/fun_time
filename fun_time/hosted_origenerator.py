@@ -129,7 +129,7 @@ def bring_up_the_hosted_app(
     if not origenerator_dir:
         return None
     if plan is None:
-        plan = screen_layout(m.layout, rfb_slot_strip=m.runtime.hosts_origenerator).plan
+        plan = screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator).plan
     claim_the_osr2(origenerator_dir)
     if in_a_headset:
         _clear_what_an_earlier_room_left(m)

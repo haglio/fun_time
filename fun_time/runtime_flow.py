@@ -67,7 +67,7 @@ def apply_mode_switch(
     main_funestra_paused_file: str | Path,
     main_funestra_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
-    """Switch the main slot between kino and genau mode, sending the Main Funestra
+    """Switch the Main Funestra between kino and genau mode, sending the Main Funestra
     what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
 
     Queued, never written whole: the file is a queue shared with every other
@@ -290,7 +290,7 @@ def apply_satellite_switch(
     """Switch one Satellite Funestra between its own videos and the hosted
     app's slideshows.
 
-    Like the main slot's switch, nothing is torn down, and nothing pauses.
+    Like the Main Funestra's switch, nothing is torn down, and nothing pauses.
     Entering keeps the Funestra's own list aside for the way back, lets go of
     the session's hold on it -- what holds is the app's to say now -- and asks
     the app for a slideshow on it, so the mode opens playing rather than empty: the

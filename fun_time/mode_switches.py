@@ -14,10 +14,10 @@ from .origenerator_switches import (
     KINO_MODE,
     ORIGENERATOR_MODE,
     SATELLITE_MODE_COMMANDS,
-    RfbSlot,
+    RfbMode,
     origenerator_shows,
 )
-from .rfb_slot import origenerator_refused, switch_the_rfb_slot
+from .rfb_mode import origenerator_refused, switch_the_rfb_mode
 from .room_funestras import RoomFunestra
 from .runtime_flow import apply_mode_switch, apply_satellite_switch
 from .shared_state import BridgeState
@@ -25,8 +25,8 @@ from .shared_state import BridgeState
 logger = logging.getLogger(__name__)
 
 
-def _main_slot_ops() -> list[WindowOp]:
-    """The main slot on a mode switch: Kino and Genau share the Main Funestra's
+def _main_funestra_ops() -> list[WindowOp]:
+    """The Main Funestra on a mode switch: Kino and Genau share the Main Funestra's
     window, which the switch has already told which of them to show, so what is
     left is to bring that window back if it was parked and hand it the focus,
     so focus never falls through to another application."""
@@ -36,7 +36,7 @@ def _main_slot_ops() -> list[WindowOp]:
     ]
 
 
-# The main slot's two mode switches, by their target mode.
+# The Main Funestra's two mode switches, by their target mode.
 _MODE_SWITCH_COMMANDS: dict[str, str] = {
     "genau_activate": MAIN_GENAU_MODE,
     "main_kino_activate": MAIN_KINO_MODE,
@@ -72,7 +72,7 @@ def _dispatch_mode_switch(
     )
     state = replace(state, main_mode=result.next_mode)
     if result.is_transition:
-        ops.extend(_main_slot_ops())
+        ops.extend(_main_funestra_ops())
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
@@ -80,9 +80,9 @@ def _dispatch_mode_switch(
 
 def _kino_activate(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """"kino mode", said of no Satellite: the main slot's video AND the satellites'
+    """"kino mode", said of no Satellite: the Main Funestra's video AND the satellites'
     Funestras, each through its own switch — a session hosting no Origenerator
-    has only the main slot's to make."""
+    has only the Main Funestra's to make."""
     state, ops = _dispatch_mode_switch(MAIN_KINO_MODE, state, config, [])
     if config.origenerator_enabled:
         state, more = _both_satellites_switch(KINO_MODE, state, config, _target_path)
@@ -127,7 +127,7 @@ HANDLERS: dict[str, Handler] = {
        for cmd, (funestra, mode) in SATELLITE_MODE_COMMANDS.items()},
     **{cmd: partial(_both_satellites_switch, mode)
        for cmd, mode in BOTH_SATELLITES_MODE_COMMANDS.items()},
-    RFB_ACTIVATE: partial(switch_the_rfb_slot, RfbSlot.RFB),
-    ORIGENERATOR_ACTIVATE: partial(switch_the_rfb_slot, RfbSlot.ORIGENERATOR),
+    RFB_ACTIVATE: partial(switch_the_rfb_mode, RfbMode.RFB),
+    ORIGENERATOR_ACTIVATE: partial(switch_the_rfb_mode, RfbMode.ORIGENERATOR),
     "kino_activate": _kino_activate,
 }

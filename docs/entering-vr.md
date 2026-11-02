@@ -25,7 +25,7 @@ in either orchestrator:
 | Each satellite's lock | yes, re-queued on its command file |
 | F-mode per Funestra, each Satellite's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
-| The main slot's mode (video / Genau) | yes |
+| The Main Funestra's mode (video / Genau) | yes |
 | The Main Funestra's clip | yes, when the arriving session can play it |
 | The Main Funestra's A/B loop | yes, when the clip carried — re-queued on the command file |
 | Every Funestra's playback rate | yes, re-queued on its command file |

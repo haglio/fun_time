@@ -56,7 +56,7 @@ from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
-from .origenerator_switches import CLOSE_SLIDESHOWS, RfbSlot, hosted_satellites
+from .origenerator_switches import CLOSE_SLIDESHOWS, RfbMode, hosted_satellites
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
@@ -570,7 +570,7 @@ def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
 
 
 def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
-                              rfb_slot: RfbSlot = RfbSlot.RFB) -> dict[str, int]:
+                              rfb_mode: RfbMode = RfbMode.RFB) -> dict[str, int]:
     """Resolve every managed window, band it, and settle the z-order until each
     Funestra is actually frontmost — returning the role hwnds it resolved.
 
@@ -619,7 +619,7 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
         main_funestra_hwnd=main_funestra_hwnd,
         dashboard_hwnd=dash_hwnd,
         beneath=overlay_hwnd,
-        rfb_slot=rfb_slot,
+        rfb_mode=rfb_mode,
     )
     logger.info("Post-loading window state corrected")
     _settle_the_funestras(
@@ -831,7 +831,7 @@ def _reveal_the_room(
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
-    apply_topmost_bands(role_hwnds, rfb_slot=rfb_slot)
+    apply_topmost_bands(role_hwnds, rfb_mode=rfb_mode)
     _settle_the_funestras(
         _funestras_to_settle(
             portrait_hwnd=role_hwnds.get("portrait", 0),
@@ -983,9 +983,9 @@ def activate_origenerator_under_the_loading_screen(
     runner: DispatchLoopRunner,
     *,
     progress: ProgressReporter,
-) -> RfbSlot:
+) -> RfbMode:
     if not runner.opening.activates:
-        return runner.state.rfb_slot
+        return runner.state.rfb_mode
     started = time.monotonic()
 
     def wait_for_the_app(has_answered: Callable[[], bool]) -> bool:
@@ -1000,7 +1000,7 @@ def activate_origenerator_under_the_loading_screen(
 
     progress.announce(ACTIVATING_ORIGENERATOR.key)
     runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
-    return runner.state.rfb_slot
+    return runner.state.rfb_mode
 
 
 def finish_under_the_loading_screen(

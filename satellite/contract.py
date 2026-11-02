@@ -13,7 +13,7 @@ from funestra.funestra import Channels
 from fun_time.osr2_section import osr2_readout_path
 
 #: field, the flag it is given by -- none for what no satellite is given: the main
-#: slot's console, and the broker's old T-Code inlet -- and the manifest's kind of
+#: Main Funestra's HUD, and the broker's old T-Code inlet -- and the manifest's kind of
 #: file, ``None`` where it has none.
 CHANNELS = (
     ("playlist", "--playlist", "playlist"),

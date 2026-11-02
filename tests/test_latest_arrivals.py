@@ -161,7 +161,7 @@ class TestTheMainFunestraPlayingItsLatestList:
 
         assert _queued(config.main_funestra_cmd_file) == [_next(newcomer)]
 
-    def test_holds_what_arrives_while_genau_has_the_main_slot(self, tmp_path):
+    def test_holds_what_arrives_while_genau_has_the_main_funestra(self, tmp_path):
         library = tmp_path / "videos"
         arrivals, config = _watching(tmp_path, main_sources=str(library))
         newcomer = _video(library, "feature two.mp4")

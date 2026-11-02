@@ -1,5 +1,5 @@
 """Every command the reference and the recognizer can produce, dispatched in
-every pairing of the two slots' modes, and what each one sent on every channel.
+every pairing of the two Satellites' modes, and what each one sent on every channel.
 """
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def drain(config: BridgeConfig) -> dict[str, list[str]]:
 
 
 def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
-    """Dispatch every command in every pairing of the two slots' modes; report
+    """Dispatch every command in every pairing of the two Satellites' modes; report
     what each sent.
 
     Keyed ``"<main mode>/<satellites mode>/<command>"``, because several

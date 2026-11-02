@@ -471,7 +471,7 @@ def action_label(index: GroupIndex, path: str) -> str:
     if len(twins) <= 1:
         return action
     position = next(
-        (slot for slot, item in enumerate(twins) if normalize_path_key(item) == key), 0
+        (number for number, item in enumerate(twins) if normalize_path_key(item) == key), 0
     )
     return f"{action} {position + 1}"
 

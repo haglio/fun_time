@@ -226,20 +226,20 @@ def _collapse_groups(
     items_of: Callable[[str], list[str]],
     pick: Callable[[list[str]], str],
 ) -> list[str]:
-    """One slot per group, in first-seen order; *pick* chooses each group's
+    """One item per group, in first-seen order; *pick* chooses each group's
     representative from its items.  Ungrouped paths pass through."""
-    slots: list[str] = []
+    picks: list[str] = []
     seen_groups: set[str] = set()
     for path in paths:
         group_key = group_key_of(path)
         if group_key is None:
-            slots.append(path)
+            picks.append(path)
             continue
         if group_key in seen_groups:
             continue
         seen_groups.add(group_key)
-        slots.append(pick(items_of(group_key)))
-    return slots
+        picks.append(pick(items_of(group_key)))
+    return picks
 
 
 def _collapse_and_weigh(
@@ -249,7 +249,7 @@ def _collapse_and_weigh(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Shuffle *paths* by the weights stamped on their sidecars, one slot per group.
+    """Shuffle *paths* by the weights stamped on their sidecars, one item per group.
 
     Chronically-skipped videos sit the build out proportionally to their
     weight; each group contributes a single item, drawn weighted so preferred
@@ -278,7 +278,7 @@ def _collapse_recent(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Newest-first, one slot per group — the Latest review order.
+    """Newest-first, one item per group — the Latest review order.
 
     New arrivals stay the focus: each group is represented by its most recent
     item and sits at that item's position, so the freshest clip of a group
@@ -321,7 +321,7 @@ def build_satellite_playlist_paths(
     files = satellite_narrowing(collect_video_files(source_spec), favorites_filter,
                                 filter_query=filter_query, metadata_root=metadata_root)
     filtered = bool(filter_query) and metadata_root is not None
-    # With a metadata root, both orders collapse to one slot per group: Latest
+    # With a metadata root, both orders collapse to one item per group: Latest
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
     # filtered view collapses seed families (one per param-set) rather than
     # action groups.  Without one there is nothing to group by, so just order

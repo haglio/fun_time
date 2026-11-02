@@ -27,7 +27,7 @@ from .funestra_status import (
 )
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_satellite_hud
-from .main_funestra_console import MainSlotInputs, console_model, osr2_state
+from .main_funestra_console import MainFunestraInputs, console_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
     main_funestra_at_defaults,
@@ -170,12 +170,12 @@ class HudFeed:
                 origenerator_ready=state.origenerator_ready,
                 in_vr=self.config.vr_main_funestra, crowned=state.crowned,
             ), device(funestra))
-        # The main console: the controls for whichever Funestra owns the slot,
+        # The main console: the controls for whichever Funestra is showing,
         # what has the OSR2, whether the broker is up, and which Funestra a bare
         # command reaches -- none of which the Funestra can see for itself.
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
-        self.publisher.publish_text("main_funestra", console_text(console_model(MainSlotInputs(
+        self.publisher.publish_text("main_funestra", console_text(console_model(MainFunestraInputs(
             main_mode=state.main_mode,
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,

@@ -54,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--y", type=int, default=None)
     p.add_argument("--title", type=str, default="Satellite",
                    help="Window caption; fun_time gives each satellite a distinct one "
-                        "so it can resolve each window to its portrait/landscape slot")
+                        "so it can resolve each window to its Portrait or Landscape Satellite")
     p.add_argument("--no-audio", action="store_true", default=False,
                    help="Never play audio, and leave the volume chip a read-only "
                         "indicator; without it a satellite still opens muted, but "

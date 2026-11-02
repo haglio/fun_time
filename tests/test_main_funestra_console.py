@@ -13,14 +13,14 @@ from funestra.hud_button import Button
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 
 from fun_time.funestra_status import GenauStatus, MainFunestraStatus
-from fun_time.main_funestra_console import MainSlotInputs, console_model, osr2_state
+from fun_time.main_funestra_console import MainFunestraInputs, console_model, osr2_state
 
 
 def _payload(**overrides) -> ConsoleModel:
     base = dict(main_mode=MainMode.KINO, active=False, osr2_mode=Osr2Mode.CONTROLLED,
                 main_funestra=MainFunestraStatus(), genau=GenauStatus())
     base.update(overrides)
-    return console_model(MainSlotInputs(**base))
+    return console_model(MainFunestraInputs(**base))
 
 
 def _button(model: ConsoleModel, action: str) -> Button:
