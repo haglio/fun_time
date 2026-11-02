@@ -26,7 +26,7 @@ from pathlib import Path
 from app_support import osr2_hold
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import mutex_name
+from app_support.win32 import mutex_name, process_started
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 
@@ -128,7 +128,6 @@ from fun_time.single_instance import (
 from fun_time.state_file_names import take_up_the_retired_state_file_names
 from fun_time.voice_control import VoiceController
 from fun_time.vr_videos import shapes_verb
-from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -540,7 +539,7 @@ class _Launched:
 
     def record(self, name: str, pid: int) -> None:
         self.children[name] = ChildProcess(
-            pid=pid, created_at=get_process_creation_time(pid) or 0)
+            pid=pid, created_at=process_started(pid) or 0)
 
 
 @dataclass(frozen=True)

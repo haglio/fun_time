@@ -35,6 +35,6 @@ def running(module: str, machine: list[tuple[int, str, str, float]]) -> Iterator
         stack.enter_context(patch(f"{module}.processes_matching", partial(
             processes_matching, table=table, read=command_line)))
         stack.enter_context(patch(f"{module}.kill_process_tree", ended.append))
-        if hasattr(importlib.import_module(module), "get_process_creation_time"):
-            stack.enter_context(patch(f"{module}.get_process_creation_time", started))
+        if hasattr(importlib.import_module(module), "process_started"):
+            stack.enter_context(patch(f"{module}.process_started", started))
         yield ended

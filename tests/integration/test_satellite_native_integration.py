@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 import pytest
+from app_support.win32 import process_started
 from funestra.funestra_verbs import LOCK_ON, NEXT, SET_PACE, SET_SPEED, SHOW_FRAME
 from PIL import Image
 
@@ -22,7 +23,6 @@ from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import SatelliteInputs, build_hud
 from fun_time.satellite_control import read_satellite_status
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
-from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 
 from .integration_support import let_seconds_pass, published_status
@@ -84,12 +84,12 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
             [elsewhere / "portrait_status.txt", elsewhere / "landscape_status.txt"],
         )
         let_seconds_pass(2.0)
-        assert get_process_creation_time(satellite.pid) is not None, (
+        assert process_started(satellite.pid) is not None, (
             "another session's startup reap killed this satellite")
 
         # ...and the reap still does its own job, on its own files.
         reap_orphaned_satellites("satellite", [satellite.status])
-        satellite.wait_for(lambda: get_process_creation_time(satellite.pid) is None,
+        satellite.wait_for(lambda: process_started(satellite.pid) is None,
                            desc="our own reap to clear a satellite stranded on our files")
 
 

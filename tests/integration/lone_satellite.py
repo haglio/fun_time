@@ -7,13 +7,14 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
+from app_support.win32 import process_started
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import QUIT
 
 from fun_time.config import load_config
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
-from fun_time.win32_process import get_process_creation_time, is_process_alive
+from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from fun_time.windows_bridge_startup import launch_satellite
 from satellite.contract import SatelliteChannels, WindowPlacement
@@ -128,11 +129,11 @@ def a_lone_satellite() -> LoneSatellite:
 
 
 def identify_child(pid: int) -> ChildProcess:
-    return ChildProcess(pid=pid, created_at=get_process_creation_time(pid) or 0)
+    return ChildProcess(pid=pid, created_at=process_started(pid) or 0)
 
 
 def _still_running(process: ChildProcess) -> bool:
-    return (get_process_creation_time(process.pid) == process.created_at
+    return (process_started(process.pid) == process.created_at
             and is_process_alive(process.pid))
 
 

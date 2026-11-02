@@ -5,10 +5,12 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.win32 import process_started
+
 from fun_time import preview_marker
 from fun_time.child_launch import marks_a_launch
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.win32_process import get_process_creation_time, is_process_alive
+from fun_time.win32_process import is_process_alive
 
 LAST_WORDS_LINES = 12
 
@@ -87,7 +89,7 @@ PART_NAMES = {
 
 def the_part_that_closed(children: Mapping, *,
                          created_at: Callable[[int], int | None] | None = None) -> str | None:
-    born = created_at or get_process_creation_time
+    born = created_at or process_started
     for key, child in children.items():
         if child.created_at and born(child.pid) != child.created_at:
             return PART_NAMES.get(key, key)
