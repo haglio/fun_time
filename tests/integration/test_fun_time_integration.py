@@ -903,10 +903,10 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     )
     isolated_integration_session.wait_until(
         lambda: any(
-            n.message == "Marked weird" and n.source == "portrait"
+            n.message == "Sent to Trash" and n.source == "portrait"
             for n in isolated_integration_session.notices()
         ),
-        description='a "Marked weird" notice over the Portrait Funestra',
+        description='a "Sent to Trash" notice over the Portrait Funestra',
     )
 
 

@@ -68,7 +68,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
         session.wait_until(
             lambda: _condemned(weird) and any(
                 n.message == SENT_TO_TRASH and n.source == "main" for n in session.notices()),
-            timeout=15, description='the flick on screen marked weird, and "Marked weird" flashed')
+            timeout=15, description='the flick on screen marked weird, and "Sent to Trash" flashed')
         let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
         assert len(_condemned(weird)) == 1
