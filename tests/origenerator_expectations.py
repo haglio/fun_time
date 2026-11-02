@@ -98,7 +98,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
     written = [
         *_written_in_a_sweep(on_the_monitors),
         *_written_in_a_sweep(in_a_headset),
-        *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_rooms_f_mode,
+        *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_apps_f_mode,
                      _each_hosted_satellite_told_whether_it_has_the_osr2,
                      _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_app_crossing_in),
@@ -145,9 +145,9 @@ def _both_shows_hosted() -> BridgeState:
     return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
 
 
-def _each_hosted_satellite_told_whether_it_has_the_osr2(room: BridgeConfig) -> None:
-    feed = HudFeed(config=room, publisher=HudPublisher({}, room.state_dir / "thumbs", ()))
-    for funestra in RoomFunestra.SATELLITES:
+def _each_hosted_satellite_told_whether_it_has_the_osr2(app: BridgeConfig) -> None:
+    feed = HudFeed(config=app, publisher=HudPublisher({}, app.state_dir / "thumbs", ()))
+    for funestra in FunTimeFunestra.SATELLITES:
         feed.publish(replace(_both_shows_hosted(), osr2_funestra=funestra.value))
 
 

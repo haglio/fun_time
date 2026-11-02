@@ -62,7 +62,7 @@ def _frame_whose_red_is_the_distance_from_each_eyes_center():
     ys, xs = np.mgrid[0:SOURCE_EYE_PX, 0:SOURCE_EYE_PX]
     distance = np.hypot((xs + 0.5) / SOURCE_EYE_PX - 0.5, (ys + 0.5) / SOURCE_EYE_PX - 0.5) / 0.5
     eye = np.zeros((SOURCE_EYE_PX, SOURCE_EYE_PX, 4), np.uint8)
-    eye[..., 0] = (np.video(distance, 0, 1) * 255).astype(np.uint8)
+    eye[..., 0] = (np.clip(distance, 0, 1) * 255).astype(np.uint8)
     eye[..., 3] = 255
     return _side_by_side(eye)
 
@@ -93,13 +93,13 @@ def _direction_at_each_drawn_pixel():
 
 
 def _angle_off_axis_at_each_drawn_pixel():
-    return np.arccos(np.video(-_direction_at_each_drawn_pixel()[..., 2], -1, 1))
+    return np.arccos(np.clip(-_direction_at_each_drawn_pixel()[..., 2], -1, 1))
 
 
 def _where_in_the_eye_an_equirect_reads(fov_deg):
     direction = _direction_at_each_drawn_pixel()
     theta = np.arctan2(direction[..., 0], -direction[..., 2])
-    phi = np.arcsin(np.video(direction[..., 1], -1, 1))
+    phi = np.arcsin(np.clip(direction[..., 1], -1, 1))
     return np.stack([theta, phi], axis=-1) / math.radians(fov_deg) + 0.5
 
 

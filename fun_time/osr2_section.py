@@ -85,14 +85,14 @@ class DeviceBlock:
         return replace(model, osr2_rows=self.rows, osr2=self.osr2)
 
 
-def tell_a_hosted_satellite_whose_the_osr2_is(config, told: dict[RoomFunestra, bool],
-                                         funestra: RoomFunestra, has_it: bool) -> None:
+def tell_a_hosted_satellite_whose_the_osr2_is(config, told: dict[FunTimeFunestra, bool],
+                                         funestra: FunTimeFunestra, has_it: bool) -> None:
     if told.get(funestra) == has_it:
         return
     append_command(config.origenerator_cmd_file, osr2_said_to(funestra, has_it))
     told[funestra] = has_it
 
 
-def forget_what_a_satellite_was_told_of_the_osr2(told: dict[RoomFunestra, bool],
-                                            funestra: RoomFunestra) -> None:
+def forget_what_a_satellite_was_told_of_the_osr2(told: dict[FunTimeFunestra, bool],
+                                            funestra: FunTimeFunestra) -> None:
     told.pop(funestra, None)

@@ -1,0 +1,553 @@
+{
+  "app": "Fun Time",
+  "drafted": "2026-11-02",
+  "columns": {
+    "thing": "where it is on the screen and what it looks like",
+    "screen": "the words on the screen that name it (a label, a button, a tooltip), quoted; null when no label names it",
+    "his_word": "the word the user says for it, from his own messages and the spoken commands, with the date he said it; null when he has none yet",
+    "code_today": "the words the code says for it now; each has to be in the code, or the row is stale",
+    "code_word": "the one word the code is to say for it; null while unruled",
+    "status": "ruled: his word, given where `ruled` says | his_word: a word he has used, not yet put to him as the code's | agreed: screen, user and code already say one word | unruled: no word of his yet, the row waits for him | kept: a name from outside this app, or a thing he has no word for, so the code keeps its own",
+    "retired": "code words for it that are gone and stay gone; `keep` lists the tokens that may still carry the letters (another thing's name)"
+  },
+  "things": [
+    {
+      "id": "hud",
+      "thing": "the controls a Funestra draws over what it plays",
+      "screen": null,
+      "his_word": "HUD (2026-10-28: 'by panel do you mean HUD')",
+      "code_today": [
+        "hud"
+      ],
+      "code_word": "hud",
+      "status": "ruled",
+      "ruled": "2026-10-28, his words"
+    },
+    {
+      "id": "volume_control",
+      "thing": "the speaker and slider at the end of a HUD's row",
+      "screen": null,
+      "his_word": "volume control (2026-09-27)",
+      "code_today": [
+        "volume control"
+      ],
+      "code_word": "volume control",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02",
+      "retired": [
+        "volume chip"
+      ]
+    },
+    {
+      "id": "scrubber",
+      "thing": "the bar under what plays showing where it is",
+      "screen": null,
+      "his_word": "scrubber (2026-10-08, 2026-10-17)",
+      "code_today": [
+        "scrubber"
+      ],
+      "code_word": "scrubber",
+      "status": "ruled",
+      "ruled": "2026-10-08 and Origenerator's glossary",
+      "retired": [
+        "video timeline"
+      ]
+    },
+    {
+      "id": "osr2_visualizer",
+      "thing": "the drawing of the OSR2's motion on a HUD, with Center, Amp and Speed around it",
+      "screen": null,
+      "his_word": "the OSR2 visualizer (since 2026-08)",
+      "code_today": [
+        "visualizer"
+      ],
+      "code_word": "osr2 visualizer",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02"
+    },
+    {
+      "id": "bar",
+      "thing": "the speed, amp and center controls around that drawing, and the one for Max intensity",
+      "screen": [
+        "Max intensity"
+      ],
+      "his_word": "the speed bar, the amp bar (2026-08)",
+      "code_today": [
+        "bar"
+      ],
+      "code_word": "bar",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02; 'Those aren't dials' (2026-09-28)",
+      "retired": [
+        "drive band"
+      ]
+    },
+    {
+      "id": "dial",
+      "thing": "the round control beside the time on Genau's HUD",
+      "screen": null,
+      "his_word": "dial (2026-10-09)",
+      "code_today": [
+        "dial"
+      ],
+      "code_word": "dial",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02"
+    },
+    {
+      "id": "nav_map",
+      "thing": "the map a HUD draws around what is on screen",
+      "screen": null,
+      "his_word": "nav map (2026-09-20)",
+      "code_today": [
+        "nav map"
+      ],
+      "code_word": "nav map",
+      "status": "ruled",
+      "ruled": "2026-09-20 and Origenerator's glossary"
+    },
+    {
+      "id": "cell",
+      "thing": "one square of the nav map",
+      "screen": null,
+      "his_word": "cell (2026-10-24)",
+      "code_today": [
+        "cell"
+      ],
+      "code_word": "cell",
+      "status": "ruled",
+      "ruled": "Origenerator's glossary"
+    },
+    {
+      "id": "message",
+      "thing": "the one line that flashes at the top center of a Funestra",
+      "screen": null,
+      "his_word": "message (2026-10-30, 2026-10-24)",
+      "code_today": [
+        "message"
+      ],
+      "code_word": "message",
+      "status": "ruled",
+      "ruled": "2026-10-30 and Origenerator's glossary",
+      "retired": [
+        "notice overlay",
+        "notice writer",
+        "notice level"
+      ]
+    },
+    {
+      "id": "icon",
+      "thing": "the small picture on a button",
+      "screen": null,
+      "his_word": "icon (2026-10-13, 2026-10-16)",
+      "code_today": [
+        "icon"
+      ],
+      "code_word": "icon",
+      "status": "ruled",
+      "ruled": "2026-10-16",
+      "retired": [
+        "shared mark",
+        "hud marks",
+        "glyph font"
+      ]
+    },
+    {
+      "id": "video",
+      "thing": "what a Funestra plays",
+      "screen": [
+        "Previous video",
+        "Next video"
+      ],
+      "his_word": "video",
+      "code_today": [
+        "video"
+      ],
+      "code_word": "video",
+      "status": "ruled",
+      "ruled": "CLAUDE.md, the code's word is the screen's; his answers of 2026-11-02"
+    },
+    {
+      "id": "clip",
+      "thing": "a short video as opposed to a full one",
+      "screen": [
+        "Clips",
+        "Full",
+        "Play the full scene this clip came from"
+      ],
+      "his_word": "clip (2026-09-26)",
+      "code_today": [
+        "clip"
+      ],
+      "code_word": "clip",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02"
+    },
+    {
+      "id": "main_funestra",
+      "thing": "the Funestra in the middle, on the main monitor",
+      "screen": [
+        "Main Funestra"
+      ],
+      "his_word": "Main Funestra",
+      "code_today": [
+        "main funestra"
+      ],
+      "code_word": "main funestra",
+      "status": "agreed"
+    },
+    {
+      "id": "satellite",
+      "thing": "the Portrait or the Landscape Funestra",
+      "screen": [
+        "Satellite"
+      ],
+      "his_word": "Satellite",
+      "code_today": [
+        "satellite"
+      ],
+      "code_word": "satellite",
+      "status": "agreed",
+      "retired": [
+        "satellite side"
+      ]
+    },
+    {
+      "id": "mode_selector",
+      "thing": "a pair of buttons that picks a mode: Kino and Genau on the Main Funestra, Kino and Origenerator on a Satellite, Random Favs Browser and Origenerator under the Dashboard's log",
+      "screen": [
+        "Kino",
+        "Genau",
+        "Origenerator",
+        "Random Favs Browser"
+      ],
+      "his_word": "mode selectors (2026-11-02)",
+      "code_today": [
+        "mode"
+      ],
+      "code_word": "mode selector",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02"
+    },
+    {
+      "id": "the_app",
+      "thing": "the Main Funestra, the Satellites, the Dashboard and the Random Favs Browser or Core, all running together",
+      "screen": null,
+      "his_word": "Fun Time; the app (2026-11-02)",
+      "code_today": [
+        "app"
+      ],
+      "code_word": "app",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02",
+      "retired": [
+        "room funestra"
+      ]
+    },
+    {
+      "id": "row",
+      "thing": "a line of buttons on a HUD",
+      "screen": null,
+      "his_word": "row (2026-09-20)",
+      "code_today": [
+        "row"
+      ],
+      "code_word": "row",
+      "status": "agreed",
+      "retired": [
+        "title band"
+      ]
+    },
+    {
+      "id": "tooltip",
+      "thing": "the words that come up under the pointer",
+      "screen": null,
+      "his_word": "tooltip",
+      "code_today": [
+        "tooltip"
+      ],
+      "code_word": "tooltip",
+      "status": "agreed"
+    },
+    {
+      "id": "dashboard",
+      "thing": "the small window with the log and the bar of buttons",
+      "screen": [
+        "Dashboard"
+      ],
+      "his_word": "Dashboard",
+      "code_today": [
+        "dashboard"
+      ],
+      "code_word": "dashboard",
+      "status": "agreed"
+    },
+    {
+      "id": "loading_screen",
+      "thing": "the screen with a bar while Fun Time opens",
+      "screen": [
+        "Fun Time Loading"
+      ],
+      "his_word": "loading screen (2026-10-13)",
+      "code_today": [
+        "loading screen"
+      ],
+      "code_word": "loading screen",
+      "status": "ruled",
+      "ruled": "second audit, item 76",
+      "retired": [
+        "loading cover",
+        "cover unit",
+        "cover watcher"
+      ]
+    },
+    {
+      "id": "closing_screen",
+      "thing": "the same screen while Fun Time closes",
+      "screen": null,
+      "his_word": "closing screen (2026-11-02)",
+      "code_today": [
+        "closing screen"
+      ],
+      "code_word": "closing screen",
+      "status": "ruled",
+      "ruled": "his answers of 2026-11-02",
+      "retired": [
+        "closing cover"
+      ]
+    },
+    {
+      "id": "transition_screen",
+      "thing": "the same screen while Fun Time goes into or comes out of the headset",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "transition screen"
+      ],
+      "code_word": "transition screen",
+      "status": "kept",
+      "retired": [
+        "crossing cover"
+      ]
+    },
+    {
+      "id": "window",
+      "thing": "one of Fun Time's windows, by its name",
+      "screen": null,
+      "his_word": "window",
+      "code_today": [
+        "window"
+      ],
+      "code_word": "window",
+      "status": "agreed",
+      "retired": [
+        "window roles",
+        "role hwnds"
+      ]
+    },
+    {
+      "id": "rfb",
+      "thing": "the Random Favs Browser",
+      "screen": [
+        "Random Favs Browser"
+      ],
+      "his_word": "RFB; the Random Favs Browser (2026-09-26)",
+      "code_today": [
+        "rfb"
+      ],
+      "code_word": "rfb",
+      "status": "ruled",
+      "ruled": "his word",
+      "retired": [
+        "rfb slot"
+      ],
+      "keep": [
+        "rfb_slot"
+      ]
+    },
+    {
+      "id": "log",
+      "thing": "the lines of text in the Dashboard",
+      "screen": null,
+      "his_word": "log",
+      "code_today": [
+        "log panel"
+      ],
+      "code_word": "log",
+      "status": "kept",
+      "ruled": "shared_ui's and the headset's word for its parts until shared_ui's glossary"
+    },
+    {
+      "id": "headset_panels",
+      "thing": "what hangs in the headset: the Dashboard, the library, the gallery and the reference",
+      "screen": null,
+      "his_word": "the Dashboard in VR (2026-09-13)",
+      "code_today": [
+        "panel"
+      ],
+      "code_word": "panel",
+      "status": "kept",
+      "ruled": "CLAUDE.md: panel is left to these, the loading and closing screens and the log"
+    },
+    {
+      "id": "headset_room",
+      "thing": "the space around the wearer that things hang in",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "room"
+      ],
+      "code_word": "room",
+      "status": "kept"
+    },
+    {
+      "id": "tile",
+      "thing": "a square in the library's grid",
+      "screen": null,
+      "his_word": "tile (2026-10-09)",
+      "code_today": [
+        "tile"
+      ],
+      "code_word": "tile",
+      "status": "ruled",
+      "ruled": "Origenerator's glossary"
+    },
+    {
+      "id": "thumbnail",
+      "thing": "the small picture of a video",
+      "screen": null,
+      "his_word": "thumbnail",
+      "code_today": [
+        "thumbnail"
+      ],
+      "code_word": "thumbnail",
+      "status": "ruled",
+      "ruled": "Origenerator's glossary",
+      "retired": [
+        "library stills"
+      ]
+    },
+    {
+      "id": "dropdown",
+      "thing": "the control that opens a list to pick from",
+      "screen": null,
+      "his_word": "dropdown; the log-level dropdown",
+      "code_today": [
+        "dropdown"
+      ],
+      "code_word": "dropdown",
+      "status": "ruled",
+      "ruled": "Origenerator's glossary",
+      "retired": [
+        "verbosity chip"
+      ]
+    },
+    {
+      "id": "tray",
+      "thing": "the Windows tray by the clock",
+      "screen": null,
+      "his_word": "tray",
+      "code_today": [
+        "tray"
+      ],
+      "code_word": "tray",
+      "status": "kept"
+    },
+    {
+      "id": "sidebar",
+      "thing": "the alphabet down the side of the library",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "sidebar"
+      ],
+      "code_word": "sidebar",
+      "status": "kept"
+    },
+    {
+      "id": "strip",
+      "thing": "other things called a strip: Chrome's tab strip, the controllers' triangle strip",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "strip"
+      ],
+      "code_word": "strip",
+      "status": "kept"
+    },
+    {
+      "id": "band",
+      "thing": "a Windows topmost band, and a band of a mesh in the headset",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "band"
+      ],
+      "code_word": "band",
+      "status": "kept"
+    },
+    {
+      "id": "slot",
+      "thing": "the OSR2's one slot on the Broker, and a place in the headset's frame relay",
+      "screen": null,
+      "his_word": "the one slot where anyone can connect to the OSR2",
+      "code_today": [
+        "slot"
+      ],
+      "code_word": "slot",
+      "status": "kept"
+    },
+    {
+      "id": "console_window",
+      "thing": "a Windows console window, and the channels' console file other copies of the apps read",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "console"
+      ],
+      "code_word": "console",
+      "status": "kept"
+    },
+    {
+      "id": "notice_file",
+      "thing": "the channels' notice file other copies of the apps read",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "notice"
+      ],
+      "code_word": "notice",
+      "status": "kept"
+    },
+    {
+      "id": "graphics_card",
+      "thing": "the graphics card",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "card"
+      ],
+      "code_word": "card",
+      "status": "kept"
+    },
+    {
+      "id": "other_words",
+      "thing": "words the code uses for things no screen shows or names, each its own meaning",
+      "screen": null,
+      "his_word": null,
+      "code_today": [
+        "badge",
+        "banner",
+        "dock",
+        "pane",
+        "scrim",
+        "sheet",
+        "shelf",
+        "splash",
+        "toolbar"
+      ],
+      "code_word": null,
+      "status": "kept"
+    }
+  ]
+}
