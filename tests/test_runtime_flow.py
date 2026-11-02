@@ -467,8 +467,10 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
     landscape = "\n".join(_satellite_lines(tmp_path / "state", "landscape"))
-    assert p_clip in portrait and "pt.mp4" not in portrait
-    assert l_twirl in landscape and "lc.mp4" not in landscape
+    assert p_clip in portrait
+    assert "pt.mp4" not in portrait
+    assert l_twirl in landscape
+    assert "lc.mp4" not in landscape
 
 
 def test_recents_honors_the_sides_filter_and_orders_newest_first(tmp_path: Path):
@@ -513,7 +515,8 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     assert _reloaded(portrait_cmd_file)
     assert not landscape_cmd_file.exists()
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
-    assert p_clip in portrait and "pt.mp4" not in portrait
+    assert p_clip in portrait
+    assert "pt.mp4" not in portrait
 
 
 def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path: Path):

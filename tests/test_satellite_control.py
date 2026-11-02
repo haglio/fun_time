@@ -27,7 +27,9 @@ class TestReadSatelliteStatus:
 
     def test_missing_file_is_an_empty_status(self, tmp_path):
         s = read_satellite_status(tmp_path / "nope.txt")
-        assert s.video == "" and s.duration_ms == 0 and s.paused is False
+        assert s.video == ""
+        assert s.duration_ms == 0
+        assert s.paused is False
 
     def test_a_read_that_meets_the_funestra_replacing_the_file_reads_it_again(self, tmp_path):
         replaced = [PermissionError(13, "Permission denied"), "video=C:/clips/a.mp4\n"]

@@ -623,7 +623,8 @@ class TestTheRoomComingUp:
         with caplog.at_level(logging.WARNING):
             ready.note(blank=("portrait", "panel"), read=True)
 
-        assert "portrait" in caplog.text and "panel" in caplog.text
+        assert "portrait" in caplog.text
+        assert "panel" in caplog.text
 
     def test_a_full_room_revealed_on_the_grace_blames_the_cover_not_a_screen(
             self, tmp_path: Path, caplog):

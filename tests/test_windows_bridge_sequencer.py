@@ -5,6 +5,7 @@ import contextlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -250,7 +251,8 @@ def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
     second = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
 
     assert first != second
-    assert first.parent == tmp_path and first.name.startswith("phase1_")
+    assert first.parent == tmp_path
+    assert first.name.startswith("phase1_")
 
 
 class TestRunStartupSequence:
@@ -940,7 +942,7 @@ class TestTheRoomIsBandedUnderTheCover:
     window is ever over the cover waiting for the cover to take the top back --
     which, on a loaded machine, it does late."""
 
-    ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
+    ROLE_HWNDS: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
                   "main_funestra": 55}
     COVER = 999
 
@@ -1565,7 +1567,8 @@ class TestOrigeneratorLaunch:
 
         assert not stale_status.exists()
         assert stubs.launch_origenerator.called
-        assert result.origenerator_pid == 91 and not result.origenerator_taken_over
+        assert result.origenerator_pid == 91
+        assert not result.origenerator_taken_over
 
     def test_a_session_claims_the_osr2_of_the_checkout_it_names(
         self, cfg_factory, tmp_path

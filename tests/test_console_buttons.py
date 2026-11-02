@@ -192,7 +192,8 @@ class TestBrowseOrder:
     def test_both_funestras_can_be_reordered_from_the_console(self):
         for mode in MainMode:
             actions = _actions(MainSlot(main_mode=mode, latest=False))
-            assert "main_shuffle" in actions and "main_latest" in actions
+            assert "main_shuffle" in actions
+            assert "main_latest" in actions
 
     def test_exactly_one_of_the_pair_is_lit(self):
         shuffled, newest = MainSlot(main_mode=MainMode.KINO, latest=False), MainSlot(main_mode=MainMode.KINO, latest=True)
@@ -205,7 +206,8 @@ class TestBrowseOrder:
     def test_neither_of_the_pair_wears_a_color_of_its_own(self):
         for action in ("main_shuffle", "main_latest"):
             button = _button(MainSlot(main_mode=MainMode.KINO, latest=False), action)
-            assert button.favorite is False and button.enhanced is False
+            assert button.favorite is False
+            assert button.enhanced is False
 
     def test_the_pair_is_its_own_group_after_the_reset(self):
         by_action = _placed(MainSlot(main_mode=MainMode.KINO, latest=False))
@@ -218,7 +220,8 @@ class TestBrowseOrder:
     def test_a_host_with_no_browse_order_is_offered_neither(self):
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
 
-        assert "main_shuffle" not in actions and "main_latest" not in actions
+        assert "main_shuffle" not in actions
+        assert "main_latest" not in actions
 
 
 class TestProjectionPair:
@@ -270,7 +273,8 @@ class TestProjectionPair:
     def test_inside_a_compilation_the_shapes_read_as_held(self):
         pair = self._flat_and_vr(flat=True, vr=True, compilation="Volume 6")
 
-        assert pair and all(b.remembered and not b.lit for b in pair)
+        assert pair
+        assert all(b.remembered and not b.lit for b in pair)
 
 
 class TestGenausProjectionPair:
@@ -363,7 +367,8 @@ class TestCompilationAndJumps:
         outside = self._button_for("main_funestra_compilation", has_compilation=True)
         inside = self._button_for("main_funestra_end_compilation", compilation="Volume 6")
 
-        assert outside.lit is False and outside.dim is False
+        assert outside.lit is False
+        assert outside.dim is False
         assert inside.lit is True
 
     def test_a_video_in_no_compilation_cannot_be_pressed_into_one(self):
@@ -375,14 +380,16 @@ class TestCompilationAndJumps:
         held = [b for row in rows for b in row
                 if b.command in ("main_shuffle", "main_funestra_length_clips")]
 
-        assert held and all(b.remembered and not b.lit for b in held)
+        assert held
+        assert all(b.remembered and not b.lit for b in held)
 
     def test_the_clip_jump_says_which_way_it_would_go(self):
         to_scene = self._button_for("main_funestra_full_vid", jump_to="scene")
         to_clip = self._button_for("main_funestra_clip_jump", jump_to="clip")
 
         assert to_scene.glyph != to_clip.glyph
-        assert to_scene.dim is False and to_clip.dim is False
+        assert to_scene.dim is False
+        assert to_clip.dim is False
 
     def test_a_video_with_nothing_on_the_other_end_is_dim(self):
         assert self._button_for("main_funestra_clip_jump").dim is True
@@ -403,8 +410,10 @@ class TestLock:
         held = _button(MainSlot(main_mode=MainMode.KINO, locked=True), "main_lock")
         loose = _button(MainSlot(main_mode=MainMode.KINO, locked=False), "main_lock")
 
-        assert held.tooltip.startswith("Locked") and "play on" in held.tooltip
-        assert loose.tooltip.startswith("Unlocked") and "hold this video" in loose.tooltip
+        assert held.tooltip.startswith("Locked")
+        assert "play on" in held.tooltip
+        assert loose.tooltip.startswith("Unlocked")
+        assert "hold this video" in loose.tooltip
 
     def test_it_pairs_with_f_mode_and_stands_apart_from_everything_else(self):
         by_action = _placed(MainSlot(main_mode=MainMode.KINO))
@@ -427,8 +436,10 @@ class TestLock:
         held = _button(MainSlot(main_mode=MainMode.GENAU, locked=True, pace_s=7), "main_lock")
         loose = _button(MainSlot(main_mode=MainMode.GENAU, locked=False, pace_s=7), "main_lock")
 
-        assert held.tooltip.startswith("Locked") and "every 7s" in held.tooltip
-        assert loose.tooltip.startswith("Unlocked") and "every 7s" in loose.tooltip
+        assert held.tooltip.startswith("Locked")
+        assert "every 7s" in held.tooltip
+        assert loose.tooltip.startswith("Unlocked")
+        assert "every 7s" in loose.tooltip
 
 
 class TestPaceRows:
@@ -437,12 +448,14 @@ class TestPaceRows:
 
     def test_the_video_rate_has_controls_where_main_funestra_is_on_screen(self):
         actions = _actions(MainSlot(main_mode=MainMode.KINO))
-        assert "main_funestra_speed_down" in actions and "main_funestra_speed_up" in actions
+        assert "main_funestra_speed_down" in actions
+        assert "main_funestra_speed_up" in actions
         assert "genau_flick_seconds_down" not in actions
 
     def test_genau_has_the_pace_and_no_video_rate(self):
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
-        assert "genau_flick_seconds_down" in actions and "genau_flick_seconds_up" in actions
+        assert "genau_flick_seconds_down" in actions
+        assert "genau_flick_seconds_up" in actions
         assert "main_funestra_speed_down" not in actions
 
     def test_the_rate_is_a_read_out_between_the_arrows_that_the_funestra_fills(self):
@@ -713,4 +726,5 @@ class TestOrientationPair:
     def test_inside_a_compilation_they_read_as_held(self):
         pair = self._pair(compilation="Volume 6")
 
-        assert pair and all(b.remembered and not b.lit for b in pair)
+        assert pair
+        assert all(b.remembered and not b.lit for b in pair)

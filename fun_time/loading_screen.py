@@ -9,10 +9,7 @@ two routes it arrives by are in :mod:`overlay_progress`.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-from .overlay_progress import STARTUP_PHASES
+from .overlay_progress import STARTUP_PHASES, progress_file_argument
 
 # Distinct from the dashboard's "Fun Time": a title lookup meaning the dashboard
 # must never resolve this cover.  Borderless, so the title is never rendered.
@@ -25,9 +22,7 @@ STALE_TIMEOUT_S = 60.0
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: python -m fun_time.loading_screen <progress_file>", file=sys.stderr)
-        sys.exit(1)
+    progress_file = progress_file_argument("fun_time.loading_screen")
 
     # Tk is the screen's own; the launch imports this module for the title.
     from shared_ui.loading_handover import TakingOver  # noqa: PLC0415
@@ -35,7 +30,7 @@ def main() -> None:
     from .overlay_window import OverlayWindow  # noqa: PLC0415
 
     OverlayWindow.over_every_monitor(
-        Path(sys.argv[1]),
+        progress_file,
         title=WINDOW_TITLE,
         status=STARTUP_PHASES[0].message,
         stale_timeout_s=STALE_TIMEOUT_S,

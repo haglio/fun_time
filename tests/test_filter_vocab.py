@@ -103,7 +103,8 @@ def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
     nobody uses for it."""
     forms = display_forms(ACTS)
     assert set(forms) == set(ACTS)
-    assert "delta" in forms and "delta form" not in forms
+    assert "delta" in forms
+    assert "delta form" not in forms
     assert "beta gamma" in forms  # a multi-word query reads as itself
 
 

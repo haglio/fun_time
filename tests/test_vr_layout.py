@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import math
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -262,7 +263,7 @@ class TestBringingTheFunestrasNearer:
 
 
 class TestWhereTheControllersLeaveTheFunestras:
-    _FUNESTRAS = {
+    _FUNESTRAS: ClassVar[dict[str, Placement]] = {
         MAIN: Placement(0.0, 0.0, 72.0),
         LANDSCAPE: Placement(-38.0, 10.0, 28.0),
         PORTRAIT: Placement(38.0, 10.0, 28.0),

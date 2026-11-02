@@ -98,8 +98,10 @@ class TestPayload:
                             "main_funestra_record_tap")
         resting = _button(_payload(), "main_funestra_record_tap")
 
-        assert recording.warn and "out point" in recording.tooltip
-        assert not resting.warn and not resting.hold
+        assert recording.warn
+        assert "out point" in recording.tooltip
+        assert not resting.warn
+        assert not resting.hold
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
         """One padlock on the console, so one flag: the Main Funestra's hold on its video where
@@ -235,7 +237,8 @@ def test_the_published_text_carries_the_rows_the_funestra_draws():
     parsed = parse_console(console_text(payload))
 
     assert parsed == payload
-    assert parsed.rows and parsed.osr2_rows
+    assert parsed.rows
+    assert parsed.osr2_rows
 
 
 class TestTheDeclaredRows:

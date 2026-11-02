@@ -59,7 +59,7 @@ def test_same_mode_is_noop():
 
 
 def test_a_mode_that_is_not_the_main_slots_is_refused():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Not a main-slot mode: 'origenerator'"):
         build_mode_switch_plan(current_mode="kino", target_mode="origenerator", omni_paused=False)
 
 

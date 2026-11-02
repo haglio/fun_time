@@ -370,7 +370,8 @@ class TestWatchingItComeUp:
             VR, self._session(returncode=3), state_dir=tmp_path,
             timeout_s=STARTUP_TIMEOUT_S, poll_s=0,
         )
-        assert "stopped during startup" in reason and "3" in reason
+        assert "stopped during startup" in reason
+        assert "3" in reason
 
     def test_a_session_that_never_reports_is_a_wedge_rather_than_a_crash(self, tmp_path: Path):
         reason = wait_for_the_session_to_come_up(
@@ -389,7 +390,8 @@ class TestReportingAFailedCrossing:
             report_a_failed_crossing("FunTimeVR did not start.", log)
         message = alert.call_args.args[1]
         assert "FunTimeVR did not start." in message
-        assert "line 39" in message and "line 24" not in message
+        assert "line 39" in message
+        assert "line 24" not in message
 
     def test_a_log_that_cannot_be_read_still_gets_a_dialog(self, tmp_path: Path):
         with patch("shared_ui.alert.show_alert") as alert:

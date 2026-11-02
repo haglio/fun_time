@@ -18,6 +18,10 @@ def test_unit_tests_and_writing_that_never_ships_pick_no_integration_test():
     assert picked == coverage_map.Picked()
 
 
+def test_the_lint_settings_and_the_dead_code_whitelist_pick_no_integration_test():
+    assert coverage_map.tests_to_run(["ruff.toml", "vulture_whitelist.py"], None) == coverage_map.Picked()
+
+
 def test_a_change_to_what_every_integration_test_shares_runs_them_all():
     for shared in ("tests/integration/integration_support.py", "tests/integration/conftest.py",
                    "windows_bridge_hotkeys.ahk", "launch.vbs", "pyproject.toml"):

@@ -96,7 +96,8 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
 
         tiles = [row for row, handle in enumerate(window.grid.rows) if handle is not None]
         assert not window.grid.item(tiles[0]).icon().isNull()
-        assert painted.width() > 0 and painted.height() > 0
+        assert painted.width() > 0
+        assert painted.height() > 0
         colors = {painted.pixel(x, y) for x in range(0, painted.width(), 7)
                   for y in range(0, painted.height(), 7)}
         assert len(colors) > 3, "the grid painted a flat slab, not tiles"
