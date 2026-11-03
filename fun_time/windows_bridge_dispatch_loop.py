@@ -36,7 +36,7 @@ from .dashboard_actions import (
     REFERENCE_OPEN_FILENAME,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
-from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
+from .device_arbiter import DeviceArbiter, FunestraFiles, who_drives_the_osr2
 from .dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
@@ -181,11 +181,11 @@ class DispatchLoopRunner:
             stats_file=watch_stats_path(config.state_dir),
         )
         self.arbiter = DeviceArbiter(
-            main_funestra_status_file=config.main_funestra_status_file,
-            main_funestra_cmd_file=config.main_funestra_cmd_file,
+            main_funestra=FunestraFiles(status_file=config.main_funestra_status_file,
+                                        cmd_file=config.main_funestra_cmd_file),
             genau_cmd_file=config.genau_cmd_file,
             device_on=lambda: osr2_device.switched_on(config.broker_state),
-            satellites={funestra: SatelliteLine(status_file=config.satellite(funestra).status_file,
+            satellites={funestra: FunestraFiles(status_file=config.satellite(funestra).status_file,
                                               cmd_file=config.satellite(funestra).cmd_file)
                         for funestra in FunTimeFunestra.SATELLITES},
         )

@@ -7,17 +7,17 @@ from funestra.file_channel import append_command as real_append
 from funestra.funscript import PARK_TOUCH_WAIT_CAP_MS
 from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 
-from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, SatelliteLine
+from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, FunestraFiles
 from fun_time.fun_time_funestras import FunTimeFunestra
 from tests.fun_time_window_fakes import FakeClock
 
 
 def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArbiter:
     return DeviceArbiter(
-        main_funestra_status_file=tmp_path / "main_player_status.txt",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_funestra=FunestraFiles(status_file=tmp_path / "main_player_status.txt",
+                                    cmd_file=tmp_path / "main_player_cmd.txt"),
         genau_cmd_file=tmp_path / "rh_cmd.txt",
-        satellites={funestra: SatelliteLine(status_file=tmp_path / f"{funestra.label}_status.txt",
+        satellites={funestra: FunestraFiles(status_file=tmp_path / f"{funestra.label}_status.txt",
                                           cmd_file=tmp_path / f"{funestra.label}_cmd.txt")
                     for funestra in FunTimeFunestra.SATELLITES},
         device_on=device_on,
