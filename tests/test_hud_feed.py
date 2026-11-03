@@ -83,11 +83,11 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
     return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
 
 
-def publish_satellite_status(path: Path, video, *, fraction: float = 0.1,
+def publish_satellite_status(path: Path, video, *,
                              speed: float = 1.0, duration_ms: int = 1000,
                              has_funscript: bool = False) -> None:
     path.write_text(
-        f"video={video}\nposition_ms={round(fraction * duration_ms)}\n"
+        f"video={video}\nposition_ms={round(0.1 * duration_ms)}\n"
         f"duration_ms={duration_ms}\npaused=0\nlocked=0\nspeed={speed}\n"
         f"has_funscript={int(has_funscript)}\n",
         encoding="utf-8",
