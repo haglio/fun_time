@@ -26,6 +26,7 @@ from voice_core.whisper_reader import WhisperReader
 
 from . import preview_marker
 from .append_only import append_line
+from .bridge_records import BridgeConfig
 from .broker_control import write_broker_command
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
@@ -235,19 +236,27 @@ def _park_the_hosted_origenerator(
     return True
 
 
+@dataclass(frozen=True)
+class HostedAppFarewell:
+    command_file: Path | None = None
+    keep: bool = False
+    taken_over: bool = False
+
+
+NO_FAREWELL = HostedAppFarewell()
+
+
 def see_the_hosted_app_out(
     state_dir: Path,
     child: ChildProcess | None,
-    command_file: Path | None,
-    *,
-    keep: bool,
-    taken_over: bool,
+    farewell: HostedAppFarewell,
 ) -> bool:
-    if keep and command_file is not None and _park_the_hosted_origenerator(
-            state_dir, child, command_file, taken_over=taken_over):
+    command_file = farewell.command_file
+    if farewell.keep and command_file is not None and _park_the_hosted_origenerator(
+            state_dir, child, command_file, taken_over=farewell.taken_over):
         return True
     forget_the_kept_origenerator(state_dir)
-    if taken_over and command_file is not None:
+    if farewell.taken_over and command_file is not None:
         append_command(command_file, RELEASE)
         return True
     _close_origenerator_gracefully(child)
@@ -275,17 +284,11 @@ def _shutdown_children(
     progress: ProgressReporter,
     *,
     state_dir: Path,
-    keep_origenerator_via: Path | None = None,
-    release_origenerator_via: Path | None = None,
+    farewell: HostedAppFarewell = NO_FAREWELL,
 ) -> None:
     progress.advance("browser")
     close_window(rfb_hwnd)
-    spared = see_the_hosted_app_out(
-        state_dir, children.get("origenerator_pid"),
-        keep_origenerator_via or release_origenerator_via,
-        keep=keep_origenerator_via is not None,
-        taken_over=release_origenerator_via is not None,
-    )
+    spared = see_the_hosted_app_out(state_dir, children.get("origenerator_pid"), farewell)
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         with progress.loading_screen_kept_up():
@@ -315,14 +318,10 @@ def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen, *,
 
 @contextlib.contextmanager
 def _closing_screen(
-    state_dir: Path, *, enabled: bool, sibling_checkouts: str,
+    state_dir: Path, *, sibling_checkouts: str,
     crossing: HandoffTarget | None = None, esc_cancels: str = "",
     now: Callable[[], float] = time.monotonic,
 ) -> Iterator[ProgressReporter]:
-    if not enabled:
-        yield NullProgress()
-        return
-
     progress_file = (
         crossing_progress_path(state_dir) if crossing is not None
         else state_dir / SHUTDOWN_PROGRESS_FILENAME
@@ -380,32 +379,68 @@ def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
         logger.warning("Hotkey script did not exit after cancel, killed")
 
 
+@dataclass(frozen=True)
+class HotkeyScriptLaunch:
+    ahk_exe: str | Path
+    script: str | Path
+    project_dir: str | Path
+
+
+@dataclass(frozen=True)
+class HotkeyScript:
+    proc: subprocess.Popen
+    cmd_file: Path
+
+    def stop(self) -> None:
+        stop_hotkey_script(self.proc, self.cmd_file)
+
+
+@dataclass(frozen=True)
+class SessionLaunch:
+    manifest_path: Path
+    manifest: LaunchManifest
+    bridge_config: BridgeConfig
+    state_dir: Path
+
+    def release_of(self, taken_over: bool) -> Path | None:
+        return self.bridge_config.origenerator_cmd_file if taken_over else None
+
+
+@dataclass(frozen=True)
+class StartupEnd:
+    reason: str
+    canceled: bool = False
+
+
+@dataclass(frozen=True)
+class LaunchedSoFar:
+    pids: list[int]
+    rfb_hwnd: int
+    release_origenerator_via: Path | None = None
+
+
 def _take_down_the_startup(
-    reason: str,
-    *,
-    pids: list[int],
-    rfb_hwnd: int,
+    end: StartupEnd,
+    launched: LaunchedSoFar,
+    launch: SessionLaunch,
     loading_screen: RaisedLoadingScreen,
-    ahk_proc: subprocess.Popen,
-    ahk_cmd_file: Path,
-    sibling_checkouts: str,
-    canceled: bool = False,
-    release_origenerator_via: Path | None = None,
+    hotkeys: HotkeyScript,
 ) -> SessionOver:
     state_dir = loading_screen.progress_file.parent
     back_to = loading_screen.turns_back_to if (
-        canceled and what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD) else None
-    logger.info("%s; tearing down %d launched child(ren)", reason, len(pids))
-    stop_hotkey_script(ahk_proc, ahk_cmd_file)
+        end.canceled and what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD) else None
+    logger.info("%s; tearing down %d launched child(ren)", end.reason, len(launched.pids))
+    hotkeys.stop()
     with loading_screen.progress.loading_screen_kept_up():
-        for pid in pids:
+        for pid in launched.pids:
             kill_process_tree(pid)
-    if release_origenerator_via is not None:
-        append_command(release_origenerator_via, RELEASE)
-    close_window(rfb_hwnd)
+    if launched.release_origenerator_via is not None:
+        append_command(launched.release_origenerator_via, RELEASE)
+    close_window(launched.rfb_hwnd)
     if back_to is not None:
         logger.info("Going back to %s", back_to.app_name)
-        way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
+        way_back = launch_the_way_back_screen(
+            state_dir, sibling_checkouts=launch.manifest.runtime.sibling_checkouts)
         _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
         request_handoff(state_dir, back_to, cancelable=False)
     loading_screen.take_it_down()
@@ -614,10 +649,10 @@ def _reveal_the_app(
     *,
     manifest: LaunchManifest,
     loading_screen: RaisedLoadingScreen,
-    hud_publisher,
-    hud_primed,
+    hud: tuple[HudPublisher | None, threading.Event],
     before_the_loading_screen_goes: Callable[[], RfbMode] = lambda: RfbMode.RFB,
 ) -> None:
+    hud_publisher, hud_primed = hud
     if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
         logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
                        HUD_PRIME_TIMEOUT_S)
@@ -809,26 +844,22 @@ def finish_under_the_loading_screen(
 
 def _build_the_dispatch_loop(
     result: StartupResult,
+    launch: SessionLaunch,
     *,
-    manifest: LaunchManifest,
-    manifest_path: Path,
-    bridge_config,
-    state_dir: Path,
-    dashboard_cmd_file: Path,
     ahk_cmd_file: Path,
-    dashboard_enabled: bool,
     hud_publisher,
     env: SessionEnvironment,
 ) -> tuple[DispatchLoopRunner, threading.Thread]:
+    manifest = launch.manifest
     rfb_shortcut = Shortcut()
     if manifest.random_favs_browser.enabled:
         rfb_shortcut = resolve_shortcut(manifest.random_favs_browser.shortcut_path)
 
     return DispatchLoopRunner(
-        config=bridge_config,
-        dashboard_cmd_file=dashboard_cmd_file,
-        manifest_path=manifest_path,
-        shared_state_file=shared_state_path(state_dir),
+        config=launch.bridge_config,
+        dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
+        manifest_path=launch.manifest_path,
+        shared_state_file=shared_state_path(launch.state_dir),
         ahk_cmd_file=ahk_cmd_file,
         windows=FunTimeWindows(
             pids=ChildPids(
@@ -841,7 +872,7 @@ def _build_the_dispatch_loop(
             rfb_hwnd=result.rfb_hwnd,
             hwnds_by_window=result.hwnds_by_window,
         ),
-        dashboard_enabled=dashboard_enabled,
+        dashboard_enabled=manifest.dashboard_enabled,
         env=env,
         hud_publisher=hud_publisher,
         rfb_shortcut=rfb_shortcut,
@@ -920,28 +951,32 @@ def _wait_for_the_session_to_end(
     return SessionEnd(ahk_proc.wait())
 
 
+@dataclass(frozen=True)
+class RunningSession:
+    children: dict
+    voice: tuple[VoiceController | None, threading.Thread | None]
+    dispatch: tuple[DispatchLoopRunner, threading.Thread]
+    loopback_server: ThreadingHTTPServer | None
+
+
 def _run_until_the_hotkeys_exit(
-    ahk_proc: subprocess.Popen,
+    launch: SessionLaunch,
+    hotkeys: HotkeyScript,
+    result: StartupResult,
+    running: RunningSession,
     *,
-    state_dir: Path,
-    ahk_cmd_file: Path,
-    commands: CommandFiles,
     show_overlays: bool,
-    rfb_hwnd: int,
-    children: dict,
-    origenerator_cmd_file: Path | None,
-    origenerator_taken_over: bool,
-    voice: tuple[VoiceController | None, threading.Thread | None],
-    dispatch: tuple[DispatchLoopRunner, threading.Thread],
-    loopback_server: ThreadingHTTPServer | None,
-    sibling_checkouts: str,
 ) -> SessionOver:
-    voice_controller, voice_thread = voice
-    dispatch_runner, _loop = dispatch
+    state_dir = launch.state_dir
+    children = running.children
+    origenerator_cmd_file = launch.bridge_config.origenerator_cmd_file
+    sibling_checkouts = launch.manifest.runtime.sibling_checkouts
+    voice_controller, voice_thread = running.voice
+    dispatch_runner, _loop = running.dispatch
     asked = False
     closed = None
     try:
-        ended = _wait_for_the_session_to_end(ahk_proc, state_dir, children=children)
+        ended = _wait_for_the_session_to_end(hotkeys.proc, state_dir, children=children)
         exit_code, closed = ended.exit_code, ended.closed
         asked = session_end_marker_path(state_dir).exists()
         if closed is not None:
@@ -953,33 +988,36 @@ def _run_until_the_hotkeys_exit(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
-        stop_everything(commands, dispatch)
+        stop_everything(launch.manifest.commands, running.dispatch)
         crossing = pending_handoff(state_dir)
         esc_cancels = (CANCEL_CLOSING_FUN_TIME
                        if asked and show_overlays and crossing is None else "")
-        with _closing_screen(state_dir, enabled=show_overlays, sibling_checkouts=sibling_checkouts,
-                             crossing=crossing,
-                             esc_cancels=esc_cancels) as shutdown_progress:
+        closing_screen = (
+            _closing_screen(state_dir, sibling_checkouts=sibling_checkouts,
+                            crossing=crossing, esc_cancels=esc_cancels)
+            if show_overlays else contextlib.nullcontext(NullProgress()))
+        with closing_screen as shutdown_progress:
             if voice_controller is not None:
                 voice_controller.stop()
             if voice_thread is not None:
                 voice_thread.join(timeout=2.0)
             dispatch_runner.close()
-            if loopback_server is not None:
-                loopback_server.shutdown()
-                loopback_server.server_close()
+            if running.loopback_server is not None:
+                running.loopback_server.shutdown()
+                running.loopback_server.server_close()
             logger.info("The session is over — shutting down child processes")
             flag = state_dir / CANCEL_FILENAME
             parking = crossing is not None or (
                 bool(esc_cancels) and what_the_flag_asks(flag) == CANCEL_WORD)
             _shutdown_children(
-                rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
-                keep_origenerator_via=origenerator_cmd_file if parking else None,
-                release_origenerator_via=(
-                    origenerator_cmd_file if origenerator_taken_over else None),
+                result.rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
+                farewell=HostedAppFarewell(
+                    command_file=(origenerator_cmd_file
+                                  if parking or result.origenerator_taken_over else None),
+                    keep=parking, taken_over=result.origenerator_taken_over),
             )
             if crossing is None:
-                stop_hotkey_script(ahk_proc, ahk_cmd_file)
+                hotkeys.stop()
             if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
                 logger.info("Esc called the quit off; opening Fun Time again")
                 way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
@@ -994,22 +1032,20 @@ def _run_until_the_hotkeys_exit(
 def run_session(
     *,
     manifest_path: str | Path,
-    ahk_exe: str,
-    hotkey_script: str,
+    hotkeys: HotkeyScriptLaunch,
     state_dir: str | Path,
-    project_dir: str | Path,
     loading_screen: RaisedLoadingScreen,
     env: SessionEnvironment = ORDINARY_SESSION,
 ) -> SessionOver:
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
-    project_dir = Path(project_dir)
 
     take_up_the_retired_state_file_names(state_dir)
 
     manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
     dashboard_enabled = manifest.dashboard_enabled
+    launch = SessionLaunch(manifest_path, manifest, bridge_config, state_dir)
 
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
 
@@ -1030,12 +1066,14 @@ def run_session(
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
         logger.info("Pre-wrote suspend_hotkeys for integration test run")
 
-    ahk_proc = launch_hotkey_script(ahk_exe=ahk_exe, script=hotkey_script,
-                                    manifest_path=manifest_path, pids_file=pids_file,
-                                    project_dir=project_dir)
+    hotkey_script = HotkeyScript(
+        launch_hotkey_script(ahk_exe=hotkeys.ahk_exe, script=hotkeys.script,
+                             manifest_path=manifest_path, pids_file=pids_file,
+                             project_dir=hotkeys.project_dir),
+        ahk_cmd_file)
 
-    hud_publisher, hud_primed = start_hud_priming(
-        bridge_config, manifest, enabled=dashboard_enabled)
+    hud = start_hud_priming(bridge_config, manifest, enabled=dashboard_enabled)
+    hud_publisher = hud[0]
 
     logger.info("Running startup sequence")
     try:
@@ -1048,37 +1086,28 @@ def run_session(
         )
     except StartupCancelled as cancelled:
         return _take_down_the_startup(
-            "Startup cancelled by user", pids=cancelled.launched_pids,
-            rfb_hwnd=cancelled.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            sibling_checkouts=manifest.runtime.sibling_checkouts,
-            canceled=True,
-            release_origenerator_via=(bridge_config.origenerator_cmd_file
-                                      if cancelled.origenerator_taken_over else None),
-        )
+            StartupEnd("Startup cancelled by user", canceled=True),
+            LaunchedSoFar(cancelled.launched_pids, cancelled.rfb_hwnd,
+                          launch.release_of(cancelled.origenerator_taken_over)),
+            launch, loading_screen, hotkey_script)
     except FunestraDied as died:
         _take_down_the_startup(
-            str(died), pids=died.launched_pids,
-            rfb_hwnd=died.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            sibling_checkouts=manifest.runtime.sibling_checkouts,
-            release_origenerator_via=(bridge_config.origenerator_cmd_file
-                                      if died.origenerator_taken_over else None),
-        )
+            StartupEnd(str(died)),
+            LaunchedSoFar(died.launched_pids, died.rfb_hwnd,
+                          launch.release_of(died.origenerator_taken_over)),
+            launch, loading_screen, hotkey_script)
         said = funestra_died_message(died.funestra, died.said)
         logger.error(said)
         return SessionOver(1, why=said)
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS
                 if not (key == "origenerator_pid" and result.origenerator_taken_over)]
-    hand_back_via = bridge_config.origenerator_cmd_file if result.origenerator_taken_over else None
+    started = LaunchedSoFar(launched, result.rfb_hwnd, launch.release_of(result.origenerator_taken_over))
 
     if progress.cancelled:
         return _take_down_the_startup(
-            "Startup cancelled by user", pids=launched,
-            rfb_hwnd=result.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            sibling_checkouts=manifest.runtime.sibling_checkouts,
-            canceled=True,
-            release_origenerator_via=hand_back_via,
-        )
+            StartupEnd("Startup cancelled by user", canceled=True),
+            started, launch, loading_screen, hotkey_script)
 
     logger.info(
         "Startup complete: main_funestra=%d portrait=%d landscape=%d dashboard=%d audio=%d "
@@ -1089,17 +1118,7 @@ def run_session(
 
     try:
         dispatch_runner = _build_the_dispatch_loop(
-            result,
-            manifest=manifest,
-            manifest_path=manifest_path,
-            bridge_config=bridge_config,
-            state_dir=state_dir,
-            dashboard_cmd_file=dashboard_cmd_file,
-            ahk_cmd_file=ahk_cmd_file,
-            dashboard_enabled=dashboard_enabled,
-            hud_publisher=hud_publisher,
-            env=env,
-        )
+            result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud_publisher, env=env)
         voice_controller, voice_thread = start_voice_control(
             prepared_voice, dispatch_runner=dispatch_runner)
 
@@ -1108,8 +1127,7 @@ def run_session(
 
         if env.show_overlays:
             _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
-                             hud_publisher=hud_publisher, hud_primed=hud_primed,
-                             before_the_loading_screen_goes=finish)
+                            hud=hud, before_the_loading_screen_goes=finish)
         else:
             finish()
 
@@ -1120,25 +1138,13 @@ def run_session(
         loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
     except BaseException:
         _take_down_the_startup(
-            "The session failed while opening", pids=launched,
-            rfb_hwnd=result.rfb_hwnd, loading_screen=loading_screen, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            sibling_checkouts=manifest.runtime.sibling_checkouts,
-            release_origenerator_via=hand_back_via,
-        )
+            StartupEnd("The session failed while opening"),
+            started, launch, loading_screen, hotkey_script)
         raise
 
     return _run_until_the_hotkeys_exit(
-        ahk_proc,
-        state_dir=state_dir,
-        ahk_cmd_file=ahk_cmd_file,
-        commands=manifest.commands,
+        launch, hotkey_script, result,
+        RunningSession(children, (voice_controller, voice_thread),
+                       (dispatch_runner, dispatch_thread), loopback_server),
         show_overlays=env.show_overlays,
-        rfb_hwnd=result.rfb_hwnd,
-        children=children,
-        origenerator_cmd_file=bridge_config.origenerator_cmd_file,
-        origenerator_taken_over=result.origenerator_taken_over,
-        voice=(voice_controller, voice_thread),
-        dispatch=(dispatch_runner, dispatch_thread),
-        loopback_server=loopback_server,
-        sibling_checkouts=manifest.runtime.sibling_checkouts,
     )

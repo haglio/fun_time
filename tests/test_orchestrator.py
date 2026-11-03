@@ -28,7 +28,7 @@ from fun_time.orchestrator import (
 from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
-from fun_time.windows_bridge_orchestrator import SessionOver
+from fun_time.windows_bridge_orchestrator import HotkeyScriptLaunch, SessionOver
 from tests.made_up_genau import point_the_shared_settings_at
 
 
@@ -356,10 +356,11 @@ class TestRunController:
         bridge.assert_called_once()
         call_kwargs = bridge.call_args.kwargs
         assert call_kwargs["manifest_path"] == cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        assert call_kwargs["ahk_exe"] == str(cfg.paths.ahk_exe)
-        assert call_kwargs["hotkey_script"] == str(cfg.project_dir / "windows_bridge_hotkeys.ahk")
+        assert call_kwargs["hotkeys"] == HotkeyScriptLaunch(
+            ahk_exe=str(cfg.paths.ahk_exe),
+            script=str(cfg.project_dir / "windows_bridge_hotkeys.ahk"),
+            project_dir=cfg.project_dir)
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
-        assert call_kwargs["project_dir"] == cfg.project_dir
         assert call_kwargs["env"] == SessionEnvironment()
         assert call_kwargs["loading_screen"] is loading_screen
 

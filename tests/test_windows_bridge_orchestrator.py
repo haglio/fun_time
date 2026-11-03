@@ -92,6 +92,8 @@ from fun_time.windows_bridge_orchestrator import (
     SETTLE_WAIT_S,
     VOICE_START_BUDGET_S,
     ChildProcess,
+    HostedAppFarewell,
+    HotkeyScriptLaunch,
     SessionOver,
     _AppendOnWriteHandler,
     _close_origenerator_gracefully,
@@ -124,7 +126,10 @@ def _a_session(**kwargs) -> SessionOver:
         sibling_checkouts=LaunchManifest.read(kwargs["manifest_path"]).runtime.sibling_checkouts,
         cancelable=kwargs.pop("cancelable", True),
     )
-    return run_session(loading_screen=loading_screen, **kwargs)
+    hotkeys = HotkeyScriptLaunch(
+        ahk_exe=kwargs.pop("ahk_exe"), script=kwargs.pop("hotkey_script"),
+        project_dir=kwargs.pop("project_dir"))
+    return run_session(loading_screen=loading_screen, hotkeys=hotkeys, **kwargs)
 
 
 def _fake_startup_result() -> StartupResult:
@@ -1160,8 +1165,9 @@ class TestKeepingTheHostedApp:
             children = _recorded_children(
                 origenerator_pid=ChildProcess(pid=7071, created_at=90),
             )
-            _shutdown_children(0, children, NullProgress(), state_dir=tmp_path,
-                               keep_origenerator_via=tmp_path / "origenerator_cmd.txt")
+            _shutdown_children(
+                0, children, NullProgress(), state_dir=tmp_path,
+                farewell=HostedAppFarewell(tmp_path / "origenerator_cmd.txt", keep=True))
 
         parked.assert_called_once_with(4242)
         closed.assert_not_called()
@@ -1241,7 +1247,8 @@ class TestKeepingTheHostedApp:
                    ) as closed:
             _shutdown_children(
                 0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
-                NullProgress(), state_dir=tmp_path, release_origenerator_via=channel)
+                NullProgress(), state_dir=tmp_path,
+                farewell=HostedAppFarewell(channel, taken_over=True))
 
         closed.assert_not_called()
         assert 7071 not in killed
@@ -1268,7 +1275,7 @@ class TestKeepingTheHostedApp:
             _shutdown_children(
                 0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
-                keep_origenerator_via=channel, release_origenerator_via=channel)
+                farewell=HostedAppFarewell(channel, keep=True, taken_over=True))
 
         assert kept_origenerator(tmp_path).taken_over
         assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
@@ -1283,8 +1290,8 @@ class TestKeepingTheHostedApp:
                 0, _recorded_children(
                     origenerator_pid=ChildProcess(pid=HOSTED_PID, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
-                keep_origenerator_via=tmp_path / "origenerator_cmd.txt",
-                release_origenerator_via=tmp_path / "origenerator_cmd.txt")
+                farewell=HostedAppFarewell(
+                    tmp_path / "origenerator_cmd.txt", keep=True, taken_over=True))
 
         parked.assert_called_once_with(HOSTED_HWND)
         assert kept_origenerator(tmp_path).taken_over
@@ -1300,7 +1307,7 @@ class TestKeepingTheHostedApp:
                 0,
                 _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
                 NullProgress(), state_dir=tmp_path,
-                keep_origenerator_via=tmp_path / "origenerator_cmd.txt",
+                farewell=HostedAppFarewell(tmp_path / "origenerator_cmd.txt", keep=True),
             )
 
         closed.assert_called_once()
@@ -1811,7 +1818,7 @@ def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosi
     with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=screen), \
          patch("fun_time.windows_bridge_orchestrator.tie_to_this_process"), \
          windows_bridge_orchestrator._closing_screen(
-             state_dir, enabled=True, sibling_checkouts="", now=now):
+             state_dir, sibling_checkouts="", now=now):
         painted = ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
     return screen, painted
 
