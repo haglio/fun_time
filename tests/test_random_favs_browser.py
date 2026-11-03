@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import random
+from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time.config import load_config
@@ -89,8 +90,18 @@ def test_the_manifest_names_the_chrome_profile_and_every_target(cfg_factory, tmp
     ]
 
 
-def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=True,
-                    profile_name="Jane Doe", urls=("https://example.com/1",)):
+@dataclass(frozen=True)
+class DeclineBrowser:
+    enabled: bool = True
+    local_state: bool = True
+    profile_name: str = "Jane Doe"
+    urls: tuple = ("https://example.com/1",)
+
+
+def _decline_config(cfg_factory, tmp_path: Path, browser: DeclineBrowser | None = None):
+    browser = browser or DeclineBrowser()
+    enabled, local_state, profile_name, urls = (
+        browser.enabled, browser.local_state, browser.profile_name, browser.urls)
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     if local_state:
@@ -114,22 +125,22 @@ def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=Tr
 
 
 def test_a_disabled_browser_declines_to_launch(cfg_factory, tmp_path: Path):
-    cfg_path = _decline_config(cfg_factory, tmp_path, enabled=False)
+    cfg_path = _decline_config(cfg_factory, tmp_path, DeclineBrowser(enabled=False))
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
 def test_a_missing_local_state_declines_to_launch(cfg_factory, tmp_path: Path):
-    cfg_path = _decline_config(cfg_factory, tmp_path, local_state=False)
+    cfg_path = _decline_config(cfg_factory, tmp_path, DeclineBrowser(local_state=False))
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
 def test_an_unmatched_profile_name_declines_to_launch(cfg_factory, tmp_path: Path):
-    cfg_path = _decline_config(cfg_factory, tmp_path, profile_name="Nobody Here")
+    cfg_path = _decline_config(cfg_factory, tmp_path, DeclineBrowser(profile_name="Nobody Here"))
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
 def test_an_empty_favs_list_opens_no_tabs_but_keeps_the_profile(cfg_factory, tmp_path: Path):
-    cfg_path = _decline_config(cfg_factory, tmp_path, urls=())
+    cfg_path = _decline_config(cfg_factory, tmp_path, DeclineBrowser(urls=()))
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("Profile 2", [])
 
 

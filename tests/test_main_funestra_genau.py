@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import threading
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -62,11 +64,24 @@ class _CondemningInTheBackground:
         thread.start()
 
 
+@dataclass(frozen=True)
+class WorldSetup:
+    flicks: tuple = ("alpha one.mp4", "beta two.mp4", "gamma three.mp4")
+    favorites: tuple = ()
+    f_mode: bool = False
+    start_flick: str | None = None
+    latest: bool = False
+    metadata_root: Path | None = None
+    turned: tuple = ()
+    orientations: tuple = BOTH
+    start_thread: Callable = _run_now
+
+
 class World:
-    def __init__(self, tmp_path: Path, *, flicks=("alpha one.mp4", "beta two.mp4", "gamma three.mp4"),
-                 favorites=(), f_mode=False, start_flick=None, latest=False, metadata_root=None,
-                 turned=(), orientations=BOTH, start_thread=_run_now) -> None:
-        self.metadata_root = tmp_path / "metadata" if metadata_root is None else metadata_root
+    def __init__(self, tmp_path: Path, setup: WorldSetup | None = None) -> None:
+        setup = setup or WorldSetup()
+        flicks, favorites, turned = setup.flicks, setup.favorites, setup.turned
+        self.metadata_root = tmp_path / "metadata" if setup.metadata_root is None else setup.metadata_root
         self.flicks_folder = tmp_path / "flicks"
         self.flat_dir = self.flicks_folder / "2D" / "non_AI"
         self.flat_dir.mkdir(parents=True)
@@ -97,13 +112,13 @@ class World:
             notifier=self.notifier,
             messages=self.messages,
             tcode_sink=self.sink,
-            start_flick=start_flick,
-            latest=latest,
-            f_mode=f_mode,
-            orientations=orientations,
+            start_flick=setup.start_flick,
+            latest=setup.latest,
+            f_mode=setup.f_mode,
+            orientations=setup.orientations,
             metadata_root=self.metadata_root,
             decode=lambda _path: _frames(),
-            start_thread=start_thread,
+            start_thread=setup.start_thread,
             clock=self.clock,
             log=logging.getLogger("test.genau"),
         )
@@ -167,7 +182,7 @@ class TestTheFlickOnScreen:
 
     def test_trash_moves_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
         condemning = _CondemningInTheBackground()
-        world = World(tmp_path, start_thread=condemning)
+        world = World(tmp_path, WorldSetup(start_thread=condemning))
         flick = world.flat_dir / "alpha one.mp4"
 
         with flick.open("rb"):
@@ -182,7 +197,7 @@ class TestTheFlickOnScreen:
     def test_trash_gives_up_on_a_flick_that_stays_open_and_says_so(self, tmp_path, monkeypatch, caplog):
         monkeypatch.setattr(genau_engine, "CONDEMN_PATIENCE_S", 0.5)
         condemning = _CondemningInTheBackground()
-        world = World(tmp_path, start_thread=condemning)
+        world = World(tmp_path, WorldSetup(start_thread=condemning))
         flick = world.flat_dir / "alpha one.mp4"
 
         with flick.open("rb"), caplog.at_level(logging.ERROR, logger="test.genau"):
@@ -206,7 +221,7 @@ class TestTheFlickOnScreen:
 
 class TestWhatArrivesInItsFolder:
     def test_under_latest_it_comes_up_after_the_flick_on_screen(self, tmp_path):
-        world = World(tmp_path, latest=True)
+        world = World(tmp_path, WorldSetup(latest=True))
         world.genau.set_showing(True)
 
         (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
@@ -226,7 +241,7 @@ class TestWhatArrivesInItsFolder:
         assert world.genau.top_block().video == "beta two"
 
     def test_while_kino_has_the_window_it_waits_until_genau_has_it_again(self, tmp_path):
-        world = World(tmp_path, latest=True)
+        world = World(tmp_path, WorldSetup(latest=True))
 
         (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
         world.tick(LOOK_EVERY_S)
@@ -240,8 +255,7 @@ class TestWhatArrivesInItsFolder:
             "beta two", "delta four")
 
     def test_in_f_mode_only_a_favorite_comes_up_next(self, tmp_path):
-        world = World(tmp_path, latest=True, favorites=("alpha one.mp4", "beta two.mp4"),
-                      f_mode=True)
+        world = World(tmp_path, WorldSetup(latest=True, favorites=("alpha one.mp4", "beta two.mp4"), f_mode=True))
         world.genau.set_showing(True)
 
         (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
@@ -251,9 +265,7 @@ class TestWhatArrivesInItsFolder:
         assert world.genau.top_block().video == "alpha one"
 
     def test_with_landscape_left_out_only_a_portrait_flick_comes_up_next(self, tmp_path):
-        world = World(tmp_path, latest=True, metadata_root=tmp_path / "metadata",
-                      turned=(("alpha one.mp4", "portrait"), ("beta two.mp4", "portrait")),
-                      orientations=(True, False))
+        world = World(tmp_path, WorldSetup(latest=True, metadata_root=tmp_path / "metadata", turned=(("alpha one.mp4", "portrait"), ("beta two.mp4", "portrait")), orientations=(True, False)))
         world.genau.set_showing(True)
 
         (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
@@ -306,7 +318,7 @@ class TestFMode:
         assert world.messages.said == [("Including no other pips", MessageLevel.WARNING)]
 
     def test_it_opens_in_f_mode_when_the_room_kept_it_on(self, tmp_path):
-        world = World(tmp_path, favorites=("beta two.mp4",), f_mode=True)
+        world = World(tmp_path, WorldSetup(favorites=("beta two.mp4",), f_mode=True))
 
         assert world.genau.top_block() == ModeHud(video="beta two", scripted_filter=True)
 
@@ -314,7 +326,7 @@ class TestFMode:
             self, tmp_path, monkeypatch):
         monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
-        world = World(tmp_path, f_mode=True)
+        world = World(tmp_path, WorldSetup(f_mode=True))
         world.tick()
 
         assert world.genau.top_block().video == "alpha one"
@@ -393,8 +405,8 @@ def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):
 class TestTurnedAsAsked:
     _TURNED = (("alpha one.mp4", "portrait"), ("beta two.mp4", "landscape"))
 
-    def _world(self, tmp_path, **over) -> World:
-        return World(tmp_path, metadata_root=tmp_path / "metadata", turned=self._TURNED, **over)
+    def _world(self, tmp_path, setup: WorldSetup | None = None) -> World:
+        return World(tmp_path, replace(setup or WorldSetup(), metadata_root=tmp_path / "metadata", turned=self._TURNED))
 
     def _shown(self, world: World, steps: int = 3) -> list[str]:
         shown = []
@@ -425,12 +437,12 @@ class TestTurnedAsAsked:
         assert world.messages.said[-1] == ("Portrait only", MessageLevel.NORMAL)
 
     def test_it_opens_turned_the_way_the_room_left_it(self, tmp_path):
-        world = self._world(tmp_path, orientations=(True, False))
+        world = self._world(tmp_path, WorldSetup(orientations=(True, False)))
 
         assert set(self._shown(world)) == {"alpha one"}
 
     def test_the_favorites_it_keeps_are_the_ones_turned_as_asked(self, tmp_path):
-        world = self._world(tmp_path, favorites=("alpha one.mp4", "beta two.mp4"), f_mode=True)
+        world = self._world(tmp_path, WorldSetup(favorites=("alpha one.mp4", "beta two.mp4"), f_mode=True))
 
         world.genau.apply_command(genau_orientations((False, True)))
 
