@@ -194,6 +194,10 @@ class SatelliteInputs:
     mode: SatellitesMode | None = None
     has_osr2: bool = False
     has_funscript: bool = False
+    active: bool = False
+    origenerator_ready: bool = True
+    in_vr: bool = False
+    crowned: bool = False
 
 
 @dataclass(frozen=True)
@@ -305,15 +309,7 @@ def _map_around(
     )
 
 
-def build_hud(
-    inputs: SatelliteInputs,
-    *,
-    index: GroupIndex | None,
-    active: bool = False,
-    origenerator_ready: bool = True,
-    in_vr: bool = False,
-    crowned: bool = False,
-) -> SatelliteHud:
+def build_hud(inputs: SatelliteInputs, *, index: GroupIndex | None) -> SatelliteHud:
     if index is None or not inputs.current:
         hold, drawn = _NavMapHold(inputs.current), _NavMap.unmapped(inputs.current)
     else:
@@ -339,25 +335,22 @@ def build_hud(
         seed_count=drawn.seed_count,
         action_count=drawn.action_count,
         filter_query=inputs.filter_query,
-        active=active,
+        active=inputs.active,
         active_loop=hold.active_loop,
         playing=drawn.playing,
         mode=inputs.mode,
-        origenerator_ready=origenerator_ready,
-        in_vr=in_vr,
+        origenerator_ready=inputs.origenerator_ready,
+        in_vr=inputs.in_vr,
         nothing_to_reset=inputs.nothing_to_reset,
         has_other_versions=inputs.has_other_versions,
         longer_than_a_step=inputs.longer_than_a_step,
-        crowned=crowned,
+        crowned=inputs.crowned,
         has_osr2=inputs.has_osr2,
         has_funscript=inputs.has_funscript,
     )
 
 
-def build_satellite_hud(
-    inputs: SatelliteInputs, metadata_root: Path | None, active_funestra: str,
-    origenerator_ready: bool = True, in_vr: bool = False, crowned: str = "",
-) -> SatelliteHud:
+def build_satellite_hud(inputs: SatelliteInputs, metadata_root: Path | None) -> SatelliteHud:
     index: GroupIndex | None = None
     if inputs.current:
         sources = inputs.sources
@@ -367,11 +360,7 @@ def build_satellite_hud(
             metadata_root=metadata_root,
             must_contain=None,
         )
-    return build_hud(
-        inputs, index=index, active=active_funestra == inputs.funestra,
-        origenerator_ready=origenerator_ready, in_vr=in_vr,
-        crowned=crowned == inputs.funestra,
-    )
+    return build_hud(inputs, index=index)
 
 
 def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) -> None:
