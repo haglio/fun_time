@@ -8,7 +8,7 @@ from fun_time.crown import Crown
 from fun_time.event_log import EVENT_LOG_FILENAME, EventRecord, is_announcement, read_events
 from fun_time.message_placement import FunestraRects, message_target_rect
 from fun_time.overlay_progress import loading_screen_is_up
-from fun_time.shared_state import read_shared_state
+from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monitor_rects
 
@@ -23,7 +23,7 @@ def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> F
     )
 
 
-def _screens(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | None:
+def screens_if_known(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | None:
     try:
         return screen_layout(layout, rfb_mode_selector=rfb_mode_selector)
     except (ValueError, OSError):
@@ -33,25 +33,20 @@ def _screens(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | No
 class MessageFeed:
     def __init__(
         self,
+        state_dir: Path,
+        screens: ScreenLayout | None,
         *,
-        layout: LayoutConfig,
-        rfb_mode_selector: bool = False,
-        event_log_dir: Path,
-        loading_screen_dir: Path,
         make_overlay: Callable[[], object],
         held: bool,
         list_what_was_heard: Callable[[list[EventRecord]], None],
-        shared_state_file: Path | None = None,
     ) -> None:
-        self._event_log_dir = event_log_dir
-        self._loading_screen_dir = loading_screen_dir
+        self._state_dir = state_dir
         self._offset = 0
         self._held = held
         self._list_what_was_heard = list_what_was_heard
-        self._shared_state_file = shared_state_file
-        self._screens = _screens(layout, rfb_mode_selector)
+        self._screens = screens
         self.overlay = make_overlay() if self._screens is not None else None
-        self._unlogged = UnloggedMessages(event_log_dir) if self.overlay is not None else None
+        self._unlogged = UnloggedMessages(state_dir) if self.overlay is not None else None
 
     @property
     def offset(self) -> int:
@@ -64,18 +59,18 @@ class MessageFeed:
         return funestra_rects(self._screens, self._majority())
 
     def _majority(self) -> Crown:
-        state = read_shared_state(self._shared_state_file) if self._shared_state_file else None
+        state = read_shared_state(shared_state_path(self._state_dir))
         return Crown.PORTRAIT if state is None else state.majority
 
     def poll(self) -> None:
         if self.overlay is None or self._screens is None:
             return
         if self._held:
-            if loading_screen_is_up(self._loading_screen_dir):
+            if loading_screen_is_up(self._state_dir):
                 return
             self._held = False
         records, self._offset = read_events(
-            self._event_log_dir / EVENT_LOG_FILENAME, self._offset)
+            self._state_dir / EVENT_LOG_FILENAME, self._offset)
         unlogged = self._unlogged.take_all()
         if unlogged:
             self._list_what_was_heard(unlogged)
