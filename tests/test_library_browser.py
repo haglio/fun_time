@@ -123,17 +123,20 @@ def _until(condition, *, within_s: float = 10.0) -> None:
 def browser(tmp_path):
     opened: list[LibraryBrowserWindow] = []
 
-    def build(handles, *, thumbnail_cache, on_pick, on_close=None, on_dismiss=None,
-              playing=None, activate_on_click=False, top_level_name=TOP_LEVEL_NAME):
+    def configured(handles, *, thumbnail_cache, callbacks, activate_on_click=False,
+                   top_level_name=TOP_LEVEL_NAME):
         window = LibraryBrowserWindow(
-            handles, thumbnail_cache=thumbnail_cache,
-            callbacks=BrowseCallbacks(on_pick=on_pick, on_close=on_close, on_dismiss=on_dismiss),
+            handles, thumbnail_cache=thumbnail_cache, callbacks=callbacks,
             activate_on_click=activate_on_click, top_level_name=top_level_name)
-        if playing is not None:
-            window.open_on(playing)
         opened.append(window)
         return window
 
+    def build(handles, *, thumbnail_cache, on_pick, on_close=None, on_dismiss=None):
+        return configured(
+            handles, thumbnail_cache=thumbnail_cache,
+            callbacks=BrowseCallbacks(on_pick=on_pick, on_close=on_close, on_dismiss=on_dismiss))
+
+    build.configured = configured
     yield build
     for window in opened:
         window.close()
@@ -230,8 +233,8 @@ def test_a_browse_opens_where_the_session_already_is(browser, tmp_path: Path):
         handles,
         thumbnail_cache=tmp_path,
         on_pick=lambda _v: None,
-        playing="C:/videos/big_batch/beta.mp4",
     )
+    window.open_on("C:/videos/big_batch/beta.mp4")
 
     assert _header_words(window) == "Library / big_batch / whole"
     assert window.grid.rows[window.grid.currentRow()] == handles[1]
@@ -247,8 +250,8 @@ def test_a_browse_opens_with_the_index_standing_on_it_too(browser, tmp_path: Pat
         handles,
         thumbnail_cache=tmp_path,
         on_pick=lambda _v: None,
-        playing="C:/videos/main/zulu.mp4",
     )
+    window.open_on("C:/videos/main/zulu.mp4")
 
     assert window.index.currentItem().text() == "Zulu Scene"
     assert _shown_names(window.index) == ["Zulu Scene"]
@@ -269,8 +272,8 @@ def test_the_rendition_playing_need_not_be_the_one_a_pick_would_play(browser, tm
         handles,
         thumbnail_cache=tmp_path,
         on_pick=lambda _v: None,
-        playing="C:/videos/big_batch/0 unsorted/beta.mp4",
     )
+    window.open_on("C:/videos/big_batch/0 unsorted/beta.mp4")
 
     assert window.grid.rows[window.grid.currentRow()] == handles[1]
 
@@ -281,8 +284,8 @@ def test_the_playing_path_is_matched_however_it_is_spelled(browser, tmp_path: Pa
         handles,
         thumbnail_cache=tmp_path,
         on_pick=lambda _v: None,
-        playing="c:/videos/big_batch/BETA.MP4",
     )
+    window.open_on("c:/videos/big_batch/BETA.MP4")
 
     assert window.grid.rows[window.grid.currentRow()] == handles[0]
 
@@ -293,8 +296,8 @@ def test_a_video_the_library_does_not_hold_opens_at_the_top(browser, tmp_path: P
         handles,
         thumbnail_cache=tmp_path,
         on_pick=lambda _v: None,
-        playing="C:/elsewhere/something.mp4",
     )
+    window.open_on("C:/elsewhere/something.mp4")
 
     assert _header_words(window) == TOP_LEVEL_NAME
     assert all(isinstance(what, SubFolder) for what in window.grid.rows)
@@ -302,7 +305,8 @@ def test_a_video_the_library_does_not_hold_opens_at_the_top(browser, tmp_path: P
 
 def test_a_browse_with_nothing_playing_opens_at_the_top(browser, tmp_path: Path):
     handles = [_handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch")]
-    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None, playing="")
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.open_on("")
 
     assert _header_words(window) == TOP_LEVEL_NAME
     assert all(isinstance(what, SubFolder) for what in window.grid.rows)
@@ -467,10 +471,10 @@ def test_the_top_level_is_named_as_the_library(browser, tmp_path: Path):
 
 
 def test_a_browse_of_genaus_flicks_is_named_for_genau_from_the_top_down(browser, tmp_path: Path):
-    window = browser(
+    window = browser.configured(
         [_handle("scene one", section="VR")],
         thumbnail_cache=tmp_path,
-        on_pick=lambda _v: None,
+        callbacks=BrowseCallbacks(on_pick=lambda _v: None),
         top_level_name="Genau",
     )
     at_the_top = _header_words(window)
@@ -1099,8 +1103,9 @@ def test_picking_a_video_ends_the_browse_as_well_as_reporting_it(browser, tmp_pa
 
 def test_a_browse_driven_by_one_press_at_a_time_opens_what_is_pressed(browser, tmp_path: Path):
     handles = [_handle("alpha scene", section="main"), _handle("beta scene", section="other")]
-    headset = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None,
-                      activate_on_click=True)
+    headset = browser.configured(
+        handles, thumbnail_cache=tmp_path, callbacks=BrowseCallbacks(on_pick=lambda _v: None),
+        activate_on_click=True)
     desktop = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     for window in (headset, desktop):
         window.show()
