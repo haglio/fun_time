@@ -140,6 +140,19 @@ def command_rules(commands: Mapping[str, str], *, confidence_threshold: float,
 
 
 @dataclass(frozen=True)
+class _MissLine:
+    logged: str
+    shown: str
+    then: str = ""
+
+
+_NOT_SURE_ENOUGH = _MissLine("not sure enough of a command", "not sure enough of",
+                             PRESS_ENTER_TO_ACCEPT)
+_NO_COMMAND = _MissLine(NO_COMMAND, NO_COMMAND)
+_TOO_QUIET = _MissLine("too quiet to act on", "too quiet to act on")
+
+
+@dataclass(frozen=True)
 class _NotSureOf:
     phrase: str
     spoken_at: float
@@ -317,17 +330,15 @@ class VoiceController:
         if doubted:
             with self._not_sure_of_lock:
                 self._not_sure_of = _NotSureOf(doubted, heard.spoken_at)
-            self._report_words("not sure enough of a command", "not sure enough of",
-                               friendly_voice(doubted), heard_text=doubted,
-                               spoken_at=heard.spoken_at, then=PRESS_ENTER_TO_ACCEPT)
+            self._report_words(_NOT_SURE_ENOUGH, friendly_voice(doubted), heard_text=doubted,
+                               spoken_at=heard.spoken_at)
         elif recognition.unrecognized_text:
-            self._report_words(NO_COMMAND, NO_COMMAND, recognition.unrecognized_text,
+            self._report_words(_NO_COMMAND, recognition.unrecognized_text,
                                heard_text=recognition.unrecognized_text,
                                spoken_at=heard.spoken_at)
         elif recognition.silent_reading:
-            self._report_words("too quiet to act on", "too quiet to act on",
-                               recognition.silent_reading, heard_text=recognition.silent_reading,
-                               spoken_at=heard.spoken_at)
+            self._report_words(_TOO_QUIET, recognition.silent_reading,
+                               heard_text=recognition.silent_reading, spoken_at=heard.spoken_at)
         else:
             flash_message(logger, DID_NOT_CATCH_IT, source=SOURCE_SYSTEM, level=logging.WARNING)
 
@@ -347,13 +358,13 @@ class VoiceController:
                    source=message_source(self.commands[phrase], self.active_funestra()),
                    level=logging.WARNING)
 
-    def _report_words(self, logged: str, shown: str, words: str, *, heard_text: str,
-                      spoken_at: float, then: str = "") -> None:
+    def _report_words(self, line: _MissLine, words: str, *, heard_text: str,
+                      spoken_at: float) -> None:
         source = _source_for_heard_text(heard_text)
-        after = f" {then}" if then else ""
-        list_message(logger, f"{logged} ({_how_many(words)}){after}", source=source,
+        after = f" {line.then}" if line.then else ""
+        list_message(logger, f"{line.logged} ({_how_many(words)}){after}", source=source,
                      level=logging.WARNING, spoken_at=spoken_at)
-        flash_unlogged(self.cmd_file.parent, f"{shown}: {words}{after}", source=source,
+        flash_unlogged(self.cmd_file.parent, f"{line.shown}: {words}{after}", source=source,
                        level=logging.WARNING, spoken_at=spoken_at)
 
     def _say_it_is_being_worked_on(self, forming: str) -> None:
