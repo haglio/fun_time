@@ -17,6 +17,7 @@ from fun_time.session_handoff import (
     DESKTOP,
     STARTUP_TIMEOUT_S,
     VR,
+    SessionLaunch,
     a_session_is_playing,
     clear_handoff_request,
     crossing_progress_path,
@@ -276,8 +277,7 @@ class TestStartingTheIncomingSession:
                 if (tmp_path / VR.ready_marker).exists() else MagicMock()
             )
             start_the_session(
-                VR, python_exe="py.exe", project_dir=tmp_path,
-                state_dir=tmp_path, config_path=tmp_path / "c.json",
+                VR, SessionLaunch("py.exe", tmp_path, tmp_path, tmp_path / "c.json"),
             )
 
     def test_it_runs_the_module_on_this_session_s_config_from_its_own_checkout(
@@ -285,8 +285,7 @@ class TestStartingTheIncomingSession:
     ):
         with patch.object(session_handoff.subprocess, "Popen") as popen:
             start_the_session(
-                VR, python_exe="py.exe", project_dir=tmp_path / "worktree",
-                state_dir=tmp_path, config_path=tmp_path / "branch.json",
+                VR, SessionLaunch("py.exe", tmp_path / "worktree", tmp_path, tmp_path / "branch.json"),
             )
         command = popen.call_args.args[0]
         assert command[:5] == [
@@ -298,8 +297,8 @@ class TestStartingTheIncomingSession:
     def test_a_way_back_starts_the_session_offering_no_esc(self, tmp_path: Path):
         with patch.object(session_handoff.subprocess, "Popen") as popen:
             start_the_session(
-                DESKTOP, python_exe="py.exe", project_dir=tmp_path,
-                state_dir=tmp_path, config_path=tmp_path / "c.json", cancelable=False,
+                DESKTOP, SessionLaunch("py.exe", tmp_path, tmp_path, tmp_path / "c.json"),
+                cancelable=False,
             )
 
         assert popen.call_args.args[0][-1] == "--no-cancel"
