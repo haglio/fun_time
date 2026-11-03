@@ -171,3 +171,42 @@ class TestOpenChildLog:
             pass
 
         assert log_file.exists()
+
+    def test_a_log_under_the_cap_is_left_where_it_is(self, tmp_path: Path):
+        log_file = tmp_path / "portrait_satellite.log"
+        log_file.write_text("x" * 100, encoding="utf-8")
+
+        with open_child_log(log_file, ["pythonw.exe"], max_bytes=100):
+            pass
+
+        assert not (tmp_path / "portrait_satellite.log.1").exists()
+
+    def test_only_one_rolled_generation_is_kept(self, tmp_path: Path):
+        log_file = tmp_path / "portrait_satellite.log"
+        (tmp_path / "portrait_satellite.log.1").write_text("older", encoding="utf-8")
+        log_file.write_text("y" * 200, encoding="utf-8")
+
+        with open_child_log(log_file, ["pythonw.exe"], max_bytes=100):
+            pass
+
+        assert (tmp_path / "portrait_satellite.log.1").read_text(encoding="utf-8") == "y" * 200
+
+    def test_a_refused_roll_still_launches_by_appending_to_the_big_file(self, tmp_path: Path):
+        log_file = tmp_path / "portrait_satellite.log"
+        log_file.write_text("z" * 200, encoding="utf-8")
+        blocker = tmp_path / "portrait_satellite.log.1"
+        blocker.mkdir()
+        (blocker / "occupied").write_text("", encoding="utf-8")
+
+        with open_child_log(log_file, ["pythonw.exe"], max_bytes=100):
+            pass
+
+        assert log_file.read_text(encoding="utf-8").startswith("z" * 200)
+        assert "launch: pythonw.exe" in log_file.read_text(encoding="utf-8")
+
+    def test_a_log_that_cannot_be_opened_hands_back_a_handle_that_takes_writes(self, tmp_path: Path):
+        log_file = tmp_path / "portrait_satellite.log"
+        log_file.mkdir()
+
+        with open_child_log(log_file, ["pythonw.exe"]) as handle:
+            assert handle.write(b"traceback") == len(b"traceback")

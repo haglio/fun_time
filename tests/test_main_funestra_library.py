@@ -260,3 +260,15 @@ class TestGroupVersionsByRecordedId:
         assert sorted([str(rec_a.video), str(rec_b.video)]) in entry_sets
         assert sorted([str(richard.video), str(richard_up.video)]) in entry_sets
         assert len(groups) == 2
+
+
+class TestANameOfOnlyQualityTags:
+    def test_it_stands_alone_rather_than_swallowing_the_other_singletons(self):
+        tagged = _entry("1080p.mp4", size=10)
+        first = _entry("Scene One.mp4", size=20)
+        second = _entry("Scene Two.mp4", size=30)
+
+        groups = group_versions([tagged, first, second])
+
+        assert len(groups) == 3
+        assert any(group.entries == (tagged,) for group in groups)

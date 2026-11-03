@@ -662,3 +662,10 @@ def test_every_filter_voice_command_is_represented():
     covered = _covered_commands()
     missing = {cmd for cmd in filter_voice_commands().values() if cmd not in covered}
     assert not missing, f"filter commands missing from reference: {sorted(missing)}"
+
+
+def test_the_reference_html_styles_inline_with_no_style_block():
+    html = render_reference_html()
+
+    assert "<style" not in html
+    assert 'style="' in html
