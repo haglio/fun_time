@@ -11,7 +11,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
-from fun_time.session_end import SESSION_END_MARKER
+from fun_time.session_end import SESSION_END_MARKER, mark_session_end
 from fun_time.windows_bridge_orchestrator import (
     _describe_session_end,
     clear_last_sessions_leftovers,
@@ -155,3 +155,11 @@ def test_a_marker_from_a_session_that_was_cut_off_is_not_worn_by_the_next(
                                   ahk_cmd_file=state_dir / "ahk_cmd.txt")
 
     assert "UNEXPECTED" in _describe_session_end(state_dir, 0)
+
+
+def test_a_session_comes_down_even_when_it_cannot_leave_a_note(tmp_path):
+    blocked = tmp_path / "state"
+    blocked.write_text("a file where the state folder should be", encoding="utf-8")
+
+    mark_session_end(blocked, "the user quit")
+    assert blocked.is_file()

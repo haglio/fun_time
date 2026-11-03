@@ -126,3 +126,15 @@ def test_real_userscript_points_its_updates_at_this_server():
     assert "@updateURL" in text
     assert "@downloadURL" in text
     assert endpoint in text
+
+
+def test_a_server_not_wired_to_a_session_reports_one_that_is_playing(tmp_path):
+    script = tmp_path / USERSCRIPT_NAME
+    script.write_text("// x\n", encoding="utf-8")
+    server = make_server(port=0, script_path=script)
+    port = _serve(server)
+    try:
+        with _get(port, OMNIPAUSE_PATH) as resp:
+            assert json.loads(resp.read()) == {"omni_paused": False}
+    finally:
+        server.shutdown()
