@@ -211,7 +211,7 @@ class TestHandleHeard:
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
 
-    @pytest.mark.parametrize(("recognition", "logged", "shown", "source"), [
+    @pytest.mark.parametrize("case", [
         (Recognition(refused_phrase="skip"),
          "not sure enough of a command (1 word) (press Enter to accept)",
          "not sure enough of: skip (press Enter to accept)", "system"),
@@ -225,8 +225,9 @@ class TestHandleHeard:
          "too quiet to act on (2 words)", "too quiet to act on: landscape half", "landscape"),
     ])
     def test_what_it_heard_and_did_not_act_on_is_flashed_in_its_words_and_logged_by_count(
-        self, tmp_path, monkeypatch, caplog, recognition, logged, shown, source,
+        self, tmp_path, monkeypatch, caplog, case,
     ):
+        recognition, logged, shown, source = case
         vc = _controller(tmp_path)
         flashed = []
         monkeypatch.setattr(voice_control, "flash_unlogged",
