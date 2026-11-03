@@ -7,6 +7,9 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.funestra_status import (
     GenauStatus,
     MainFunestraStatus,
+    origenerator_has_published,
+    published_genau_status,
+    published_main_funestra_status,
     read_genau_status,
     read_key_values,
     read_main_funestra_status,
@@ -285,3 +288,47 @@ def test_genaus_flick_is_portrait_where_it_says_so(tmp_path: Path):
     status_file.write_text("flick=C:/flicks/alpha.mp4\nportrait=1\n", encoding="utf-8")
 
     assert read_genau_status(status_file).portrait is True
+
+
+def test_a_main_status_that_cannot_be_read_gives_back_the_last_good_one(tmp_path: Path):
+    last_good = MainFunestraStatus(speed=1.5)
+
+    assert read_main_funestra_status(tmp_path, fallback=last_good) is last_good
+    assert read_main_funestra_status(tmp_path / "missing.txt", fallback=last_good) is last_good
+
+
+def test_a_main_status_that_cannot_be_read_and_has_no_last_good_one_reads_as_the_defaults(tmp_path: Path):
+    assert read_main_funestra_status(tmp_path) == MainFunestraStatus()
+
+
+def test_a_genau_status_that_cannot_be_read_reads_as_the_defaults(tmp_path: Path):
+    assert read_genau_status(tmp_path) == GenauStatus()
+
+
+def test_a_main_status_without_a_speed_has_not_been_published_yet(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
+    status_file.write_text("video=clip.mp4\n", encoding="utf-8")
+
+    assert published_main_funestra_status(status_file) is None
+    assert published_main_funestra_status(tmp_path) is None
+    status_file.write_text("speed=1.0\n", encoding="utf-8")
+    assert published_main_funestra_status(status_file) is not None
+
+
+def test_a_genau_status_without_a_lock_has_not_been_published_yet(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("shape=sine\n", encoding="utf-8")
+
+    assert published_genau_status(status_file) is None
+    assert published_genau_status(tmp_path) is None
+    status_file.write_text("locked=0\n", encoding="utf-8")
+    assert published_genau_status(status_file) == GenauStatus(locked=False)
+
+
+def test_the_hosted_app_has_published_once_its_status_file_can_be_read(tmp_path: Path):
+    status_file = tmp_path / "origenerator_status.txt"
+
+    assert origenerator_has_published(status_file) is False
+    assert origenerator_has_published(tmp_path) is False
+    status_file.write_text("", encoding="utf-8")
+    assert origenerator_has_published(status_file) is True
