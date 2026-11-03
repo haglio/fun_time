@@ -30,6 +30,7 @@ from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manif
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from main_funestra.cli import build_parser
 from main_funestra.library import LibraryEntry, group_versions, version_index_from_groups
+from tests.held_files import held_by_another_program, let_go_soon
 from tests.integration import integration_support, run_clock
 from tests.integration.integration_support import (
     COMMAND_BUDGET_S,
@@ -848,17 +849,10 @@ class TestPostingADashboardCommand:
         queued = session.dashboard_cmd_file.read_text(encoding="utf-8").split()
         assert queued == ["main_kino_activate", "genau_activate"]
 
-    def test_a_press_refused_mid_drain_is_pressed_again(self, session, monkeypatch):
-        refusals = iter([PermissionError(13, "Permission denied")])
-        real_open = Path.open
-
-        def opening(self, *args, **kwargs):
-            for refusal in refusals:
-                raise refusal
-            return real_open(self, *args, **kwargs)
-
-        monkeypatch.setattr(Path, "open", opening)
-        session.write_dashboard_command("main_kino_activate")
+    def test_a_press_refused_mid_drain_is_pressed_again(self, session):
+        with held_by_another_program(session.dashboard_cmd_file) as let_go:
+            let_go_soon(let_go)
+            session.write_dashboard_command("main_kino_activate")
 
         assert session.dashboard_cmd_file.read_text(encoding="utf-8").split() == [
             "main_kino_activate"]

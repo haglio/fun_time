@@ -101,6 +101,7 @@ from fun_time.window_layout import (
     secondary_monitor_rects,
 )
 from fun_time.windows_bridge_dispatch_loop import expand_group_command, poll_dashboard_commands
+from tests.held_files import held_by_another_program, let_go_soon
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 from tests.made_up_osr2_parts import a_part, center_of, published
 from tests.sleeps import sleeps_in
@@ -369,48 +370,25 @@ def test_the_config_reads_only_what_the_bar_needs(cfg_path: Path, tmp_path: Path
     assert app_config.dashboard_cmd_file.name == "dashboard_cmd.txt"
 
 
-def test_write_dashboard_command_retries_past_a_transient_file_lock(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_write_dashboard_command_retries_past_a_transient_file_lock(tmp_path: Path):
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
-    real_open = Path.open
-    attempts = {"n": 0}
-
-    def flaky_open(self: Path, *args: object, **kwargs: object):
-        if self == command_file:
-            attempts["n"] += 1
-            if attempts["n"] == 1:
-                raise PermissionError(32, "being used by another process")
-        return real_open(self, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", flaky_open)
-
-    with sleeps_in(file_channel):
+    with held_by_another_program(command_file) as let_go:
+        let_go_soon(let_go)
         write_dashboard_command(command_file, "quit")
 
-    assert attempts["n"] >= 2
     assert command_file.read_text(encoding="utf-8").strip() == "quit"
 
 
-def test_write_dashboard_command_drops_rather_than_raises_when_locked(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_write_dashboard_command_drops_rather_than_raises_when_locked(tmp_path: Path):
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
-    def always_locked(self: Path, *args: object, **kwargs: object):
-        if self == command_file:
-            raise PermissionError(32, "being used by another process")
-        raise AssertionError("unexpected open")
-
-    monkeypatch.setattr(Path, "open", always_locked)
-
-    with sleeps_in(file_channel):
+    with held_by_another_program(command_file), sleeps_in(file_channel):
         write_dashboard_command(command_file, "quit")
 
-    assert not command_file.exists()
+    assert command_file.read_text(encoding="utf-8") == ""
 
 
 def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
