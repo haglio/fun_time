@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time.library_handles import build_library_handles, handles_by_shape
@@ -23,40 +24,35 @@ def _video(videos_root: Path, relative: str, *, size: int = 1024) -> Path:
     return path
 
 
-def _sidecar(
-    metadata_root: Path,
-    video: Path,
-    library_root: Path,
-    group: str,
-    *,
-    carved_from: str = "",
-    kind: str = "",
-    clip: dict | None = None,
-    title: str = "",
-) -> None:
+@dataclass(frozen=True)
+class Sidecar:
+    group: str
+    carved_from: str = ""
+    kind: str = ""
+    title: str = ""
+
+
+def _sidecar(metadata_root: Path, video: Path, record: Sidecar) -> None:
+    library_root = metadata_root.parent / "videos"
     path = (metadata_root / video.relative_to(library_root)).with_suffix(".json")
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload: dict = {"version": {"group": group}}
-    if carved_from:
-        payload["clip"] = {"compilation": carved_from, "index": 1, "count": 4}
-    if clip is not None:
-        payload["clip"] = {"compilation": carved_from or "Vol1", "index": 1,
-                           "count": 4, **clip}
-    if title:
-        payload["title"] = title
-    if kind:
-        payload["video"] = {"type": kind}
+    payload: dict = {"version": {"group": record.group}}
+    if record.carved_from:
+        payload["clip"] = {"compilation": record.carved_from, "index": 1, "count": 4}
+    if record.title:
+        payload["title"] = record.title
+    if record.kind:
+        payload["video"] = {"type": record.kind}
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_the_recorded_kind_puts_a_video_in_the_excerpts_band(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     whole = _video(videos, "big_batch/0 unsorted/whole.mp4")
-    _sidecar(metadata, whole, library_root, "Whole", kind="full_length")
+    _sidecar(metadata, whole, Sidecar("Whole", kind="full_length"))
     for index in range(2):
         carved = _video(videos, f"big_batch/0 unsorted/carved{index}.mp4")
-        _sidecar(metadata, carved, library_root, f"Carved {index}", kind="excerpt")
+        _sidecar(metadata, carved, Sidecar(f"Carved {index}", kind="excerpt"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -69,15 +65,14 @@ def test_the_recorded_kind_puts_a_video_in_the_excerpts_band(tmp_path: Path):
 
 def test_a_recorded_whole_video_stays_out_of_a_folder_full_of_cuts(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for index in range(3):
         carved = _video(videos, f"big_batch/cuts/0 unsorted/carved{index}.mp4")
-        _sidecar(metadata, carved, library_root, f"Carved {index}", kind="excerpt")
+        _sidecar(metadata, carved, Sidecar(f"Carved {index}", kind="excerpt"))
     for index in range(3):
         whole = _video(videos, f"big_batch/wholes/0 unsorted/whole{index}.mp4")
-        _sidecar(metadata, whole, library_root, f"Whole {index}", kind="full_length")
+        _sidecar(metadata, whole, Sidecar(f"Whole {index}", kind="full_length"))
     stray = _video(videos, "big_batch/cuts/0 unsorted/stray.mp4")
-    _sidecar(metadata, stray, library_root, "Stray", kind="full_length")
+    _sidecar(metadata, stray, Sidecar("Stray", kind="full_length"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -86,11 +81,10 @@ def test_a_recorded_whole_video_stays_out_of_a_folder_full_of_cuts(tmp_path: Pat
 
 def test_files_sharing_a_recorded_version_group_become_one_handle(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     trimmed = _video(videos, "1 could use work/3_trimmed/jane doe - scene one_trim.mp4")
     processed = _video(videos, "3_good_to_go/processed/jane doe - scene one_topaz.mp4")
     for video in (trimmed, processed):
-        _sidecar(metadata, video, library_root, "jane doe - scene one")
+        _sidecar(metadata, video, Sidecar("jane doe - scene one"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -100,14 +94,12 @@ def test_files_sharing_a_recorded_version_group_become_one_handle(tmp_path: Path
 
 def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     names = ("jane doe - example studio.mp4",
              "jane doe - example studio (2).mp4",
              "jane doe - example studio (2)_topaz.mp4",
              "jane doe - example studio (3).mp4")
     for name in names:
-        _sidecar(metadata, _video(videos, f"0 unsorted/{name}"), library_root,
-                 "jane doe - example studio")
+        _sidecar(metadata, _video(videos, f"0 unsorted/{name}"), Sidecar("jane doe - example studio"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -122,13 +114,12 @@ def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):
 
 def test_handles_are_alphabetical_regardless_of_case_or_folder(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for relative, group in (
         ("big_batch/0 unsorted/gamma.mp4", "Gamma Scene"),
         ("big_batch/1 could use work/beta.mp4", "Beta Scene"),
         ("big_batch/3_good_to_go/processed/alpha.mp4", "alpha scene"),
     ):
-        _sidecar(metadata, _video(videos, relative), library_root, group)
+        _sidecar(metadata, _video(videos, relative), Sidecar(group))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -137,11 +128,10 @@ def test_handles_are_alphabetical_regardless_of_case_or_folder(tmp_path: Path):
 
 def test_a_version_group_leads_with_its_largest_file(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     original = _video(videos, "0 unsorted/beta.mp4", size=2048)
     upscale = _video(videos, "3_good_to_go/processed/beta_upscaled.mp4", size=9000)
     for video in (original, upscale):
-        _sidecar(metadata, video, library_root, "Beta Scene")
+        _sidecar(metadata, video, Sidecar("Beta Scene"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -150,11 +140,10 @@ def test_a_version_group_leads_with_its_largest_file(tmp_path: Path):
 
 def test_the_version_order_reads_the_sizes_off_the_folders(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     original = _video(videos, "0 unsorted/beta.mp4", size=2048)
     upscale = _video(videos, "3_good_to_go/processed/beta_upscaled.mp4", size=9000)
     for video in (original, upscale):
-        _sidecar(metadata, video, library_root, "Beta Scene")
+        _sidecar(metadata, video, Sidecar("Beta Scene"))
 
     with files_that_never_answer(videos):
         handles = build_library_handles(str(videos), metadata)
@@ -175,11 +164,10 @@ def test_a_video_with_no_recorded_family_stands_alone_under_its_own_name(tmp_pat
 
 def test_a_handle_plays_its_largest_version_but_thumbnails_its_smallest(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     original = _video(videos, "0 unsorted/beta.mp4", size=2048)
     upscale = _video(videos, "3_good_to_go/processed/beta_upscaled.mp4", size=9000)
     for video in (original, upscale):
-        _sidecar(metadata, video, library_root, "Beta Scene")
+        _sidecar(metadata, video, Sidecar("Beta Scene"))
 
     handle = build_library_handles(str(videos), metadata)[0]
 
@@ -189,13 +177,12 @@ def test_a_handle_plays_its_largest_version_but_thumbnails_its_smallest(tmp_path
 
 def test_handles_are_sectioned_by_source_folder_biggest_first(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for relative, group in (
         ("small_batch/0 unsorted/alpha.mp4", "alpha scene"),
         ("big_batch/0 unsorted/gamma.mp4", "Gamma Scene"),
         ("big_batch/3_good_to_go/beta.mp4", "Beta Scene"),
     ):
-        _sidecar(metadata, _video(videos, relative), library_root, group)
+        _sidecar(metadata, _video(videos, relative), Sidecar(group))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -208,12 +195,11 @@ def test_handles_are_sectioned_by_source_folder_biggest_first(tmp_path: Path):
 
 def test_a_folder_that_never_divided_its_cuts_still_shows_full_and_clips(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     full = _video(videos, "big_batch/0 unsorted/beta.mp4")
-    _sidecar(metadata, full, library_root, "Beta Scene")
+    _sidecar(metadata, full, Sidecar("Beta Scene"))
     for index in range(2):
         clip = _video(videos, f"big_batch/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -226,14 +212,13 @@ def test_a_folder_that_never_divided_its_cuts_still_shows_full_and_clips(tmp_pat
 
 def test_a_folders_two_sections_stay_together_however_big_each_gets(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
-    _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"), library_root, "Beta Scene")
+    _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
     for index in range(4):
         clip = _video(videos, f"big_batch/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
     for index in range(2):
         other = _video(videos, f"small_batch/0 unsorted/scene{index}.mp4")
-        _sidecar(metadata, other, library_root, f"Scene {index}")
+        _sidecar(metadata, other, Sidecar(f"Scene {index}"))
 
     sections = [handle.section for handle in build_library_handles(str(videos), metadata)]
 
@@ -244,12 +229,10 @@ def test_a_folders_two_sections_stay_together_however_big_each_gets(tmp_path: Pa
 
 def test_a_band_is_named_after_the_folder_it_was_filed_into(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
-    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
-             library_root, "Beta Scene")
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
     for index in range(2):
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -262,9 +245,8 @@ def test_a_band_is_named_after_the_folder_it_was_filed_into(tmp_path: Path):
 
 def test_a_folder_that_was_never_split_keeps_its_own_name(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for relative in ("small_batch/0 unsorted/alpha.mp4", "small_batch/3_good_to_go/beta.mp4"):
-        _sidecar(metadata, _video(videos, relative), library_root, Path(relative).stem)
+        _sidecar(metadata, _video(videos, relative), Sidecar(Path(relative).stem))
 
     sections = {handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -273,14 +255,12 @@ def test_a_folder_that_was_never_split_keeps_its_own_name(tmp_path: Path):
 
 def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
-    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
-             library_root, "Beta Scene")
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
     for index in range(3):
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
     left = _video(videos, "big_batch/0 unsorted/excerpt_stuck.mp4")
-    _sidecar(metadata, left, library_root, "Excerpt Stuck", carved_from="Reel One")
+    _sidecar(metadata, left, Sidecar("Excerpt Stuck", carved_from="Reel One"))
 
     sections = {handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -289,14 +269,13 @@ def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
 
 def test_an_excerpt_filed_beside_its_scene_leaves_their_stage_folder_unnamed(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for index in range(3):
         unsorted = _video(videos, f"big_batch/0 unsorted/scene{index}.mp4")
-        _sidecar(metadata, unsorted, library_root, f"Scene {index}", kind="full_length")
+        _sidecar(metadata, unsorted, Sidecar(f"Scene {index}", kind="full_length"))
     scene = _video(videos, "big_batch/3_good_to_go/processed/beta.mp4")
-    _sidecar(metadata, scene, library_root, "Beta Scene", kind="full_length")
+    _sidecar(metadata, scene, Sidecar("Beta Scene", kind="full_length"))
     cut = _video(videos, "big_batch/3_good_to_go/processed/beta portrait.mp4")
-    _sidecar(metadata, cut, library_root, "Beta Portrait", kind="excerpt")
+    _sidecar(metadata, cut, Sidecar("Beta Portrait", kind="excerpt"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -308,14 +287,13 @@ def test_an_excerpt_filed_beside_its_scene_leaves_their_stage_folder_unnamed(tmp
 
 def test_an_excerpt_filed_beside_its_scene_never_makes_the_unrecorded_scene_a_cut(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for index in range(3):
         unsorted = _video(videos, f"big_batch/0 unsorted/scene{index}.mp4")
-        _sidecar(metadata, unsorted, library_root, f"Scene {index}", kind="full_length")
+        _sidecar(metadata, unsorted, Sidecar(f"Scene {index}", kind="full_length"))
     scene = _video(videos, "big_batch/3_good_to_go/processed/beta.mp4")
-    _sidecar(metadata, scene, library_root, "Beta Scene")
+    _sidecar(metadata, scene, Sidecar("Beta Scene"))
     cut = _video(videos, "big_batch/3_good_to_go/processed/beta portrait.mp4")
-    _sidecar(metadata, cut, library_root, "Beta Portrait", kind="excerpt")
+    _sidecar(metadata, cut, Sidecar("Beta Portrait", kind="excerpt"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -324,14 +302,13 @@ def test_an_excerpt_filed_beside_its_scene_never_makes_the_unrecorded_scene_a_cu
 
 def test_unrecorded_cuts_outnumbering_the_whole_videos_reclassify_nothing(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     recorded = _video(videos, "big_batch/cuts/0 unsorted/excerpt.mp4")
-    _sidecar(metadata, recorded, library_root, "Excerpt", kind="excerpt")
+    _sidecar(metadata, recorded, Sidecar("Excerpt", kind="excerpt"))
     for index in range(2):
         unrecorded = _video(videos, f"big_batch/cuts/0 unsorted/unrecorded{index}.mp4")
-        _sidecar(metadata, unrecorded, library_root, f"Unrecorded {index}")
+        _sidecar(metadata, unrecorded, Sidecar(f"Unrecorded {index}"))
     whole = _video(videos, "big_batch/whole/0 unsorted/beta.mp4")
-    _sidecar(metadata, whole, library_root, "Beta Scene", kind="full_length")
+    _sidecar(metadata, whole, Sidecar("Beta Scene", kind="full_length"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -344,14 +321,13 @@ def test_unrecorded_cuts_outnumbering_the_whole_videos_reclassify_nothing(tmp_pa
 
 def test_a_cut_with_no_record_still_goes_with_the_cuts_it_sits_among(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for index in range(3):
         whole = _video(videos, f"big_batch/whole/0 unsorted/scene{index}.mp4")
-        _sidecar(metadata, whole, library_root, f"Scene {index}")
+        _sidecar(metadata, whole, Sidecar(f"Scene {index}"))
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
     unrecorded = _video(videos, "big_batch/cuts/0 unsorted/excerpt_unrecorded.mp4")
-    _sidecar(metadata, unrecorded, library_root, "Excerpt Unrecorded")
+    _sidecar(metadata, unrecorded, Sidecar("Excerpt Unrecorded"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -368,13 +344,10 @@ def test_a_cut_with_no_record_still_goes_with_the_cuts_it_sits_among(tmp_path: P
 
 def test_a_folder_that_never_separated_its_cuts_reclassifies_nothing(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
-    _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"),
-             library_root, "Beta Scene")
+    _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
     recorded = _video(videos, "big_batch/0 unsorted/excerpt.mp4")
-    _sidecar(metadata, recorded, library_root, "Excerpt One", carved_from="Reel One")
-    _sidecar(metadata, _video(videos, "big_batch/3_good_to_go/gamma.mp4"),
-             library_root, "Gamma Scene")
+    _sidecar(metadata, recorded, Sidecar("Excerpt One", carved_from="Reel One"))
+    _sidecar(metadata, _video(videos, "big_batch/3_good_to_go/gamma.mp4"), Sidecar("Gamma Scene"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -387,14 +360,12 @@ def test_a_folder_that_never_separated_its_cuts_reclassifies_nothing(tmp_path: P
 
 def test_an_unrecorded_video_among_whole_ones_is_left_where_it_is(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for index in range(2):
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
-    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
-             library_root, "Beta Scene")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
     plain = _video(videos, "big_batch/whole/0 unsorted/gamma.mp4")
-    _sidecar(metadata, plain, library_root, "Gamma Scene")
+    _sidecar(metadata, plain, Sidecar("Gamma Scene"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -408,14 +379,12 @@ def test_an_unrecorded_video_among_whole_ones_is_left_where_it_is(tmp_path: Path
 
 def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     for index in range(2):
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
-        _sidecar(metadata, clip, library_root, f"Excerpt {index}", carved_from="Reel One")
-    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
-             library_root, "Beta Scene")
+        _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
+    _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
     elsewhere = _video(videos, "small_batch/cuts/gamma.mp4")
-    _sidecar(metadata, elsewhere, library_root, "Gamma Scene")
+    _sidecar(metadata, elsewhere, Sidecar("Gamma Scene"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -424,11 +393,10 @@ def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_p
 
 def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     excerpt = _video(videos, "big_batch/cuts/0 unsorted/beta_cut.mp4", size=64)
-    _sidecar(metadata, excerpt, library_root, "Beta Scene", carved_from="Reel One")
+    _sidecar(metadata, excerpt, Sidecar("Beta Scene", carved_from="Reel One"))
     whole = _video(videos, "big_batch/whole/3_good_to_go/beta.mp4", size=9000)
-    _sidecar(metadata, whole, library_root, "Beta Scene")
+    _sidecar(metadata, whole, Sidecar("Beta Scene"))
 
     handles = build_library_handles(str(videos), metadata)
 
@@ -440,13 +408,10 @@ def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Pat
 
 def test_a_tile_is_labelled_with_the_name_evolver_recorded(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     scene = _video(videos, "big_batch/0 unsorted/Jane-Doe_540-hQ2vLm8t.mp4", size=4096)
-    _sidecar(metadata, scene, library_root, "Jane-Doe_540-hQ2vLm8t", kind="full_length",
-             title="Jane Doe - Alpha Study 3")
+    _sidecar(metadata, scene, Sidecar("Jane-Doe_540-hQ2vLm8t", kind="full_length", title="Jane Doe - Alpha Study 3"))
     carved = _video(videos, "big_batch/cuts/Jane Doe - Alpha Study Part Two.mp4")
-    _sidecar(metadata, carved, library_root, "Jane Doe - Alpha Study Part Two",
-             kind="excerpt", title="Jane Doe - Alpha Study: Part Two")
+    _sidecar(metadata, carved, Sidecar("Jane Doe - Alpha Study Part Two", kind="excerpt", title="Jane Doe - Alpha Study: Part Two"))
 
     titles = sorted(handle.title for handle in build_library_handles(str(videos), metadata))
 
@@ -455,9 +420,8 @@ def test_a_tile_is_labelled_with_the_name_evolver_recorded(tmp_path: Path):
 
 def test_a_tile_evolver_has_not_named_falls_back_to_the_family_then_the_file(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    library_root = tmp_path / "videos" / "videos"
     grouped = _video(videos, "big_batch/3 good to go/Jane-Doe_540-hQ2vLm8t_apo8.mp4")
-    _sidecar(metadata, grouped, library_root, "Jane-Doe_540-hQ2vLm8t", kind="full_length")
+    _sidecar(metadata, grouped, Sidecar("Jane-Doe_540-hQ2vLm8t", kind="full_length"))
     _video(videos, "big_batch/0 unsorted/Ada-Roe-1.mp4")
 
     titles = sorted(handle.title for handle in build_library_handles(str(videos), metadata))

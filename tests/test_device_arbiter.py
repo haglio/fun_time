@@ -25,11 +25,11 @@ def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArb
     )
 
 
-def publish_satellite(tmp_path: Path, funestra: FunTimeFunestra, *, has_funscript=True, resting=False,
+def publish_satellite(tmp_path: Path, funestra: FunTimeFunestra, *, resting=False,
                  position_ms=10, touch_ms=None) -> None:
     (tmp_path / f"{funestra.label}_status.txt").write_text(
         f"video=C:\\clip.mp4\nposition_ms={position_ms}\n"
-        f"has_funscript={1 if has_funscript else 0}\n"
+        "has_funscript=1\n"
         f"funscript_resting={1 if resting else 0}\n"
         f"handoff_touch_ms={'' if touch_ms is None else touch_ms}\n",
         encoding="utf-8",
