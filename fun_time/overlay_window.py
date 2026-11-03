@@ -4,7 +4,7 @@ import contextlib
 import time
 import tkinter as tk
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -59,24 +59,29 @@ class _LabelCanvas:
         self._label.place_configure(x=x, y=y)
 
 
+@dataclass(frozen=True)
+class OverlaySurface:
+    root: tk.Tk
+    canvas: Canvas
+    title: str
+
+
 class OverlayWindow:
     def __init__(
         self,
         progress_file: Path,
-        root: tk.Tk,
-        canvas: Canvas,
+        surface: OverlaySurface,
         *,
         panel: LoadingPanel,
-        title: str,
         stale_timeout_s: float,
         taking_over: TakingOver,
     ) -> None:
         self._progress_file = progress_file
-        self._root = root
-        self._canvas = canvas
+        self._root = surface.root
+        self._canvas = surface.canvas
         self._taking_over = taking_over
         self._panel = replace(panel, fraction=taking_over.carried(0.0))
-        self._title = title
+        self._title = surface.title
         self._stale_timeout_s = stale_timeout_s
         self._unmoved_since = time.time()
         self._status_held = False
@@ -108,7 +113,7 @@ class OverlayWindow:
         canvas = _LabelCanvas(label)
 
         window = cls(
-            progress_file, root, canvas, panel=opening_panel(status), title=title,
+            progress_file, OverlaySurface(root, canvas, title), panel=opening_panel(status),
             stale_timeout_s=stale_timeout_s, taking_over=taking_over or TakingOver(None),
         )
         canvas.show(window.panel)

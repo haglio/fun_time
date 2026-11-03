@@ -23,7 +23,7 @@ from fun_time.overlay_progress import (
     parse_progress,
     startup_still_building,
 )
-from fun_time.overlay_window import POLL_MS, TOPMOST_POLL_MS, OverlayWindow
+from fun_time.overlay_window import POLL_MS, TOPMOST_POLL_MS, OverlaySurface, OverlayWindow
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 
 
@@ -88,10 +88,8 @@ def _loading_screen(tmp_path: Path, *, stale_timeout_s: float = 5.0,
            title: str = "Fun Time Loading", taking_over: TakingOver | None = None) -> OverlayWindow:
     return OverlayWindow(
         tmp_path / "progress.txt",
-        _FakeRoot(),
-        _FakeCanvas(),
+        OverlaySurface(_FakeRoot(), _FakeCanvas(), title),
         panel=LoadingPanel(wordmark="Fun Time", status="Starting..."),
-        title=title,
         stale_timeout_s=stale_timeout_s,
         taking_over=taking_over or TakingOver(None),
     )
