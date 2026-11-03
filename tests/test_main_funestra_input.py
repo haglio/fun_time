@@ -22,14 +22,14 @@ class SpyFunestra:
     def close_requested(self) -> None:
         self.calls.append(("close_requested",))
 
-    def press(self, x, y, *, window) -> None:
-        self.calls.append(("press", x, y, window))
+    def press(self, x, y, *, viewport) -> None:
+        self.calls.append(("press", x, y, viewport))
 
     def release(self) -> None:
         self.calls.append(("release",))
 
-    def motion(self, x, y, *, held, window) -> None:
-        self.calls.append(("motion", x, y, held, window))
+    def motion(self, x, y, *, held, viewport) -> None:
+        self.calls.append(("motion", x, y, held, viewport))
 
     def leave(self) -> None:
         self.calls.append(("leave",))

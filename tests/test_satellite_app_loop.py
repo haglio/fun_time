@@ -68,15 +68,15 @@ class _FakeFunestra:
     def stopped(self) -> bool:
         return self._passes_left <= 0
 
-    def tick(self, *, window) -> None:
-        self.ticks.append(window)
+    def tick(self, *, viewport) -> None:
+        self.ticks.append(viewport)
         self._passes_left -= 1
 
-    def press(self, x, y, *, window) -> None:
-        self.presses.append((x, y, window))
+    def press(self, x, y, *, viewport) -> None:
+        self.presses.append((x, y, viewport))
 
-    def motion(self, x, y, *, held, window) -> None:
-        self.motions.append((x, y, held, window))
+    def motion(self, x, y, *, held, viewport) -> None:
+        self.motions.append((x, y, held, viewport))
 
     def close_requested(self) -> None:
         self.closes_requested += 1

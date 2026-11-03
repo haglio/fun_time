@@ -58,7 +58,7 @@ def run_until_stopped(funestra, *, window_size, events, deal, pace) -> None:
         # landed in; the sequencer can move this one between passes.
         window = window_size()
         deal(events(), window)
-        funestra.tick(window=window)
+        funestra.tick(viewport=window)
         pace()
     funestra.close()
 

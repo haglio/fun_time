@@ -29,11 +29,11 @@ class _Spy:
         self.happened.append(("events",))
         return BATCH
 
-    def deal(self, events, window) -> None:
-        self.happened.append(("dealt", events, window))
+    def deal(self, events, viewport) -> None:
+        self.happened.append(("dealt", events, viewport))
 
-    def tick(self, *, window) -> None:
-        self.happened.append(("ticked", window))
+    def tick(self, *, viewport) -> None:
+        self.happened.append(("ticked", viewport))
         self._passes_left -= 1
 
     def pace(self) -> None:
@@ -87,7 +87,7 @@ def test_a_close_asked_of_a_real_funestra_ends_the_loop_and_closes_its_engine(tm
     funestra, engine = _a_funestra(tmp_path)
 
     run_until_stopped(funestra, window_size=lambda: WINDOW, events=lambda: BATCH,
-                      deal=lambda _events, _window: funestra.close_requested(), pace=lambda: None)
+                      deal=lambda _events, _viewport: funestra.close_requested(), pace=lambda: None)
 
     assert (funestra.stopped, engine.closed) == (True, True)
 

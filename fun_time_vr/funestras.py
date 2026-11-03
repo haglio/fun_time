@@ -195,7 +195,7 @@ from .wraps import Wrap, angle_limits, immersive_wrap
 logger = logging.getLogger(__name__)
 
 # Overlay ids shared with the desktop satellite (10 is its lock HUD).
-_OV_NOTICE_MESSAGE = 13
+_OV_MESSAGE = 13
 
 
 # Longest texture side each video gets: near-native for the Main Funestra, and for
@@ -333,7 +333,7 @@ class _VideoUnit:
             scene_yaw_deg=scene_yaw_deg, scene_pitch_deg=scene_pitch_deg,
         )
 
-    def _window(self) -> tuple[int, int]:
+    def _viewport(self) -> tuple[int, int]:
         """The frame's own pixels, which is the window the Funestra places
         its HUD in; the HUD hangs beside the item, so only the
         placing's arithmetic sees these numbers."""
@@ -360,9 +360,9 @@ class _VideoUnit:
         at = self.hud.in_the_window(*surface_pixel(event.u, event.v, size))
         if event.kind == PRESS:
             self._held = True
-            self.funestra.press(*at, window=self._window())
+            self.funestra.press(*at, viewport=self._viewport())
         elif event.kind == DRAG:
-            self.funestra.motion(*at, held=True, window=self._window())
+            self.funestra.motion(*at, held=True, viewport=self._viewport())
         else:
             self._held = False
             self.funestra.release()
@@ -378,7 +378,7 @@ class _VideoUnit:
         at = OFF_THE_HUD
         if hovered is not None and hovered[0] == hud_screen and size is not None:
             at = self.hud.in_the_window(*surface_pixel(*hovered[1], size))
-        self.funestra.motion(*at, held=False, window=self._window())
+        self.funestra.motion(*at, held=False, viewport=self._viewport())
 
     def _post(self, command: str) -> None:
         append_command(self._dashboard_cmd_file, command)
@@ -394,13 +394,13 @@ class _VideoUnit:
             return
         self._message_shown = shown
         if shown is None:
-            self.engine.remove_overlay(_OV_NOTICE_MESSAGE)
+            self.engine.remove_overlay(_OV_MESSAGE)
             return
         placed = message_bgra(flashed.message, flashed.level, width=width, height=height)
         if placed is None:
             return
         x, y, bgra = placed
-        self.engine.overlay(_OV_NOTICE_MESSAGE, x, y, bgra)
+        self.engine.overlay(_OV_MESSAGE, x, y, bgra)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """One turn of the file-channel worker — what every unit owes it."""
@@ -611,7 +611,7 @@ class _MainUnit(_VideoUnit):
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self._take_presses()
-        self.funestra.tick(window=self._window())
+        self.funestra.tick(viewport=self._viewport())
         self.verbs.tick(now)
         if self.funestra.stopped:
             stop.set()
@@ -783,7 +783,7 @@ class _SatelliteUnit(_VideoUnit):
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self._take_presses()
-        self.funestra.tick(window=self._window())
+        self.funestra.tick(viewport=self._viewport())
         if self._messages is not None:
             self.overlay_message(self._messages.flashed(self.screen_name))
 
