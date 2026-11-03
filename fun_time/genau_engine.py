@@ -77,37 +77,51 @@ class GenauEngine:
         self.driver.close()
 
 
+@dataclass(frozen=True)
+class FlickLibrary:
+    flicks: list[Path]
+    start_flick: Path | None = None
+    metadata_root: Path | None = None
+
+
+@dataclass(frozen=True)
+class GenauHost:
+    notifier: object
+    tcode_sink: object
+    blit_frame: Callable[[object, Path | None], None]
+    set_loading_text: Callable[[str | None], None]
+    rescan: Rescan
+    condemned_to: Callable[[Path], Path]
+    narrow: Narrow | None = None
+    say_no_other_flicks: Callable[[], None] = lambda: None
+    say: Callable[[str], None] = lambda _words: None
+    set_volume: Callable[[int, bool], None] | None = None
+
+
+@dataclass(frozen=True)
+class EngineSeams:
+    stop_event: threading.Event | None = None
+    decode: Callable[[Path], list] = load_flick_frames
+    start_thread: Callable = start_daemon_thread
+    clock: Callable[[], float] = time.monotonic
+    log: logging.Logger = logger
+
+
 def build_genau_engine(
-    *,
-    flicks: list[Path],
     settings,
-    command_file: Path,
-    paused_file: Path,
-    status_file: Path | None,
-    drive_file: Path,
-    notifier,
-    tcode_sink,
-    blit_frame: Callable[[object, Path | None], None],
-    set_loading_text: Callable[[str | None], None],
-    rescan: Rescan,
-    condemned_to: Callable[[Path], Path],
-    narrow: Narrow | None = None,
-    say_no_other_flicks: Callable[[], None] = lambda: None,
-    say: Callable[[str], None] = lambda _words: None,
-    set_volume: Callable[[int, bool], None] | None = None,
-    stop_event: threading.Event | None = None,
-    start_flick: Path | None = None,
-    metadata_root: Path | None = None,
-    decode: Callable[[Path], list] = load_flick_frames,
-    start_thread=start_daemon_thread,
-    clock: Callable[[], float] = time.monotonic,
-    log: logging.Logger = logger,
+    channels,
+    library: FlickLibrary,
+    host: GenauHost,
+    seams: EngineSeams | None = None,
 ) -> GenauEngine:
-    sequence = FlickSequenceController(flicks, start_at=start_flick)
+    seams = seams or EngineSeams()
+    stop_event, decode, start_thread, clock, log = (
+        seams.stop_event, seams.decode, seams.start_thread, seams.clock, seams.log)
+    sequence = FlickSequenceController(library.flicks, start_at=library.start_flick)
     flick_store = FlickCacheStore(limit=settings.flick_cache_size)
     renderer = FlickRenderController(
         flick_store=flick_store,
-        blit_frame=lambda frame: blit_frame(frame, renderer.current_flick_path))
+        blit_frame=lambda frame: host.blit_frame(frame, renderer.current_flick_path))
     loader = FlickLoadController(
         flick_store=flick_store,
         load_state=DecodeRequestState(),
@@ -123,12 +137,12 @@ def build_genau_engine(
         flick_store=flick_store,
         loader=loader,
         renderer=renderer,
-        notifier=notifier,
-        condemn_flick=lambda flick: _condemn(flick, condemned_to(flick), log, start_thread),
+        notifier=host.notifier,
+        condemn_flick=lambda flick: _condemn(flick, host.condemned_to(flick), log, start_thread),
     )
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     learned = LearnedMotionState(model=load_default_model())
-    driver = RobotHandTCodeDriver(tcode_sink, robot_hand=robot_hand, learned=learned)
+    driver = RobotHandTCodeDriver(host.tcode_sink, robot_hand=robot_hand, learned=learned)
     broker = BrokerFeed()
     start_thread(
         target=udp_reader,
@@ -145,43 +159,43 @@ def build_genau_engine(
         flick_advance_state=FlickAdvanceState(),
         stop_event=stop_event,
         hud=Flag(),
-        set_volume=set_volume,
-        reorder_flicks=lambda recent: _reorder(selection, rescan, recent, log),
-        keep_shapes=None if narrow is None else (
+        set_volume=host.set_volume,
+        reorder_flicks=lambda recent: _reorder(selection, host.rescan, recent, log),
+        keep_shapes=None if host.narrow is None else (
             lambda plays_vr, plays_flat: narrow_to(
-                lambda: narrow(plays_vr, plays_flat),
+                lambda: host.narrow(plays_vr, plays_flat),
                 says=PROJECTION.flash((plays_flat, plays_vr)))),
         play_file=selection.play,
-        flick_flip=FlickFlip(metadata_root),
+        flick_flip=FlickFlip(library.metadata_root),
     )
     controller = GenauRefreshController(
         controls=controls,
         broker=broker,
         loader=loader,
-        notifier=notifier,
+        notifier=host.notifier,
         renderer=renderer,
         selection=selection,
-        command_file=Path(command_file),
-        paused_file=Path(paused_file),
+        command_file=Path(channels.command),
+        paused_file=Path(channels.paused),
         beats_per_loop=settings.beats_per_loop,
         bpm_smoothing=settings.bpm_smoothing,
         sync_strength=settings.sync_strength,
-        set_loading_text=set_loading_text,
+        set_loading_text=host.set_loading_text,
         logger=log,
         now_source=clock,
         read_paused_state=read_paused_state,
         tcode_sender=driver,
-        status_file=status_file,
-        drive_file=Path(drive_file),
+        status_file=channels.status,
+        drive_file=Path(channels.drive),
     )
 
     def holding_what_is_on_screen() -> None:
         apply_runtime_command(LOCK_ON, controls)
-        say_no_other_flicks()
+        host.say_no_other_flicks()
 
     def narrow_to(scan: Callable[[], list[Path]], *, says: str = "") -> None:
         _narrow(selection, scan, log, nothing_left=holding_what_is_on_screen,
-                kept=lambda: say(says) if says else None)
+                kept=lambda: host.say(says) if says else None)
 
     selection.set_current_flick(selection.current_path)
     return GenauEngine(controls=controls, controller=controller, renderer=renderer,
