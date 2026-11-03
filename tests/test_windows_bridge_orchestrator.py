@@ -8,7 +8,8 @@ import re
 import subprocess
 import threading
 import time
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 from functools import partial
 from itertools import count
 from pathlib import Path
@@ -1175,7 +1176,7 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
-            _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
+            _run_a_session(cfg_factory, tmp_path, SessionRun(crossing=VR))
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
@@ -1191,8 +1192,7 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window"):
-            _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                           at_loading_screen_up=esc)
+            _run_a_session(cfg_factory, tmp_path, SessionRun(asked_to_end=True, at_loading_screen_up=esc))
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
@@ -1216,9 +1216,7 @@ class TestKeepingTheHostedApp:
                    side_effect=then_the_quit_chord), \
              patch("fun_time.windows_bridge_orchestrator."
                    "let_go_of_a_kept_origenerator") as closed:
-            state_dir = _run_a_session(
-                cfg_factory, tmp_path, events=[], asked_to_end=True,
-                at_loading_screen_up=lambda: flag.write_text("cancel\n", encoding="utf-8"))
+            state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(asked_to_end=True, at_loading_screen_up=lambda: flag.write_text("cancel\n", encoding="utf-8")))
 
         assert closed.call_count == 1
         assert closed.call_args.args[0] == state_dir
@@ -1253,8 +1251,7 @@ class TestKeepingTheHostedApp:
         self, cfg_factory, tmp_path,
     ):
         events: list[str] = []
-        _run_a_session(cfg_factory, tmp_path, events=events,
-                       result=replace(_fake_startup_result(), origenerator_taken_over=True))
+        _run_a_session(cfg_factory, tmp_path, SessionRun(events=events, result=replace(_fake_startup_result(), origenerator_taken_over=True)))
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
@@ -1350,13 +1347,25 @@ class TestKeepingTheHostedApp:
         assert kept_origenerator(tmp_path) is None
 
 
-def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
-                   env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
-                   at_loading_screen_up=lambda: None, asked_to_end: bool = False,
-                   overrides: dict | None = None,
-                   launches: dict[str, dict] | None = None,
-                   result: StartupResult | None = None,
-                   while_ending=lambda pid: None):
+@dataclass(frozen=True)
+class SessionRun:
+    events: list[str] = field(default_factory=list)
+    ready: bool = True
+    env: SessionEnvironment = ORDINARY_SESSION
+    crossing: object = None
+    at_loading_screen_up: Callable = lambda: None
+    asked_to_end: bool = False
+    overrides: dict | None = None
+    launches: dict[str, dict] | None = None
+    result: StartupResult | None = None
+    while_ending: Callable = lambda pid: None
+
+
+def _run_a_session(cfg_factory, tmp_path, run: SessionRun | None = None):
+    run = run or SessionRun()
+    events, ready, env, crossing = run.events, run.ready, run.env, run.crossing
+    at_loading_screen_up, asked_to_end, overrides = run.at_loading_screen_up, run.asked_to_end, run.overrides
+    launches, result, while_ending = run.launches, run.result, run.while_ending
     cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1422,7 +1431,7 @@ class TestClosingScreenLifecycle:
     def test_the_closing_screen_goes_the_moment_the_fun_time_that_raised_it_does(
             self, cfg_factory, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.tie_to_this_process") as tie:
-            _run_a_session(cfg_factory, tmp_path, events=[])
+            _run_a_session(cfg_factory, tmp_path)
 
         assert tie.call_count == 1
 
@@ -1434,20 +1443,20 @@ class TestClosingScreenLifecycle:
             seen_at_launch.append(
                 (tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8"))
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=read_the_line)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(at_loading_screen_up=read_the_line))
 
         assert parse_progress(seen_at_launch[0]).message == SHUTDOWN_PHASES[0].message
 
     def test_the_screen_a_crossing_leaves_standing_goes_on_without_it(self, cfg_factory, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.tie_to_this_process") as tie:
-            _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
+            _run_a_session(cfg_factory, tmp_path, SessionRun(crossing=VR))
 
         tie.assert_not_called()
 
     def test_the_loading_screen_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
         events: list[str] = []
 
-        _run_a_session(cfg_factory, tmp_path, events=events)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
         assert events[0] == "loading_screen_up"
         assert set(events[1:]) == {
@@ -1468,7 +1477,7 @@ class TestClosingScreenLifecycle:
                 paused_at_loading_screen_up[flag.name] = (
                     flag.read_text(encoding="utf-8").strip() if flag.exists() else "unwritten")
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=read_the_sound_flags)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(at_loading_screen_up=read_the_sound_flags))
 
         assert paused_at_loading_screen_up == {
             "main_player_paused.txt": "1",
@@ -1492,8 +1501,7 @@ class TestClosingScreenLifecycle:
                          if Path(channel).exists() else ["unwritten"])
                 last_word_at_loading_screen_up[name] = lines[-1].strip()
 
-        _run_a_session(cfg_factory, tmp_path, events=[], crossing=crossing,
-                       at_loading_screen_up=read_the_device_channels)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(crossing=crossing, at_loading_screen_up=read_the_device_channels))
 
         assert last_word_at_loading_screen_up == {"genau": "PAUSE", "broker": "PARK"}
 
@@ -1510,7 +1518,7 @@ class TestClosingScreenLifecycle:
             broker_at_loading_screen_up.append(
                 Path(commands.broker_cmd_file).read_text(encoding="utf-8").strip())
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=read_the_broker_channel)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(at_loading_screen_up=read_the_broker_channel))
 
         assert broker_at_loading_screen_up == ["RETRACT"]
 
@@ -1525,7 +1533,7 @@ class TestClosingScreenLifecycle:
             genau_under_the_loading_screen.append(
                 Path(commands.genau_cmd_file).read_text(encoding="utf-8").splitlines()[-1])
 
-        _run_a_session(cfg_factory, tmp_path, events=[], at_loading_screen_up=let_five_dispatch_ticks_pass)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(at_loading_screen_up=let_five_dispatch_ticks_pass))
 
         assert genau_under_the_loading_screen == ["PAUSE"]
 
@@ -1572,7 +1580,7 @@ class TestClosingScreenLifecycle:
 
         with patch.object(windows_bridge_orchestrator, "_wait_for_closing_screen",
                           side_effect=recording_wait):
-            _run_a_session(cfg_factory, tmp_path, events=events)
+            _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
         assert seen_when_killing == [True]
 
@@ -1592,7 +1600,7 @@ class TestClosingScreenLifecycle:
 
         with patch.object(PhaseProgress, "advance", spy_advance), \
              patch.object(PhaseProgress, "finish", spy_finish):
-            state_dir = _run_a_session(cfg_factory, tmp_path, events=events)
+            state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
         assert events[-1] == "done"
         assert events.index("advance:browser") < events.index("close_browser")
@@ -1611,8 +1619,7 @@ class TestClosingScreenLifecycle:
                     tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME,
                     stale_after_s=closing_screen.STALE_TIMEOUT_S))
 
-        _run_a_session(cfg_factory, tmp_path, events=[],
-                       while_ending=the_main_funestra_takes_its_time)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(while_ending=the_main_funestra_takes_its_time))
 
         assert heard == [True]
 
@@ -1627,7 +1634,7 @@ class TestClosingScreenLifecycle:
 
         with patch("fun_time.windows_bridge_orchestrator.stop_hotkey_script",
                    side_effect=a_hotkey_script_that_will_not_go):
-            _run_a_session(cfg_factory, tmp_path, events=[])
+            _run_a_session(cfg_factory, tmp_path)
 
         assert heard == [False]
 
@@ -1636,7 +1643,7 @@ class TestClosingScreenLifecycle:
     ):
         events: list[str] = []
 
-        state_dir = _run_a_session(cfg_factory, tmp_path, events=events, crossing=VR)
+        state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(events=events, crossing=VR))
 
         assert events[0] == "loading_screen_up"
         progress = crossing_progress_path(state_dir)
@@ -1645,7 +1652,7 @@ class TestClosingScreenLifecycle:
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_a_crossing_leaves_the_hotkey_script_listening_for_esc(self, cfg_factory, tmp_path):
-        state_dir = _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
+        state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(crossing=VR))
 
         mailbox = state_dir / "ahk_cmd.txt"
         assert not (mailbox.exists() and mailbox.read_text(encoding="utf-8") == "exit")
@@ -1653,7 +1660,7 @@ class TestClosingScreenLifecycle:
     def test_an_ordinary_quit_still_takes_its_own_loading_screen_down(self, cfg_factory, tmp_path):
         events: list[str] = []
 
-        state_dir = _run_a_session(cfg_factory, tmp_path, events=events)
+        state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
         assert not crossing_progress_path(state_dir).exists()
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
@@ -1665,8 +1672,7 @@ class TestClosingScreenLifecycle:
             said.append(parse_progress((tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME)
                                        .read_text(encoding="utf-8")).hint)
 
-        _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                       at_loading_screen_up=read_the_closing_line)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(asked_to_end=True, at_loading_screen_up=read_the_closing_line))
 
         assert said == ["Press Esc to cancel closing Fun Time"]
 
@@ -1676,8 +1682,7 @@ class TestClosingScreenLifecycle:
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        state_dir = _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                                   at_loading_screen_up=esc)
+        state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(asked_to_end=True, at_loading_screen_up=esc))
 
         taken = take_handoff_request(state_dir)
         assert taken is not None, "Esc let the quit go on"
@@ -1689,16 +1694,14 @@ class TestClosingScreenLifecycle:
         def esc_then_the_quit_chord():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\nquit\n", encoding="utf-8")
 
-        state_dir = _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
-                                   at_loading_screen_up=esc_then_the_quit_chord)
+        state_dir = _run_a_session(cfg_factory, tmp_path, SessionRun(asked_to_end=True, at_loading_screen_up=esc_then_the_quit_chord))
 
         assert pending_handoff(state_dir) is None
 
     def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path):
         events: list[str] = []
 
-        _run_a_session(cfg_factory, tmp_path, events=events,
-                       env=SessionEnvironment(integration=True, show_overlays=False))
+        _run_a_session(cfg_factory, tmp_path, SessionRun(events=events, env=SessionEnvironment(integration=True, show_overlays=False)))
 
         assert "loading_screen_up" not in events
 
@@ -1710,9 +1713,7 @@ class TestClosingScreenLifecycle:
         sibling.mkdir()
         launches: dict[str, dict] = {}
 
-        _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
-                       crossing=VR if loading_screen == "transition_screen" else None,
-                       overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
+        _run_a_session(cfg_factory, tmp_path, SessionRun(launches=launches, crossing=VR if loading_screen == "transition_screen" else None, overrides={"paths": {"sibling_checkouts": [str(sibling)]}}))
 
         (launched,) = [kwargs for command, kwargs in launches.items() if loading_screen in command]
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
@@ -1721,8 +1722,7 @@ class TestClosingScreenLifecycle:
     def test_no_loading_screen_opens_a_main_hud_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
         launches: dict[str, dict] = {}
 
-        _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
-                       crossing=VR if loading_screen == "transition_screen" else None)
+        _run_a_session(cfg_factory, tmp_path, SessionRun(launches=launches, crossing=VR if loading_screen == "transition_screen" else None))
 
         (launched,) = [kwargs for command, kwargs in launches.items() if loading_screen in command]
         assert launched["creationflags"] & subprocess.CREATE_NO_WINDOW
@@ -1736,9 +1736,7 @@ class TestClosingScreenLifecycle:
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True, at_loading_screen_up=esc,
-                       launches=launches,
-                       overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
+        _run_a_session(cfg_factory, tmp_path, SessionRun(asked_to_end=True, at_loading_screen_up=esc, launches=launches, overrides={"paths": {"sibling_checkouts": [str(sibling)]}}))
 
         (way_back,) = [kwargs for command, kwargs in launches.items()
                        if "transition_screen" in command]
@@ -1842,9 +1840,8 @@ class TestAClosingScreenStarvedOfProcessor:
         assert screen.killed
 
 
-def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None, before=None,
-                                      overrides=None):
-    cfg = load_config(cfg_factory(overrides))
+def _cancel_a_launch_arriving_from_vr(config_path, tmp_path, *, word, popen=None, before=None):
+    cfg = load_config(config_path)
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
@@ -2038,7 +2035,7 @@ class TestStartupCancellation:
     def test_esc_on_a_launch_arriving_from_vr_goes_back_into_vr_offering_no_esc(
         self, cfg_factory, tmp_path,
     ):
-        state_dir = _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, word="cancel")
+        state_dir = _cancel_a_launch_arriving_from_vr(cfg_factory(), tmp_path, word="cancel")
 
         taken = take_handoff_request(state_dir)
         assert taken is not None, "Esc closed the app instead of going back into VR"
@@ -2060,7 +2057,7 @@ class TestStartupCancellation:
 
         with patch.object(PhaseProgress, "finish", finished):
             state_dir = _cancel_a_launch_arriving_from_vr(
-                cfg_factory, tmp_path, word="cancel", popen=launched)
+                cfg_factory(), tmp_path, word="cancel", popen=launched)
 
         assert "way back screen" in events, "the monitors were left bare"
         assert events.index("way back screen") < events.index("loading screen down")
@@ -2079,8 +2076,8 @@ class TestStartupCancellation:
             return MagicMock()
 
         _cancel_a_launch_arriving_from_vr(
-            cfg_factory, tmp_path, word="cancel", popen=launched,
-            overrides={"paths": {"sibling_checkouts": [str(sibling)]}})
+            cfg_factory({"paths": {"sibling_checkouts": [str(sibling)]}}), tmp_path,
+            word="cancel", popen=launched)
 
         (way_back,) = [kwargs for command, kwargs in launches.items()
                        if "transition_screen" in command]
@@ -2090,7 +2087,7 @@ class TestStartupCancellation:
         self, cfg_factory, tmp_path,
     ):
         state_dir = _cancel_a_launch_arriving_from_vr(
-            cfg_factory, tmp_path, word="quit",
+            cfg_factory(), tmp_path, word="quit",
             before=lambda state_dir: hold_the_headset(state_dir, stop_runtime=True))
 
         assert not headset_hold_asked(state_dir)
@@ -3114,10 +3111,17 @@ class _RunsAtOnce:
         self._target()
 
 
+@dataclass(frozen=True)
+class Hosting:
+    vocabulary: HostedVocabulary = NO_HOSTED_VOCABULARY
+    said_at_suffix: str = ""
+
+
 class TestStartingVoice:
     @staticmethod
     def _prepared(config_path, tmp_path, *, controller=None, verifying_listener=None,
-                  hosted=NO_HOSTED_VOCABULARY, said_at_suffix=""):
+                  hosting=None):
+        hosting = hosting or Hosting()
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
                           return_value=verifying_listener or MagicMock()), \
@@ -3127,8 +3131,8 @@ class TestStartingVoice:
             return windows_bridge_orchestrator.prepare_voice_control(
                 str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
                 hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
-                hosted_said_at_suffix=said_at_suffix,
-                ask_the_hosted_app=lambda: hosted)
+                hosted_said_at_suffix=hosting.said_at_suffix,
+                ask_the_hosted_app=lambda: hosting.vocabulary)
 
     @classmethod
     def _started(cls, config_path, tmp_path, *, mic_muted=False, runner=None, **preparing):
@@ -3164,8 +3168,8 @@ class TestStartingVoice:
         controller, runner = MagicMock(), MagicMock()
         hosted = HostedVocabulary(frozenset({"fix alpha"}), frozenset({"request"}), "")
 
-        self._started(config_path, tmp_path, controller=controller, hosted=hosted,
-                      runner=runner)
+        self._started(config_path, tmp_path, controller=controller,
+                      hosting=Hosting(hosted), runner=runner)
 
         assert controller.call_args.kwargs["hosted"] == hosted
         assert controller.call_args.kwargs["hosted_cmd_file"] == tmp_path / "origenerator_cmd.txt"
@@ -3177,7 +3181,7 @@ class TestStartingVoice:
         controller = MagicMock()
 
         self._prepared(config_path, tmp_path, controller=controller,
-                       said_at_suffix=" @{said_at_epoch_seconds}")
+                       hosting=Hosting(said_at_suffix=" @{said_at_epoch_seconds}"))
 
         assert controller.call_args.kwargs["hosted_said_at_suffix"] == " @{said_at_epoch_seconds}"
 

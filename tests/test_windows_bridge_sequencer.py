@@ -3,6 +3,7 @@ from __future__ import annotations
 import configparser
 import contextlib
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar
@@ -1101,6 +1102,13 @@ class TestWaitForMainFunestraLoaded:
         slept.assert_not_called()
 
 
+@dataclass(frozen=True)
+class Offer:
+    created_at: int | None = None
+    starting: bool = False
+    showing_on: str | None = None
+
+
 class TestOrigeneratorLaunch:
     def test_a_configured_origenerator_launches_with_the_layout(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({"paths": {
@@ -1183,21 +1191,21 @@ class TestOrigeneratorLaunch:
         launch.assert_not_called()
         assert result.origenerator_pid == 0
 
-    def _checkout_with_an_open_app(self, cfg_factory, tmp_path, *, created_at=None,
-                                   starting=False, showing_on=None, hosting=None):
+    def _checkout_with_an_open_app(self, cfg_factory, tmp_path, offer=None, *, hosting=None):
+        offer = offer or Offer()
         checkout = tmp_path / "origenerator"
         cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(hosting or checkout)}}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         open_app = os.getpid()
-        offered = handoff.Process(open_app, created_at or process_started(open_app))
+        offered = handoff.Process(open_app, offer.created_at or process_started(open_app))
         (checkout / "state").mkdir(parents=True)
         (checkout / "state" / handoff.OFFER).write_text(
-            f"{handoff.offer_of(offered, starting=starting)}\n", encoding="utf-8")
-        if showing_on:
+            f"{handoff.offer_of(offered, starting=offer.starting)}\n", encoding="utf-8")
+        if offer.showing_on:
             (checkout / "state" / handoff.SHOWING).write_text(
-                handoff.slideshow_mark_of(offered, showing_on), encoding="utf-8")
+                handoff.slideshow_mark_of(offered, offer.showing_on), encoding="utf-8")
         return cfg, manifest_path, checkout, open_app
 
     @contextlib.contextmanager
@@ -1215,7 +1223,7 @@ class TestOrigeneratorLaunch:
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
-            cfg_factory, tmp_path, starting=True)
+            cfg_factory, tmp_path, Offer(starting=True))
 
         with _sequencer_stubs(launch_origenerator={}) as stubs, \
                 self._answering() as handed:
@@ -1245,7 +1253,7 @@ class TestOrigeneratorLaunch:
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
-            cfg_factory, tmp_path, starting=True)
+            cfg_factory, tmp_path, Offer(starting=True))
 
         with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
@@ -1257,7 +1265,7 @@ class TestOrigeneratorLaunch:
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
-            cfg_factory, tmp_path, starting=True)
+            cfg_factory, tmp_path, Offer(starting=True))
 
         with _sequencer_stubs(launch_origenerator={}), self._answering(), \
              pytest.raises(StartupCancelled) as excinfo:
@@ -1387,7 +1395,7 @@ class TestOrigeneratorLaunch:
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
-            cfg_factory, tmp_path, showing_on="landscape")
+            cfg_factory, tmp_path, Offer(showing_on="landscape"))
 
         with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
@@ -1438,7 +1446,7 @@ class TestOrigeneratorLaunch:
 
     def test_an_offer_left_by_an_app_since_closed_launches_one(self, cfg_factory, tmp_path):
         _cfg, manifest_path, checkout, _open_app = self._checkout_with_an_open_app(
-            cfg_factory, tmp_path, created_at=1)
+            cfg_factory, tmp_path, Offer(created_at=1))
 
         with _sequencer_stubs(launch_origenerator={"side_effect": _fake_origenerator}) as stubs:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
