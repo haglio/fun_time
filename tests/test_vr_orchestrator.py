@@ -12,6 +12,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -523,9 +524,11 @@ class TestStockingThePlaylists:
             write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini"))
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
+        launch = SimpleNamespace(
+            manifest=manifest, state_dir=state,
+            bridge_config=SimpleNamespace(regen_metadata_root=tmp_path / "metadata"))
         return stock_the_playlists(
-            manifest, state_dir=state, metadata_root=tmp_path / "metadata", resumed=resumed,
-            carried=carried or BridgeState(), main_video=main_video)
+            launch, resumed=resumed, carried=carried or BridgeState(), main_video=main_video)
 
     @staticmethod
     def _main_list(tmp_path) -> list[str]:
@@ -1095,12 +1098,13 @@ class TestCancellingALaunch:
             "quit\n" if cancelling.by_quit_chord else "cancel\n", encoding="utf-8")
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
 
-        code = orchestrator._cancel_vr_startup(
-            state_dir=tmp_path, children=children, ahk_proc=None,
-            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-            taken_over=False, loading_screen=loading_screen, runtime_was_up=True,
-        )
+        launch = SimpleNamespace(
+            state_dir=tmp_path, ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            loading_screen=loading_screen,
+            commands=SimpleNamespace(origenerator_cmd_file=str(tmp_path / "origenerator_cmd.txt")))
+        launched = orchestrator._Launched(
+            children=children, hosted=SimpleNamespace(taken_over=False))
+        code = orchestrator._cancel_vr_startup(launch, launched, None)
         return code, order, loading_screen
 
     def test_esc_on_a_launch_nobody_crossed_into_closes_it(self, tmp_path, monkeypatch):
