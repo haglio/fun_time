@@ -268,14 +268,14 @@ def _wait_for_the_room(
 
 
 def stock_the_playlists(
-    manifest,
+    launch: _Launch,
     *,
-    state_dir: Path,
-    metadata_root: Path,
     resumed: bool,
     carried: BridgeState,
     main_video: str = "",
 ) -> BridgeState:
+    manifest, state_dir = launch.manifest, launch.state_dir
+    metadata_root = launch.bridge_config.regen_metadata_root
     if not resumed:
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
@@ -325,16 +325,11 @@ class _LoadingScreen:
 
 
 def _take_down_the_launch(
-    *,
-    state_dir: Path,
-    children: dict[str, ChildProcess],
-    ahk_proc: subprocess.Popen,
-    ahk_cmd_file: Path,
-    loading_screen: _LoadingScreen,
-    runtime_was_up: bool,
+    launch: _Launch, launched: _Launched, ahk_proc: subprocess.Popen,
 ) -> None:
-    say_the_crossing_is_cancelled(state_dir)
-    stop_hotkey_script(ahk_proc, ahk_cmd_file)
+    children, loading_screen = launched.children, launch.loading_screen
+    say_the_crossing_is_cancelled(launch.state_dir)
+    stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
     funestra = children.get("vr_funestras_pid")
     with loading_screen.progress.loading_screen_kept_up():
         for key, child in children.items():
@@ -342,32 +337,24 @@ def _take_down_the_launch(
                 kill_recorded_child(child)
         if funestra is not None:
             kill_recorded_child(funestra)
-    _release_vr_runtime(runtime_was_up, state_dir)
+    _release_vr_runtime(launched.runtime_was_up, launch.state_dir)
     loading_screen.clear()
 
 
 def _cancel_vr_startup(
-    *,
-    state_dir: Path,
-    origenerator_cmd_file: Path,
-    taken_over: bool,
-    children: dict[str, ChildProcess],
-    ahk_proc: subprocess.Popen,
-    ahk_cmd_file: Path,
-    loading_screen: _LoadingScreen,
-    runtime_was_up: bool,
+    launch: _Launch, launched: _Launched, ahk_proc: subprocess.Popen,
 ) -> int:
+    state_dir, children = launch.state_dir, launched.children
+    loading_screen = launch.loading_screen
+    origenerator_cmd_file = Path(launch.commands.origenerator_cmd_file)
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
     back_to = (loading_screen.turns_back_to
                if what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD else None)
     if (app := children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
             state_dir, app, origenerator_cmd_file,
-            keep=back_to is not None, taken_over=taken_over):
+            keep=back_to is not None, taken_over=launched.hosted_taken_over):
         children.pop("origenerator_pid")
-    _take_down_the_launch(
-        state_dir=state_dir, children=children, ahk_proc=ahk_proc,
-        ahk_cmd_file=ahk_cmd_file, loading_screen=loading_screen, runtime_was_up=runtime_was_up,
-    )
+    _take_down_the_launch(launch, launched, ahk_proc)
     if back_to is not None:
         logger.info("Canceled; handing back to %s", back_to.app_name)
         request_handoff(state_dir, back_to, cancelable=False)
@@ -508,24 +495,14 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         if progress.cancelled:
             raise StartupCancelled()
     except StartupCancelled:
-        return _cancel_vr_startup(
-            state_dir=launch.state_dir, children=launched.children, ahk_proc=ahk_proc,
-            ahk_cmd_file=launch.ahk_cmd_file, loading_screen=launch.loading_screen,
-            runtime_was_up=launched.runtime_was_up,
-            origenerator_cmd_file=Path(launch.commands.origenerator_cmd_file),
-            taken_over=launched.hosted_taken_over,
-        )
+        return _cancel_vr_startup(launch, launched, ahk_proc)
 
     try:
         running = _open_the_room(launch, launched, carried, hud_publisher)
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",
                     len(launched.children))
-        _take_down_the_launch(
-            state_dir=launch.state_dir, children=launched.children, ahk_proc=ahk_proc,
-            ahk_cmd_file=launch.ahk_cmd_file, loading_screen=launch.loading_screen,
-            runtime_was_up=launched.runtime_was_up,
-        )
+        _take_down_the_launch(launch, launched, ahk_proc)
         drop_transition_screen(launch.state_dir)
         raise
     return _hold_the_session(launch, launched, running, ahk_proc)
@@ -559,9 +536,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed,
                                   last_reported=read_funestra_reports(bridge_config))
     carried = stock_the_playlists(
-        manifest,
-        state_dir=state_dir,
-        metadata_root=bridge_config.regen_metadata_root,
+        launch,
         resumed=resumed,
         carried=carried,
         main_video=main_funestra_status.video,
