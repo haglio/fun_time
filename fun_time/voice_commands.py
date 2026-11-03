@@ -58,6 +58,186 @@ def said_to_a_satellite(command: str) -> tuple[str, str] | None:
     return satellite, words.replace("_", " ")
 
 
+def _bare_or_named(commands: dict[str, str], words: str, action: str) -> None:
+    commands[words] = f"active_{action}"
+    for satellite in (*_SATELLITE_NAMES, "both"):
+        commands.update(named_first_or_last(satellite, words, f"{satellite}_{action}"))
+    if (on_the_main := on_the_main_funestra(action)) is not None:
+        commands.update(named_first_or_last("main", words, on_the_main))
+
+
+def _mode_and_reference_phrases(commands: dict[str, str]) -> None:
+    for crown in Crown:
+        commands.update(named_first_or_last(crown, "crown", crown.command))
+    for _funestra_word, _command in (("main", "main_kino_activate"),
+                                     ("satellite", "satellites_kino_activate"),
+                                     ("satellites", "satellites_kino_activate")):
+        commands.update(named_first_or_last(_funestra_word, "kino mode", _command))
+    for _satellite in _SATELLITE_NAMES:
+        for _mode_words, _mode in (("kino mode", KINO_MODE), ("aura generator mode", ORIGENERATOR_MODE)):
+            commands.update(named_first_or_last(_satellite, _mode_words, mode_command(_satellite, _mode)))
+
+    for _ref_phrase in ("help", "reference", "hot keys", "voice commands"):
+        commands[_ref_phrase] = "help_reference"
+        commands[f"close {_ref_phrase}"] = "help_reference_close"
+
+
+def _satellite_action_phrases(commands: dict[str, str]) -> None:
+    _SATELLITE_ACTIONS: dict[str, str] = {
+        "lock": "lock_on",
+        "unlock": "lock_off",
+        "next": "next",
+        "previous": "prev",
+        "skip": "nudge_next",
+        "back": "nudge_prev",
+        "trash": "trash",
+        "wrong action": "wrong_action",
+        "action": "cycle_action",
+        "scene": "cycle_action",
+        "seed": "cycle_seed",
+        "reset": "reset",
+        "latest": "latest",
+        "shuffle": "shuffle",
+    }
+    for _act_word, _act in _SATELLITE_ACTIONS.items():
+        _bare_or_named(commands, _act_word, _act)
+
+    for _funestra_word, _command in (("portrait", "portrait_cycle_version"),
+                                     ("landscape", "landscape_cycle_version"),
+                                     ("both", "both_cycle_version"),
+                                     ("main", "main_funestra_cycle_version")):
+        commands.update(named_first_or_last(_funestra_word, "version", _command))
+
+
+def _group_cycle_and_mode_phrases(commands: dict[str, str]) -> None:
+    _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
+        "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
+        "seed_loop": ("seed loop", "loop seed", "loop seeds", "lock type"),
+        "more_seeds": ("more seeds", "widen net", "widen the net"),
+        "no_loop": ("end loop", "no loop", "loop off"),
+        "no_filter": ("no filter", "filter off", "clear filter", "show everything"),
+        "lock_action": ("lock action", "action lock", "filter"),
+    }
+    for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
+        for _group_word in _group_words:
+            _bare_or_named(commands, _group_word, _group_act)
+
+    _CYCLE_AXES: dict[str, str] = {
+        "action": "active_cycle_action",
+        "scene": "active_cycle_action",
+        "seed": "active_cycle_seed",
+        "version": "main_funestra_cycle_version",
+    }
+    for _axis_word, _axis_cmd in _CYCLE_AXES.items():
+        for _cycle_verb in ("cycle", "next", "change"):
+            commands[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
+
+    _FMODE_PHRASES: dict[str, tuple[str, str]] = {
+        "f mode": ("fmode", "fmode_toggle"),
+        "f mode on": ("fmode_on", "fmode_on"),
+        "f mode off": ("fmode_off", "fmode_off"),
+    }
+    for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
+        _bare_or_named(commands, _fmode_word, _fmode_act)
+        commands.update(named_first_or_last("all", _fmode_word, _fmode_all))
+    commands.update(named_first_or_last("all", "reset", "all_reset"))
+
+    _MODE_NAV: dict[str, tuple[str, str]] = {
+        "kino": ("main_next", "main_prev"),
+        **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
+    }
+    for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
+        commands.update(named_first_or_last(_base, "next", _next_cmd))
+        commands.update(named_first_or_last(_base, "previous", _prev_cmd))
+
+
+def _number_phrases(commands: dict[str, str], flick: str) -> None:
+    _NUMBER_WORDS: dict[str, int] = {
+        "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
+        "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+        "one hundred": 100,
+    }
+
+    _NUMERIC_PREFIXES: dict[str, str] = {
+        "amp": "robot_hand_amp",
+        "center": "robot_hand_center",
+        "speed": "robot_hand_speed",
+    }
+
+    for _word, _value in _NUMBER_WORDS.items():
+        for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
+            commands[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
+
+    _SPOKEN_ONES: dict[str, int] = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    }
+    _SPOKEN_TEENS: dict[str, int] = {
+        "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+        "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+    }
+    _SPOKEN_TENS: dict[str, int] = {
+        "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+    }
+
+
+    def _spoken_seconds() -> dict[str, int]:
+        words = {**_SPOKEN_ONES, **_SPOKEN_TEENS}
+        for _tens_word, _tens in _SPOKEN_TENS.items():
+            words[_tens_word] = _tens
+            if _tens < _MOST_SECONDS:
+                for _ones_word, _ones in _SPOKEN_ONES.items():
+                    words[f"{_tens_word} {_ones_word}"] = _tens + _ones
+        return words
+
+
+    for _word, _value in _spoken_seconds().items():
+        commands[f"{flick} seconds {_word}"] = f"genau_flick_seconds_{_value}"
+
+    _EXTREMES: dict[str, int] = {"min": 0, "max": 100}
+    for _label, _value in _EXTREMES.items():
+        for _prefix in ("amp", "center"):
+            commands[f"{_label} {_prefix}"] = f"{_NUMERIC_PREFIXES[_prefix]}_{_value}"
+
+
+def _speed_move_and_hud_phrases(commands: dict[str, str]) -> None:
+    _PLAYBACK_SPEEDS: dict[str, str] = {
+        "playback speed up": "speed_up",
+        "playback speed down": "speed_down",
+        "playback slow down": "speed_down",
+        "min speed": "speed_min",
+        "max speed": "speed_max",
+        "quarter speed": "speed_25",
+        "half speed": "speed_50",
+        "three quarter speed": "speed_75",
+        "normal speed": "speed_100",
+        "one and a half speed": "speed_150",
+        "double speed": "speed_200",
+        "reset speed": "speed_100",
+        **{f"speed {_spoken} ex": f"speed_{_pct}" for _spoken, _pct in (
+            ("point two five", 25), ("point five", 50), ("point seven five", 75),
+            ("one", 100), ("one point two five", 125), ("one point five", 150),
+            ("one point seven five", 175), ("two", 200))},
+    }
+    for _phrase, _act in _PLAYBACK_SPEEDS.items():
+        _bare_or_named(commands, _phrase, _act)
+    _FUNSCRIPT_MOVES: dict[str, str] = {
+        "jump to fun script": "funscript_jump",
+        "next fun scripted": "next_funscripted",
+    }
+    for _phrase, _act in _FUNSCRIPT_MOVES.items():
+        _bare_or_named(commands, _phrase, _act)
+
+
+    for _verb, _act in (("minimize", "hud_minimize"), ("collapse", "hud_minimize"),
+                        ("restore", "hud_restore"), ("maximize", "hud_restore"),
+                        ("expand", "hud_restore")):
+        for _words in (f"{_verb} hud", f"hud {_verb}"):
+            _bare_or_named(commands, _words, _act)
+        for _satellite in (*_SATELLITE_NAMES, "both", "main"):
+            commands[f"{_verb} {_satellite} hud"] = commands[f"{_satellite} {_verb} hud"]
+
+
 def build_voice_commands(
     *,
     filter_commands: Mapping[str, str] | None = None,
@@ -159,174 +339,11 @@ def build_voice_commands(
     if flick_flip_phrases is None:
         flick_flip_phrases = tuple(load_content()["flick_flip_phrases"])
     commands.update(dict.fromkeys(flick_flip_phrases, "genau_flip_ends"))
-    for crown in Crown:
-        commands.update(named_first_or_last(crown, "crown", crown.command))
-    for _funestra_word, _command in (("main", "main_kino_activate"),
-                                     ("satellite", "satellites_kino_activate"),
-                                     ("satellites", "satellites_kino_activate")):
-        commands.update(named_first_or_last(_funestra_word, "kino mode", _command))
-    for _satellite in _SATELLITE_NAMES:
-        for _mode_words, _mode in (("kino mode", KINO_MODE), ("aura generator mode", ORIGENERATOR_MODE)):
-            commands.update(named_first_or_last(_satellite, _mode_words, mode_command(_satellite, _mode)))
-
-    for _ref_phrase in ("help", "reference", "hot keys", "voice commands"):
-        commands[_ref_phrase] = "help_reference"
-        commands[f"close {_ref_phrase}"] = "help_reference_close"
-
-    def _bare_or_named(words: str, action: str) -> None:
-        commands[words] = f"active_{action}"
-        for satellite in (*_SATELLITE_NAMES, "both"):
-            commands.update(named_first_or_last(satellite, words, f"{satellite}_{action}"))
-        if (on_the_main := on_the_main_funestra(action)) is not None:
-            commands.update(named_first_or_last("main", words, on_the_main))
-
-    _SATELLITE_ACTIONS: dict[str, str] = {
-        "lock": "lock_on",
-        "unlock": "lock_off",
-        "next": "next",
-        "previous": "prev",
-        "skip": "nudge_next",
-        "back": "nudge_prev",
-        "trash": "trash",
-        "wrong action": "wrong_action",
-        "action": "cycle_action",
-        "scene": "cycle_action",
-        "seed": "cycle_seed",
-        "reset": "reset",
-        "latest": "latest",
-        "shuffle": "shuffle",
-    }
-    for _act_word, _act in _SATELLITE_ACTIONS.items():
-        _bare_or_named(_act_word, _act)
-
-    for _funestra_word, _command in (("portrait", "portrait_cycle_version"),
-                                     ("landscape", "landscape_cycle_version"),
-                                     ("both", "both_cycle_version"),
-                                     ("main", "main_funestra_cycle_version")):
-        commands.update(named_first_or_last(_funestra_word, "version", _command))
-
-    _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
-        "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
-        "seed_loop": ("seed loop", "loop seed", "loop seeds", "lock type"),
-        "more_seeds": ("more seeds", "widen net", "widen the net"),
-        "no_loop": ("end loop", "no loop", "loop off"),
-        "no_filter": ("no filter", "filter off", "clear filter", "show everything"),
-        "lock_action": ("lock action", "action lock", "filter"),
-    }
-    for _group_act, _group_words in _SATELLITE_GROUP_ACTIONS.items():
-        for _group_word in _group_words:
-            _bare_or_named(_group_word, _group_act)
-
-    _CYCLE_AXES: dict[str, str] = {
-        "action": "active_cycle_action",
-        "scene": "active_cycle_action",
-        "seed": "active_cycle_seed",
-        "version": "main_funestra_cycle_version",
-    }
-    for _axis_word, _axis_cmd in _CYCLE_AXES.items():
-        for _cycle_verb in ("cycle", "next", "change"):
-            commands[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
-
-    _FMODE_PHRASES: dict[str, tuple[str, str]] = {
-        "f mode": ("fmode", "fmode_toggle"),
-        "f mode on": ("fmode_on", "fmode_on"),
-        "f mode off": ("fmode_off", "fmode_off"),
-    }
-    for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
-        _bare_or_named(_fmode_word, _fmode_act)
-        commands.update(named_first_or_last("all", _fmode_word, _fmode_all))
-    commands.update(named_first_or_last("all", "reset", "all_reset"))
-
-    _MODE_NAV: dict[str, tuple[str, str]] = {
-        "kino": ("main_next", "main_prev"),
-        **dict.fromkeys(GENAU_SAID, ("genau_next_flick", "genau_prev_flick")),
-    }
-    for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
-        commands.update(named_first_or_last(_base, "next", _next_cmd))
-        commands.update(named_first_or_last(_base, "previous", _prev_cmd))
-
-    _NUMBER_WORDS: dict[str, int] = {
-        "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
-        "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
-        "one hundred": 100,
-    }
-
-    _NUMERIC_PREFIXES: dict[str, str] = {
-        "amp": "robot_hand_amp",
-        "center": "robot_hand_center",
-        "speed": "robot_hand_speed",
-    }
-
-    for _word, _value in _NUMBER_WORDS.items():
-        for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
-            commands[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
-
-    _SPOKEN_ONES: dict[str, int] = {
-        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-        "six": 6, "seven": 7, "eight": 8, "nine": 9,
-    }
-    _SPOKEN_TEENS: dict[str, int] = {
-        "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
-        "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
-    }
-    _SPOKEN_TENS: dict[str, int] = {
-        "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
-    }
-
-
-    def _spoken_seconds() -> dict[str, int]:
-        words = {**_SPOKEN_ONES, **_SPOKEN_TEENS}
-        for _tens_word, _tens in _SPOKEN_TENS.items():
-            words[_tens_word] = _tens
-            if _tens < _MOST_SECONDS:
-                for _ones_word, _ones in _SPOKEN_ONES.items():
-                    words[f"{_tens_word} {_ones_word}"] = _tens + _ones
-        return words
-
-
-    for _word, _value in _spoken_seconds().items():
-        commands[f"{flick} seconds {_word}"] = f"genau_flick_seconds_{_value}"
-
-    _EXTREMES: dict[str, int] = {"min": 0, "max": 100}
-    for _label, _value in _EXTREMES.items():
-        for _prefix in ("amp", "center"):
-            commands[f"{_label} {_prefix}"] = f"{_NUMERIC_PREFIXES[_prefix]}_{_value}"
-
-    _PLAYBACK_SPEEDS: dict[str, str] = {
-        "playback speed up": "speed_up",
-        "playback speed down": "speed_down",
-        "playback slow down": "speed_down",
-        "min speed": "speed_min",
-        "max speed": "speed_max",
-        "quarter speed": "speed_25",
-        "half speed": "speed_50",
-        "three quarter speed": "speed_75",
-        "normal speed": "speed_100",
-        "one and a half speed": "speed_150",
-        "double speed": "speed_200",
-        "reset speed": "speed_100",
-        **{f"speed {_spoken} ex": f"speed_{_pct}" for _spoken, _pct in (
-            ("point two five", 25), ("point five", 50), ("point seven five", 75),
-            ("one", 100), ("one point two five", 125), ("one point five", 150),
-            ("one point seven five", 175), ("two", 200))},
-    }
-    for _phrase, _act in _PLAYBACK_SPEEDS.items():
-        _bare_or_named(_phrase, _act)
-    _FUNSCRIPT_MOVES: dict[str, str] = {
-        "jump to fun script": "funscript_jump",
-        "next fun scripted": "next_funscripted",
-    }
-    for _phrase, _act in _FUNSCRIPT_MOVES.items():
-        _bare_or_named(_phrase, _act)
-
-
-    for _verb, _act in (("minimize", "hud_minimize"), ("collapse", "hud_minimize"),
-                        ("restore", "hud_restore"), ("maximize", "hud_restore"),
-                        ("expand", "hud_restore")):
-        for _words in (f"{_verb} hud", f"hud {_verb}"):
-            _bare_or_named(_words, _act)
-        for _satellite in (*_SATELLITE_NAMES, "both", "main"):
-            commands[f"{_verb} {_satellite} hud"] = commands[f"{_satellite} {_verb} hud"]
+    _mode_and_reference_phrases(commands)
+    _satellite_action_phrases(commands)
+    _group_cycle_and_mode_phrases(commands)
+    _number_phrases(commands, flick)
+    _speed_move_and_hud_phrases(commands)
 
     for _satellite in _SATELLITE_NAMES:
         commands.update(named_first_or_last(_satellite, FAVORITES_PHRASE,
