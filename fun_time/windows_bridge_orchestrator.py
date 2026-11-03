@@ -33,6 +33,7 @@ from .child_launch import no_child_log, no_console_window
 from .config import load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
+from .dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
 from .fun_time_funestras import FunTimeFunestra
@@ -249,14 +250,16 @@ NO_FAREWELL = HostedAppFarewell()
 def see_the_hosted_app_out(
     state_dir: Path,
     child: ChildProcess | None,
-    farewell: HostedAppFarewell,
+    command_file: Path | None,
+    *,
+    keep: bool,
+    taken_over: bool,
 ) -> bool:
-    command_file = farewell.command_file
-    if farewell.keep and command_file is not None and _park_the_hosted_origenerator(
-            state_dir, child, command_file, taken_over=farewell.taken_over):
+    if keep and command_file is not None and _park_the_hosted_origenerator(
+            state_dir, child, command_file, taken_over=taken_over):
         return True
     forget_the_kept_origenerator(state_dir)
-    if farewell.taken_over and command_file is not None:
+    if taken_over and command_file is not None:
         append_command(command_file, RELEASE)
         return True
     _close_origenerator_gracefully(child)
@@ -288,7 +291,9 @@ def _shutdown_children(
 ) -> None:
     progress.advance("browser")
     close_window(rfb_hwnd)
-    spared = see_the_hosted_app_out(state_dir, children.get("origenerator_pid"), farewell)
+    spared = see_the_hosted_app_out(
+        state_dir, children.get("origenerator_pid"), farewell.command_file,
+        keep=farewell.keep, taken_over=farewell.taken_over)
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         with progress.loading_screen_kept_up():
@@ -856,33 +861,36 @@ def _build_the_dispatch_loop(
         rfb_shortcut = resolve_shortcut(manifest.random_favs_browser.shortcut_path)
 
     return DispatchLoopRunner(
-        config=launch.bridge_config,
-        dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
-        manifest_path=launch.manifest_path,
-        shared_state_file=shared_state_path(launch.state_dir),
-        ahk_cmd_file=ahk_cmd_file,
-        windows=FunTimeWindows(
-            pids=ChildPids(
-                main_funestra=result.main_funestra_pid,
-                portrait=result.portrait_pid,
-                landscape=result.landscape_pid,
-                dashboard=result.dashboard_pid,
-                origenerator=result.origenerator_pid,
+        launch.bridge_config,
+        SessionFiles(
+            dashboard_cmd=Path(manifest.commands.dashboard_cmd_file),
+            shared_state=shared_state_path(launch.state_dir),
+            ahk_cmd=ahk_cmd_file,
+            manifest=launch.manifest_path),
+        SessionStart(
+            windows=FunTimeWindows(
+                pids=ChildPids(
+                    main_funestra=result.main_funestra_pid,
+                    portrait=result.portrait_pid,
+                    landscape=result.landscape_pid,
+                    dashboard=result.dashboard_pid,
+                    origenerator=result.origenerator_pid,
+                ),
+                rfb_hwnd=result.rfb_hwnd,
+                hwnds_by_window=result.hwnds_by_window,
             ),
-            rfb_hwnd=result.rfb_hwnd,
-            hwnds_by_window=result.hwnds_by_window,
-        ),
-        dashboard_enabled=manifest.dashboard_enabled,
+            rfb_shortcut=rfb_shortcut,
+            rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,
+            press_and_caret_watch=(
+                PressAndCaretWatch()
+                if result.rfb_hwnd or manifest.runtime.origenerator_dir.strip() else None),
+            origenerator_already_open=result.origenerator_already_open,
+            origenerator_slideshow_on=result.origenerator_slideshow_on),
+        Publishing(
+            dashboard_enabled=manifest.dashboard_enabled,
+            hud_publisher=hud_publisher,
+            secondary_rects=secondary_rects(manifest)),
         env=env,
-        hud_publisher=hud_publisher,
-        rfb_shortcut=rfb_shortcut,
-        rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,
-        press_and_caret_watch=(
-            PressAndCaretWatch()
-            if result.rfb_hwnd or manifest.runtime.origenerator_dir.strip() else None),
-        origenerator_already_open=result.origenerator_already_open,
-        origenerator_slideshow_on=result.origenerator_slideshow_on,
-        secondary_rects=secondary_rects(manifest),
     )
 
 

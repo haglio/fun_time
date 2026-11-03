@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
+from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.event_log import FAVORITE, MESSAGE
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_messages import read_funestra_message
@@ -33,12 +34,13 @@ def _runner(tmp_path: Path) -> DispatchLoopRunner:
         landscape_notice_file=tmp_path / "landscape_notice.txt",
     )
     return DispatchLoopRunner(
-        config=config,
-        dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-        shared_state_file=tmp_path / "shared_state.ini",
-        ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-        windows=FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID)),
-        dashboard_enabled=False,
+        config,
+        SessionFiles(
+            dashboard_cmd=tmp_path / "dashboard_cmd.txt",
+            shared_state=tmp_path / "shared_state.ini",
+            ahk_cmd=tmp_path / "ahk_cmd.txt"),
+        SessionStart(windows=FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID))),
+        Publishing(dashboard_enabled=False),
     )
 
 

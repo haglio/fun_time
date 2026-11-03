@@ -37,10 +37,10 @@ from .dashboard_actions import (
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, SatelliteLine, who_drives_the_osr2
+from .dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
 from .fun_time_funestras import FunTimeFunestra
-from .fun_time_windows import FunTimeWindows
 from .funestra_handover import Departures, Homecoming, SatellitesChangingHands
 from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
@@ -49,7 +49,6 @@ from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
 from .hosted_contract import said_at_suffix_of
 from .hud_feed import HudFeed
-from .hud_transport import HudPublisher
 from .latest_arrivals import LatestArrivals
 from .library_browser import browse_library
 from .lock import a_lock_holds
@@ -61,7 +60,6 @@ from .mode_plan import kino_shows
 from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
 from .origenerator_switches import RfbMode, hosts
-from .rfb_slideshow import RfbSlideshow
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .session_end import mark_session_end
@@ -69,13 +67,12 @@ from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_a_crossing
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
-from .text_field_clicks import Sightings, TypingWatch
+from .text_field_clicks import TypingWatch
 from .voice_commands import CommandLine, parse_command_line
 from .voice_control import NOTHING_TO_ACCEPT, AppVoice
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import find_window_for_process, set_always_on_top, window_rect
-from .window_layout import SecondaryMonitorRects
 from .window_names import visible_windows
 from .windows_bridge_random_favs_browser import open_rfb_tab
 
@@ -129,47 +126,36 @@ _DASHBOARD_WARNING_EVERY_S = 60.0
 class DispatchLoopRunner:
     def __init__(
         self,
-        *,
         config: BridgeConfig,
-        dashboard_cmd_file: Path,
-        shared_state_file: Path,
-        ahk_cmd_file: Path,
-        windows: FunTimeWindows,
-        dashboard_enabled: bool,
+        files: SessionFiles,
+        start: SessionStart,
+        publishing: Publishing,
         env: SessionEnvironment = ORDINARY_SESSION,
-        manifest_path: Path | None = None,
-        hud_publisher: HudPublisher | None = None,
-        rfb_shortcut: Shortcut | None = None,
-        rfb_slideshow: RfbSlideshow | None = None,
-        press_and_caret_watch: Sightings | None = None,
-        sync_interval_ms: int = 200,
-        origenerator_already_open: bool = False,
-        origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = (),
-        secondary_rects: Callable[..., SecondaryMonitorRects] | None = None,
     ) -> None:
         self.config = config
-        self.dashboard_cmd_file = dashboard_cmd_file
-        self.shared_state_file = shared_state_file
-        self.ahk_cmd_file = ahk_cmd_file
-        self.manifest_path = manifest_path or (
+        self.dashboard_cmd_file = files.dashboard_cmd
+        self.shared_state_file = files.shared_state
+        self.ahk_cmd_file = files.ahk_cmd
+        self.manifest_path = files.manifest or (
             config.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        self.windows = windows
-        self.seating = Seating(secondary_rects,
+        self.windows = start.windows
+        self.seating = Seating(publishing.secondary_rects,
                                main_funestra_status_file=config.main_funestra_status_file,
                                genau_status_file=config.genau_status_file)
-        self.dashboard_enabled = dashboard_enabled
+        self.dashboard_enabled = publishing.dashboard_enabled
         self.env = env
-        self.hud = HudFeed(config=config, publisher=hud_publisher)
-        self.rfb_shortcut = rfb_shortcut or Shortcut()
-        self.rfb_slideshow = rfb_slideshow
-        self.typing = TypingWatch(press_and_caret_watch, typed_into=lambda seen: self.windows.takes_typing(
+        self.hud = HudFeed(config=config, publisher=publishing.hud_publisher)
+        self.rfb_shortcut = start.rfb_shortcut or Shortcut()
+        self.rfb_slideshow = start.rfb_slideshow
+        self.typing = TypingWatch(start.press_and_caret_watch, typed_into=lambda seen: self.windows.takes_typing(
             seen.window, seen.process, hosted_app=self.config.origenerator_enabled))
-        self.sync_interval_s = sync_interval_ms / 1000
-        left_in = read_shared_state(shared_state_file) or BridgeState()
+        self.sync_interval_s = publishing.sync_interval_ms / 1000
+        left_in = read_shared_state(files.shared_state) or BridgeState()
         self.state = holding_nothing(left_in)
-        self.opening = OrigeneratorOpening(config, left_in, already_open=origenerator_already_open,
-                                           slideshow_on=origenerator_slideshow_on)
+        self.opening = OrigeneratorOpening(
+            config, left_in, already_open=start.origenerator_already_open,
+            slideshow_on=start.origenerator_slideshow_on)
         self._last_sync = 0.0
         self._last_dashboard_warning = float("-inf")
         self._stop = threading.Event()

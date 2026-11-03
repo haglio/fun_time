@@ -34,6 +34,7 @@ from fun_time.content import load_web_providers
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.event_log import FAVORITE
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import (
@@ -163,15 +164,22 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         hwnds_by_window=kwargs.pop("hwnds_by_window", None),
         **({"clock": kwargs.pop("clock")} if "clock" in kwargs else {}),
     )
-    settings = {"dashboard_enabled": False}
-    settings.update(kwargs)
+    start = {name: kwargs.pop(name) for name in (
+        "rfb_shortcut", "rfb_slideshow", "press_and_caret_watch", "origenerator_already_open",
+        "origenerator_slideshow_on") if name in kwargs}
+    publishing = {name: kwargs.pop(name) for name in (
+        "dashboard_enabled", "hud_publisher", "sync_interval_ms", "secondary_rects")
+        if name in kwargs}
     runner = DispatchLoopRunner(
-        config=config or make_config(tmp_path),
-        dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-        shared_state_file=tmp_path / "shared_state.ini",
-        ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-        windows=windows,
-        **settings,
+        config or make_config(tmp_path),
+        SessionFiles(
+            dashboard_cmd=tmp_path / "dashboard_cmd.txt",
+            shared_state=tmp_path / "shared_state.ini",
+            ahk_cmd=tmp_path / "ahk_cmd.txt",
+            manifest=kwargs.pop("manifest_path", None)),
+        SessionStart(windows=windows, **start),
+        Publishing(**{"dashboard_enabled": False, **publishing}),
+        **kwargs,
     )
     runner._last_sync = float("inf")
     return runner
