@@ -6,7 +6,7 @@ import json
 import logging
 import math
 import threading
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -1704,7 +1704,7 @@ class TestArrangingTheRoom:
     def test_a_carry_turns_the_room_whatever_the_main_funestra_is_showing(self):
         turned = []
         for projection in (FLAT, EQUIRECT_180_SBS):
-            the_room = _a_room_to_arrange(main=_a_main_funestra(projection=projection))
+            the_room = _a_room_to_arrange(main=_a_main_funestra(MainSetup(projection=projection)))
             arranging, _arranged = self._arrange(
                 the_room, _APointer(Frame(carried=(90.0, 0.0))))
             turned.append(arranging.scene_yaw)
@@ -1858,18 +1858,31 @@ class _AMainStandIn(SimpleNamespace):
     texture_on_the_screen = _MainUnit.texture_on_the_screen
 
 
-def _a_main_funestra(*, frame=True, projection=FLAT, showing=False, flick=True,
-                 flick_projection=FLAT, video=None, fov=None, height=None, verbs=None):
+@dataclass(frozen=True)
+class MainSetup:
+    frame: bool = True
+    projection: object = FLAT
+    showing: bool = False
+    flick: bool = True
+    flick_projection: object = FLAT
+    video: object = None
+    fov: object = None
+    height: object = None
+    verbs: object = None
+
+
+def _a_main_funestra(setup=None):
+    setup = setup or MainSetup()
     return _like(_MainUnit, _AMainStandIn(
-        target=SimpleNamespace(ready=frame, aspect=16 / 9, video=video),
-        verbs=verbs or _VerbsStandIn(
-            projection_of=lambda _video: projection,
-            fov_of=lambda _video: fov, height_of=lambda _video: height,
-            _video=Path(video or "v.mp4")),
-        users_frame_texture=SimpleNamespace(ready=flick, aspect=4 / 3),
-        _flick_projection=(Path("flick.mp4"), flick_projection),
+        target=SimpleNamespace(ready=setup.frame, aspect=16 / 9, video=setup.video),
+        verbs=setup.verbs or _VerbsStandIn(
+            projection_of=lambda _video: setup.projection,
+            fov_of=lambda _video: setup.fov, height_of=lambda _video: setup.height,
+            _video=Path(setup.video or "v.mp4")),
+        users_frame_texture=SimpleNamespace(ready=setup.flick, aspect=4 / 3),
+        _flick_projection=(Path("flick.mp4"), setup.flick_projection),
         screen=SimpleNamespace(placement=SPOTS[MAIN]),
-        owns_the_slot=not showing,
+        owns_the_slot=not setup.showing,
     ))
 
 
@@ -1877,9 +1890,9 @@ class TestTheMainFunestrasFrameIsWrappedAsItsOwnVideo:
     WIDE, FLAT_VIDEO = "C:/videos/wide.mp4", "C:/videos/flat.mp4"
 
     def _showing(self, video):
-        return _a_main_funestra(video=video, verbs=_VerbsStandIn(
+        return _a_main_funestra(MainSetup(video=video, verbs=_VerbsStandIn(
             projection_of={self.WIDE: EQUIRECT_180_SBS, self.FLAT_VIDEO: FLAT}.get,
-            _video=Path(video), **_NEVER_DIALED))
+            _video=Path(video), **_NEVER_DIALED)))
 
     def test_a_vr_videos_frame_stays_round_the_viewer_while_a_flat_one_opens(self):
         (hanging,) = self._showing(self.WIDE).hangings()
@@ -1905,7 +1918,7 @@ class TestDialingTheMainFunestrasWrap:
             set_height=lambda value: dialed.update(height=value),
             _video=Path(self.VIDEO),
         )
-        main_unit = _a_main_funestra(video=self.VIDEO, verbs=verbs, showing=showing)
+        main_unit = _a_main_funestra(MainSetup(video=self.VIDEO, verbs=verbs, showing=showing))
         main_unit.target.aspect = 1.0
         main_unit.dial_the_wrap = lambda **dials: _MainUnit.dial_the_wrap(main_unit, **dials)
         return main_unit, dialed
@@ -1955,8 +1968,8 @@ class TestTheReadoutOfAWrappedFrame:
     VIDEO = "C:/videos/wide.mp4"
 
     def _main_unit(self, *, projection=FISHEYE_180_SBS, fov=None, height=None, showing=False):
-        return _a_main_funestra(video=self.VIDEO, projection=projection, fov=fov, height=height,
-                            showing=showing)
+        return _a_main_funestra(MainSetup(video=self.VIDEO, projection=projection, fov=fov, height=height,
+                            showing=showing))
 
     def test_the_main_funestra_reads_its_own_wrap(self):
         unit = self._main_unit(fov=158.4, height=1.2)
@@ -2032,11 +2045,11 @@ class TestTheBannerOverAWrappedFrame:
 
 
 class TestTheMainFunestraUnderThePointer:
-    def _units(self, **overrides):
-        return (_a_main_funestra(**overrides),)
+    def _units(self, setup=None):
+        return (_a_main_funestra(setup),)
 
-    def _slot(self, **overrides):
-        hangings = room.what_hangs(self._units(**overrides))
+    def _slot(self, setup=None):
+        hangings = room.what_hangs(self._units(setup))
         return hangings[0].screen if hangings else None
 
     def test_the_video_has_the_slot_while_the_funestra_shows_kino(self):
@@ -2056,39 +2069,39 @@ class TestTheMainFunestraUnderThePointer:
         assert self._slot().item
 
     def test_genaus_flick_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
-        screen = self._slot(showing=True)
+        screen = self._slot(MainSetup(showing=True))
 
         assert screen.name == MAIN
         assert screen.aspect == 4 / 3
 
     def test_genaus_flick_is_offered_at_the_width_it_hangs_at_to_keep_the_slots_area(self):
-        screen = self._slot(showing=True)
+        screen = self._slot(MainSetup(showing=True))
 
         assert screen.placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
         assert widened(SPOTS[MAIN], screen.widened_by) == screen.placement
 
     @pytest.mark.parametrize("state", [
-        {"projection": EQUIRECT_180_SBS},
-        {"showing": True, "flick_projection": EQUIRECT_180_SBS},
+        MainSetup(projection=EQUIRECT_180_SBS),
+        MainSetup(showing=True, flick_projection=EQUIRECT_180_SBS),
     ])
     def test_a_wrapped_video_has_no_edges_to_take_hold_of(self, state):
-        screen = self._slot(**state)
+        screen = self._slot(state)
 
         assert (screen.movable, screen.resizable) == (False, False)
         assert (screen.pressable, screen.immersive) == (True, True)
 
     def test_a_wrapped_video_goes_round_the_viewer_rather_than_on_a_quad(self):
-        (wrap,) = room.what_hangs(self._units(projection=EQUIRECT_180_SBS))
+        (wrap,) = room.what_hangs(self._units(MainSetup(projection=EQUIRECT_180_SBS)))
 
         assert wrap.mesh is None
         assert wrap.wrap == immersive_wrap(EQUIRECT_180_SBS)
 
     @pytest.mark.parametrize("state", [
-        {"frame": False},
-        {"showing": True, "flick": False},
+        MainSetup(frame=False),
+        MainSetup(showing=True, flick=False),
     ])
     def test_a_slot_with_no_frame_in_it_is_not_in_the_scene_at_all(self, state):
-        assert self._slot(**state) is None
+        assert self._slot(state) is None
 
     def test_a_drag_on_the_slot_moves_genaus_frame_with_the_video(self):
         main_unit = _a_main_funestra()
@@ -2096,7 +2109,7 @@ class TestTheMainFunestraUnderThePointer:
         room.where_they_hang([main_unit])[MAIN].put(_UNDER_THE_DASH)
 
         assert main_unit.screen.placement == _UNDER_THE_DASH
-        assert self._slot(showing=True).placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
+        assert self._slot(MainSetup(showing=True)).placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
 
     def _the_room_around_the_slot(self) -> list:
         dash = _like(_DashUnit, SimpleNamespace(
@@ -2220,8 +2233,8 @@ class TestEveryHangingScreenIsDrawn:
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
-        main_unit = _a_main_funestra(frame=projection is not None, projection=projection or FLAT,
-                                 flick=False)
+        main_unit = _a_main_funestra(MainSetup(frame=projection is not None, projection=projection or FLAT,
+                                 flick=False))
         main_unit.target.texture = object()
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
         main_hud_unit = _like(_MainHudUnit, _hanging(MAIN_HUD, 1.2))
@@ -2333,7 +2346,7 @@ def _a_main_hud(*, ready=True):
 
 
 def _slot(*, wrapped=False):
-    return _a_main_funestra(projection=EQUIRECT_180_SBS if wrapped else FLAT)
+    return _a_main_funestra(MainSetup(projection=EQUIRECT_180_SBS if wrapped else FLAT))
 
 
 def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
@@ -2834,18 +2847,26 @@ def _a_satellite(funestra: str, *, hud: bool = False):
     ))
 
 
+@dataclass(frozen=True)
+class RoomExtras:
+    main_hud_unit: object = None
+    dash: object = None
+    reference_up: bool = False
+    wrapped: bool = False
+
+
 class TestWhatComesForwardTogether:
-    def _arranged(self, stacking, satellites, *, main_hud_unit=None, dash=None, reference_up=False,
-                  wrapped=False):
-        dash = dash or _like(_DashUnit, SimpleNamespace(
+    def _arranged(self, stacking, satellites, extras=None):
+        extras = extras or RoomExtras()
+        dash = extras.dash or _like(_DashUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=False, aspect=2.5),
             screen=SimpleNamespace(placement=SPOTS[DASH])))
         reference = _like(_ReferenceUnit, SimpleNamespace(
-            showing=reference_up, texture=SimpleNamespace(ready=True, aspect=1.7),
+            showing=extras.reference_up, texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
         return [screen.name for screen in room.arranged(stacking, room.what_hangs(
-            [_slot(wrapped=wrapped), *satellites,
-             main_hud_unit or _a_main_hud(ready=False), dash, reference]))]
+            [_slot(wrapped=extras.wrapped), *satellites,
+             extras.main_hud_unit or _a_main_hud(ready=False), dash, reference]))]
 
     def test_the_reference_comes_forward_as_part_of_the_dashboard(self):
         stacking = Stacking()
@@ -2855,7 +2876,7 @@ class TestWhatComesForwardTogether:
         stacking.take(MAIN)
         stacking.take(REFERENCE)
 
-        assert self._arranged(stacking, [], dash=dash, reference_up=True) == [
+        assert self._arranged(stacking, [], RoomExtras(dash=dash, reference_up=True)) == [
             MAIN, DASH, REFERENCE]
 
     def test_a_satellites_hud_brings_its_frame_forward_with_it(self):
@@ -2871,7 +2892,7 @@ class TestWhatComesForwardTogether:
         stacking.take(LANDSCAPE)
         stacking.take(MAIN)
 
-        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], main_hud_unit=_a_main_hud()) == [
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], RoomExtras(main_hud_unit=_a_main_hud())) == [
             LANDSCAPE, MAIN, MAIN_HUD]
 
     def test_the_dashboard_brings_no_main_hud_forward_while_a_video_wraps_the_viewer(self, tmp_path):
@@ -2880,8 +2901,8 @@ class TestWhatComesForwardTogether:
         stacking.take(LANDSCAPE)
         stacking.take(DASH)
 
-        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], main_hud_unit=_a_main_hud(), dash=dash,
-                              wrapped=True) == [MAIN, MAIN_HUD, LANDSCAPE, DASH]
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)],
+                              RoomExtras(main_hud_unit=_a_main_hud(), dash=dash, wrapped=True)) == [MAIN, MAIN_HUD, LANDSCAPE, DASH]
 
 
 class TestTheReferenceUnderTheDashboard:
