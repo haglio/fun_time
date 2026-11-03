@@ -48,8 +48,8 @@ class HudToggle:
                  button: Plate, tip: Plate) -> None:
         self._screen_name = screen_name
         self._post = post
-        self._plate = button
-        self._tip_plate = tip
+        self._mesh, self._texture = button.mesh, button.texture
+        self._tip_mesh, self._tip_texture = tip.mesh, tip.texture
         self._pointed = False
         self._outside = None
         self._button: Screen | None = None
@@ -64,9 +64,9 @@ class HudToggle:
                               pressable=True)
         painted = outside.toggle(pointed=self._pointed).bgra
         if painted is not self._painted:
-            self._plate.texture.upload(red_and_blue_swapped(painted))
+            self._texture.upload(red_and_blue_swapped(painted))
             self._painted = painted
-        self._plate.mesh.rehang_at(placement, 1.0)
+        self._mesh.rehang_at(placement, 1.0)
         self._tip = None
         tip = outside.toggle_tip() if self._pointed else outside.name_flash()
         if tip is not None:
@@ -74,9 +74,9 @@ class HudToggle:
             self._tip = Screen(f"{toggle_screen_name(self._screen_name)}/{TIP}", beside,
                                tip.shape[1] / tip.shape[0], pressable=False)
             if tip is not self._tip_painted:
-                self._tip_plate.texture.upload(red_and_blue_swapped(tip))
+                self._tip_texture.upload(red_and_blue_swapped(tip))
                 self._tip_painted = tip
-            self._tip_plate.mesh.rehang_at(beside, self._tip.aspect)
+            self._tip_mesh.rehang_at(beside, self._tip.aspect)
 
     def unhang(self) -> None:
         self._button = self._tip = None
@@ -84,12 +84,12 @@ class HudToggle:
     def hangings(self) -> tuple[Hanging, ...]:
         if self._button is None:
             return ()
-        button = Hanging(self._button, mesh=self._plate.mesh, frame=self._plate.texture, blend=True,
+        button = Hanging(self._button, mesh=self._mesh, frame=self._texture, blend=True,
                          forward_with=self._screen_name)
         if self._tip is None:
             return (button,)
-        return (button, Hanging(self._tip, mesh=self._tip_plate.mesh,
-                                frame=self._tip_plate.texture,
+        return (button, Hanging(self._tip, mesh=self._tip_mesh,
+                                frame=self._tip_texture,
                                 blend=True, forward_with=self._screen_name))
 
     def point(self, screen_name: str | None) -> None:
