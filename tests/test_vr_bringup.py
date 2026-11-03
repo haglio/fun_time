@@ -29,8 +29,7 @@ def _open(attempts, clock, *, timeout_s=6.0, retry_s=2.0):
         device_not_ready=_DeviceNotReady,
         timeout_s=timeout_s,
         retry_s=retry_s,
-        now=clock.now,
-        sleep=clock.sleep,
+        clock=clock,
     )
 
 
@@ -94,8 +93,7 @@ def test_the_deadline_is_measured_from_the_first_attempt():
         device_not_ready=_DeviceNotReady,
         timeout_s=6.0,
         retry_s=2.0,
-        now=clock.now,
-        sleep=clock.sleep,
+        clock=clock,
     )
 
     assert tried == [0.0, 2.0, 4.0, 6.0]
