@@ -20,7 +20,7 @@ from app_support.win32_loader import load_dll, win_functype
 
 from .coverage_map import CoverageMap, Picked, changed_paths, tests_to_run, the_machine_s_map
 from .flake_gate_install import flake_gate_python
-from .line_record import RUN_RECORD_ENV, Visit
+from .line_record import RUN_RECORD_ENV, RunAsk, Visit
 from .run_clock import WALL, Budget, RunClock, keep_time_by
 from .run_pulse import PULSE_ENV, STOPPED_AFTER_S, PulseWatch
 from .session_lock import (
@@ -417,8 +417,9 @@ def _branch_of(checkout: Path) -> str:
 @contextmanager
 def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
     root = _repo_root()
-    visit = Visit.join(_line_records(), checkout=root.name, branch=_branch_of(root),
-                       session=os.environ.get(CLAUDE_SESSION_ENV, ""), what=what, short=short)
+    visit = Visit.join(_line_records(), RunAsk(
+        checkout=root.name, branch=_branch_of(root),
+        session=os.environ.get(CLAUDE_SESSION_ENV, ""), what=what, short=short))
     try:
         with hold_integration_lock(short=short, notify=_announce_waiting):
             visit.got_the_machine()
