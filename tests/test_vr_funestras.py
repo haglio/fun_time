@@ -143,6 +143,7 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
 )
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
+from fun_time_vr.room_launch import RoomLaunch
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
@@ -247,7 +248,8 @@ def faked_collaborators():
 
 
 def _a_main_unit(tmp_path, *, remembered=None, vr=_A_SESSION, manifest=None) -> _MainUnit:
-    return _MainUnit(manifest or _manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS,
+    launch = RoomLaunch(manifest or _manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS)
+    return _MainUnit(launch,
                      remembered=remembered or Layout(), stop=threading.Event())
 
 
@@ -456,16 +458,16 @@ def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
     items = [PlaylistItem(video, script), PlaylistItem(unscripted)]
 
     with patch("fun_time_vr.funestras.read_playlist", return_value=items):
-        _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
-                       vr=_A_SESSION, remembered={})
+        _SatelliteUnit(PORTRAIT, RoomLaunch(_manifest_for_a_vr_session(tmp_path), _A_SESSION,
+                                            _NO_GL_CONTEXTS), remembered={})
 
     assert faked_collaborators["Funestra"].call_args.kwargs["playlist"] == items
 
 
 def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_videos_script(
         tmp_path, faked_collaborators):
-    _SatelliteUnit(PORTRAIT, _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123),
-                   _NO_GL_CONTEXTS, vr=_A_SESSION, remembered={})
+    manifest = _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123)
+    _SatelliteUnit(PORTRAIT, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     assert faked_collaborators["Osr2Sender"].call_args == call(PORTRAIT, port=8123)
     assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
@@ -477,7 +479,8 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         funestra, tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path)
 
-    unit = _SatelliteUnit(funestra, manifest, _NO_GL_CONTEXTS, vr=_A_SESSION, remembered={})
+    unit = _SatelliteUnit(
+        funestra, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     commands = manifest.commands
     handed = faked_collaborators["Funestra"].call_args.kwargs
@@ -763,8 +766,8 @@ def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
 
 def _a_satellite_unit(tmp_path, funestra, remembered):
     vr = VrSettings(library_dirs=(), audio_device="", compositor_layers=False)
-    return _SatelliteUnit(funestra, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
-                          vr=vr, remembered=remembered)
+    launch = RoomLaunch(_manifest_for_a_vr_session(tmp_path), vr, _NO_GL_CONTEXTS)
+    return _SatelliteUnit(funestra, launch, remembered=remembered)
 
 
 def test_a_satellite_hangs_where_the_layout_says(tmp_path, faked_collaborators):
@@ -1373,7 +1376,7 @@ def _hang_a_room(tmp_path, *, present_the_loading_screen=lambda: None, loading_s
             patch("fun_time_vr.funestras.UnloggedMessages"), \
             patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
         return hang_the_room(
-            manifest, _A_SESSION, _NO_GL_CONTEXTS, manifest_path=tmp_path / "launch.ini",
+            RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), manifest_path=tmp_path / "launch.ini",
             loading_screen=loading_screen or LoadingScreenUnit(tmp_path), present_the_loading_screen=present_the_loading_screen)
 
 

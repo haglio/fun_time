@@ -31,6 +31,7 @@ from fun_time_vr.layout import (
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.projection import PROJECTIONS
 from fun_time_vr.render import SceneRenderer
+from fun_time_vr.room_launch import RoomLaunch
 from fun_time_vr.scheduling import ahead_of_background_work
 from fun_time_vr.wraps import immersive_wrap
 from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
@@ -292,10 +293,10 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     contexts = SharedContexts(window)
     remembered = remembered_layout(config.paths.state_dir)
     stop = threading.Event()
-    main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered, stop=stop)
+    launch = RoomLaunch(manifest, vr, contexts)
+    main = vrp._MainUnit(launch, remembered=remembered, stop=stop)
     satellites = [
-        vrp._SatelliteUnit(satellite, manifest, contexts, vr=vr,
-                           remembered=remembered.placements)
+        vrp._SatelliteUnit(satellite, launch, remembered=remembered.placements)
         for satellite in (PORTRAIT, LANDSCAPE)
     ]
     pipeline = _Pipeline(manifest.commands, main, satellites)
@@ -378,7 +379,8 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
     glfw.make_context_current(window)
 
     stop = threading.Event()
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(), stop=stop)
+    main = vrp._MainUnit(
+        RoomLaunch(manifest, vr, SharedContexts(window)), remembered=Layout(), stop=stop)
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
         daemon=True, name="file-channels",
@@ -439,7 +441,8 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
     glfw.make_context_current(window)
 
     stop = threading.Event()
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered=Layout(), stop=stop)
+    main = vrp._MainUnit(
+        RoomLaunch(manifest, vr, SharedContexts(window)), remembered=Layout(), stop=stop)
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
         daemon=True, name="file-channels",

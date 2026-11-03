@@ -160,6 +160,7 @@ from .reference_panel import (
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh
 from .room import Hanging, Hangs
+from .room_launch import RoomLaunch
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
@@ -427,12 +428,13 @@ class _MainUnit(_VideoUnit):
     SPOTS: ClassVar[dict[str, Placement]] = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}
 
     def __init__(
-        self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
-        remembered: Layout, stop: threading.Event, messages=None, perf=None,
+        self, launch: RoomLaunch, *,
+        remembered: Layout, stop: threading.Event, messages=None,
         while_reading: Callable[[], None] = lambda: None,
     ) -> None:
+        manifest, vr = launch.manifest, launch.vr
         super().__init__(
-            main_video(contexts, perf),
+            main_video(launch.contexts, launch.perf),
             remembered.placements.get(MAIN, self.SPOTS[MAIN]),
         )
         commands = manifest.commands
@@ -632,12 +634,13 @@ class _SatelliteUnit(_VideoUnit):
     }
 
     def __init__(
-        self, funestra: str, manifest: LaunchManifest, contexts, *,
-        vr: VrSettings, remembered: Mapping[str, Placement], messages=None, perf=None,
+        self, funestra: str, launch: RoomLaunch, *,
+        remembered: Mapping[str, Placement], messages=None,
     ) -> None:
+        manifest, vr, contexts = launch.manifest, launch.vr, launch.contexts
         super().__init__(
             VideoThread(contexts, _headsets_engine(contexts), SATELLITE_VIDEO_CAP_PX,
-                        name=f"{funestra}-video", perf=perf),
+                        name=f"{funestra}-video", perf=launch.perf),
             remembered.get(funestra, self.SPOTS[funestra]),
         )
         commands = manifest.commands
@@ -1686,22 +1689,22 @@ class TheRoom:
 
 
 def hang_the_room(
-    manifest: LaunchManifest, vr: VrSettings, contexts, *, manifest_path: Path,
-    loading_screen: LoadingScreenUnit, perf: FramePerf | None = None,
+    launch: RoomLaunch, *, manifest_path: Path,
+    loading_screen: LoadingScreenUnit,
     present_the_loading_screen: Callable[[], object] = lambda: None,
 ) -> TheRoom:
+    manifest = launch.manifest
     commands = manifest.commands
     state_dir = Path(commands.dashboard_cmd_file).parent
     remembered = remembered_layout(state_dir)
     stop = threading.Event()
     messages = MessageBoard(event_log_path(state_dir), unlogged=UnloggedMessages(state_dir))
     main_unit = _MainUnit(
-        manifest, vr, contexts, remembered=remembered, stop=stop, messages=messages, perf=perf,
+        launch, remembered=remembered, stop=stop, messages=messages,
         while_reading=present_the_loading_screen)
     present_the_loading_screen()
     satellites = [
-        _SatelliteUnit(funestra, manifest, contexts, vr=vr, remembered=remembered.placements,
-                       messages=messages, perf=perf)
+        _SatelliteUnit(funestra, launch, remembered=remembered.placements, messages=messages)
         for funestra in (PORTRAIT, LANDSCAPE)
     ]
     present_the_loading_screen()
