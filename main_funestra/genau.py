@@ -19,7 +19,13 @@ from shared_ui.orientation import PORTRAIT
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
 from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
-from fun_time.genau_engine import Narrow, build_genau_engine
+from fun_time.genau_engine import (
+    EngineSeams,
+    FlickLibrary,
+    GenauHost,
+    Narrow,
+    build_genau_engine,
+)
 from fun_time.inclusion_pairs import BOTH, ORIENTATION, Included
 from fun_time.media_metadata import recorded_for, recorded_orientation
 from fun_time.modes import keep_favorites, videos_in
@@ -78,29 +84,23 @@ class Genau:
         turned = self._turned_as_asked(browsed)
         kept = self._favorites_of(turned)
         self._engine = build_genau_engine(
-            flicks=kept or turned or browsed,
-            settings=settings,
-            command_file=channels.command,
-            paused_file=channels.paused,
-            status_file=channels.status,
-            drive_file=channels.drive,
-            notifier=notifier,
-            tcode_sink=tcode_sink,
-            blit_frame=self._take_frame,
-            set_loading_text=self._set_loading,
-            rescan=self._rescan,
-            narrow=narrow,
-            say_no_other_flicks=self._say_no_other_flicks,
-            say=self._say,
-            condemned_to=lambda flick: trash_folder_for(flick, self._flicks_folder),
-            set_volume=self._the_apps_level_is_the_funestras,
-            stop_event=stop_event,
-            start_flick=start_flick,
-            metadata_root=metadata_root,
-            decode=decode,
-            start_thread=start_thread,
-            clock=clock,
-            log=log,
+            settings,
+            channels,
+            FlickLibrary(kept or turned or browsed, start_flick, metadata_root),
+            GenauHost(
+                notifier=notifier,
+                tcode_sink=tcode_sink,
+                blit_frame=self._take_frame,
+                set_loading_text=self._set_loading,
+                rescan=self._rescan,
+                narrow=narrow,
+                say_no_other_flicks=self._say_no_other_flicks,
+                say=self._say,
+                condemned_to=lambda flick: trash_folder_for(flick, self._flicks_folder),
+                set_volume=self._the_apps_level_is_the_funestras,
+            ),
+            EngineSeams(stop_event=stop_event, decode=decode, start_thread=start_thread,
+                        clock=clock, log=log),
         )
         if not kept:
             self._engine.narrow(self._scan)
