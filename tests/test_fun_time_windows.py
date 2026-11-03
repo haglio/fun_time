@@ -37,6 +37,10 @@ from tests.fun_time_window_fakes import (
 )
 
 
+def _minimized(answer: bool):
+    return patch("fun_time.fun_time_windows.is_window_minimized", return_value=answer)
+
+
 def make_windows(**overrides) -> FunTimeWindows:
     pids = {"main_funestra": MAIN_FUNESTRA_PID, "portrait": PORTRAIT_PID,
                 "landscape": LANDSCAPE_PID, "dashboard": DASHBOARD_PID}
@@ -201,7 +205,7 @@ class TestOrigeneratorWindowConverger:
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
         restore.assert_not_called()
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
+             _minimized(True), \
              patch("fun_time.fun_time_windows.restore_window") as restore, \
              patch("fun_time.fun_time_windows.set_always_on_top"):
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
@@ -210,7 +214,7 @@ class TestOrigeneratorWindowConverger:
     def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
+             _minimized(True), \
              patch("fun_time.fun_time_windows.restore_window") as restore, \
              patch("fun_time.fun_time_windows.set_always_on_top"):
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
@@ -220,7 +224,7 @@ class TestOrigeneratorWindowConverger:
     def test_a_shown_window_out_of_the_band_is_re_promoted(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+             _minimized(False), \
              patch("fun_time.fun_time_windows.is_window_topmost", return_value=False), \
              patch("fun_time.fun_time_windows.restore_window") as restore, \
              patch("fun_time.fun_time_windows.set_always_on_top") as promote:
@@ -231,7 +235,7 @@ class TestOrigeneratorWindowConverger:
     def test_a_browser_put_back_in_the_band_is_taken_out_from_under_origenerator(self):
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
         with patch("fun_time.fun_time_windows.find_window_for_process", side_effect=lookup_hosted), \
-             patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+             _minimized(False), \
              patch("fun_time.fun_time_windows.is_window_topmost", return_value=True), \
              patch("fun_time.fun_time_windows.set_always_on_top") as band:
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
@@ -240,7 +244,7 @@ class TestOrigeneratorWindowConverger:
     def test_the_browser_in_its_place_parks_a_window_left_up(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
-             patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+             _minimized(False), \
              patch("fun_time.fun_time_windows.minimize_window") as minimize:
             windows.converge_origenerator_window(RfbMode.RFB)
         minimize.assert_called_once_with(4242, activate=False)
@@ -259,7 +263,7 @@ def test_placing_a_window_moves_it_onto_its_rect():
     windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
 
     with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 2500)), \
-         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         _minimized(False), \
          patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_MODE_SELECTOR)])
 
@@ -270,7 +274,7 @@ def test_a_window_already_on_its_rect_is_left_alone():
     windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
 
     with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 940)), \
-         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         _minimized(False), \
          patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_MODE_SELECTOR)])
 
@@ -281,7 +285,7 @@ def test_a_minimized_window_is_left_where_it_was_until_it_is_back():
     windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
 
     with patch("fun_time.fun_time_windows.window_rect", return_value=(-32000, -32000, 160, 28)), \
-         patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
+         _minimized(True), \
          patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_MODE_SELECTOR)])
 
@@ -294,7 +298,7 @@ def test_a_window_nobody_has_found_yet_is_not_placed():
     with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
          patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
          patch("fun_time.fun_time_windows.window_rect", return_value=None), \
-         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         _minimized(False), \
          patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("portrait", TOP_MODE_SELECTOR)])
 
@@ -306,7 +310,7 @@ def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_app():
     now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.fun_time_windows.window_rect", side_effect=now.get), \
-         patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \
+         _minimized(False), \
          patch("fun_time.fun_time_windows.place_window") as place:
         windows.place([("main_funestra", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_MODE_SELECTOR)])
 
