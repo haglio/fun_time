@@ -25,8 +25,6 @@ from .audio_volume import publish_audio_level
 from .broker_control import write_broker_command
 from .checkout_overrides import is_a_worktree, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
-from .config import load_config
-from .content import load_web_providers
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import take_back_the_list
 from .funestra_settings import reports_published_in
@@ -42,8 +40,7 @@ from .process_identity import NAMER
 from .process_sweep import processes_matching
 from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
-from .random_favs_browser import build_manifest, write_manifest
-from .rfb_tab_page import tabs_dir, write_tab_pages
+from .random_favs_browser_manifest import prepare_random_favs_browser_manifest
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_launch import SatelliteLaunch, for_funestra
@@ -143,18 +140,6 @@ def ensure_broker(
     if broker_state_dir is not None and broker.is_running(Path(broker_state_dir)):
         return
     broker.start(broker_tray_launcher)
-
-
-def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
-    config = load_config(config_path)
-    profile_directory, targets = build_manifest(config, load_web_providers())
-    urls = (
-        write_tab_pages(
-            tabs_dir(config.paths.state_dir), targets, loopback_port=config.loopback_port)
-        if config.random_favs_browser.lazy_load
-        else [target.url for target in targets]
-    )
-    write_manifest(Path(output_path), profile_directory, urls)
 
 
 def seed_startup_states(commands: CommandFiles, carried: BridgeState) -> None:
@@ -299,9 +284,6 @@ class ChildProgram:
     python_exe: str | Path
     module: str
     sibling_checkouts: str | None = None
-
-    def popen_kwargs(self) -> dict:
-        return {**sibling_checkouts_kwargs(self.sibling_checkouts), **hidden_subprocess_kwargs()}
 
 
 def child_program(m: LaunchManifest, module: str) -> ChildProgram:
@@ -474,7 +456,9 @@ def launch_audio_companion(m: LaunchManifest, *, audio_device: str | None = None
     ]
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
-    return subprocess.Popen(cmd, **no_child_log(), **program.popen_kwargs())
+    return subprocess.Popen(cmd, **no_child_log(),
+                            **sibling_checkouts_kwargs(program.sibling_checkouts),
+                            **hidden_subprocess_kwargs())
 
 
 def _launch_the_dashboard(
@@ -489,7 +473,8 @@ def _launch_the_dashboard(
         *_rect_args("", plan.dashboard),
         *_rect_args("rfb-", plan.random_favs_browser),
     ]
-    kwargs = child_program(m, m.modules.dashboard_module).popen_kwargs()
+    kwargs = {**sibling_checkouts_kwargs(m.runtime.sibling_checkouts),
+              **hidden_subprocess_kwargs()}
     if log_file is None:
         return subprocess.Popen(cmd, **no_child_log(), **kwargs).pid
     with open_child_log(log_file, cmd) as log:

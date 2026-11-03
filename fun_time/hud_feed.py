@@ -19,7 +19,7 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .hud_transport import HudPublisher, hosted_model, worn
+from .hud_transport import HudPublisher, HudState, hosted_model, worn
 from .lock_hud import SatelliteInputs, build_satellite_hud
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
@@ -38,7 +38,6 @@ from .osr2_section import (
     osr2_part,
     tell_a_hosted_satellite_whose_the_osr2_is,
 )
-from .satellite_buttons import HudState
 from .satellite_commands import satellite_at_defaults
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
