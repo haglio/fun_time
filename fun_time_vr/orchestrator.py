@@ -275,19 +275,18 @@ def stock_the_playlists(
     main_video: str = "",
 ) -> BridgeState:
     manifest, state_dir = launch.manifest, launch.state_dir
-    metadata_root = launch.bridge_config.regen_metadata_root
     if not resumed:
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
             landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
             state_dir=state_dir,
-            metadata_root=metadata_root,
+            metadata_root=launch.bridge_config.regen_metadata_root,
         )
     logger.info("Resumed last session's playlists" if resumed
                 else "Nothing to resume; built fresh playlists")
     main_list = MainList(sources=manifest.media.main_funestra_library_sources,
                          state_dir=state_dir, vr_dirs=manifest.media.vr_library_dirs,
-                         metadata_root=metadata_root)
+                         metadata_root=launch.bridge_config.regen_metadata_root)
     return open_the_main_list(main_list, carried, state_file=shared_state_path(state_dir),
                               on_screen=main_video)
 
@@ -327,33 +326,32 @@ class _LoadingScreen:
 def _take_down_the_launch(
     launch: _Launch, launched: _Launched, ahk_proc: subprocess.Popen,
 ) -> None:
-    children, loading_screen = launched.children, launch.loading_screen
     say_the_crossing_is_cancelled(launch.state_dir)
     stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
-    funestra = children.get("vr_funestras_pid")
-    with loading_screen.progress.loading_screen_kept_up():
-        for key, child in children.items():
+    funestra = launched.children.get("vr_funestras_pid")
+    with launch.progress.loading_screen_kept_up():
+        for key, child in launched.children.items():
             if key != "vr_funestras_pid":
                 kill_recorded_child(child)
         if funestra is not None:
             kill_recorded_child(funestra)
     _release_vr_runtime(launched.runtime_was_up, launch.state_dir)
-    loading_screen.clear()
+    launch.loading_screen.clear()
 
 
 def _cancel_vr_startup(
     launch: _Launch, launched: _Launched, ahk_proc: subprocess.Popen,
 ) -> int:
-    state_dir, children = launch.state_dir, launched.children
-    loading_screen = launch.loading_screen
+    state_dir, loading_screen = launch.state_dir, launch.loading_screen
     origenerator_cmd_file = Path(launch.commands.origenerator_cmd_file)
-    logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
+    logger.info("Startup cancelled by user; tearing down %d launched child(ren)",
+                len(launched.children))
     back_to = (loading_screen.turns_back_to
                if what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD else None)
-    if (app := children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
+    if (app := launched.children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
             state_dir, app, origenerator_cmd_file,
             keep=back_to is not None, taken_over=launched.hosted_taken_over):
-        children.pop("origenerator_pid")
+        launched.children.pop("origenerator_pid")
     _take_down_the_launch(launch, launched, ahk_proc)
     if back_to is not None:
         logger.info("Canceled; handing back to %s", back_to.app_name)

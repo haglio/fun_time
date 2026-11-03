@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
 
-def fov_to_projection_matrix(fov, near: float, far: float) -> np.ndarray:
+@dataclass(frozen=True)
+class Fov:
+    angle_left: float
+    angle_right: float
+    angle_up: float
+    angle_down: float
+
+
+def fov_to_projection_matrix(fov: Fov, near: float, far: float) -> np.ndarray:
     tan_l = math.tan(fov.angle_left)
     tan_r = math.tan(fov.angle_right)
     tan_u = math.tan(fov.angle_up)

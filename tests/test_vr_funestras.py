@@ -65,6 +65,7 @@ from fun_time_vr.dash_panel import (
     paint_dash,
     with_the_osr2_part,
 )
+from fun_time_vr.frame_loop import Headset, draw_eyes
 from fun_time_vr.funestras import (
     MAIN_TICK_HZ,
     OFF_THE_HUD,
@@ -89,10 +90,8 @@ from fun_time_vr.funestras import (
     _still_blank,
     _users,
     _VideoUnit,
-    draw_eyes,
     hang_the_room,
 )
-from fun_time_vr.headset import Headset
 from fun_time_vr.headset_verbs import AngleRequest, HeadsetVerbs, HostRequest
 from fun_time_vr.hud_buttons import HudButtons
 from fun_time_vr.hud_sides import side_screen_name
@@ -144,7 +143,7 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
 )
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
-from fun_time_vr.room_launch import RoomLaunch
+from fun_time_vr.room import RoomLaunch
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
@@ -2354,13 +2353,20 @@ def _slot(*, wrapped=False):
     return _a_main_funestra(MainSetup(projection=EQUIRECT_180_SBS if wrapped else FLAT))
 
 
+@dataclass
+class _DashCommands:
+    dashboard_cmd_file: Path
+    dashboard_state_file: Path
+    state_dir: Path
+
+
 def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
     with patch("fun_time_vr.funestras.FrameTexture"):
         dash = _DashUnit(
             _slot(wrapped=wrapped),
-            SimpleNamespace(dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                            dashboard_state_file=tmp_path / "dashboard_state.ini",
-                            state_dir=tmp_path),
+            _DashCommands(dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                          dashboard_state_file=tmp_path / "dashboard_state.ini",
+                          state_dir=tmp_path),
             remembered=remembered or {},
             messages=MessageBoard(tmp_path / "event_log.jsonl"),
             reference_flag=tmp_path / REFERENCE_OPEN_FILENAME,
@@ -2552,17 +2558,37 @@ class _FakeLibraryHost:
         self.closed = True
 
 
+@dataclass
+class _LibraryCommands:
+    main_funestra_cmd_file: Path
+    main_funestra_status_file: Path
+    genau_cmd_file: Path
+    genau_status_file: Path
+    dashboard_cmd_file: Path
+
+
+@dataclass
+class _LibraryRegen:
+    metadata_root: str
+
+
+@dataclass
+class _LibraryManifest:
+    commands: _LibraryCommands
+    regen: _LibraryRegen
+
+
 def _a_library(tmp_path, host, remembered=None, metadata_root=None, genau_has_the_slot=False):
     with patch("fun_time_vr.funestras.FrameTexture"):
-        manifest = SimpleNamespace(
-            commands=SimpleNamespace(
+        manifest = _LibraryManifest(
+            commands=_LibraryCommands(
                 main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
                 main_funestra_status_file=tmp_path / "main_player_status.txt",
                 genau_cmd_file=tmp_path / "genau_cmd.txt",
                 genau_status_file=tmp_path / "genau_status.txt",
                 dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             ),
-            regen=SimpleNamespace(metadata_root="" if metadata_root is None else str(metadata_root)),
+            regen=_LibraryRegen("" if metadata_root is None else str(metadata_root)),
         )
         return _LibraryUnit(
             manifest,

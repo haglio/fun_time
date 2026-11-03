@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import os
 import sys
-from types import SimpleNamespace
 
 import glfw
 import numpy as np
@@ -11,7 +10,7 @@ import pytest
 from OpenGL import GL
 
 from fun_time_vr.gl_contexts import hidden_gl_window
-from fun_time_vr.matrices import fov_to_projection_matrix
+from fun_time_vr.matrices import Fov, fov_to_projection_matrix
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
     FISHEYE_180_SBS,
@@ -79,8 +78,7 @@ def _frame_whose_red_and_green_are_where_in_its_eye_each_pixel_is():
 
 def _inverse_of_looking_straight_ahead():
     projection = fov_to_projection_matrix(
-        SimpleNamespace(angle_left=-LOOKS_OUT_TO, angle_right=LOOKS_OUT_TO,
-                        angle_up=LOOKS_OUT_TO, angle_down=-LOOKS_OUT_TO), 0.05, 100.0)
+        Fov(-LOOKS_OUT_TO, LOOKS_OUT_TO, LOOKS_OUT_TO, -LOOKS_OUT_TO), 0.05, 100.0)
     return np.linalg.inv(projection).astype(np.float32)
 
 

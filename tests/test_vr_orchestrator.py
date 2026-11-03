@@ -12,7 +12,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -517,6 +516,40 @@ class TestTheCheckRun:
         assert "a line about the VR runtime" in session_log
 
 
+@dataclasses.dataclass
+class _AConfig:
+    regen_metadata_root: Path
+
+
+@dataclasses.dataclass
+class _AStockingLaunch:
+    manifest: LaunchManifest
+    state_dir: Path
+    bridge_config: _AConfig
+
+
+@dataclasses.dataclass
+class _TheCommands:
+    origenerator_cmd_file: str
+
+
+@dataclasses.dataclass
+class _AHostedApp:
+    taken_over: bool
+
+
+@dataclasses.dataclass
+class _ACancelledLaunch:
+    state_dir: Path
+    ahk_cmd_file: Path
+    loading_screen: orchestrator._LoadingScreen
+    commands: _TheCommands
+
+    @property
+    def progress(self):
+        return self.loading_screen.progress
+
+
 class TestStockingThePlaylists:
     def _stock(self, config, tmp_path, *, resumed: bool, carried: BridgeState | None = None,
                main_video: str = "") -> BridgeState:
@@ -524,9 +557,8 @@ class TestStockingThePlaylists:
             write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini"))
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        launch = SimpleNamespace(
-            manifest=manifest, state_dir=state,
-            bridge_config=SimpleNamespace(regen_metadata_root=tmp_path / "metadata"))
+        launch = _AStockingLaunch(
+            manifest, state, _AConfig(regen_metadata_root=tmp_path / "metadata"))
         return stock_the_playlists(
             launch, resumed=resumed, carried=carried or BridgeState(), main_video=main_video)
 
@@ -1098,12 +1130,10 @@ class TestCancellingALaunch:
             "quit\n" if cancelling.by_quit_chord else "cancel\n", encoding="utf-8")
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
 
-        launch = SimpleNamespace(
-            state_dir=tmp_path, ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-            loading_screen=loading_screen,
-            commands=SimpleNamespace(origenerator_cmd_file=str(tmp_path / "origenerator_cmd.txt")))
-        launched = orchestrator._Launched(
-            children=children, hosted=SimpleNamespace(taken_over=False))
+        launch = _ACancelledLaunch(
+            tmp_path, tmp_path / "ahk_cmd.txt", loading_screen,
+            _TheCommands(origenerator_cmd_file=str(tmp_path / "origenerator_cmd.txt")))
+        launched = orchestrator._Launched(children=children, hosted=_AHostedApp(False))
         code = orchestrator._cancel_vr_startup(launch, launched, None)
         return code, order, loading_screen
 

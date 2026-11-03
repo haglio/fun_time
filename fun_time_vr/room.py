@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from .pointer import Screen
 from .stacking import Pane, Stacking
@@ -17,6 +18,38 @@ class Hanging:
     forward_with: str = ""
     docked_to: str | None = None
     in_front: bool = False
+
+
+@dataclass(frozen=True)
+class RoomLaunch:
+    manifest: Any
+    vr: Any
+    contexts: Any
+    perf: Any = None
+
+
+@dataclass(frozen=True)
+class RoomUnits:
+    main_unit: Any
+    satellites: Sequence[Any]
+    dash: Any
+    main_hud_unit: Any
+    reference: Any
+    library: Any
+    flashed: Any
+    gallery: Any
+    loading_screen: Any
+
+    def in_order(self) -> list:
+        return [self.main_unit, *self.satellites, self.dash, self.main_hud_unit, self.reference,
+                self.library, self.flashed, self.gallery, self.loading_screen]
+
+
+@dataclass(frozen=True)
+class RoomKeeping:
+    messages: Any
+    keeper: Any
+    posts: Any
 
 
 def what_hangs(room: Sequence) -> list[Hanging]:

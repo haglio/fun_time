@@ -8,7 +8,7 @@ from fun_time_vr.hud_toggle import (
     BUTTON_DEG,
     HUD_GAP_PAST_THE_TOGGLE_DEG,
     HudToggle,
-    Plate,
+    MeshWithTexture,
     toggle_screen_name,
 )
 from fun_time_vr.pointer import PRESS, RELEASE, PressEvent
@@ -37,8 +37,8 @@ class _Mesh:
 
 def _toggle():
     posted: list[str] = []
-    toggle = HudToggle("portrait", post=posted.append, button=Plate(_Mesh(), _Texture()),
-                           tip=Plate(_Mesh(), _Texture()))
+    toggle = HudToggle("portrait", post=posted.append, button=MeshWithTexture(_Mesh(), _Texture()),
+                           tip=MeshWithTexture(_Mesh(), _Texture()))
     return toggle, posted
 
 
@@ -134,8 +134,8 @@ class TestWhatItSays:
 
     def test_it_is_painted_once_while_nothing_about_it_changes(self):
         texture = _Texture()
-        toggle = HudToggle("portrait", post=lambda _command: None, button=Plate(_Mesh(), texture),
-                           tip=Plate(_Mesh(), _Texture()))
+        toggle = HudToggle("portrait", post=lambda _command: None, button=MeshWithTexture(_Mesh(), texture),
+                           tip=MeshWithTexture(_Mesh(), _Texture()))
 
         _hung(toggle)
         _hung(toggle)
@@ -160,8 +160,8 @@ class TestTheNameOfWhatHasJustStarted:
 
     def test_hangs_beside_the_plus(self):
         tip_texture = _Texture()
-        toggle = HudToggle("portrait", post=lambda _command: None, button=Plate(_Mesh(), _Texture()),
-                           tip=Plate(_Mesh(), tip_texture))
+        toggle = HudToggle("portrait", post=lambda _command: None, button=MeshWithTexture(_Mesh(), _Texture()),
+                           tip=MeshWithTexture(_Mesh(), tip_texture))
 
         outside = self._flashing(toggle)
 
@@ -173,8 +173,8 @@ class TestTheNameOfWhatHasJustStarted:
 
     def test_gives_way_to_the_plus_s_own_name_while_it_is_pointed_at(self):
         tip_mesh = _Mesh()
-        toggle = HudToggle("portrait", post=lambda _command: None, button=Plate(_Mesh(), _Texture()),
-                           tip=Plate(tip_mesh, _Texture()))
+        toggle = HudToggle("portrait", post=lambda _command: None, button=MeshWithTexture(_Mesh(), _Texture()),
+                           tip=MeshWithTexture(tip_mesh, _Texture()))
         toggle.point(toggle_screen_name("portrait"))
 
         outside = self._flashing(toggle)
