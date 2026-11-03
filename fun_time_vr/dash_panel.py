@@ -183,12 +183,6 @@ def _open_list(state: DashState) -> list[tuple[Rect, str, bool]]:
     return [(rect, name, LEVELS_BY_NAME[name] == state.verbosity) for name, rect in named]
 
 
-def _chip(draw, rect: Rect, label: str, *, on: bool, font,
-          hover: tuple[int, int] | None) -> None:
-    button(draw, rect, BLUE if on else BG_BUTTON, lit=_on(rect, hover))
-    _label(draw, rect, label, font, WHITE if on else TEXT_PRIMARY)
-
-
 def _on(rect: Rect, point: tuple[int, int] | None) -> bool:
     if point is None:
         return False
@@ -222,7 +216,8 @@ def paint_dash(state: DashState, records,
                 lit=_on(dial_rect(), hover))
     for source, rect in source_buttons().items():
         on = source in state.sources
-        _chip(draw, rect, SOURCE_LABELS[source], on=on, font=small, hover=hover)
+        button(draw, rect, BLUE if on else BG_BUTTON, lit=_on(rect, hover))
+        _label(draw, rect, SOURCE_LABELS[source], small, WHITE if on else TEXT_PRIMARY)
 
     log = Image.new("RGBA", _log_size(), (0, 0, 0, 0))
     pen = ImageDraw.Draw(log)
