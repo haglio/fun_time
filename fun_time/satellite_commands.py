@@ -16,6 +16,7 @@ from .fun_time_funestras import FunTimeFunestra
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
+from .modes import SatelliteBuild
 from .origenerator_switches import hosts
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
@@ -294,14 +295,12 @@ def _rebuild_satellite(
     *, start_at_top: bool = False,
 ) -> SatelliteFilterFlowResult:
     satellite = state.satellite(funestra)
+    channel = config.satellite(funestra)
     return apply_satellite_filter(
         funestra=funestra,
-        query=query,
-        favorites_filter=satellite.favorites_filter,
-        recent=satellite.latest,
-        sources=config.satellite(funestra).sources,
-        state_dir=config.state_dir,
-        cmd_file=config.satellite(funestra).cmd_file,
+        channel=channel,
+        build=SatelliteBuild(channel.sources, favorites_filter=satellite.favorites_filter,
+                             recent=satellite.latest, filter_query=query),
         start_at_top=start_at_top,
         regen_metadata_root=config.regen_metadata_root,
     )

@@ -95,8 +95,10 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     second.write_text("x", encoding="utf-8")
     mark_favorite(first, metadata_root, True)
 
-    paths = build_satellite_playlist_paths(str(source_root), True, rng=random.Random(1),
-                                           metadata_root=metadata_root)
+    paths = build_satellite_playlist_paths(
+        SatelliteBuild(str(source_root), favorites_filter=True),
+        rng=random.Random(1), metadata_root=metadata_root,
+    )
 
     assert paths == [str(first)]
 
@@ -336,7 +338,7 @@ def test_build_satellite_playlist_paths_recent_orders_newest_first(tmp_path: Pat
     _touch_with_mtime(old, 1000)
     _touch_with_mtime(new, 2000)
 
-    paths = build_satellite_playlist_paths(str(d), False, recent=True)
+    paths = build_satellite_playlist_paths(SatelliteBuild(str(d), recent=True))
 
     assert paths == [str(new), str(old)]
 
@@ -375,7 +377,7 @@ def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path)
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
     (d / "b.mp4").write_text("x", encoding="utf-8")
-    paths = build_satellite_playlist_paths(str(d), False, rng=random.Random(1))
+    paths = build_satellite_playlist_paths(SatelliteBuild(str(d)), rng=random.Random(1))
     assert len(paths) == 2
 
 
@@ -392,7 +394,7 @@ def test_shuffled_satellite_build_plays_one_item_per_action_group(tmp_path: Path
     seen: set[str] = set()
     for round_no in range(30):
         built = build_satellite_playlist_paths(
-            str(source_dir), False,
+            SatelliteBuild(str(source_dir)),
             rng=random.Random(round_no), metadata_root=metadata_root,
         )
         chosen = group.intersection(built)
@@ -414,7 +416,7 @@ def test_group_item_choice_follows_the_weights_stamped_on_the_sidecars(tmp_path:
 
     loved_picks = sum(
         paths["loved"] in build_satellite_playlist_paths(
-            str(source_dir), False,
+            SatelliteBuild(str(source_dir)),
             rng=random.Random(round_no), metadata_root=metadata_root,
         )
         for round_no in range(40)
@@ -432,7 +434,7 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
 
     appearances = sum(
         paths["disliked"] in build_satellite_playlist_paths(
-            str(source_dir), False,
+            SatelliteBuild(str(source_dir)),
             rng=random.Random(round_no), metadata_root=metadata_root,
         )
         for round_no in range(40)
@@ -452,8 +454,8 @@ def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
         os.utime(Path(paths[name]), (mtime, mtime))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False,
-        recent=True, rng=random.Random(1), metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), recent=True),
+        rng=random.Random(1), metadata_root=metadata_root,
     )
 
     assert built == [paths["subject1_new"], paths["subject2_solo"], paths["no_metadata"]]
@@ -487,8 +489,8 @@ def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
         "twirl": _i2v_meta("3", "Twirling"),
     })
     got = build_satellite_playlist_paths(
-        str(source_dir), False,
-        filter_query="beta gamma", rng=random.Random(1), metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), filter_query="beta gamma"),
+        rng=random.Random(1), metadata_root=metadata_root,
     )
     assert got == [paths["prone"]]
 
@@ -499,8 +501,8 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
         "nometa": None,
     })
     got = build_satellite_playlist_paths(
-        str(source_dir), False,
-        filter_query="alpha", rng=random.Random(1), metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), filter_query="alpha"),
+        rng=random.Random(1), metadata_root=metadata_root,
     )
     assert got == [paths["clip"]]
 
@@ -514,8 +516,8 @@ def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     os.utime(paths["old"], (1000, 1000))
     os.utime(paths["new"], (2000, 2000))
     got = build_satellite_playlist_paths(
-        str(source_dir), False,
-        filter_query="alpha", recent=True, metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), recent=True, filter_query="alpha"),
+        metadata_root=metadata_root,
     )
     assert got == [paths["new"], paths["old"]]
 
@@ -525,7 +527,8 @@ def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
     got = build_satellite_playlist_paths(
-        str(d), False, filter_query="alpha", rng=random.Random(1)
+        SatelliteBuild(str(d), filter_query="alpha"),
+        rng=random.Random(1),
     )
     assert len(got) == 1
 
@@ -589,8 +592,8 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
     os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False,
-        filter_query="alpha", recent=True, metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), recent=True, filter_query="alpha"),
+        metadata_root=metadata_root,
     )
 
     assert built == [paths["clip_b"]]
@@ -605,7 +608,8 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
     os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False, recent=True, metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), recent=True),
+        metadata_root=metadata_root,
     )
 
     assert sorted(built) == sorted([paths["clip_a"], paths["clip_b"]])
@@ -619,8 +623,8 @@ def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     })
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False,
-        filter_query="side", recent=True, metadata_root=metadata_root,
+        SatelliteBuild(str(source_dir), recent=True, filter_query="side"),
+        metadata_root=metadata_root,
     )
 
     assert len(built) == 2
