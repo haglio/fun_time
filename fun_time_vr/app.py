@@ -26,6 +26,7 @@ from .frame_loop import (
 from .funestras import LoadingScreenUnit, VrSettings, hang_the_room
 from .perf import FramePerf
 from .render import SceneRenderer
+from .room_launch import RoomLaunch
 from .scheduling import ahead_of_background_work
 
 logger = logging.getLogger(__name__)
@@ -95,8 +96,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     loading_screen = LoadingScreenUnit(state_dir)
     raise_the_loading_screen(headset, loading_screen)
     the_room = hang_the_room(
-        manifest, vr, session.shared_contexts(), manifest_path=manifest_path, loading_screen=loading_screen,
-        perf=headset.perf, present_the_loading_screen=lambda: present_the_loading_screen(headset, loading_screen))
+        RoomLaunch(manifest, vr, session.shared_contexts(), headset.perf),
+        manifest_path=manifest_path, loading_screen=loading_screen,
+        present_the_loading_screen=lambda: present_the_loading_screen(headset, loading_screen))
     the_room.start_pumping(headset.perf)
     logger.info(
         "Entering the VR loop (three Funestras up, compositor layers %s)",
