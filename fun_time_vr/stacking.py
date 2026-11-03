@@ -11,7 +11,6 @@ from .scene import encloses
 @dataclass(frozen=True)
 class Pane:
     screens: tuple[Screen, ...]
-    docked_to: str | None = None
 
 
 def _covers(pane: Pane, other: Pane) -> bool:
@@ -30,8 +29,7 @@ class Stacking:
         self._taken[name] = next(self._clock)
 
     def _when_taken(self, pane: Pane) -> int:
-        return max(self._taken.get(pane.docked_to, 0),
-                   *(self._taken.get(screen.name, 0) for screen in pane.screens))
+        return max(self._taken.get(screen.name, 0) for screen in pane.screens)
 
     def arrange(self, panes: Sequence[Pane]) -> list[Screen]:
         waiting = sorted(panes, key=self._when_taken)

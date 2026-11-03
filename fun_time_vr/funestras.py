@@ -803,7 +803,8 @@ class _MainHudUnit:
             return beside
         return (*beside, Hanging(
             Screen(MAIN_HUD, self.screen.placement, self.texture.aspect, pressable=True),
-            mesh=self.screen, frame=self.texture, blend=True, docked_to=MAIN))
+            mesh=self.screen, frame=self.texture, blend=True,
+            forward_with=DASH if self._main_unit.wraps_the_viewer else MAIN))
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}
@@ -833,8 +834,7 @@ class _MainHudUnit:
             (self._dash.screen.placement, self._dash.texture.aspect) if wrapped else
             (shown_at(MAIN, self._main_unit.screen.placement, screen_aspect), screen_aspect))
         edge = hud_hangs_from(self._main_unit.funestra.hud_edge, wrapped=wrapped)
-        minimized = self._main_unit.funestra.hud_minimized
-        if self._shown or minimized:
+        if self._shown or not self.in_the_room:
             self._buttons.hang(self._main_unit.funestra.outside_buttons, under, aspect, edge=edge,
                                with_sides=not wrapped)
         else:

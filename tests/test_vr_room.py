@@ -54,15 +54,6 @@ class TestWhatThePointerIsOffered:
             _Thing(Hanging(_screen("clock")), Hanging(_screen("alarm"), forward_with="clock")),
             _Thing(Hanging(_screen("notes"))), stacking=stacking) == ["clock", "alarm", "notes"]
 
-    def test_a_screen_docked_to_another_comes_forward_when_that_one_does(self):
-        stacking = Stacking()
-        stacking.take("clock")
-
-        assert _arranged(_Thing(Hanging(_screen("notes"))),
-                         _Thing(Hanging(_screen("shelf"), docked_to="clock")),
-                         _Thing(Hanging(_screen("clock"))), stacking=stacking) == [
-            "notes", "shelf", "clock"]
-
     def test_a_screen_put_in_front_is_over_whatever_was_taken_last(self):
         stacking = Stacking()
         stacking.take("notes")
