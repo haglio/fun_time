@@ -3,24 +3,22 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import threading
-import time
-from collections import deque
 from collections.abc import Callable
 
 from app_support.win32_loader import load_dll, win_functype
 
-from fun_time.text_field_clicks import Seen, Sighting
+from fun_time.text_field_clicks import (
+    EVENT_OBJECT_DESTROY,
+    EVENT_OBJECT_HIDE,
+    EVENT_SYSTEM_CAPTUREEND,
+    EVENT_SYSTEM_CAPTURESTART,
+    DesktopEvents,
+    Seen,
+)
 
 _user32 = load_dll("user32", use_last_error=True)
 _kernel32 = load_dll("kernel32", use_last_error=True)
 
-EVENT_SYSTEM_CAPTURESTART = 0x0008
-EVENT_SYSTEM_CAPTUREEND = 0x0009
-EVENT_OBJECT_DESTROY = 0x8001
-EVENT_OBJECT_SHOW = 0x8002
-EVENT_OBJECT_HIDE = 0x8003
-OBJID_WINDOW = 0
-OBJID_CARET = -8
 WINEVENT_OUTOFCONTEXT = 0x0000
 WINEVENT_SKIPOWNPROCESS = 0x0002
 GA_ROOT = 2
@@ -30,18 +28,10 @@ PM_NOREMOVE = 0x0000
 IDC_IBEAM = 32513
 CURSOR_SHOWING = 0x00000001
 
-_SIGHTINGS = {
-    (EVENT_SYSTEM_CAPTURESTART, OBJID_WINDOW): Sighting.PRESS,
-    (EVENT_SYSTEM_CAPTUREEND, OBJID_WINDOW): Sighting.RELEASE,
-    (EVENT_OBJECT_SHOW, OBJID_CARET): Sighting.CARET_SHOWN,
-    (EVENT_OBJECT_HIDE, OBJID_CARET): Sighting.CARET_GONE,
-    (EVENT_OBJECT_DESTROY, OBJID_CARET): Sighting.CARET_GONE,
-}
 _HOOKED_RANGES = (
     (EVENT_SYSTEM_CAPTURESTART, EVENT_SYSTEM_CAPTUREEND),
     (EVENT_OBJECT_DESTROY, EVENT_OBJECT_HIDE),
 )
-_KEPT = 256
 _STOP_WAIT_S = 2.0
 
 _WINEVENTPROC = win_functype(
@@ -89,6 +79,16 @@ _user32.LoadCursorW.restype = ctypes.wintypes.HANDLE
 _kernel32.GetCurrentThreadId.restype = ctypes.wintypes.DWORD
 
 
+def _root_of(hwnd: int) -> int:
+    return _user32.GetAncestor(hwnd, GA_ROOT)
+
+
+def _process_of(window: int) -> int:
+    process = ctypes.wintypes.DWORD()
+    _user32.GetWindowThreadProcessId(window, ctypes.byref(process))
+    return process.value
+
+
 def the_pointer_is_the_text_pointer() -> bool:
     info = _CursorInfo(cbSize=ctypes.sizeof(_CursorInfo))
     if not _user32.GetCursorInfo(ctypes.byref(info)):
@@ -99,8 +99,8 @@ def the_pointer_is_the_text_pointer() -> bool:
 
 class PressAndCaretWatch:
     def __init__(self, *, text_pointer: Callable[[], bool] = the_pointer_is_the_text_pointer) -> None:
-        self._text_pointer = text_pointer
-        self._seen: deque[Seen] = deque(maxlen=_KEPT)
+        self._events = DesktopEvents(root_of=_root_of, process_of=_process_of,
+                                     text_pointer=text_pointer)
         self._callback = _WINEVENTPROC(self._on_event)
         self._listening = threading.Event()
         self._thread_id = 0
@@ -118,10 +118,7 @@ class PressAndCaretWatch:
         self._thread.join(timeout=_STOP_WAIT_S)
 
     def take(self) -> list[Seen]:
-        taken: list[Seen] = []
-        while self._seen:
-            taken.append(self._seen.popleft())
-        return taken
+        return self._events.take()
 
     def _listen(self) -> None:
         message = ctypes.wintypes.MSG()
@@ -143,12 +140,4 @@ class PressAndCaretWatch:
                     _user32.UnhookWinEvent(hook)
 
     def _on_event(self, _hook, event, hwnd, id_object, _id_child, _thread, _ms) -> None:
-        sighting = _SIGHTINGS.get((event, id_object))
-        if sighting is None or not hwnd:
-            return
-        window = _user32.GetAncestor(hwnd, GA_ROOT) or hwnd
-        process = ctypes.wintypes.DWORD()
-        _user32.GetWindowThreadProcessId(window, ctypes.byref(process))
-        self._seen.append(Seen(
-            sighting, window=int(window), process=process.value, at=time.monotonic(),
-            with_the_text_pointer=sighting is Sighting.PRESS and self._text_pointer()))
+        self._events.heard(event, hwnd, id_object)

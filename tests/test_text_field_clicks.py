@@ -1,6 +1,20 @@
 from __future__ import annotations
 
-from fun_time.text_field_clicks import Seen, Sighting, TextFieldClicks
+import pytest
+
+from fun_time.text_field_clicks import (
+    EVENT_OBJECT_DESTROY,
+    EVENT_OBJECT_HIDE,
+    EVENT_OBJECT_SHOW,
+    EVENT_SYSTEM_CAPTUREEND,
+    EVENT_SYSTEM_CAPTURESTART,
+    OBJID_CARET,
+    OBJID_WINDOW,
+    DesktopEvents,
+    Seen,
+    Sighting,
+    TextFieldClicks,
+)
 
 WINDOW = 7777
 PROCESS = 4242
@@ -118,3 +132,84 @@ def test_a_click_into_the_field_that_already_has_the_caret_is_one():
         clicks.saw(seen)
 
     assert clicks.clicked_into(now=10.2) == WINDOW
+
+
+_A_PRESS = (EVENT_SYSTEM_CAPTURESTART, OBJID_WINDOW)
+_THE_CARET_SHOWN = (EVENT_OBJECT_SHOW, OBJID_CARET)
+
+
+def _events(*, text_pointer=lambda: False):
+    return DesktopEvents(root_of=lambda hwnd: hwnd + 1000 if hwnd < 1000 else 0,
+                         process_of=lambda window: window + 1,
+                         text_pointer=text_pointer, now=lambda: 12.5)
+
+
+@pytest.mark.parametrize(("heard", "sighting"), [
+    (_A_PRESS, Sighting.PRESS),
+    ((EVENT_SYSTEM_CAPTUREEND, OBJID_WINDOW), Sighting.RELEASE),
+    (_THE_CARET_SHOWN, Sighting.CARET_SHOWN),
+    ((EVENT_OBJECT_HIDE, OBJID_CARET), Sighting.CARET_GONE),
+    ((EVENT_OBJECT_DESTROY, OBJID_CARET), Sighting.CARET_GONE),
+])
+def test_each_thing_the_desktop_reports_is_seen_as_what_it_means(heard, sighting):
+    events = _events()
+
+    events.heard(heard[0], 7, heard[1])
+
+    assert events.take() == [Seen(sighting, window=1007, process=1008, at=12.5)]
+
+
+def test_a_window_being_shown_is_no_caret_and_a_caret_captured_is_no_press():
+    events = _events()
+
+    events.heard(EVENT_OBJECT_SHOW, 7, OBJID_WINDOW)
+    events.heard(EVENT_SYSTEM_CAPTURESTART, 7, OBJID_CARET)
+
+    assert events.take() == []
+
+
+def test_an_event_with_no_window_is_no_sighting():
+    events = _events()
+
+    events.heard(_A_PRESS[0], 0, _A_PRESS[1])
+
+    assert events.take() == []
+
+
+def test_a_window_with_no_root_counts_as_its_own():
+    events = _events()
+
+    events.heard(_A_PRESS[0], 5000, _A_PRESS[1])
+
+    assert events.take()[0].window == 5000
+
+
+def test_only_a_press_asks_whether_the_pointer_is_the_text_pointer():
+    asked = []
+    events = _events(text_pointer=lambda: asked.append(True) or True)
+
+    events.heard(_THE_CARET_SHOWN[0], 7, _THE_CARET_SHOWN[1])
+    events.heard(_A_PRESS[0], 7, _A_PRESS[1])
+
+    assert [seen.with_the_text_pointer for seen in events.take()] == [False, True]
+    assert asked == [True]
+
+
+def test_what_was_taken_is_not_taken_twice():
+    events = _events()
+    events.heard(_A_PRESS[0], 7, _A_PRESS[1])
+
+    events.take()
+
+    assert events.take() == []
+
+
+def test_a_session_that_stops_taking_keeps_only_the_newest_sightings():
+    events = _events()
+
+    for hwnd in range(1, 400):
+        events.heard(_A_PRESS[0], hwnd, _A_PRESS[1])
+
+    taken = events.take()
+    assert len(taken) == 256
+    assert taken[-1].window == 1399

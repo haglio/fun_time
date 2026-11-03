@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -7,6 +9,15 @@ from typing import Protocol
 
 SETTLE_S = 0.05
 LATE_S = 0.5
+
+EVENT_SYSTEM_CAPTURESTART = 0x0008
+EVENT_SYSTEM_CAPTUREEND = 0x0009
+EVENT_OBJECT_DESTROY = 0x8001
+EVENT_OBJECT_SHOW = 0x8002
+EVENT_OBJECT_HIDE = 0x8003
+OBJID_WINDOW = 0
+OBJID_CARET = -8
+_KEPT = 256
 
 
 class Sighting(Enum):
@@ -23,6 +34,44 @@ class Seen:
     process: int
     at: float
     with_the_text_pointer: bool = False
+
+
+_SIGHTINGS = {
+    (EVENT_SYSTEM_CAPTURESTART, OBJID_WINDOW): Sighting.PRESS,
+    (EVENT_SYSTEM_CAPTUREEND, OBJID_WINDOW): Sighting.RELEASE,
+    (EVENT_OBJECT_SHOW, OBJID_CARET): Sighting.CARET_SHOWN,
+    (EVENT_OBJECT_HIDE, OBJID_CARET): Sighting.CARET_GONE,
+    (EVENT_OBJECT_DESTROY, OBJID_CARET): Sighting.CARET_GONE,
+}
+
+
+class DesktopEvents:
+    def __init__(self, *, root_of: Callable[[int], int], process_of: Callable[[int], int],
+                 text_pointer: Callable[[], bool],
+                 now: Callable[[], float] = time.monotonic) -> None:
+        self._root_of = root_of
+        self._process_of = process_of
+        self._text_pointer = text_pointer
+        self._now = now
+        seen: deque[Seen] = deque(maxlen=_KEPT)
+        self._seen = seen
+        self._remember = seen.append
+        self._oldest = seen.popleft
+
+    def heard(self, event: int, hwnd: int, id_object: int) -> None:
+        sighting = _SIGHTINGS.get((event, id_object))
+        if sighting is None or not hwnd:
+            return
+        window = self._root_of(hwnd) or hwnd
+        self._remember(Seen(
+            sighting, window=int(window), process=self._process_of(window), at=self._now(),
+            with_the_text_pointer=sighting is Sighting.PRESS and self._text_pointer()))
+
+    def take(self) -> list[Seen]:
+        taken: list[Seen] = []
+        while self._seen:
+            taken.append(self._oldest())
+        return taken
 
 
 class Sightings(Protocol):
