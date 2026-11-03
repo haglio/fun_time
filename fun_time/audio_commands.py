@@ -29,12 +29,6 @@ _MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
 
 
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
-    """Move the sound level by *step*, staying within the silent/full bounds.
-
-    Asking for a loudness lifts a mute, as reaching for the volume does in the
-    Windows mixer: a "louder" that left Fun Time silent would read as the
-    command having been missed.
-    """
     volume = max(MIN_VOLUME, min(MAX_VOLUME, state.volume + step))
     return replace(state, volume=volume, muted=False)
 

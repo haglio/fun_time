@@ -1,20 +1,3 @@
-"""Spoken filter vocabulary and command decoding for the Satellite Funestras.
-
-A metadata filter is issued by voice: an act, alone for both Funestras or with
-"portrait", "landscape" or "both" before or after it, drawn from the
-library's ``video.action`` values.  This module is the single source of truth
-mapping those to dispatch commands.  It stays free of the speech runtime so the
-command reference and tests can import it cheaply — the same reason
-:mod:`fun_time.voice_commands` is split from :mod:`fun_time.voice_control`.
-
-The act vocabulary is content, not logic, so it lives in a JSON overlay
-(``content.local.json``, git-ignored) with a committed ``content.example.json``
-placeholder.  Some spoken forms deliberately differ from the query they match: a
-word the small speech model does not know is voiced with in-vocabulary words
-while the command keeps the real query.  Queries stay lowercase, and one
-substring-matches every ``video.action`` containing it — the recorded act alone,
-never the generation prompts around it.
-"""
 from __future__ import annotations
 
 import functools
@@ -32,12 +15,6 @@ def load_acts(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,
 ) -> dict[str, tuple[str, ...]]:
-    """Canonical query -> spoken forms, from the local overlay or the example.
-
-    The git-ignored ``content.local.json`` holds the real vocabulary; the
-    committed ``content.example.json`` is a tame placeholder used whenever it is
-    absent (a fresh or public checkout).
-    """
     data = load_content(local_path, example_path)
     return {query: tuple(forms) for query, forms in data["acts"].items()}
 

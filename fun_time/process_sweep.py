@@ -1,4 +1,3 @@
-"""Which processes on the machine run an image and a command line, asked of Windows in-process."""
 from __future__ import annotations
 
 import re

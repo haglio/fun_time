@@ -601,10 +601,6 @@ def build_reference_sections() -> tuple[ReferenceSection, ...]:
     return tuple(sections)
 
 
-# --- HTML rendering ---------------------------------------------------------
-# The family's palette, read without Qt: shared_ui.palette imports nothing, so
-# this module stays unit-testable without a QApplication.  These were seven
-# hex literals mirroring it, one of which had drifted three points.
 _BG = as_hex(BG_PRIMARY)
 _HEADER_BG = as_hex(BG_SECONDARY)
 _TEXT = as_hex(TEXT_PRIMARY)
@@ -631,11 +627,6 @@ def _cell(content: str, *, width: str = "") -> str:
 
 
 def render_reference_html() -> str:
-    """Render the reference as a self-contained HTML document for QTextBrowser.
-
-    Uses only inline style attributes (no ``<style>`` block) so the markup
-    works with Qt's limited rich-text engine.
-    """
     parts: list[str] = [
         f'<body style="background:{_BG};color:{_TEXT};'
         f'font-family:\'{FONT_UI}\';font-size:{SIZE_BODY}pt">',

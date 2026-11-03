@@ -26,19 +26,6 @@ def no_console_window() -> dict:
 def open_child_log(
     log_file: str | Path, argv: Sequence[str], *, max_bytes: int = CHILD_LOG_MAX_BYTES,
 ) -> IO[bytes]:
-    """Open *log_file* to receive a child process's stdout and stderr.
-
-    A windowed child (``pythonw``) has no console, so without this its stderr goes
-    nowhere: an unhandled exception kills it leaving no trace, which is what made
-    the satellite deaths undiagnosable.  Handing the returned handle to
-    ``Popen(stdout=…, stderr=…)`` gives the Python traceback *and* the native
-    diagnostics libmpv writes to stderr a home on disk.
-
-    Opened for append and stamped with a message naming the launch time and argv,
-    so a log spanning many sessions can be split by eye at the right one; a log
-    that has grown past *max_bytes* is rolled aside first, so an every-day habit
-    cannot grow one forever.
-    """
     path = Path(log_file)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -57,12 +44,7 @@ def marks_a_launch(line: str) -> bool:
 
 
 def _roll_oversize_log(path: Path, max_bytes: int) -> None:
-    """Move an oversize log aside to ``<name>.1``, keeping one generation.
-
-    Best-effort: a stranded child still holding the old handle makes Windows
-    refuse the rename, and log housekeeping must never keep a Funestra from
-    launching — the launch just appends to the big file instead.
-    """
+    # A stranded child still holding the old handle makes Windows refuse the rename.
     try:
         if path.stat().st_size <= max_bytes:
             return

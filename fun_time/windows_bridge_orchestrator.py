@@ -137,32 +137,14 @@ _CHILD_PID_KEYS = tuple(key for _, keys in _CHILD_GROUPS for key in keys)
 
 @dataclass(frozen=True)
 class ChildProcess:
-    """A child we launched, named by the pair that survives PID recycling.
-
-    ``created_at`` is the process's creation FILETIME, read while the child was
-    known to be alive.  A PID alone is not an identity — Windows hands a freed
-    PID back out within seconds — so every deferred kill compares the recorded
-    creation time against the live one first.  ``created_at`` is 0 for a child
-    that was never launched (pid 0) or had already exited when it was recorded;
-    no live process can match that, so it is never killed.
-    """
+    # Windows hands a freed PID back out within seconds, so every deferred kill compares creation
+    # times first.
 
     pid: int
     created_at: int
 
 
 def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
-    """Pin each freshly-launched child PID to the process now holding it.
-
-    Called seconds after launch, with startup having just driven the children
-    (the satellites' status files appeared, as did the Main Funestra's window), so
-    the creation time read here is the one our child was born with.  Everything that
-    kills a child later compares against it, and a PID Windows has since handed
-    to someone else no longer matches.
-
-    A child that has already exited has no creation time to read; recording 0
-    means nothing alive can ever match it, so it is never killed.
-    """
     children: dict[str, ChildProcess] = {}
     for key in _CHILD_PID_KEYS:
         pid = getattr(result, key)
@@ -222,12 +204,6 @@ def kill_recorded_child(child: ChildProcess) -> None:
 
 
 def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
-    """WM_CLOSE the hosted Origenerator and give its close a moment to finish.
-
-    Its closeEvent is where the session persists and the absence experiments are
-    handed to ComfyUI — a taskkill loses both.  A hanging close falls through to
-    the companions sweep, which kills the tree.
-    """
     if child is None or not child.pid:
         return
     hwnd = find_origenerators_window(child.pid)
@@ -536,17 +512,8 @@ def _funestras_to_settle(*, portrait_hwnd: int, landscape_hwnd: int,
 def _settle_the_funestras(funestras: Sequence[tuple[str, int, int]], *,
                         overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
                         wait_s: float = SETTLE_WAIT_S) -> None:
-    """Re-promote each Funestra until it is genuinely frontmost over its own rect.
-
-    The banding above can silently miss one: SetWindowPos waits on the target's
-    own thread, and every Funestra is at its busiest exactly now (first frames
-    decoding), so a promotion can time out through the stalled-window guard and
-    land only when that thread next pumps — a maximized Chrome sat over the
-    Landscape Funestra until the next full re-band, and the Main Funestra climbed
-    over Fun Time a second after the loading screen lifted.  So walk the real z-order and
-    re-promote whoever is still buried.  The loading overlay covers everything
-    on purpose, so it is not a burial, and a re-promotion under it goes under it.
-    """
+    # Windows' SetWindowPos waits on the target's own thread, so a promotion can time out and land only when
+    # that thread next pumps.
     for _ in range(passes):
         stack = iter_zorder()
         buried = [

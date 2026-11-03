@@ -3,9 +3,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# PyQt6 widget
-# ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
 from PyQt6.QtGui import QColor, QFontMetrics, QIcon, QPainter, QTransform
 from PyQt6.QtWidgets import (

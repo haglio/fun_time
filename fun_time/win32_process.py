@@ -1,9 +1,3 @@
-"""Asking Windows about a process, rather than about a window.
-
-Every entry point these call is declared below.  ``argtypes`` matter on 64-bit:
-without them ctypes marshals a HANDLE as a 32-bit ``c_int`` and truncates it,
-and an out-parameter pointer has to be a real pointer.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -111,13 +105,8 @@ def creation_time_of(handle: int) -> int | None:
 
 
 def is_process_alive(pid: int) -> bool:
-    """Check whether *pid* refers to a currently running process.
-
-    os.kill(pid, 0) raises WinError 87 for valid PIDs on Python 3.14 /
-    Windows 11, and OpenProcess alone still succeeds for exited processes
-    whose kernel object is kept alive by an open handle, so liveness comes
-    from GetExitCodeProcess reporting STILL_ACTIVE.
-    """
+    # os.kill(pid, 0) raises WinError 87 for valid PIDs on Python 3.14 / Windows 11, and OpenProcess
+    # succeeds for exited processes a handle keeps alive, so liveness comes from GetExitCodeProcess.
     handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return False

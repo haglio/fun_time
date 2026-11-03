@@ -1,11 +1,6 @@
-"""OpenXR session lifecycle and swapchain management for the headset.
-
-The loader's traps, each learned the slow way: graphics requirements queried
-before session creation, typed event casting, waiting for READY before the frame
-loop, and gating on view validity (an unlocated view reports an all-zero FOV, a
-division by zero in the projection matrix).  No per-eye depth buffers -- the
-scene draws in painter's order.
-"""
+# OpenXR's traps: graphics requirements queried before session creation, typed event casting,
+# waiting for READY before the frame loop, and gating on view validity (an unlocated view reports an
+# all-zero FOV).
 from __future__ import annotations
 
 import ctypes
@@ -57,8 +52,6 @@ _NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
 
 
 class VRSession:
-    """The OpenXR instance, session, reference space, and per-eye swapchains."""
-
     def __init__(self, *, app_name: str = "FunTimeVR") -> None:
         self.running = True
         self._window = None

@@ -21,10 +21,6 @@ if TYPE_CHECKING:
 
 @dataclass
 class BridgeConfig:
-    # Each satellite is a native mpv-backed Funestra
-    # driven through a file quartet — a command file it drains verbs from, a
-    # paused flag it obeys, a status file it publishes, and the playlist file it
-    # plays.  See :mod:`fun_time.satellite_control`.
     portrait_cmd_file: Path
     portrait_paused_file: Path
     portrait_status_file: Path
@@ -55,8 +51,6 @@ class BridgeConfig:
     vr_main_funestra: bool = False
     vr_library_dirs: str = ""
     genau_vr_flicks: str = ""
-    # Our own interpreter — what the library browser is launched with, since the
-    # bridge process has no Qt event loop to host that window in.
     python_exe: str = ""
     broker_cmd_file: Path | None = None
     broker_tray_launcher: Path | None = None

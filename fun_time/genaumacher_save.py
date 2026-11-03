@@ -17,11 +17,6 @@ logger = logging.getLogger(__name__)
 
 @functools.lru_cache(maxsize=1)
 def _genaumacher_project_dir() -> Path:
-    """The sibling genaumacher checkout, beside the PRIMARY checkout — never beside
-    a worktree, where ``../genaumacher`` does not exist (the two tests on this pin
-    both halves).  Cached: one git subprocess, and the answer cannot change
-    while the session runs.
-    """
     from .branch_session import primary_checkout  # noqa: PLC0415 (no launcher import here)
 
     return primary_checkout().parent / "genaumacher"

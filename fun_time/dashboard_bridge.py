@@ -43,11 +43,8 @@ SNAPSHOT_ENCODINGS = ("utf-8-sig", "utf-16", "utf-8")
 
 
 def decode_snapshot(raw: bytes) -> str:
-    """The snapshot's text — beside the writer, which decides the encoding.
-
-    Newlines are normalized here, in the decoder every reader shares: the writer
-    opens in text mode, so on Windows its ``\n`` reaches disk as ``\r\n``.
-    """
+    # The writer opens in text mode, so on Windows its newline reaches disk as a carriage return and
+    # a newline.
     for encoding in SNAPSHOT_ENCODINGS:
         try:
             text = raw.decode(encoding)

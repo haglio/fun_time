@@ -74,8 +74,7 @@ def playlist_opens_on(playlist_file: Path, video: str) -> bool:
 
 
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
-    """Last session's playlist, minus videos trashed or pruned since: handing mpv
-    a path to nothing is how a satellite comes up stuck."""
+    # Handing mpv a path to nothing is how a satellite comes up stuck.
     return [item for item in read_playlist(playlist_file) if item.path.exists()]
 
 

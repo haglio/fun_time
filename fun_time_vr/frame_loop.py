@@ -120,9 +120,6 @@ def raise_the_loading_screen(
     headset: Headset, loading_screen: LoadingScreenUnit, *, clock: Clock = time.monotonic,
     sleep: Sleep = time.sleep,
 ) -> None:
-    """Get the loading screen in front of the eyes BEFORE the Funestras are built: built
-    first and shown after, it was up for the tail of a launch that had already
-    finished.  One frame here carries through the mpv bring-up."""
     if not loading_screen.wanted:
         return
     deadline = clock() + FIRST_LOADING_SCREEN_TIMEOUT_S
@@ -241,7 +238,6 @@ class FrameLoop:
         perf.frame_done()
 
     def quad_layers(self, arranged: Arranged) -> tuple[list[QuadLayer], set[str]]:
-        """The mpv-backed screens as quads, out of the scene as each is taken."""
         quads: list[QuadLayer] = []
         as_quads: set[str] = set()
         main_unit = self._room.main_unit

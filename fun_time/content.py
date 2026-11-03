@@ -1,12 +1,3 @@
-"""Shared access to the JSON content overlay.
-
-Real copy lives in the git-ignored ``content.local.json``; the committed
-``content.example.json`` is a tame placeholder used on a fresh or public
-checkout.  Modules that read user-facing content (the spoken act vocabulary in
-:mod:`fun_time.filter_vocab`, the provider gallery URLs in
-:mod:`fun_time.media_actions`) load it through here, so the overlay location is
-defined in exactly one place.
-"""
 from __future__ import annotations
 
 import functools
@@ -38,16 +29,6 @@ def load_content(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,
 ) -> dict[str, Any]:
-    """The content overlay dict, with every documented key guaranteed present.
-
-    The real copy is the git-ignored ``content.local.json``; the committed
-    ``content.example.json`` is the placeholder used whenever it is absent (a
-    fresh or public checkout).  A *partial* local overlay — one that exists but
-    omits a documented key — no longer trips a downstream ``data[key]`` far from
-    here: each missing key is backfilled from the example, except the ones in
-    :data:`_EMPTY_WHEN_ABSENT`, which default to empty so the example's
-    placeholder never masquerades as real data.
-    """
     example = _read_json(example_path)
     if not local_path.exists():
         return example

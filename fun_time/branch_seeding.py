@@ -12,13 +12,6 @@ WATCH_STATS_NAME = "watch_stats.json"
 
 
 def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
-    """Copy into *worktree* the git-ignored overlays a session reads from its
-    own checkout, and return what was copied.
-
-    Each is found relative to the package that reads it rather than through
-    config, so a branch session without them falls back to the committed
-    placeholders and he is looking at a wrongness his branch did not cause.
-    """
     copied: list[Path] = []
     for relative in PRIVATE_OVERLAYS:
         source = primary / relative

@@ -68,8 +68,7 @@ class HeadsetBrowse:
         self._looked_at: float | None = None
 
     def take_the_library(self, handles: Sequence[LibraryHandle]) -> None:
-        """The read has landed: build the window, on the thread that serves it --
-        a Qt widget belongs to the thread that made it, and the read is a worker's."""
+        # A Qt widget belongs to the thread that made it, and the read is a worker's.
         self._library = self._browser(handles, TOP_LEVEL_NAME)
         if self.window is None:
             self.window = self._library

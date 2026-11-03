@@ -1,8 +1,3 @@
-"""Argument parsing and playlist resolution for the Main Funestra — no pygame imports.
-
-Kept apart from the app shell so the orchestrator-facing configuration
-surface is importable (and testable) without an SDL display.
-"""
 from __future__ import annotations
 
 import argparse

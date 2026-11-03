@@ -1,17 +1,3 @@
-"""Publish each Funestra's HUD to the file that Funestra renders from.
-
-The HUD's *model* has to live here: only fun_time knows the library's seed
-families, action groups and thumbnails.  The *drawing* lives in the Satellite
-Funestra, which composites it straight into the video with mpv — so the HUD has no
-window of its own and no z-order to fight (see :mod:`funestra.satellite_hud`).
-
-This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.SatelliteHud`
-into the :class:`~funestra.satellite_hud.HudModel` the Funestra parses back, and
-writes its text only when it actually changed, so a Funestra polling the file
-re-renders per video change rather than per tick.  The Main Funestra's console
-rides the same publisher, and so does a Satellite the hosted Origenerator holds —
-whose HUD is that app's own, under the session's row.
-"""
 from __future__ import annotations
 
 from dataclasses import replace

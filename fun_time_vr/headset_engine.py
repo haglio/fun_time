@@ -1,11 +1,5 @@
-"""The engine a headset's Funestra plays through: libmpv rendered into a
-texture, and silent until the headset is worn.
-
-A sink parked on the stand takes the stream without draining it, and mpv's
-clock follows audio, so an engine heard before the compositor is presenting
-freezes on frame 1.  What the room or a chip asks before then is
-remembered and comes on with the sound, and a radio's stations open with it.
-"""
+# A sink parked on the stand takes the stream without draining it, and mpv's clock follows audio, so
+# an engine heard before the compositor presents freezes on frame 1.
 from __future__ import annotations
 
 from collections.abc import Callable

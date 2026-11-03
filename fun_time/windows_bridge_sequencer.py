@@ -289,10 +289,6 @@ def _launch_the_main_funestra(
     launched: _LaunchedChildren,
 ) -> tuple[int, Path]:
     regen_metadata_raw = m.regen.metadata_root.strip()
-    # Launched as early as possible so it can initialise pygame, scan media and
-    # decode first frames while the rest of startup continues.  The Main Funestra's
-    # rect depends only on the secondary monitor + main_top_ratio (already
-    # computed above).
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
@@ -355,13 +351,6 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    """Phase 1: the hosted app, then the two satellites, then the Main Funestra.
-
-    Nothing here waits for a window.  Everything is started as early as it can
-    be, slowest first, so each child's own boot — ComfyUI, pygame, a media
-    scan, first frames — runs under the rest of startup, the hosted app's on
-    past the reveal.
-    """
     sibling_checkouts = m.runtime.sibling_checkouts
     origenerator_pid = _launch_the_hosted_origenerator(
         m, plan=layout.plan, sibling_checkouts=sibling_checkouts, launched=launched)
@@ -446,19 +435,6 @@ def _wait_for_the_app_to_be_drawing(
     progress: ProgressReporter,
     funestras: list[LaunchedFunestra] = (),
 ) -> None:
-    """Hold the loading screen until every Funestra has a frame under it.
-
-    The Main Funestra is the third Funestra and by now the only one still loading: its window
-    has been up since half a second after launch with its own loading screen
-    painted into it, so revealing on the window alone shows his progress bar
-    instead of a video.  The two satellites are the same case one step earlier —
-    their windows exist within a second of launch and stay BLACK until mpv has
-    opened the first video, which is what "the windows are not ready when the
-    loading screen goes away" looks like.
-
-    Neither wait gets to keep the desktop: a Funestra that never arrives is
-    revealed over anyway, and the log says which one.
-    """
     if not _wait_for_main_funestra_loaded(main_funestra_status_file, progress, funestras=funestras):
         logger.warning(
             "the Main Funestra reported no video within %.0fs; revealing over whatever it "
@@ -611,12 +587,6 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
     )
 
 
-# How long the loading screen waits for the two satellites to have a frame up.
-# Their windows exist within a second of launch and stay BLACK until mpv has
-# opened the first video and drawn a frame — on the 4K landscape library that is
-# several seconds — so a reveal timed on the windows alone lifts on two black
-# rectangles.  Bounded like the Main Funestra's: a Funestra that never gets there does not get
-# to keep the desktop.
 SATELLITE_PLAY_TIMEOUT_S = 25.0
 _PLAY_POLL_S = 0.1
 
@@ -624,18 +594,6 @@ _PLAY_POLL_S = 0.1
 def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
                               timeout_s: float = SATELLITE_PLAY_TIMEOUT_S,
                               *, funestras: list[LaunchedFunestra] = ()) -> bool:
-    """Wait until every satellite is DRAWING, returning whether they all got there.
-
-    The window existing is not the signal, and neither is the process running:
-    a satellite opens its window immediately, then spends seconds asking mpv for
-    the first video.  Its status file says ``position_ms`` once frames are
-    actually going out, which is the same thing the integration suite waits on
-    to call a Funestra started.
-
-    Also a cancellation checkpoint, per poll, like the Main Funestra wait it sits beside:
-    this is one of the stretches that can run for tens of seconds, and the
-    overlay covering it offers Esc.
-    """
     files = [Path(path) for path in status_files if path]
     if not files:
         return True
@@ -684,7 +642,6 @@ def _maybe_launch_random_favs_browser(
         logger.warning("Random Favs Browser skipped: could not resolve shortcut %s", shortcut_path)
         return 0
 
-    # Take a Chrome window snapshot before launch
     before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
 
     result = launch_random_favs_browser(manifest_file, shortcut=shortcut)
@@ -692,7 +649,6 @@ def _maybe_launch_random_favs_browser(
         logger.info("Random Favs Browser skipped: launch plan was empty")
         return 0
 
-    # Wait for a new Chrome window to appear
     new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
     if not new_hwnd:
         logger.warning("Random Favs Browser skipped: no new Chrome window appeared")
@@ -708,7 +664,6 @@ def _maybe_launch_random_favs_browser(
 
 
 def _wait_for_new_chrome_window(before: set[int], timeout_ms: int = 8000) -> int:
-    """Wait for a Chrome window that was not in the *before* set."""
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
         appeared = find_windows_by_class(CHROME_WINDOW_CLASS) - before

@@ -1,5 +1,5 @@
-"""A video's size and date as its folder lists them, never asked of the video:
-pCloud lists a folder at once and can take hours over one file in it."""
+# pCloud lists a folder at once and can take hours over one file in it, so a video's size and date
+# come from its folder's listing.
 from __future__ import annotations
 
 import os

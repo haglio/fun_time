@@ -1,17 +1,3 @@
-"""The loop a video is being marked into, or is running in.
-
-:class:`main_funestra.loop_controller.LoopController` is the pure half -- where the bounds
-go, and which of the three states a gesture leaves the machine in.  This is the
-half that has a Funestra: it hands a settled range to mpv, which loops it natively
-rather than by seeking, drops the playhead on its start, clears the range again
-when the loop is left, and reads the clock each tick to catch the one thing a
-gesture cannot say -- a mark that ran to the end of the file.
-
-Kino owns one, on the Main Funestra of the desktop and of the headset alike,
-whose Playback is the Funestra here.  *mark* is told where a stretch starts to
-be marked out, and None when the mark closes or drops, so a Funestra that keeps
-the mark (a Playback floors its seeks at it) hears of it.
-"""
 from __future__ import annotations
 
 from collections.abc import Callable

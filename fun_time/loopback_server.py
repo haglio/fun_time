@@ -1,21 +1,5 @@
-"""The one loopback surface Fun Time exposes to Chrome.
-
-Two things over there need to ask this session something, and neither can read
-a file to find it out:
-* Tampermonkey fetches the Provider autofill userscript.  It is hand-installed
-  once, but Chrome refuses to *update* a script from a ``file://`` path, which
-  makes every later edit a copy-all-paste-save into the Tampermonkey dashboard
-  by hand.  The script carries ``@updateURL`` / ``@downloadURL`` pointing here
-  instead, and every merge lands on its next update check.
-* The RFB tab pages ask whether the session is in OmniPause, and freeze the
-  video they are showing while it is.  A page is a ``file://`` document with no
-  way to watch the state dir, so it polls (see ``omnipause_url``).
-
-The server binds ``127.0.0.1`` only, 404s every other path, and reads both the
-script and the pause state per request — an edit or a pause is picked up
-without a restart.  It runs as a daemon thread off the orchestrator, so it is
-up exactly as long as Fun Time is.
-"""
+# Chrome refuses to update a userscript from a file:// path, and a file:// page cannot watch the
+# state dir, so both ask this server.
 from __future__ import annotations
 
 import json
@@ -29,19 +13,12 @@ from shared_ui.pages import with_family_look
 
 LOOPBACK_PORT = ports.USERSCRIPT_HTTP
 USERSCRIPT_NAME = "regen_autofill.user.js"
-# The real script is provider-specific and git-ignored; a public checkout has
-# only this committed template, which the server falls back to serving.
 EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
 OMNIPAUSE_PATH = "/omnipause"
 
 
 def userscript_path() -> Path:
-    """Absolute path to the served userscript inside the package's static dir.
-
-    Prefer the real (git-ignored) script; fall back to the committed example so a
-    fresh checkout still serves a valid userscript.
-    """
     static = Path(__file__).resolve().parent / "static"
     real = static / USERSCRIPT_NAME
     return real if real.exists() else static / EXAMPLE_USERSCRIPT_NAME

@@ -117,15 +117,8 @@ def expand_group_command(command: str) -> list[str]:
 
 
 def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:
-    """Elapsed seconds if the loop stalled far longer than its tick cadence.
-
-    The dispatch thread freezes while Windows is asleep or in modern standby;
-    on resume the wall clock has jumped forward by the sleep duration.  A gap
-    far above the ~50 ms tick interval means we just woke — the moment AHK's
-    hotkeys are prone to not firing until the bridge is restarted.  Returns
-    None for ordinary iterations (and for merely slow ticks, e.g. a blocking
-    file read against a stalled disk, which the threshold clears).
-    """
+    # The thread freezes while Windows sleeps, and AHK's hotkeys are prone to not firing after a
+    # wake.
     gap = now_wall - prev_wall
     return gap if gap >= threshold_s else None
 
@@ -342,24 +335,8 @@ class DispatchLoopRunner:
             self._update_dashboard()
 
     def _flush_rfb_tabs(self) -> None:
-        """Open every buffered RFB URL as tabs in the session's own Chrome window.
-
-        The RFB runs in the user's own Chrome profile, so his personal windows
-        are candidates for the tab too: Chrome's ``FindTabbedBrowser`` walks
-        that profile's windows most-recently-active first, so the window he
-        touched last would win and the lock's tab would land under the
-        Funestras.  Activating the RFB window first is what settles it — it goes
-        to the head of Chrome's own activation order, and Chrome shows the
-        window it opens into either way, so this only decides which one rises.
-
-        A dead handle means Fun Time has no window of its own left to open
-        into, and every URL handed over then lands in one of his: worth losing
-        the tab over, so the launch is skipped entirely.
-
-        While Origenerator holds the browser's place the buffer holds instead
-        of flushing: opening a tab would force Chrome over it.  The locks queue,
-        and putting the browser back in its place flushes them.
-        """
+        # Chrome's FindTabbedBrowser walks the profile's windows most-recently-active first, so the
+        # RFB window is activated first.
         if self.state.rfb_mode is RfbMode.ORIGENERATOR:
             return
         urls = self._pending_rfb_urls

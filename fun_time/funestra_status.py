@@ -41,15 +41,6 @@ class MainFunestraStatus(ScriptedStatus):
 
     @property
     def loop_bounds(self) -> tuple[int, int] | None:
-        """The loop the Main Funestra is running, or None for no loop.
-
-        A loop dies with the Funestra process holding it, so this file is its only
-        record and a reopened session is handed it back over the video the resume
-        put at the top of the Main Funestra's playlist.  Both halves have to agree: a
-        state of "looping" with no range is a Main Funestra too old to publish one, and a
-        range with nothing looping is the empty pair a cancelled loop leaves —
-        either taken alone would hand mpv a loop it cannot play.
-        """
         if self.loop_state is not LoopState.LOOPING or self.loop_out_ms <= self.loop_in_ms:
             return None
         return (self.loop_in_ms, self.loop_out_ms)

@@ -1,9 +1,3 @@
-"""Monitor geometry querying for the Python orchestrator.
-
-Provides ``enumerate_monitors`` (ctypes) to get live monitor work areas, and
-``get_logical_monitor_rects`` to assign them to main/secondary roles with
-orientation correction.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -18,12 +12,6 @@ MonitorInfo = MonitorRect
 
 
 def enumerate_monitors() -> list[MonitorInfo]:
-    """Return work-area rectangles for all monitors via Win32 EnumDisplayMonitors.
-
-    ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides it outright: an
-    integration session lays its session out on the same two monitors whatever the
-    machine lists.  Windows place fine at coordinates no display backs.
-    """
     fake = os.environ.get("FUN_TIME_FAKE_MONITORS", "").strip()
     if fake:
         return [
