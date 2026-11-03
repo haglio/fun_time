@@ -18,12 +18,12 @@ from . import vr_runtime
 from .bringup import open_vr_session
 from .frame_loop import (
     FrameLoop,
-    Headset,
     present_the_loading_screen,
     raise_the_loading_screen,
     tear_down,
 )
 from .funestras import LoadingScreenUnit, VrSettings, hang_the_room
+from .headset import Headset
 from .perf import FramePerf
 from .render import SceneRenderer
 from .room_launch import RoomLaunch

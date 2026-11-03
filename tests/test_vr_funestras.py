@@ -92,6 +92,7 @@ from fun_time_vr.funestras import (
     draw_eyes,
     hang_the_room,
 )
+from fun_time_vr.headset import Headset
 from fun_time_vr.headset_verbs import AngleRequest, HeadsetVerbs, HostRequest
 from fun_time_vr.hud_buttons import HudButtons
 from fun_time_vr.hud_sides import side_screen_name
@@ -1337,8 +1338,8 @@ def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
     (drawn,) = [n for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and ast.unparse(n.func) == "draw_eyes"]
 
-    assert {k.arg: ast.unparse(k.value) for k in drawn.keywords} == {
-        "screens": "arranged.screens", "as_quads": "as_quads"}
+    assert [ast.unparse(arg) for arg in drawn.args[:2]] == ["headset", "arranged"]
+    assert {k.arg: ast.unparse(k.value) for k in drawn.keywords} == {"as_quads": "as_quads"}
 
 
 def test_the_headset_builds_kino_with_the_desktops_own_builder():
@@ -2251,9 +2252,9 @@ class TestEveryHangingScreenIsDrawn:
         hangings = room.what_hangs([main_unit, main_hud_unit, dash, reference, library])
         screens = room.arranged(stacking or Stacking(), hangings)
         draw_eyes(
-            session, renderer, hangings,
-            SimpleNamespace(draw=lambda *_a: None), self._views(), np.eye(4, dtype=np.float64),
-            screens=screens, as_quads=set(),
+            Headset(session, renderer, None),
+            Arranged(hangings, screens, np.eye(4, dtype=np.float64), 0.0, 0.0),
+            SimpleNamespace(draw=lambda *_a: None), self._views(), as_quads=set(),
         )
         return renderer
 

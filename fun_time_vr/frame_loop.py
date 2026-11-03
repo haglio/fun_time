@@ -6,7 +6,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -25,6 +24,7 @@ from .funestras import (
     draw_eyes,
     orientation_of,
 )
+from .headset import Headset
 from .loading_screen import LOADING_SCREEN_CLEAR
 from .matrices import (
     fov_to_projection_matrix,
@@ -32,8 +32,6 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
-from .perf import FramePerf
-from .render import SceneRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +43,6 @@ HEADSET_HOLD_TIMEOUT_S = 180.0
 
 Clock = Callable[[], float]
 Sleep = Callable[[float], None]
-
-
-class Headset(NamedTuple):
-    session: Any
-    renderer: SceneRenderer
-    perf: FramePerf
 
 
 @dataclass(frozen=True)
@@ -219,8 +211,7 @@ class FrameLoop:
             quads, as_quads = self.quad_layers(arranged) if self._use_layers else ([], set())
             project = True
             t3 = time.perf_counter()
-            draw_eyes(session, headset.renderer, arranged.hangings, the_room.pointing, views,
-                      arranged.scene_rotation, screens=arranged.screens, as_quads=as_quads)
+            draw_eyes(headset, arranged, the_room.pointing, views, as_quads=as_quads)
         t4 = time.perf_counter()
         session.frame_end(display_time, views, project=project, quads=quads)
         t5 = time.perf_counter()
