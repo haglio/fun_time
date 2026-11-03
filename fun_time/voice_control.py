@@ -21,6 +21,7 @@ from fun_time.event_log import (
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
     flash_message,
+    list_message,
 )
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
@@ -344,8 +345,8 @@ class VoiceController:
                       spoken_at: float, then: str = "") -> None:
         source = _source_for_heard_text(heard_text)
         after = f" {then}" if then else ""
-        flash_message(logger, f"{logged} ({_how_many(words)}){after}", source=source,
-               level=logging.WARNING, flashes=False, spoken_at=spoken_at)
+        list_message(logger, f"{logged} ({_how_many(words)}){after}", source=source,
+                     level=logging.WARNING, spoken_at=spoken_at)
         flash_unlogged(self.cmd_file.parent, f"{shown}: {words}{after}", source=source,
                        level=logging.WARNING, spoken_at=spoken_at)
 

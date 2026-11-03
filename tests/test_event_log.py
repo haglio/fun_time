@@ -14,6 +14,7 @@ from fun_time.event_log import (
     event_log_path,
     flash_message,
     is_announcement,
+    list_message,
     read_events,
     start_event_log,
 )
@@ -93,8 +94,8 @@ class TestNotice:
     def test_a_message_flashed_by_other_means_is_listed_but_not_announced(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.flashed_elsewhere")
 
-        flash_message(logger, "unrecognized voice command (3 words)", source="main",
-               level=logging.WARNING, flashes=False)
+        list_message(logger, "unrecognized voice command (3 words)", source="main",
+                     level=logging.WARNING)
 
         [record], _offset = read_events(log_path)
         assert record.message == "unrecognized voice command (3 words)"
@@ -103,8 +104,8 @@ class TestNotice:
     def test_a_line_about_something_said_carries_when_it_was_said(self, log_path: Path):
         logger = _logger(log_path, "test.event_log.said")
 
-        flash_message(logger, "unrecognized voice command (3 words)", source="main",
-               level=logging.WARNING, flashes=False, spoken_at=12.5)
+        list_message(logger, "unrecognized voice command (3 words)", source="main",
+                     level=logging.WARNING, spoken_at=12.5)
 
         [record], _offset = read_events(log_path)
         assert record.spoken_at == 12.5

@@ -114,9 +114,13 @@ def parse_event_line(line: str | bytes) -> EventRecord | None:
         return None
 
 
-def flash_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE,
-           flashes: bool = True, spoken_at: float | None = None) -> None:
-    logger.log(level, message, extra={"source": source, "flashes": flashes,
+def flash_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE) -> None:
+    logger.log(level, message, extra={"source": source})
+
+
+def list_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE,
+                 spoken_at: float | None = None) -> None:
+    logger.log(level, message, extra={"source": source, "flashes": False,
                                       "spoken_at": spoken_at})
 
 
