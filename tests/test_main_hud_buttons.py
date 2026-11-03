@@ -1,4 +1,3 @@
-"""The buttons Fun Time declares on the Main Funestra's HUD, row by row."""
 from __future__ import annotations
 
 import pytest
@@ -36,8 +35,6 @@ _MINUS, _PLUS = shared_icon("minus"), shared_icon("plus")
 
 @pytest.fixture
 def pips(monkeypatch):
-    """Genau's flicks under a word only this test uses, so a tooltip that names
-    them can only have taken the word from the overlay."""
     monkeypatch.setattr(main_hud_buttons, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
 
@@ -74,9 +71,6 @@ def _every_button() -> list[Button]:
 
 
 class TestTransport:
-    """Prev/next step the Main Funestra's video where the Main Funestra is on screen, Genau's flicks where it
-    is — with the actions that only make sense for each."""
-
     def test_kino_mode_steps_the_video_and_acts_on_it(self):
         actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
         for action in ("main_prev", "main_next", "main_nudge_prev",
@@ -106,7 +100,6 @@ class TestTransport:
         assert "genau_flip_ends" not in _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
     def test_genau_offers_no_video_only_actions(self):
-        """Nudge, flick and record act on a video; Genau's flicks are not one."""
         actions = _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
         for action in ("main_nudge_prev", "genaumacher_save", "main_funestra_record_tap"):
@@ -157,8 +150,6 @@ class TestGenausFMode:
 
 
 class TestReset:
-    """The way back out: drop everything narrowing what the Main Funestra plays."""
-
     def test_the_main_funestra_can_be_reset_wherever_main_funestra_is_on_screen(self):
         assert "main_reset" in _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
@@ -180,8 +171,6 @@ class TestReset:
 
 
 class TestBrowseOrder:
-    """Shuffle and Latest: which way round what plays was put in order."""
-
     def test_both_funestras_can_be_reordered_from_the_main_hud(self):
         for mode in MainMode:
             actions = _actions(MainFunestraFacts(main_mode=mode, latest=False))
@@ -218,8 +207,6 @@ class TestBrowseOrder:
 
 
 class TestProjectionPair:
-    """Flat and VR, as the two shapes of video each button includes."""
-
     def _flat_and_vr(self, *, flat, vr, **over) -> tuple[Button, ...]:
         rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED,
                                      plays_flat=flat, plays_vr=vr, **over))
@@ -271,8 +258,6 @@ class TestProjectionPair:
 
 
 class TestGenausProjectionPair:
-    """The same pair over Genau's flicks, where its folders hold both shapes."""
-
     def _pair(self, plays_vr, plays_flat):
         rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU, latest=False,
                                      plays_vr=plays_vr, plays_flat=plays_flat))
@@ -299,8 +284,6 @@ class TestGenausProjectionPair:
 
 
 class TestLengthPair:
-    """Clips and full, as the two lengths each button includes."""
-
     def _clips_and_full(self, length_mode: LengthMode, **over) -> tuple[Button, ...]:
         rows = main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=length_mode, **over))
         by_face = {b.icon: b for row in rows for b in row if b.command.startswith("main_funestra_length")}
@@ -351,8 +334,6 @@ class TestLengthPair:
 
 
 class TestCompilationAndJumps:
-    """The set a video belongs to, the scene it came from, and its other cuts."""
-
     def _button_for(self, action: str, **over):
         return _button(MainFunestraFacts(main_mode=MainMode.KINO, latest=False, length_mode=LengthMode.MIXED, **over), action)
 
@@ -393,8 +374,6 @@ class TestCompilationAndJumps:
 
 
 class TestLock:
-    """The padlock: whether the video repeats or plays on into the playlist."""
-
     def test_it_is_lit_while_the_video_is_held(self):
         assert _button(MainFunestraFacts(main_mode=MainMode.KINO, locked=True), "main_lock").lit is True
         assert _button(MainFunestraFacts(main_mode=MainMode.KINO, locked=False), "main_lock").lit is False
@@ -436,9 +415,6 @@ class TestLock:
 
 
 class TestPaceRows:
-    """The video's playback rate under a video, Genau's flick pace in genau mode:
-    a named row, a read-out the drawing host fills, and the pair around it."""
-
     def test_the_video_rate_has_controls_where_main_funestra_is_on_screen(self):
         actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
         assert "main_funestra_speed_down" in actions
@@ -473,8 +449,6 @@ class TestPaceRows:
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == ""
 
     def test_the_rate_pair_says_what_a_satellites_rate_pair_says(self):
-        """The satellites draw their own pair, in the Funestras' words; one
-        control reads the same on every Funestra."""
         rendered = HudRenderer("landscape").render(
             HudModel(funestra="landscape", playback_speed=1.0))
         satellite = [button.tooltip for _rect, button in rendered.targets.buttons
@@ -523,7 +497,6 @@ class TestSkipAhead:
 
 
 class TestDriveControls:
-
     def test_the_axis_arrows_are_not_main_hud_buttons(self):
         actions = _actions(MainFunestraFacts(main_mode=MainMode.KINO))
 
@@ -629,8 +602,6 @@ class TestLayout:
         assert minimize[0] - (genau[0] + genau[2]) == GROUP_GAP
 
     def test_a_main_hud_in_the_headset_has_no_window_to_minimize(self):
-        """The Funestras under it are screens in the scene there, not windows, so
-        the mode pair runs straight on into the file controls."""
         video = [b.command for b in main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO), in_vr=True)[0]]
         genau = [b.command for b in main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU), in_vr=True)[0]]
 
@@ -659,8 +630,6 @@ class TestLayout:
 
 class TestFaces:
     def test_no_button_types_a_face_of_its_own(self):
-        """Every face is one of the family's marks or a word: a typed symbol is
-        a font's drawing of the control rather than the family's."""
         assert not {b.icon for b in _every_button() if len(b.icon) == 1 and not b.icon.isalnum()}
 
     def test_every_mark_a_button_names_is_one_the_family_draws(self):
@@ -675,8 +644,6 @@ class TestFaces:
 
 
 class TestOrientationPair:
-    """Portrait and landscape, the same way 2D/VR and clips/full let theirs in."""
-
     def _pair(self, main_mode=MainMode.KINO, *, things=None, **over) -> tuple[Button, ...]:
         rows = main_hud_rows(MainFunestraFacts(main_mode=main_mode, latest=False, **over))
         by_face = {b.icon: b for row in rows for b in row

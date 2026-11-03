@@ -1,5 +1,3 @@
-"""How a projection wraps the viewer: whether a video wraps around him or hangs as
-a screen, and by which math -- the difference he watches."""
 from __future__ import annotations
 
 import ast
@@ -38,7 +36,6 @@ def test_every_projection_but_flat_wraps_the_viewer_its_own_way():
              for projection in PROJECTIONS if projection != FLAT}
 
     assert None not in wraps.values(), "a wrap fell back to drawing as a screen"
-    # Two drawn alike would show one of them with the other's mapping.
     assert len(set(wraps.values())) == len(wraps)
 
 
@@ -47,8 +44,6 @@ def test_a_flat_video_draws_as_a_screen_not_a_wrap():
 
 
 def test_an_unknown_projection_falls_back_to_the_screen():
-    # The safe default: a projection this build has no shader for still shows
-    # the video, just on a screen, instead of wrapping it wrongly or crashing.
     assert immersive_wrap("someday_projection") is None
 
 
@@ -98,10 +93,6 @@ class TestAWrapDrawnAtAFieldOfViewAndHeightOfItsOwn:
 
 
 class TestTheShaderAndTheTableAreOneSource:
-    """The shader used to branch on the mode ids as literals, linked to the
-    Python table only by a comment — and to derive each fisheye's field of view
-    from the id, so renumbering the table silently changed what it drew."""
-
     def test_every_mode_id_but_the_else_arms_reaches_the_shader(self):
         modes = {immersive_wrap(projection).mode
                  for projection in PROJECTIONS if projection != FLAT}
@@ -125,10 +116,6 @@ class TestTheShaderAndTheTableAreOneSource:
             assert str(immersive_wrap(projection).fov_deg) not in IMMERSIVE_FRAGMENT_SHADER
 
     def test_every_glsl_brace_is_doubled_in_the_source(self):
-        """It is an f-string, so a GLSL brace left single is an interpolation:
-        `{` alone is a syntax error at import, but `{PI}` would be a NameError
-        and `{0.0}` would silently render as `0.0` with the braces eaten.  The
-        rendered text cannot show that, so this reads the source."""
         tree = ast.parse(inspect.getsource(wraps))
         node = next(
             n for n in ast.walk(tree)
@@ -138,20 +125,11 @@ class TestTheShaderAndTheTableAreOneSource:
             part.value for part in node.value.values  # type: ignore[attr-defined]
             if isinstance(part, ast.Constant))
 
-        # Every brace that survived as text; the interpolations are the mode
-        # and curve ids, none of which carries one.
         assert literal.count("{") == literal.count("}") == 11
         assert wraps.IMMERSIVE_FRAGMENT_SHADER.count("{") == 11
 
 
 class TestTheFisheyeCurvesBesideTheAngle:
-    """iZugar markets the MKX200/220 as APO-corrected against the plain
-    equidistant mapping every other fisheye entry here draws with, and the
-    tools that master this footage list equidistant, equisolid and
-    stereographic as different curves, not different fields of view.  Cycling
-    the existing entries only changes degrees, so a video mastered on either
-    of the other two curves stays pinched at its edge whatever degree is tried."""
-
     def test_the_new_curves_hold_mkx200s_own_angle(self):
         for projection in (FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS):
             assert (immersive_wrap(projection).fov_deg

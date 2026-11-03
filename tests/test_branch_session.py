@@ -36,7 +36,6 @@ from tests.git_repo import git
 
 
 def _shortcut_at(primary, path) -> Shortcut:
-    """The one shortcut *path* names, read back off disk."""
     pattern = f"{branch_session.SHORTCUT_PREFIX}*{branch_session.SHORTCUT_SUFFIX}"
     return read_shortcuts(primary, pattern=pattern)[path]
 
@@ -44,12 +43,6 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 
 
 def _write_config(path: Path, **paths: str) -> Path:
-    """A config shaped like the machine's, with the same values left relative.
-
-    ``state``, the broker launcher and the browser shortcut are relative in the
-    real one; the rest are absolute. Both kinds are here so the rewrite is
-    tested on values that need pinning and values that must survive untouched.
-    """
     raw = {
         "paths": {
             **paths,
@@ -63,8 +56,6 @@ def _write_config(path: Path, **paths: str) -> Path:
             "state_dir": "state",
             "genau_config_path": "C:/genau/genau_config.json",
             "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
-            # Relative on purpose: a sibling checkout sits one directory up from
-            # the primary, which from a worktree is a different place entirely.
             "sibling_checkouts": ["../funestra", "../shared_ui"],
             "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
         },
@@ -97,7 +88,6 @@ def _write_config(path: Path, **paths: str) -> Path:
 
 
 def _make_checkout(root: Path) -> Path:
-    """Enough of a checkout for ``build_branch_config`` to accept it."""
     (root / "fun_time" / "static").mkdir(parents=True)
     (root / "fun_time" / "orchestrator.py").write_text("", encoding="utf-8")
     return root
@@ -115,12 +105,6 @@ def checkouts(tmp_path: Path) -> SimpleNamespace:
 
 
 def _live_and_branch(checkouts) -> tuple[ProjectConfig, ProjectConfig]:
-    """The live config, and the branch config as the worktree will read it back.
-
-    The two loads differ in exactly one thing — the checkout each is anchored
-    on — which is exactly what differs between the live session and a branch
-    one.
-    """
     live = load_config(checkouts.config_path, project_dir=checkouts.primary)
     branch_config = branch_session.build_branch_config(
         checkouts.worktree,
@@ -131,9 +115,6 @@ def _live_and_branch(checkouts) -> tuple[ProjectConfig, ProjectConfig]:
 
 
 def test_the_shortcut_line_names_the_sibling_checkouts_the_launch_will_run(checkouts):
-    """An empty chain silently runs the venv installs — the session comes up
-    fine and demonstrates nothing — so making a shortcut prints what the chain
-    currently carries, for the agent to read before handing it over."""
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
@@ -154,26 +135,16 @@ def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
 
 
 def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
-    """What the line says must be what the click will do, and the click applies
-    the worktree's ``state/sibling_checkouts.txt`` over the machine's config —
-    so the line resolves through the same override, or it would vouch for a
-    chain the launch does not run."""
     _name_sibling_checkouts(checkouts.worktree, "C:/checkouts/funestra-fix\n")
 
     line = branch_session.sibling_checkouts_line(
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
     assert "funestra-fix" in line
-    assert "shared_ui" not in line  # the override replaces, never augments
+    assert "shared_ui" not in line
 
 
 def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(checkouts):
-    """The whole config compared field by field, not a sample of it.
-
-    A path this rewrite forgets resolves against the worktree instead, so the
-    two configs stop matching — which makes the comparison, rather than a list
-    of keys anybody has to remember to extend, what keeps the set complete.
-    """
     live, branch = _live_and_branch(checkouts)
 
     assert replace(branch.paths, state_dir=live.paths.state_dir) == live.paths
@@ -210,10 +181,6 @@ def test_a_genau_key_no_session_reads_stays_out_of_the_branch_config(checkouts, 
 
 
 def test_the_branch_session_keeps_its_state_inside_the_worktree(checkouts):
-    """The one thing it must not share. ``state/`` holds the command files,
-    playlists, thumbnails, logs and resume point a session writes as it runs, so
-    a half-finished branch pointed at the live one's would corrupt what the
-    user's next real session reads back."""
     live, branch = _live_and_branch(checkouts)
 
     assert branch.paths.state_dir == checkouts.worktree / branch_session.STATE_DIRNAME
@@ -221,15 +188,6 @@ def test_the_branch_session_keeps_its_state_inside_the_worktree(checkouts):
 
 
 def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
-    """The state dir moves into the worktree; the broker's files stay where they are.
-
-    ``../broker`` opens its heartbeat, serial-activity, command and mode files
-    from the one directory its own config names, and never learns that a session
-    moved.  Letting them follow ``state_dir`` pointed a branch session at a
-    directory the broker has never written: the Main Funestra's HUD's broker light
-    red and its OSR2 light "off" while the device was plainly being driven, and
-    park/resume written where nothing consumes them.
-    """
     live, branch = _live_and_branch(checkouts)
 
     assert branch.paths.broker_state_dir == live.paths.state_dir
@@ -244,15 +202,6 @@ def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
 
 
 def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
-    """Which is what makes two sessions impossible rather than unlikely.
-
-    They would share the AHK hotkey shell (``#SingleInstance Force``, so the
-    second evicts the first), three fixed UDP ports, the loopback port, one
-    microphone, one broker and one set of monitors. Carrying the live identity
-    means the second to start is turned away by Fun Time's own "already
-    running" message — in either order, including the taskbar icon being
-    double-clicked while a branch session is up.
-    """
     live, branch = _live_and_branch(checkouts)
 
     assert branch.instance_id == live.instance_id
@@ -272,10 +221,6 @@ def _names_sibling_checkout(worktree: Path, checkout: Path) -> None:
 
 
 def test_a_worktree_can_name_the_sibling_checkouts_its_own_session_runs(checkouts):
-    """Which checkouts of the shared code a session runs is a per-session fact,
-    and until this it could only be said in the machine's one config — where it
-    reached the user's ordinary session and every other agent's branch session
-    too."""
     _name_sibling_checkouts(checkouts.worktree, "C:/funestra/.claude/worktrees/mine\n")
 
     _live, branch = _live_and_branch(checkouts)
@@ -284,9 +229,6 @@ def test_a_worktree_can_name_the_sibling_checkouts_its_own_session_runs(checkout
 
 
 def test_an_empty_override_means_the_plain_install_whatever_the_machine_says(checkouts):
-    """The case that cost a round trip: a branch that changed none of the shared
-    code, launched while the machine was pinned to somebody's unlanded worktree
-    of it, and therefore running a copy that predated what had already landed."""
     _name_sibling_checkouts(checkouts.worktree, "# nothing of ours\n\n")
 
     live, branch = _live_and_branch(checkouts)
@@ -303,9 +245,6 @@ def test_without_an_override_the_machines_own_answer_rides_through(checkouts):
 
 @pytest.mark.parametrize("override", ["C:/funestra/.claude/worktrees/mine\n", None])
 def test_a_branch_from_before_the_rename_is_handed_the_same_checkouts(checkouts, override):
-    """Every launcher runs the production checkout's code against whatever
-    branch it names, and a branch cut before 2026-10-16 reads its checkouts
-    only under the name they had while they were Genau's."""
     if override is not None:
         _name_sibling_checkouts(checkouts.worktree, override)
 
@@ -318,8 +257,6 @@ def test_a_branch_from_before_the_rename_is_handed_the_same_checkouts(checkouts,
 
 
 def test_the_override_lands_where_git_ignores_it(checkouts):
-    """It names paths on the machine, and the worktree is a checkout of a public
-    repo — the same reason the branch config itself lives under ``state/``."""
     assert branch_session.SIBLING_CHECKOUTS_OVERRIDE_NAME
     ignored = (REPO_DIR / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "state/" in ignored
@@ -342,9 +279,6 @@ def test_the_generated_config_lands_where_git_ignores_it(checkouts):
 
 
 def test_the_primary_checkout_is_refused(checkouts):
-    """Pointing this at the primary would aim a "branch" session's state dir at
-    the live session's own — and there is already a launcher for that checkout."""
-
     with pytest.raises(ValueError, match="launch.vbs"):
         branch_session.build_branch_config(
             checkouts.primary,
@@ -354,8 +288,6 @@ def test_the_primary_checkout_is_refused(checkouts):
 
 
 def test_a_directory_that_is_not_a_checkout_is_refused(checkouts, tmp_path):
-    """Named as such, rather than left to fail later as a missing hotkey script
-    somewhere inside startup."""
     empty = tmp_path / "not-a-checkout"
     empty.mkdir()
 
@@ -392,7 +324,6 @@ def test_the_private_overlays_follow_the_session_into_the_worktree(checkouts):
 
 @pytest.fixture
 def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
-    """A throwaway repo with two worktrees, committed at known times."""
     primary = tmp_path / "primary"
     primary.mkdir()
     git(primary, "-c", "init.defaultBranch=main", "init")
@@ -419,7 +350,6 @@ def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
 
 @pytest.fixture
 def primary_with_launcher(repo_with_worktrees) -> SimpleNamespace:
-    """The throwaway repo, with the files a shortcut has to point at."""
     (repo_with_worktrees.primary / branch_session.LAUNCHER_NAME).write_text("' launcher", encoding="utf-8")
     (repo_with_worktrees.primary / "icon.ico").write_bytes(b"\x00")
     return repo_with_worktrees
@@ -432,11 +362,6 @@ pytestmark_shortcut = pytest.mark.skipif(
 
 @pytestmark_shortcut
 def test_the_shortcut_lands_in_the_branchs_own_folder(primary_with_launcher):
-    """He reaches it through the one-click link an agent hands him, so where the
-    file sits is nobody's business but that branch's — and putting it there is
-    what keeps it out of everyone else's way.  In his Fun Time folder it showed
-    up in every other agent's tidiness check, and each of them told him about
-    launchers that were not theirs to speak for."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -452,9 +377,6 @@ def test_the_shortcut_lands_in_the_branchs_own_folder(primary_with_launcher):
 
 @pytestmark_shortcut
 def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary_with_launcher):
-    """It points at ``launch_branch.vbs`` in the Main Funestra rather than carrying
-    the launch itself, so one made weeks ago picks up today's launcher instead
-    of replaying an old one."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -463,15 +385,11 @@ def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary
 
     assert Path(found.target).name.lower() == "wscript.exe"
     assert branch_session.LAUNCHER_NAME in found.arguments
-    # The branch rides along so a failed launch can name it rather than a path.
     assert "example/newer" in found.arguments
 
 
 @pytestmark_shortcut
 def test_a_vr_shortcut_names_itself_and_asks_the_launcher_for_the_headset(primary_with_launcher):
-    """The one file that opens a VR branch: same launcher, same worktree, one
-    more argument — and the V so it reads as FunTimeVR rather than as another
-    Fun Time."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary, vr=True
     )
@@ -481,8 +399,6 @@ def test_a_vr_shortcut_names_itself_and_asks_the_launcher_for_the_headset(primar
     assert Path(found.target).name.lower() == "wscript.exe"
     assert branch_session.LAUNCHER_NAME in found.arguments
     assert branch_session.VR_LAUNCH_FLAG in found.arguments
-    # Still discoverable as this module's, and still mapped to its worktree, so
-    # the removal reaches it exactly as it reaches the desktop one.
     assert branch_session._generated_shortcuts(primary_with_launcher.newer) == {
         written: primary_with_launcher.newer.resolve()
     }
@@ -490,7 +406,6 @@ def test_a_vr_shortcut_names_itself_and_asks_the_launcher_for_the_headset(primar
 
 @pytestmark_shortcut
 def test_both_flavours_of_one_branch_come_back_out_together(primary_with_launcher):
-    """A branch can have had both left for him; landing it should clear both."""
     desktop = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -511,9 +426,6 @@ def test_both_flavours_of_one_branch_come_back_out_together(primary_with_launche
 def test_one_the_old_placement_left_in_his_folder_is_swept_when_its_branch_goes(
     primary_with_launcher,
 ):
-    """Every shortcut used to be written into his Fun Time folder, and the ones
-    already sitting there outlive the change: a branch folder going is the only
-    thing that can say they are finished with."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.older, primary=primary_with_launcher.primary
     )
@@ -531,10 +443,6 @@ def test_one_the_old_placement_left_in_his_folder_is_swept_when_its_branch_goes(
 
 @pytestmark_shortcut
 def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_launcher, tmp_path):
-    """It runs in a folder full of his own files.  A name proves nothing, so
-    what it deletes has to be provably ours — the arguments naming the branch
-    launcher — and a shortcut of his that happens to start with the same word
-    is left where it is."""
     decoy = primary_with_launcher.primary / "Verify something of his own.lnk"
     write_shortcut(str(decoy), ShortcutToWrite(
         target=str(tmp_path / "nothing.exe"),
@@ -558,23 +466,18 @@ def test_a_worktree_on_no_branch_is_named_after_its_directory():
 
 
 def test_a_branch_name_becomes_a_filename_windows_will_take():
-    """Branch names carry slashes; filenames may not."""
     assert branch_session.shortcut_name(Path("C:/wt"), "claude/some-branch") == (
         "Verify claude-some-branch.lnk"
     )
 
 
 def test_a_vr_branch_says_so_in_its_own_filename():
-    """A VR branch and a desktop one can be in flight at once, and they are two
-    different sessions — so the file he double-clicks has to say which."""
     assert branch_session.shortcut_name(Path("C:/wt"), "claude/some-branch", vr=True) == (
         "Verify claude-some-branch in VR.lnk"
     )
 
 
 def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktrees):
-    """A shortcut pointing at a launcher that is not in the primary yet does
-    nothing at all when it is clicked, which is worse than not existing."""
     with pytest.raises(FileNotFoundError, match=branch_session.LAUNCHER_NAME):
         branch_session.write_launch_shortcut(
             repo_with_worktrees.newer, primary=repo_with_worktrees.primary
@@ -621,10 +524,6 @@ def test_a_shortcut_is_refused_for_a_branch_built_on_a_library_newer_than_this_c
 
 def test_a_shortcut_is_refused_when_the_hosted_app_carries_none_of_its_own_state(
         primary_with_launcher, tmp_path):
-    """A worktree of Origenerator has the code and none of the private files
-    that make it his app: no content overlay, so it cannot find the library at
-    all, and no window state, so nothing is open in the gallery.  He gets a
-    fresh install to judge, which is what happened on 2026-09-20."""
     hosted = tmp_path / "origenerator-worktree"
     hosted.mkdir()
     state = primary_with_launcher.newer / branch_session.STATE_DIRNAME
@@ -659,9 +558,6 @@ def test_a_shortcut_is_written_once_the_hosted_app_has_its_own_state(
 
 
 def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
-    """Which files come across and on what rule is ``branch_seeding``'s; that a
-    launch runs it at all is this module's, and the wiring is what breaks when
-    the two drift."""
     state = checkouts.primary / "state"
     state.mkdir(parents=True)
     (state / "watch_stats.json").write_text(
@@ -713,9 +609,6 @@ def test_a_launch_logs_how_many_thumbnails_it_copied_and_how_long_that_took(
 
 @pytestmark_shortcut
 def test_an_agent_takes_its_shortcut_back_out_once_the_work_lands(primary_with_launcher):
-    """The branch is in Fun Time by then, so a file still offering to run it
-    separately is clutter he has to reason about — and nothing else sweeps it
-    until some other agent happens to write one."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -730,8 +623,6 @@ def test_an_agent_takes_its_shortcut_back_out_once_the_work_lands(primary_with_l
 
 @pytestmark_shortcut
 def test_removing_a_shortcut_leaves_every_other_branch_alone(primary_with_launcher):
-    """Several branches are usually in flight at once.  Matching is on the
-    worktree a shortcut runs, so taking one out never disturbs another agent's."""
     mine = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -751,8 +642,6 @@ def test_removing_a_shortcut_leaves_every_other_branch_alone(primary_with_launch
 def test_one_the_old_placement_left_in_his_folder_still_comes_out_on_landing(
     primary_with_launcher,
 ):
-    """An agent that made its shortcut before the move still has to take that
-    one out, or landing leaves exactly the file this change was to be rid of."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -769,8 +658,6 @@ def test_one_the_old_placement_left_in_his_folder_still_comes_out_on_landing(
 
 @pytestmark_shortcut
 def test_removing_a_shortcut_that_was_never_written_is_not_an_error(primary_with_launcher):
-    """An agent told to always clean up should not have to remember whether it
-    ever made one."""
     assert branch_session.remove_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     ) == []
@@ -783,9 +670,6 @@ def _write_origenerator_override(worktree: Path, text: str) -> None:
 
 
 def test_a_worktree_can_name_the_origenerator_checkout_its_session_hosts(checkouts):
-    """Same per-session fact as the genau override, same shape: an agent judging
-    an origenerator branch points its own session at that worktree, never the
-    machine's one config."""
     _write_origenerator_override(checkouts.worktree, "C:/origenerator/.claude/worktrees/mine\n")
 
     _live, branch = _live_and_branch(checkouts)
@@ -802,8 +686,6 @@ def test_an_empty_origenerator_override_hosts_none_at_all(checkouts):
 
 
 class _RecordedStart:
-    """Stands in for subprocess.Popen, keeping what launch() asked for."""
-
     def __init__(self):
         self.command: list[str] | None = None
         self.cwd: str | None = None
@@ -849,8 +731,6 @@ def test_every_process_of_a_branch_session_is_told_it_is_one(monkeypatch, tmp_pa
 
 
 def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Path):
-    """The whole of what --vr changes: same config, same working directory that
-    swaps the code, a different entry point on top of it."""
     recorded = _launch_recorded(monkeypatch, tmp_path, vr=True)
 
     assert "fun_time_vr.orchestrator" in recorded.command
@@ -859,7 +739,6 @@ def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Pat
 
 
 def _sessions_exit_with(monkeypatch, returncode: int) -> list[list[str]]:
-    """Every session the launcher goes on to start, as the command it ran."""
     real_popen = subprocess.Popen
     sessions: list[list[str]] = []
 
@@ -967,9 +846,6 @@ def _git_path(worktree: Path, name: str) -> str:
 
 def test_a_worktree_part_way_through_a_rebase_is_refused_before_an_app_opens(
         repo_with_worktrees, monkeypatch):
-    """His click runs whatever is on disk, and a rebase stopped on a conflict leaves the
-    branch's code half changed; refused, it says so instead of opening a session that dies
-    when the half-changed part is reached."""
     _stop_part_way_through(repo_with_worktrees.newer)
     sessions = _sessions_exit_with(monkeypatch, 0)
 
@@ -1042,16 +918,11 @@ def _sibling_repo(tmp_path: Path, repo: str = "funestra", *,
 
 @pytest.fixture
 def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
-    """A stand-in funestra repo at a tag, and a second checkout of it left before
-    the tag -- what a worktree pinned by an agent looks like once main moves on."""
     return _sibling_repo(tmp_path)
 
 
 def test_a_shortcut_is_refused_while_a_pinned_funestra_checkout_predates_the_branchs_pin(
         primary_with_launcher, engine_checkouts):
-    """The chain has no error state of its own: a stale checkout on the Funestras'
-    path runs some other funestra, and the Main Funestra dies at import on a name
-    the branch was built against."""
     _pin(primary_with_launcher.newer, "funestra", "v0.1.9")
     _names_sibling_checkout(primary_with_launcher.newer, engine_checkouts.before_the_tag)
 
@@ -1232,10 +1103,6 @@ def test_every_checkout_the_worktree_names_is_held_to_origenerators_pins_not_onl
 
 
 class TestTheSessionOnTheTaskbar:
-    """A branch session's button has no pinned shortcut to take its letter, its
-    name and its relaunch from, so the session says them itself, once, for every
-    window that joins the button -- its own and an app it hosts."""
-
     def _described(self, monkeypatch, tmp_path, *, branch_session_flag: bool) -> dict:
         if branch_session_flag:
             monkeypatch.setenv(preview_marker.FLAG, "1")

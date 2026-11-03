@@ -1,8 +1,3 @@
-"""What Fun Time does with what the family's listener (voice_core) hears.
-
-Hearing itself -- the grammar, the ranked readings, the repairs, the silence
-floor, the microphone, the kept videos -- is voice_core's and is tested there.
-"""
 from __future__ import annotations
 
 import logging
@@ -22,7 +17,7 @@ from fun_time.hosted_contract import HostedVocabulary
 from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
 from fun_time.voice_control import WHILE_NOT_WEARING_HEADSET, VoiceController, command_rules
 
-SPOKEN = 2000  # a peak that is unmistakably speech
+SPOKEN = 2000
 
 
 def _heard(recognition: Recognition) -> Heard:
@@ -58,8 +53,6 @@ class TestCommandRules:
         assert set(filter_voice_commands()) <= rules.phrases
 
     def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_app(self):
-        """A repair promotes a reading ranked under another: a fine trade for a
-        satellite nudge, a bad one for quitting Fun Time or moving the device."""
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         ruled_out = {phrase for phrase in rules.phrases if rules.never_repaired(phrase)}
@@ -73,8 +66,6 @@ class TestCommandRules:
                              ).confidence_threshold == 0.6
 
     def test_with_commands_confirmed_only_relief_acts_on_the_first_listeners_word_alone(self):
-        """The sensation emergency must not wait half a second for a second
-        opinion; everything else can."""
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert {phrase for phrase in rules.phrases if rules.stands_alone(phrase)} == {
@@ -135,8 +126,6 @@ class TestHandleHeard:
         assert seen == []
 
     def test_a_sound_alike_phrase_is_handed_on_under_its_friendly_name(self, tmp_path):
-        """"go now" drives Genau; what Fun Time says it heard is "genau", not the
-        raw sound-alike the recognizer listens for."""
         vc = _controller(tmp_path)
 
         vc.handle_heard(_heard(Recognition(phrase="go now")))
@@ -261,9 +250,6 @@ class TestHandleHeard:
     def test_an_unrecognized_phrase_reports_over_the_funestra_it_named(
         self, tmp_path, monkeypatch, heard, source,
     ):
-        """A phrase the grammar rejected can still say who it was for, in either
-        order — that satellite is where the user is looking, so that is where the
-        report belongs, rather than on the Main Funestra."""
         vc = _controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
@@ -276,7 +262,6 @@ class TestHandleHeard:
         assert seen == [source, source]
 
     def test_a_funestra_word_inside_a_longer_word_does_not_claim_the_report(self):
-        """The Funestra has to be *named* — matched whole, not as a fragment."""
         assert voice_control._source_for_heard_text("mainly landscaped") == "system"
 
     def test_unrecognized_speech_stays_silent_while_muted(self, tmp_path, monkeypatch):
@@ -420,9 +405,6 @@ class TestTheListenerItRuns:
         assert vc.listener_events.heard == vc.handle_heard
 
     def test_audio_coming_back_after_a_stall_is_plain_news(self, tmp_path, monkeypatch):
-        """Yellow while nothing spoken can be heard (the listener's own warning);
-        white when the audio comes back, because a microphone that recovered is
-        no warning."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
@@ -434,9 +416,6 @@ class TestTheListenerItRuns:
 
     def test_the_first_words_of_an_utterance_say_the_app_is_working_on_them(
             self, tmp_path, monkeypatch):
-        """Understanding a phrase can take seconds -- 6.88 of them, for one
-        "enter vr" -- and a session that shows nothing in that time gets told twice.
-        So the moment the recognizer has words forming, it says so."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
@@ -447,8 +426,6 @@ class TestTheListenerItRuns:
         assert seen == [voice_control.WORKING_ON_IT]
 
     def test_it_says_so_once_per_utterance_however_the_words_grow(self, tmp_path, monkeypatch):
-        """The recognizer revises its reading word by word; one line per revision
-        would bury the log under a single sentence."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
@@ -460,7 +437,6 @@ class TestTheListenerItRuns:
         assert seen == [voice_control.WORKING_ON_IT]
 
     def test_the_next_utterance_is_said_to_be_worked_on_again(self, tmp_path, monkeypatch):
-        """An utterance settling clears the reading, and that is what re-arms it."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
@@ -473,8 +449,6 @@ class TestTheListenerItRuns:
 
     @pytest.mark.parametrize("quieted", ["mute", "suspend"])
     def test_an_app_not_being_listened_to_is_told_nothing(self, tmp_path, monkeypatch, quieted):
-        """Muted, or held by omnipause, what is said is thrown away -- so saying
-        it is being worked on would be a promise about nothing."""
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
         getattr(vc, quieted)()
         seen = []
@@ -534,7 +508,6 @@ class TestTheListenerItRuns:
 
 class TestWriteCommand:
     def test_writing_stamps_the_utterance_start(self, tmp_path: Path):
-        """Every spoken command carries when the user began saying it."""
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc._write_spoken("landscape next", spoken_at=1234.5)
@@ -573,8 +546,6 @@ class TestWriteCommand:
         assert not vc.is_muted
 
     def test_suspend_drops_every_command_but_the_exempt_ones(self, tmp_path: Path):
-        """Omnipause suspends voice as it suspends the AHK hotkeys: nothing a
-        paused room says is acted on — the reference popup included."""
         cmd_file = tmp_path / "cmd.txt"
         vc = _controller(tmp_path)
         vc.suspend()
@@ -592,10 +563,6 @@ class TestWriteCommand:
         assert [parse_command_line(line).command for line in written] == ["play", "quit"]
 
     def test_suspend_still_lets_relief_through(self, tmp_path: Path):
-        """Voice frozen by omnipause must not swallow the one command whose whole
-        purpose is to act from inside omnipause: a paused session can still have
-        the device on the user, and speaking is the way out when reaching for a
-        key is not."""
         cmd_file = tmp_path / "cmd.txt"
         vc = _controller(tmp_path)
         vc.suspend()
@@ -619,9 +586,6 @@ class TestWriteCommand:
         assert [parse_command_line(line).command for line in written] == [command]
 
     def test_suspend_freezes_the_reference_popup_too(self, tmp_path: Path):
-        """The popup gets no exemption: the freeze is a flat rule about what a
-        paused room may be heard to do, and "help" is the phrase room noise
-        produced when it opened the popup mid-pause."""
         cmd_file = tmp_path / "cmd.txt"
         vc = _controller(tmp_path)
         vc.suspend()
@@ -638,14 +602,12 @@ class TestWriteCommand:
         assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1.000\tlandscape next\n"
 
     def test_mute_beats_the_suspend_exemption(self, tmp_path: Path):
-        """"Voice off" means off: an exempt command must not slip past a mute."""
         cmd_file = tmp_path / "cmd.txt"
         vc = _controller(tmp_path)
         vc.suspend()
         vc.mute()
         vc._write_spoken("play", spoken_at=1.0)
         assert not cmd_file.exists()
-
 
 
 def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_satellite(tmp_path):

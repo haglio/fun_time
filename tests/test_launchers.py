@@ -36,8 +36,6 @@ on_windows = pytest.mark.skipif(sys.platform != "win32", reason="the Windows scr
 
 
 def test_shell_wrapper_starts_the_orchestrator_on_the_project_venv():
-    """``main.sh`` is the documented alternative launch, and it reached for
-    ``python`` then ``py -3`` from PATH â€” the same miss, from the other door."""
     text = (PROJECT_DIR / "main.sh").read_text(encoding="utf-8")
 
     assert ".venv/Scripts/python.exe" in text
@@ -55,8 +53,6 @@ def test_the_desktop_launcher_runs_the_orchestrator_and_watches_the_marker_it_wr
 
 @on_windows
 def test_the_vr_launcher_runs_the_vr_orchestrator_under_its_own_marker():
-    """So a desktop launch's leftovers can never vouch for a VR launch, nor the
-    other way around."""
     report = dry_run(PROJECT_DIR / "launch_vr.vbs")
 
     assert report.value("arguments") == "-m fun_time_vr.orchestrator"
@@ -67,10 +63,6 @@ def test_the_vr_launcher_runs_the_vr_orchestrator_under_its_own_marker():
 def test_a_branch_launch_runs_branch_session_from_the_primary_and_watches_the_worktree(
     tmp_path: Path,
 ):
-    """The launcher and the config it writes are main's code, run from the
-    primary; only the session underneath is the branch's, and it reports in the
-    worktree's state folder -- watching the primary's would let the live
-    session's leftovers vouch for a branch launch that never got off the ground."""
     worktree = tmp_path / "worktree"
     worktree.mkdir()
 
@@ -101,10 +93,6 @@ def test_a_vr_branch_launch_asks_for_the_headset_and_watches_the_vr_marker(tmp_p
 def test_a_branch_launch_reads_the_note_branch_session_leaves_where_it_leaves_it(
     tmp_path: Path,
 ):
-    """A launch that dies because the worktree is older than the Fun Time he runs
-    ends in a sentence saying so rather than a traceback about a rename he did not
-    make: branch_session writes that sentence into the worktree's state folder, and
-    the launcher reads it from the same place it reads the markers."""
     worktree = tmp_path / "worktree"
     worktree.mkdir()
 
@@ -115,8 +103,6 @@ def test_a_branch_launch_reads_the_note_branch_session_leaves_where_it_leaves_it
 
 @on_windows
 def test_the_branch_launcher_on_its_own_says_what_to_double_click_instead():
-    """He is never asked to find a branch: the agent with something to show
-    leaves a Verify shortcut naming its worktree."""
     run = run_under_script_host(PROJECT_DIR / LAUNCHER_NAME)
 
     assert run.returncode == 1

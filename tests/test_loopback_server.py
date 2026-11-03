@@ -29,10 +29,6 @@ def _get(port: int, path: str):
 
 
 def test_the_server_binds_localhost_only(tmp_path):
-    """The one listening socket Fun Time opens.  Bound to 127.0.0.1 the
-    OmniPause state and the userscript are the machine's own business; bound
-    to 0.0.0.0 they are on every interface — asserted off the live socket's
-    own address, not the source string."""
     server = make_server(port=0, script_path=tmp_path / USERSCRIPT_NAME)
     try:
         assert server.socket.getsockname()[0] == "127.0.0.1"
@@ -70,7 +66,6 @@ def test_serves_the_userscript_in_the_familys_look(tmp_path):
 
 
 def test_reflects_edits_without_a_restart(tmp_path):
-    # Tampermonkey must fetch the current file, not a snapshot from launch time.
     script = tmp_path / USERSCRIPT_NAME
     script.write_bytes(b"// v1\n")
     server = make_server(port=0, script_path=script)
@@ -97,8 +92,6 @@ def test_other_paths_are_404(tmp_path):
 
 
 def test_reports_the_live_omnipause_state(tmp_path):
-    # Read per request, not captured at startup: the RFB tab pages poll this to
-    # decide whether to freeze their videos, so a stale answer freezes forever.
     script = tmp_path / USERSCRIPT_NAME
     script.write_text("// x\n", encoding="utf-8")
     paused = False
@@ -129,8 +122,6 @@ def test_omnipause_is_readable_from_a_file_uri_page(tmp_path):
 
 
 def test_real_userscript_points_its_updates_at_this_server():
-    # A desync between the header URL and LOOPBACK_PORT silently breaks
-    # auto-update, so pin them together.
     text = userscript_path().read_text(encoding="utf-8")
     endpoint = f"http://127.0.0.1:{LOOPBACK_PORT}/{USERSCRIPT_NAME}"
     assert "@updateURL" in text

@@ -1,4 +1,3 @@
-"""Genau's numbers, read off the genau section of Fun Time's config."""
 from __future__ import annotations
 
 import dataclasses
@@ -62,8 +61,6 @@ class TestReadingTheGenauSection:
         assert GenauSettings.read(_write(tmp_path, payload)) == GenauSettings()
 
     def test_a_missing_or_unreadable_file_is_the_defaults(self, tmp_path):
-        """A VR session must not fail to start over a number it has a good
-        default for."""
         assert GenauSettings.read(tmp_path / "absent.json") == GenauSettings()
         broken = tmp_path / "broken.json"
         broken.write_text("{not json", encoding="utf-8")
@@ -85,5 +82,4 @@ class TestTheRideThroughTheManifest:
         assert GenauSettings.from_manifest({}) == GenauSettings()
 
     def test_every_field_rides_as_a_string(self):
-        """The manifest is an INI: configparser takes strings and nothing else."""
         assert all(isinstance(v, str) for v in GenauSettings().manifest_fields().values())

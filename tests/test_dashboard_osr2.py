@@ -1,5 +1,3 @@
-"""The OSR2 part at the Dashboard's right end: what it reads, and what it draws.
-What it reads, file by file, is tests/test_dashboard_osr2_model.py's."""
 from __future__ import annotations
 
 import pytest

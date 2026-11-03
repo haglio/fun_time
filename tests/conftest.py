@@ -33,12 +33,6 @@ from hypothesis import settings
 settings.register_profile("on_a_machine_other_runs_share", deadline=None)
 settings.load_profile("on_a_machine_other_runs_share")
 
-# The same sibling-checkout override the orchestrator applies at launch: in a
-# worktree whose branch leans on unlanded changes to the shared code, the suite
-# must test against those checkouts — they are what the verification session
-# runs — and without this the imports below resolve the primaries and a
-# cross-repo branch cannot even collect.  A no-op in the primary and in CI,
-# where no override file exists.
 from fun_time.project_paths import apply_sibling_checkouts_to_sys_path
 
 apply_sibling_checkouts_to_sys_path()
@@ -85,12 +79,6 @@ def _qapp():
         yield app
 
 
-# The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
-# the same machine runs the user's live Fun Time.  So an unmocked window call in a
-# unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
-# resolves the live "Main Funestra"/"Genau" window by title and forces it on top — the test
-# bleed under "the main player pops on top during OmniPause" (it looked like a runtime/OmniPause
-# bug for months because it WAS our code, run by a concurrent agent's test process).
 _MUTATING_USER32_CALLS = (
     "SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW", "BringWindowToTop",
     "SetActiveWindow",
@@ -99,16 +87,6 @@ _MUTATING_USER32_CALLS = (
 
 @pytest.fixture(autouse=True)
 def _never_mutate_a_real_window(monkeypatch):
-    """Neutralize the win32 calls that MOVE/topmost/activate/close a window, so no
-    unit test can touch the user's live windows.
-
-    Only the mutating primitives are stubbed; the readers (``GetWindowLongW``,
-    ``EnumWindows``, the z-order walk) stay real, so ``is_window_topmost`` /
-    ``find_window_*`` / ``iter_zorder`` still behave — resolving a live handle is
-    harmless, and any attempt to then mutate it is inert.  Tests that assert on these
-    calls patch ``fun_time.win32._user32`` themselves, which overrides this; the
-    integration suite overrides it too, because it drives real native windows.
-    """
     def _inert(*_args, **_kwargs):
         return 0
 
@@ -130,9 +108,6 @@ def _never_switch_a_real_browsers_tabs(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _never_listen_to_his_desktop(monkeypatch):
-    """The watch hears every press on the desktop it runs on, which here is his,
-    so in a unit test it hears nothing.  The integration suite overrides this:
-    its desktop is a hidden one."""
     monkeypatch.setattr(win32_events.PressAndCaretWatch, "start", lambda _watch: None)
 
 
@@ -146,11 +121,6 @@ _WHAT_REACHES_HIS_HEADSET = {
 
 @pytest.fixture(autouse=True)
 def _never_reach_the_real_headset(monkeypatch):
-    """The Pimax on this machine is his: a unit test that reaches its runtime
-    turns his headset on or ends his VR session, and the runtime moves his
-    sound as it comes and goes.  The refusal ends the reach in whatever thread
-    made it, and the test fails once its threads have ended.  Tests that are
-    about these calls patch them by name, which overrides this."""
     reached = []
 
     def refuse(what):
@@ -184,27 +154,6 @@ def _never_hold_the_live_loopback_port(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
-    """Answer the orchestrator's startup waits at once instead of spending them.
-
-    A unit test mocks the startup that would have opened the session's windows,
-    so every lookup the orchestrator makes can only time out — and it times out
-    on the wall clock, because ``win32.wait_for_window`` polls with
-    ``time.sleep``.  One startup pass is the loading screen plus five role
-    resolutions, so CI paid 20s per test that ran one, and
-    ``test_windows_bridge_orchestrator.py`` alone was 359s of it.
-
-    The stubbed lookup answers 0, which is what the poll returned anyway; the
-    tests that care which handle comes back patch this name themselves, which
-    overrides the stub for the length of their ``with`` block.
-
-    The two timeouts are set here rather than edited in the module because both
-    are pinned as production numbers:
-    ``TestTheFinishingPassFitsUnderTheLoadingScreen`` adds the resolve budget up
-    against the loading screen's staleness guard, and ``TestWaitForClosingScreen`` walks
-    every way out of the closing-screen hold.  A test that is ABOUT the waiting
-    marks itself ``real_startup_waits`` and gets the real function and the real
-    numbers back.
-    """
     if request.node.get_closest_marker("real_startup_waits"):
         return
     monkeypatch.setattr(windows_bridge_orchestrator, "wait_for_window_by_title",
@@ -222,12 +171,6 @@ _STARTS_A_SCREEN = re.compile(
 
 @pytest.fixture(autouse=True)
 def _never_start_a_real_loading_screen(monkeypatch):
-    """Refuse the loading, transition and closing screens at the process
-    start, which a test's mocked Popen never reaches.  Each is a real window
-    over every monitor of whoever runs the suite, and one whose progress file
-    went with its test's scratch folder stood there until he restarted the
-    machine.  The integration suite overrides this: its screens are real on
-    purpose, on a desktop nobody sees."""
     create_process = _winapi.CreateProcess
 
     def refuse_a_screen(application_name, command_line, *rest):
@@ -255,31 +198,11 @@ def _never_leave_a_loading_screen_heartbeat_running(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _fresh_group_index_cache():
-    """Start every test with an empty media-metadata group-index cache.
-
-    ``_INDEX_CACHE`` is process-global and survives between tests; before this
-    fixture, whether a test began clean depended on its author remembering a
-    ``reset_group_index_cache()`` prelude (ten call sites, seven provably
-    unnecessary), and a forgotten one made a failure depend on run order."""
     reset_group_index_cache()
 
 
 @pytest.fixture(autouse=True)
 def _never_inherit_the_integration_flag(monkeypatch):
-    """Strip ``FUN_TIME_RUN_INTEGRATION`` from every unit test's environment.
-
-    The flag tells the production code it is running under the hidden-desktop
-    integration harness, and it flips real-window branches all over the tree
-    (skip the focus steal, suppress the unsuspend, no activation) — so a shell
-    that still exports it, a developer mid-integration-debugging, would flip
-    those branches under the whole unit suite.  Scrubbed once here rather than
-    as a delenv prelude in every test that noticed (27 of them, before this).
-
-    The tests that are ABOUT the integration branches ``monkeypatch.setenv``
-    the flag back, which runs after this fixture and wins.  The integration
-    suite overrides this fixture in its own conftest — there the flag is the
-    point.
-    """
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
 
 
@@ -374,7 +297,6 @@ def tmp_path() -> Path:
 
 @pytest.fixture(autouse=True, scope="session")
 def _cleanup_tmp_root():
-    """Remove TMP_ROOT after the session if it exists and is empty."""
     yield
     try:
         if TMP_ROOT.is_dir() and not any(TMP_ROOT.iterdir()):
@@ -384,8 +306,6 @@ def _cleanup_tmp_root():
 
 
 def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
-    """Write a minimal valid config JSON to tmp_path and return the path."""
-    # Create stub directories / files that config validation expects.
     (tmp_path / "state").mkdir(exist_ok=True)
     (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
     (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
@@ -432,8 +352,6 @@ def _deep_merge(base: dict, override: dict) -> None:
 
 @pytest.fixture
 def genaus_folder(tmp_path: Path, monkeypatch) -> Path:
-    """Genau's folders, made up in the test's own folder, named by the settings
-    all of Haglio shares as this test reads them."""
     folder = made_up_genau(tmp_path)
     point_the_shared_settings_at(monkeypatch, folder)
     return folder
@@ -441,13 +359,11 @@ def genaus_folder(tmp_path: Path, monkeypatch) -> Path:
 
 @pytest.fixture
 def cfg_path(tmp_path: Path, genaus_folder: Path) -> Path:
-    """Return path to a written minimal valid config file."""
     return _write_config(tmp_path)
 
 
 @pytest.fixture
 def cfg_factory(tmp_path: Path, genaus_folder: Path):
-    """Return a factory that writes a config with optional overrides."""
     def factory(overrides: dict | None = None) -> Path:
         return _write_config(tmp_path, overrides)
     return factory

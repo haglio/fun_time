@@ -1,4 +1,3 @@
-"""The main library browser — folder tiles you walk, then the videos inside."""
 from __future__ import annotations
 
 import os
@@ -117,7 +116,6 @@ def _thumbnailed(window, rows: list[int]) -> bool:
 
 
 def _until(condition, *, within_s: float = 10.0) -> None:
-    """Let the browse's own timers run until *condition* holds."""
     deadline = time.monotonic() + within_s
     while not condition() and time.monotonic() < deadline:
         QApplication.processEvents()
@@ -147,7 +145,6 @@ def browser(tmp_path):
 
 
 def test_a_browse_opens_on_the_librarys_own_folders(browser, tmp_path: Path):
-    """Not on a wall of videos: the top level is one tile per folder, counted."""
     window = browser(
         [
             _handle("Beta Scene", section="big_batch/whole"),
@@ -177,7 +174,6 @@ def test_opening_a_folder_shows_what_is_in_it_and_a_way_back(browser, tmp_path: 
 
 
 def test_the_deepest_folder_lays_out_every_video_under_it(browser, tmp_path: Path):
-    """No processing folder is ever a step — the videos come up in one grid."""
     handles = [_handle(f"Excerpt {i}", section="big_batch/cuts") for i in range(3)]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
 
@@ -198,7 +194,6 @@ def test_the_way_back_goes_back(browser, tmp_path: Path):
 
 
 def test_backspace_goes_back_too(browser, tmp_path: Path):
-    """The key every other file browser uses for it, and the grid has the focus."""
     handles = [_handle("Excerpt 1", section="big_batch/cuts")]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.open_folder(("big_batch", "cuts"))
@@ -221,7 +216,6 @@ def test_backspace_at_the_top_stays_put(browser, tmp_path: Path):
 
 
 def test_the_selection_starts_on_the_first_thing_worth_opening(browser, tmp_path: Path):
-    """Never on the way back — arrowing off the top of a folder is not the point."""
     window = browser(
         [_handle("Excerpt 1", section="big_batch/cuts")],
         thumbnail_cache=tmp_path,
@@ -233,11 +227,6 @@ def test_the_selection_starts_on_the_first_thing_worth_opening(browser, tmp_path
 
 
 def test_a_browse_opens_where_the_session_already_is(browser, tmp_path: Path):
-    """The folder the video playing sits in, with that video's own tile picked.
-
-    Browsing is nearly always for something beside what is up, so the root is
-    the one place a browse never wants to start from.
-    """
     handles = [
         _handle("alpha scene", "C:/videos/small_batch/alpha.mp4", section="small_batch"),
         _handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch/whole"),
@@ -254,8 +243,6 @@ def test_a_browse_opens_where_the_session_already_is(browser, tmp_path: Path):
 
 
 def test_a_browse_opens_with_the_index_standing_on_it_too(browser, tmp_path: Path):
-    """Both halves, not the grid alone: an index still showing another letter's
-    names beside a grid that has already moved is a browse split in two."""
     handles = [
         _handle("Alpha Scene", "C:/videos/main/alpha.mp4", section="main"),
         _handle("Mike Scene", "C:/videos/main/mike.mp4", section="main"),
@@ -274,8 +261,6 @@ def test_a_browse_opens_with_the_index_standing_on_it_too(browser, tmp_path: Pat
 
 
 def test_the_rendition_playing_need_not_be_the_one_a_pick_would_play(browser, tmp_path: Path):
-    """A handle is its whole family: the session is as likely to be on the small
-    original as on the upscale a pick plays, and both are the same video here."""
     handles = [
         _handle("alpha scene", "C:/videos/small_batch/alpha.mp4", section="small_batch"),
         _handle(
@@ -296,8 +281,6 @@ def test_the_rendition_playing_need_not_be_the_one_a_pick_would_play(browser, tm
 
 
 def test_the_playing_path_is_matched_however_it_is_spelled(browser, tmp_path: Path):
-    """The Funestra publishes a path, not the library's own spelling of one, and
-    the disk beneath both does not distinguish their case."""
     handles = [_handle("Beta Scene", "C:/Videos/Big_Batch/beta.mp4", section="big_batch")]
     window = browser(
         handles,
@@ -310,7 +293,6 @@ def test_the_playing_path_is_matched_however_it_is_spelled(browser, tmp_path: Pa
 
 
 def test_a_video_the_library_does_not_hold_opens_at_the_top(browser, tmp_path: Path):
-    """Nothing here to open on — a session playing from outside the library."""
     handles = [_handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch")]
     window = browser(
         handles,
@@ -351,7 +333,6 @@ def test_activating_a_video_reports_that_handles_playable_version(browser, tmp_p
 
 
 def test_abandoning_the_browse_reports_nothing(browser, tmp_path: Path):
-    """Closing the window without picking says nothing — no pick, no play."""
     picked: list[str] = []
     window = browser(
         [_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=picked.append,
@@ -418,10 +399,6 @@ def test_a_folder_opened_while_the_one_above_is_extracted_gets_every_still_of_it
 
 
 def test_a_folder_opens_thumbnailed_on_a_drive_stuck_on_its_videos(browser, tmp_path: Path):
-    """The headset's browse draws its tiles on the thread that serves it, so a
-    question put to each video froze the whole browse on the one the drive was
-    stuck on.  The folder's listing dates every still instead, once per folder
-    drawn: here the top level and then "main"."""
     cache = tmp_path / "cache"
     cache.mkdir()
     folder = tmp_path / "vids"
@@ -539,9 +516,6 @@ def test_each_folder_above_the_one_open_is_a_link_back_to_it(browser, tmp_path: 
     assert _labels(window.grid) == ["all folders", "cuts  (1)"]
 
 
-# --- the alphabetical sidebar -------------------------------------------------
-
-
 def test_the_sidebar_lists_the_folders_videos_under_a_heading_per_letter(browser, tmp_path: Path):
     window = browser(
         [
@@ -559,12 +533,6 @@ def test_the_sidebar_lists_the_folders_videos_under_a_heading_per_letter(browser
 
 
 def test_the_sidebar_is_alphabetical_where_the_grid_is_ranked(browser, tmp_path: Path):
-    """The whole reason for two views: the grid's order is not a way to find a title.
-
-    Folder tiles come up in the library's own ranking — biggest source folder
-    first — so an alphabetical walk across the grid is a walk across a wrapped
-    grid of thumbnails.  The sidebar puts the same folder up sorted by name instead.
-    """
     window = browser(
         [
             _handle("Zulu Scene", section="big_batch"),
@@ -598,7 +566,6 @@ def test_a_heading_is_not_something_the_arrows_can_land_on(browser, tmp_path: Pa
 
 
 def test_a_name_with_no_letter_to_file_under_goes_to_the_hash_heading(browser, tmp_path: Path):
-    """A heading per leading digit or bracket would out-number the names under them."""
     window = browser(
         [
             _handle("2 Scene", section="main"),
@@ -617,7 +584,6 @@ def test_a_name_with_no_letter_to_file_under_goes_to_the_hash_heading(browser, t
 
 
 def test_the_way_back_is_not_in_the_sidebar(browser, tmp_path: Path):
-    """It is not something the folder holds, and it files under no letter."""
     window = browser(
         [_handle("Alpha Scene", section="big_batch/cuts")],
         thumbnail_cache=tmp_path,
@@ -647,7 +613,6 @@ def test_the_sidebar_follows_the_folder_that_is_open(browser, tmp_path: Path):
 
 
 def test_choosing_a_name_moves_the_grid_to_it(browser, tmp_path: Path):
-    """The point of the index — the grid's selection lands on the name picked."""
     handles = [
         _handle("Zulu Scene", section="main"),
         _handle("Alpha Scene", section="main"),
@@ -769,7 +734,6 @@ def test_a_letter_says_whether_it_is_open_closed_or_empty(browser, tmp_path: Pat
 
 
 def _mark_on(index, letter: str) -> str | None:
-    """Which of the family's chevrons a letter wears, read off its icon."""
     icon = index.item(_letter_row(index, letter)).icon()
     if icon.isNull():
         return None
@@ -877,7 +841,6 @@ def test_activating_a_folder_in_the_sidebar_walks_into_it(browser, tmp_path: Pat
 
 
 def test_backspace_from_the_sidebar_goes_back_up_too(browser, tmp_path: Path):
-    """The key belongs to the browse, not to whichever half happens to have focus."""
     window = browser(
         [_handle("Alpha Scene", section="big_batch/cuts")],
         thumbnail_cache=tmp_path,
@@ -891,7 +854,6 @@ def test_backspace_from_the_sidebar_goes_back_up_too(browser, tmp_path: Path):
 
 
 def test_a_letter_group_holds_every_name_that_starts_with_it():
-    """Case is not a group of its own: one A heading covers "alpha" and "Alpha"."""
     rows = [_handle("beta"), _handle("Alpha"), _handle("alpha two"), _handle("Beta Two")]
 
     lines = alphabetical_index(rows)
@@ -919,12 +881,6 @@ def test_names_that_sort_past_the_letters_still_file_under_the_one_hash():
 
 
 def test_a_long_title_stays_inside_the_sidebar(browser, tmp_path: Path):
-    """It elides at the edge rather than dragging a horizontal scrollbar in.
-
-    A list view lays its rows out to the widest size hint it was given, and
-    library titles run several times the sidebar's width — so left alone the
-    index grows sideways and has to be scrolled across to be read at all.
-    """
     window = browser(
         [_handle("Example Studio - A Fabricated Scene Title Far Longer Than The Sidebar Is Wide")],
         thumbnail_cache=tmp_path,
@@ -945,7 +901,6 @@ def test_a_long_title_stays_inside_the_sidebar(browser, tmp_path: Path):
 
 
 def test_the_grid_takes_the_focus_though_the_sidebar_stands_first(browser, tmp_path: Path):
-    """The arrows and the type-ahead drive the browse, and both belong on the tiles."""
     window = browser(
         [_handle("Alpha Scene", section="main")], thumbnail_cache=tmp_path, on_pick=lambda _v: None,
     )
@@ -1055,7 +1010,6 @@ def test_browsing_runs_the_browser_and_plays_what_was_picked(tmp_path: Path):
 
 
 def test_the_browser_is_told_what_the_session_has_up(tmp_path: Path):
-    """So the window can open on that video's folder rather than at the root."""
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
@@ -1082,8 +1036,6 @@ def test_a_browse_of_genaus_flicks_says_so_to_the_browser(tmp_path: Path):
 
 
 def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
-    """A preview's session names its own checkouts of the shared packages; a
-    browse it opens runs on them, as every other window of the session does."""
     checkout = tmp_path / "a-funestra-checkout"
     checkout.mkdir()
     manifest = tmp_path / "windows_bridge_launch.ini"
@@ -1117,8 +1069,6 @@ def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_flicks_apart
 
 
 def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):
-    """The flag is left off rather than passed empty, so a browse launched by
-    hand reads the same as one launched with nothing playing."""
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
@@ -1136,11 +1086,6 @@ def test_an_abandoned_browse_picks_nothing(tmp_path: Path):
 
 
 def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
-    """The pick file outlives the browse that wrote it, so it is cleared first.
-
-    Without that, closing the browser without choosing would replay whatever was
-    picked last time — the session would jump to a video nobody asked for.
-    """
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     pick_file_for(manifest).write_text(r"C:\videos\alpha.mp4", encoding="utf-8")
@@ -1201,7 +1146,6 @@ def test_a_browse_driven_by_one_press_at_a_time_opens_what_is_pressed(browser, t
 
 
 def test_a_browse_with_no_window_frame_closes_from_its_header(browser, tmp_path: Path):
-    """In the headset nothing draws a title bar, so its close is in the header."""
     handles = [_handle("alpha scene", section="main")]
     dismissed: list[bool] = []
     headset = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None,
@@ -1247,14 +1191,6 @@ def test_the_close_mark_spans_more_than_half_its_button(browser, tmp_path: Path)
 
 
 def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(browser, tmp_path: Path):
-    """Grown until it meets an edge, with its proportions untouched.
-
-    A tall video and a wide one are the same tile, so one of the two axes always
-    has room to spare; filling both would squash whichever thumbnail does not share
-    the tile's shape.  The cached thumbnails are capped well below the tile, so this
-    scales *up* as well as down — a still left at its own size sits in a corner
-    of the space it was given.
-    """
     cache = tmp_path / "cache"
     cache.mkdir()
     tall = tmp_path / "tall.mp4"
@@ -1273,7 +1209,6 @@ def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(browser, tmp_path
 
 
 def test_a_folder_tile_shows_four_stills_in_a_grid(browser, tmp_path: Path):
-    """Four videos from inside, laid out two by two, each keeping its shape."""
     cache = tmp_path / "cache"
     cache.mkdir()
     handles = []
@@ -1290,7 +1225,6 @@ def test_a_folder_tile_shows_four_stills_in_a_grid(browser, tmp_path: Path):
 
     assert not drawn.isNull()
     assert (drawn.width(), drawn.height()) == (ICON_WIDTH, ICON_HEIGHT)
-    # Four distinct fills, one per cell, so nothing was drawn over or left out.
     image = drawn.toImage()
     corners = {
         image.pixel(ICON_WIDTH // 4, ICON_HEIGHT // 4),
@@ -1302,7 +1236,6 @@ def test_a_folder_tile_shows_four_stills_in_a_grid(browser, tmp_path: Path):
 
 
 def test_a_folder_holding_one_video_gives_it_the_whole_tile(browser, tmp_path: Path):
-    """No point quartering a tile around a single still."""
     cache = tmp_path / "cache"
     cache.mkdir()
     video = tmp_path / "only.mp4"
@@ -1320,11 +1253,6 @@ def test_a_folder_holding_one_video_gives_it_the_whole_tile(browser, tmp_path: P
 
 
 class TestARowSaysWhatItIs:
-    """`LibraryGrid.rows` is a closed union of three cases, and the two readers
-    used to discover which they had by asking for attributes by name — rename
-    `SubFolder.name` and every read site breaks silently rather than at import,
-    and a third row kind would be handled by accident."""
-
     def test_a_video_and_a_folder_each_name_themselves(self):
         video = LibraryHandle(title="alpha scene", versions=("C:/v/a.mp4",),
                               section="big_batch")

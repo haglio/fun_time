@@ -1,13 +1,3 @@
-"""The names and the calls in the code no suite runs.
-
-These modules need a headset, a graphics context or a real window, so nothing
-exercises the lines that matter and a sibling that renames a property or grows a
-signature leaves a broken call with both suites green -- the first anyone sees
-of it is a room missing a Funestra. Two of those on 2026-09-28:
-`MpvRenderEngine.has_new_frame` became `has_picture_to_draw` while a branch
-waited, and `Painter.paint` grew the window height. Read off the source, there
-being nothing here to run.
-"""
 from __future__ import annotations
 
 import ast
@@ -29,7 +19,6 @@ CALLS_NOTHING_RUNS = ("main_funestra/app.py", "satellite/app.py",
 
 
 def _called_on(module: Path, field: str) -> set[str]:
-    """Every name the module reads off ``self.<field>``."""
     tree = ast.parse(module.read_text(encoding="utf-8"))
     return {node.attr for node in ast.walk(tree)
             if isinstance(node, ast.Attribute)
@@ -53,7 +42,6 @@ def test_every_name_a_shell_calls_is_one_the_thing_it_holds_answers_to():
 
 
 def _classes_by_local_name(body: list[ast.stmt], namespace) -> dict[str, type]:
-    """``name -> class`` for each ``name = Class(...)`` this scope makes."""
     built = {}
     for node in ast.walk(ast.Module(body=body, type_ignores=[])):
         if not (isinstance(node, ast.Assign) and len(node.targets) == 1
@@ -68,7 +56,6 @@ def _classes_by_local_name(body: list[ast.stmt], namespace) -> dict[str, type]:
 
 
 def _unbindable_calls(source: Path, namespace) -> list[str]:
-    """Calls on a locally built object that its class could not accept."""
     wrong = []
     tree = ast.parse(source.read_text(encoding="utf-8"))
     for scope in ast.walk(tree):
@@ -110,7 +97,5 @@ def test_every_call_in_the_unrun_code_is_one_its_class_accepts():
 
 
 def test_the_shells_it_reads_are_ones_no_suite_runs():
-    """The lists above are only worth keeping for code nothing exercises: a
-    module a suite does run is held to its calls by that suite."""
     unrun = {entry["path"] for entry in Checkout(ROOT).numbers("coverage")["not-unit-tested"]}
     assert set(HELD_BY_THE_SHELLS) <= unrun

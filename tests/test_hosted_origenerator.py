@@ -1,4 +1,3 @@
-"""The hosted app's bring-up, shared by the desktop session and the headset's."""
 from __future__ import annotations
 
 import json
@@ -56,15 +55,8 @@ def _manifest_for(cfg_factory, tmp_path, overrides):
 
 
 class TestWhereTheAppsOwnWindowGoes:
-    """The one thing a headset session cannot show: the app's Core, which
-    shares the Random Favs Browser's rect.  It boots parked there and nothing in
-    a headset session restores it, so the session crossing back to the monitors
-    is what finds it where it belongs."""
-
     def test_the_window_takes_the_random_favs_browsers_rect_under_the_strip(
             self, cfg_factory, tmp_path):
-        """The browser's place is the rect under the dashboard's strip, which a
-        session hosting an Origenerator always has."""
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         config, manifest = _manifest_for(
@@ -83,8 +75,6 @@ class TestWhereTheAppsOwnWindowGoes:
 
     def test_a_session_hosting_none_never_asks_the_monitors_anything(
             self, cfg_factory, tmp_path):
-        """A run with no monitors to read -- the merge gate's, and any headless
-        one -- must not fail on a rect for a window it is not opening."""
         _config, manifest = _manifest_for(cfg_factory, tmp_path, {})
 
         with patch("fun_time.window_layout.enumerate_monitors",
@@ -93,9 +83,6 @@ class TestWhereTheAppsOwnWindowGoes:
 
 
 class TestHandingTheWindowToTheHeadset:
-    """A headset session has no monitor to put the app's window on, so it asks
-    for the window's frames instead and sends its pointer's presses back."""
-
     def _launch(self, cfg_factory, tmp_path, *, in_a_headset):
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
@@ -118,18 +105,12 @@ class TestHandingTheWindowToTheHeadset:
         assert captured["input_file"] == str(config.origenerator_input_file)
 
     def test_a_session_on_the_monitors_names_neither(self, cfg_factory, tmp_path):
-        """The window itself is what is seen there, and a frame written every
-        tick for nobody is a grab of a window every tick for nothing."""
         _config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=False)
 
         assert captured["frames_file"] is None
         assert captured["input_file"] is None
 
     def test_the_real_launch_carries_the_pair_through(self, cfg_factory, tmp_path):
-        """Through `launch_origenerator` itself rather than a stand-in for it:
-        a stand-in that takes anything cannot fail on an argument the real one
-        does not accept, which is how the pair reached it and killed the launch
-        (tests/integration/test_origenerator_mode_integration.py caught it)."""
         started = {}
 
         class _Started:
@@ -166,8 +147,6 @@ class TestHandingTheWindowToTheHeadset:
         assert [word for word in started["cmd"] if word.startswith("--")] == flags
 
     def test_the_flags_are_the_ones_the_app_declares(self, cfg_factory, tmp_path):
-        """The app publishes its launch contract because neither repo may import
-        the other; these are the two flags of it this pair is written as."""
         argv = origenerator_session_args(
             layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
             dashboard_cmd_file="d", funestras={},
@@ -180,9 +159,6 @@ class TestHandingTheWindowToTheHeadset:
 
 
 class TestTellingAKeptAppWhereItsWindowGoes:
-    """A crossing keeps the app running, and it was started for the session it
-    left: the one adopting it says on the command file which shape it is."""
-
     def _adopt(self, cfg_factory, tmp_path, *, in_a_headset, left_over=False):
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
@@ -213,10 +189,6 @@ class TestTellingAKeptAppWhereItsWindowGoes:
 
     def test_a_headset_session_starts_with_no_frame_and_no_presses(
             self, cfg_factory, tmp_path):
-        """What an earlier session left in those two files still reads as a live
-        frame and as presses nobody made.  On 2026-10-08 his room drew the
-        frame a session twelve days earlier had left there -- Origenerator in
-        the shape the monitors give it -- and he judged this change on it."""
         config, _said = self._adopt(
             cfg_factory, tmp_path, in_a_headset=True, left_over=True)
 
@@ -240,17 +212,12 @@ class TestTellingAKeptAppWhereItsWindowGoes:
 
 
     def test_a_desktop_session_takes_the_window_back(self, cfg_factory, tmp_path):
-        """One the headset had shown is still publishing and still up; here it
-        parks, as a hosted window boots, and writes no frame for nobody."""
         _config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=False)
 
         assert said == [TAKE_BACK]
 
 
 class TestAdoptingAKeptOrigenerator:
-    """A crossing leaves the hosted app running; this is the half that picks it
-    up rather than paying for a second boot (docs/entering-vr.md)."""
-
     def _manifest(self, tmp_path):
         m = MagicMock()
         m.commands.origenerator_status_file = str(tmp_path / "origenerator_status.txt")
@@ -278,8 +245,6 @@ class TestAdoptingAKeptOrigenerator:
         assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
     def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
-        """The app rewrites its status file only when a region changes, so one
-        cleared here would stay empty while nothing did."""
         status = tmp_path / "origenerator_status.txt"
         status.write_text("ready\n", encoding="utf-8")
         (tmp_path / "origenerator_cmd.txt").write_text("CLOSE_SLIDESHOWS\n", encoding="utf-8")
@@ -294,13 +259,6 @@ class TestAdoptingAKeptOrigenerator:
 
 
 class TestWhenTheAppWeTookOverNeverAnswers:
-    """A takeover is a file left for the open window to read, and a window that
-    cannot read it leaves no trace at all.  On 2026-09-28 one was handed to a
-    process that had stopped answering: the session reported it hosted, the app
-    never published, and the room sat for five minutes with the Origenerator
-    mode button grey and nothing anywhere saying why.
-    """
-
     def _bring_up(self, cfg_factory, tmp_path, *, it_reads_the_takeover):
         origenerator = tmp_path / "origenerator"
         (origenerator / "state").mkdir(parents=True)
@@ -356,9 +314,6 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         assert [word for word in handed["args"] if word.startswith("--")] == flags
 
     def test_one_that_answers_is_the_app_this_session_hosts(self, cfg_factory, tmp_path):
-        """Reading it is the whole answer: a window in Kino mode has nothing to
-        publish and would never say a word, which is why the status file it
-        writes when a region changes cannot stand in for being alive."""
         _config, app, launched = self._bring_up(
             cfg_factory, tmp_path, it_reads_the_takeover=True)
 

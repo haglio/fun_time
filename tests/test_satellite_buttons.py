@@ -1,5 +1,3 @@
-"""The buttons Fun Time declares on a satellite's HUD: what each posts, its face,
-its tooltip, its state, and the groups they fall into."""
 from __future__ import annotations
 
 from itertools import pairwise
@@ -38,19 +36,12 @@ def _faces() -> dict[str, str]:
 
 
 def test_the_band_is_the_funestras_own_controls_in_the_main_huds_order():
-    """The browse pair with the ten-second steps between them, then the three about
-    the video on screen and the library it came from, then the reset, then the
-    browse order, then another rendition of the video, as the HUD ends its own
-    browse controls on it, then minimize — ending with the one that acts on the
-    window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
         "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "lock", "trash", "fmode",
         "reset", "shuffle", "latest", "cycle_version", "minimize", "crown"]
 
 
 def test_every_button_posts_that_funestras_own_verb():
-    """"portrait_prev", "landscape_trash": the dispatch loop needs no new verbs
-    for a button, only for the thing it does."""
     for funestra in ("portrait", "landscape"):
         for button in funestra_rows(funestra, latest=True)[-1]:
             assert button.command.startswith(f"{funestra}_"), button.command
@@ -58,9 +49,6 @@ def test_every_button_posts_that_funestras_own_verb():
 
 
 def test_the_band_breaks_into_the_groups_the_main_hud_breaks_into():
-    """A run of evenly spaced squares reads as one long undifferentiated strip;
-    the wider gap opens where the controls stop being about the same thing, at
-    the same seams the HUD's rows break at."""
     starts = [button.command.removeprefix("portrait_")
               for button in _band(latest=False) if button.group_break]
 
@@ -68,9 +56,6 @@ def test_the_band_breaks_into_the_groups_the_main_hud_breaks_into():
 
 
 def test_the_states_light_and_nothing_else_does():
-    """The lock and F-mode are states the Satellite sits in, in the favorites' green;
-    exactly one of the order pair is lit, saying which order the browse is in;
-    a step, the bin, reset and minimize are things done, never lit."""
     band = _band(locked=True, favorites_filter=True, latest=True)
     lit = dict(zip(_names(band), band, strict=True))
 
@@ -89,8 +74,6 @@ def test_the_states_light_and_nothing_else_does():
 
 
 def test_the_order_pair_is_declared_only_where_the_order_can_be_switched():
-    """The origenerator-mode HUD has an order but no way to change it from
-    here, and two buttons nothing answers are two dead buttons."""
     assert "shuffle" not in _names(_band())
     assert "latest" not in _names(_band())
     assert "shuffle" in _names(_band(latest=False))
@@ -103,9 +86,6 @@ def test_the_bin_takes_something_away():
 
 
 def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
-    """A row of its own above the band, like the HUD's Kino/Genau row: the
-    side's current mode lit, minimize riding the row a group apart, and no such
-    row at all for a session hosting no Origenerator."""
     rows = funestra_rows("portrait", mode=SatellitesMode.ORIGENERATOR)
 
     assert len(rows) == 2
@@ -124,9 +104,6 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
 
 
 def test_a_funestra_in_the_headset_has_no_window_to_minimize():
-    """Minimize parks a Funestra's window, and in the headset a Funestra is a
-    screen in the scene rather than a window of its own: there is nothing for
-    it to park, so it is left off the band and off the session's row alike."""
     plain = funestra_rows("portrait", latest=False, in_vr=True)
     hosting = funestra_rows("portrait", latest=False, mode=SatellitesMode.KINO,
                           in_vr=True)
@@ -138,11 +115,6 @@ def test_a_funestra_in_the_headset_has_no_window_to_minimize():
 
 
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
-    """The room opens without waiting out the hosted app's boot, so for the
-    first half-minute the switch would land on windows that do not exist.  Dim
-    is this family's unpressable state: the Funestra draws it faded, posts
-    nothing for a press on it, and still answers a hover -- with what it is
-    waiting for, since knowing why it cannot be pressed is the point."""
     starting = {b.command: b for b in funestra_rows(
         "portrait", mode=SatellitesMode.KINO, origenerator_ready=False)[0]}
     ready = {b.command: b for b in funestra_rows(
@@ -156,8 +128,6 @@ def test_the_origenerator_button_is_dim_until_that_app_is_up():
 
 
 def test_the_faces_are_the_familys_marks_where_it_has_them():
-    """The bin is the bin Origenerator's toolbar wears, reset the gear with the
-    circular arrow, F-mode its magenta badge."""
     faces = _faces()
     named = {name: shared_icon_name(face) for name, face in faces.items()
              if face.startswith(SHARED_ICON)}
@@ -211,7 +181,6 @@ def test_the_transport_the_lock_and_the_crown_wear_the_familys_marks():
 
 
 def test_the_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter():
-    """There is nothing to step through, and a step would only end the video."""
     short = {b.command: b for b in _band(longer_than_a_step=False)}
     longer = {b.command: b for b in _band(longer_than_a_step=True)}
 
@@ -223,8 +192,6 @@ def test_the_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter():
 
 
 def test_the_versions_button_is_dim_where_the_video_has_only_itself():
-    """The HUD's own versions mark, and dim where there is nothing to step
-    to — the way the Main Funestra's is, with the hover saying so."""
     alone = {b.command: b for b in _band()}["portrait_cycle_version"]
     paired = {b.command: b for b in _band(has_other_versions=True)}["portrait_cycle_version"]
 

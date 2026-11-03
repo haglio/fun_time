@@ -1,5 +1,3 @@
-"""fun_time_vr.render is a GL shell; what a unit test can hold it to is how it
-asks the driver about errors."""
 from __future__ import annotations
 
 import subprocess

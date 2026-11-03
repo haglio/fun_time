@@ -1,4 +1,3 @@
-"""The desktop's library browser, run with no window for the headset to show."""
 from __future__ import annotations
 
 import sys
@@ -307,10 +306,6 @@ class TestServing:
 
 
 class TestWhileTheLibraryIsStillBeingRead:
-    """Reading it is minutes of work when its drive is syncing.  It used to happen
-    before the process served anything, so the headset's presses -- its close among
-    them -- piled up in the input file unread (2026-09-20)."""
-
     @pytest.fixture
     def waiting(self, tmp_path):
         frames = FrameWriter(tmp_path / "frame.bin",
@@ -336,7 +331,7 @@ class TestWhileTheLibraryIsStillBeingRead:
 
         assert serve_once(browse, asked, parent_alive=lambda: True, now=0.0) is True
 
-        assert not asked.exists()  # every line taken, none left to pile up
+        assert not asked.exists()
         assert said == []
 
     def test_the_opening_it_was_asked_for_happens_once_the_read_lands(self, waiting):
@@ -390,9 +385,6 @@ class TestWhileTheLibraryIsStillBeingRead:
 
 
 class TestTheListingItKeeps:
-    """Listing the folders is what costs the wait, so the last one is kept and
-    answers the next browse at once."""
-
     def _config(self, tmp_path):
         return SimpleNamespace(
             sources="C:/videos/vr|C:/videos/flat", vr_sources="C:/videos/vr",

@@ -1,5 +1,3 @@
-"""Genau's folders, made up for a test, laid out the way every app finds them,
-and the settings all of Haglio shares that say where they are."""
 from __future__ import annotations
 
 import json

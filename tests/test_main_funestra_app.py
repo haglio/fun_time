@@ -69,9 +69,6 @@ class TestWhatTheFunestraIsHanded:
 
 
 class TestGenauRunsOnItToo:
-    """Beside Kino, on the files Fun Time named: the window's own flicks folder and
-    drive file, the audio companion's address, and the OSR2's inlet."""
-
     def test_it_is_built_from_the_flags_fun_time_passes(self):
         given = _keywords(_call(_function("_genau"), "Genau"))
         channels = _keywords(_call(_function("_genau"), "GenauChannels"))
@@ -131,10 +128,6 @@ class TestWhenSomethingCosmeticFails:
 
 
 class TestWhichConfigTheFlagsAreReadAgainst:
-    """The Main Funestra parses twice on purpose.  The first pass exists only to find out
-    whether ``--config`` names a file; if it does, the parser is built again
-    from THAT file, because every default it feeds comes from it."""
-
     def _main(self, monkeypatch, argv):
         landed = []
         monkeypatch.setattr(app, "_run", lambda args: landed.append(args) or 0)

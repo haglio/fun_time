@@ -1,4 +1,3 @@
-"""The message a message flashes over the Funestra it names."""
 from __future__ import annotations
 
 import logging
@@ -30,8 +29,6 @@ class TestTheBanner:
         assert np.asarray(short)[:, :, 3].max() > 0
 
     def test_it_reads_the_level_the_log_panel_reads(self):
-        """One color per level across every surface: a red line is red on the
-        desktop's message, in its log panel and here."""
         plain = np.asarray(_flashed(level=MESSAGE))
         loud = np.asarray(_flashed(level=logging.ERROR))
         favorite = np.asarray(_flashed(level=FAVORITE))
@@ -45,8 +42,6 @@ class TestTheBanner:
         assert wide.width <= 400
 
     def test_a_word_wider_than_the_banner_is_cut_to_it_too(self):
-        """However the family's wrapper hands back a line still too wide, the
-        message's way of showing one is the cut."""
         assert _flashed("x" * 300, max_width=400).width <= 400
 
     def test_a_line_break_in_a_message_starts_a_new_line_as_on_the_desktops_notice(self):
@@ -65,10 +60,6 @@ class TestTheBanner:
 
 
 class TestItIsSizedToTheFrameItGoesOn:
-    """A Funestra decodes to 2048 or 8192 pixels, not to the size of a window, so
-    the desktop's own 19px type came out a tenth of the height it reads at
-    there -- with a 1px border and a 4px corner nobody could see at all."""
-
     def test_the_type_grows_with_the_frame(self):
         assert font_px(MAIN_VIDEO_CAP_PX) > font_px(SATELLITE_VIDEO_CAP_PX) > font_px(720)
 
@@ -76,9 +67,6 @@ class TestItIsSizedToTheFrameItGoesOn:
         assert font_px(100) == MIN_FONT_PX
 
     def test_the_whole_shape_grows_with_it_and_not_just_the_type(self):
-        """The padding, the border and the corner are multiples of the type, so
-        a message on a big frame is the same shape rather than thin type in a
-        box that stayed small."""
         small = _flashed(size=20)
         large = _flashed(size=80)
 
@@ -101,8 +89,6 @@ class TestWhereItSits:
         assert 0 < y < 1080 // 10
 
     def test_it_sits_where_the_desktop_sits_it(self):
-        """On a frame as tall as a Funestra's window the message sits where the
-        desktop sits its message; it was once twice as far down."""
         _x, y = message_placement_in_a_frame(_flashed(), 1920, 1000)
 
         assert y == MESSAGE_TOP_MARGIN

@@ -1,4 +1,3 @@
-"""The controls the Main Funestra's HUD and each satellite's HUD both carry."""
 from __future__ import annotations
 
 from dataclasses import replace

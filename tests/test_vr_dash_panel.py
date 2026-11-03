@@ -1,4 +1,3 @@
-"""The dashboard hanging in the headset: what it shows, and what a press does."""
 from __future__ import annotations
 
 import logging
@@ -85,13 +84,10 @@ _LOG_WIDTH = osr2_part_rect().x - 2 * PAD
 
 
 def _written(rows: list[str]) -> str:
-    """Every character the rows carry but the spaces they were broken at."""
     return "".join(rows).replace(" ", "")
 
 
 def _a_spot_on_the_log() -> tuple[int, int]:
-    """Under the filters, right of where the dial's list hangs and left of the
-    OSR2 part, where nothing takes a press."""
     dial = dash_actions()[VERBOSITY_DROPDOWN]
     return dial.x + dial.width + 1, dash_height() - 1
 
@@ -134,7 +130,6 @@ def _middle(action: str, *, dial_open: bool = False) -> tuple[int, int]:
 
 
 def _app_name_mask(image) -> np.ndarray:
-    """Where the bar's "Fun Time" is inked, in the tone it is written in."""
     wanted = np.asarray(LOADING_ACCENT)
     title = compute_dashboard_bar_layout().app_title
     band = np.asarray(image)[title.y:title.y + title.height,
@@ -144,8 +139,6 @@ def _app_name_mask(image) -> np.ndarray:
 
 class TestItIsTheDesktopsBar:
     def test_the_four_controls_sit_where_the_desktop_puts_them(self):
-        """Same layout function, so the bar in the headset is that bar rather
-        than a lookalike drawn to match."""
         bar = compute_dashboard_bar_layout()
         actions = dash_actions()
 
@@ -169,8 +162,6 @@ class TestItIsTheDesktopsBar:
         assert inked.sum() > icon.width * icon.height // 8
 
     def test_the_apps_name_is_written_in_the_wordmark_tone(self):
-        """The red the desktop's bar and every loading screen write it in, and not the
-        tone of the icon standing beside it."""
         panel = paint_dash(DashState(), [])
         title = compute_dashboard_bar_layout().app_title
         band = np.asarray(panel)[title.y:title.y + title.height,
@@ -202,8 +193,6 @@ class TestItIsTheDesktopsBar:
         assert live.getpixel(just_below)[:3] != BG_TERTIARY
 
     def test_the_apps_name_leans_the_way_the_covers_write_it(self):
-        """Set in the same bold italic, so the headset's copy is that
-        lockup rather than an upright lookalike."""
         title = compute_dashboard_bar_layout().app_title
 
         def written_in(face):
@@ -218,8 +207,6 @@ class TestItIsTheDesktopsBar:
         assert not np.array_equal(painted, written_in(BOLD_FACE))
 
     def test_a_window_wears_the_short_name_the_log_panel_gives_it(self):
-        """"Sat" and "Land", not "portrait" and "landscape": the same row of
-        word-buttons, reading the same, in both apps."""
         labelled = np.asarray(paint_dash(DashState(), []))
         bare = np.asarray(paint_dash(
             DashState(sources=frozenset(SOURCES) - {SOURCE_PORTRAIT}), []))
@@ -245,9 +232,6 @@ class TestItIsTheDesktopsBar:
 
 
 class TestTheLogWrapsAsTheDesktopsDoes:
-    """The desktop's log wraps a line too long for it onto the rows under it and
-    never cuts one, so the headset's does the same."""
-
     def test_a_record_reads_the_way_the_log_panel_writes_it(self):
         record = _record("portrait next", source=SOURCE_PORTRAIT)
 
@@ -263,7 +247,6 @@ class TestTheLogWrapsAsTheDesktopsDoes:
         assert _written(rows) == _written([format_record(record)])
 
     def test_a_word_too_wide_for_a_row_keeps_a_row_of_its_own_whole(self):
-        """As the desktop's log does: it wraps only where words end."""
         a_path = "C:" + "\\made_up_folder" * 12 + "\\scene_one.mp4"
         record = _record(f"Could not open {a_path}")
 
@@ -296,10 +279,6 @@ class TestTheLogWrapsAsTheDesktopsDoes:
 
 
 class TestTheColumnBesideTheOsr2Part:
-    """The desktop's Dashboard, laid out the same way: the bar with its row to
-    itself, the log's filters on a row of their own under it at the log's left
-    margin, the log under them, and the OSR2 part at the right end."""
-
     def test_the_bar_has_its_row_to_itself(self):
         bar = compute_dashboard_bar_layout()
         actions = dash_actions()
@@ -340,8 +319,6 @@ class TestTheColumnBesideTheOsr2Part:
         assert last_window.x + last_window.width + PAD <= osr2_part_rect().x
 
     def test_nothing_on_it_is_drawn_over_anything_else(self):
-        """The dial was once measured from the crossing rather than from the
-        last control on the bar, and was painted over the VR reset's right half."""
         placed = [*dash_actions().items(), ("the OSR2 part", osr2_part_rect())]
 
         for index, (name, first) in enumerate(placed):
@@ -396,8 +373,6 @@ class TestWhatAPressDoes:
         assert posted == []
 
     def test_the_dial_opens_a_list_rather_than_cycling(self):
-        """The desktop's is a dropdown; picking a level out of a list is the
-        same gesture here, not a chip you press until it comes round."""
         pointer, posted = _pointer()
         was = pointer.state.verbosity
 
@@ -426,7 +401,6 @@ class TestWhatAPressDoes:
             f"{VERBOSITY_STOP}ERROR")
 
     def test_a_press_anywhere_else_closes_it(self):
-        """What clicking off an open dropdown does."""
         pointer, _posted = _pointer()
         pointer.press(*_middle(VERBOSITY_DROPDOWN))
 
@@ -435,7 +409,6 @@ class TestWhatAPressDoes:
         assert not pointer.state.dial_open
 
     def test_it_covers_the_log_it_hangs_over(self):
-        """A stop must be pressed before whatever row is under it."""
         opened = list(dash_actions(dial_open=True))
 
         assert opened[0].startswith(VERBOSITY_STOP)
@@ -492,15 +465,10 @@ class TestTheDial:
 
 
 class TestItLooksLikeADropdown:
-    """It was a word-button that happened to open a list, drawn like the window
-    filters beside it -- nothing about it said "this one drops down"."""
-
     def _column(self, image, x: int):
         return np.asarray(image)[:, x, :3]
 
     def test_the_closed_field_wears_an_arrow(self):
-        """The icon every dropdown carries, and the family's own chevron turned
-        down rather than one drawn here to look like it."""
         rect = dash_actions()[VERBOSITY_DROPDOWN]
         painted = np.asarray(paint_dash(DashState(), []))
         right = painted[rect.y:rect.y + rect.height,
@@ -534,8 +502,6 @@ class TestItLooksLikeADropdown:
         assert brightest(SOURCE_PORTRAIT) >= 250
 
     def test_the_level_reads_from_the_left_as_a_field_does(self):
-        """Centered is how a button labels itself; a field's value starts at its
-        left edge, which is what puts the arrow on its own at the other end."""
         rect = dash_actions()[VERBOSITY_DROPDOWN]
         painted = np.asarray(paint_dash(DashState(verbosity=logging.ERROR), []))
         rows = painted[rect.y + 2:rect.y + rect.height - 2,
@@ -544,8 +510,6 @@ class TestItLooksLikeADropdown:
         assert not np.all(rows == np.asarray(BG_BUTTON, dtype=rows.dtype))
 
     def test_the_open_list_marks_the_chosen_row_in_blue(self):
-        """The blue a dropdown icons its rows with, the same one
-        shared_ui.chrome gives every menu in the family."""
         painted = np.asarray(paint_dash(
             DashState(verbosity=logging.ERROR, dial_open=True), []))
         chosen = dial_stops()[f"{VERBOSITY_STOP}ERROR"]
@@ -564,8 +528,6 @@ class TestItLooksLikeADropdown:
         assert not (band == np.asarray(BLUE, dtype=band.dtype)).all(axis=1).any()
 
     def test_the_list_sits_on_the_ground_a_menu_sits_on(self):
-        """Its own ground inside one border, not the panel's -- so it reads as a
-        popup over the log rather than a gap torn in it."""
         painted = np.asarray(paint_dash(DashState(dial_open=True), []))
         row = dial_stops()[f"{VERBOSITY_STOP}INFO"]
         pixel = painted[row.y + row.height // 2, row.x + row.width - 4, :3]
@@ -575,7 +537,6 @@ class TestItLooksLikeADropdown:
 
 class TestWhatItDraws:
     def test_it_keeps_its_size_whatever_the_log_says(self):
-        """A screen in a scene that changes size is a screen that moves."""
         quiet = paint_dash(DashState(), [])
         busy = paint_dash(DashState(), [_record(f"line {i}") for i in range(LOG_ROWS * 3)])
 
@@ -603,8 +564,6 @@ class TestWhatItDraws:
         assert np.array_equal(quiet, spoken)
 
     def test_the_pause_control_says_which_way_it_goes(self):
-        """The desktop's icon flips to a play triangle while the room is held,
-        because that is what pressing it does next."""
         running = np.asarray(paint_dash(DashState(omni_paused=False), []))
         held = np.asarray(paint_dash(DashState(omni_paused=True), []))
 
@@ -621,7 +580,6 @@ class TestWhatItDraws:
         assert brightest(DashState()) > max(TEXT_MUTED)
 
     def test_a_reset_with_nothing_to_put_back_does_not_light_under_the_ray(self):
-        """A control that takes no press does not answer the ray either."""
         rect = dash_actions()[RESET_ALL]
         idle = DashState(nothing_to_reset=True)
         aimed = paint_dash(idle, [], hover=(rect.x + rect.width // 2,
@@ -664,9 +622,6 @@ class TestTheVrReset:
 
 
 class TestTheOsr2Part:
-    """The part the room publishes, at the right end from the top, as the
-    desktop's Dashboard draws it, and pressed there."""
-
     def test_its_frame_is_drawn_in_the_room_kept_for_it(self):
         dash = paint_dash(DashState(), [])
         raw, (width, height) = Osr2ControlsHost(post=[].append).drawing(
