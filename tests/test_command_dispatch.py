@@ -1268,7 +1268,7 @@ def test_fmode_passes_the_metadata_root_for_group_collapse(tmp_path: Path):
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    assert mock_fmode.call_args.kwargs["regen_metadata_root"] == tmp_path / "metadata"
+    assert mock_fmode.call_args.kwargs["main_build"].main_list.metadata_root == tmp_path / "metadata"
 
 
 def _filter_result(count=1, applied=True, message="ok"):
@@ -1292,9 +1292,9 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert mock_filter.call_count == 1
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["funestra"] is FunTimeFunestra.PORTRAIT
-    assert kwargs["query"] == "alpha"
-    assert kwargs["cmd_file"] == config.satellite(2).cmd_file
-    assert kwargs["sources"] == config.portrait_sources
+    assert kwargs["build"].filter_query == "alpha"
+    assert kwargs["channel"].cmd_file == config.satellite(2).cmd_file
+    assert kwargs["build"].sources == config.portrait_sources
     assert any(op.op == "message" for op in ops)
 
 
@@ -1545,7 +1545,7 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == "twirling"
-    assert mock_filter.call_args.kwargs["query"] == ""
+    assert mock_filter.call_args.kwargs["build"].filter_query == ""
 
 
 def test_fmode_passes_active_filters(tmp_path: Path):
@@ -1572,8 +1572,8 @@ def test_recents_passes_the_satellites_filter_and_roots(tmp_path: Path):
         dispatch_command("portrait_latest", state, config)
 
     kwargs = mock_filter.call_args.kwargs
-    assert kwargs["recent"] is True
-    assert kwargs["query"] == "alpha"
+    assert kwargs["build"].recent is True
+    assert kwargs["build"].filter_query == "alpha"
 
 
 def test_recents_reorders_only_the_satellite_it_names(tmp_path: Path):
@@ -1597,7 +1597,7 @@ def test_shuffle_puts_one_satellite_back_without_touching_the_other(tmp_path: Pa
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("landscape_shuffle", state, config)
 
-    assert mock_filter.call_args.kwargs["recent"] is False
+    assert mock_filter.call_args.kwargs["build"].recent is False
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).latest is False
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True
 
@@ -1652,8 +1652,8 @@ def test_reset_returns_the_satellite_to_every_default(tmp_path: Path):
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == ""
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == ""
-    assert mock_filter.call_args.kwargs["query"] == ""
-    assert mock_filter.call_args.kwargs["recent"] is False
+    assert mock_filter.call_args.kwargs["build"].filter_query == ""
+    assert mock_filter.call_args.kwargs["build"].recent is False
     assert mock_filter.call_args.kwargs["start_at_top"] is True
     assert "LOCK_OFF" in _cmds(config, 2)
 
@@ -1666,7 +1666,7 @@ def test_reset_rebuilds_the_satellite_wide_rather_than_still_in_f_mode(tmp_path:
         mock_filter.return_value = _filter_result(count=10)
         dispatch_command("portrait_reset", state, config)
 
-    assert mock_filter.call_args.kwargs["favorites_filter"] is False
+    assert mock_filter.call_args.kwargs["build"].favorites_filter is False
 
 
 def test_reset_leaves_a_satellite_that_is_already_at_its_defaults_alone(tmp_path: Path):
@@ -1791,8 +1791,8 @@ def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True
-    assert mock_filter.call_args.kwargs["query"] == ""
-    assert mock_filter.call_args.kwargs["recent"] is True
+    assert mock_filter.call_args.kwargs["build"].filter_query == ""
+    assert mock_filter.call_args.kwargs["build"].recent is True
 
 
 def _cycle_meta(image_seed: str, action: str) -> dict:
@@ -2219,9 +2219,9 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is False
     kwargs = mock_filter.call_args.kwargs
-    assert kwargs["recent"] is True
-    assert kwargs["favorites_filter"] is False
-    assert kwargs["cmd_file"] == config.portrait_cmd_file
+    assert kwargs["build"].recent is True
+    assert kwargs["build"].favorites_filter is False
+    assert kwargs["channel"].cmd_file == config.portrait_cmd_file
     assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 
@@ -3647,7 +3647,7 @@ def test_lock_action_filters_to_the_current_videos_action(tmp_path: Path):
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
 
-    assert mock_filter.call_args.kwargs["query"] == "beta gamma"
+    assert mock_filter.call_args.kwargs["build"].filter_query == "beta gamma"
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == "beta gamma"
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == ""
 
@@ -3673,7 +3673,7 @@ def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_
         dispatch_command("portrait_lock_action", _make_state(), config,
                          target_path=paths["meant"])
 
-    assert mock_filter.call_args.kwargs["query"] == "beta gamma"
+    assert mock_filter.call_args.kwargs["build"].filter_query == "beta gamma"
 
 
 def test_lock_action_without_metadata_says_so(tmp_path: Path):

@@ -263,21 +263,26 @@ def satellite_narrowing(
     return files
 
 
+@dataclass(frozen=True)
+class SatelliteBuild:
+    sources: str
+    favorites_filter: bool = False
+    recent: bool = False
+    filter_query: str = ""
+
+
 def build_satellite_playlist_paths(
-    source_spec: str,
-    favorites_filter: bool,
+    build: SatelliteBuild,
     *,
-    filter_query: str = "",
-    recent: bool = False,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> list[str]:
-    files = satellite_narrowing(collect_video_files(source_spec), favorites_filter,
-                                filter_query=filter_query, metadata_root=metadata_root)
-    filtered = bool(filter_query) and metadata_root is not None
+    files = satellite_narrowing(collect_video_files(build.sources), build.favorites_filter,
+                                filter_query=build.filter_query, metadata_root=metadata_root)
+    filtered = bool(build.filter_query) and metadata_root is not None
     if metadata_root is None:
-        return order_paths(files, recent=recent, rng=rng)
-    if recent:
+        return order_paths(files, recent=build.recent, rng=rng)
+    if build.recent:
         return _collapse_recent(files, metadata_root, by_seed_family=filtered)
     return _collapse_and_weigh(files, metadata_root, rng, by_seed_family=filtered)
 
@@ -306,30 +311,14 @@ def scripted_item(video_path: str, metadata_root: Path | None = None) -> Playlis
 
 
 def build_one_satellite_playlist(
+    build: SatelliteBuild,
+    playlist_file: Path,
     *,
-    sources: str,
-    name: str,
-    state_dir: Path,
-    favorites_filter: bool,
-    recent: bool,
-    filter_query: str = "",
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
-    paths = build_satellite_playlist_paths(
-        sources, favorites_filter, filter_query=filter_query, recent=recent, rng=rng,
-        metadata_root=metadata_root,
-    )
-    write_playlist_file(build_playlist_file_path(state_dir, name), paths,
-                        metadata_root=metadata_root)
-
-
-@dataclass(frozen=True)
-class SatelliteBuild:
-    sources: str
-    favorites_filter: bool = False
-    recent: bool = False
-    filter_query: str = ""
+    paths = build_satellite_playlist_paths(build, rng=rng, metadata_root=metadata_root)
+    write_playlist_file(playlist_file, paths, metadata_root=metadata_root)
 
 
 def build_satellite_playlists(
@@ -341,12 +330,10 @@ def build_satellite_playlists(
     metadata_root: Path | None = None,
 ) -> None:
     build_one_satellite_playlist(
-        sources=portrait.sources, name=PLAYLIST_PORTRAIT,
-        state_dir=state_dir, favorites_filter=portrait.favorites_filter, recent=portrait.recent,
-        filter_query=portrait.filter_query, rng=rng, metadata_root=metadata_root,
+        portrait, build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT),
+        rng=rng, metadata_root=metadata_root,
     )
     build_one_satellite_playlist(
-        sources=landscape.sources, name=PLAYLIST_LANDSCAPE,
-        state_dir=state_dir, favorites_filter=landscape.favorites_filter, recent=landscape.recent,
-        filter_query=landscape.filter_query, rng=rng, metadata_root=metadata_root,
+        landscape, build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE),
+        rng=rng, metadata_root=metadata_root,
     )

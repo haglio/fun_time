@@ -15,6 +15,7 @@ from .event_log import FAVORITE, MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import show_f_mode
 from .main_list import MainListSettings
+from .main_list_builds import MainListBuild
 from .main_list_commands import on_the_main_funestra
 from .mode_plan import kino_shows
 from .origenerator_switches import hosts
@@ -97,22 +98,21 @@ def _dispatch_fmode(
     result = apply_fmode(
         funestras=tuple(funestra for funestra in changed if funestra not in genau),
         enabled=enabled,
-        main_list=config.main_list,
-        main_settings=MainListSettings.of(state),
-        main_on_screen=on_the_main_funestra(config),
-        state_dir=config.state_dir,
-        main_funestra_cmd_file=config.main_funestra_cmd_file,
+        main_build=MainListBuild(
+            main_list=config.main_list,
+            settings=MainListSettings.of(state),
+            main_funestra_cmd_file=config.main_funestra_cmd_file,
+            on_screen=on_the_main_funestra(config),
+        ),
         main_builds=config.main_list_builds,
         satellites={
             funestra: SatelliteFmodeInputs(
-                sources=config.satellite(funestra).sources,
-                cmd_file=config.satellite(funestra).cmd_file,
+                config.satellite(funestra),
                 recent=state.satellite(funestra).latest,
                 filter_query=state.satellite(funestra).filter,
             )
             for funestra in FunTimeFunestra.SATELLITES
         },
-        regen_metadata_root=config.regen_metadata_root,
     )
     if result.funestras:
         logger.info(result.log_message)

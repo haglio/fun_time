@@ -27,10 +27,10 @@ from .inclusion_pairs import (
 )
 from .main_funestra_commands import MAIN_FUNESTRA_CMD_MAP, MAIN_LOCK_COMMANDS
 from .main_list import MainListSettings, new_shuffle_seed, next_length_mode
+from .main_list_builds import MainListBuild
 from .mode_plan import kino_shows
 from .modes import VideoShapes
 from .osr2_commands import NORMAL_SPEED
-from .runtime_flow import rebuild_main_list
 from .shared_state import BridgeState
 from .vr_videos import shapes_verb
 
@@ -61,10 +61,10 @@ def _dispatch_main_reorder(
 
 def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
                            start_at_top: bool = False, says: str = "") -> None:
-    rebuild_main_list(config.main_list, MainListSettings.of(state),
-                      main_funestra_cmd_file=config.main_funestra_cmd_file,
-                      on_screen=on_the_main_funestra(config),
-                      start_at_top=start_at_top, builds=config.main_list_builds, says=says)
+    config.main_list_builds.build(MainListBuild(
+        main_list=config.main_list, settings=MainListSettings.of(state),
+        main_funestra_cmd_file=config.main_funestra_cmd_file,
+        on_screen=on_the_main_funestra(config), start_at_top=start_at_top, says=says))
 
 
 def on_the_main_funestra(config: BridgeConfig) -> str:

@@ -8,9 +8,12 @@ import pytest
 from funestra.main_hud import OSR2_DRIVING
 from funestra.modes import MainMode
 
+from fun_time.bridge_records import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_list import MainList, MainListSettings
+from fun_time.main_list_builds import BUILDS_HERE, MainListBuild
 from fun_time.media_metadata import metadata_path_for
+from fun_time.modes import SatelliteBuild
 from fun_time.omnipause import apply_enter_omnipause, apply_leave_omnipause
 from fun_time.runtime_flow import (
     FMODE_FUNESTRAS,
@@ -18,7 +21,6 @@ from fun_time.runtime_flow import (
     apply_fmode,
     apply_mode_switch,
     apply_satellite_filter,
-    rebuild_main_list,
     satellite_browse_paths,
 )
 
@@ -36,6 +38,14 @@ def _make_action_video(
         json.dumps({"video": {"action": action, "prompt": prompt, "seed": name}}), encoding="utf-8"
     )
     return str(video)
+
+
+def _channel(tmp_path: Path, label: str, sources, cmd_file: Path) -> SatelliteChannel:
+    return SatelliteChannel(
+        cmd_file=cmd_file, paused_file=tmp_path / f"{label}_paused.txt",
+        status_file=tmp_path / f"{label}_status.txt",
+        playlist_file=tmp_path / "state" / f"{label}_playlist.tsv", sources=str(sources),
+    )
 
 
 def _satellite_lines(state_dir: Path, funestra: str) -> list[str]:
@@ -134,15 +144,12 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
 
     result = apply_fmode(
         satellites={
-            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=portrait_cmd_file),
-            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(_channel(tmp_path, "portrait", str(portrait_root), portrait_cmd_file), recent=False),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(_channel(tmp_path, "landscape", str(landscape_root), landscape_cmd_file), recent=False),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=True,
-        main_list=MainList(sources=str(primary_root), state_dir=tmp_path / "state"),
-        main_settings=MainListSettings(),
-        state_dir=state_dir,
-        main_funestra_cmd_file=main_funestra_cmd_file,
+        main_build=MainListBuild(main_list=MainList(sources=str(primary_root), state_dir=tmp_path / "state"), settings=MainListSettings(), main_funestra_cmd_file=main_funestra_cmd_file),
     )
 
     assert result.funestras == FMODE_FUNESTRAS
@@ -166,15 +173,12 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
 
     result = apply_fmode(
         satellites={
-            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(_channel(tmp_path, "portrait", str(portrait_root), tmp_path / "portrait_cmd.txt"), recent=False),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(_channel(tmp_path, "landscape", str(landscape_root), landscape_cmd_file), recent=False),
         },
         funestras=(FunTimeFunestra.PORTRAIT,),
         enabled=True,
-        main_list=MainList(sources="", state_dir=tmp_path / "state"),
-        main_settings=MainListSettings(),
-        state_dir=state_dir,
-        main_funestra_cmd_file=main_funestra_cmd_file,
+        main_build=MainListBuild(main_list=MainList(sources="", state_dir=tmp_path / "state"), settings=MainListSettings(), main_funestra_cmd_file=main_funestra_cmd_file),
     )
 
     assert result.funestras == (FunTimeFunestra.PORTRAIT,)
@@ -195,17 +199,12 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
         main_funestra_cmd_file.unlink(missing_ok=True)
         apply_fmode(
             satellites={
-                FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(
-                    sources="", cmd_file=tmp_path / "p_cmd.txt"),
-                FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(
-                    sources="", cmd_file=tmp_path / "l_cmd.txt"),
+                FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(_channel(tmp_path, "portrait", "", tmp_path / "p_cmd.txt")),
+                FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(_channel(tmp_path, "landscape", "", tmp_path / "l_cmd.txt")),
             },
             funestras=FMODE_FUNESTRAS,
             enabled=enabled,
-            main_list=MainList(sources=str(root), state_dir=tmp_path / "state"),
-            main_settings=MainListSettings(),
-            state_dir=tmp_path / "state",
-            main_funestra_cmd_file=main_funestra_cmd_file,
+            main_build=MainListBuild(main_list=MainList(sources=str(root), state_dir=tmp_path / "state"), settings=MainListSettings(), main_funestra_cmd_file=main_funestra_cmd_file),
         )
         return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
 
@@ -225,10 +224,11 @@ def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: P
     script.write_text("{}", encoding="utf-8")
     main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
-    rebuild_main_list(
-        MainList(sources=str(root), state_dir=tmp_path / "state"), MainListSettings(latest=True),
+    BUILDS_HERE.build(MainListBuild(
+        main_list=MainList(sources=str(root), state_dir=tmp_path / "state"),
+        settings=MainListSettings(latest=True),
         main_funestra_cmd_file=main_funestra_cmd_file, start_at_top=True,
-    )
+    ))
 
     assert main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
         "RELOAD_PLAYLIST", "SET_F_MODE 0", f"PLAY_FILE {new}\t{script}",
@@ -253,16 +253,12 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
 
     apply_fmode(
         satellites={
-            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(_channel(tmp_path, "portrait", str(portrait_root), tmp_path / "portrait_cmd.txt"), recent=False),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(_channel(tmp_path, "landscape", "", tmp_path / "landscape_cmd.txt"), recent=False),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
-        main_list=MainList(sources="", state_dir=tmp_path / "state"),
-        main_settings=MainListSettings(),
-        state_dir=tmp_path / "state",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-        regen_metadata_root=metadata_root,
+        main_build=MainListBuild(main_list=MainList(sources="", state_dir=tmp_path / "state", metadata_root=metadata_root), settings=MainListSettings(), main_funestra_cmd_file=tmp_path / "main_player_cmd.txt"),
     )
 
     entries = [line for line in _satellite_lines(tmp_path / "state", "portrait") if line]
@@ -279,15 +275,12 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
 
     apply_fmode(
         satellites={
-            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
-            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(_channel(tmp_path, "portrait", str(portrait_root), tmp_path / "portrait_cmd.txt"), recent=True),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(_channel(tmp_path, "landscape", "", tmp_path / "landscape_cmd.txt"), recent=True),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
-        main_list=MainList(sources="", state_dir=tmp_path / "state"),
-        main_settings=MainListSettings(),
-        state_dir=tmp_path / "state",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_build=MainListBuild(main_list=MainList(sources="", state_dir=tmp_path / "state"), settings=MainListSettings(), main_funestra_cmd_file=tmp_path / "main_player_cmd.txt"),
     )
 
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
@@ -303,9 +296,8 @@ def test_a_rebuild_can_start_the_satellite_at_the_top_of_the_new_list(tmp_path: 
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        funestra=2, query="", favorites_filter=False, recent=True, start_at_top=True,
-        sources=str(portrait_root),
-        state_dir=tmp_path / "state", cmd_file=cmd_file,
+        2, _channel(tmp_path, "portrait", portrait_root, cmd_file),
+        SatelliteBuild(str(portrait_root), recent=True), start_at_top=True,
     )
 
     assert cmd_file.read_text(encoding="utf-8").splitlines() == [
@@ -320,9 +312,8 @@ def test_a_rebuild_leaves_the_video_on_screen_alone_by_default(tmp_path: Path):
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        funestra=2, query="", favorites_filter=False, recent=False,
-        sources=str(portrait_root),
-        state_dir=tmp_path / "state", cmd_file=cmd_file,
+        2, _channel(tmp_path, "portrait", portrait_root, cmd_file),
+        SatelliteBuild(str(portrait_root)),
     )
 
     assert cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
@@ -330,13 +321,8 @@ def test_a_rebuild_leaves_the_video_on_screen_alone_by_default(tmp_path: Path):
 
 def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **roots) -> None:
     apply_satellite_filter(
-        funestra=2,
-        query=query,
-        favorites_filter=False,
-        recent=recent,
-        sources=str(sources),
-        state_dir=tmp_path / "state",
-        cmd_file=tmp_path / "portrait_cmd.txt",
+        2, _channel(tmp_path, "portrait", sources, tmp_path / "portrait_cmd.txt"),
+        SatelliteBuild(str(sources), recent=recent, filter_query=query),
         **roots,
     )
 
@@ -407,16 +393,12 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     apply_fmode(
         satellites={
-            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt", filter_query="alpha"),
-            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="twirling"),
+            FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(_channel(tmp_path, "portrait", str(portrait_root), tmp_path / "portrait_cmd.txt"), recent=True, filter_query="alpha"),
+            FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(_channel(tmp_path, "landscape", str(landscape_root), tmp_path / "landscape_cmd.txt"), recent=True, filter_query="twirling"),
         },
         funestras=FMODE_FUNESTRAS,
         enabled=False,
-        main_list=MainList(sources="", state_dir=tmp_path / "state"),
-        main_settings=MainListSettings(),
-        state_dir=tmp_path / "state",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-        regen_metadata_root=metadata_root,
+        main_build=MainListBuild(main_list=MainList(sources="", state_dir=tmp_path / "state", metadata_root=metadata_root), settings=MainListSettings(), main_funestra_cmd_file=tmp_path / "main_player_cmd.txt"),
     )
 
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
@@ -451,13 +433,8 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
     result = apply_satellite_filter(
-        funestra=2,
-        query="alpha",
-        favorites_filter=False,
-        recent=True,
-        sources=str(portrait_root),
-        state_dir=tmp_path / "state",
-        cmd_file=portrait_cmd_file,
+        2, _channel(tmp_path, "portrait", portrait_root, portrait_cmd_file),
+        SatelliteBuild(str(portrait_root), recent=True, filter_query="alpha"),
         regen_metadata_root=metadata_root,
     )
 
@@ -481,13 +458,8 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     result = apply_satellite_filter(
-        funestra=2,
-        query="alpha",
-        favorites_filter=False,
-        recent=True,
-        sources=str(portrait_root),
-        state_dir=state_dir,
-        cmd_file=cmd_file,
+        2, _channel(tmp_path, "portrait", portrait_root, cmd_file),
+        SatelliteBuild(str(portrait_root), recent=True, filter_query="alpha"),
         regen_metadata_root=metadata_root,
     )
 
@@ -504,13 +476,8 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
 
     result = apply_satellite_filter(
-        funestra=2,
-        query="",
-        favorites_filter=False,
-        recent=True,
-        sources=str(portrait_root),
-        state_dir=tmp_path / "state",
-        cmd_file=tmp_path / "portrait_cmd.txt",
+        2, _channel(tmp_path, "portrait", portrait_root, tmp_path / "portrait_cmd.txt"),
+        SatelliteBuild(str(portrait_root), recent=True),
         regen_metadata_root=metadata_root,
     )
 
