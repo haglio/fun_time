@@ -81,6 +81,8 @@ REFUSED_EXIT_CODE = 4
 
 
 STOP_AT_THE_FIRST_FAILURE = "-x"
+HELP_FLAG = "--help"
+_MODES = frozenset({REPEAT_CHANGED_FLAG, CHANGED_FLAG})
 REPEAT_RUNS = 10
 # What a repeat may spend on runs, the whole-file runs before its repeats
 # included. A branch that renames a file changes every test in it, and ten runs
@@ -104,6 +106,12 @@ def build_gate_argv(base: str, budget_minutes: float) -> list[str]:
     return [sys._base_executable, "-m", "app_support.flake_gate",
             "--base", base, "--only", INTEGRATION_DIR, "--runs", str(REPEAT_RUNS),
             "--budget-minutes", f"{budget_minutes:g}", "--python", sys.executable]
+
+
+def _without_a_stop_beside_a_mode(extra_args: list[str]) -> list[str]:
+    if _MODES.isdisjoint(extra_args):
+        return extra_args
+    return [arg for arg in extra_args if arg != STOP_AT_THE_FIRST_FAILURE]
 
 
 def _is_a_repeat(extra_args: list[str]) -> bool:
@@ -463,6 +471,14 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     first test's setup and pytest's own per-test timeout killed the run, so a
     run that was merely queued reported a test timeout.
     """
+    if extra_args[:1] == [HELP_FLAG]:
+        print(__doc__)
+        return 0
+    extra_args = _without_a_stop_beside_a_mode(extra_args)
+    if not _MODES.isdisjoint(extra_args[1:]):
+        print(f"[hidden-desktop] {' or '.join(sorted(_MODES))} must come first and takes only a base; "
+              f"this run was given {extra_args}", file=sys.stderr, flush=True)
+        return REFUSED_EXIT_CODE
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     if _is_a_repeat(extra_args):
         return _repeat_what_changed(_base_of(extra_args))

@@ -243,11 +243,20 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
                       "lock", sys.executable, "unlock"]
 
 
+_PICKS_NOTHING = Picked()
+
+
 @contextlib.contextmanager
 def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), exit_codes=(),
                         ceilings: list[float] | None = None, places: list[dict] | None = None,
-                        told: list[str | None] | None = None):
+                        told: list[str | None] | None = None, picked: Picked = _PICKS_NOTHING,
+                        bases: list[str] | None = None):
     codes = iter(exit_codes)
+
+    def needs(base):
+        if bases is not None:
+            bases.append(base)
+        return picked
 
     def hold(**place):
         if places is not None:
@@ -271,6 +280,7 @@ def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), ex
           patch.object(hidden_desktop, "_launch_on_desktop", launch),
           patch.object(hidden_desktop, "_close_process_handles", lambda pi: None),
           patch.object(hidden_desktop, "_wait_for_the_run", wait),
+          patch.object(hidden_desktop, "what_this_change_needs", needs),
           patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}")):
         yield
 
@@ -767,8 +777,7 @@ def test_a_run_of_what_a_change_needs_runs_the_tests_the_coverage_map_picks_as_a
     picked = Picked(files=frozenset({"tests/integration/test_b.py", "tests/integration/test_a.py"}))
     launched: list[tuple[str, str]] = []
     places: list[dict] = []
-    with (_runs_launched_into(launched, places=places),
-          patch.object(hidden_desktop, "what_this_change_needs", lambda base: picked)):
+    with _runs_launched_into(launched, places=places, picked=picked):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     files = ["tests/integration/test_a.py", "tests/integration/test_b.py"]
@@ -780,7 +789,7 @@ def test_a_run_of_what_a_change_needs_runs_the_tests_the_coverage_map_picks_as_a
 def test_a_run_of_what_a_change_needs_writes_down_that_it_is_one_with_the_tests_it_picked(tmp_path, monkeypatch):
     monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
     picked = Picked(files=frozenset({"tests/integration/test_b.py", "tests/integration/test_a.py"}))
-    with (_runs_launched_into([]), patch.object(hidden_desktop, "what_this_change_needs", lambda base: picked)):
+    with _runs_launched_into([], picked=picked):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     [written] = read_runs(tmp_path)
@@ -791,8 +800,7 @@ def test_a_run_of_what_a_change_needs_writes_down_that_it_is_one_with_the_tests_
 def test_a_change_the_coverage_map_cannot_place_runs_the_whole_suite_in_line_as_a_full_run():
     launched: list[tuple[str, str]] = []
     places: list[dict] = []
-    with (_runs_launched_into(launched, places=places),
-          patch.object(hidden_desktop, "what_this_change_needs", lambda base: Picked(because="launch.vbs"))):
+    with _runs_launched_into(launched, places=places, picked=Picked(because="launch.vbs")):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     assert launched == [(subprocess.list2cmdline(build_run_argv(["-x"])), sys.executable)]
@@ -804,8 +812,7 @@ def test_a_change_the_coverage_map_cannot_place_runs_the_whole_suite_in_line_as_
                                     Picked(because="launch.vbs")])
 def test_a_run_of_what_a_change_needs_stops_at_its_first_failure(picked):
     launched: list[tuple[str, str]] = []
-    with (_runs_launched_into(launched),
-          patch.object(hidden_desktop, "what_this_change_needs", lambda base: picked)):
+    with _runs_launched_into(launched, picked=picked):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     assert "-x" in launched[0][0].split()
@@ -814,8 +821,7 @@ def test_a_run_of_what_a_change_needs_stops_at_its_first_failure(picked):
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_a_change_no_integration_test_runs_starts_nothing_and_says_so(capsys):
     launched: list[tuple[str, str]] = []
-    with (_runs_launched_into(launched),
-          patch.object(hidden_desktop, "what_this_change_needs", lambda base: Picked())):
+    with _runs_launched_into(launched):
         code = hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     assert (code, launched) == (0, [])
@@ -932,3 +938,42 @@ def test_a_test_that_lets_go_in_time_meets_its_own_clock_before_the_pulse_is_cal
     per_test_limit = re.search(r"--timeout=(\d+)", (_repo_root() / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert int(per_test_limit[1]) < hidden_desktop.STOPPED_AFTER_S
+
+
+@pytest.mark.parametrize(("args", "base"), [
+    (["-x", "--changed"], "origin/main"), (["--changed", "-x"], "origin/main"), (["-x", "--changed", "abc"], "abc")])
+def test_a_stop_flag_beside_changed_still_runs_what_the_change_needs(args, base):
+    bases: list[str] = []
+    with _runs_launched_into([], bases=bases):
+        assert hidden_desktop.run_on_hidden_desktop(args) == 0
+
+    assert bases == [base]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_stop_flag_before_repeat_changed_still_repeats_what_changed():
+    launched: list[tuple[str, str]] = []
+    with _runs_launched_into(launched):
+        hidden_desktop.run_on_hidden_desktop(["-x", "--repeat-changed", "abc"])
+
+    assert "app_support.flake_gate" in launched[0][0]
+    assert "--base abc" in launched[0][0]
+
+
+def test_a_mode_flag_after_other_arguments_is_refused_without_joining_the_line():
+    places: list[dict] = []
+    with _runs_launched_into([], places=places):
+        code = hidden_desktop.run_on_hidden_desktop(["-k", "test_x", "--changed"])
+
+    assert code == hidden_desktop.REFUSED_EXIT_CODE
+    assert places == []
+
+
+def test_asking_for_help_prints_the_usage_without_joining_the_line(capsys):
+    places: list[dict] = []
+    with _runs_launched_into([], places=places):
+        code = hidden_desktop.run_on_hidden_desktop(["--help"])
+
+    assert code == 0
+    assert places == []
+    assert "--repeat-changed" in capsys.readouterr().out
