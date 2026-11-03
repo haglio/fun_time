@@ -235,12 +235,14 @@ class SceneReady:
             logger.warning("Could not report the room ready", exc_info=True)
 
 
+_CLOSING_SCREEN_POLL_S = 0.05
+
+
 def wait_for_loading_screen_painted(
     ready_file: Path,
     *,
     still_alive: Callable[[], bool],
     timeout_s: float,
-    poll_s: float = 0.05,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> bool:
@@ -251,7 +253,7 @@ def wait_for_loading_screen_painted(
         if not still_alive():
             logger.warning("The headset was gone before it could raise the closing screen")
             return False
-        sleep(poll_s)
+        sleep(_CLOSING_SCREEN_POLL_S)
     logger.warning("No closing screen after %.1fs; closing anyway", timeout_s)
     return False
 
