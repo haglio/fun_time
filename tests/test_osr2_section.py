@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 from app_support.osr2_device import Osr2Mode
 from funestra.drive_layout import MAX_INTENSITY
@@ -25,12 +27,20 @@ from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows, osr2_row
 from fun_time.osr2_section import osr2_button, osr2_part
 
 
-def _part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, *, main_mode: MainMode = MainMode.KINO,
-          control: str = OSR2_DRIVING, learned: bool = False, shape: str = "sine",
-          broker: bool = True):
-    return osr2_part(holder, main_mode=main_mode, osr2=Osr2State.ROBOT_HAND, control=control,
-                     paused=False, learned=learned, shape=shape, broker=broker,
-                     max_intensity=100)
+@dataclass(frozen=True)
+class PartSetup:
+    main_mode: MainMode = MainMode.KINO
+    control: str = OSR2_DRIVING
+    learned: bool = False
+    shape: str = "sine"
+    broker: bool = True
+
+
+def _part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, setup: PartSetup | None = None):
+    setup = setup or PartSetup()
+    return osr2_part(holder, main_mode=setup.main_mode, osr2=Osr2State.ROBOT_HAND,
+                     control=setup.control, paused=False, learned=setup.learned,
+                     shape=setup.shape, broker=setup.broker, max_intensity=100)
 
 
 def _button(part, action: str) -> Button:
@@ -45,33 +55,33 @@ class TestTheOsr2Switch:
     def test_it_is_there_whichever_funestra_has_the_osr2_in_either_mode(self):
         for holder in FunTimeFunestra:
             for mode in MainMode:
-                assert OSR2_CONTROL_BUTTONS[OSR2_PARKED] in _actions(_part(holder, main_mode=mode))
+                assert OSR2_CONTROL_BUTTONS[OSR2_PARKED] in _actions(_part(holder, PartSetup(main_mode=mode)))
 
     def test_it_is_on_while_driving_and_a_press_parks(self):
-        assert _button(_part(control=OSR2_DRIVING), OSR2_CONTROL_BUTTONS[OSR2_PARKED]).lit
+        assert _button(_part(setup=PartSetup(control=OSR2_DRIVING)), OSR2_CONTROL_BUTTONS[OSR2_PARKED]).lit
 
     @pytest.mark.parametrize("control", [OSR2_PARKED, OSR2_RETRACTED])
     def test_it_is_off_while_held_and_a_press_drives(self, control):
-        assert not _button(_part(control=control), OSR2_CONTROL_BUTTONS[OSR2_DRIVING]).lit
+        assert not _button(_part(setup=PartSetup(control=control)), OSR2_CONTROL_BUTTONS[OSR2_DRIVING]).lit
 
     def test_the_part_says_what_the_room_is_doing_to_the_osr2(self):
-        assert _part(control=OSR2_PARKED).osr2_control == OSR2_PARKED
+        assert _part(setup=PartSetup(control=OSR2_PARKED)).osr2_control == OSR2_PARKED
 
 
 class TestTheRowThatAimsTheDevice:
     def test_human_inspired_motion_follows_the_switch_and_wears_the_stick_figure(self):
         resting = _button(_part(), "robot_hand_toggle_learned")
-        lit = _button(_part(learned=True), "robot_hand_toggle_learned")
+        lit = _button(_part(setup=PartSetup(learned=True)), "robot_hand_toggle_learned")
 
         assert resting.icon == shared_icon("human")
         assert (resting.lit, lit.lit) == (False, True)
         assert (lit.favorite, lit.warn, lit.hold) == (False, False, False)
 
     def test_the_waveform_button_names_the_waveform(self):
-        assert _button(_part(shape="rounded_square"), "robot_hand_cycle_shape").tooltip == "Waveform: Square"
+        assert _button(_part(setup=PartSetup(shape="rounded_square")), "robot_hand_cycle_shape").tooltip == "Waveform: Square"
 
     def test_the_waveform_button_wears_the_waveform_the_motion_is_in(self):
-        faces = {_button(_part(shape=shape.value), "robot_hand_cycle_shape").icon
+        faces = {_button(_part(setup=PartSetup(shape=shape.value)), "robot_hand_cycle_shape").icon
                  for shape in WaveformShape}
 
         assert len(faces) == len(WaveformShape)
@@ -141,7 +151,7 @@ class TestTheReadoutTheWordLeaves:
 class TestTheBroker:
     @pytest.mark.parametrize("running", [True, False])
     def test_the_part_wears_funestras_broker_button_as_the_broker_stands(self, running):
-        assert _part(broker=running).osr2_controls == osr2_controls(broker_running=running)
+        assert _part(setup=PartSetup(broker=running)).osr2_controls == osr2_controls(broker_running=running)
 
 
 class TestTheOsr2Button:
