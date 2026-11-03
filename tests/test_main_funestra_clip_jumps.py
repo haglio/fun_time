@@ -8,19 +8,16 @@ from funestra.playlist import PlaylistItem
 
 from main_funestra.clip_jumps import ClipJumps
 from main_funestra.clip_nav import ClipNav
+from tests.clip_records import ClipRecord
 
 
-def _clip(lib: Path, meta: Path, rel: str, comp: str, index: int,
-          source: str, performer: str) -> Path:
+def _clip(lib: Path, meta: Path, rel: str, record: ClipRecord) -> Path:
     video = lib / rel
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"x")
     sidecar = (meta / video.relative_to(lib)).with_suffix(".json")
     sidecar.parent.mkdir(parents=True, exist_ok=True)
-    sidecar.write_text(json.dumps({
-        "clip": {"compilation": comp, "index": index,
-                 "source": source, "performer": performer},
-    }), encoding="utf-8")
+    sidecar.write_text(json.dumps({"clip": record.recorded()}), encoding="utf-8")
     return video
 
 
@@ -56,10 +53,8 @@ class FakeMessages:
 
 def _world(tmp_path: Path):
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    first = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1,
-                  "Scene Two", "Jane Doe")
-    second = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", "Vol6", 9,
-                   "Alpha Scene 2", "Ann Bly")
+    first = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", ClipRecord("Vol6", 1, "Scene Two", "Jane Doe"))
+    second = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", ClipRecord("Vol6", 9, "Alpha Scene 2", "Ann Bly"))
     scene = lib / "other" / "Alpha Scene 2 - Ann Bly 1080p.mp4"
     scene.parent.mkdir(parents=True, exist_ok=True)
     scene.write_bytes(b"x")

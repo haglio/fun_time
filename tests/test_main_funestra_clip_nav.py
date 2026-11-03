@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from main_funestra.clip_nav import ClipNav
+from tests.clip_records import ClipRecord
 
 
 def _sidecar(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
@@ -16,11 +17,10 @@ def _sidecar(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
     return v
 
 
-def _clip(lib, meta, rel, comp, index, source, performer, **recorded):
+def _clip(lib: Path, meta: Path, rel: str, record: ClipRecord) -> Path:
     return _sidecar(lib, meta, rel, {
         "video": {"action": "Alpha"},
-        "clip": {"compilation": comp, "index": index, "source": source,
-                 "performer": performer, **recorded},
+        "clip": record.recorded(),
     })
 
 
@@ -28,10 +28,10 @@ class TestClipNav:
     def _nav(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clips = [
-            _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", "Vol6", 9, "Alpha Scene 2", "Ann Bly"),
-            _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe"),
-            _clip(lib, meta, "w/Ada Roe - Alpha Scene 2.mp4", "Vol6", 7, "Alpha Scene 2", "Ada Roe"),
-            _clip(lib, meta, "w/Bryn Vance - Taylor Rain.mp4", "Vol10", 1, "Taylor Rain's Offroad Adventure", "Bryn Vance"),
+            _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", ClipRecord("Vol6", 9, "Alpha Scene 2", "Ann Bly")),
+            _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", ClipRecord("Vol6", 1, "Scene Two", "Jane Doe")),
+            _clip(lib, meta, "w/Ada Roe - Alpha Scene 2.mp4", ClipRecord("Vol6", 7, "Alpha Scene 2", "Ada Roe")),
+            _clip(lib, meta, "w/Bryn Vance - Taylor Rain.mp4", ClipRecord("Vol10", 1, "Taylor Rain's Offroad Adventure", "Bryn Vance")),
         ]
         full = _sidecar(lib, meta, "other/Alpha Scene 2 - Ann Bly 1080p.mp4", {})
         nav = ClipNav.build([*clips, full], meta)
@@ -73,8 +73,7 @@ class TestClipNav:
 
     def test_clip_of_ignores_a_performer_with_several_scenes(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
-                     "Nora Quill To the Brink", "Nora Quill")
+        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill"))
         stranger = _sidecar(lib, meta, "other/Nora Quill - 9934197-720p.mp4", {})
         other = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         nav = ClipNav.build([clip, stranger, other], meta)
@@ -83,10 +82,10 @@ class TestClipNav:
 
     def test_compilation_playlist_keeps_one_slot_per_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        original = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
-        upscaled = _clip(lib, meta, "w/Jane Doe - Scene Two_apo8_iris2.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
+        original = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", ClipRecord("Vol6", 1, "Scene Two", "Jane Doe"))
+        upscaled = _clip(lib, meta, "w/Jane Doe - Scene Two_apo8_iris2.mp4", ClipRecord("Vol6", 1, "Scene Two", "Jane Doe"))
         upscaled.write_bytes(b"x" * 500)
-        other = _clip(lib, meta, "w/Marlow Sterne - Alpha 1.mp4", "Vol6", 2, "Alpha Scene 1", "Marlow Sterne")
+        other = _clip(lib, meta, "w/Marlow Sterne - Alpha 1.mp4", ClipRecord("Vol6", 2, "Alpha Scene 1", "Marlow Sterne"))
         nav = ClipNav.build([original, upscaled, other], meta)
 
         playlist = nav.compilation_playlist(original)
@@ -95,8 +94,7 @@ class TestClipNav:
 
     def test_full_vid_resolves_on_performer_when_they_have_one_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
-                     "Scene Five 3", "Iris Fenn")
+        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", ClipRecord("Vol4", 4, "Scene Five 3", "Iris Fenn"))
         scene = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         nav = ClipNav.build([clip, scene], meta)
 
@@ -104,8 +102,7 @@ class TestClipNav:
 
     def test_full_vid_stays_ambiguous_with_several_scenes_for_the_performer(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
-                     "Nora Quill To the Brink", "Nora Quill")
+        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill"))
         one = _sidecar(lib, meta, "other/Nora-Quill-1_540-aa11bb22.mp4", {})
         another = _sidecar(lib, meta, "other/Nora-Quill-2_1080-cc33dd44.mp4", {})
         nav = ClipNav.build([clip, one, another], meta)
@@ -114,8 +111,7 @@ class TestClipNav:
 
     def test_re_encodes_of_one_scene_are_not_ambiguous(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
-                     "Scene Five 3", "Iris Fenn")
+        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", ClipRecord("Vol4", 4, "Scene Five 3", "Iris Fenn"))
         plain = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         upscaled = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
         upscaled.write_bytes(b"x" * 400)
@@ -125,8 +121,7 @@ class TestClipNav:
 
     def test_clip_jump_never_returns_the_file_you_are_on(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", "Vol6", 9,
-                     "Alpha Scene 2", "Ann Bly")
+        clip = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", ClipRecord("Vol6", 9, "Alpha Scene 2", "Ann Bly"))
         nav = ClipNav.build([clip], meta)
 
         assert nav.clip_of(clip) is None
@@ -144,9 +139,7 @@ class TestRecordedMatch:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
-        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
-                     "Nora Quill To the Brink", "Nora Quill",
-                     full_video=str(scene), scene_offset=808.2)
+        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill", full_video=str(scene), scene_offset=808.2))
         nav = ClipNav.build([clip, scene, lib / "other" / "redacted_540-EhWGJW62.mp4"], meta)
 
         assert nav.full_vid_of(clip) == scene
@@ -154,13 +147,8 @@ class TestRecordedMatch:
     def test_clip_jump_uses_the_recorded_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
-        mine = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
-                     "Nora Quill To the Brink", "Nora Quill",
-                     full_video=str(scene), scene_offset=808.2)
-        other = _clip(lib, meta, "w/Nora Quill - Cockeyed.mp4", "Vol2", 3,
-                      "Cockeyed", "Nora Quill",
-                      full_video=str(lib / "other" / "redacted_540-EhWGJW62.mp4"),
-                      scene_offset=12.0)
+        mine = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill", full_video=str(scene), scene_offset=808.2))
+        other = _clip(lib, meta, "w/Nora Quill - Cockeyed.mp4", ClipRecord("Vol2", 3, "Cockeyed", "Nora Quill", full_video=str(lib / "other" / "redacted_540-EhWGJW62.mp4"), scene_offset=12.0))
         nav = ClipNav.build([mine, other, scene], meta)
 
         assert nav.clip_of(scene) == mine
@@ -171,9 +159,7 @@ class TestRecordedMatch:
         upscale = _sidecar(lib, meta, "other/Nora-Quill-1_540-izB4YKFa_apo8_iris2.mp4", {})
         upscale.write_bytes(b"x" * 400)
         decoy = _sidecar(lib, meta, "other/Nora-Quill-2_1080-QQ7mnbEt.mp4", {})
-        clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", "Vol1", 9,
-                     "Nights of Nonsense 8", "Nora Quill",
-                     full_video=str(plain), scene_offset=808.2)
+        clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", ClipRecord("Vol1", 9, "Nights of Nonsense 8", "Nora Quill", full_video=str(plain), scene_offset=808.2))
         nav = ClipNav.build([clip, plain, upscale, decoy], meta)
 
         assert nav.clip_of(upscale) == clip
@@ -185,9 +171,7 @@ class TestRecordedMatch:
         original = _sidecar(lib, meta, "other/redacted_540-pacI21CK.mp4", family)
         upscale = _sidecar(lib, meta, "other/redacted Beta Cut 4k 60fps.mp4", family)
         upscale.write_bytes(b"x" * 600)
-        clip = _clip(lib, meta, "w/redacted - Scene Three 8.mp4", "Vol7", 4,
-                     "Scene Three 8", "redacted",
-                     full_video=str(original), scene_offset=1109.6)
+        clip = _clip(lib, meta, "w/redacted - Scene Three 8.mp4", ClipRecord("Vol7", 4, "Scene Three 8", "redacted", full_video=str(original), scene_offset=1109.6))
         nav = ClipNav.build([clip, original, upscale], meta)
 
         assert nav.full_vid_of(clip) == upscale
@@ -196,8 +180,7 @@ class TestRecordedMatch:
 
 def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", "Vol1", 9,
-                 "Nights of Nonsense 8", "Nora Quill")
+    clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", ClipRecord("Vol1", 9, "Nights of Nonsense 8", "Nora Quill"))
     plain = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa.mp4", {})
     upscale = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa_apo8_iris2.mp4", {})
     upscale.write_bytes(b"x" * 400)
@@ -230,8 +213,7 @@ class TestAClipCutStraightFromItsScene:
 class TestAFileThatVanishedMidScan:
     def test_it_weighs_nothing_rather_than_ending_the_walk(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
-                     "Scene Five 3", "Iris Fenn")
+        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", ClipRecord("Vol4", 4, "Scene Five 3", "Iris Fenn"))
         gone = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         here = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
         here.write_bytes(b"x" * 400)
@@ -244,8 +226,7 @@ class TestAFileThatVanishedMidScan:
 class TestTitles:
     def test_a_clip_is_called_by_the_pair_recorded_for_it(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Jane Doe - Alpha Study Part Two.mp4", "Vol2", 3,
-                     "Alpha Study: Part Two", "Jane Doe")
+        clip = _clip(lib, meta, "w/Jane Doe - Alpha Study Part Two.mp4", ClipRecord("Vol2", 3, "Alpha Study: Part Two", "Jane Doe"))
         nav = ClipNav.build([clip], meta)
 
         assert nav.title_of(clip) == "Jane Doe - Alpha Study: Part Two"
@@ -275,9 +256,9 @@ class TestTitles:
 
     def test_half_a_record_still_names_the_scene_better_than_the_filename(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        performer_only = _clip(lib, meta, "w/Jane Doe - 1.mp4", "Vol2", 1, "", "Jane Doe")
-        source_only = _clip(lib, meta, "w/Alpha Study 4.mp4", "Vol2", 2, "Alpha Study 4", "")
-        neither = _clip(lib, meta, "w/hQ2vLm8t.mp4", "Vol2", 3, "", "")
+        performer_only = _clip(lib, meta, "w/Jane Doe - 1.mp4", ClipRecord("Vol2", 1, "", "Jane Doe"))
+        source_only = _clip(lib, meta, "w/Alpha Study 4.mp4", ClipRecord("Vol2", 2, "Alpha Study 4", ""))
+        neither = _clip(lib, meta, "w/hQ2vLm8t.mp4", ClipRecord("Vol2", 3, "", ""))
         nav = ClipNav.build([performer_only, source_only, neither], meta)
 
         assert nav.title_of(performer_only) == "Jane Doe"
