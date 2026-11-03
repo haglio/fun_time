@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pygame
+from funestra.funestra_setup import FunestraSetup
 
 import satellite.app
 from fun_time.project_paths import PROJECT_ICON
@@ -83,8 +84,8 @@ class _OpensAFunestra:
         self.funestra = funestra
         self.asked: tuple | None = None
 
-    def on_window(self, wid, **what):
-        self.asked = (wid, what)
+    def on_window(self, wid, setup):
+        self.asked = (wid, setup)
         return self.funestra
 
 
@@ -144,14 +145,14 @@ def test_the_funestra_is_opened_on_the_window_with_what_the_launch_hands_it(tmp_
 
     _code, opens, _fake = _run_loop(tmp_path, args)
 
-    wid, what = opens.asked
+    wid, setup = opens.asked
     assert wid == 4242
-    assert what == {
-        "channels": SatelliteChannels.from_args(args),
-        "playlist": resolve_playlist(args),
-        "audible": True,
-        "tiles": False,
-    }
+    assert setup == FunestraSetup(
+        channels=SatelliteChannels.from_args(args),
+        playlist=resolve_playlist(args),
+        audible=True,
+        tiles=False,
+    )
 
 
 def test_no_audio_opens_a_silent_one(tmp_path):
@@ -159,7 +160,7 @@ def test_no_audio_opens_a_silent_one(tmp_path):
 
     _code, opens, _fake = _run_loop(tmp_path, args)
 
-    assert opens.asked[1]["audible"] is False
+    assert opens.asked[1].audible is False
 
 
 def test_tile_opens_one_that_tiles_its_item(tmp_path):
@@ -167,7 +168,7 @@ def test_tile_opens_one_that_tiles_its_item(tmp_path):
 
     _code, opens, _fake = _run_loop(tmp_path, args)
 
-    assert opens.asked[1]["tiles"] is True
+    assert opens.asked[1].tiles is True
 
 
 def test_each_pass_hands_it_the_windows_size_until_it_stops_then_closes_it(tmp_path):

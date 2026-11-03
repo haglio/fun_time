@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from functools import cache
 
-from funestra.hud import SYMBOL_FONT, draw_button, load_font, text_width
+from funestra.hud import SYMBOL_FONT, ButtonLook, draw_button, load_font, text_width
 from funestra.hud_button import FIT_THE_WORD, Button
 from funestra.satellite_hud import MODE_LABEL_PAD, button_row_rects
 from PIL import Image, ImageDraw
@@ -51,8 +51,8 @@ def paint_selector(size: tuple[int, int], placed: list[tuple[Rect, Button]], *,
     image = Image.new("RGBA", size, (*BG_PRIMARY, 255))
     draw = ImageDraw.Draw(image)
     for rect, button in placed:
-        draw_button(image, draw, rect, button, hovered=rect == hovered,
-                    icon_font=_icon_font(), word_font=_word_font())
+        draw_button(image, draw, rect, button, ButtonLook(
+            hovered=rect == hovered, icon_font=_icon_font(), word_font=_word_font()))
     return image
 
 

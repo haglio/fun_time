@@ -6,6 +6,7 @@ from pathlib import Path
 from funestra.funestra import User
 from funestra.modes import LoopState, MessageLevel
 from funestra.playback import Playback
+from funestra.playback_setup import PlaybackSetup
 from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
 
@@ -60,8 +61,9 @@ class World:
         entries = [LibraryEntry(video, self.scripts.get(video), 1) for video in (self.first, self.second)]
         self.source = FakeSource(entries, metadata_root=meta)
         self.engine = FakeEngine(duration_ms=60_000.0)
-        self.playback = Playback([self.first, self.second], engine=self.engine, locked=True,
-                                 funscripts=dict(self.scripts))
+        self.playback = Playback([self.first, self.second], engine=self.engine,
+                                 setup=PlaybackSetup(locked=True,
+                                                     funscripts=dict(self.scripts)))
         self.memory = ModeMemory(tmp_path / "main_player_mode.txt")
         self.messages = FakeMessages()
         self.resolved: list[list[PlaylistItem]] = [[PlaylistItem(self.second), PlaylistItem(self.first)]]

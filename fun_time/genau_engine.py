@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
-from funestra.broker_feed import BrokerFeed, udp_reader
+from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
 from funestra.file_channel import read_paused_state
 from funestra.flag import Flag
 from funestra.flick_advance import FlickAdvanceState
@@ -16,13 +16,14 @@ from funestra.flick_cache import DecodeRequestState, FlickCacheStore
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_flip import FlickFlip
 from funestra.flick_folder import move_flick_to_trash
-from funestra.flick_loader import FlickLoadController
+from funestra.flick_loader import FlickLoadController, FlickLoadParts
 from funestra.flick_renderer import FlickRenderController
-from funestra.flick_selection import FlickSelectionController
+from funestra.flick_selection import FlickSelectionController, FlickSelectionParts
 from funestra.flick_sequence import FlickSequenceController
 from funestra.funestra_verbs import LOCK_ON
 from funestra.genau_controls import GenauControls, apply_runtime_command
 from funestra.genau_refresh import GenauRefreshController
+from funestra.genau_refresh_parts import GenauRefreshParts
 from funestra.learned_motion import LearnedMotionState, load_default_model
 from funestra.robot_hand import RobotHandState, bpm_for_speed
 from funestra.robot_hand_beat import BeatEngine
@@ -130,7 +131,7 @@ def build_genau_engine(
     renderer = FlickRenderController(
         flick_store=flick_store,
         blit_frame=lambda frame: host.blit_frame(frame, renderer.current_flick_path))
-    loader = FlickLoadController(
+    loader = FlickLoadController(FlickLoadParts(
         flick_store=flick_store,
         load_state=DecodeRequestState(),
         prefetch_state=DecodeRequestState(),
@@ -139,22 +140,23 @@ def build_genau_engine(
         start_thread=start_thread,
         logger=log,
         on_active_flick_loaded=renderer.prepare_active_flick_for_current_size,
-    )
-    selection = FlickSelectionController(
+    ))
+    selection = FlickSelectionController(FlickSelectionParts(
         sequence=sequence,
         flick_store=flick_store,
         loader=loader,
         renderer=renderer,
         notifier=host.notifier,
         condemn_flick=lambda flick: _condemn(flick, host.condemned_to(flick), log, start_thread),
-    )
+    ))
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     learned = LearnedMotionState(model=load_default_model())
     driver = RobotHandTCodeDriver(host.tcode_sink, robot_hand=robot_hand, learned=learned)
     broker = BrokerFeed()
     start_thread(
         target=udp_reader,
-        args=(settings.udp_host, settings.udp_port, broker, stop_event or threading.Event(), log),
+        args=(UdpListener(settings.udp_host, settings.udp_port, broker,
+                          stop_event or threading.Event(), log),),
         name="genau-udp",
     )
     controls = GenauControls(
@@ -176,7 +178,7 @@ def build_genau_engine(
         play_file=selection.play,
         flick_flip=FlickFlip(library.metadata_root),
     )
-    controller = GenauRefreshController(
+    controller = GenauRefreshController(GenauRefreshParts(
         controls=controls,
         broker=broker,
         loader=loader,
@@ -195,7 +197,7 @@ def build_genau_engine(
         tcode_sender=driver,
         status_file=channels.status,
         drive_file=Path(channels.drive),
-    )
+    ))
 
     def holding_what_is_on_screen() -> None:
         apply_runtime_command(LOCK_ON, controls)

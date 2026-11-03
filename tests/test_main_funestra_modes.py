@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from funestra.playback import Playback
+from funestra.playback_setup import PlaybackSetup
 from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
 
@@ -141,7 +142,8 @@ class TestTheFileNamedBesideAVideoWithVersions:
         for path in (default, upscale, other):
             path.write_text("x")
         family = [PlaylistItem(default), PlaylistItem(upscale)]
-        playback = Playback([default, other], engine=FakeEngine(), locked=True)
+        playback = Playback([default, other], engine=FakeEngine(),
+                            setup=PlaybackSetup(locked=True))
         versions = Versions(playback, {default: family, upscale: family})
         modes = Modes(playback, FakeJumps(title=self.TITLE), versions, the_main_list=list)
         return modes, playback, versions

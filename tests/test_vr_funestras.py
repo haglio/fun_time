@@ -276,7 +276,7 @@ def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
     unit = _a_main_unit(tmp_path, vr=vr, manifest=manifest)
 
     commands = manifest.commands
-    channels = faked_collaborators["Funestra"].call_args.kwargs["channels"]
+    channels = faked_collaborators["Funestra"].call_args.args[1]._asdict()["channels"]
     assert channels.playlist == Path(commands.main_funestra_playlist_file)
     assert channels.command == Path(commands.main_funestra_cmd_file)
     assert channels.paused == Path(commands.main_funestra_paused_file)
@@ -295,7 +295,7 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
         tmp_path, faked_collaborators):
     unit = _a_main_unit(tmp_path)
 
-    handed = faked_collaborators["Funestra"].call_args.kwargs
+    handed = faked_collaborators["Funestra"].call_args.args[1]._asdict()
     assert (handed["locked"], handed["sound_is_the_rooms"]) == (True, True)
     assert handed["hud_surface"] is unit.hud
     assert unit.hud.width == HUD_WIDTH_PX
@@ -307,7 +307,7 @@ def test_the_main_funestra_is_the_desktops_with_the_headsets_own_surfaces(
 def test_its_main_hud_carries_the_projection_list_and_angle_bar_for_kinos_video(
         tmp_path, faked_collaborators):
     unit = _a_main_unit(tmp_path)
-    controls = faked_collaborators["Funestra"].call_args.kwargs["host_controls"]
+    controls = faked_collaborators["Funestra"].call_args.args[1]._asdict()["host_controls"]
     unit.verbs.projection, unit.verbs.fov = EQUIRECT_180_SBS, 160.0
 
     unit.funestra.showing = MainMode.KINO
@@ -329,9 +329,9 @@ def test_kino_runs_on_it_through_the_library_and_the_memory_the_desktop_reads(
 
     library = faked_collaborators["_TheLibrary"]
     assert library.call_args.args == (manifest, _A_SESSION)
-    users = faked_collaborators["Funestra"].call_args.kwargs["users"]
+    users = faked_collaborators["Funestra"].call_args.args[1]._asdict()["users"]
     assert users == {MainMode.KINO: library.return_value.kino.return_value}
-    assert (faked_collaborators["Funestra"].call_args.kwargs["playlist"]
+    assert (faked_collaborators["Funestra"].call_args.args[1]._asdict()["playlist"]
             is library.return_value.playlist.return_value)
 
 
@@ -349,7 +349,7 @@ def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_fune
 
     _a_main_unit(tmp_path, manifest=manifest)
 
-    assert (faked_collaborators["Funestra"].call_args.kwargs["channels"].notice
+    assert (faked_collaborators["Funestra"].call_args.args[1]._asdict()["channels"].notice
             == Path(manifest.commands.main_funestra_notice_file))
 
 
@@ -371,7 +371,7 @@ def test_the_main_funestra_is_handed_every_file_the_desktops_can_be_but_the_osr2
         tmp_path, faked_collaborators):
     _a_main_unit(tmp_path)
 
-    headset = faked_collaborators["Funestra"].call_args.kwargs["channels"]
+    headset = faked_collaborators["Funestra"].call_args.args[1]._asdict()["channels"]
     desktop = MainChannels.from_args(_every_file_a_main_funestras_command_line_can_name())
     assert _handed(headset) == _handed(desktop) - {"osr2_sender", "osr2_port"}
 
@@ -380,7 +380,7 @@ def test_the_main_funestra_reaches_the_osr2_through_the_brokers_slot(tmp_path, f
     _a_main_unit(tmp_path, manifest=_manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123))
 
     assert faked_collaborators["Osr2Sender"].call_args == call("main", port=8123)
-    assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
+    assert (faked_collaborators["Funestra"].call_args.args[1]._asdict()["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
 
 
@@ -461,7 +461,7 @@ def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
         _SatelliteUnit(PORTRAIT, RoomLaunch(_manifest_for_a_vr_session(tmp_path), _A_SESSION,
                                             _NO_GL_CONTEXTS), remembered={})
 
-    assert faked_collaborators["Funestra"].call_args.kwargs["playlist"] == items
+    assert faked_collaborators["Funestra"].call_args.args[1]._asdict()["playlist"] == items
 
 
 def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_videos_script(
@@ -470,7 +470,7 @@ def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_v
     _SatelliteUnit(PORTRAIT, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     assert faked_collaborators["Osr2Sender"].call_args == call(PORTRAIT, port=8123)
-    assert (faked_collaborators["Funestra"].call_args.kwargs["tcode"]
+    assert (faked_collaborators["Funestra"].call_args.args[1]._asdict()["tcode"]
             is faked_collaborators["FunscriptTCodeDriver"].return_value)
 
 
@@ -483,7 +483,7 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         funestra, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     commands = manifest.commands
-    handed = faked_collaborators["Funestra"].call_args.kwargs
+    handed = faked_collaborators["Funestra"].call_args.args[1]._asdict()
     channels = handed["channels"]
     assert channels.command == Path(commands.funestra_file(funestra, "cmd"))
     assert channels.paused == Path(commands.funestra_file(funestra, "paused"))

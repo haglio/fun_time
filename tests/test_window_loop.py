@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from funestra.funestra import Channels, Funestra
+from funestra.funestra_setup import FunestraSetup
 from funestra.playlist import read_playlist
 from funestra.testing import FakeEngine
 
@@ -80,7 +81,8 @@ def _a_funestra(tmp_path) -> tuple[Funestra, FakeEngine]:
     channels = Channels(playlist=playlist, command=tmp_path / "cmd.txt",
                         paused=tmp_path / "paused.txt", status=tmp_path / "status.txt")
     engine = FakeEngine()
-    return Funestra(engine, channels=channels, playlist=read_playlist(playlist)), engine
+    return Funestra(engine, FunestraSetup(
+        channels=channels, playlist=read_playlist(playlist))), engine
 
 
 def test_a_close_asked_of_a_real_funestra_ends_the_loop_and_closes_its_engine(tmp_path):

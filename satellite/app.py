@@ -8,6 +8,7 @@ from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
+from funestra.funestra_setup import FunestraSetup
 from funestra.playlist import PlaylistItem
 
 from main_funestra.input import Input
@@ -72,9 +73,9 @@ def _open_window(placement: WindowPlacement) -> int:
 
 def _run(args, playlist: list[PlaylistItem]) -> int:
     placement = WindowPlacement.from_args(args)
-    funestra = Funestra.on_window(
-        _open_window(placement), channels=SatelliteChannels.from_args(args), playlist=playlist,
+    funestra = Funestra.on_window(_open_window(placement), FunestraSetup(
+        channels=SatelliteChannels.from_args(args), playlist=playlist,
         audible=not audio_muted(args), tiles=placement.tiles,
-    )
+    ))
     run_the_window(pygame, funestra, Input(funestra).deal)
     return 0
