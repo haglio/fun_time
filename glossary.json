@@ -12,6 +12,26 @@
   },
   "things": [
     {
+      "id": "trash",
+      "thing": "where a video or a Genau item goes when it is sent away",
+      "screen": [
+        "Send to Trash"
+      ],
+      "his_word": "Trash (2026-11-02: 'the word \"weird\" should not occur anywhere in Haglio anymore')",
+      "code_today": [
+        "trash"
+      ],
+      "code_word": "trash",
+      "status": "ruled",
+      "ruled": "2026-11-01 and 2026-11-02, his words",
+      "retired": [
+        "weird"
+      ],
+      "keep": [
+        "\"weird_dir\""
+      ]
+    },
+    {
       "id": "hud",
       "thing": "the controls a Funestra draws over what it plays",
       "screen": null,
