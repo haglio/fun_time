@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from funestra.hud_button import Button
 from funestra.hud_controls import lit_or_remembered
@@ -36,8 +36,8 @@ class InclusionPair:
                 things: str = "videos") -> tuple[Button, Button]:
         first, second = included
         return (
-            _inclusion_button(self.commands[(not first, second)], self.first, things,
-                              on=first, remembered=remembered, group_break=True),
+            replace(_inclusion_button(self.commands[(not first, second)], self.first, things,
+                                      on=first, remembered=remembered), group_break=True),
             _inclusion_button(self.commands[(first, not second)], self.second, things,
                               on=second, remembered=remembered),
         )
@@ -60,11 +60,10 @@ class InclusionPair:
 
 
 def _inclusion_button(command: str, kind: Kind, things: str, *, on: bool,
-                      remembered: bool, group_break: bool = False) -> Button:
+                      remembered: bool) -> Button:
     named = kind.name(things)
     tooltip = f"Including {named}" if on else f"Not including {named}"
-    return Button(command, kind.mark, tooltip, group_break=group_break,
-                  **lit_or_remembered(on, remembered))
+    return Button(command, kind.mark, tooltip, **lit_or_remembered(on, remembered))
 
 
 PROJECTION = InclusionPair(
