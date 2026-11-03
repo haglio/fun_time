@@ -30,7 +30,7 @@ from shared_ui.spacing import (
 from shared_ui.type_scale import SIZE_SMALL, SIZE_TINY, in_pixels
 
 from fun_time import preview_marker
-from fun_time.dashboard_controls import BarControl, bar_controls, icon_side
+from fun_time.dashboard_controls import BarControl, BarState, bar_controls, icon_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.dashboard_osr2_model import room_for_a_whole_part
 from fun_time.event_log import (
@@ -70,12 +70,11 @@ class DashState:
         return record.level >= self.verbosity and record.source in self.sources
 
     def controls(self) -> tuple[BarControl, ...]:
-        return bar_controls(
-            compute_dashboard_bar_layout(), omni_paused=self.omni_paused,
-            voice_active=self.voice_active, f_mode=self.f_mode, in_vr=True,
-            reference_open=self.reference_open,
+        return bar_controls(compute_dashboard_bar_layout(), BarState(
+            omni_paused=self.omni_paused, voice_active=self.voice_active,
+            f_mode=self.f_mode, in_vr=True, reference_open=self.reference_open,
             nothing_to_reset=self.nothing_to_reset,
-        )
+        ))
 
     def dims(self, action: str) -> bool:
         return any(control.action == action and control.dim
@@ -122,7 +121,7 @@ def dial_stops() -> dict[str, Rect]:
 
 def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
     actions = {control.action: control.rect
-               for control in bar_controls(compute_dashboard_bar_layout(), in_vr=True)}
+               for control in bar_controls(compute_dashboard_bar_layout(), BarState(in_vr=True))}
     actions[VERBOSITY_DROPDOWN] = dial_rect()
     actions.update(source_buttons())
     if dial_open:

@@ -35,27 +35,34 @@ def icon_side(rect: Rect) -> int:
     return min(rect.width, rect.height) - 2 * BUTTON_ICON_INSET
 
 
-def bar_controls(
-    layout: DashboardBarLayout, *, omni_paused: bool = False, voice_active: bool = False,
-    f_mode: bool = False, in_vr: bool = False, reference_open: bool = False,
-    nothing_to_reset: bool = False, headset_ready: bool = True,
-) -> tuple[BarControl, ...]:
+@dataclass(frozen=True)
+class BarState:
+    omni_paused: bool = False
+    voice_active: bool = False
+    f_mode: bool = False
+    in_vr: bool = False
+    reference_open: bool = False
+    nothing_to_reset: bool = False
+    headset_ready: bool = True
+
+
+def bar_controls(layout: DashboardBarLayout, state: BarState) -> tuple[BarControl, ...]:
     return (
         BarControl(QUIT_BUTTON, layout.quit_button, "power"),
         BarControl(OMNIPAUSE_TOGGLE, layout.omnipause_button,
-                   "play" if omni_paused else "pause"),
+                   "play" if state.omni_paused else "pause"),
         BarControl(HELP_REFERENCE, layout.help_button, "question",
-                   lit=BLUE if reference_open else None),
+                   lit=BLUE if state.reference_open else None),
         BarControl(VOICE_TOGGLE, layout.voice_panel, "mic",
-                   lit=BLUE if voice_active else None),
+                   lit=BLUE if state.voice_active else None),
         BarControl(FMODE_TOGGLE, layout.fmode_button, "fmode", ink=MAGENTA,
-                   lit=GREEN if f_mode else None),
+                   lit=GREEN if state.f_mode else None),
         BarControl(RESET_ALL, layout.reset_all_button, "reset",
-                   ink=TEXT_MUTED if nothing_to_reset else TEXT_PRIMARY,
-                   dim=nothing_to_reset),
-        BarControl(EXIT_VR if in_vr else ENTER_VR, layout.vr_button,
-                   "monitor" if in_vr else "headset",
-                   ink=TEXT_PRIMARY if in_vr or headset_ready else TEXT_MUTED,
-                   dim=not in_vr and not headset_ready),
-        *((BarControl(VR_RESET, layout.vr_reset_button, "reset"),) if in_vr else ()),
+                   ink=TEXT_MUTED if state.nothing_to_reset else TEXT_PRIMARY,
+                   dim=state.nothing_to_reset),
+        BarControl(EXIT_VR if state.in_vr else ENTER_VR, layout.vr_button,
+                   "monitor" if state.in_vr else "headset",
+                   ink=TEXT_PRIMARY if state.in_vr or state.headset_ready else TEXT_MUTED,
+                   dim=not state.in_vr and not state.headset_ready),
+        *((BarControl(VR_RESET, layout.vr_reset_button, "reset"),) if state.in_vr else ()),
     )

@@ -59,6 +59,7 @@ from fun_time.dashboard_app import (
     ReferenceDialog,
     RfbModeSelectorWidget,
     apply_dashboard_window_geometry,
+    bar_state_of,
     build_dashboard_scene,
     build_dashboard_window,
     lighten_color,
@@ -67,6 +68,7 @@ from fun_time.dashboard_app import (
     source_checkout,
     write_dashboard_command,
 )
+from fun_time.dashboard_controls import BarState
 from fun_time.dashboard_layout import (
     GAP,
     GROUP_GAP,
@@ -107,7 +109,8 @@ from tests.sleeps import sleeps_in
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
     kwargs.setdefault("icons", IconCache())
-    return build_dashboard_scene(layout, snapshot, **kwargs)
+    state = bar_state_of(snapshot, kwargs.pop("reference_open", False))
+    return build_dashboard_scene(layout, state, **kwargs)
 
 
 def _snapshot(**overrides) -> DashboardSnapshot:
@@ -1078,7 +1081,7 @@ def test_lighten_color_caps_at_255():
 
 def test_dashboard_widget_emits_action_on_click():
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, icons=IconCache())
+    scene = build_dashboard_scene(layout, BarState(), icons=IconCache())
 
     widget = DashboardWidget(scene)
     received: list[str] = []
@@ -1102,7 +1105,7 @@ def test_dashboard_widget_emits_action_on_click():
 
 def test_dashboard_widget_ignores_click_outside_actions():
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, icons=IconCache())
+    scene = build_dashboard_scene(layout, BarState(), icons=IconCache())
 
     widget = DashboardWidget(scene)
     received: list[str] = []

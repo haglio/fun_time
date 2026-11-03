@@ -3,22 +3,22 @@ from __future__ import annotations
 from shared_ui.palette import BLUE
 
 from fun_time.dashboard_actions import ENTER_VR, EXIT_VR, HELP_REFERENCE, VR_RESET
-from fun_time.dashboard_controls import bar_controls
+from fun_time.dashboard_controls import BarState, bar_controls
 from fun_time.dashboard_layout import compute_dashboard_bar_layout
 
 
 def _lit(action: str, **state):
-    controls = bar_controls(compute_dashboard_bar_layout(), **state)
+    controls = bar_controls(compute_dashboard_bar_layout(), BarState(**state))
     return next(control.lit for control in controls if control.action == action)
 
 
 def _actions(**state) -> list[str]:
     return [control.action
-            for control in bar_controls(compute_dashboard_bar_layout(), **state)]
+            for control in bar_controls(compute_dashboard_bar_layout(), BarState(**state))]
 
 
 def _dim(action: str, **state) -> bool:
-    controls = bar_controls(compute_dashboard_bar_layout(), **state)
+    controls = bar_controls(compute_dashboard_bar_layout(), BarState(**state))
     return next(control.dim for control in controls if control.action == action)
 
 
