@@ -261,6 +261,10 @@ class TestHandleHeard:
 
         assert seen == [source, source]
 
+    def test_the_first_funestra_word_spoken_claims_the_report(self):
+        assert voice_control._source_for_heard_text("landscape then portrait") == "landscape"
+        assert voice_control._source_for_heard_text("portrait then landscape") == "portrait"
+
     def test_a_funestra_word_inside_a_longer_word_does_not_claim_the_report(self):
         assert voice_control._source_for_heard_text("mainly landscaped") == "system"
 

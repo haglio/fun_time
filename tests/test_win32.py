@@ -29,6 +29,7 @@ from fun_time.win32 import (
     describe_windows,
     find_window_by_pid,
     is_window_topmost,
+    keep_in_topmost_band,
     minimize_window,
     move_window,
     restore_window,
@@ -317,6 +318,31 @@ class TestIsWindowTopmost:
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = 0x100
             assert is_window_topmost(111) is False
+
+
+class TestKeepInTopmostBand:
+    def test_a_window_already_where_it_belongs_is_left_alone(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = WS_EX_TOPMOST
+            keep_in_topmost_band(111, topmost=True)
+            mock.GetWindowLongW.return_value = 0
+            keep_in_topmost_band(111, topmost=False)
+
+        mock.SetWindowPos.assert_not_called()
+
+    def test_a_window_that_drifted_out_of_the_band_is_put_back(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = 0
+            keep_in_topmost_band(111, topmost=True)
+
+        assert mock.SetWindowPos.call_args[0][1] == HWND_TOPMOST
+
+    def test_a_window_that_drifted_into_the_band_is_taken_out(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = WS_EX_TOPMOST
+            keep_in_topmost_band(111, topmost=False)
+
+        assert mock.SetWindowPos.call_args[0][1] == HWND_NOTOPMOST
 
 
 class TestGetProcessImageName:
