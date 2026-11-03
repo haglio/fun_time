@@ -78,6 +78,14 @@ class TestLoadWebProviders:
         providers = load_web_providers(tmp_path / "missing.json", EXAMPLE_CONTENT)
         assert len(providers) == len(_example()["web_providers"])
 
+    def test_the_overlay_is_parsed_once_however_often_the_providers_are_asked_for(self, tmp_path: Path):
+        local = tmp_path / "content.local.json"
+        local.write_text(json.dumps({"web_providers": [{"marker": "m", "gallery_url": "https://h/{id}"}]}),
+                         encoding="utf-8")
+        first = load_web_providers(local, EXAMPLE_CONTENT)
+        local.write_text(json.dumps({"web_providers": []}), encoding="utf-8")
+        assert load_web_providers(local, EXAMPLE_CONTENT) is first
+
     def test_overlay_omitting_web_providers_yields_none(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
         local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")

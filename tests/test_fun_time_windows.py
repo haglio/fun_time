@@ -311,3 +311,66 @@ def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_app():
         windows.place([("main_funestra", WindowRect(2560, 940, 1440, 2500)), ("portrait", TOP_MODE_SELECTOR)])
 
     assert [call.args[0] for call in place.call_args_list] == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]
+
+
+class TestParkedAndMinimized:
+    def _windows(self) -> FunTimeWindows:
+        return make_windows(
+            clock=FakeClock(),
+            hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND, "portrait": PORTRAIT_HWND},
+        )
+
+    def _restored_by(self, action) -> list[int]:
+        restored: list[int] = []
+        with patch("fun_time.fun_time_windows.minimize_window"), \
+             patch("fun_time.fun_time_windows.restore_window",
+                   side_effect=lambda h, **kw: restored.append(h)):
+            action()
+        return restored
+
+    def test_showing_a_window_cancels_the_minimize_waiting_on_its_settle(self):
+        clock = FakeClock()
+        windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
+        minimized: list[int] = []
+
+        with patch("fun_time.fun_time_windows.minimize_window",
+                   side_effect=lambda h, **kw: minimized.append(h)), \
+             patch("fun_time.fun_time_windows.restore_window"):
+            windows.hide_after_settle("main_funestra")
+            windows.show("main_funestra")
+            clock.advance(MAIN_BLANK_SETTLE_S)
+            windows.flush_pending_hides()
+
+        assert minimized == []
+
+    def test_a_window_a_mode_minimizes_is_not_one_the_next_resume_restores(self):
+        windows = self._windows()
+
+        def switch_then_resume():
+            with patch("fun_time.fun_time_windows.minimize_window"):
+                windows.minimize("main_funestra")
+            windows.restore_parked()
+
+        assert self._restored_by(switch_then_resume) == []
+
+    def test_a_window_a_button_parks_is_restored_once_however_often_it_was_parked(self):
+        windows = self._windows()
+
+        def park_twice_then_resume_twice():
+            windows.park("portrait")
+            windows.park("portrait")
+            windows.restore_parked()
+            windows.restore_parked()
+
+        assert self._restored_by(park_twice_then_resume_twice) == [PORTRAIT_HWND]
+
+    def test_restoring_the_minimized_windows_leaves_no_parked_one_to_restore_again(self):
+        windows = self._windows()
+
+        def minimize_all_then_come_back():
+            windows.park("portrait")
+            windows.minimize_all(["portrait", "main_funestra"])
+            windows.restore_minimized()
+            windows.restore_parked()
+
+        assert self._restored_by(minimize_all_then_come_back) == [PORTRAIT_HWND, MAIN_FUNESTRA_HWND]

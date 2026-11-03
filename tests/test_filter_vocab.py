@@ -63,6 +63,10 @@ def test_multi_word_query_round_trips():
     assert decode_filter_command(voice["portrait beta gamma"]) == ("portrait", "beta gamma")
 
 
+def test_an_act_nobody_listed_still_decodes_to_its_scope_and_query():
+    assert decode_filter_command("filter_portrait_never_listed_act") == ("portrait", "never listed act")
+
+
 def test_clearing_a_filter_is_not_this_module_s_business():
     voice = filter_voice_commands(ACTS)
     for phrase in ("clear filter", "show everything", "clear portrait", "clear landscape"):

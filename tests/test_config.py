@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -113,6 +114,11 @@ class TestLoadConfig:
     def test_the_sibling_checkouts_are_the_ones_the_config_names(self, cfg_factory, tmp_path: Path):
         path = cfg_factory({"paths": {"sibling_checkouts": [str(tmp_path / "funestra")]}})
         assert load_config(path).paths.sibling_checkouts == (tmp_path / "funestra",)
+
+    def test_the_sibling_checkouts_make_one_path_value_in_the_order_named(self, cfg_factory, tmp_path: Path):
+        first, second = tmp_path / "funestra", tmp_path / "shared_ui"
+        path = cfg_factory({"paths": {"sibling_checkouts": [str(first), str(second)]}})
+        assert load_config(path).paths.sibling_checkouts_path == f"{first}{os.pathsep}{second}"
 
     def test_a_config_from_before_the_rename_still_names_them(self, cfg_factory, tmp_path: Path):
         path = cfg_factory({"paths": {"genau_project_dirs": [str(tmp_path / "funestra")]}})
