@@ -4,7 +4,9 @@ import os
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import glfw
 import numpy as np
@@ -27,6 +29,7 @@ from fun_time_vr.layout import (
     remembered_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
+from fun_time_vr.projection import PROJECTIONS
 from fun_time_vr.render import SceneRenderer
 from fun_time_vr.scheduling import ahead_of_background_work
 from fun_time_vr.wraps import immersive_wrap
@@ -95,21 +98,8 @@ def _main_videos_next_can_step_between(config, manifest, vr) -> list[str]:
     )]
 
 
-def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
-    temp_root = build_integration_temp_root()
-    config_path = build_integration_config(temp_root)
-    config = load_config(config_path)
-
-    manifest_data = build_vr_manifest(config)
-    manifest_path = write_manifest_data(
-        manifest_data, config.paths.state_dir / "windows_bridge_launch.ini"
-    )
-
-
-    manifest = LaunchManifest.read(manifest_path)
-    vr = vrp.VrSettings.read(manifest_path)
+def _write_the_playlists(config, manifest, vr) -> None:
     commands = manifest.commands
-
     # The desktop library, and never the VR masters: those sit on the cloud drive,
     # where opening a cold file blocks inside the drive's own driver.  No timeout
     # can end a thread stuck there, and Windows cannot finish closing a process
@@ -129,6 +119,174 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     for satellite in ("main_funestra", "portrait", "landscape"):
         Path(commands.funestra_file(satellite, "paused")).write_text("0", encoding="utf-8")
 
+
+def _has_a_picture(unit) -> bool:
+    strip = np.zeros((1, 64, 4), dtype=np.uint8)
+    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, unit.target.fbo)
+    GL.glReadPixels(
+        max(0, unit.target.width // 2 - 32), unit.target.height // 2, 64, 1,
+        GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, strip,
+    )
+    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+    return bool(strip[:, :, :3].any())
+
+
+@dataclass(frozen=True)
+class _Pipeline:
+    commands: Any
+    main: Any
+    satellites: list
+
+    @property
+    def units(self) -> list:
+        return [self.main, *self.satellites]
+
+    def run_frames(self, count: int, *, sink: list[float] | None = None) -> None:
+        period = FRAME_BUDGET_MS / 1e3
+        for _ in range(count):
+            started = time.perf_counter()
+            for unit in self.units:
+                unit.render_latest_frame()
+            glfw.poll_events()
+            elapsed = time.perf_counter() - started
+            if sink is not None:
+                sink.append(elapsed * 1e3)
+            time.sleep(max(0.0, period - elapsed))
+
+    def close_every_funestra(self) -> None:
+        for unit in self.units:
+            unit.close()
+
+
+def _wait_for_the_first_pictures(pipeline: _Pipeline) -> None:
+    status = Path(pipeline.commands.main_funestra_status_file)
+    wait_for(lambda: read_main_funestra_status(status).video,
+             desc="the Main Funestra's first status write")
+    pipeline.run_frames(240)
+    for unit, name in zip(pipeline.units, ("main", "portrait", "landscape"), strict=True):
+        wait_for(lambda u=unit: (pipeline.run_frames(9) or u.target.ready),
+                 desc=f"{name} target allocation")
+    wait_for(lambda: (pipeline.run_frames(9) or any(_has_a_picture(unit) for unit in pipeline.units)),
+             desc="a unit to render a non-black frame")
+
+
+def _wait_for_the_machine_to_settle(pipeline: _Pipeline) -> None:
+    # Hold the measurement until the machine has settled: in a full suite
+    # run this test starts moments after whole sessions were torn down,
+    # and their kill sweeps and mpv teardown bleed into the first seconds
+    # here — a blown median that indicts the neighbors, not the pipeline.
+    # Probe in short windows and start the real sample only once one comes
+    # in quiet; bounded, and a machine that never gets there says so in
+    # those words rather than leaving the sample to blame the pipeline.
+    for _ in range(SETTLE_WINDOWS):
+        probe: list[float] = []
+        pipeline.run_frames(120, sink=probe)
+        if window_is_quiet(probe, budget_ms=FRAME_BUDGET_MS):
+            return
+    probe.sort()
+    pytest.fail(
+        f"the machine never rendered {SETTLE_WINDOWS} quiet windows into one: "
+        f"the last was {probe[len(probe) // 2]:.1f}ms median, "
+        f"{probe[len(probe) * 9 // 10]:.1f}ms p90, {probe[-1]:.1f}ms worst "
+        f"against a {FRAME_BUDGET_MS:.1f}ms frame — nothing was measured"
+    )
+
+
+def _assert_the_frame_budget_holds(pipeline: _Pipeline) -> None:
+    for unit in pipeline.units:
+        unit.layer_dirty = False
+    frame_ms: list[float] = []
+    pipeline.run_frames(540, sink=frame_ms)
+    frame_ms.sort()
+    median = frame_ms[len(frame_ms) // 2]
+    assert median < MEDIAN_BUDGET_MS, (
+        f"frame loop median {median:.1f}ms blows the {MEDIAN_BUDGET_MS:.1f}ms budget — "
+        "an mpv render is pacing the loop again"
+    )
+    stalled = [name for unit, name in zip(pipeline.units, ("main", "portrait", "landscape"), strict=True)
+               if not unit.layer_dirty]
+    assert not stalled, f"no new frame reached the scene from {stalled} in six seconds"
+
+
+def _assert_next_advances_the_main_funestra(commands) -> None:
+    status = Path(commands.main_funestra_status_file)
+    first_video = published_status(read_main_funestra_status, status).video
+    append_command(Path(commands.main_funestra_cmd_file), "NEXT")
+    wait_for(lambda: read_main_funestra_status(status).video not in ("", first_video),
+             desc="NEXT to advance the Main Funestra")
+
+
+def _assert_video_changes_keep_pace(pipeline: _Pipeline) -> None:
+    # Video transitions must not stall the frame loop, and must reach the
+    # scene.  Cold-load the landscape satellite repeatedly — explicit
+    # navigation, the harsher path than prefetched rollover — while frames
+    # keep pace.  What a video change costs is mpv's: a decoder's textures,
+    # its shaders and the CUDA interop its frames arrive through, 40 to
+    # 250ms of it, charged to whichever thread calls render.  On the loop
+    # that was the whole headset freezing at every video change.
+    commands, landscape = pipeline.commands, pipeline.satellites[1]
+    transitions: list[list[float]] = []
+    landscape_status = Path(commands.landscape_status_file)
+    for _ in range(4):
+        leaving = published_status(read_satellite_status, landscape_status).video
+        append_command(Path(commands.landscape_cmd_file), "NEXT")
+        transitions.append([])
+        pipeline.run_frames(60, sink=transitions[-1])
+        wait_for(lambda was=leaving: read_satellite_status(landscape_status).video not in ("", was),
+                 desc="the landscape satellite to move off its clip")
+        landscape.layer_dirty = False
+        wait_for(lambda: pipeline.run_frames(9) or landscape.layer_dirty,
+                 desc="a frame of the clip the landscape satellite moved to")
+    transition_ms = sorted(ms for one in transitions for ms in one)
+    transition_median = transition_ms[len(transition_ms) // 2]
+    assert transition_median < MEDIAN_BUDGET_MS, (
+        f"frame loop median {transition_median:.1f}ms during clip transitions "
+        f"blows the {MEDIAN_BUDGET_MS:.1f}ms budget"
+    )
+    # The regression this guards stalled EVERY transition for hundreds of
+    # milliseconds (mpv's own work, on the loop's thread), so what a
+    # transition TYPICALLY costs is what says whether it is back.  Judged
+    # on the worst frame instead, this rode the one statistic a machine's
+    # own hiccup owns: a run whose four transitions cost 79, 91, 92 and
+    # 628ms is a hiccup on one pass, and it failed here as a pipeline
+    # that stalls on every video change.
+    stall = stall_per_transition(transitions)
+    assert stall < 150.0, (
+        f"clip transitions stalled the frame loop {stall:.0f}ms apiece "
+        f"(worst frames {[round(max(one)) for one in transitions]}) — "
+        "the frame loop is waiting on the GL driver or on mpv while a clip changes"
+    )
+
+
+def _assert_a_paused_satellite_holds_still(pipeline: _Pipeline) -> None:
+    commands = pipeline.commands
+    status = Path(commands.portrait_status_file)
+    Path(commands.portrait_paused_file).write_text("1", encoding="utf-8")
+    wait_for(lambda: read_satellite_status(status).paused,
+             desc="the portrait satellite to report paused")
+    position_before = published_status(read_satellite_status, status).position_ms
+    pipeline.run_frames(90)
+    let_seconds_pass(0.3)
+    position_after = published_status(read_satellite_status, status).position_ms
+    assert position_after == position_before, (
+        f"paused satellite kept playing ({position_before} -> {position_after})"
+    )
+
+
+def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
+    temp_root = build_integration_temp_root()
+    config_path = build_integration_config(temp_root)
+    config = load_config(config_path)
+
+    manifest_data = build_vr_manifest(config)
+    manifest_path = write_manifest_data(
+        manifest_data, config.paths.state_dir / "windows_bridge_launch.ini"
+    )
+
+    manifest = LaunchManifest.read(manifest_path)
+    vr = vrp.VrSettings.read(manifest_path)
+    _write_the_playlists(config, manifest, vr)
+
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-pipeline-test")
     glfw.make_context_current(window)
@@ -143,13 +301,13 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                            remembered=remembered.placements)
         for satellite in (PORTRAIT, LANDSCAPE)
     ]
-    units = [main, *satellites]
+    pipeline = _Pipeline(manifest.commands, main, satellites)
     perf = vrp.FramePerf(logger=vrp.logger)
     pump_failure: list[BaseException] = []
 
     def pump_channels() -> None:
         try:
-            vrp._pump_channels(units, stop, perf)
+            vrp._pump_channels(pipeline.units, stop, perf)
         except BaseException as exc:  # noqa: BLE001 — re-raised, and reported
             pump_failure.append(exc)
             raise
@@ -158,162 +316,15 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         target=pump_channels, daemon=True, name="file-channels",
     )
 
-    def has_frame(unit) -> bool:
-        strip = np.zeros((1, 64, 4), dtype=np.uint8)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, unit.target.fbo)
-        GL.glReadPixels(
-            max(0, unit.target.width // 2 - 32), unit.target.height // 2, 64, 1,
-            GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, strip,
-        )
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        return bool(strip[:, :, :3].any())
-
-    frame_ms: list[float] = []
-    period = FRAME_BUDGET_MS / 1e3
-
-    def run_frames(count: int, *, measure: bool, sink: list[float] | None = None) -> None:
-        if measure and sink is None:
-            sink = frame_ms
-        for _ in range(count):
-            started = time.perf_counter()
-            for unit in units:
-                unit.render_latest_frame()
-            glfw.poll_events()
-            elapsed = time.perf_counter() - started
-            if measure:
-                sink.append(elapsed * 1e3)
-            time.sleep(max(0.0, period - elapsed))
-
     closed = False
     try:
         pump_thread.start()
-
-        wait_for(
-            lambda: read_main_funestra_status(Path(commands.main_funestra_status_file)).video,
-            desc="the Main Funestra's first status write",
-        )
-
-        run_frames(240, measure=False)
-        for unit, name in ((main, "main"), (satellites[0], "portrait"), (satellites[1], "landscape")):
-            wait_for(
-                lambda u=unit: (run_frames(9, measure=False) or u.target.ready),
-                desc=f"{name} target allocation",
-            )
-        wait_for(
-            lambda: (run_frames(9, measure=False) or any(has_frame(unit) for unit in units)),
-            desc="a unit to render a non-black frame",
-        )
-
-        # Hold the measurement until the machine has settled: in a full suite
-        # run this test starts moments after whole sessions were torn down,
-        # and their kill sweeps and mpv teardown bleed into the first seconds
-        # here — a blown median that indicts the neighbors, not the pipeline.
-        # Probe in short windows and start the real sample only once one comes
-        # in quiet; bounded, and a machine that never gets there says so in
-        # those words rather than leaving the sample to blame the pipeline.
-        for _ in range(SETTLE_WINDOWS):
-            probe: list[float] = []
-            run_frames(120, measure=True, sink=probe)
-            if window_is_quiet(probe, budget_ms=FRAME_BUDGET_MS):
-                break
-        else:
-            probe.sort()
-            pytest.fail(
-                f"the machine never rendered {SETTLE_WINDOWS} quiet windows into one: "
-                f"the last was {probe[len(probe) // 2]:.1f}ms median, "
-                f"{probe[len(probe) * 9 // 10]:.1f}ms p90, {probe[-1]:.1f}ms worst "
-                f"against a {FRAME_BUDGET_MS:.1f}ms frame — nothing was measured"
-            )
-
-        for unit in units:
-            unit.layer_dirty = False
-        run_frames(540, measure=True)
-        frame_ms.sort()
-        median = frame_ms[len(frame_ms) // 2]
-        assert median < MEDIAN_BUDGET_MS, (
-            f"frame loop median {median:.1f}ms blows the {MEDIAN_BUDGET_MS:.1f}ms budget — "
-            "an mpv render is pacing the loop again"
-        )
-        stalled = [name for unit, name in zip(units, ("main", "portrait", "landscape"), strict=True)
-                   if not unit.layer_dirty]
-        assert not stalled, f"no new frame reached the scene from {stalled} in six seconds"
-
-        first_video = published_status(
-            read_main_funestra_status, Path(commands.main_funestra_status_file)).video
-        append_command(Path(commands.main_funestra_cmd_file), "NEXT")
-        wait_for(
-            lambda: read_main_funestra_status(Path(commands.main_funestra_status_file)).video
-            not in ("", first_video),
-            desc="NEXT to advance the Main Funestra",
-        )
-
-        # Video transitions must not stall the frame loop, and must reach the
-        # scene.  Cold-load the landscape satellite repeatedly — explicit
-        # navigation, the harsher path than prefetched rollover — while frames
-        # keep pace.  What a video change costs is mpv's: a decoder's textures,
-        # its shaders and the CUDA interop its frames arrive through, 40 to
-        # 250ms of it, charged to whichever thread calls render.  On the loop
-        # that was the whole headset freezing at every video change.
-        transitions: list[list[float]] = []
-        landscape_status = Path(commands.landscape_status_file)
-        for _ in range(4):
-            leaving = published_status(read_satellite_status, landscape_status).video
-            append_command(Path(commands.landscape_cmd_file), "NEXT")
-            transitions.append([])
-            for _ in range(60):
-                started = time.perf_counter()
-                for unit in units:
-                    unit.render_latest_frame()
-                glfw.poll_events()
-                elapsed = time.perf_counter() - started
-                transitions[-1].append(elapsed * 1e3)
-                time.sleep(max(0.0, period - elapsed))
-            wait_for(
-                lambda was=leaving: read_satellite_status(landscape_status).video
-                not in ("", was),
-                desc="the landscape satellite to move off its clip",
-            )
-            satellites[1].layer_dirty = False
-            wait_for(
-                lambda: run_frames(9, measure=False) or satellites[1].layer_dirty,
-                desc="a frame of the clip the landscape satellite moved to",
-            )
-        transition_ms = sorted(ms for one in transitions for ms in one)
-        transition_median = transition_ms[len(transition_ms) // 2]
-        assert transition_median < MEDIAN_BUDGET_MS, (
-            f"frame loop median {transition_median:.1f}ms during clip transitions "
-            f"blows the {MEDIAN_BUDGET_MS:.1f}ms budget"
-        )
-        # The regression this guards stalled EVERY transition for hundreds of
-        # milliseconds (mpv's own work, on the loop's thread), so what a
-        # transition TYPICALLY costs is what says whether it is back.  Judged
-        # on the worst frame instead, this rode the one statistic a machine's
-        # own hiccup owns: a run whose four transitions cost 79, 91, 92 and
-        # 628ms is a hiccup on one pass, and it failed here as a pipeline
-        # that stalls on every video change.
-        stall = stall_per_transition(transitions)
-        assert stall < 150.0, (
-            f"clip transitions stalled the frame loop {stall:.0f}ms apiece "
-            f"(worst frames {[round(max(one)) for one in transitions]}) — "
-            "the frame loop is waiting on the GL driver or on mpv while a clip changes"
-        )
-
-        Path(commands.portrait_paused_file).write_text("1", encoding="utf-8")
-        wait_for(
-            lambda: read_satellite_status(Path(commands.portrait_status_file)).paused,
-            desc="the portrait satellite to report paused",
-        )
-        position_before = published_status(
-            read_satellite_status, Path(commands.portrait_status_file)).position_ms
-        run_frames(90, measure=False)
-        let_seconds_pass(0.3)
-        position_after = published_status(
-            read_satellite_status, Path(commands.portrait_status_file)).position_ms
-        assert position_after == position_before, (
-            f"paused satellite kept playing ({position_before} -> {position_after})"
-        )
-
-        from fun_time_vr.projection import PROJECTIONS  # noqa: PLC0415
+        _wait_for_the_first_pictures(pipeline)
+        _wait_for_the_machine_to_settle(pipeline)
+        _assert_the_frame_budget_holds(pipeline)
+        _assert_next_advances_the_main_funestra(manifest.commands)
+        _assert_video_changes_keep_pace(pipeline)
+        _assert_a_paused_satellite_holds_still(pipeline)
 
         assert main.verbs.projection in PROJECTIONS
         assert main.verbs.projection == "flat" or (
@@ -330,8 +341,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # safe; staging it here is what makes a regression fail deterministically
         # rather than once in nine full-suite runs.  It fails LOUDLY — a
         # reintroduced use-after-free takes the whole pytest process down here.
-        for unit in units:
-            unit.close()
+        pipeline.close_every_funestra()
         closed = True
         let_seconds_pass(0.5)
         stop.set()
@@ -344,8 +354,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     finally:
         stop.set()
         if not closed:
-            for unit in units:
-                unit.close()
+            pipeline.close_every_funestra()
         renderer.close()
         glfw.terminate()
 
