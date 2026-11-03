@@ -3178,8 +3178,8 @@ class TestStartingVoice:
         self._started(config_path, tmp_path, controller=controller,
                       hosting=Hosting(hosted), runner=runner)
 
-        assert controller.call_args.kwargs["hosted"] == hosted
-        assert controller.call_args.kwargs["hosted_cmd_file"] == tmp_path / "origenerator_cmd.txt"
+        assert controller.call_args.kwargs["hosted"].vocabulary == hosted
+        assert controller.call_args.kwargs["hosted"].cmd_file == tmp_path / "origenerator_cmd.txt"
 
     def test_the_voice_ends_a_line_said_to_the_hosted_app_the_way_the_app_publishes(
         self, cfg_factory, tmp_path,
@@ -3190,7 +3190,7 @@ class TestStartingVoice:
         self._prepared(config_path, tmp_path, controller=controller,
                        hosting=Hosting(said_at_suffix=" @{said_at_epoch_seconds}"))
 
-        assert controller.call_args.kwargs["hosted_said_at_suffix"] == " @{said_at_epoch_seconds}"
+        assert controller.call_args.kwargs["hosted"].said_at_suffix == " @{said_at_epoch_seconds}"
 
     def test_the_voice_asks_the_app_which_satellites_the_hosted_app_holds(
         self, cfg_factory, tmp_path,
@@ -3235,7 +3235,7 @@ class TestStartingVoice:
 
         self._started(config_path, tmp_path, controller=controller)
 
-        assert controller.call_args.kwargs["confirm_commands"] is False
+        assert controller.call_args.kwargs["settings"].confirm_commands is False
 
     def test_the_session_listens_with_the_verifying_listener_it_started_loading(
         self, cfg_factory, tmp_path,
