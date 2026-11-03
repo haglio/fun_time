@@ -161,6 +161,7 @@ from .reference_panel import (
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh
 from .room import Hanging, Hangs
 from .room_launch import RoomLaunch
+from .room_parts import RoomKeeping, RoomUnits
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
@@ -1627,28 +1628,25 @@ def _hands_for_the_funestras(
 
 class TheRoom:
     def __init__(
-        self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
-        main_hud_unit: _MainHudUnit, reference: _ReferenceUnit, library: _LibraryUnit,
-        flashed: _MessageUnit, gallery: _GalleryUnit, loading_screen: LoadingScreenUnit, messages: MessageBoard,
-        keeper: _LayoutKeeper, posts: _ControllerPosts, pointing: _PointerDrawing,
+        self, units: RoomUnits, keeping: RoomKeeping, *, pointing: _PointerDrawing,
         loading_screen_watch: LoadingScreenWatch, stop: threading.Event,
     ) -> None:
+        main_unit, main_hud_unit = units.main_unit, units.main_hud_unit
         self.main_unit = main_unit
-        self.satellites = tuple(satellites)
+        self.satellites = tuple(units.satellites)
         self.main_hud_unit = main_hud_unit
-        self.library = library
-        self.gallery = gallery
-        self.loading_screen = loading_screen
-        self.keeper = keeper
-        self.posts = posts
+        self.library = units.library
+        self.gallery = units.gallery
+        self.loading_screen = units.loading_screen
+        self.keeper = keeping.keeper
+        self.posts = keeping.posts
         self.pointing = pointing
         self.loading_screen_watch = loading_screen_watch
         self.stop = stop
         self.workers: tuple[threading.Thread, ...] = ()
         self.wear = HeadsetWear()
-        self.units = [main_unit, *self.satellites, dash, main_hud_unit, reference, library,
-                      flashed, gallery, loading_screen]
-        self.closing = [messages, *self.units, keeper, posts]
+        self.units = units.in_order()
+        self.closing = [keeping.messages, *self.units, keeping.keeper, keeping.posts]
         self.pumped = [one for one in self.closing if one is not main_unit]
         self.where = room.where_they_hang(self.units)
 
@@ -1722,15 +1720,21 @@ def hang_the_room(
         host=LibraryHost(manifest_path=manifest_path, state_dir=state_dir),
         genau_has_the_slot=lambda: not main_unit.owns_the_slot,
     )
-    return TheRoom(
+    units = RoomUnits(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag), library=library,
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),
-        loading_screen=loading_screen, messages=messages,
+        loading_screen=loading_screen,
+    )
+    keeping = RoomKeeping(
+        messages=messages,
         keeper=_LayoutKeeper(state_dir / LAYOUT_FILENAME, remembered),
         posts=_ControllerPosts(Path(commands.dashboard_cmd_file)),
+    )
+    return TheRoom(
+        units, keeping,
         pointing=_PointerDrawing(),
         loading_screen_watch=LoadingScreenWatch(loading_screen, SceneReady(scene_ready_file(state_dir))),
         stop=stop,
