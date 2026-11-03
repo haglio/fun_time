@@ -2,32 +2,20 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from .funestras import (
-        LoadingScreenUnit,
-        _DashUnit,
-        _GalleryUnit,
-        _LibraryUnit,
-        _MainHudUnit,
-        _MainUnit,
-        _MessageUnit,
-        _ReferenceUnit,
-    )
+from typing import Any
 
 
 @dataclass(frozen=True)
 class RoomUnits:
-    main_unit: _MainUnit
+    main_unit: Any
     satellites: Sequence[Any]
-    dash: _DashUnit
-    main_hud_unit: _MainHudUnit
-    reference: _ReferenceUnit
-    library: _LibraryUnit
-    flashed: _MessageUnit
-    gallery: _GalleryUnit
-    loading_screen: LoadingScreenUnit
+    dash: Any
+    main_hud_unit: Any
+    reference: Any
+    library: Any
+    flashed: Any
+    gallery: Any
+    loading_screen: Any
 
     def in_order(self) -> list:
         return [self.main_unit, *self.satellites, self.dash, self.main_hud_unit, self.reference,
