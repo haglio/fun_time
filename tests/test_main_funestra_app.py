@@ -62,15 +62,17 @@ class TestWhatTheFunestraIsHanded:
 class TestGenauRunsOnItToo:
     def test_it_is_built_from_the_flags_fun_time_passes(self):
         given = _keywords(_call(_function("_genau"), "Genau"))
+        flicks = _keywords(_call(_function("_genau"), "GenauFlicks"))
+        outputs = _keywords(_call(_function("_genau"), "GenauOutputs"))
         channels = _keywords(_call(_function("_genau"), "GenauChannels"))
 
-        assert given["flicks_folder"] == "args.flicks_dir"
+        assert flicks["folder"] == "args.flicks_dir"
         assert given["settings"] == "GenauSettings.read(args.config)"
-        assert given["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
-        assert given["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
-        assert given["messages"] == "MessageWriter(args.notice_file)"
-        assert given["f_mode"] == "args.genau_f_mode"
-        assert given["orientations"] == "orientations_from(args.genau_orientations)"
+        assert outputs["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
+        assert outputs["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
+        assert outputs["messages"] == "MessageWriter(args.notice_file)"
+        assert flicks["f_mode"] == "args.genau_f_mode"
+        assert flicks["orientations"] == "orientations_from(args.genau_orientations)"
         assert channels == {"command": "args.genau_command_file", "paused": "args.genau_paused_file",
                             "status": "args.genau_status_file", "drive": "args.drive_file"}
 

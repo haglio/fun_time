@@ -50,7 +50,13 @@ from fun_time.unlogged_messages import UnloggedMessages
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.contract import MainChannels
-from main_funestra.genau import ROBOT_HAND, GenauChannels
+from main_funestra.genau import (
+    ROBOT_HAND,
+    GenauChannels,
+    GenauFlicks,
+    GenauOutputs,
+    GenauSeams,
+)
 from main_funestra.kino import Kino
 from satellite.contract import SatelliteChannels
 
@@ -611,20 +617,24 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
     commands = manifest.commands
     resumed = read_shared_state(shared_state_path(Path(commands.state_dir))) or BridgeState()
     users[MainMode.GENAU] = lambda _playback: GenauInTheHeadset(
-        flicks_folder=vr.flicks_folder,
+        GenauFlicks(
+            folder=vr.flicks_folder,
+            start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
+            latest=resumed.genau_latest,
+            f_mode=resumed.genau_favorites_filter,
+            orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
+            metadata_root=_metadata_root(manifest),
+        ),
         settings=vr.genau,
         channels=GenauChannels(
             command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file)),
-        notifier=GenauNotifier(vr.notify_host, vr.notify_port),
-        tcode_sink=_osr2_slot(commands, ROBOT_HAND),
-        messages=MessageWriter(Path(commands.main_funestra_notice_file)),
-        stop_event=stop,
-        start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
-        latest=resumed.genau_latest,
-        f_mode=resumed.genau_favorites_filter,
-        orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
-        metadata_root=_metadata_root(manifest),
+        outputs=GenauOutputs(
+            notifier=GenauNotifier(vr.notify_host, vr.notify_port),
+            tcode_sink=_osr2_slot(commands, ROBOT_HAND),
+            messages=MessageWriter(Path(commands.main_funestra_notice_file)),
+        ),
+        seams=GenauSeams(stop_event=stop),
     )
     return users
 

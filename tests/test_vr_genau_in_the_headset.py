@@ -19,7 +19,7 @@ from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
 from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
-from main_funestra.genau import GenauChannels
+from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauSeams
 from main_funestra.genau_verbs import genau_f_mode
 from tests.genau_fakes import FakeNotifier, FakeSink
 
@@ -90,20 +90,23 @@ class World:
         self.now = 100.0
         self.notice_file = state / "notice.txt"
         self.genau = GenauInTheHeadset(
-            flicks_folder=self.flicks_folder,
+            GenauFlicks(
+                folder=self.flicks_folder,
+                start_flick=setup.start_flick,
+                latest=setup.latest,
+                metadata_root=self.metadata_root,
+            ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
-            notifier=self.notifier,
-            tcode_sink=self.sink,
-            stop_event=self.stop,
-            start_flick=setup.start_flick,
-            latest=setup.latest,
-            metadata_root=self.metadata_root,
-            messages=MessageWriter(self.notice_file),
-            decode=lambda _path: _frames(),
-            start_thread=setup.start_thread,
-            clock=lambda: self.now,
-            log=logging.getLogger("test.genau_in_the_headset"),
+            outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
+                                 messages=MessageWriter(self.notice_file)),
+            seams=GenauSeams(
+                stop_event=self.stop,
+                decode=lambda _path: _frames(),
+                start_thread=setup.start_thread,
+                clock=lambda: self.now,
+                log=logging.getLogger("test.genau_in_the_headset"),
+            ),
         )
         self.genau.tick()
 

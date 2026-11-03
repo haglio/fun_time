@@ -25,7 +25,7 @@ from .cli import (
     resolve_playlist,
 )
 from .contract import MainChannels
-from .genau import ROBOT_HAND, Genau, GenauChannels
+from .genau import ROBOT_HAND, Genau, GenauChannels, GenauFlicks, GenauOutputs
 from .genau_verbs import orientations_from
 from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
@@ -55,16 +55,21 @@ def _genau(args):
         command=args.genau_command_file, paused=args.genau_paused_file,
         status=args.genau_status_file, drive=args.drive_file)
     return lambda _playback: Genau(
-        flicks_folder=args.flicks_dir, settings=GenauSettings.read(args.config),
+        GenauFlicks(
+            folder=args.flicks_dir,
+            start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
+            latest=args.genau_latest,
+            f_mode=args.genau_f_mode,
+            orientations=orientations_from(args.genau_orientations),
+            metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
+        ),
+        settings=GenauSettings.read(args.config),
         channels=channels,
-        notifier=GenauNotifier(args.notify_host, args.notify_port),
-        tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
-        messages=MessageWriter(args.notice_file),
-        start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
-        latest=args.genau_latest,
-        f_mode=args.genau_f_mode,
-        orientations=orientations_from(args.genau_orientations),
-        metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
+        outputs=GenauOutputs(
+            notifier=GenauNotifier(args.notify_host, args.notify_port),
+            tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
+            messages=MessageWriter(args.notice_file),
+        ),
     )
 
 

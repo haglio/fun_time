@@ -6,16 +6,26 @@ from pathlib import Path
 from funestra.flick_folder import flat_flicks_in, vr_flicks_in
 from funestra.main_hud import ModeHud
 
+from fun_time.genau_config import GenauSettings
 from fun_time.vr_videos import keep_shapes
-from main_funestra.genau import Genau
+from main_funestra.genau import (
+    STANDARD_SEAMS,
+    Genau,
+    GenauChannels,
+    GenauFlicks,
+    GenauOutputs,
+    GenauSeams,
+)
 
 
 class GenauInTheHeadset(Genau):
-    def __init__(self, *, flicks_folder: Path, **genaus_own) -> None:
-        self._vr_dirs = (vr_flicks_in(Path(flicks_folder)),)
-        self._flicks_dirs = (*self._vr_dirs, flat_flicks_in(Path(flicks_folder)))
+    def __init__(self, flicks: GenauFlicks, *, settings: GenauSettings, channels: GenauChannels,
+                 outputs: GenauOutputs, seams: GenauSeams = STANDARD_SEAMS) -> None:
+        self._vr_dirs = (vr_flicks_in(Path(flicks.folder)),)
+        self._flicks_dirs = (*self._vr_dirs, flat_flicks_in(Path(flicks.folder)))
         self._shapes = (True, True)
-        super().__init__(flicks_folder=flicks_folder, narrow=self._narrow, **genaus_own)
+        super().__init__(replace(flicks, narrow=self._narrow), settings=settings,
+                         channels=channels, outputs=outputs, seams=seams)
 
     def top_block(self) -> ModeHud:
         desktops = super().top_block()
