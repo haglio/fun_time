@@ -15,7 +15,7 @@ import coverage
 import pytest
 
 from fun_time.win32_process import is_process_alive
-from tests.integration import commands, fix_sessions, main_verifier
+from tests.integration import fix_sessions, main_verifier
 from tests.integration.coverage_map import CoverageMap
 from tests.integration.fix_sessions import FixSessionHands
 
@@ -415,7 +415,7 @@ def test_a_suite_running_when_a_restart_is_asked_for_ends_with_everything_it_sta
 
 def test_a_command_that_cannot_start_fails_like_one_that_ran_and_failed(tmp_path):
     with pytest.raises(main_verifier.CommandFailed, match="could not start"):
-        commands.run_command([sys.executable, "-c", "pass"], cwd=tmp_path / "a checkout since removed")
+        main_verifier.run_command([sys.executable, "-c", "pass"], cwd=tmp_path / "a checkout since removed")
 
 
 def stop_after_two_naps():

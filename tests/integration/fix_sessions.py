@@ -9,10 +9,10 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.claude_sessions import CommandFailed, background_sessions, run_command
 from app_support.file_channel import write_whole
+from app_support.main_verifier_record import shipped_again
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-
-from .commands import CommandFailed, run_command
 
 FIX_NOTICES_NAME = "main_verifier_fix_notices.json"
 FIX_RESTARTS_NAME = "main_verifier_fix_restarts.json"
@@ -39,10 +39,6 @@ class FixNotice:
 class FixSessionSteps:
     start_again: list[dict]
     messages: list[FixNotice]
-
-
-def shipped_again(incidents: Sequence[dict]) -> set[int]:
-    return {incident.get("pull_request") for incident in incidents if incident.get("shipped_again_by")}
 
 
 def _fix_sessions(incidents: Sequence[dict], sessions: Sequence[dict]) -> Iterator[tuple[dict, dict]]:
@@ -79,14 +75,6 @@ def fix_session_steps(incidents: Sequence[dict], sessions: Sequence[dict], told:
         messages.append(FixNotice(session_id, session.get("sessionId", session_id), session.get("cwd", ""), state,
                                  title, body))
     return FixSessionSteps(start_again, messages)
-
-
-def background_sessions(claude: str, shell=run_command) -> list[dict]:
-    answer = shell([claude, "agents", "--json", "--all"])
-    try:
-        return json.loads(answer)
-    except ValueError:
-        raise CommandFailed(f"claude agents did not answer with a list of sessions: {answer.strip()[:200]}") from None
 
 
 def died_on_a_service_error(transcripts: Path, session: dict) -> bool:

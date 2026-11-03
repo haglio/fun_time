@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
 import re
-import shutil
 import sqlite3
 import subprocess
 import sys
@@ -20,25 +18,32 @@ from typing import Protocol
 
 import coverage
 import pytest
+from app_support.claude_sessions import (
+    CommandFailed,
+    NewSession,
+    background_sessions,
+    claude_command,
+    run_command,
+    start_in_background,
+)
 from app_support.file_channel import write_whole
 from app_support.integration_runs import VERIFYING_MAIN, WITHOUT_COVERAGE_FLAG
 from app_support.logging_utils import configure_logging, install_exception_logging
+from app_support.main_verifier_record import INCIDENTS_NAME, read_incidents, shipped_again
 from app_support.siblings import primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.process_tree import kill_process_tree
 from fun_time.project_paths import SIBLING_CHECKOUTS_OVERRIDE_NAME, STATE_DIRNAME
 
-from .commands import CommandFailed, run_command
 from .coverage_map import CoverageMap, source_files, the_machine_s_map
-from .fix_sessions import background_sessions, look_after_fix_sessions, shipped_again
+from .fix_sessions import look_after_fix_sessions
 from .session_lock import SingleInstanceLock
 
 REPO = "haglio/fun_time"
 ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
 RESTART_REQUEST_NAME = "main_verifier.restart"
-INCIDENTS_NAME = "main_verifier_incidents.jsonl"
 VERIFIER_VENV = "main_verifier_venv"
 INSTALLED_FROM = "installed_from_pyproject.toml"
 _ASKED_EVERY_S = 5
@@ -50,7 +55,6 @@ _STILL_FIXING = frozenset({"working", "blocked", "failed"})
 _FIXED_BY_A_SESSION_OF_ITS_OWN = frozenset({"unreliable check", "broken outside main"})
 _log = logging.getLogger("main_verifier")
 _SUMMARY_LINE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
-_BACKGROUNDED = re.compile(r"backgrounded\W+([0-9a-f]{8})\b")
 
 
 class Ledger:
@@ -178,17 +182,6 @@ def _what_one_process_ran(saved: Path, by_path: Mapping[str, str]) -> set[str]:
                 if (key := os.path.normcase(measured)) in by_path and data.lines(measured)}
     finally:
         data.close()
-
-
-def _version(text: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in re.findall(r"\d+", text))
-
-
-def claude_command() -> str:
-    kept = Path(os.environ.get("LOCALAPPDATA", "")).glob(
-        "Packages/Claude_*/LocalCache/Roaming/Claude/claude-code/*/*/claude.exe")
-    newest = max(kept, key=lambda copy: _version(copy.parent.parent.name), default=None)
-    return str(newest) if newest else shutil.which("claude") or "claude"
 
 
 def branch_of(checkout: str) -> str:
@@ -352,20 +345,15 @@ class MachineBench:
         return int(url.strip().rsplit("/", 1)[-1])
 
     def start_fix_session(self, fix: FixSession) -> str:
-        try:
-            self.shell([self.claude, "auth", "status"])
-        except CommandFailed:
-            raise CommandFailed("the Claude command line is not signed in") from None
         place = self.primary / ".claude" / "worktrees" / fix.checkout
-        self.shell(["git", "worktree", "add", "-B", branch_of(fix.checkout), str(place), "origin/main"],
-                   cwd=self.primary)
-        _use_the_installed_siblings(place)
-        answer = self.shell([self.claude, "--bg", "--name", fix.title, "--permission-mode", "auto", fix.brief],
-                            cwd=place)
-        started = _BACKGROUNDED.search(answer)
-        if started is None:
-            raise CommandFailed(f"the Claude command line did not say it started the session: {answer.strip()}")
-        return started.group(1)
+
+        def make_its_checkout() -> None:
+            self.shell(["git", "worktree", "add", "-B", branch_of(fix.checkout), str(place), "origin/main"],
+                       cwd=self.primary)
+            _use_the_installed_siblings(place)
+
+        return start_in_background(self.claude, NewSession(fix.title, fix.brief, place), shell=self.shell,
+                                   once_signed_in=make_its_checkout)
 
     def stop_fix_session(self, session: str) -> None:
         self.shell([self.claude, "stop", session])
@@ -376,7 +364,7 @@ class MachineBench:
             sink.write(json.dumps({"at": datetime.now().astimezone().isoformat(timespec="seconds"), **incident}, default=str) + "\n")
 
     def incidents(self) -> list[dict]:
-        return _incidents(self.state)
+        return read_incidents(self.state)
 
     def fix_session_states(self) -> dict[str, str]:
         return {session["id"]: session.get("state") for session in background_sessions(self.claude, self.shell)
@@ -410,7 +398,8 @@ def fixing_a_take_back(taken: TakeBack, tests: list[str], log: Path) -> FixSessi
         ("4. Run the unit suite, the integration tests this branch needs "
         "(python -m tests.integration.hidden_desktop --changed) and the tests above by name, until every one "
         "passes."),
-        (f"5. He accepted #{number}'s change before it shipped. If your fix changes nothing he would see "
+        (f'5. Title the pull request "Ship #{number} again: ...", which is how Line tells the change is back. '
+        f"He accepted #{number}'s change before it shipped. If your fix changes nothing he would see "
         f"compared with #{number}, ship it the way this repo's CLAUDE.md says, without asking him. If it does "
         "change something he would see, do not ship it: open it as a draft pull request, say in your reply "
         "what he would see differently, and stop."),
@@ -457,18 +446,6 @@ def fixing_an_outside_break(head: str, last_passed: str, tests: list[str], log: 
         "his files yourself: say in your reply exactly what he must do, in plain words, and stop."),
         "4. Main is tried again the next time a change ships, and the tests above have to pass there.",
     ]))
-
-
-def _incidents(state: Path) -> list[dict]:
-    try:
-        lines = (state / INCIDENTS_NAME).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    incidents = []
-    for line in lines:
-        with contextlib.suppress(ValueError):
-            incidents.append(json.loads(line))
-    return incidents
 
 
 def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
@@ -643,7 +620,7 @@ def main() -> None:
     state = primary / STATE_DIRNAME
     install_exception_logging(configure_logging("main_verifier", state / "main_verifier.log"))
     try:
-        look_after_fix_sessions(state, _incidents(state), claude_command())
+        look_after_fix_sessions(state, read_incidents(state), claude_command())
     except (CommandFailed, OSError, ValueError) as why:
         _log.warning("could not check the fix sessions: %s", why)
     one_copy = SingleInstanceLock(ONE_COPY)
