@@ -1,5 +1,3 @@
-"""Fun Time's Funestras playing their Latest lists, each handed what arrives in its
-library to play next."""
 from __future__ import annotations
 
 from collections.abc import Collection

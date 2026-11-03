@@ -40,8 +40,6 @@ logger = logging.getLogger(__name__)
 
 
 def _show_error_popup(message: str) -> None:
-    """Say why the headset never lit up -- a hidden launch that just exits
-    is indistinguishable from a crash."""
     # Qt loads only for this: a headset session draws through OpenXR.
     from shared_ui.alert import show_alert  # noqa: PLC0415
 
@@ -66,11 +64,8 @@ def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = build_parser().parse_args(argv)
     manifest = LaunchManifest.read(args.manifest)
-    # The strip that shows this process's messages tails the session's event log,
-    # which is appended to per line so several processes can share it.
     _log_into_the_event_log(Path(manifest.commands.dashboard_cmd_file).parent)
     vr = VrSettings.read(args.manifest)
-    # Before any window exists: one app, one pinned button (win32_taskbar).
     try:
         set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
     except OSError:
@@ -87,12 +82,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _log_into_the_event_log(state_dir: Path) -> None:
     handler = EventLogHandler(event_log_path(state_dir))
-    handler.setLevel(MESSAGE)  # announcements only; the log file carries the rest
+    handler.setLevel(MESSAGE)
     logging.getLogger("fun_time_vr").addHandler(handler)
 
 
 def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
-    # The GL/XR stack loads only after the runtime probe found a headset.
     import glfw  # noqa: PLC0415
     import xr  # noqa: PLC0415
 
@@ -106,7 +100,6 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     session = opened.session
     headset = Headset(session, SceneRenderer(), FramePerf(logger=logger))
     state_dir = Path(manifest.commands.dashboard_cmd_file).parent
-    # Before the Funestras and refreshed between them: each opens media.
     loading_screen = LoadingScreenUnit(state_dir)
     raise_the_loading_screen(headset, loading_screen)
     the_room = hang_the_room(
@@ -124,7 +117,6 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     finally:
         tear_down(headset, the_room, state_dir)
     return 0
-
 
 
 if __name__ == "__main__":

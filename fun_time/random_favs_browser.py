@@ -34,11 +34,8 @@ def resolve_profile_directory(user_data_dir: Path, profile_name: str) -> str:
     return ""
 
 
-
 @dataclass(frozen=True)
 class FavEntry:
-    """One favorited video: where it lives on disk, and its gallery page."""
-
     local_path: str
     web_url: str
 

@@ -1,4 +1,3 @@
-"""When Fun Time wakes the headset's runtime, and when it puts it back to sleep."""
 from __future__ import annotations
 
 from collections.abc import Callable

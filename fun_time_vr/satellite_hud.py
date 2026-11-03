@@ -1,4 +1,3 @@
-"""A satellite's HUD in the headset hangs under its item as a screen of its own."""
 from __future__ import annotations
 
 ITEM = "picture"

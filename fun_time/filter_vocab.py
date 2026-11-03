@@ -66,13 +66,6 @@ def set_command(scope: str, query: str) -> str:
 
 
 def decode_filter_command(command: str) -> tuple[str, str] | None:
-    """``(scope, query)`` for a filter dispatch command, or None if it isn't one.
-
-    ``scope`` is one of both/portrait/landscape.  Decoding is purely structural,
-    so an unknown act still round-trips (and simply matches nothing downstream).
-    Dropping a filter is not one of these — that is ``<satellite>_no_filter``, in the
-    satellite grid with every other Satellite action.
-    """
     if not command.startswith("filter_"):
         return None
     rest = command[len("filter_"):]
@@ -85,7 +78,6 @@ def decode_filter_command(command: str) -> tuple[str, str] | None:
 
 
 def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
-    """Spoken phrase -> dispatch command for every filter trigger."""
     acts = load_acts() if acts is None else acts
     out: dict[str, str] = {}
     for query, forms in acts.items():
@@ -97,23 +89,9 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
 
 
 def set_commands_for_scope(scope: str, acts: Acts | None = None) -> tuple[str, ...]:
-    """Every set (non-clear) command for *scope* — for the command reference."""
     return tuple(set_command(scope, query)
                  for query in (load_acts() if acts is None else acts))
 
 
 def display_forms(acts: Acts | None = None) -> tuple[str, ...]:
-    """The acts under their real names — what the reference shows.
-
-    A spoken form is what the *recognizer* can hear, and that is not always what
-    the act is called: where the model has no token for a word, the form
-    spells it with tokens the model does have, which is what the model produces
-    when the real word is said aloud.  The query keeps the real term, so that is
-    what the reference shows — printing the workaround would teach the reader a
-    word nobody uses for the thing, over a model limitation that is none of
-    their business and that they never have to pronounce around.
-
-    The spoken forms have no such reader: the grammar is built from
-    :func:`filter_voice_commands`, so nothing outside this module needs them.
-    """
     return tuple(load_acts() if acts is None else acts)

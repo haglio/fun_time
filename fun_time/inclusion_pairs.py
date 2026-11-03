@@ -1,5 +1,3 @@
-"""The Main Funestra's pairs of inclusion buttons: two kinds of video each, a
-button for each kind, lit while that kind may play."""
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,15 +1,3 @@
-"""A rolling wall-clock summary of the VR frame loop's stages.
-
-The loop must hand the compositor a frame every refresh period; a stage that
-spikes past the budget is a dropped frame the user feels as judder, and
-nothing on a desktop monitor shows it.  So the loop notes each stage's
-duration and this logs one percentile line every few seconds — cheap enough
-to stay on permanently, so any headset session's ``vr_funestras.log`` says where
-its time went.
-
-Thread-aware: the file-channel pump reports from its worker thread while the
-frame loop reports from the render thread, so samples are taken under a lock.
-"""
 from __future__ import annotations
 
 import logging
@@ -34,22 +22,14 @@ class FramePerf:
         self._window_started = clock()
 
     def note(self, stage: str, ms: float) -> None:
-        """Record one stage duration in milliseconds (any thread)."""
         with self._lock:
             self._samples.setdefault(stage, []).append(ms)
 
     def frame_done(self) -> None:
-        """Count a completed frame — cheap enough for the render thread."""
         with self._lock:
             self._frames += 1
 
     def maybe_flush(self) -> None:
-        """Log and reset once the window elapses.
-
-        Called from the file-channel worker, never the render thread: the log
-        lands in the state directory, and a write that stalls there is the
-        exact class of hitch the two-thread split exists to keep off frames.
-        """
         now = self._clock()
         with self._lock:
             elapsed = now - self._window_started

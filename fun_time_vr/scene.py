@@ -1,9 +1,3 @@
-"""The geometry of one screen in the VR scene: where an item hangs, and the
-flat rectangle that carries it, square on to the viewer with its middle on one
-cylinder around the head.  Immersive projections (equirect/fisheye) don't use
-these at all — they fill the view from a shader — so this module is the whole
-of the "windowed" layout.
-"""
 from __future__ import annotations
 
 import math
@@ -12,8 +6,6 @@ from dataclasses import dataclass, replace
 import numpy as np
 from funestra.hud_placement import HudEdge
 
-# The view matrix is rotation-only (no head translation reaches the scene), so
-# the radius sets apparent scale only.
 RADIUS_M = 2.0
 
 MAIN_WIDTH_DEG = 72.0
@@ -93,9 +85,6 @@ def quad_layer_placement(
     scene_pitch_deg: float = 0.0,
     radius: float = RADIUS_M,
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float], tuple[float, float]]:
-    """Pose and size for the compositor quad carrying the rectangle
-    :func:`surface_vertices` draws: ``(position, orientation_xyzw, (width,
-    height))`` in the reference space's meters."""
     if aspect <= 0:
         raise ValueError(f"aspect must be positive, got {aspect}")
     theta = math.radians(placement.azimuth_deg)

@@ -1,6 +1,3 @@
-"""The buttons Fun Time puts on a satellite's HUD, declared in
-:class:`funestra.hud_button.Button` off the Funestra's own state.  Each verb is
-the dashboard command the dispatcher answers for that Funestra."""
 from __future__ import annotations
 
 from funestra.hud_button import FIT_THE_WORD, Button
@@ -67,7 +64,6 @@ def funestra_rows(funestra: str, *, locked: bool = False, favorites_filter: bool
 def mode_row(funestra: str, *, mode: SatellitesMode,
              origenerator_ready: bool = True, in_vr: bool = False,
              crowned: bool = False) -> tuple[Button, ...]:
-    """The session's own row over a Funestra: the mode pair, and minimize outside the headset."""
     return (
         *(_mode_button(funestra, button_mode, label, lit=mode is button_mode,
                        dim=button_mode is ORIGENERATOR_MODE and not origenerator_ready)

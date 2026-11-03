@@ -1,12 +1,3 @@
-"""The launch manifest: the one file every child of a session reads back.
-
-``state/windows_bridge_launch.ini`` is written once per launch and read by the
-AHK hotkey shell, the dashboard, the dispatch loop, the satellites and the VR
-orchestrator, with ``optionxform = str`` making the exact spelling of every key
-load-bearing.  Both halves of that schema live here — :func:`build_windows_bridge_manifest`
-writes it and :class:`LaunchManifest` reads it — so a key cannot be respelled on
-one Satellite alone.
-"""
 from __future__ import annotations
 
 import configparser
@@ -23,7 +14,6 @@ WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
 
 def _satellite_files(config) -> dict[str, str]:
-    """Both satellites' channel files, under the keys the manifest always used."""
     return {
         f"{funestra.label}_{name}": str(getattr(config.satellite(funestra), name))
         for funestra in FunTimeFunestra.SATELLITES
@@ -40,8 +30,6 @@ def build_windows_bridge_manifest(
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "sibling_checkouts": config.paths.sibling_checkouts_path,
-            # The Origenerator checkout the session hosts, or "" for a session
-            # hosting none (see fun_time.origenerator_switches).
             "origenerator_dir": str(config.paths.origenerator_dir or ""),
         },
         "executables": {
@@ -50,7 +38,6 @@ def build_windows_bridge_manifest(
         },
         "media": {
             "main_funestra_library_sources": "|".join(str(path) for path in config.paths.main_funestra_library_dirs),
-            # Which sources hold VR masters — none out here.  FunTimeVR's own.
             "vr_library_dirs": "",
             "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
             "landscape_dirs": "|".join(str(path) for path in config.paths.landscape_dirs),
@@ -77,9 +64,6 @@ def build_windows_bridge_manifest(
             "main_funestra_playlist_file": str(config.main_funestra_playlist_file),
             **_satellite_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
-            # The broker's own directory, so a child needing a broker file not
-            # named here resolves it against the broker and not the session --
-            # which had put the HUD's broker and OSR2 lights on an empty dir.
             "broker_state_dir": str(config.paths.broker_state_dir),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
             "audio_paused_file": str(config.audio_paused_file),
@@ -122,11 +106,6 @@ def build_windows_bridge_manifest(
 
 
 def write_manifest_data(data: dict[str, dict[str, str]], destination: Path) -> Path:
-    """Write a manifest dict as the INI every child process reads back.
-
-    Split from :func:`write_windows_bridge_manifest` so a variant session
-    (FunTimeVR) can amend the built dict before it hits disk.
-    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -143,24 +122,15 @@ def write_windows_bridge_manifest(
         build_windows_bridge_manifest(config, dashboard_enabled=dashboard_enabled), manifest_path)
 
 
-class ManifestKeyMissing(LookupError):  # not KeyError: str() must be the message, not its repr()
-    """A manifest that does not carry a key the session needs.
-
-    Raised naming the key AND the file, because the interesting question when
-    this happens is always which manifest — a session's own, a branch session's,
-    or one a stale process is still holding.
-    """
+class ManifestKeyMissing(LookupError):
+    pass
 
 
 @dataclass(frozen=True)
 class RuntimePaths:
-    """[runtime]: the config this session was built from, and the checkouts it runs."""
-
     config_path: str
     windows_bridge_log_file: str
     sibling_checkouts: str = ""
-    # The Origenerator checkout the session hosts, or "" for a session
-    # hosting none.
     origenerator_dir: str = ""
 
     @property
@@ -170,31 +140,24 @@ class RuntimePaths:
 
 @dataclass(frozen=True)
 class Executables:
-    """[executables]: the interpreters, one per family of children."""
-
     python_exe: str
     origenerator_python_exe: str = ""
 
 
 @dataclass(frozen=True)
 class MediaSources:
-    """[media]: the libraries and folders the Funestras draw from."""
-
     main_funestra_library_sources: str
     portrait_dirs: str
     landscape_dirs: str
     trash_dir: str
     genau_flicks: str
     genau_audio: str
-    # Defaulted, so this parse refuses no manifest a reader accepts today.
     vr_library_dirs: str = ""
     genau_vr_flicks: str = ""
 
 
 @dataclass(frozen=True)
 class ChildModules:
-    """[modules]: what each child is launched as (``python -m <module>``)."""
-
     main_funestra_module: str
     satellite_module: str
     audio_module: str
@@ -203,8 +166,6 @@ class ChildModules:
 
 @dataclass(frozen=True)
 class CommandFiles:
-    """[commands]: every file channel and flag a child of this session reads."""
-
     broker_mode_file: str
     genau_cmd_file: str
     genau_paused_file: str
@@ -234,8 +195,6 @@ class CommandFiles:
     state_dir: str
     main_funestra_notice_file: str
     origenerator_status_file: str
-    # The ones a reader has always defaulted rather than demanded, kept
-    # defaulted so this parse refuses nothing today's readers accept.
     broker_state_dir: str = ""
     broker_tray_launcher: str = ""
     origenerator_cmd_file: str = ""
@@ -247,10 +206,6 @@ class CommandFiles:
     osr2_slot_port: str = str(ports.OSR2_SLOT)
 
     def funestra_file(self, funestra: str, kind: str) -> str:
-        """One Satellite's file of a given kind, asked for by Satellite rather
-        than spelled out — ``funestra_file("portrait", "hud")`` is
-        ``portrait_hud_file``.  Both the HUD publisher and the headset build
-        their Satellites in a loop and have nowhere to write the key by hand."""
         return getattr(self, f"{funestra}_{kind}_file")
 
     @property
@@ -260,8 +215,6 @@ class CommandFiles:
 
 @dataclass(frozen=True)
 class RandomFavsBrowserSettings:
-    """[random_favs_browser]: the browser the session opens, if it opens one."""
-
     enabled: bool
     shortcut_path: str
     manifest_file: str
@@ -269,8 +222,6 @@ class RandomFavsBrowserSettings:
 
 @dataclass(frozen=True)
 class RegenSettings:
-    """[regen]: where a generated video goes and which page makes one."""
-
     generate_video_url: str = RegenConfig.generate_video_url
     generate_image_url: str = RegenConfig.generate_image_url
     media_root: str = ""
@@ -289,14 +240,6 @@ _SECTION_RECORDS: dict[str, tuple[str, type]] = {
 
 @dataclass(frozen=True)
 class LaunchManifest:
-    """One session's manifest, read once and asked for by name after that.
-
-    Values are the strings the file carries, unconverted — what a child is
-    handed on its command line has to be byte-for-byte what the writer put in
-    the file — except the four that were never strings to begin with: the two
-    enabled flags, the loopback port and the layout numbers.
-    """
-
     runtime: RuntimePaths
     executables: Executables
     media: MediaSources
@@ -310,12 +253,6 @@ class LaunchManifest:
 
     @classmethod
     def read(cls, path: str | Path) -> LaunchManifest:
-        """Parse one manifest, raising :class:`ManifestKeyMissing` on a gap.
-
-        Unknown sections and keys are ignored: FunTimeVR amends the built dict
-        with a ``[vr]`` section of its own before writing it, and a manifest is
-        allowed to carry more than this session reads.
-        """
         path = Path(path)
         parser = configparser.ConfigParser()
         parser.optionxform = str
@@ -338,8 +275,6 @@ class LaunchManifest:
         return cls(
             **{attr: record(section, kind)
                for section, (attr, kind) in _SECTION_RECORDS.items()},
-            # "1"/"0" on the wire, read once here: each reader spelling the
-            # comparison itself is how two of them come to disagree.
             dashboard_enabled=flag("dashboard", "enabled").strip()
             not in {"", "0", "false", "False"},
             loopback_port=int(flag("loopback", "port")),

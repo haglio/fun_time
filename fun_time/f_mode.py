@@ -30,13 +30,6 @@ def _sided_fmode_command(funestra: FunTimeFunestra, target: bool | None) -> str:
     return f"{funestra.label}_fmode" + {None: "", True: "_on", False: "_off"}[target]
 
 
-# Which Funestras each F-mode command reaches, and what it sets them to — None for
-# the toggles, True/False for the forms that assert a state and so cannot land on
-# the opposite of what was asked when a phrase is misheard twice.  The bare
-# command — the F key, the spoken "f mode" — still means all three at once; naming
-# a Funestra reaches that one alone, off its own HUD button or its own spoken
-# phrase.  ``both_fmode`` never arrives here: the dispatch loop expands every
-# both_* into its portrait/landscape pair first.
 _FMODE_COMMANDS: dict[str, tuple[tuple[FunTimeFunestra, ...], bool | None]] = {
     "fmode_toggle": (FMODE_FUNESTRAS, None),
     "fmode_on": (FMODE_FUNESTRAS, True),
@@ -57,7 +50,6 @@ def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: FunTime
 
 
 def _with_f_mode(state: BridgeState, funestras: tuple[FunTimeFunestra, ...], enabled: bool) -> BridgeState:
-    """*state* with each of *Funestras* put into F-mode, or out of it."""
     for funestra in funestras:
         if funestra is not FunTimeFunestra.MAIN:
             state = state.with_satellite(funestra, favorites_filter=enabled)
@@ -80,13 +72,6 @@ def every_funestra_in_f_mode(state: BridgeState, config: BridgeConfig,
 
 
 def _next_f_mode(state: BridgeState, config: BridgeConfig, funestras: tuple[FunTimeFunestra, ...]) -> bool:
-    """What a toggle over *Funestras* should set them all to.
-
-    One Funestra is an ordinary flip.  Several — the F key, or a spoken "f mode" —
-    turn on unless every one of them is already on, so the key that means "narrow
-    everything" can never leave half Fun Time narrowed and half not: it either
-    completes the narrowing or lifts it.
-    """
     return not every_funestra_in_f_mode(state, config, funestras)
 
 
@@ -101,13 +86,6 @@ def _dispatch_fmode(
     funestras: tuple[FunTimeFunestra, ...], target: bool | None,
     state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Put *Funestras* into F-mode or out of it, rebuilding only what moves.
-
-    *target* is the state to assert, or None to toggle.  A Funestra already in the
-    asked-for state is left out of the rebuild entirely: its playlist file is not
-    rewritten, so "portrait f mode on" said twice does not reshuffle the queue the
-    first one built.
-    """
     enabled = _next_f_mode(state, config, funestras) if target is None else target
     hosted = tuple(funestra for funestra in funestras if hosts(funestra, state, config))
     changed = tuple(funestra for funestra in funestras
@@ -139,18 +117,10 @@ def _dispatch_fmode(
     if result.funestras:
         logger.info(result.log_message)
     state = _with_f_mode(state, (*result.funestras, *genau), enabled)
-    # A rebuilt satellite got a new queue, which drops its lock, its group loop and
-    # the widened seed row that rode on the loop — the same as any other rebuild.
     for funestra in FunTimeFunestra.SATELLITES:
         if funestra in result.funestras:
             state = cancel_lock(funestra, state, config)
             state = clear_satellite_grouping(state, funestra)
-    # Flash which way it went, on the display it went on — a sided F-mode reports
-    # from that Funestra, the all-Funestras one from Fun Time.  It goes off the Funestras
-    # *asked for*, not the ones that moved: "f mode" is a gesture at Fun Time even
-    # on the press where only one Funestra was left to narrow.  Enabling is green,
-    # since what it narrows to is the favorites and the funscripts; disabling is
-    # an ordinary white message.
     source = FUNESTRA_SOURCES[funestras[0]] if len(funestras) == 1 else SOURCE_SYSTEM
     message_op = WindowOp(
         op="message",

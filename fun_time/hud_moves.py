@@ -10,12 +10,6 @@ from .fun_time_funestras import FunTimeFunestra
 from .origenerator_switches import hosts
 from .shared_state import BridgeState
 
-# A Funestra's own minimize button (``fun_time.satellite_buttons``, and the Main
-# Funestra's on its HUD, ``fun_time.console_buttons``), by the window the
-# dispatch loop resolves it to.  Every Funestra's window here is borderless, so
-# none of them carries a minimize button of its own, and the only other way to
-# park one was the dashboard's minimize — which takes all of Fun Time down
-# together.
 _MINIMIZE_WINDOWS: dict[str, str] = {
     "portrait_minimize": "portrait",
     "landscape_minimize": "landscape",
@@ -115,14 +109,10 @@ def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, state: BridgeSt
 
 
 def minimize_ops(command: str) -> list[WindowOp] | None:
-    """The window *command* asks to have parked, or None when it asks for none."""
     window_name = _MINIMIZE_WINDOWS.get(command)
     return None if window_name is None else [WindowOp(op="minimize_window", key=window_name)]
 
 
-
 def placed_hud(command: str, state: BridgeState, config: BridgeConfig) -> BridgeState | None:
-    """*state* with the HUD *command* moves, collapses or reopens placed so, or
-    None for a command about no HUD."""
     return (_moved_hud(command, state, config) or _collapsed_hud(command, state, config)
             or _restored_at(command, state, config))

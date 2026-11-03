@@ -1,4 +1,3 @@
-"""Reading the panel's snapshot back off disk; the bridge beside it writes it."""
 from __future__ import annotations
 
 import configparser

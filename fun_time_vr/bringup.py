@@ -1,5 +1,3 @@
-"""Opening a session on the headset, and what to say when it cannot be opened.
-Out of :mod:`fun_time_vr.app`, which needs glfw, OpenGL and xr to import."""
 from __future__ import annotations
 
 import logging
@@ -10,8 +8,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# How long bring-up tolerates a cold runtime whose graphics device is still
-# coming up, and how often it retries; inside the orchestrator's 120s.
 SESSION_BRINGUP_TIMEOUT_S = 60.0
 SESSION_BRINGUP_RETRY_S = 2.0
 
@@ -40,7 +36,6 @@ def open_vr_session(
     now: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Bringup:
-    """Keep asking while the runtime is merely still warming up."""
     deadline = now() + timeout_s
     while True:
         try:

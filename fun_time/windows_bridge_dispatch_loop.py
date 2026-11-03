@@ -1,8 +1,3 @@
-"""Background dispatch loop for dashboard commands and genau sync.
-
-Runs in a thread alongside the AHK hotkey script, handling periodic
-dispatch directly in Python instead of spawning subprocesses.
-"""
 from __future__ import annotations
 
 import logging
@@ -88,7 +83,6 @@ logger = logging.getLogger(__name__)
 
 
 def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
-    # HWND_TOPMOST inserts at the band's TOP, so run this after the ops it outranks.
     if browsing is None or browsing.poll() is not None:
         return 0
     hwnd = find_window_for_process(browsing.pid)
@@ -98,10 +92,6 @@ def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
 
 
 def poll_dashboard_commands(cmd_file: Path) -> list[str]:
-    """Claim the dashboard command file and return every queued command, as spelled.
-
-    The family's consumer, with case kept: a dashboard verb can carry a path.
-    """
     return consume_command_file(cmd_file, uppercase=False)
 
 
@@ -120,8 +110,6 @@ _FUNESTRA_GROUPS = {
 
 
 def expand_group_command(command: str) -> list[str]:
-    """A ``both_``/``all_`` command as the per-Funestra commands it stands for,
-    each then handled exactly as if said alone; anything else as itself."""
     for group, funestras in _FUNESTRA_GROUPS.items():
         if command.startswith(group):
             return [funestra + command[len(group):] for funestra in funestras]
@@ -146,8 +134,6 @@ _DASHBOARD_WARNING_EVERY_S = 60.0
 
 
 class DispatchLoopRunner:
-    """Runs dashboard polling and genau sync in-process."""
-
     def __init__(
         self,
         *,
@@ -172,22 +158,15 @@ class DispatchLoopRunner:
         self.dashboard_cmd_file = dashboard_cmd_file
         self.shared_state_file = shared_state_file
         self.ahk_cmd_file = ahk_cmd_file
-        # The session's launch manifest — handed to the library browser, which
-        # reads the same file every other child process does, so the browse can
-        # never disagree with the session about what the library is.
         self.manifest_path = manifest_path or (
             config.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        # Every window the session manages, and the one cache of their HWNDs:
-        # the tick and the library browser's own thread both go through here.
         self.windows = windows
         self.seating = Seating(secondary_rects,
                                main_funestra_status_file=config.main_funestra_status_file,
                                genau_status_file=config.genau_status_file)
         self.dashboard_enabled = dashboard_enabled
         self.env = env
-        # This loop holds the state each Funestra's own HUD is drawn from (locks,
-        # filters, loops) and already ticks, so it is what feeds them.
         self.hud = HudFeed(config=config, publisher=hud_publisher)
         self.rfb_shortcut = rfb_shortcut or Shortcut()
         self.rfb_slideshow = rfb_slideshow
@@ -202,9 +181,6 @@ class DispatchLoopRunner:
         self._last_dashboard_warning = float("-inf")
         self._stop = threading.Event()
         self._browse_lock = threading.Lock()
-        # The browse now on screen, if any.  It is launched mid-session, so it
-        # cannot join the startup children the teardown list kills; this holds it
-        # instead, and stop() is where quitting takes it with the session.
         self._browser_process: subprocess.Popen | None = None
         self._pending_rfb_urls: list[str] = []
         self._batching_rfb = False
@@ -250,26 +226,18 @@ class DispatchLoopRunner:
             self._dispatch(command)
 
     def tick(self) -> None:
-        """Run one iteration: poll dashboard, maybe sync genau."""
         self.messages.flash_new()
 
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
             self.state = shared
-        # File or no file: this corrects a reading of Fun Time, not the file.
         self.state = self.opening.app_as_it_is(self.state)
         self.state = self.reporting.recorded(self.state, self.config, now=time.monotonic())
         if shared is not None and shared != self.state:
-            # Nothing else writes the file until a command is dispatched, which on
-            # a session nobody is touching may be never.
             write_shared_state(self.shared_state_file, self.state)
 
         self.arbiter.follow(self.state)
 
-        # Dashboard commands, several at once under rapid hotkey presses.  Each
-        # raw line yields a command plus, for a spoken one, when the utterance
-        # began; an "active_*" command then resolves onto the Funestra most
-        # recently addressed and a "both_*" one expands into its pair.
         self._batching_rfb = True
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
@@ -278,8 +246,6 @@ class DispatchLoopRunner:
             self._batching_rfb = False
         self._pause_for_a_click_into_a_text_field()
         self._flush_rfb_tabs()
-        # After the batch, so a switch and a switch straight back inside one
-        # batch cancel rather than minimize the Funestra they just brought back.
         self.windows.flush_pending_hides()
         seated = self.seating.seat(self.state, self.windows)
         if seated is not self.state:
@@ -288,7 +254,6 @@ class DispatchLoopRunner:
 
         self.voice.suspend_as_the_app_is(paused=self.state.omni_paused)
 
-        # Periodic sync: z-order enforcement, the satellites' rate, the dashboard
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
@@ -339,11 +304,6 @@ class DispatchLoopRunner:
         flash_message(logger, message, source=source, level=level)
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
-        """Route one polled command (already expanded from any ``both_*``).
-
-        ``spoken_at`` is when a voice command's utterance began, and None for
-        the instantaneous hotkey and dashboard presses.
-        """
         if cmd in HEADSET_SIGNALS:
             _headset(self, cmd)
             return
@@ -356,8 +316,6 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
-        # A press bound for an Origenerator show steps that show, and booking
-        # it here would count a library video as skipped or discarded.
         if not routes_to_origenerator(command, self.state, self.config):
             self.watch.note_command(command)
         self._take(*dispatch_command(
@@ -373,8 +331,6 @@ class DispatchLoopRunner:
         for op in ops:
             handler = _OP_HANDLERS.get(op.op)
             if handler is None:
-                # Never the AHK fall-through: an op the interpreter does not
-                # know is a bug here, not a verb for the hotkey script.
                 logger.error("unhandled window op %r", op.op)
                 continue
             handler(self, op)
@@ -415,8 +371,6 @@ class DispatchLoopRunner:
                 "%d RFB tab(s) skipped: no Random Favs Browser window to open into", len(urls))
             return
         if not force_foreground_window(self.windows.rfb_hwnd):
-            # Not fatal, and expected on the integration suite's hidden desktop,
-            # which has no foreground window to become.
             logger.info("RFB window did not take the foreground before the tab handoff")
         open_rfb_tab(urls=urls, shortcut=self.rfb_shortcut)
         logger.info("Opened %d RFB tab(s)", len(urls))
@@ -428,12 +382,6 @@ class DispatchLoopRunner:
             post_to_inbox(self.config.state_dir / PRESS_PORT_FILENAME, action)
 
     def _update_dashboard(self) -> None:
-        """Write the dashboard's snapshot; only the disk may fail quietly.
-
-        OSError (the state file held open by a reader) warns, throttled to once
-        per failing minute since this runs twice a second; anything else is a
-        bug of ours that the loop's per-tick exception log must show.
-        """
         try:
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
@@ -458,8 +406,6 @@ class DispatchLoopRunner:
                 logger.warning("dashboard snapshot write failed: %s", exc)
 
     def _converge_origenerator_window(self) -> None:
-        """Converge the hosted app's window — never during OmniPause, whose
-        window state is its own."""
         if self.state.omni_paused:
             return
         self.windows.converge_origenerator_window(self.state.rfb_mode)
@@ -473,12 +419,6 @@ class DispatchLoopRunner:
                     self.windows.topmost_report())
 
     def _handle_browse_library(self) -> None:
-        """Browse the library and play the pick in the Main Funestra, one browse at a time.
-
-        Serialized on a lock: the browser is the user's window, not the dispatch
-        loop's, so a second request while one is open would stack a second
-        browser and a second topmost drop/restore pair.
-        """
         if not self._browse_lock.acquire(blocking=False):
             return
         try:
@@ -487,12 +427,6 @@ class DispatchLoopRunner:
             self._browse_lock.release()
 
     def _browse_library_inner(self) -> None:
-        # Browsing keeps everything playing -- it must NOT enter OmniPause (a
-        # pause here once stranded the satellites and voice frozen).  The browser
-        # needs only not to be buried under the always-on-top windows and not to
-        # lose its arrow keys to the global hotkeys, so the bands drop and the
-        # keys suspend for its duration.  Under OmniPause both are already down
-        # and the pause owns that hold, so it is left to release it.
         manage_session = not self.state.omni_paused
 
         if manage_session:
@@ -500,8 +434,6 @@ class DispatchLoopRunner:
             append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
         try:
-            # Over the Main Funestra's window: the pick plays there, so the browse
-            # stands where it will, and covers nothing else on either monitor.
             genau = not kino_shows(self.state.main_mode)
             funestra_hwnd = self.windows.hwnd("main_funestra")
             selected = browse_library(
@@ -523,10 +455,6 @@ class DispatchLoopRunner:
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
-        """Main loop — call from a background thread."""
-        # Log the topmost state once the loop starts so a "windows not all on top
-        # after launch" report can be pinned to the exact window that missed its
-        # startup promotion.
         self._log_topmost_state("startup")
         self.typing.start()
         start_daemon_thread(target=keep_looking, args=(self.latest_arrivals.look, self._stop),
@@ -549,7 +477,6 @@ class DispatchLoopRunner:
             self._stop.wait(0.05)
 
     def _run_browser(self, command, **kwargs) -> None:
-        """Run the browser, holding it while it is up so :meth:`stop` can end it."""
         process = subprocess.Popen(command, **no_child_log(), **kwargs)
         self._browser_process = process
         try:
@@ -569,14 +496,7 @@ class DispatchLoopRunner:
             browsing.terminate()
 
 
-# --- the loop's own commands --------------------------------------------------
-# What needs the loop's live objects -- its windows, its voice, the browse, the
-# broker, the hotkey script -- is answered here by name; everything else is
-# command_dispatch's, a state in and window ops out.
-
 def _quit(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
-    # Said, because a mis-heard word otherwise reads exactly like a
-    # deliberate click.
     mark_session_end(
         runner.config.state_dir,
         "the quit command, spoken" if spoken_at is not None else "the quit command, pressed",
@@ -585,7 +505,6 @@ def _quit(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
 
 
 def _cross(target: HandoffTarget, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    """Cross to the other session, ending this one as "quit" does."""
     refused = request_a_crossing(target, runner.config.state_dir,
                                  vr_main_funestra=runner.config.vr_main_funestra)
     if refused:
@@ -597,15 +516,10 @@ def _cross(target: HandoffTarget, runner: DispatchLoopRunner, _spoken_at: float 
 
 def _show_the_reference(toggling: bool, runner: DispatchLoopRunner,
                         _spoken_at: float | None) -> None:
-    # A dashboard-UI action: the press tells a desktop dashboard, the flag tells
-    # a headset, and there is nothing to dispatch.
     runner._publish_panel(REFERENCE_OPEN_FILENAME, toggling=toggling)
 
 
 def _omniminimize(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    """Minimize the windows the modes show, and only those (SW_MINIMIZE would
-    drag a parked window back into view); the set is remembered so omnirestore
-    brings back exactly these windows."""
     runner.windows.minimize_all(visible_windows(runner.state.rfb_mode))
 
 
@@ -620,8 +534,6 @@ def _toggle_omnipause(runner: DispatchLoopRunner, _spoken_at: float | None) -> N
 
 
 def _enter_omnipause(command: str, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    """*command* is the way in: ``enter_omnipause`` (Space) parks the OSR2,
-    ``relief_omnipause`` (Shift+Esc) retracts it instead."""
     runner._dispatch(command)
     runner._log_topmost_state("post-enter")
 
@@ -661,7 +573,6 @@ def _press_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> N
 
 
 def _start_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    """Start the broker if none is running: a start, never a restart."""
     if not broker.is_running(runner.config.broker_state):
         broker.start(runner.config.broker_tray_launcher)
 
@@ -672,7 +583,6 @@ def _stop_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> No
 
 
 def _toggle_voice(command: str, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    """Mute or toggle voice control, then refresh the dashboard."""
     muted = runner.voice.toggle(command)
     if muted is None:
         return
@@ -727,11 +637,6 @@ _LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = 
 }
 
 
-# --- the window-op interpreter ----------------------------------------------
-# One handler per Op item, checked complete at import: a new op without a
-# handler fails startup, not the first press.  Only the two hotkey-suspension
-# verbs may pass through to ahk_cmd.txt — AHK ignores every other string.
-
 _AHK_PASSTHROUGH_OPS = {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS}
 
 
@@ -744,10 +649,6 @@ def _run_hide_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_minimize_window(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    # A Funestra's own HUD minimize button, parking that one window — straight
-    # away, unlike the settled hide of the Main Funestra: the window goes down still
-    # showing its video, which is what was pressed for, and its frozen
-    # thumbnail is then the video it holds.
     runner.windows.park(op.key)
 
 
@@ -777,8 +678,6 @@ def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_save_video(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    # Slow work runs beside the loop, like the browse; the thread flashes the
-    # result when the save lands.
     runner._answers += 1
     threading.Thread(
         target=save_and_say,
@@ -853,12 +752,6 @@ def build_bridge_config_from_manifest(
     *,
     vr_main_funestra: bool = False,
 ) -> BridgeConfig:
-    """Build a BridgeConfig from the session's launch manifest.
-
-    *vr_main_funestra* says the session hosts its Main Funestra inside the VR
-    scene rather than launching the Main Funestra.  The manifest cannot answer it — both
-    sessions build from the same one — so the orchestrator that knows says so.
-    """
     commands = manifest.commands
     return BridgeConfig(
         vr_main_funestra=vr_main_funestra,

@@ -47,10 +47,6 @@ class MainListBuild:
 
 
 class MainListBuilds(Protocol):
-    """Where a :class:`MainListBuild` runs -- synchronously in tests
-    (:class:`BuildsHere`), off the dispatch thread in a real bridge session
-    (:class:`BuildsOffTheLoop`), so a slow drive cannot freeze it."""
-
     def build(self, build: MainListBuild) -> None: ...
 
     def settle(self) -> None: ...
@@ -82,7 +78,6 @@ class BuildsOffTheLoop:
                 start_daemon_thread(target=self._build_until_none_wait, name="main-list-builds")
 
     def settle(self) -> None:
-        """Block until every build asked for so far has actually run."""
         self._idle.wait()
 
     def _build_until_none_wait(self) -> None:

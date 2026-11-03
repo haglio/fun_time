@@ -1,11 +1,3 @@
-"""The live windows under the managed windows.
-
-:mod:`fun_time.window_names` says which band a window belongs in — pure policy,
-no window in sight.  This module holds the other half: the HWNDs the session's
-children put on screen, how they are found, and which ones have been put away.
-One instance per session, shared by the dispatch tick and the library browser's
-own thread, so the cache below is the one cache both of them read.
-"""
 from __future__ import annotations
 
 import logging
@@ -48,24 +40,15 @@ from .windows_bridge_startup import (
 logger = logging.getLogger(__name__)
 
 
-# How long Origenerator leaving the browser's place gives the hosted app's window
-# to act before it is minimized (see :meth:`FunTimeWindows.hide_after_settle`).
-# Generous next to the two frames a window needs; being early is the failure it
-# exists to avoid.
 MAIN_BLANK_SETTLE_S = 0.25
 
 
 def find_origenerators_window(pid: int) -> int:
-    # Pid AND title: a standalone Origenerator of his owns a window with the
-    # same caption.  Children included, for a recorded pid that is a launcher's.
     return find_window_for_process(pid, is_origenerators_caption, include_hidden=True)
 
 
 @dataclass(frozen=True)
 class ChildPids:
-    """The launched children whose windows the session manages: a pid the
-    startup sequencer recorded, or 0 for a child this session never launched."""
-
     main_funestra: int = 0
     portrait: int = 0
     landscape: int = 0
@@ -74,8 +57,6 @@ class ChildPids:
 
 
 class FunTimeWindows:
-    """Resolves a managed role to the window that is playing it."""
-
     def __init__(
         self,
         *,
@@ -86,14 +67,7 @@ class FunTimeWindows:
     ) -> None:
         self.pids = pids
         self.rfb_hwnd = rfb_hwnd
-        # Seeded from the startup sequencer, which resolved every window
-        # while it was still visible — startup then hides the inactive
-        # windows of the Main Funestra, and hidden windows are invisible to the
-        # pid/title lookups.
         self._hwnds_by_window: dict[str, int] = dict(hwnds_by_window or {})
-        # The settle a mode switch's outgoing Funestra waits out is the one thing
-        # here that is about elapsed time.  Injectable so a test can let it run
-        # out rather than reach in and back-date the deadline.
         self.clock = clock
         # Windows of the Main Funestra waiting out MAIN_BLANK_SETTLE_S before they are
         # minimized, by window -> the time they are due.
@@ -108,32 +82,12 @@ class FunTimeWindows:
         self._minimized_hwnds: list[int] = []
 
     def hwnd(self, window_name: str) -> int:
-        """HWND for a managed window, cached on first sight.
-
-        Hidden windows are invisible to the pid/title lookups, so a
-        window's HWND must be captured while it is visible (startup shows
-        everything) and reused to show it again later.
-        """
         hwnd = self._hwnds_by_window.get(window_name, 0)
         if hwnd and window_name == ORIGENERATOR_WINDOW and not window_exists(hwnd):
-            # The hosted app's boot can put a short-lived twin of this caption
-            # up first (its splash), and caching that leaves every later
-            # restore aimed at a dead handle — the switch that visibly did
-            # nothing.  Only this role heals its cache: the other windows live
-            # as long as the session, and their hidden phases (SW_HIDE under
-            # the overlay) are exactly when a re-resolve would come up empty.
             self._hwnds_by_window.pop(window_name, None)
             hwnd = 0
         if hwnd:
             return hwnd
-        # The three SDL Funestras are looked up by pid AND by caption: the pid on
-        # record is the venv pythonw launcher's, not the interpreter that owns
-        # the window, so on a cold cache by-pid alone finds nothing and every
-        # band operation silently skips the Funestra.  The captions are matched
-        # exactly, the way every caption this session resolves is: a substring
-        # lookup answers with whatever window it reaches first whose title
-        # merely CONTAINS the name (see find_window_by_title), and handing one
-        # Satellite's window to the other is the portrait/landscape visual swap.
         if window_name == "main_funestra":
             hwnd = find_window_by_pid(self.pids.main_funestra) or find_window_by_title("Main Funestra", exact=True)
         elif window_name == "portrait":
@@ -167,25 +121,14 @@ class FunTimeWindows:
                 )
         return hwnd
 
-    # -- putting windows down and bringing them back ------------------------
 
     def show(self, window_name: str) -> None:
-        """Bring a window's window back — the mode switch's incoming Funestra.
-
-        Restore rather than SW_SHOW: the idle Main Funestra is parked by
-        minimizing it (which keeps its taskbar button), so bringing it back is a
-        restore.  No-activate — focus is :meth:`activate`'s business — and DWM
-        transitions are disabled, so it is instant.  A switch straight back
-        cancels the settle: the window being restored must not be minimized a
-        moment later.
-        """
         self._pending_hides.pop(window_name, None)
         hwnd = self.hwnd(window_name)
         if hwnd:
             restore_window(hwnd, activate=False)
 
     def activate(self, window_name: str) -> None:
-        """Hand a window's window the foreground."""
         hwnd = self.hwnd(window_name)
         if hwnd:
             activate_window(hwnd)
@@ -201,7 +144,6 @@ class FunTimeWindows:
         self._pending_hides[window_name] = self.clock() + MAIN_BLANK_SETTLE_S
 
     def flush_pending_hides(self) -> None:
-        """Park each window of the Main Funestra whose settle time has run out."""
         if not self._pending_hides:
             return
         now = self.clock()
@@ -210,23 +152,11 @@ class FunTimeWindows:
             self.minimize(window_name)
 
     def minimize(self, window_name: str) -> None:
-        # Minimize instead of SW_HIDE so the window keeps its taskbar button
-        # (running indicator) the whole session — and, for a satellite parked
-        # from its own HUD, so there is something left to click: that HUD goes
-        # down with the window, so the taskbar button is the way back.
-        # No-activate, so parking one Funestra never yanks focus to the next.
         hwnd = self.hwnd(window_name)
         if hwnd:
             minimize_window(hwnd, activate=False)
 
     def park(self, window_name: str) -> None:
-        """Minimize a window the user asked to have out of the way, and remember it.
-
-        Remembered here rather than inside :meth:`minimize`, which the mode
-        switch also calls: what it parks is the mode's business and comes back
-        when the mode brings it back, so putting it on this list would have the
-        next resume drag a hidden window onto a rect another one is using.
-        """
         hwnd = self.hwnd(window_name)
         if not hwnd:
             return
@@ -248,13 +178,6 @@ class FunTimeWindows:
         self._parked_hwnds = []
 
     def minimize_all(self, window_names: Iterable[str]) -> None:
-        """Minimize the windows the modes show — the "omniminimize" command.
-
-        Only those are minimized (SW_MINIMIZE would drag a parked window back
-        into view), each with ``activate=False`` so
-        minimizing one never yanks focus to the next.  The minimized set is
-        remembered so :meth:`restore_minimized` brings back exactly these.
-        """
         self._minimized_hwnds = []
         for window_name in window_names:
             hwnd = self.hwnd(window_name)
@@ -263,12 +186,6 @@ class FunTimeWindows:
                 self._minimized_hwnds.append(hwnd)
 
     def restore_minimized(self) -> None:
-        """Un-minimize exactly the windows :meth:`minimize_all` minimized.
-
-        That set is every window the mode had on screen, so it covers any that a
-        HUD button had already parked — they are up again, and the parked list is
-        dropped so a later resume does not "restore" windows already restored.
-        """
         for hwnd in self._minimized_hwnds:
             restore_window(hwnd, activate=False)
         self._minimized_hwnds = []
@@ -278,8 +195,6 @@ class FunTimeWindows:
         self.place([("portrait", rects.portrait), ("main_funestra", rects.main)])
 
     def takes_typing(self, window: int, process: int, *, hosted_app: bool) -> bool:
-        """Whether a press on *window* of *process* can land in a text field of
-        this session's: the Random Favs Browser's window, or the hosted app's."""
         if self.rfb_hwnd and window == self.rfb_hwnd:
             return True
         if not hosted_app or not process:
@@ -300,19 +215,14 @@ class FunTimeWindows:
         for _growth, hwnd, rect in sorted(moves, key=lambda move: move[0]):
             place_window(hwnd, rect.x, rect.y, rect.width, rect.height)
 
-    # -- the topmost bands --------------------------------------------------
 
     def remove_all_topmost(self) -> None:
-        """Drop EVERY managed window out of the TOPMOST band (omnipause frees
-        the desktop)."""
         for window_name in MANAGED_WINDOWS:
             hwnd = self.hwnd(window_name)
             if hwnd:
                 set_always_on_top(hwnd, False)
 
     def restore_all_topmost(self, rfb_mode: RfbMode) -> None:
-        """Re-apply the topmost bands after omnipause: the windows with a rect
-        of their own, then the shared rect's pair in the order it stacks in."""
         for window_name in FIXED_TOPMOST_WINDOWS:
             hwnd = self.hwnd(window_name)
             if hwnd:
@@ -320,8 +230,6 @@ class FunTimeWindows:
         self.restack_rfb_mode(rfb_mode)
 
     def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> None:
-        """Put the browser in the band only while it holds its place, and
-        promote the hosted Origenerator's window over it while that does."""
         if paused:
             return
         browser = self.hwnd("rfb")
@@ -334,25 +242,11 @@ class FunTimeWindows:
             set_always_on_top(hwnd, True)
 
     def converge_origenerator_window(self, rfb_mode: RfbMode) -> None:
-        """Keep hosted Core where the browser's place says.
-
-        The switch's ops restore or park it when a command fires, but the
-        window arrives mid-session — Fun Time opens without waiting the app
-        out — so this is what meets it: parked while the browser holds its
-        place, and up while Origenerator does.
-
-        Judged from the WINDOW, not from a memory of what was asked: the app's
-        main thread blocks for long stretches while it boots, so a restore sent
-        to it can time out through the stalled-window guard and do nothing — and a
-        converger that then remembered "shown" never tried again, which left the
-        window parked until the user dug it out of the taskbar.  Reading the
-        minimized state each pass makes every miss retry.
-        """
         if not self.pids.origenerator:
             return
         hwnd = self.hwnd(ORIGENERATOR_WINDOW)
         if not hwnd:
-            return  # still booting — try again next sync
+            return
         minimized = is_window_minimized(hwnd)
         if rfb_mode is RfbMode.ORIGENERATOR:
             if minimized:
@@ -367,12 +261,6 @@ class FunTimeWindows:
                    for window_name in RFB_MODE_WINDOWS if (hwnd := self.hwnd(window_name)))
 
     def topmost_report(self) -> str:
-        """Every managed window's resolved hwnd and topmost state, one line.
-
-        Entering omnipause should leave EVERY window non-topmost; one still
-        topmost at "post-enter" is one the drop didn't reach, and this is the
-        diagnostic that names it.
-        """
         parts = []
         for window_name in MANAGED_WINDOWS:
             hwnd = self.hwnd(window_name)

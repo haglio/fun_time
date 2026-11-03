@@ -1,4 +1,3 @@
-"""Whether a view the runtime located is worth drawing from, and whether it follows a head."""
 from __future__ import annotations
 
 import xr

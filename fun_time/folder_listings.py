@@ -7,8 +7,6 @@ from pathlib import Path
 
 
 class FolderListings:
-    """Each folder read once, for one drawing or one build."""
-
     def __init__(self) -> None:
         self._read: dict[str, dict[str, os.stat_result]] = {}
 

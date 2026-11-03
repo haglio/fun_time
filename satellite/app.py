@@ -1,8 +1,3 @@
-"""Fun Time's satellite program: a Funestra on a borderless window the session places.
-
-A shell: the Funestra it runs on that window is funestra's, and what is
-tested here is the window and the loop (tests/test_satellite_app_loop.py).
-"""
 from __future__ import annotations
 
 import logging
@@ -30,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 
 def set_up_logging() -> logging.Logger:
-    """This process's own log, and its own crash in it."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     install_exception_logging(logger)
     return logger
@@ -49,8 +43,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _open_window(placement: WindowPlacement) -> int:
-    """Put this satellite's borderless window on screen; return its HWND.  The
-    order here is the whole content of the function, and each step says why."""
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on a control had to be made
     # twice.  The mechanism is written down in funestra.sdl_hints.
@@ -74,8 +66,6 @@ def _open_window(placement: WindowPlacement) -> int:
     # the portrait/landscape rect.
     pygame.display.set_mode((placement.width, placement.height), pygame.NOFRAME)
     take_outside_resizes(pygame)
-    # A distinct --title per satellite, so the sequencer can resolve each window
-    # to its place by title when the pid lookup fails; also its Alt-Tab name.
     pygame.display.set_caption(placement.title)
     return pygame.display.get_wm_info()["window"]
 

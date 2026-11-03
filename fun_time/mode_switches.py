@@ -26,17 +26,12 @@ logger = logging.getLogger(__name__)
 
 
 def _main_funestra_ops() -> list[WindowOp]:
-    """The Main Funestra on a mode switch: Kino and Genau share the Main Funestra's
-    window, which the switch has already told which of them to show, so what is
-    left is to bring that window back if it was parked and hand it the focus,
-    so focus never falls through to another application."""
     return [
         WindowOp(op="show_window", key="main_funestra"),
         WindowOp(op="activate_window", key="main_funestra"),
     ]
 
 
-# The Main Funestra's two mode switches, by their target mode.
 _MODE_SWITCH_COMMANDS: dict[str, str] = {
     "genau_activate": MAIN_GENAU_MODE,
     "main_kino_activate": MAIN_KINO_MODE,
@@ -80,9 +75,6 @@ def _dispatch_mode_switch(
 
 def _kino_activate(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """"kino mode", said of no Satellite: the Main Funestra's video AND the satellites'
-    Funestras, each through its own switch — a session hosting no Origenerator
-    has only the Main Funestra's to make."""
     state, ops = _dispatch_mode_switch(MAIN_KINO_MODE, state, config, [])
     if config.origenerator_enabled:
         state, more = _both_satellites_switch(KINO_MODE, state, config, _target_path)

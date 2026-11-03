@@ -1,13 +1,3 @@
-"""The message a message flashes over the Funestra it names, drawn for a video.
-
-The desktop hangs a frameless window over that Funestra's; a headset has none, so
-the same message is composited into the frame the way the scrubber is.  Shape
-and colors are :class:`fun_time.message_overlay.MessageOverlay`'s.
-
-Every measurement scales with the frame, which is not the size of a window: a
-satellite decodes to 2048px and the Main Funestra to 8192, so the desktop's own
-19px type came out a tenth of the height it reads at there.
-"""
 from __future__ import annotations
 
 import math
@@ -29,8 +19,6 @@ from shared_ui.type_scale import in_pixels
 from .main_hud import level_color
 from .surfaces import red_and_blue_swapped
 
-# The type as a fraction of the height, never under the desktop's own; the rest
-# of the shape is the desktop's in multiples of it, so the proportions hold on any frame.
 FONT_FRACTION = 0.030
 MIN_FONT_PX = in_pixels(MESSAGE_TYPE_SIZE)
 _PAD_X = MESSAGE_PAD_H / MIN_FONT_PX
@@ -38,21 +26,19 @@ _PAD_Y = MESSAGE_PAD_V / MIN_FONT_PX
 _BORDER = 1 / MIN_FONT_PX
 _RADIUS = MESSAGE_RADIUS / MIN_FONT_PX
 
-# The desktop's own margin down a Funestra's window, as a fraction of one this tall.
 _WINDOW_HEIGHT_PX = 1000
 TOP_MARGIN_FRACTION = MESSAGE_TOP_MARGIN / _WINDOW_HEIGHT_PX
 
-WIDTH_FRACTION = 0.9  # most of the frame's width, never all of it
+WIDTH_FRACTION = 0.9
 MAX_LINES = 3
 _LINE_GAP = GAP_SMALL / MIN_FONT_PX
 
 
-def font_px(height: int) -> int:  # the type size for a frame this tall
+def font_px(height: int) -> int:
     return max(MIN_FONT_PX, round(height * FONT_FRACTION))
 
 
 def paint_message(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
-    """The message, sized to what it says and to the frame it goes on."""
     font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
     room = max(1, max_width - 2 * pad_x)
@@ -79,12 +65,10 @@ def paint_message(message: str, level: int, *, max_width: int, size: int) -> Ima
 
 
 def message_placement_in_a_frame(flashed: Image.Image, width: int, height: int) -> tuple[int, int]:
-    """Centered across the top, never off a narrow frame's left edge."""
     return max(0, (width - flashed.width) // 2), round(height * TOP_MARGIN_FRACTION)
 
 
 def message_bgra(message: str, level: int, *, width: int, height: int):
-    """``(x, y, bgra)`` for one overlay call, or None when it would not fit."""
     if width <= 1 or height <= 1:
         return None
     flashed = paint_message(

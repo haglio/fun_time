@@ -23,12 +23,6 @@ _PROJECT_DIR = Path(__file__).resolve().parent.parent
 LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
 EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
 
-# Documented keys whose example value is a placeholder that must never stand in
-# for real data.  ``web_providers`` holds gallery-URL templates that get written
-# verbatim into the favorites file, so an overlay that omits it defaults to
-# *none* (an empty list) rather than to the example's ``example.com`` markers.
-# Every other documented key is a vocabulary/phrase list whose example value is
-# a usable fallback, so it is backfilled from the example instead.
 _EMPTY_WHEN_ABSENT: dict[str, Any] = {"web_providers": []}
 
 
@@ -77,13 +71,6 @@ def no_other_flicks() -> str:
 
 @dataclass(frozen=True)
 class WebProvider:
-    """A media provider's library-folder marker and gallery-URL template.
-
-    ``marker`` is the folder name that tags a video as this provider's (matched as
-    ``\\<marker>\\`` in a path); ``gallery_url`` is a template taking ``{id}``,
-    the image id parsed from the filename.
-    """
-
     marker: str
     gallery_url: str
 
@@ -101,12 +88,6 @@ def load_web_providers(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,
 ) -> tuple[WebProvider, ...]:
-    """Provider gallery rules from the overlay, or ``()`` when none are set.
-
-    Called, never bound at import: a module that reads the overlay as it loads
-    has chosen one before any caller could say which.  Cached, so calling is free
-    after the first parse.
-    """
     data = load_content(local_path, example_path)
     return tuple(
         WebProvider(marker=entry["marker"], gallery_url=entry["gallery_url"])

@@ -22,9 +22,6 @@ _LEVELS = {MessageLevel.WARNING: logging.WARNING, MessageLevel.HIGHLIGHT: FAVORI
 
 
 def read_funestra_message(path) -> tuple[float, MessageLevel, str]:
-    """A Funestra's latest one-shot message as (sequence, level, message); the
-    Funestra bumps the sequence whenever it raises one, and (0, "", "") means
-    there is nothing to read."""
     try:
         values = dict(
             line.split("=", 1)
@@ -39,8 +36,6 @@ def read_funestra_message(path) -> tuple[float, MessageLevel, str]:
 
 
 def notice_channels(config: BridgeConfig) -> dict[str, Path]:
-    """Where each Funestra publishes its one-shot messages, by the source its
-    messages flash over."""
     channels = ((SOURCE_MAIN, config.main_funestra_notice_file),
                 *((source, config.satellite(funestra).notice_file)
                   for source, funestra in ((SOURCE_PORTRAIT, FunTimeFunestra.PORTRAIT),
@@ -49,12 +44,6 @@ def notice_channels(config: BridgeConfig) -> dict[str, Path]:
 
 
 class FunestraMessages:
-    """What each Funestra has raised since the last tick, flashed once over that
-    Funestra.  A Funestra names the kind rather than the color: a warning for a
-    request with nowhere to go, a highlight for one about a funscript -- which is
-    what green is kept for here -- and anything else an ordinary white message.
-    Whatever is on disk when the session opens is latched, never flashed."""
-
     def __init__(self, config: BridgeConfig) -> None:
         self._channels = notice_channels(config)
         self._last_seq = {source: read_funestra_message(path)[0]

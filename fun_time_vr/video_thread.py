@@ -16,15 +16,11 @@ from .scheduling import scheduled_as_a_game
 logger = logging.getLogger(__name__)
 
 PAINT_POLL_S = 0.002
-# A still: enough for a fisheye circle's edge, cheap beside a real frame.
 STILL_SIZE_PX = (512, 256)
 CLOSE_TIMEOUT_S = 10.0
 
 
 class GpuMark:
-    # A query, because this machine's driver answers glFenceSync with
-    # GL_INVALID_ENUM for the one condition the spec allows.
-
     def __init__(self) -> None:
         self._query = int(GL.glGenQueries(1)[0])
 
@@ -84,15 +80,12 @@ class VideoThread:
 
     @property
     def duration_ms(self) -> float:
-        """How long the file on screen is -- 0 while there is none yet."""
         return 0.0 if self.engine is None else self.engine.duration_ms
 
     def ask_for_a_still(self) -> None:
-        """Have the next painted frame left as a small copy, for :meth:`take_a_still`."""
         self._frames.still.ask()
 
     def take_a_still(self):
-        """The small copy asked for, once one has been painted; else None."""
         return self._frames.still.take()
 
     def show_newest(self, target: RenderTarget) -> bool:

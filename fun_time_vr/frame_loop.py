@@ -1,5 +1,3 @@
-"""The headset's frame loop, off the headset: what each frame shows, the loading screen
-in front of it, and the way the room comes down."""
 from __future__ import annotations
 
 import logging
@@ -39,11 +37,10 @@ from .render import SceneRenderer
 
 logger = logging.getLogger(__name__)
 
-TEARDOWN_LOADING_SCREEN_TIMEOUT_S = 1.0  # a couple of frames; past this, not worth it
+TEARDOWN_LOADING_SCREEN_TIMEOUT_S = 1.0
 
-FIRST_LOADING_SCREEN_TIMEOUT_S = 5.0  # the READY event, a frame or two after the session
+FIRST_LOADING_SCREEN_TIMEOUT_S = 5.0
 
-# Past this no session is coming (docs/entering-vr.md).
 HEADSET_HOLD_TIMEOUT_S = 180.0
 
 Clock = Callable[[], float]
@@ -58,13 +55,6 @@ class Headset(NamedTuple):
 
 @dataclass(frozen=True)
 class QuadLayer:
-    """One flat screen for the runtime's compositor to place in the world.
-
-    The image is the most recently released one of the session's quad
-    swapchain *swapchain_index*; the pose and size come from
-    :func:`fun_time_vr.scene.quad_layer_placement`.
-    """
-
     swapchain_index: int
     position: tuple[float, float, float]
     orientation: tuple[float, float, float, float]
@@ -72,8 +62,6 @@ class QuadLayer:
 
 
 def refresh_quad_layer(headset: Headset, index: int, unit, arranged: Arranged) -> QuadLayer | None:
-    """Refresh *unit*'s quad swapchain if its texture moved, and describe the
-    layer to submit -- or None before the first frame of content exists."""
     if unit.layer_dirty:
         headset.session.ensure_quad_swapchain(index, unit.target.width, unit.target.height)
         headset.session.bind_quad_framebuffer(index)
@@ -91,9 +79,6 @@ def refresh_quad_layer(headset: Headset, index: int, unit, arranged: Arranged) -
 
 
 def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, views) -> None:
-    """Fill both eyes with the loading screen: ground edge to edge, panel at the heading
-    he is facing, latched once he is at the lenses (:class:`LoadingScreenAnchor`), through
-    the rotation-only view matrix the scene uses so it holds still as he turns."""
     was_held = loading_screen.anchor.held
     heading = loading_screen.anchor.heading(
         yaw_of_orientation(orientation_of(views[0])), settled=loading_screen.anchor_settled)
@@ -118,8 +103,6 @@ def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, vie
 
 
 def present_the_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit) -> bool:
-    """One frame of the loading screen; whether it reached the eyes.  Never at the cost of
-    the launch or quit it runs inside."""
     try:
         should_render, display_time, views = headset.session.frame_begin()
         loading_screen.render_latest_frame()
@@ -141,7 +124,7 @@ def raise_the_loading_screen(
     first and shown after, it was up for the tail of a launch that had already
     finished.  One frame here carries through the mpv bring-up."""
     if not loading_screen.wanted:
-        return  # a Funestra with no orchestrator: nothing is coming to wait for
+        return
     deadline = clock() + FIRST_LOADING_SCREEN_TIMEOUT_S
     while headset.session.running and clock() < deadline:
         headset.session.poll_events()
@@ -153,7 +136,6 @@ def raise_the_loading_screen(
 def hold_the_headset(
     headset: Headset, loading_screen: LoadingScreenUnit, state_dir: Path, *, clock: Clock = time.monotonic,
 ) -> None:
-    """Hold the loading screen in the headset until the next session releases it."""
     report_the_headset_held(state_dir)
     deadline = clock() + HEADSET_HOLD_TIMEOUT_S
     try:
@@ -162,7 +144,7 @@ def hold_the_headset(
                 return
             headset.session.poll_events()
             if not headset.session.session_ready:
-                return  # nothing is being presented; there is nothing to hold
+                return
             loading_screen.refresh()
             present_the_loading_screen(headset, loading_screen)
     except Exception:
@@ -170,9 +152,6 @@ def hold_the_headset(
 
 
 def closing_screen_over_the_teardown(headset: Headset, loading_screen: LoadingScreenUnit, *, clock: Clock = time.monotonic) -> None:
-    """Raise the closing screen and hold it while this process comes apart.  The
-    ordinary quit asks through the shutdown progress file; this is the other way
-    out -- window closed, interrupt, a runtime that ended the session."""
     loading_screen.closing_now()
     try:
         loading_screen.refresh()
@@ -180,13 +159,12 @@ def closing_screen_over_the_teardown(headset: Headset, loading_screen: LoadingSc
         while headset.session.running and clock() < deadline:
             headset.session.poll_events()
             if not headset.session.session_ready:
-                break  # nothing is being presented; there is nothing to cover
+                break
             if present_the_loading_screen(headset, loading_screen):
                 break
     except Exception:
-        # A compositor that has let go of us must not turn a quit into a crash.
         logger.debug("Could not raise the closing screen", exc_info=True)
-    loading_screen.settled()  # however that went, teardown has waited long enough
+    loading_screen.settled()
 
 
 class FrameLoop:
@@ -209,11 +187,9 @@ class FrameLoop:
             if session.window_close_requested():
                 break
             if loading_screen.holding:
-                break  # the session is crossing over; the teardown holds it up
+                break
             if not session.session_ready:
-                # The pump thread keeps every channel live while the headset
-                # warms up, so the orchestrator sees status the moment it asks.
-                loading_screen.settled()  # nothing can be shown from here, loading screen included
+                loading_screen.settled()
                 glfw.poll_events()
                 self._sleep(0.01)
                 continue
@@ -238,8 +214,6 @@ class FrameLoop:
         project = covered = False
         t3 = t2
         if should_render and views and loading_screen.showing:
-            # No quads: the runtime composites those OVER our layer, so a
-            # screen submitted as one shows through the loading screen.
             covered = project = True
             the_room.loading_screen_watch.drawing(now)
             t3 = time.perf_counter()
@@ -250,7 +224,7 @@ class FrameLoop:
             session.sync_controller(display_time)
             arranged = self.arranging.arrange(session.hands, views, elapsed_s=elapsed_s, now=now)
             quads, as_quads = self.quad_layers(arranged) if self._use_layers else ([], set())
-            project = True  # the panel lives in the projection layer
+            project = True
             t3 = time.perf_counter()
             draw_eyes(session, headset.renderer, arranged.hangings, the_room.pointing, views,
                       arranged.scene_rotation, screens=arranged.screens, as_quads=as_quads)
@@ -287,11 +261,10 @@ def tear_down(headset: Headset, the_room: TheRoom, state_dir: Path, *,
               ) -> None:
     closing_screen_over_the_teardown(headset, the_room.loading_screen, clock=clock)
     the_room.stop.set()
-    # Only to settle the file channels -- funestra.mpv_gate makes the closes safe.
     for worker in the_room.workers:
         worker.join(timeout=2.0)
     held = headset_hold_asked(state_dir)
-    stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
+    stop_runtime = held and headset_hold_stops_the_runtime(state_dir)
     the_room.close(keep_the_loading_screen=held)
     if held:
         hold_the_headset(headset, the_room.loading_screen, state_dir, clock=clock)
@@ -300,5 +273,5 @@ def tear_down(headset: Headset, the_room: TheRoom, state_dir: Path, *,
     headset.renderer.close()
     headset.session.close()
     logger.info("Shutdown complete")
-    if stop_runtime:  # the orchestrator that knew this exited under the hold
+    if stop_runtime:
         stop_the_runtime(state_dir)

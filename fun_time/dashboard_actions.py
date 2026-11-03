@@ -1,9 +1,3 @@
-"""The dashboard's own actions — the names it writes into the command file.
-
-Only the handful the control bar still carries: every other command is posted by
-the Funestra it belongs to, off that Funestra's own HUD, and the dispatch loop
-matches on the string either way.
-"""
 from __future__ import annotations
 
 QUIT_BUTTON = "quit"
@@ -13,26 +7,19 @@ OMNIPAUSE_TOGGLE = "omnipause_toggle"
 ENTER_OMNIPAUSE = "enter_omnipause"
 VOICE_TOGGLE = "voice_toggle"
 HELP_REFERENCE = "help_reference"
-# Fun Time's F-mode and its reset — every Funestra at once — and the way across
-# to the headset.
 FMODE_TOGGLE = "fmode_toggle"
 RESET_ALL = "all_reset"
 ENTER_VR = "enter_vr"
 EXIT_VR = "exit_vr"
 VR_RESET = "vr_reset"
-# The mode selector under the log: what holds the Random Favs Browser's place.
 RFB_ACTIVATE = "rfb_activate"
 ORIGENERATOR_ACTIVATE = "origenerator_activate"
 HEADSET_ON = "headset_on"
 HEADSET_OFF = "headset_off"
 HEADSET_SIGNALS = frozenset({HEADSET_ON, HEADSET_OFF})
 HELP_REFERENCE_CLOSE = "help_reference_close"
-# The pair that drives only the dashboard's own reference popup: they open and
-# dismiss a help window and reach no Funestra, no shared state, which is why the
-# dispatch loop echoes them as a press and stops there.
 HELP_REFERENCE_COMMANDS = frozenset({HELP_REFERENCE, HELP_REFERENCE_CLOSE})
 
-# Whether each panel is up, for a surface with no window to be told about.
 REFERENCE_OPEN_FILENAME = "reference_open.txt"
 LIBRARY_OPEN_FILENAME = "library_open.txt"
 BROWSE_LIBRARY_CLOSE = "browse_library_close"

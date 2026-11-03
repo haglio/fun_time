@@ -1,23 +1,3 @@
-"""Clip navigation: the `clip` metadata Evolver records, and the jumps it powers.
-
-A clip carved out of a compilation gets a sidecar ``clip`` object recording its
-parent compilation, its running order within it, and the source movie + performer
-it was taken from (see Evolver). This module reads that field for the name a
-video is shown under, and for the three navigations Fun Time exposes:
-
-* ``compilation`` — the clip's siblings, in original order (for a playlist);
-* ``full vid``    — the library video the clip's scene was taken from;
-* ``clip jump``  — the reverse, a full scene's clip.
-
-``full vid``/``clip jump`` answer from a ``full_video`` the sidecar records when
-one is there: Evolver's clip-match batch found the clip's own frames inside that
-scene, so it beats any reading of the names.  The answer is held against the
-scene's *version family* rather than the one file matched, so it survives
-whichever version is on screen.  Without a recording they fall back to matching
-the source/performer against the filename -- deliberately loose, since a library
-file names its scene however it happened to be saved and often carries no movie
-title at all.  A miss (``None``) is the common case either way.
-"""
 from __future__ import annotations
 
 import re
@@ -36,8 +16,6 @@ def _tokens(text: str) -> set[str]:
     return set(_TOKEN.findall(text.lower()))
 
 
-
-
 def _size(video: Path) -> int:
     try:
         return video.stat().st_size
@@ -45,31 +23,16 @@ def _size(video: Path) -> int:
         return 0
 
 
-# Words too common to identify a movie ("Best of Times", "A for Ambrose").
 _STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", "it", "on"})
 _LONGEST_FRAGMENT = 2
 
 
 def _distinctive(source: str, performer: str) -> set[str]:
-    """Source-title words that actually identify the movie.
-
-    The performer's own name is stripped out: a title like
-    *Nora Quill To the Brink* would otherwise match every Nora Quill file in the
-    library on her name alone. Stopwords and one/two-letter fragments go too.
-    """
     perf = _tokens(performer)
     return {t for t in _tokens(source) - perf if len(t) > _LONGEST_FRAGMENT and t not in _STOPWORDS}
 
 
 def _matches(meta: dict, text: set[str]) -> bool:
-    """Whether *text* (a filename's tokens) names this clip's scene.
-
-    Requires every performer token to be present *and* at least one distinctive
-    source-title word — enough to pair ``Ann Bly - Alpha Scene 2``
-    with a ``Ann-Bly---Alpha-Scene-Deluxe-2-(2009)`` scene, while rejecting
-    both a same-source scene starring someone else and an unrelated file that
-    merely shares the performer.
-    """
     perf = _tokens(str(meta.get("performer", "")))
     if not perf or not perf <= text:
         return False
@@ -81,11 +44,7 @@ def _matches(meta: dict, text: set[str]) -> bool:
 class ClipNav:
     _clips: dict[Path, dict]
     _non_clips: tuple[Path, ...]
-    # The version family Evolver recorded for each scene ("" for none), so a
-    # match recorded against one version resolves from any of them. Keyed by
-    # path because the family is Evolver's to declare, not a name's to be read for.
     _groups: dict[Path, str]
-    # What Evolver recorded each video is called, "" where it recorded nothing.
     _titles: dict[Path, str]
 
     @classmethod
@@ -106,16 +65,9 @@ class ClipNav:
         return cls(clips, tuple(non_clips), groups, titles)
 
     def _family(self, scene: Path) -> str:
-        """*scene*'s version family, for a scene the library may not hold.
-
-        A recorded ``full_video`` can name a file since renamed or moved out;
-        reading its name is then all that is left of it.
-        """
         return self._groups.get(scene) or stable_title(scene.stem)
 
     def title_of(self, video: Path) -> str:
-        """What to call *video* on screen: the name Evolver recorded, else this
-        video's own clip record, else its family, else the filename."""
         meta = self._clips.get(video)
         return (
             self._titles.get(video)
@@ -125,9 +77,6 @@ class ClipNav:
         )
 
     def compilation_of(self, video: Path) -> str:
-        """The title of the compilation *video* was carved from, or "" for a
-        non-clip.  The Main Funestra's HUD names it, so the Funestra can say what is holding the
-        playlist rather than leaving it to be inferred from the clips."""
         meta = self._clips.get(video)
         return str(meta.get("compilation", "") or "") if meta is not None else ""
 
@@ -146,12 +95,6 @@ class ClipNav:
         return [best[i] for i in sorted(best)]
 
     def full_vid_of(self, video: Path) -> Path | None:
-        """The non-clip library video this clip's scene was taken from, or None.
-
-        A recorded ``full_video`` answers outright, and answers with the best
-        version of that scene rather than the one the match was made against —
-        the same file the playlist would be showing. Otherwise the names decide.
-        """
         meta = self._clips.get(video)
         if meta is None:
             return None
@@ -162,21 +105,10 @@ class ClipNav:
         return _resolve(meta, [c for c in self._non_clips if c != video])
 
     def _recorded_family(self, meta: dict) -> str | None:
-        """The version family of the scene Evolver recorded a match to, if any."""
         recorded = meta.get("full_video")
         return self._family(Path(str(recorded))) if recorded else None
 
     def clip_of(self, video: Path) -> Path | None:
-        """The clip carved from *video*'s scene, or None.
-
-        The reverse of :meth:`full_vid_of`, and recorded matches win here too:
-        the clip that recorded *this* scene is the answer, whichever version of
-        either is on screen.
-
-        Never the file you are already on: a clip matches its own name, which
-        would just replay it. Being on a clip already means there is nothing to
-        jump to — its siblings are a different scene, not this one's clip jump.
-        """
         if video in self._clips:
             return None
         family = self._family(video)
@@ -189,10 +121,6 @@ class ClipNav:
         named = _largest([v for v, m in self._clips.items() if v != video and _matches(m, text)])
         if named is not None:
             return named
-        # Falling back to the performer alone has to hold in *both* directions:
-        # one clip for them, and this scene their only one. One clip against
-        # several scenes still leaves which scene it came from unknowable, so a
-        # pairing there would be a guess dressed as an answer.
         candidates = [
             v for v, m in self._clips.items()
             if v != video and could_be_cut_from(m, video)
@@ -206,11 +134,6 @@ class ClipNav:
 
 
 def could_be_cut_from(meta: dict, scene: Path) -> bool:
-    """Whether *meta*'s clip might have been cut from *scene*, on the names alone.
-
-    The performer is the one thing a library filename reliably carries, so this
-    is the widest net worth casting.
-    """
     performer = _performer_of(meta)
     return bool(performer) and performer <= _tokens(scene.stem)
 
@@ -220,21 +143,10 @@ def _performer_of(meta: dict) -> set[str]:
 
 
 def _largest(candidates: list[Path]) -> Path | None:
-    """The biggest of *candidates*, or None when there are none.
-
-    Biggest is canonical throughout the library layer: several files matching
-    one scene are versions of it, and the largest is the best of them.
-    """
     return max(candidates, key=_size) if candidates else None
 
 
 def _only_candidate(candidates: list[Path]) -> Path | None:
-    """The one scene among *candidates*, or None when they are several.
-
-    Re-encodes of one video are not "several": ``X.mp4`` and ``X_iris2.mp4`` are
-    the same scene, so they collapse under :func:`stable_title` first. The
-    largest survivor wins, the canonical-is-biggest rule used elsewhere.
-    """
     if not candidates:
         return None
     by_title: dict[str, list[Path]] = {}
@@ -246,14 +158,6 @@ def _only_candidate(candidates: list[Path]) -> Path | None:
 
 
 def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
-    """The library file *meta*'s scene was taken from, or None.
-
-    Two tiers, because filenames in the wild carry wildly different detail. A
-    name that repeats the movie ("...Alpha-Scene-Deluxe-2-(2009)...") is matched
-    outright. A name that carries only the performer ("Iris-Fenn_540-hash")
-    can still be resolved — but only when that performer has exactly one scene
-    here, since with several there is no way to tell which one it was.
-    """
     named = _largest([c for c in candidates if _matches(meta, _tokens(c.stem))])
     if named is not None:
         return named

@@ -1,12 +1,3 @@
-"""fun_time's side of the native satellite protocol: what a satellite reports.
-
-The native Satellite Funestras (this repo's ``satellite`` package) are driven
-through a file quartet; verbs go in through ``funestra.file_channel``'s
-append (``satellite_groups.send_satellite``), and where the video has got to is
-read back here from the status file the Funestra publishes.
-
-Its sibling ``broker_control`` is the same idea for the OSR2 broker.
-"""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -20,15 +11,12 @@ from .funestra_status import ScriptedStatus, scripted_fields
 
 @dataclass(frozen=True)
 class SatelliteStatus(ScriptedStatus):
-    """The family's seven, its video's script, and how many videos its playlist holds."""
-
     playlist_length: int = 0
     volume: int | None = None
     muted: bool | None = None
 
     @property
     def fraction(self) -> float | None:
-        """How far through the video, 0..1 — None when the duration is not yet known."""
         if self.duration_ms <= 0:
             return None
         return self.position_ms / self.duration_ms
@@ -36,8 +24,6 @@ class SatelliteStatus(ScriptedStatus):
 
 def read_satellite_status(status_file: Path, *,
                           fallback: SatelliteStatus | None = None) -> SatelliteStatus:
-    """Parse a native satellite's status file; a blank file reads empty, and one
-    that cannot be read is *fallback*, else empty."""
     try:
         fields = read_key_values(Path(status_file))
     except OSError:

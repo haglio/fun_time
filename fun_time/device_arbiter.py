@@ -1,6 +1,3 @@
-"""Who may send the OSR2 its T-Code, moment to moment: stated whole, whenever it
-changes, to every party that may be sending -- each Funestra whose funscript has
-had the OSR2, and the Robot Hand."""
 from __future__ import annotations
 
 import time
@@ -23,7 +20,6 @@ from .satellite_control import read_satellite_status
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
 
-# Further than this between two readings is a seek into the script, not a crossing.
 _FLOWED_MS = 1_500
 
 
@@ -113,7 +109,6 @@ class DeviceArbiter:
         return takes_it
 
     def _state(self, turn: Osr2Turn) -> bool:
-        """Every stop before any start, and no start until every stop is queued."""
         stops, starts = self._stops_and_starts(turn)
         stopped = [append_command(path, verb) for path, verb in stops]
         if not all(stopped):
@@ -151,10 +146,6 @@ class DeviceArbiter:
         return read_satellite_status(self._satellites[funestra].status_file, fallback=previous)
 
     def _holding_for_park_touch(self, status: ScriptedStatus) -> bool:
-        """Whether the hand-to-script flip still waits for the touch-down the holder's
-        trace drew its blue ending on -- one chooser, so the device cannot stop at a
-        different trough than the trace drew; capped so a stalled playhead cannot
-        hold it forever."""
         touch = status.handoff_touch_ms
         if touch is None or status.position_ms >= touch:
             return False

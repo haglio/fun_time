@@ -1,17 +1,8 @@
-"""What a branch session starts from the live session's state, and what it does not.
-
-A worktree session gets its own ``state/`` so a half-finished branch cannot
-corrupt what the live session reads back.  The few files in there that describe
-the *library* rather than the session come across anyway, because rebuilding
-them from cold is work already done against thousands of files.
-"""
 from __future__ import annotations
 
 import shutil
 from pathlib import Path
 
-# Git-ignored overlays that a session reads from its own checkout, so they exist
-# in the primary and in no worktree.  See :func:`mirror_private_overlays`.
 PRIVATE_OVERLAYS = (
     Path("content.local.json"),
     Path("fun_time") / "static" / "regen_autofill.user.js",
@@ -41,11 +32,6 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
 
 
 def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
-    """Start the library-derived caches from *live_state*; return what landed.
-
-    Copied rather than hardlinked, and never written back: a branch is
-    unfinished code, and the live session's caches are not its to corrupt.
-    """
     seeded: list[Path] = []
     source = live_state / WATCH_STATS_NAME
     if source.is_file() and _seed_file(source, branch_state / WATCH_STATS_NAME):

@@ -1,6 +1,3 @@
-"""The last listing of the library, kept so the next browse opens on it at
-once -- listing folders is instant locally and minutes while syncing, and the
-browse waits on it although the answer barely changes browse to browse."""
 from __future__ import annotations
 
 import json
@@ -16,11 +13,6 @@ _VIDEOS = "videos"
 def remembered_listing(
     kept: Path, read: Callable[[], list[str]], *, afresh: bool = False,
 ) -> list[str]:
-    """The videos to browse: what was kept, else what *read* finds now.
-
-    *afresh* reads past whatever was kept, which is how it catches up with a
-    library that has changed.
-    """
     if not afresh:
         videos = _kept(kept)
         if videos is not None:
@@ -46,5 +38,5 @@ def _keep(kept: Path, videos: list[str]) -> None:
     try:
         kept.parent.mkdir(parents=True, exist_ok=True)
         kept.write_text(json.dumps({_VIDEOS: videos}, indent=2) + "\n", encoding="utf-8")
-    except OSError:  # a browse that cannot remember still browses
+    except OSError:
         logger.warning("Could not keep the library listing at %s", kept, exc_info=True)

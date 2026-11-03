@@ -1,11 +1,3 @@
-"""Is the VR runtime ready — and if not, can we bring it up and back down?
-
-FunTimeVR launches hidden from a shortcut, so a startup that dies on its way to
-the headset leaves nothing on screen to read.  Asking before launching any Funestra
-keeps the failure fast and the answer specific: no runtime, a runtime whose
-headset is off, or ready to render.  It comes up hidden, so quitting it falls to
-us too: :func:`stop_the_runtime_a_session_started`.
-"""
 from __future__ import annotations
 
 import json
@@ -32,22 +24,18 @@ SOUND_DEVICES_BEFORE_NAME = "vr_sound_devices_before.json"
 
 APP_NAME = "FunTimeVR"
 
-# A cold VR runtime takes its time: the client starts, brings up its service,
-# and only then does the headset answer. Poll rather than guess at a fixed wait.
 STARTUP_TIMEOUT_S = 45.0
 POLL_S = 1.0
 
 _OPENXR_KEY = r"SOFTWARE\Khronos\OpenXR\1"
 
-# A runtime registers at <vendor root>/Runtime/<name>.json; its client and that
-# client's own Exit commands sit under the same root.  docs/vr-runtime-power.md.
 _LAUNCHER_RELATIVE_PATHS = (
     Path("PimaxClient") / "pimaxui" / "PimaxClient.exe",
 )
 _QUIT_TOOL_NAME = "launcher.exe"
-_QUIT_SERVICES = ("PiPlatformService", "PiPlayService")  # the client's own order
-_DISPLAY_SERVER_NAME = "pi_server.exe"  # its exit is the headset going off
-QUIT_TIMEOUT_S = 15.0  # PiPlayService's quit waits on pi_server: ~3s in practice
+_QUIT_SERVICES = ("PiPlatformService", "PiPlayService")
+_DISPLAY_SERVER_NAME = "pi_server.exe"
+QUIT_TIMEOUT_S = 15.0
 
 _UNKNOWN_FAILURE = "VR could not be started."
 
@@ -60,7 +48,6 @@ class Readiness(Enum):
     FAILED = "failed"
 
 
-# Keyed by the item: a typo is a NameError, not wording nothing finds.
 _EXPLANATIONS = {
     Readiness.NO_HEADSET: (
         "No VR headset is answering.\n\n"
@@ -102,7 +89,7 @@ def probe() -> Probe:
         )
     except xr.exception.RuntimeUnavailableError as exc:
         return Probe(readiness=Readiness.NO_RUNTIME, detail=str(exc))
-    except Exception as exc:  # every loader failure has to reach the popup
+    except Exception as exc:
         return Probe(readiness=Readiness.FAILED, detail=str(exc))
 
     try:
@@ -112,7 +99,7 @@ def probe() -> Probe:
         )
     except xr.exception.FormFactorUnavailableError as exc:
         return Probe(readiness=Readiness.NO_HEADSET, detail=str(exc))
-    except Exception as exc:  # likewise for anything the runtime itself raises
+    except Exception as exc:
         return Probe(readiness=Readiness.FAILED, detail=str(exc))
     finally:
         _release_instance(xr, instance)
@@ -120,14 +107,6 @@ def probe() -> Probe:
 
 
 def _release_instance(xr: object, instance: object) -> None:
-    """Hand the probe's instance back, without that becoming the answer.
-
-    By the time this runs ``probe()`` has decided what to report, and a runtime
-    shutting down under it must not turn that into an exception leaving
-    ``probe()`` -- past ``ensure_ready()``'s polling loop, and past the popup
-    every loader failure has to reach.  The leak this trades for is a probe's
-    worth of one process that is on its way to a dialog either way.
-    """
     try:
         xr.destroy_instance(instance)
     except Exception:
@@ -145,7 +124,6 @@ def active_runtime_json() -> Path | None:
 
 
 def launcher_for_runtime(runtime_json: Path) -> Path | None:
-    """The executable that brings up the runtime registered at *runtime_json*."""
     vendor_root = runtime_json.parent.parent
     for relative in _LAUNCHER_RELATIVE_PATHS:
         candidate = vendor_root / relative
@@ -163,7 +141,6 @@ def runtime_launcher() -> Path | None:
 
 
 def start_runtime(launcher: Path) -> None:
-    """Start the VR runtime's own client, the way its desktop shortcut would."""
     logger.info("Starting VR runtime: %s", launcher)
     subprocess.Popen([str(launcher)], cwd=str(launcher.parent),
                      **no_child_log(), **hidden_subprocess_kwargs())
@@ -183,11 +160,10 @@ def runtime_quit_tool() -> Path | None:
 
 
 def stop_runtime() -> None:
-    """Quit the runtime the way its own client does -- for one WE started only."""
     launcher = runtime_launcher()
     if launcher is not None and process_running(launcher.name):
         logger.info("Stopping VR runtime client: %s", launcher.name)
-        _run_quietly(["taskkill", "/IM", launcher.name, "/T", "/F"])  # before the quits: it restarts them
+        _run_quietly(["taskkill", "/IM", launcher.name, "/T", "/F"])
     tool = runtime_quit_tool()
     if tool is None:
         logger.info("No VR runtime quit tool to run")
@@ -241,7 +217,6 @@ def stop_the_runtime_a_session_started(state_dir: Path) -> None:
 
 
 def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
-    """Run *command* for its effect: this is teardown, so log, never raise."""
     try:
         ended = subprocess.run(
             command,
@@ -260,12 +235,6 @@ def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
 
 
 def ensure_ready(*, timeout_s: float = STARTUP_TIMEOUT_S, poll_s: float = POLL_S) -> Probe:
-    """Get VR to a state FunTimeVR can render into, starting the runtime if needed.
-
-    A runtime that is already up and still has no headset for us is reported
-    straight back: restarting its client cannot power on a headset, and waiting
-    out the timeout would only delay saying so.
-    """
     result = probe()
     if result.readiness is Readiness.READY:
         return result
@@ -293,10 +262,5 @@ def ensure_ready(*, timeout_s: float = STARTUP_TIMEOUT_S, poll_s: float = POLL_S
 
 
 def explain(result: Probe) -> str:
-    """The popup text for a probe that did not end in a headset.
-
-    Falls back rather than raising on a readiness it has no wording for: this
-    runs on the error path, and a crash here is the silent failure it replaces.
-    """
     lead = _EXPLANATIONS.get(result.readiness, _UNKNOWN_FAILURE)
     return f"{lead}\n\nDetail: {result.detail}"

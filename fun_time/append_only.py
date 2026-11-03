@@ -16,21 +16,21 @@ FILE_ATTRIBUTE_NORMAL = 0x80
 INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
 
 _kernel32.CreateFileW.argtypes = [
-    ctypes.wintypes.LPCWSTR,  # lpFileName
-    ctypes.wintypes.DWORD,    # dwDesiredAccess
-    ctypes.wintypes.DWORD,    # dwShareMode
-    ctypes.wintypes.LPVOID,   # lpSecurityAttributes
-    ctypes.wintypes.DWORD,    # dwCreationDisposition
-    ctypes.wintypes.DWORD,    # dwFlagsAndAttributes
-    ctypes.wintypes.HANDLE,   # hTemplateFile
+    ctypes.wintypes.LPCWSTR,
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.LPVOID,
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.HANDLE,
 ]
 _kernel32.CreateFileW.restype = ctypes.wintypes.HANDLE
 _kernel32.WriteFile.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hFile
-    ctypes.wintypes.LPCVOID,                 # lpBuffer
-    ctypes.wintypes.DWORD,                   # nNumberOfBytesToWrite
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpNumberOfBytesWritten
-    ctypes.wintypes.LPVOID,                  # lpOverlapped
+    ctypes.wintypes.HANDLE,
+    ctypes.wintypes.LPCVOID,
+    ctypes.wintypes.DWORD,
+    ctypes.POINTER(ctypes.wintypes.DWORD),
+    ctypes.wintypes.LPVOID,
 ]
 _kernel32.WriteFile.restype = ctypes.wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]

@@ -1,6 +1,3 @@
-"""The command registry: one dispatch command in, an updated state and a list of
-window ops out.  Each domain binds its own commands (``HANDLERS``, ``PARSED_FORMS``)
-and this module holds the map and the guards that run ahead of it."""
 from __future__ import annotations
 
 import logging
@@ -81,17 +78,6 @@ def dispatch_command(
     target_path: str = "",
     spoken_at: float | None = None,
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Dispatch a dashboard/hotkey command, returning updated state and window operations.
-
-    ``target_path`` names the video a spoken command was aimed at — the one on
-    screen when the utterance began, which an auto-advancing satellite may have
-    moved on from by the time the phrase was recognized.  Every satellite action
-    that is *about a particular video* honors it: lock, trash, wrong-action,
-    cycle, the group loops and lock-action.  Navigation is relative rather than
-    video-scoped, and the rest of the vocabulary names no video at all, so both
-    ignore it.  Empty means "whatever is playing now", which is how every
-    keyboard and dashboard command arrives.
-    """
     funestra = command_funestra(command)
     if funestra is not None:
         state = _addressed(funestra, command, state)
@@ -100,8 +86,6 @@ def dispatch_command(
     if answered is not None:
         return answered
 
-    # Said to two Satellites in different modes, each Satellite's half goes where its
-    # own mode sends it.
     if halves := _said_to_satellites_in_two_modes(command, state, config):
         ops: list[WindowOp] = []
         for half in halves:
@@ -110,8 +94,6 @@ def dispatch_command(
             ops.extend(more)
         return state, ops
 
-    # In its Origenerator mode what is said to a Satellite is the hosted app's to
-    # answer -- ahead of the handler lookup, whose Funestra handlers it shadows.
     routed = _origenerator_transport(command, state, config, spoken_at)
     if routed is not None:
         return state, routed
@@ -120,27 +102,15 @@ def dispatch_command(
     if handler is not None:
         return handler(state, config, target_path)
 
-    # The argument-carrying forms — a parsed suffix or a "|" payload — matched
-    # after the exact ids.  No parsed form can collide with an exact id: every
-    # parser demands a suffix (an integer, a direction, a payload) that no
-    # table key carries.
     for parse in _PARSED_FORMS:
         handled = parse(command, state, config, target_path)
         if handled is not None:
             return handled
 
-    # Said, because a missed rung is otherwise indistinguishable from a handled
-    # no-op: a key bound to a misspelled id reads as simply dead.  The state
-    # still comes back unchanged; the log says why nothing happened.
     logger.warning("no handler for command %r", command)
     return state, []
 
 
-# In its Origenerator mode a Satellite Funestra is the hosted app's: it hands the
-# Funestra what to play and answers every press on the buttons it drew.  So what
-# is said to that Satellite goes there as it was said, and the session keeps only what
-# is about the Funestra itself -- parking its window, its crown, its rate, taking
-# the OSR2, its mode, and its lock, which cannot wait for the app to read a press.
 _THE_FUNESTRAS_OWN = ("_minimize", "_crown", "_speed_", "_take_osr2", "_kino_activate",
                       "_origenerator_activate")
 
@@ -155,7 +125,6 @@ def _satellite_said_to(command: str) -> FunTimeFunestra | None:
 
 
 def _about_a_satellite(command: str) -> bool:
-    """Whether *command* is said to one Satellite, about what it plays."""
     if _satellite_said_to(command) is None or command in _THE_FUNESTRAS_LOCK:
         return False
     verb = command.removeprefix("filter_").partition("|")[0]
@@ -169,8 +138,6 @@ def _said_to_each_satellite(command: str) -> tuple[str, ...]:
     return tuple(set_command(funestra.label, target[1]) for funestra in FunTimeFunestra.SATELLITES)
 
 
-# One the session already says to a Funestra, which means the same thing to the
-# hosted app's show on that Satellite.
 _SAID_TO_A_FUNESTRA_AND_A_SHOW: dict[str, tuple[str, str]] = {
     "portrait_no_filter": ("portrait", "clear filter"),
     "landscape_no_filter": ("landscape", "clear filter"),
@@ -191,15 +158,6 @@ def _a_lock_said_in_the_hosted_apps_words(command: str, state: BridgeState,
 
 
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
-    """Whether *command* is bound for the hosted app rather than the session.
-
-    Everything said to a Satellite in its Origenerator mode about what it plays goes
-    there (:func:`_about_a_satellite`), and so does the app's own spoken vocabulary
-    about that Satellite, as the words themselves: the session hears them for the
-    all of Fun Time and the hosted app matches them.  Public because the dispatch loop
-    asks the same question -- its watch tracking must not book a show's step or
-    cull against a library video.
-    """
     spoken = _words_for_the_hosted_app(command)
     if spoken is not None:
         return hosts(FunTimeFunestra[spoken[0].upper()], state, config)
@@ -209,8 +167,6 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
 
 def _said_to_satellites_in_two_modes(command: str, state: BridgeState,
                                 config: BridgeConfig) -> tuple[str, ...]:
-    """*command* as said to each Satellite, where one of the two Satellites it reaches is
-    the hosted app's and the other the session's; empty otherwise."""
     said = _said_to_each_satellite(command)
     if len(said) <= 1 or not all(_about_a_satellite(each) for each in said):
         return ()
@@ -221,13 +177,6 @@ def _said_to_satellites_in_two_modes(command: str, state: BridgeState,
 def _origenerator_transport(
     command: str, state: BridgeState, config: BridgeConfig, spoken_at: float | None
 ) -> list[WindowOp] | None:
-    """Hand a Satellite's press to the hosted app, or ``None`` to fall through to
-    the session's own handling.
-
-    None of Kino's bookkeeping (lock flags, favorites, RFB tabs)
-    applies to a show, and a press goes over as it was posted: the app declared
-    the button, so it is what knows the verb.
-    """
     if not routes_to_origenerator(command, state, config):
         return None
     spoken = _words_for_the_hosted_app(command)

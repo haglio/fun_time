@@ -74,12 +74,6 @@ def get_logical_monitor_rects(
     primary_index: int,
     secondary_index: int,
 ) -> tuple[MonitorRect, MonitorRect]:
-    """Assign monitors to the primary and secondary roles, correcting for orientation.
-
-    The rules, one test each: landscape wins over portrait, else leftmost wins.
-    The two indices are the 1-based monitor numbers the config carries, and
-    "primary" is its word: not the Main Funestra's monitor, which is the secondary.
-    """
     if not monitors:
         raise ValueError("No monitors detected")
 
@@ -95,9 +89,7 @@ def get_logical_monitor_rects(
     if primary_is_landscape and secondary_is_portrait:
         primary, secondary = configured_primary, configured_secondary
     elif not primary_is_landscape and not secondary_is_portrait:
-        # Swapped: the secondary is actually landscape, the primary portrait
         primary, secondary = configured_secondary, configured_primary
-    # Same orientation — leftmost is the primary
     elif configured_primary.x <= configured_secondary.x:
         primary, secondary = configured_primary, configured_secondary
     else:

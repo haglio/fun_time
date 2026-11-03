@@ -21,12 +21,6 @@ from funestra.playlist import PlaylistItem
 
 @dataclass(frozen=True)
 class LibraryEntry:
-    """One playable video plus its optional funscript and file size.
-
-    Size drives canonical selection within a version group (largest wins),
-    so it is probed once at discovery and carried through the pipeline.
-    """
-
     video: Path
     funscript: Path | None
     size: int
@@ -34,13 +28,6 @@ class LibraryEntry:
 
 @dataclass(frozen=True)
 class VersionGroup:
-    """Entries that are versions of one video, ordered largest-first.
-
-    Entries share a title prefix — an upscale is the original's name plus a
-    tag. The first (largest) entry is the canonical version to shuffle into a
-    playlist; the rest are alternates reachable via "cycle version".
-    """
-
     entries: tuple[LibraryEntry, ...]
 
     @property
@@ -56,22 +43,10 @@ def _title_tokens(stem: str) -> tuple[str, ...]:
     return tuple(normalize_title(stem).split())
 
 
-# A bare number in brackets at the end of a name -- "Jane Doe - Studio (3)" --
-# is how a download names the third DIFFERENT video of a set, not a tag on a
-# re-encode of the first.  Left to the prefix test every one of them joined the
-# group anchored by the un-numbered name, so a shelf of five distinct scenes
-# collapsed into one with four "other versions".
 _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
 def _is_prefix(shorter: tuple[str, ...], longer: tuple[str, ...]) -> bool:
-    """Whether *shorter*'s tokens begin *longer*'s (equal counts as a prefix).
-
-    Except where the tokens *longer* carries past the prefix start with a copy
-    index: that says a different video of the same set, and versions of it are
-    named past the index rather than before it ("… (3)" and "… (3) topaz" are
-    still one video, "… " and "… (3)" are two).
-    """
     if len(shorter) > len(longer) or longer[: len(shorter)] != shorter:
         return False
     extra = longer[len(shorter):]
@@ -83,11 +58,6 @@ def _matching_group(
     group_tokens: list[tuple[str, ...]],
     toks: tuple[str, ...],
 ) -> list[LibraryEntry] | None:
-    """The existing group whose title begins *toks*, or None.
-
-    An empty *toks* (a name of only quality/hash tokens) matches nothing, so
-    such a file stands alone rather than swallowing every other singleton.
-    """
     if not toks:
         return None
     for group, gtoks in zip(groups, group_tokens, strict=True):
@@ -100,39 +70,17 @@ def group_versions(
     entries: list[LibraryEntry],
     group_id_of: Callable[[Path], str | None] | None = None,
 ) -> list[VersionGroup]:
-    """Fold entries into same-content version groups.
-
-    With *group_id_of* — a resolver for a video's recorded version-family id
-    (Evolver's metadata sidecar) — an entry that has an id is grouped by it,
-    the authoritative source, and entries without one fall back to the name
-    heuristic below. Without the resolver, everything groups by name.
-    """
     if group_id_of is not None:
         return _group_by_recorded_id(entries, group_id_of)
     return _group_by_name(entries)
 
 
 def _copy_index_of(video: Path) -> str:
-    """The bracketed number a download gave this copy, or "".
-
-    "Jane Doe - Studio (3).mp4" is the third DIFFERENT video of a set, and the
-    only thing in the name that says so.  Read off the file name rather than off
-    the recorded family, because the family is exactly what does not say it.
-    """
     found = _COPY_INDEX.findall(video.stem)
     return found[-1] if found else ""
 
 
 def _recorded_family(video: Path, gid: str) -> str:
-    """The family a recorded id puts *video* in, split by its copy index.
-
-    Evolver records one id for every file whose name begins the same way, so a
-    set downloaded as "… ", "… (2)" … "… (5)" comes back as one family of nine
-    when it is five scenes with their upscales.  The id still anchors the
-    family -- it is the only thing that can pair a hand-renamed re-encode with
-    its original -- and the number refines it, so "(2)" and "(2)_apo8_iris2"
-    stay together while "(2)" and "(3)" come apart.
-    """
     return f"{gid}{_copy_index_of(video)}"
 
 
@@ -140,7 +88,6 @@ def _group_by_recorded_id(
     entries: list[LibraryEntry],
     group_id_of: Callable[[Path], str | None],
 ) -> list[VersionGroup]:
-    """Group entries by their recorded family id; unrecorded ones fall back to name."""
     by_id: dict[str, list[LibraryEntry]] = {}
     order: list[str] = []
     unrecorded: list[LibraryEntry] = []
@@ -163,19 +110,6 @@ def _group_by_recorded_id(
 
 
 def _group_by_name(entries: list[LibraryEntry]) -> list[VersionGroup]:
-    """Fold entries into same-content version groups, by name alone.
-
-    Two files are the same video when one's normalized title is a token-wise
-    *prefix* of the other's — the overwhelmingly common case of upscaling a
-    video and appending a tag to its name (``scene`` vs ``scene_topaz_v2``).
-    Duration is deliberately not consulted: real re-encodes and re-trims drift
-    a handful of seconds, and a shared name prefix is the reliable signal,
-    where a shared runtime would fold genuinely different scenes of like length.
-
-    Entries are matched shortest-title-first, so an original anchors the group
-    its longer-named upscales join. Within a group entries are ordered
-    largest-file first (canonical first); group order follows first appearance.
-    """
     order = {entry: i for i, entry in enumerate(entries)}
     tokens = {entry: _title_tokens(entry.video.stem) for entry in entries}
     groups: list[list[LibraryEntry]] = []
@@ -199,16 +133,6 @@ def collapse_playlist_versions(
     items: list[PlaylistItem],
     version_index: dict[Path, list[PlaylistItem]],
 ) -> list[PlaylistItem]:
-    """Dedupe a playlist to one entry per version group, order preserved.
-
-    *version_index* (from :func:`version_index_from_groups`) maps each known
-    video to its group's items, largest-first. Each group is emitted once, at
-    its first-seen position, keeping the largest entry actually present in
-    *items* (with that entry's funscript from *items*). Videos absent from the
-    index pass through unchanged. This turns Fun Time's raw per-file playlist
-    into the one-item-per-video rotation the Main Funestra shows, matching the
-    set :meth:`FunestraSession.cycle_version` walks.
-    """
     funscript_by_video = {item.path: item.funscript for item in items}
     collapsed: list[PlaylistItem] = []
     seen: set[Path] = set()
@@ -228,19 +152,12 @@ def collapse_playlist_versions(
 
 
 def entries_to_items(entries: list[LibraryEntry]) -> list[PlaylistItem]:
-    """Drop file sizes, leaving the playlist items the session wants."""
     return [PlaylistItem(e.video, e.funscript) for e in entries]
 
 
 def version_index_from_groups(
     groups: list[VersionGroup],
 ) -> dict[Path, list[PlaylistItem]]:
-    """Map every video to its group's playlist items, largest-first.
-
-    This is what :meth:`FunestraSession.cycle_version` consults to walk between
-    versions of the same content — each entry points at the same ordered
-    list, so cycling is stable regardless of which one is playing.
-    """
     index: dict[Path, list[PlaylistItem]] = {}
     for group in groups:
         versions = [group.canonical, *group.alternates]

@@ -20,16 +20,10 @@ from fun_time.win32 import (
 
 
 class Showable(Protocol):
-    """The one thing this needs of the window it reveals."""
-
     def show(self) -> None: ...
 
 
 class LoadingReveal:
-    """Whether the panel is still waiting, and what happens when it stops.
-    Built before the native window exists: the message feed starts held from the
-    same answer, and two reads of the progress file could disagree."""
-
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
         self.deferred = startup_still_building(state_dir)
@@ -38,8 +32,6 @@ class LoadingReveal:
         self._window: Showable | None = None
 
     def attach(self, hwnd: int, window: Showable) -> None:
-        """Take the realized window and put it in the state startup needs;
-        deferred, it is hidden outright, so no flash and no animation."""
         self._hwnd, self._window = hwnd, window
         if self.deferred:
             hide_own_window(hwnd)
@@ -49,18 +41,15 @@ class LoadingReveal:
 
     @property
     def routing_suppressed(self) -> bool:
-        """Whether a minimize edge right now is startup's rather than a gesture."""
         return self._routing_suppressed
 
     def took_the_first_restore(self) -> bool:
-        """Whether THIS restore edge is startup's own.  True at most once."""
         if not self._routing_suppressed:
             return False
         self._routing_suppressed = False
         return True
 
     def maybe_reveal(self) -> None:
-        """Show the panel if startup has reached its last phase."""
         if not self.deferred or startup_still_building(self._state_dir):
             return
         self.deferred = False

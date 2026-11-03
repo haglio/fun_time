@@ -1,9 +1,3 @@
-"""Where the hosted Origenerator shows: on a Satellite Funestra in that
-Funestra's own Origenerator mode (:mod:`fun_time.funestra_handover`), and in the
-Random Favs Browser's place while the strip under the dashboard says so.  Each
-of the three switches on its own and tears nothing down; what a session opens
-in is ``docs/resuming-a-session.md``.
-"""
 from __future__ import annotations
 
 from enum import StrEnum
@@ -19,9 +13,6 @@ if TYPE_CHECKING:
 
 
 class RfbMode(StrEnum):
-    """What holds the Random Favs Browser's place: the browser, or the hosted
-    Origenerator's own window over it."""
-
     RFB = "rfb"
     ORIGENERATOR = "origenerator"
 
@@ -29,8 +20,6 @@ class RfbMode(StrEnum):
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 
-# Said to the hosted app about one Satellite: take its Funestra and put a slideshow on
-# it, or let it go.  A crossing parking the app lets go of every slideshow at once.
 OPEN_SLIDESHOW = "open_slideshow"
 CLOSE_SLIDESHOW = "close_slideshow"
 CLOSE_SLIDESHOWS = "CLOSE_SLIDESHOWS"
@@ -54,8 +43,6 @@ SATELLITE_MODE_COMMANDS: dict[str, tuple[FunTimeFunestra, SatellitesMode]] = {
     for mode in (KINO_MODE, ORIGENERATOR_MODE)
 }
 
-# Both satellites at once.  The toggle's target is None: like the F key, it
-# puts both in Origenerator mode unless both already are.
 BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode | None] = {
     "satellites_kino_activate": KINO_MODE,
     "satellites_origenerator_activate": ORIGENERATOR_MODE,
@@ -64,8 +51,6 @@ BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode | None] = {
 
 
 def hosts(funestra: FunTimeFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
-    """Whether the hosted app holds *funestra*: a Satellite Funestra in its
-    Origenerator mode, in a session hosting the app."""
     return (funestra in FunTimeFunestra.SATELLITES and config.hosts_origenerator
             and state.satellite(funestra).handed_over)
 

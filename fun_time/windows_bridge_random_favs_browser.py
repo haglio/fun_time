@@ -7,7 +7,6 @@ from pathlib import Path
 from .child_launch import no_child_log, no_console_window
 from .shortcuts import Shortcut
 
-# Matched as a substring of the window class, which is "Chrome_WidgetWin_1".
 CHROME_WINDOW_CLASS = "Chrome"
 
 

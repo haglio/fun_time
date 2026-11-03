@@ -1,4 +1,3 @@
-"""The files the Main Funestra is driven through, off its command line or a headset's manifest."""
 from __future__ import annotations
 
 from dataclasses import dataclass

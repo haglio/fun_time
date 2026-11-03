@@ -1,4 +1,3 @@
-"""What comes into a library while a session watches it, oldest first, until taken."""
 from __future__ import annotations
 
 import logging

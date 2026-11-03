@@ -1,9 +1,3 @@
-"""The headset's own verbs on the Main Funestra, and what they move: the
-projection each video is wrapped in and the field of view and height it is
-dialed to, kept in the video's record; the heading the room is re-zeroed onto,
-its tilt and its layout; the scenes a video's record marks.  Spelled beside the
-registry that answers them, the way a Funestra's own verbs are everywhere in this
-family."""
 from __future__ import annotations
 
 import logging

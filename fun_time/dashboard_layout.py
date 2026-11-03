@@ -19,11 +19,6 @@ class Size:
 
 @dataclass(frozen=True)
 class Rect:
-    """Where something is and how big it is, in screen pixels.
-
-    Every rectangle this session places, under whatever name: see the aliases.
-    """
-
     x: int
     y: int
     width: int
@@ -37,14 +32,11 @@ class Rect:
 
 
 def add_rect_arguments(parser, *, prefix: str = "") -> None:
-    """Declare ``--x/--y/--width/--height``, optionally prefixed, on *parser*."""
     for field in ("x", "y", "width", "height"):
         parser.add_argument(f"--{prefix}{field}".replace("_", "-"), type=int)
 
 
 def rect_from_arguments(args, *, prefix: str = "") -> Rect | None:
-    """The rect those four name, or None unless all four were given: three of
-    four would place a window somewhere nobody asked for."""
     values = [getattr(args, f"{prefix}{field}") for field in ("x", "y", "width", "height")]
     return None if None in values else Rect(*values)
 
@@ -69,17 +61,10 @@ def client_rect_filling_frame(
     )
 
 
-# --- the control bar ---------------------------------------------------------
-# The bar carries what belongs to no one Funestra: quit, pause everything, the
-# reference popup, the microphone, Fun Time's F-mode, the way into VR.  Anything
-# about ONE Funestra is on that Funestra's HUD, so the bar is not arranged like Fun Time.
-
-# The family's own button square and gap, the HUDs' size: the bar sits directly
-# above them on one screen, and two sizes of one control read as two chromes.
 BUTTON = BUTTON_SIZE_HUD
 GAP = BUTTON_GAP
-GROUP_GAP = BUTTON_GROUP_GAP  # between one group of controls and the next
-PAD = MARGIN_STANDARD  # inset from the bar's edges
+GROUP_GAP = BUTTON_GROUP_GAP
+PAD = MARGIN_STANDARD
 APP_ICON = 24
 APP_TITLE_W = 108
 LOG_LIST_HEIGHT = 144
@@ -88,8 +73,6 @@ LOG_HEIGHT = MARGIN_STANDARD + BUTTON + GAP_SMALL + LOG_LIST_HEIGHT + MARGIN_STA
 
 @dataclass(frozen=True)
 class DashboardBarLayout:
-    """Where each control sits in the bar, and how big the bar is."""
-
     height: int
     app_icon: Rect
     app_title: Rect
@@ -99,14 +82,11 @@ class DashboardBarLayout:
     voice_panel: Rect
     fmode_button: Rect
     reset_all_button: Rect
-    # The way across to the other session — Enter VR out here, Exit VR in
-    # there.  One button either way, since you can only be in one of them.
     vr_button: Rect
     vr_reset_button: Rect
 
     @property
     def every_rect(self) -> tuple[Rect, ...]:
-        # Read off the fields, so a control declared above is one the width counts.
         placed = (getattr(self, field.name) for field in fields(self))
         return tuple(rect for rect in placed if isinstance(rect, Rect))
 
@@ -116,12 +96,8 @@ class DashboardBarLayout:
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
-    """The control bar, laid out left to right at its natural size: the app's
-    name and mark, the session's own four in one run, the pair that reaches
-    every Funestra (F-mode and Reset All), then the crossing to the other session.
-    """
     height = PAD * 2 + BUTTON
-    mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
+    mid = lambda size: PAD + (BUTTON - size) // 2
 
     x = PAD
     app_icon = Rect(x, mid(APP_ICON), APP_ICON, APP_ICON)
@@ -158,13 +134,9 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     )
 
 
-# The mode selector under the log that says what holds the Random Favs Browser's place,
-# where the session hosts an Origenerator: a row as tall as the bar.
 RFB_MODE_SELECTOR_HEIGHT = PAD * 2 + BUTTON
 
 
 def dashboard_window_height(*, rfb_mode_selector: bool = False) -> int:
-    """How tall the dashboard window stands: the bar, the log under it and the
-    mode selector under that, which the Random Favs Browser below it inherits."""
     strip = RFB_MODE_SELECTOR_HEIGHT if rfb_mode_selector else 0
     return compute_dashboard_bar_layout().height + LOG_HEIGHT + strip

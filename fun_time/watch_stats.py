@@ -1,22 +1,3 @@
-"""Fun Time's own record of how its Funestras treated each video ("breeding").
-
-Videos the user watches to the end (or locks and loops) accumulate positive
-signals; videos skipped early accumulate negative ones.  Evolver sums these
-with what the phone watched and stamps the playback weight on each video's
-sidecar (:func:`fun_time.media_metadata.watch_weight_of`), which is what the
-shuffled builds draw by — so loved videos surface more often and
-chronically-skipped ones fade, a continuous companion to send-to-Trash.
-
-Stats live in one JSON file under the state dir, keyed by normalized video
-path: ``{"completions": int, "skips": int, "locks": int}``.
-
-That shape is a contract with Evolver, which moves the videos counted here and
-re-keys this file in place when it does, keeping this app's own normalization.
-It carries no version, and cannot: every top-level key is a video path, so a
-key reserved for a number would reach that Satellite as a video to go looking for.
-The shape is what Evolver checks instead, which is why
-`tests/test_watch_stats.py` holds it.
-"""
 from __future__ import annotations
 
 import json
@@ -53,13 +34,6 @@ def weighted_shuffle(
     weight_of: Callable[[str], float | None],
     rng: random.Random,
 ) -> list[str]:
-    """Shuffle with bias: heavier paths tend to land earlier.
-
-    Efraimidis–Spirakis sampling — each path draws a key ``-log(u)/w`` and the
-    list sorts ascending, which is a weighted draw without replacement.  With
-    all weights equal it degenerates to a plain uniform shuffle.
-    """
-
     def sort_key(path: str) -> float:
         weight = weight_of(path) or 1.0
         u = max(rng.random(), 1e-12)
@@ -69,26 +43,10 @@ def weighted_shuffle(
 
 
 def passes_inclusion(weight: float, rng: random.Random) -> bool:
-    """Whether a video of *weight* makes this playlist build at all.
-
-    Neutral-or-loved videos always play; disliked ones (weight < 1) sit out
-    proportionally — the continuous version of send-to-Trash.
-    """
     return weight >= 1.0 or rng.random() < weight
 
 
 class WatchTracker:
-    """Classify one Funestra's playback into completions and skips.
-
-    The same tracker serves a satellite and the Main Funestra alike.  Fed
-    with periodic (path, position-fraction) samples plus notifications of
-    user navigation and discards, it emits
-    ("completion" | "skip", path) events: a video that reached ~the end counts
-    as watched (each repeat-one wrap while locked counts again); a video the
-    user navigated away from early counts as skipped; anything else — e.g. the
-    automatic advance on unlock or discard — is neutral.
-    """
-
     COMPLETE_FRACTION = 0.85
     SKIP_FRACTION = 0.60
     NAV_WINDOW_S = 3.0
@@ -108,8 +66,6 @@ class WatchTracker:
 
     def observe(self, path: str, fraction: float) -> list[tuple[str, str]]:
         if path == self._path:
-            # A large backwards jump from ~the end is a repeat-one wrap, or a
-            # scrub back over a video watched through: one full watch either way.
             if path and self._max_fraction >= self.COMPLETE_FRACTION and fraction < self._max_fraction - 0.5:
                 self._max_fraction = max(0.0, fraction)
                 return [("completion", path)]
@@ -129,23 +85,16 @@ class WatchTracker:
 
 
 def _still_wanted(video: Path) -> bool:
-    """Whether *video*'s row stays: the file is there, or nothing around it is."""
     return video.exists() or not video.parent.exists()
 
 
 def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> None:
-    """Add one *event* ("completion" | "skip" | "lock") for *video_path*."""
     field = _EVENT_FIELDS[event]
     stats = load_watch_stats(stats_file)
     entry = stats.setdefault(
         normalize_path_key(video_path), {"completions": 0, "skips": 0, "locks": 0}
     )
     entry[field] = entry.get(field, 0) + 1
-    # Videos moved away (sent to Trash, re-staged) must not leave orphan rows --
-    # and only a video that left a tree still there has moved away.  A row
-    # whose whole tree is out of reach is kept: a volume not mounted when an
-    # event lands is not a library of deleted videos, and pruning then took
-    # every row for it, with no way back.
     stats = {key: value for key, value in stats.items() if _still_wanted(Path(key))}
     target = Path(stats_file)
     target.parent.mkdir(parents=True, exist_ok=True)

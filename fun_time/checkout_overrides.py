@@ -18,8 +18,6 @@ from pathlib import Path
 
 from .project_paths import PROJECT_DIR, STATE_DIRNAME, override_lines, sibling_checkouts_named_in
 
-# The same, for the Origenerator checkout a session hosts: one absolute path, or
-# empty to host none at all.
 ORIGENERATOR_DIR_OVERRIDE_NAME = "origenerator_dir.txt"
 
 
@@ -28,19 +26,10 @@ def is_a_worktree(checkout: Path) -> bool:
 
 
 def _own_override(name: str) -> list[str] | None:
-    """This checkout's *name* override, resolved against its own project dir."""
     return override_lines(PROJECT_DIR / STATE_DIRNAME / name)
 
 
 def apply_this_checkouts_overrides(config, *, integration: bool = False):
-    """This checkout's own overrides, applied to a loaded config.
-
-    The branch-config generator runs the PRIMARY checkout's copy of this module
-    (see :func:`fun_time.branch_session.build_branch_config`), so an override
-    that copy does not read -- one a branch introduces, or names in a way only
-    the branch knows -- cannot rely on the generator applying it: the
-    orchestrator calls this at launch instead, against its own checkout.
-    """
     if integration:
         return config
     paths = config.paths
@@ -54,12 +43,6 @@ def apply_this_checkouts_overrides(config, *, integration: bool = False):
 
 
 def sibling_checkouts_kwargs(sibling_checkouts: str | Path | None) -> dict:
-    """The ``Popen`` environment that starts a program on these checkouts rather
-    than on what this repo's venv installs: ``PYTHONPATH``, which Python puts
-    ahead of site-packages.  A directory that is not there is dropped rather than
-    fatal, because a worktree named in the config outlives the worktree and a
-    session must still start.
-    """
     paths = [str(Path(part)) for part in str(sibling_checkouts or "").split(os.pathsep)
              if part and Path(part).is_dir()]
     if not paths:

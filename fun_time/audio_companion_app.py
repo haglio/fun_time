@@ -42,10 +42,6 @@ def build_parser(config) -> argparse.ArgumentParser:
 
 
 def init_mixer(wanted: str | None) -> str | None:
-    """Open the mixer on *wanted*'s output (the headset, in VR) else the default,
-    and say which -- by the family's rule, so the clip music lands where the
-    Funestras beside it play.  Listing outputs needs the mixer already open or SDL
-    raises "Audio system not initialised" -- so open the default, list, reopen."""
     if not wanted:
         pygame.mixer.init(devicename=None)
         return None
@@ -62,8 +58,6 @@ def init_mixer(wanted: str | None) -> str | None:
 
 
 def force_muted() -> bool:
-    """Silent whatever the bridge publishes: by the ``FUN_TIME_MUTE_AUDIO`` contract
-    or being off-screen, so a hidden-desktop run cannot be heard either way."""
     return os.environ.get("FUN_TIME_MUTE_AUDIO") == "1" or on_hidden_desktop()
 
 
@@ -88,8 +82,6 @@ class AudioPlaybackController:
     logger: logging.Logger
     music: Any
     sound_length: Callable[[Path], float | None]
-    # Hidden and integration runs set FUN_TIME_MUTE_AUDIO; they stay silent no
-    # matter what level the bridge publishes.
     force_muted: bool = False
     volume: int = MAX_VOLUME
     current_path: Path | None = None
@@ -153,7 +145,6 @@ class AudioPlaybackController:
         try:
             self.music.play(-1, start=start_position)
         except TypeError:
-            # A channel whose play() takes no start; seek after starting.
             self.music.play(-1)
             if start_position > 0:
                 try:
@@ -221,7 +212,6 @@ class AudioPlaybackController:
         self.logger.info("Audio %s", "paused" if paused else "resumed")
 
     def set_volume(self, volume: int) -> None:
-        """Follow the bridge's published sound level (0-100)."""
         if self.force_muted or volume == self.volume:
             return
         self.volume = volume
@@ -284,13 +274,10 @@ def main(argv: list[str] | None = None) -> None:
     sock.bind((args.host, args.port))
     sock.settimeout(0.15)
 
-    # Both flag files, read the way every other Funestra reads its own.
     def read_flag(path: Path) -> bool:
         return read_paused_state(path, logger=logger)
 
     def clip_length(path: Path) -> float | None:
-        """How long a clip is, or None — the library-shaped failures live here,
-        so the controller takes any source that answers the same way."""
         try:
             return float(pygame.mixer.Sound(str(path)).get_length())
         except (pygame.error, OSError, TypeError, ValueError) as exc:
@@ -323,5 +310,4 @@ def main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    # No return: run_forever loops until this process is killed or interrupted.
     main()

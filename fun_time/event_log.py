@@ -18,22 +18,12 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-# A message meant for the person watching, not for a post-mortem: "Clip saved",
-# "No other seeds".  Louder than INFO's diagnostic chatter, quieter than a
-# WARNING.  These are what the log panel shows at its default verbosity.
 MESSAGE = 25
 logging.addLevelName(MESSAGE, "NOTICE")
 
-# A message about the one family of things green is reserved for on every surface
-# in this app: the favorites, the lock that puts a video in them, F-mode's filter
-# over them, and the funscripts.  A hair louder than a plain NOTICE so it picks a
-# color of its own without changing what any verbosity stop lets through — every
-# message, either kind, shows from the NOTICE stop down.  Not a stop on the dial
-# itself: it is a NOTICE that happens to be about favorites, not a volume.
 FAVORITE = 26
 logging.addLevelName(FAVORITE, "FAVORITE")
 
-# The verbosity dial's stops, least to most severe.
 LEVELS_BY_NAME: dict[str, int] = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
@@ -43,15 +33,11 @@ LEVELS_BY_NAME: dict[str, int] = {
 }
 LEVEL_NAMES: tuple[str, ...] = tuple(LEVELS_BY_NAME)
 
-# Which window a line is about — the axis the log panel filters on.  Lines about
-# the session as a whole (startup, voice, the broker) are SYSTEM.
 SOURCE_MAIN = "main"
 SOURCE_PORTRAIT = "portrait"
 SOURCE_LANDSCAPE = "landscape"
 SOURCE_DASH = "dash"
 SOURCE_SYSTEM = "system"
-# What each window is called on a filter button, where the full word will not
-# fit: the log panel's row of them, and the same row in the headset.
 SOURCE_LABELS: dict[str, str] = {
     "main": "Main",
     "portrait": "Sat",
@@ -86,11 +72,6 @@ def event_log_path(state_dir: str | Path) -> Path:
 
 
 def start_event_log(state_dir: str | Path) -> Path:
-    """Truncate the event log for a fresh session and return its path.
-
-    The panel and any later reader want *this* session, not the last one, and
-    truncating per session is what keeps the file from growing without bound.
-    """
     path = event_log_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("", encoding="utf-8")
@@ -98,12 +79,6 @@ def start_event_log(state_dir: str | Path) -> Path:
 
 
 class EventLogHandler(logging.Handler):
-    """Append each record to the event log as one JSON line.
-
-    Reads the source off the record (``extra={"source": ...}``), defaulting to
-    SOURCE_SYSTEM for the many lines that are not about one window.
-    """
-
     def __init__(self, path: str | Path) -> None:
         super().__init__()
         self.path = Path(path)
@@ -120,7 +95,7 @@ class EventLogHandler(logging.Handler):
             ))
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
-        except Exception:  # logging must never take the app down
+        except Exception:
             pass
 
 
@@ -152,38 +127,15 @@ def parse_event_line(line: str | bytes) -> EventRecord | None:
 
 def flash_message(logger: logging.Logger, message: str, *, source: str, level: int = MESSAGE,
            flashes: bool = True, spoken_at: float | None = None) -> None:
-    """Log a message meant for the person watching the screen: "Clip saved", "No
-    other seeds".  The log panel lists it, and unless *flashes* is off it flashes
-    over the Funestra *source* names (:mod:`fun_time.message_feed`), or in the
-    headset (:mod:`fun_time_vr.messages`).
-
-    *level* defaults to NOTICE (a normal announcement, white); pass FAVORITE for
-    one about the favorites or a funscript, which reads green, WARNING for a
-    command that hit a dead end (yellow), or ERROR for a failure (red).
-    """
     logger.log(level, message, extra={"source": source, "flashes": flashes,
                                       "spoken_at": spoken_at})
 
 
 def is_announcement(record: EventRecord) -> bool:
-    """Whether *record* flashes: a message, or louder, logged with *flashes* on.
-    The verbosity dial governs only what the log panel lists."""
     return record.flashes and record.level >= MESSAGE
 
 
 def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], int]:
-    """Read the events appended after *offset*, returning them and a new offset.
-
-    A file *shorter* than *offset* was truncated by a new session, so it is
-    re-read from the start.  A truncation that happens to refill past *offset*
-    between two calls would slip through, which no reader can see from an offset
-    alone — and none does: :func:`start_event_log` truncates before the panel
-    that tails it even exists, so a tail always starts at zero.
-
-    A trailing fragment from a write still in flight is left unconsumed for the
-    next call, and a line that does not parse is skipped — a tail that crashes on
-    a torn write is worse than a tail that misses a line.
-    """
     path = Path(path)
     try:
         size = path.stat().st_size
@@ -198,26 +150,17 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
         fh.seek(offset)
         blob = fh.read()
 
-    consumed = blob.rfind(b"\n") + 1  # 0 until the first line is complete
+    consumed = blob.rfind(b"\n") + 1
     parsed = map(parse_event_line, blob[:consumed].splitlines())
     return [record for record in parsed if record is not None], offset + consumed
 
 
-# What the family's listener says of each utterance -- how it ended, how loud it
-# was, a microphone gone quiet -- is this session's record too, though it is said
-# under the library's name rather than fun_time's.
 THE_LISTENERS_LOGGERS = ("voice_core",)
 
-# The orchestrator's logger owns the HUD and so does not propagate; it has
-# to be enrolled by name.  Every other fun_time.* logger reaches the handler on
-# the package logger by propagation.
 _NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
 
 
 def open_event_log(state_dir: Path) -> None:
-    """Start this session's event log and feed every fun_time logger into it.
-    DEBUG throughout because the log panel -- not the writer -- is where
-    verbosity is chosen."""
     handler = EventLogHandler(start_event_log(state_dir))
     handler.setLevel(logging.DEBUG)
     for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *THE_LISTENERS_LOGGERS):

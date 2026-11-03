@@ -1,10 +1,3 @@
-"""The loading screen Fun Time puts over every monitor while its windows are changing.
-
-A session's windows arrive one at a time and leave the same way, so both ends
-raise a loading screen and work under it.  Borderless and always on top; it closes on
-:mod:`overlay_progress`'s DONE — never on a full bar, which comes seconds
-earlier while Fun Time is still being put in z-order.
-"""
 from __future__ import annotations
 
 import time
@@ -34,17 +27,10 @@ from .win32 import create_hidden_topmost_window, find_window_by_title, set_alway
 
 POLL_MS = 200
 
-# How long another window may sit over the loading screen -- not POLL_MS, which is how
-# stale the bar may be.  At 200ms it was a fifth of a second of a Funestra through
-# the scrim per raise.  Re-asserted through SetWindowPos on our own HWND, not
-# Tk's ``-topmost``: WS_EX_TOPMOST is still set, so Tk may do nothing; only
-# SetWindowPos re-inserts.
 TOPMOST_POLL_MS = 16
 
 
 def opening_panel(status: str) -> LoadingPanel:
-    """The panel as the loading screen first shows it: this app's icon and name, in the
-    tone the dashboard writes the name in, over the launch's first words."""
     shown = preview_marker.shown_as()
     return LoadingPanel(
         wordmark=preview_marker.APP_TITLE,
@@ -55,8 +41,6 @@ def opening_panel(status: str) -> LoadingPanel:
 
 
 class Canvas(Protocol):
-    """Where the panel is drawn: the one Tk label in the middle of the loading screen."""
-
     def show(self, panel: LoadingPanel) -> None: ...
 
     def place_at(self, x: int, y: int) -> None: ...
@@ -67,7 +51,6 @@ class _LabelCanvas:
         self._label = label
 
     def show(self, panel: LoadingPanel) -> None:
-        # On the label: what keeps the PhotoImage from being collected.
         self._label.image = ImageTk.PhotoImage(render(panel))
         self._label.configure(image=self._label.image)
 
@@ -76,8 +59,6 @@ class _LabelCanvas:
 
 
 class OverlayWindow:
-    """One borderless, always-on-top window covering the whole virtual desktop."""
-
     def __init__(
         self,
         progress_file: Path,
@@ -111,9 +92,6 @@ class OverlayWindow:
         cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
         taking_over: TakingOver | None = None,
     ) -> OverlayWindow:
-        # Made first, so the loading screen goes up over it and it stays under the loading screen
-        # for good: a window put under the loading screen joins the topmost band only if
-        # some topmost window sits below the loading screen.
         create_hidden_topmost_window()
 
         ground = as_hex(LOADING_GROUND)
@@ -135,8 +113,6 @@ class OverlayWindow:
         canvas.show(window.panel)
         window._cover_every_monitor()
 
-        # The focus is taken so Esc lands here rather than on whatever the
-        # session put up last, before the hotkey script is up to take it.
         root.bind("<Escape>", window._on_escape)
         root.focus_force()
 
@@ -145,10 +121,6 @@ class OverlayWindow:
         return window
 
     def _stay_on_top(self) -> None:
-        """Take the top of the topmost band back, and keep taking it: every
-        window a session raises lands above this one.  Our own window, so the
-        call skips the stalled-window guard.  The handle is looked up by title,
-        once -- ``winfo_id`` is not reliably the top-level HWND."""
         if not self._hwnd:
             self._hwnd = find_window_by_title(self._title, exact=True)
         if self._hwnd:
@@ -156,7 +128,7 @@ class OverlayWindow:
         try:
             self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
         except tk.TclError:
-            pass  # window already destroyed
+            pass
 
     def _on_escape(self, _event: object = None) -> None:
         if not self._offering or self._status_held:
@@ -168,8 +140,6 @@ class OverlayWindow:
             pass
 
     def _say_canceling(self) -> None:
-        """And go on saying it: a phase still in flight would otherwise flip the
-        line back while the teardown runs."""
         self._status_held = True
         self._redraw(status=CANCELING, hint="")
 
@@ -197,7 +167,7 @@ class OverlayWindow:
                 self._show(progress)
             self._root.after(POLL_MS, self._poll)
         except tk.TclError:
-            pass  # window already destroyed
+            pass
 
     def _read_progress(self) -> Progress:
         try:
@@ -228,10 +198,6 @@ class OverlayWindow:
             self._canvas.show(panel)
 
     def run(self, on_shown: Callable[[], None] | None = None) -> None:
-        """Show the loading screen and hold it until the progress file says otherwise.
-        ``update()`` returns only once Tk has created, shown and first painted
-        the window, so *on_shown* fires when the loading screen is genuinely on screen --
-        a signal teardown can hold its first kill on."""
         if not (progress := self._read_progress()).malformed and not progress.done:
             self._show(progress)
         self._root.update()

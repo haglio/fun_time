@@ -1,14 +1,3 @@
-"""The modes Kino is playing in, and what changes them.
-
-The *compilation* is one anthology's videos standing in for the playlist, which
-:mod:`main_funestra.clip_jumps` owns because entering one is what puts you
-there.  *F-mode* is Fun Time's narrowing of the Main Funestra's one list, and
-Kino cannot see it: the narrowed list it receives is indistinguishable from any
-other, so it has to be said outright for the HUD to show it.
-
-They are gathered here because the HUD draws them as one line and the mode
-memory writes the compilation down.
-"""
 from __future__ import annotations
 
 from funestra.main_hud import ModeHud

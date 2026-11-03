@@ -1,6 +1,3 @@
-"""One satellite's launch bundle, built once where the manifest is read and
-passed whole down the startup chain.  :func:`for_funestra` refuses a swap.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,7 +19,6 @@ class SatelliteLaunch:
 
 
 def for_funestra(launch: SatelliteLaunch, funestra: FunTimeFunestra) -> SatelliteLaunch:
-    """*launch*, after refusing one that belongs to the other Funestra."""
     if launch.funestra is not funestra:
         raise ValueError(f"a {launch.funestra.label} launch was handed to {funestra.label}")
     return launch

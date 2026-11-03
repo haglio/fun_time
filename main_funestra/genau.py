@@ -1,5 +1,3 @@
-"""Genau, as it runs on the Main Funestra: Fun Time drives it through files of its
-own, and with the window it brings its own flick, scrubbed to the OSR2."""
 from __future__ import annotations
 
 import logging
@@ -35,8 +33,6 @@ ROBOT_HAND = "robot hand"
 
 @dataclass(frozen=True)
 class GenauChannels:
-    """The files Genau is driven through, beside the Funestra's own."""
-
     command: Path
     paused: Path
     status: Path

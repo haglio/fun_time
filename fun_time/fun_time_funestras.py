@@ -1,9 +1,3 @@
-"""The three Funestras, as one identity.
-
-The dispatcher counts Funestras by number (1=main, 2=portrait, 3=landscape);
-everything that *draws* them names them.  An IntEnum so ``active_funestra`` keeps
-its INI wire value (``str(Funestra.PORTRAIT)`` is ``"2"``) and int-keyed tables
-keep working, with :attr:`label` as the one crossing to the drawing names."""
 from __future__ import annotations
 
 from enum import IntEnum
@@ -16,13 +10,10 @@ class FunTimeFunestra(IntEnum):
 
     @property
     def label(self) -> str:
-        """The name the drawing code uses for this Funestra."""
         return self.name.lower()
 
     @classmethod
     def label_of(cls, number: int) -> str:
-        """:attr:`label` for *number*, or "" for a number no Funestra holds — a
-        hand-edited state file can carry any int, and the HUD keeps drawing."""
         try:
             return cls(number).label
         except ValueError:
@@ -30,11 +21,9 @@ class FunTimeFunestra(IntEnum):
 
     @classmethod
     def for_scope(cls, scope: str) -> tuple[FunTimeFunestra, ...]:
-        """The Funestras a both/portrait/landscape scope word names."""
         if scope == "both":
             return cls.SATELLITES
         return (cls.PORTRAIT,) if scope == "portrait" else (cls.LANDSCAPE,)
 
 
-# The scope "both" reaches — the two satellites, never the Main Funestra.
 FunTimeFunestra.SATELLITES = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)

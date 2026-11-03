@@ -1,8 +1,3 @@
-"""The log panel — the strip beside the dashboard where the session narrates
-itself.  It tails :mod:`fun_time.event_log` and shows the whole stream, filtered
-by a verbosity dial and by which window each line is about, with a button that
-follows the cursor down the rows to lift one out of.  What it shows is decided
-in :mod:`fun_time.log_panel_model`, which draws nothing."""
 from __future__ import annotations
 
 import logging
@@ -74,14 +69,8 @@ from fun_time.log_panel_model import (
     with_what_was_heard,
 )
 
-# Short labels for the source toggles so the whole control strip fits one row.
-# The full source name is the tooltip.  "Sat" is the user's word for the portrait
-# satellite; landscape is named in full because they treat it as its own thing.
-_SOURCE_LABELS = SOURCE_LABELS  # beside the sources now; the headset wears them too
+_SOURCE_LABELS = SOURCE_LABELS
 
-# An ordinary announcement is white; green is kept for the one family it means
-# across this whole app — the favorites, the lock that puts a video in them,
-# F-mode, and the funscripts (see :data:`fun_time.event_log.FAVORITE`).
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,
     logging.INFO: TEXT_MUTED,
@@ -93,35 +82,23 @@ _LEVEL_COLORS: dict[int, QColor] = {
 
 
 def level_color(level: int) -> QColor:
-    """The color for *level*, rounding down to the loudest level it reaches."""
     for threshold in sorted(_LEVEL_COLORS, reverse=True):
         if level >= threshold:
             return _LEVEL_COLORS[threshold]
     return TEXT_PRIMARY
 
 
-# The hover copy button.  Small enough to sit within a single log row without
-# swallowing it, and inset from the row's top-right corner.
 _COPY_BUTTON_SIZE = 18
 _COPY_BUTTON_MARGIN = GAP_SMALL
 _COPY_ICON_SIZE = 12
-# How long the button shows a tick instead of the sheets after a copy.  Without
-# it a click produces no visible result at all and reads as having missed.
 _COPY_FLASH_MS = 900
 
 
 def _copy_icon(size: int, color: QColor) -> QIcon:
-    """The familiar two-overlapping-sheets copy glyph.
-
-    The family's drawing, out of :mod:`shared_ui.icons` -- Origenerator's copy
-    button wears the same one.  Each app drew its own before, at its own
-    proportions, and the two sit on screen together.
-    """
     return QIcon(icon_pixmap("copy", size, color))
 
 
 def _copied_icon(size: int, color: QColor) -> QIcon:
-    """A tick — what the copy button shows for a moment after a successful copy."""
     return QIcon(icon_pixmap("check", size, color))
 
 
@@ -143,17 +120,6 @@ class _LevelDial(QComboBox):
 
 
 class LogPanelWidget(QWidget):
-    """Tails the event log, under the dashboard's control bar.
-
-    A child of the dashboard window rather than a window of its own, so it rides
-    the dashboard's topmost band, minimize/restore and close for free instead of
-    being a second managed window the bridge has to track by title.
-
-    Polls rather than watches: the writers are other processes appending to a
-    shared file, and a 300ms poll of the bytes past our offset costs nothing next
-    to the dashboard's own 500ms refresh.
-    """
-
     POLL_MS = 300
 
     @classmethod
@@ -172,8 +138,6 @@ class LogPanelWidget(QWidget):
         self._offset = 0
         self._records: list[EventRecord] = []
         self._heard: dict[float, str] = {}
-        # Where the cursor last was over the list, in viewport coordinates; None
-        # once it has left.  The copy button's row is resolved from this.
         self._hover_pos: QPoint | None = None
 
         state = load_ui_state(self._ui_state_file)
@@ -186,7 +150,6 @@ class LogPanelWidget(QWidget):
         self._timer.start(self.POLL_MS)
         self._poll()
 
-    # -- construction ------------------------------------------------------
 
     def _build_ui(self) -> None:
         self.setStyleSheet(f"background-color: {BG_PRIMARY.name()};")
@@ -258,9 +221,6 @@ class LogPanelWidget(QWidget):
         self._list.setStyleSheet(
             f"background-color: {BG_SECONDARY.name()}; border: none;"
         )
-        # The strip is narrow, so a long line wraps to as many rows as it needs
-        # rather than being cut off with an ellipsis — the tail of a message
-        # (the video name, the phrase heard) is exactly what the reader is after.
         self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._list.setWordWrap(True)
         self._list.setTextElideMode(Qt.TextElideMode.ElideNone)
@@ -269,19 +229,8 @@ class LogPanelWidget(QWidget):
         self._build_copy_button()
 
     def _build_copy_button(self) -> None:
-        """Add the one copy button that follows the cursor down the rows.
-
-        A list item's text cannot be selected with the mouse, so getting a line
-        out of the panel meant retyping it.  One floating button that moves to
-        whichever row is hovered — rather than a button per row — is what keeps
-        that affordance affordable: the buffer holds up to MAX_RECORDS lines and
-        rebuilds whenever the tail advances, so per-row widgets would be rebuilt
-        two thousand at a time, several times a minute.
-        """
         viewport = self._list.viewport()
         self._copy_icon = _copy_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)
-        # White, not green: a copy having worked has nothing to do with the
-        # favorites, which is what green means everywhere else in here.
         self._copied_icon = _copied_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)
 
         self._copy_button = QToolButton(viewport)
@@ -290,8 +239,6 @@ class LogPanelWidget(QWidget):
         self._copy_button.setFixedSize(_COPY_BUTTON_SIZE, _COPY_BUTTON_SIZE)
         self._copy_button.setToolTip("Copy this line")
         self._copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Takes no keyboard focus: it is a passing affordance over the text, and
-        # this suite has paid enough for widgets that grab focus on a click.
         self._copy_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._copy_button.setStyleSheet(
             f"QToolButton {{ border: none; border-radius: {BUTTON_RADIUS_HUD}px;"
@@ -301,22 +248,15 @@ class LogPanelWidget(QWidget):
         self._copy_button.clicked.connect(self._copy_hovered_row)
         self._copy_button.hide()
 
-        # The tick is restored by a timer this widget owns, so it cannot outlive
-        # the button and fire against a deleted one.
         self._flash_timer = QTimer(self)
         self._flash_timer.setSingleShot(True)
         self._flash_timer.timeout.connect(self._restore_copy_icon)
 
-        # MouseMove comes from the viewport; Leave has to come from the list
-        # itself, because moving the cursor onto the button — a child of the
-        # viewport — is already a Leave for the viewport, which would grab the
-        # button away the instant it was aimed at.
         viewport.setMouseTracking(True)
         viewport.installEventFilter(self)
         self._list.installEventFilter(self)
         self._list.verticalScrollBar().valueChanged.connect(self._sync_copy_button)
 
-    # -- the hover copy button ---------------------------------------------
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if obj is self._list.viewport() and event.type() == QEvent.Type.MouseMove:
@@ -328,13 +268,6 @@ class LogPanelWidget(QWidget):
         return super().eventFilter(obj, event)
 
     def _hovered_item(self) -> QListWidgetItem | None:
-        """The row under the remembered cursor position, resolved fresh each time.
-
-        Never a stored item: the list is cleared and refilled on every tail
-        advance, so a handle kept from the last hover would name a destroyed row.
-        Resolving by position also means the button follows the rows as they
-        scroll under a still cursor.
-        """
         if self._hover_pos is None:
             return None
         return self._list.itemAt(self._hover_pos)
@@ -366,7 +299,6 @@ class LogPanelWidget(QWidget):
     def _restore_copy_icon(self) -> None:
         self._copy_button.setIcon(self._copy_icon)
 
-    # -- live state --------------------------------------------------------
 
     def _on_verbosity_changed(self) -> None:
         self._filter = LogFilter(
@@ -416,14 +348,7 @@ class LogPanelWidget(QWidget):
             self._list.scrollToBottom()
         self._sync_copy_button()
 
-    # -- lifecycle ---------------------------------------------------------
 
     def shutdown(self) -> None:
-        """Stop tailing; the dashboard that owns this widget is going away.
-
-        Only the timers need stopping — the widget itself is destroyed with its
-        parent window.  It matters under test, where several dashboards are built
-        and torn down in one process and a live poll would keep reading the file.
-        """
         self._timer.stop()
         self._flash_timer.stop()

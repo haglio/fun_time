@@ -30,29 +30,20 @@ _PAGE_GLOB = "*.html"
 
 @dataclass(frozen=True)
 class TabTarget:
-    """Where a tab should land, how to name it, and the video it came from."""
-
     url: str
     label: str
     video_path: str = ""
 
 
 def tabs_dir(state_dir: str | Path) -> Path:
-    """The directory holding this session's generated tab pages."""
     return Path(state_dir) / "rfb_tabs"
 
 
 def _js_string(value: str) -> str:
-    """Render *value* as a JavaScript string literal, safe inside ``<script>``.
-
-    ``json.dumps`` handles quotes and backslashes; escaping ``<`` additionally
-    stops a ``</script>`` inside a URL or label from closing the block early.
-    """
     return json.dumps(value).replace("<", "\\u003c")
 
 
 def _file_uri(video_path: str) -> str:
-    """The ``file://`` URI for *video_path*, or "" when there is nothing to show."""
     if not video_path:
         return ""
     path = Path(video_path)
@@ -62,11 +53,6 @@ def _file_uri(video_path: str) -> str:
 
 
 def render_tab_page(target: TabTarget, *, loopback_port: int = LOOPBACK_PORT) -> str:
-    """Render the landing page that defers loading *target* until it is triggered.
-
-    *loopback_port* is where this session answers whether it is in OmniPause;
-    a page polling any other port never freezes, silently.
-    """
     template = with_family_look(_TEMPLATE_PATH.read_text(encoding="utf-8"))
     for token, value in (
         ('"__FT_TARGET__"', target.url),
@@ -87,12 +73,6 @@ def _write_page(page: Path, target: TabTarget, loopback_port: int) -> str:
 def write_tab_pages(
     pages_dir: Path, targets: Sequence[TabTarget], *, loopback_port: int = LOOPBACK_PORT,
 ) -> list[str]:
-    """Write this session's tab pages into *pages_dir*, returning their file URIs.
-
-    Every page from the previous session is removed first — the startup pages
-    name favorites this session did not pick, and the lock pages name videos
-    nobody is looking at any more.  Nothing else ever cleans them up.
-    """
     pages_dir.mkdir(parents=True, exist_ok=True)
     for stale in pages_dir.glob(_PAGE_GLOB):
         stale.unlink()
@@ -106,11 +86,5 @@ def write_tab_pages(
 def write_lock_tab_page(
     pages_dir: Path, target: TabTarget, *, loopback_port: int = LOOPBACK_PORT,
 ) -> str:
-    """Write the page for a video locked mid-session, returning its file URI.
-
-    Named after the destination, so locking the same video twice rewrites one
-    page instead of littering the directory, and so it can never collide with
-    the ``tab_NN`` pages the session start laid down.
-    """
     digest = hashlib.sha1(target.url.encode("utf-8")).hexdigest()[:12]
     return _write_page(pages_dir / f"lock_{digest}.html", target, loopback_port)

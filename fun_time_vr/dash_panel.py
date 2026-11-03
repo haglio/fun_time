@@ -52,34 +52,28 @@ from fun_time.project_paths import PROJECT_ICON
 
 from .main_hud import DEG_PER_PX, level_color
 
-_DIAL_W = 92  # the name and the arrow beside it
+_DIAL_W = 92
 _ROW_H = 16
 _WORDMARK_PX = in_pixels(SIZE_SMALL)
 _LABEL_PX = in_pixels(SIZE_TINY)
 LOG_ROWS = 8
 
-# The dial, and one action per stop while it is open, named so a press carries
-# which stop it landed on.
 VERBOSITY_DROPDOWN = "dash_verbosity"
 VERBOSITY_STOP = "dash_verbosity:"
 
 
 @dataclass(frozen=True)
-class DashState:  # what the bar shows, and what the log is filtered to
+class DashState:
     omni_paused: bool = False
     voice_active: bool = False
-    # The room's own F-mode, so the bar's F lights here exactly as it does on
-    # the desktop's.
     f_mode: bool = False
     reference_open: bool = False
-    # Whether every Funestra is already at its defaults, which leaves Reset All
-    # with nothing to do -- drawn faded, and it takes no press.
     nothing_to_reset: bool = False
     verbosity: int = LEVELS_BY_NAME["NOTICE"]
     sources: frozenset[str] = frozenset(SOURCES)
     dial_open: bool = False
 
-    def accepts(self, record: EventRecord) -> bool:  # the log panel's own rule
+    def accepts(self, record: EventRecord) -> bool:
         return record.level >= self.verbosity and record.source in self.sources
 
     def controls(self) -> tuple[BarControl, ...]:
@@ -104,7 +98,7 @@ def dial_rect() -> Rect:
     return Rect(PAD, compute_dashboard_bar_layout().height + PAD, _DIAL_W, BUTTON_SIZE_HUD)
 
 
-def source_buttons() -> dict[str, Rect]:  # left to right, in SOURCES order
+def source_buttons() -> dict[str, Rect]:
     dial = dial_rect()
     buttons_of_a_row: dict[str, Rect] = {}
     x = dial.x + dial.width + BUTTON_GROUP_GAP
@@ -125,7 +119,6 @@ DASH_DEG_PER_PX = DEG_PER_PX
 
 
 def dial_stops() -> dict[str, Rect]:
-    """Where each level sits in the open list, hanging under the dial."""
     dial = dial_rect()
     return {
         f"{VERBOSITY_STOP}{name}": Rect(
@@ -135,12 +128,11 @@ def dial_stops() -> dict[str, Rect]:
 
 
 def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
-    """Every pressable rect, by its action; the list's stops only while open."""
     actions = {control.action: control.rect
                for control in bar_controls(compute_dashboard_bar_layout(), in_vr=True)}
     actions[VERBOSITY_DROPDOWN] = dial_rect()
     actions.update(source_buttons())
-    if dial_open:  # over the log, and pressed before anything under it
+    if dial_open:
         actions = dial_stops() | actions
     return actions
 
@@ -205,7 +197,7 @@ def _chip(draw, rect: Rect, label: str, *, on: bool, font,
     _label(draw, rect, label, font, WHITE if on else TEXT_PRIMARY)
 
 
-def _on(rect: Rect, point: tuple[int, int] | None) -> bool:  # is the ray on it
+def _on(rect: Rect, point: tuple[int, int] | None) -> bool:
     if point is None:
         return False
     x, y = point
@@ -215,7 +207,6 @@ def _on(rect: Rect, point: tuple[int, int] | None) -> bool:  # is the ray on it
 def paint_dash(state: DashState, records,
                hover: tuple[int, int] | None = None,
                shown_as: Preview | None = None) -> Image.Image:
-    """The bar, the filter row, the log rows, the dial; *hover* lights one."""
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
@@ -271,16 +262,13 @@ def with_the_osr2_part(dash: Image.Image,
 
 
 class DashPointer:
-    """A press, turned into what the desktop's Dashboard does: the bar's controls post
-    its commands, the dial changes only what this shows, the OSR2 part answers itself."""
-
     def __init__(self, *, post, state: DashState | None = None) -> None:
         self._post = post
         self.state = state or DashState()
         self.part = Osr2ControlsHost(post=post)
         self._held = self._held_on_the_part = False
 
-    def press(self, px: int, py: int) -> str | None:  # the action, or None
+    def press(self, px: int, py: int) -> str | None:
         self._held, self._held_on_the_part = True, _on(osr2_part_rect(), (px, py))
         if self._held_on_the_part:
             self.part.press(*_within_the_part(px, py))
@@ -291,7 +279,6 @@ class DashPointer:
                 break
             self._act(action)
             return action
-        # Anywhere else closes an open list, as clicking off a dropdown does.
         self.state = replace(self.state, dial_open=False)
         return None
 
@@ -331,7 +318,6 @@ class DashPointer:
     def session_state(self, *, omni_paused: bool, voice_active: bool,
                       f_mode: bool = False, reference_open: bool = False,
                       nothing_to_reset: bool = False) -> None:
-        """The session's half; the filters stay this panel's."""
         self.state = replace(self.state, omni_paused=omni_paused, voice_active=voice_active,
                              f_mode=f_mode, reference_open=reference_open,
                              nothing_to_reset=nothing_to_reset)

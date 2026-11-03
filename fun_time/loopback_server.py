@@ -2,7 +2,6 @@
 
 Two things over there need to ask this session something, and neither can read
 a file to find it out:
-
 * Tampermonkey fetches the Provider autofill userscript.  It is hand-installed
   once, but Chrome refuses to *update* a script from a ``file://`` path, which
   makes every later edit a copy-all-paste-save into the Tampermonkey dashboard
@@ -28,16 +27,12 @@ from pathlib import Path
 from app_support import ports
 from shared_ui.pages import with_family_look
 
-# Baked into the userscript's @updateURL/@downloadURL header, so the two must
-# stay in lockstep (a regression test pins them). 127.0.0.1-only.
 LOOPBACK_PORT = ports.USERSCRIPT_HTTP
 USERSCRIPT_NAME = "regen_autofill.user.js"
 # The real script is provider-specific and git-ignored; a public checkout has
 # only this committed template, which the server falls back to serving.
 EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
-# Polled by the RFB tab pages, which freeze their videos while the session is
-# in OmniPause.
 OMNIPAUSE_PATH = "/omnipause"
 
 
@@ -53,11 +48,6 @@ def userscript_path() -> Path:
 
 
 def omnipause_url(port: int = LOOPBACK_PORT) -> str:
-    """The URL a page fetches to learn whether the session is in OmniPause.
-
-    Baked into every RFB tab page, so this is the one place the two agree on
-    where to ask.
-    """
     return f"http://127.0.0.1:{port}{OMNIPAUSE_PATH}"
 
 
@@ -65,14 +55,10 @@ def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
     request_path = "/" + USERSCRIPT_NAME
 
     class _Handler(BaseHTTPRequestHandler):
-        def do_GET(self):  # http.server API name
+        def do_GET(self):
             path = self.path.split("?", 1)[0]
             if path == OMNIPAUSE_PATH:
-                # Asked per request, never captured at startup: the answer is
-                # the whole point and it changes while the page is open.
                 body = json.dumps({"omni_paused": omni_paused()}).encode("utf-8")
-                # The tab pages read this as origin `null` (they are file://
-                # documents), which only a wildcard lets through.
                 self._respond(body, "application/json", allow_any_origin=True)
                 return
             if path != request_path:
@@ -83,7 +69,6 @@ def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
             except OSError:
                 self.send_error(404)
                 return
-            # A `.user.js` URL served as JavaScript is what Tampermonkey expects.
             self._respond(body, "text/javascript; charset=utf-8")
 
         def _respond(self, body: bytes, content_type: str, *, allow_any_origin: bool = False) -> None:
@@ -95,7 +80,7 @@ def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
             self.end_headers()
             self.wfile.write(body)
 
-        def log_message(self, *args):  # silence http.server's stderr logging
+        def log_message(self, *args):
             pass
 
     return _Handler
@@ -106,12 +91,6 @@ def make_server(
     script_path: Path | None = None,
     omni_paused: Callable[[], bool] = lambda: False,
 ) -> ThreadingHTTPServer:
-    """Build (but do not start) the loopback server.
-
-    ``omni_paused`` is called per request rather than read once, so it can be
-    the live dispatch state.  Unwired, it reports a session that is playing —
-    the answer that leaves a video alone.
-    """
     return ThreadingHTTPServer(
         ("127.0.0.1", port),
         _make_handler(script_path or userscript_path(), omni_paused),
@@ -122,7 +101,6 @@ def serve_loopback(
     port: int = LOOPBACK_PORT,
     omni_paused: Callable[[], bool] = lambda: False,
 ) -> ThreadingHTTPServer:
-    """Start the loopback server on a daemon thread; return the server."""
     server = make_server(port, omni_paused=omni_paused)
     threading.Thread(target=server.serve_forever, daemon=True, name="loopback-server").start()
     return server

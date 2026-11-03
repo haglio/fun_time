@@ -194,27 +194,20 @@ from .wraps import Wrap, angle_limits, immersive_wrap
 
 logger = logging.getLogger(__name__)
 
-# Overlay ids shared with the desktop satellite (10 is its lock HUD).
 _OV_MESSAGE = 13
 
 
-# Longest texture side each video gets: near-native for the Main Funestra, and for
-# a satellite's 28° of view well above what the headset resolves there.
 MAIN_VIDEO_CAP_PX = 8192
 SATELLITE_VIDEO_CAP_PX = 2048
 
 LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
-# The file-channel worker's cadence: the dispatch loop polls these same files
-# at ~20Hz, so 30Hz loses no responsiveness.
 PUMP_HZ = 30.0
-# The Main Funestra's own cadence, Genau's: a slower tick shows fewer of a
-# flick's frames per cycle of the motion.
 MAIN_TICK_HZ = 120.0
 
 OFF_THE_HUD = (-1, -1)
 
-LASER_REACH_M = 3.0  # when the laser meets no screen
+LASER_REACH_M = 3.0
 HANDLE_COLOR = as_fractions(BORDER_DEFAULT, 0.35)
 HOT_HANDLE_COLOR = as_fractions(BLUE, 0.85)
 LASER_COLOR = as_fractions(WHITE, 0.55)
@@ -228,13 +221,9 @@ def _folders(spec: str) -> tuple[Path, ...]:
 
 @dataclass(frozen=True)
 class VrSettings:
-    """The ``[vr]`` section the VR orchestrator adds to the launch manifest -- read
-    here rather than in :mod:`fun_time.manifest`, which a desktop session writes."""
-
     library_dirs: tuple[Path, ...]
     audio_device: str
     compositor_layers: bool
-    # What Genau needs: its flicks folder, its companion's address, its engine's numbers.
     flicks_folder: Path | None = None
     notify_host: str = "127.0.0.1"
     notify_port: int = ports.AUDIO_COMPANION
@@ -286,9 +275,6 @@ class _HangingScreen:
 
 
 class _VideoUnit:
-    """What every Funestra here shares: a video thread, a texture target and a
-    screen to hang it on."""
-
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def put_back(self) -> None:
@@ -299,13 +285,8 @@ class _VideoUnit:
         self.engine = video.engine
         self.target = RenderTarget()
         self.screen = _HangingScreen(placement)
-        # Compositor-layer bookkeeping, render-thread-owned: whether the
-        # target holds pixels its quad swapchain hasn't copied yet, and the
-        # size the swapchain's content was copied at (None until the first
-        # copy, and again after a resize makes the copied image stale).
         self.layer_dirty = False
         self.layer_rect: tuple[int, int] | None = None
-        # Furniture last painted, pump-thread-owned.
         self._message_shown: tuple | None = None
         self._audio_routed = False
         self._held = False
@@ -324,8 +305,6 @@ class _VideoUnit:
         return shown_at(self.screen_name, self.screen.placement, self.target.aspect)
 
     def layer_placement(self, scene_yaw_deg: float = 0.0, scene_pitch_deg: float = 0.0):
-        """Pose and size for this screen's compositor quad, at the aspect its
-        swapchain last copied; the scene angles turn and tilt the arrangement."""
         width, height = self.layer_rect
         aspect = width / height
         return quad_layer_placement(
@@ -334,9 +313,6 @@ class _VideoUnit:
         )
 
     def _viewport(self) -> tuple[int, int]:
-        """The frame's own pixels, which is the window the Funestra places
-        its HUD in; the HUD hangs beside the item, so only the
-        placing's arithmetic sees these numbers."""
         return max(1, self.target.width), max(1, self.target.height)
 
     def route_audio(self) -> None:
@@ -352,8 +328,6 @@ class _VideoUnit:
             logger.info("Audio device %r -> %s", self._audio_device, picked or "no match; default")
 
     def _press_on_the_hud(self, event: PressEvent) -> None:
-        """A squeeze on the hanging HUD, placed by the Funestra the way a
-        click on the desktop's is: in the window's pixels, at the HUD's own."""
         size = self.hud.size
         if size is None:
             return
@@ -369,9 +343,6 @@ class _VideoUnit:
 
     def _hover_over_the_hud(self, hovered: tuple[str, tuple[float, float]] | None,
                             hud_screen: str) -> None:
-        """Where the pointer rests on the HUD, for its tooltip -- off it
-        entirely while a press is held, since the press's own drags say where
-        the pointer is."""
         if self._held:
             return
         size = self.hud.size
@@ -384,8 +355,6 @@ class _VideoUnit:
         append_command(self._dashboard_cmd_file, command)
 
     def overlay_message(self, flashed) -> None:
-        """Flash *message* over this screen, or clear what was flashing,
-        repainted only when it changes."""
         if not self.target.ready:
             return
         width, height = self.target.width, self.target.height
@@ -403,10 +372,9 @@ class _VideoUnit:
         self.engine.overlay(_OV_MESSAGE, x, y, bgra)
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        """One turn of the file-channel worker — what every unit owes it."""
         raise NotImplementedError
 
-    def close(self) -> None:  # what the frame loop's `finally` calls
+    def close(self) -> None:
         raise NotImplementedError
 
     def _close_graphics(self) -> None:
@@ -415,7 +383,6 @@ class _VideoUnit:
 
 
 def _on_the_screen(screen, frame, wrap: Wrap | None) -> tuple[Hanging, ...]:
-    """Round the viewer rather than on a screen leaves no rectangle to aim at."""
     if wrap is not None:
         return (Hanging(Screen(MAIN, screen.placement, frame.aspect,
                                pressable=True, immersive=True),
@@ -445,9 +412,6 @@ def main_video(contexts, perf=None) -> VideoThread:
 
 
 class _TheLibrary:
-    """What Kino reads the library through, built the way the desktop's Main
-    Funestra builds it: off the session's config, with the same files named."""
-
     def __init__(self, manifest: LaunchManifest, vr: VrSettings, *,
                  while_reading: Callable[[], None]) -> None:
         commands = manifest.commands
@@ -471,11 +435,8 @@ class _TheLibrary:
 
 
 class _MainUnit(_VideoUnit):
-    """The Main Funestra, with Kino and Genau running on it as they do on the
-    desktop, and the headset's own verbs beside them."""
-
-    screen_name = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
-    SPOTS: ClassVar[dict[str, Placement]] = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
+    screen_name = MAIN
+    SPOTS: ClassVar[dict[str, Placement]] = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
@@ -517,20 +478,13 @@ class _MainUnit(_VideoUnit):
         self.verbs = HeadsetVerbs(
             self.funestra.playback, metadata_root=_metadata_root(manifest),
             vr_dirs=tuple(vr.library_dirs), tilt_deg=remembered.tilt_deg)
-        # A VR video nobody has chosen a projection for gets its frame read off
-        # the thread that paints it: a fisheye circle found there opens it as a
-        # fisheye rather than drawing its lower edge into a point as a 180 does.
         self.verbs.look_with(FrameLook(self.video))
 
     def _apply_the_headsets_verb(self, command: str) -> bool:
-        """The Funestra asks after what runs on it; the verbs are built around
-        the playback the Funestra makes, so they are reached through here."""
         return self.verbs.apply(command)
 
     @property
     def owns_the_slot(self) -> bool:
-        """Whether the video is what fills the Main Funestra, Genau's flick
-        filling it otherwise."""
         return self.funestra.showing == MainMode.KINO
 
     @property
@@ -562,8 +516,6 @@ class _MainUnit(_VideoUnit):
         return readout(self.verbs.projection, self.verbs.wrap)
 
     def message_into_the_frame(self):
-        """A message drawn into a frame wrapped round the viewer lands on the seam
-        between its two eyes; the floating one carries it instead."""
         if self._messages is None or self.wraps_the_viewer:
             return None
         return self._messages.flashed(self.screen_name)
@@ -591,8 +543,6 @@ class _MainUnit(_VideoUnit):
         self._show_the_users_frame()
 
     def _show_the_users_frame(self) -> None:
-        """The frame the User in front put up -- Genau's, scrubbed to the OSR2
-        -- uploaded untouched, and wrapped the way its flick is."""
         if self.owns_the_slot:
             return
         latest = self.users_frames.flick_frame
@@ -628,9 +578,6 @@ class _MainUnit(_VideoUnit):
         self._hover_over_the_hud(self._presses.hover, MAIN_HUD)
 
     def _watch_progress(self, now: float) -> None:
-        """Say it out loud when the video stops advancing, and reopen it once:
-        the failure leaves the Funestra unpaused, its duration known and its
-        position frozen, raising nothing and logging nothing."""
         playback = self.funestra.playback
         verdict = self._watch.note(
             position_ms=playback.position_ms,
@@ -659,16 +606,14 @@ class _MainUnit(_VideoUnit):
             playback.seek_to(position_ms)
 
     def close(self) -> None:
-        self.verbs.close()  # before the Funestra: its looks read a frame from one
+        self.verbs.close()
         self.video.close()  # frees mpv on the thread whose context it renders in
-        self.funestra.close()  # what runs on it, and the line to the device
+        self.funestra.close()
         self.users_frame_texture.close()
         self._close_graphics()
 
 
 def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, kino):
-    """What runs on the Main Funestra: Kino, and Genau where the session names
-    its flicks folder -- as the desktop's Main Funestra runs them."""
     users = {MainMode.KINO: kino}
     if vr.flicks_folder is None:
         return users
@@ -694,8 +639,6 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
 
 
 class _SatelliteUnit(_VideoUnit):
-    # Tuned on the first headset run: flush beside the main screen put both of them
-    # in the peripheral vision.
     SPOTS: ClassVar[dict[str, Placement]] = {
         LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
         PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
@@ -711,10 +654,8 @@ class _SatelliteUnit(_VideoUnit):
             remembered.get(funestra, self.SPOTS[funestra]),
         )
         commands = manifest.commands
-        self.screen_name = funestra  # its messages flash over its own frame
+        self.screen_name = funestra
         self._messages = messages
-        # What a launched satellite is given on its command line, read out of
-        # the manifest instead: this one runs in the headset's own process.
         channels = SatelliteChannels.from_manifest(
             commands, funestra,
             play_points=Path(commands.state_dir) / play_points_filename(funestra))
@@ -834,9 +775,6 @@ class _Presses:
 
 
 def _upload(unit) -> bool:
-    """Upload a painted panel if it changed, and say whether it can hang.  Its
-    caller re-hangs it every frame all the same: rehanging only alongside an
-    upload left a dragged panel's mesh where the drag started until a repaint."""
     with unit._lock:
         image = unit._image
     if image is not None and image is not unit._uploaded:
@@ -846,10 +784,6 @@ def _upload(unit) -> bool:
 
 
 class _MainHudUnit:
-    """The HUD the Main Funestra draws, hanging under whichever item
-    fills the Main Funestra -- or, while that item wraps the viewer and there is
-    nothing to dock to, under the dashboard."""
-
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, main_unit: _MainUnit, dash) -> None:
@@ -876,13 +810,13 @@ class _MainHudUnit:
             mesh=self.screen, frame=self.texture, blend=True, docked_to=MAIN))
 
     def hangs_by(self) -> dict[str, Hangs]:
-        return {}  # it hangs from whatever is above it, and is never dragged
+        return {}
 
     def put_back(self) -> None:
-        pass  # it follows whatever it is docked under, back to that screen's own spot
+        pass
 
     def point(self, frame: Frame) -> None:
-        self._presses.point(frame)  # a squeeze on the HUD itself is the Main Funestra's
+        self._presses.point(frame)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         for event in self._presses.drain():
@@ -939,12 +873,9 @@ def _at_the_dashs_own_width(placement: Placement) -> Placement:
 
 
 class _DashUnit:
-    # Painted like the HUD; the pair's handle while it carries one, and a spot for that.
-
     SPOTS: ClassVar[dict[str, Placement]] = {
         DASH: Placement(azimuth_deg=0.0, elevation_deg=_two_handles_over_the_main(_DASH_WIDTH_DEG),
                         width_deg=_DASH_WIDTH_DEG),
-        # Carrying the HUD, the video having wrapped the viewer: lower, under it.
         MAIN_HUD: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
     }
 
@@ -973,11 +904,11 @@ class _DashUnit:
         self.screen = _HangingScreen(self._floating)
 
     @property
-    def carrying_the_main_hud(self) -> bool:  # a wrapped video leaves it the only handle
+    def carrying_the_main_hud(self) -> bool:
         return self._main_unit.wraps_the_viewer
 
     @property
-    def layout_key(self) -> str:  # which remembered spot a drag lands in
+    def layout_key(self) -> str:
         return MAIN_HUD if self.carrying_the_main_hud else DASH
 
     @property
@@ -1020,7 +951,6 @@ class _DashUnit:
                 self._pointer.drag(*at)
             elif event.kind == RELEASE:
                 self._pointer.release()
-        # The snapshot the desktop's own bar reads.
         snapshot = load_dashboard_snapshot(self._state_file)
         self._pointer.session_state(
             omni_paused=snapshot is not None and snapshot.omni_paused,
@@ -1059,8 +989,6 @@ class _DashUnit:
 
 
 class _ReferenceUnit:
-    """The hotkeys and voice reference, hanging from the dashboard while it is up."""
-
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, dash: _DashUnit, main_hud_unit: _MainHudUnit, *, flag: Path) -> None:
@@ -1082,16 +1010,16 @@ class _ReferenceUnit:
 
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.showing and self.texture.ready):
-            return ()  # nothing to point at on a panel that is not there
+            return ()
         return (Hanging(
             Screen(REFERENCE, self.screen.placement, self.texture.aspect, pressable=True),
             mesh=self.screen, frame=self.texture, blend=True, forward_with=DASH),)
 
     def hangs_by(self) -> dict[str, Hangs]:
-        return {}  # it moves with the dashboard it hangs from
+        return {}
 
     def put_back(self) -> None:
-        pass  # it hangs under the dashboard, back to wherever that goes
+        pass
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -1125,7 +1053,6 @@ class _ReferenceUnit:
 
 
 class _LibraryUnit:
-    # A browse to read and press: dead ahead and wide, over the frame while it is up.
     SPOTS: ClassVar[dict[str, Placement]] = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
 
     def __init__(
@@ -1167,7 +1094,7 @@ class _LibraryUnit:
 
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.showing and self.texture.ready):
-            return ()  # nothing to point at while it is put away
+            return ()
         return (Hanging(
             Screen(LIBRARY, self.screen.placement, self.texture.aspect,
                    movable=True, pressable=True),
@@ -1250,14 +1177,11 @@ class _LibraryUnit:
 
 MESSAGE_ELEVATION_DEG = 24.0
 MESSAGE_PX_PER_DEG = 40.0
-# The family's small type as big as it reads on the HUD, drawn at the message's density.
 MESSAGE_FONT_PX = round(in_pixels(SIZE_SMALL) * MESSAGE_PX_PER_DEG * DEG_PER_PX)
 MESSAGE_MAX_WIDTH_PX = 1600
 
 
 class _MessageUnit:
-    """The main screen's message, floating in front of a frame wrapped round the viewer."""
-
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, main_unit, messages) -> None:
@@ -1309,7 +1233,7 @@ class _MessageUnit:
         self.screen.close()
 
 
-class _GalleryUnit:  # the hosted app's window
+class _GalleryUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {GALLERY: Placement(azimuth_deg=-100.0, elevation_deg=2.0, width_deg=95.0)}
 
     def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
@@ -1395,57 +1319,52 @@ class _GalleryUnit:  # the hosted app's window
         self.screen.close()
 
 
-class LoadingScreenUnit:  # :mod:`fun_time_vr.loading_screen`, drawn in place of the scene
+class LoadingScreenUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
-        self.holding = False  # render-thread-read, set on the pump's refresh
-        self.awaiting_wearer = False  # set by the loop, read on the pump's refresh
-        self.anchor_settled = False  # set by the loop: has it been read yet
+        self.holding = False
+        self.awaiting_wearer = False
+        self.anchor_settled = False
         self._watcher = LoadingScreenWatcher(state_dir)
         self._lock = threading.Lock()
-        self._pending: tuple[object, bool] | None = None  # (image, closing)
+        self._pending: tuple[object, bool] | None = None
         self._loading_screen: LoadingScreen | None = None
         self._reported = False
         self._uploaded = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(Placement(0.0, 0.0, LOADING_SCREEN_WIDTH_DEG))
-        # Render-thread-owned, read by the frame loop each frame.
         self.showing = False
         self.anchor = LoadingScreenAnchor()
-        self.refresh()  # the loop's first renderable frame is already covered
+        self.refresh()
 
     def hangings(self) -> tuple[Hanging, ...]:
-        return ()  # it is drawn in place of the room, never as part of it
+        return ()
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}
 
     def put_back(self) -> None:
-        pass  # it hangs where the viewer is looking, never in a remembered spot
+        pass
 
     def point(self, frame: Frame) -> None:
-        pass  # a loading screen stands in place of everything there is to aim at
+        pass
 
-    def closing_now(self) -> None:  # ending on its own: raise it unasked
+    def closing_now(self) -> None:
         self._watcher.closing_now()
 
     @property
-    def wanted(self) -> bool:  # a Funestra with no orchestrator never wants one
+    def wanted(self) -> bool:
         with self._lock:
             return self._pending is not None
 
     @property
     def closing(self) -> bool:
-        """Whether the painted loading screen is the teardown's.  Off the bitmap, not the
-        texture, so a teardown holding its first kill is answered even where no
-        frame was drawn."""
         with self._lock:
             return self._pending is not None and self._pending[1]
 
     def refresh(self) -> None:
-        """Re-read the progress files and repaint if what they say has moved."""
         self.holding = headset_hold_asked(self._state_dir)
         loading_screen = self._watcher.read()
         if loading_screen is not None and not loading_screen.closing and self.awaiting_wearer:
@@ -1464,7 +1383,7 @@ class LoadingScreenUnit:  # :mod:`fun_time_vr.loading_screen`, drawn in place of
             pending = self._pending
         if pending is None:
             self.showing = False
-            self.anchor.release()  # the next hangs where the viewer is by then
+            self.anchor.release()
             return
         image, _closing = pending
         if image is not self._uploaded:
@@ -1474,10 +1393,6 @@ class LoadingScreenUnit:  # :mod:`fun_time_vr.loading_screen`, drawn in place of
         self.showing = self.texture.ready and self.screen.ready
 
     def settled(self) -> None:
-        """The closing screen is as visible as it will get: its frame reached the
-        compositor, or nothing is presented at all — a quit made with the
-        headset off would else buy the timeout and no loading screen.
-        """
         if not self.closing or self._reported:
             return
         self._reported = True
@@ -1600,7 +1515,7 @@ class _PointerDrawing:
     def draw(self, renderer: SceneRenderer, view_proj: np.ndarray) -> None:
         for mesh, color in self._visible:
             renderer.draw_solid(mesh, view_proj, color)
-        if self._holding:  # last: in the hand, so nearer than anything else in the scene
+        if self._holding:
             renderer.draw_shaded(self._controllers, view_proj, CONTROLLER_COLOR)
 
     def close(self) -> None:
@@ -1613,9 +1528,9 @@ def _unit_name(unit: object) -> str:
     return f"{type(unit).__name__}[{screen}]" if screen else type(unit).__name__
 
 
-class _PumpFaults:  # one unit's pump failing, said once, not seven times a second
+class _PumpFaults:
     def __init__(self) -> None:
-        self._kind: dict[int, tuple[str, str]] = {}  # by identity: satellites share a class
+        self._kind: dict[int, tuple[str, str]] = {}
         self._repeats: dict[int, int] = {}
         self._names: dict[int, str] = {}
 
@@ -1673,8 +1588,6 @@ def _scene_rotation(scene_yaw: float, tilt_deg: float) -> np.ndarray:
 
 
 def _close_channels(units: list, *, keep=None) -> None:
-    """Close everything the worker was pumping, all but *keep* — guarded per
-    unit as :func:`_pump_channels` is, since what follows it waits on it."""
     for unit in units:
         if unit is keep:
             continue
@@ -1684,7 +1597,7 @@ def _close_channels(units: list, *, keep=None) -> None:
             logger.warning("%s.close failed", type(unit).__name__, exc_info=True)
 
 
-class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of the log
+class _SaysWhenItFirstMoves:
     def __init__(self, sink, driver: str) -> None:
         self._sink = sink
         self._driver = driver
@@ -1708,9 +1621,6 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
 
 
 def _still_blank(main_unit, satellites: Sequence, main_hud_unit) -> tuple[str, ...]:
-    """Which screens the session opens with have yet to RENDER a frame, as
-    against merely being sized (``has_frame``, never ``ready``); the Main Funestra
-    counts once.  Named, so the reveal can say which one it gave up on."""
     frames = [(main_unit.screen_name, main_unit.texture_on_the_screen)]
     frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
     if main_hud_unit.in_the_room:
@@ -1731,8 +1641,6 @@ def _hands_for_the_funestras(
 
 
 class TheRoom:
-    """Everything the headset hangs in front of him, and the one list each is read off."""
-
     def __init__(
         self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
         main_hud_unit: _MainHudUnit, reference: _ReferenceUnit, library: _LibraryUnit,
@@ -1753,7 +1661,6 @@ class TheRoom:
         self.stop = stop
         self.workers: tuple[threading.Thread, ...] = ()
         self.wear = HeadsetWear()
-        # Dash before the HUD, which hangs off where the dashboard ended up.
         self.units = [main_unit, *self.satellites, dash, main_hud_unit, reference, library,
                       flashed, gallery, loading_screen]
         self.closing = [messages, *self.units, keeper, posts]
@@ -1803,12 +1710,11 @@ def hang_the_room(
     state_dir = Path(commands.dashboard_cmd_file).parent
     remembered = remembered_layout(state_dir)
     stop = threading.Event()
-    # One read of the event log per tick, pumped before every screen's message.
     messages = MessageBoard(event_log_path(state_dir), unlogged=UnloggedMessages(state_dir))
     main_unit = _MainUnit(
         manifest, vr, contexts, remembered=remembered, stop=stop, messages=messages, perf=perf,
         while_reading=present_the_loading_screen)
-    present_the_loading_screen()  # the Main Funestra has opened its media, and the satellites are next
+    present_the_loading_screen()
     satellites = [
         _SatelliteUnit(funestra, manifest, contexts, vr=vr, remembered=remembered.placements,
                        messages=messages, perf=perf)
@@ -1854,8 +1760,6 @@ def hang_the_room(
 
 
 class LoadingScreenWatch:
-    """How long the loading screen has been in front of the eyes, and of a wearer's."""
-
     def __init__(self, loading_screen: LoadingScreenUnit, scene_ready: SceneReady, *,
                  dwell_s: float = LOADING_SCREEN_DWELL_S) -> None:
         self._loading_screen = loading_screen
@@ -1867,7 +1771,7 @@ class LoadingScreenWatch:
 
     def frame_began(self, *, blank: Sequence[str], focused: bool, views_tracked: bool) -> None:
         self._loading_screen.anchor_settled = self._worn.dwelt and views_tracked
-        self._loading_screen.awaiting_wearer = not blank and not focused  # set before he looks
+        self._loading_screen.awaiting_wearer = not blank and not focused
         self._scene_ready.note(blank=blank, read=self._on_screen.dwelt)
 
     def drawing(self, now: float) -> None:
@@ -1889,21 +1793,18 @@ class LoadingScreenWatch:
 @dataclass(frozen=True)
 class Arranged:
     hangings: list[Hanging]
-    screens: list[Screen]  # back to front, as the eyes draw them
+    screens: list[Screen]
     scene_rotation: np.ndarray
     scene_yaw: float
     scene_pitch_deg: float
 
 
 class Arrangement:
-    """The controllers' hold on the room, frame by frame."""
-
     def __init__(self, the_room: TheRoom, *, pointer: Pointer | None = None) -> None:
         self._room = the_room
         self._pointer = pointer or Pointer()
         self._thumbs = Thumbs()
         self._stacking = Stacking()
-        # The recentering yaw, with the tilt read in beside it each frame.
         self.scene_yaw = 0.0
         self.scene_rotation = np.eye(4, dtype=np.float32)
 
@@ -1954,7 +1855,7 @@ class Arrangement:
                      for name in FUNESTRAS}
         moved = frame.moved | rearranged(funestras, grow=thumb.grow, nearer_by=thumb.nearer)
         for name, placement in moved.items():
-            the_room.where[name].put(placement)  # its own spot, of however many
+            the_room.where[name].put(placement)
             the_room.keeper.place(the_room.where[name].spot(name), placement)
         the_room.keeper.tilt(tilt_deg, carried=lifted)
         if reset:
@@ -1986,9 +1887,6 @@ def draw_eyes(
     screens: Sequence[Screen],
     as_quads: set[str],
 ) -> None:
-    """Render the projection layer's two eyes: a video wrapping the viewer, then
-    *screens* back to front, less those the compositor took as quads, then the
-    pointer's chrome over all of it.  *scene_rotation* is where they all sit."""
     wrap = room.wrapped(hangings)
     flat = room.drawn(hangings, screens=screens, as_quads=as_quads)
     for eye_index, view in enumerate(views):
@@ -1999,8 +1897,6 @@ def draw_eyes(
             view.fov.angle_up, view.fov.angle_down,
             0.05, 100.0,
         )
-        # Rotation only: the scene must not parallax with head
-        # translation, or a projected sphere swims.
         view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
         view_proj = projection_matrix @ view_matrix @ scene_rotation
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)

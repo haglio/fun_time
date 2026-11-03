@@ -25,7 +25,6 @@ def _leave_out_the_input_methods_that_stall_band_changes() -> None:
 
 
 def wear_the_icon(pygame, icon: Path | None) -> None:
-    # Before set_mode: SDL takes the icon from the display as it makes the window.
     surface = _icon_surface(pygame, icon)
     if surface is not None:
         pygame.display.set_icon(surface)
@@ -54,8 +53,6 @@ def take_outside_resizes(pygame) -> None:
 
 def run_until_stopped(funestra, *, window_size, events, deal, pace) -> None:
     while not funestra.stopped:
-        # Before the events, which have to be placed against the window they
-        # landed in; the sequencer can move this one between passes.
         window = window_size()
         deal(events(), window)
         funestra.tick(viewport=window)

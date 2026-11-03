@@ -1,9 +1,3 @@
-"""A Satellite Funestra handed to the hosted Origenerator, and taken back.
-
-The app writes the Funestra's own playlist file, so the session's list is kept
-aside — turned onto the video on screen — and put back when the Funestra comes home,
-where the Funestra opens at its top: exactly where it left off.
-"""
 from __future__ import annotations
 
 from collections.abc import Callable, Collection
@@ -28,7 +22,6 @@ HudStamp = tuple[int, int] | None
 
 
 def hud_stamp(channel: SatelliteChannel) -> HudStamp:
-    """Which copy of *channel*'s hosted HUD is on disk; each publish replaces it."""
     if channel.origenerator_hud_file is None:
         return None
     try:
@@ -61,9 +54,6 @@ def taken_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
 
 
 def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
-    """Whether the hosted app has published *channel*'s HUD empty since *stamp* --
-    its close, which only reading the way out makes it do.  An empty one already
-    there at *stamp* is an app that may not have taken the Funestra yet."""
     if hud_stamp(channel) == stamp:
         return False
     try:
@@ -75,16 +65,10 @@ def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
 
 
 def _kept(playlist_file: Path) -> Path:
-    """Where a Funestra's own list waits while the hosted app has the Funestra."""
     return playlist_file.with_name(f"{playlist_file.stem}.kept.tsv")
 
 
 def keep_aside(channel: SatelliteChannel) -> None:
-    """Keep *channel*'s list, turned onto the video the Funestra is showing.
-
-    A Funestra already holding a kept list never came home, and the list it
-    has now is the hosted app's, not the session's.
-    """
     kept = _kept(channel.playlist_file)
     if kept.exists():
         return
@@ -96,11 +80,6 @@ def keep_aside(channel: SatelliteChannel) -> None:
 
 
 def take_back_the_list(playlist_file: Path, *, onto: str = "") -> bool:
-    """Put the list kept aside for *playlist_file* back in it; ``False`` with none kept.
-
-    The kept list is spent by it: a stale one would be dealt over whatever the
-    session has built for that Funestra since.
-    """
     kept = _kept(playlist_file)
     entries = read_playlist(kept)
     if not entries:
@@ -117,8 +96,6 @@ def hand_back(channel: SatelliteChannel, *, onto: str = "") -> bool:
     return True
 
 
-# How long the hosted app is given to let go of the Funestras when origenerator
-# mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
 LET_GO_TIMEOUT_S = 3.0
 
 
@@ -142,9 +119,6 @@ class Departures:
 
 
 class Homecoming:
-    """Satellites on their way back from the hosted app: by when each lands,
-    and which of its hosted HUDs was up when it was sent for."""
-
     def __init__(self) -> None:
         self._coming: dict[FunTimeFunestra, tuple[float, HudStamp]] = {}
 
@@ -160,9 +134,6 @@ class Homecoming:
 
     def bring(self, state: BridgeState, config: BridgeConfig, *, now: float,
               left_on: Callable[[FunTimeFunestra], str]) -> list[FunTimeFunestra]:
-        """Hand each satellite its own list again once the hosted app has let
-        go of it, or has had long enough to -- never before, when a list the app
-        wrote after it would take the Funestra straight back."""
         landed = []
         for funestra, (deadline, stamp) in list(self._coming.items()):
             if origenerator_shows(state.satellite(funestra).mode):
@@ -173,7 +144,6 @@ class Homecoming:
                 continue
             del self._coming[funestra]
             hand_back(channel, onto=left_on(funestra))
-            # The session's own hold stands again, whatever the app left.
             append_command(channel.cmd_file,
                            LOCK_ON if state.satellite(funestra).locked else LOCK_OFF)
             landed.append(funestra)

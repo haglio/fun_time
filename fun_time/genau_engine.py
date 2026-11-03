@@ -1,5 +1,3 @@
-"""Genau's engine, built once for whichever surface shows it: the Main Funestra's
-window, or the headset."""
 from __future__ import annotations
 
 import logging

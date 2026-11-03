@@ -101,22 +101,14 @@ def _discard(
 ) -> tuple[BridgeState, list[WindowOp]]:
     locked = state.satellite(funestra).locked
     current_path = satellite_current(config, funestra)
-    # "Trash" judges the video the speaker saw.  When the satellite advanced
-    # while the phrase was being recognized, jump back to the condemned video
-    # before trashing it, so the wrong (innocent) video is never the one dropped.
     condemned = target_path or current_path
     if not condemned:
         logger.info("Nothing discarded on Funestra %d: it has not said which clip it is showing", funestra)
         return state, []
     already_moved_on = bool(target_path) and not same_video(target_path, current_path)
-    # Whether this is a demotion or a condemnation is read from the same record
-    # that lights the HUD's ★ for this video, so the key does what the badge
-    # on screen implies: a starred video loses the star, an unstarred one goes.
     plan = build_discard_plan(funestra=funestra, current_path=condemned,
                               is_favorite=is_favorite(condemned, config.regen_metadata_root))
     if locked:
-        # A locked satellite is repeat-one; drop the lock so TRASH advances into
-        # the playlist instead of looping the video that replaced the discarded one.
         send_satellite(config, funestra, LOCK_OFF)
     unfavorite(condemned, config)
     if plan.condemns:
@@ -124,10 +116,6 @@ def _discard(
             play_video(config, funestra, condemned)
         send_satellite(config, funestra, TRASH)
     elif not already_moved_on:
-        # A demotion leaves the video in the playlist, so this is a plain
-        # advance (NEXT) and PREV comes straight back to it.  Nothing has to
-        # be done to the video itself, so a satellite that already moved on is
-        # left alone rather than dragged back to a video it would leave again.
         send_satellite(config, funestra, NEXT)
     state = state.with_satellite(funestra, locked=False)
     lock_ops: list[WindowOp] = []
@@ -141,7 +129,6 @@ def _discard(
     return state, [flashed, *lock_ops]
 
 
-# The satellite and the variation axis each cycle command reaches.
 _CYCLE_COMMANDS = {
     "portrait_cycle_action": (FunTimeFunestra.PORTRAIT, "action"),
     "portrait_cycle_seed": (FunTimeFunestra.PORTRAIT, "seed"),
@@ -158,12 +145,10 @@ _VERSION_COMMANDS: dict[str, tuple[FunTimeFunestra, int]] = {
 }
 
 
-# "more seeds" — see :func:`satellite_groups.more_seeds`.
 _MORE_SEEDS_SATELLITES = {"portrait_more_seeds": FunTimeFunestra.PORTRAIT,
                      "landscape_more_seeds": FunTimeFunestra.LANDSCAPE}
 
 
-# Slot and axis per group-loop command — see :func:`satellite_groups.group_loop`.
 _LOOP_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
     "portrait_action_loop": (FunTimeFunestra.PORTRAIT, "action"),
     "portrait_seed_loop": (FunTimeFunestra.PORTRAIT, "seed"),
@@ -197,15 +182,12 @@ LOCK_TOGGLES: dict[str, FunTimeFunestra] = {_lock_pressed(funestra): funestra
                                           for funestra in FunTimeFunestra.SATELLITES}
 
 
-# "reset" clears a satellite's filter and reshuffles it back to the default
-# browse; "both reset" expands to these two before dispatch.
 _RESET_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
     "portrait_reset": (FunTimeFunestra.PORTRAIT,),
     "landscape_reset": (FunTimeFunestra.LANDSCAPE,),
 }
 
 
-# "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
 _NO_LOOP_SATELLITES: dict[str, FunTimeFunestra] = {
     "portrait_no_loop": FunTimeFunestra.PORTRAIT,
     "landscape_no_loop": FunTimeFunestra.LANDSCAPE,
@@ -218,16 +200,12 @@ _LOOP_CYCLE_SATELLITES: dict[str, FunTimeFunestra] = {
 }
 
 
-# "no filter" drops just the filter — the narrow counterpart of reset, which puts
-# the whole Satellite back to its defaults.
 _NO_FILTER_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
     "portrait_no_filter": (FunTimeFunestra.PORTRAIT,),
     "landscape_no_filter": (FunTimeFunestra.LANDSCAPE,),
 }
 
 
-# "Wrong action" — the video is fine, its label is not.  Per side, like every
-# other judgement of the video on screen.
 _WRONG_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {"portrait_wrong_action": FunTimeFunestra.PORTRAIT,
                                           "landscape_wrong_action": FunTimeFunestra.LANDSCAPE}
 
@@ -235,8 +213,6 @@ _WRONG_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {"portrait_wrong_action":
 def _dispatch_lock_action(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Filter the satellite to the current video's action — "portrait [act]",
-    with the act read off the video instead of spoken."""
     current = target_path or satellite_current(config, funestra)
     if not current:
         return state, []
@@ -249,7 +225,6 @@ def _dispatch_lock_action(
 def _dispatch_lock_video(
     funestra: FunTimeFunestra, path: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Double-click a HUD thumbnail: switch to *path* and lock it."""
     return lock_satellite(funestra, state, config, path)
 
 
@@ -257,7 +232,6 @@ _NAV_DIRECTIONS = ("up", "down")
 
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
-    """``(funestra, direction)`` for a ``<satellite>_nav_<dir>`` command, else None."""
     for prefix, funestra in (("portrait_nav_", FunTimeFunestra.PORTRAIT),
                           ("landscape_nav_", FunTimeFunestra.LANDSCAPE)):
         if command.startswith(prefix):
@@ -268,37 +242,17 @@ def _parse_nav(command: str) -> tuple[int, str] | None:
 
 
 def is_hud_nav_command(command: str) -> bool:
-    """Whether *command* drives HUD keyboard navigation — a direction step.  Those
-    manage the Satellite's nav anchor themselves, so the generic "any other side
-    command re-homes the nav map" rule leaves them alone."""
     return _parse_nav(command) is not None
 
 
 def _dispatch_reorder(
     funestra: FunTimeFunestra, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
-
-    Either rescans that Satellite's sources, so videos that have arrived since are picked
-    up, and keeps its filter.  The order is remembered per Satellite — the two satellites
-    can be in different ones — so a later filter or F-mode rebuild reloads it the
-    same way.  The rebuild replaces the queue, which drops the Satellite's lock and any
-    group loop (with the widened row that rode on it).
-    """
     state = state.with_satellite(funestra, latest=recent)
-    # From the top of the new order: asking for the latest is asking to see what has
-    # just arrived, and the reload alone would leave the video on screen playing with
-    # the new order applying only after it.
     result = _rebuild_satellite(funestra, state.satellite(funestra).filter, state, config, start_at_top=True)
     state = state.with_satellite(funestra, locked=False)
     state = clear_satellite_grouping(state, funestra)
     funestra_name = FunTimeFunestra(funestra).label
-    # The order's own word and nothing else.  The message flashes on the Funestra it
-    # was said to, and this is what that Funestra's HUD calls the order it is now
-    # in, so naming the Funestra and then spelling the order out a second time
-    # ("Latest: portrait newest-first") only read as a log line that had escaped
-    # onto the screen.  The count and the Satellite stay in the log, where they are of
-    # use.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, funestra_name, result.count)
     return state, [WindowOp(op="message", key=label, source=satellite_source(funestra))]
@@ -317,32 +271,8 @@ def satellite_at_defaults(satellite: SatelliteState, status: SatelliteStatus) ->
 def _dispatch_reset(
     funestras: tuple[FunTimeFunestra, ...], state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Put a satellite (or both) back to every default, not just its filter.
-
-    The lock is released, the filter cleared, F-mode dropped, the order returned to
-    shuffled, any group loop and widened row and frozen nav map dropped, and the Satellite
-    starts from the top of a freshly-built browse — one video per subject.  "no
-    filter" is the narrow gesture; this one is "put it back how it started".
-
-    F-mode is one of those defaults, and is cleared here rather than left standing:
-    a Satellite reset while it was narrowed to the favorites came back still narrowed to
-    them, which is a browse of a few dozen videos wearing the label of the whole
-    library.  The flag goes into the state before the rebuild, because the rebuild
-    reads it back to decide how wide to build.
-
-    A Satellite already sitting at those defaults is left alone entirely.  The rebuild
-    reshuffles and starts at the top, so a second press landed on a different video
-    than the first, and a third on another again: a button that says "put it back"
-    was the fastest way to keep changing what was playing.  Nothing is narrowed by
-    then, so there is nothing the press could put back.
-    """
     ops: list[WindowOp] = []
     for funestra in funestras:
-        # Every default is the empty value of its field, so "already reset" is
-        # the Satellite's whole SatelliteState sitting at the default — a narrowing the
-        # reset clears cannot be one this test forgets.  (The nav anchor is
-        # already gone: every Satellite command that is not itself a nav step clears
-        # it on the way in, so no reset has ever seen one set.)
         if satellite_at_defaults(state.satellite(funestra),
                                  read_satellite_status(config.satellite(funestra).status_file)):
             logger.info("Reset %s: already at its defaults", satellite_source(funestra))
@@ -363,14 +293,6 @@ def _rebuild_satellite(
     funestra: FunTimeFunestra, query: str, state: BridgeState, config: BridgeConfig,
     *, start_at_top: bool = False,
 ) -> SatelliteFilterFlowResult:
-    """Rebuild one satellite's browse under *query* and its own current ordering.
-
-    The single place a satellite's playlist is rebuilt from its sources, so a
-    filter and a reorder cannot drift apart in how they read the Satellite's state.
-    ``start_at_top`` is for the callers that mean "start over" — a reorder or a
-    reset — since the reload otherwise keeps the video on screen and carries on from
-    where it sat, leaving the new order to apply only after it.
-    """
     satellite = state.satellite(funestra)
     return apply_satellite_filter(
         funestra=funestra,
@@ -388,32 +310,18 @@ def _rebuild_satellite(
 def _dispatch_set_filter(
     funestras: tuple[FunTimeFunestra, ...], query: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Apply a metadata filter to *Funestras* and rebuild them.
-
-    ``query`` is the substring to match ("" clears).  Each targeted satellite
-    records its own filter in the state so later F-mode / reorder rebuilds keep
-    it, then reloads under its own ordering.
-    """
     ops: list[WindowOp] = []
     for funestra in funestras:
         result = _rebuild_satellite(funestra, query, state, config)
-        # Only remember a filter that actually selected videos: a zero-match
-        # filter left the current playlist alone, so recording it would let the
-        # next F-mode/reorder rebuild blank the satellite.  A filter that *did* rebuild
-        # also replaced any loop's sub-playlist, so the loop (and its widened row)
-        # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
             state = state.with_satellite(funestra, filter=query)
             state = clear_satellite_grouping(state, funestra)
         logger.info(result.log_message)
-        # A filter that selected nothing left the playlist untouched — a dead end,
-        # so a warning like the other no-effect messages.
         level = MESSAGE if result.applied else logging.WARNING
         ops.append(WindowOp(op="message", key=result.log_message, source=satellite_source(funestra), level=level))
     return state, ops
 
 
-# Plain playlist navigation, per Satellite.
 _TRANSPORT_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
     "portrait_prev": (FunTimeFunestra.PORTRAIT, PREV),
     "portrait_next": (FunTimeFunestra.PORTRAIT, NEXT),
@@ -431,8 +339,6 @@ def _transport(funestra: FunTimeFunestra, verb: str, state: BridgeState, config:
     return state, []
 
 
-# A satellite's own playback rate, and its funscript moves: each verb goes to
-# that satellite as it is.
 _SENT_TO_A_SATELLITE: dict[str, tuple[FunTimeFunestra, str]] = {
     f"{funestra.label}_{act}": (funestra, verb)
     for funestra in FunTimeFunestra.SATELLITES
@@ -465,8 +371,6 @@ def _set_filter(funestras: tuple[FunTimeFunestra, ...], query: str, state: Bridg
 
 def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """Keyboard navigation of the HUD map: "<satellite>_nav_<dir>" moves the
-    selection and switches the satellite to it."""
     nav = _parse_nav(command)
     if nav is None:
         return None
@@ -488,7 +392,6 @@ def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
 
 def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """Double-click of a HUD thumbnail: "<satellite>_lock_video|<path>" — switch and lock."""
     if "_lock_video|" not in command:
         return None
     head, _, path = command.partition("|")
@@ -516,8 +419,6 @@ def _parsed_satellite_speed(command: str, state: BridgeState, config: BridgeConf
     return None
 
 
-# The two browse orderings, per satellite: Latest reloads newest-first, Shuffle
-# reshuffles; the Main Funestra's pair is main_list_commands'.
 _REORDER_COMMANDS: dict[str, tuple[FunTimeFunestra, bool]] = {
     "portrait_latest": (FunTimeFunestra.PORTRAIT, True),
     "landscape_latest": (FunTimeFunestra.LANDSCAPE, True),

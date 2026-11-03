@@ -1,4 +1,3 @@
-"""The controller's ray over the scene, and what a squeeze of the trigger does to it."""
 from __future__ import annotations
 
 import math
@@ -146,7 +145,7 @@ def handle_extent(placement: Placement, aspect: float) -> tuple[float, float]:
 def handle_at(
     u: float, v: float, placement: Placement, *, aspect: float, resizable: bool = True,
 ) -> str | None:
-    du, dv = handle_extent(placement, aspect)  # outside the corners, not straddling
+    du, dv = handle_extent(placement, aspect)
     if resizable and -dv <= v <= 0.0 and (-du <= u <= 0.0 or 1.0 <= u <= 1.0 + du):
         return RESIZE
     if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
@@ -212,9 +211,9 @@ class Grab:
         self._start = start
         self._aspect = aspect
         self._radius = radius
-        self._side = 1.0 if turn_deg(  # which lower corner was taken hold of
+        self._side = 1.0 if turn_deg(
             placement.azimuth_deg, start.azimuth_deg) >= 0.0 else -1.0
-        self._anchor = (  # the corner across from it, which a resize keeps still
+        self._anchor = (
             placement.azimuth_deg - self._side * placement.width_deg / 2.0,
             (center_height(placement, radius) + self._half_height(placement.width_deg))
             * math.cos(math.radians(placement.width_deg) / 2.0),
@@ -225,8 +224,6 @@ class Grab:
         return half_width(width_deg, self._radius) / self._aspect
 
     def _from_the_anchor(self, azimuth_deg: float) -> float:
-        """How far round the grabbed corner has gone: turn_deg takes the short way,
-        which reverses at a half turn, so the width already reached picks the turn."""
         turn = turn_deg(self._anchor[0], azimuth_deg)
         return turn + 360.0 * round((self._side * self._width_deg - turn) / 360.0)
 
@@ -245,9 +242,6 @@ class Grab:
         return self._resized_to(point)
 
     def _resized_to(self, point: SurfacePoint) -> Placement:
-        """Grown away from the anchored corner rather than out of the center: the
-        width the pointer's reach across from it gives, and the width its reach down
-        gives, weighed by how far each moves the corner."""
         azimuth, y = self._anchor
         across = math.radians(self._side * self._from_the_anchor(point.azimuth_deg))
         down = 2.0 * math.asin(
@@ -258,7 +252,7 @@ class Grab:
         width_deg = widened_deg(size_deg, self._widened_by)
         self._width_deg = width_deg
         lift = y / math.cos(math.radians(width_deg) / 2.0) - self._half_height(width_deg)
-        return Placement(  # not clamp_placement: its azimuth limit would slip the anchor
+        return Placement(
             azimuth_deg=turn_deg(0.0, azimuth + self._side * width_deg / 2.0),
             elevation_deg=clamp_elevation(elevation_at(lift, self._radius)),
             width_deg=size_deg,
@@ -312,7 +306,7 @@ class Screen:
     resizable: bool = False
     pressable: bool = False
     right_clicks: bool = False
-    immersive: bool = False  # wrapped round the viewer: no rectangle, so no hover
+    immersive: bool = False
     item: bool = False
     widened_by: float = 1.0
 
@@ -356,7 +350,7 @@ class Frame:
 def _hover_at(point: SurfacePoint, screens: Sequence[Screen]) -> tuple[Screen, Hover] | None:
     for screen in reversed(screens):
         if screen.immersive:
-            continue  # no rectangle to be over; see _wrapped_around below
+            continue
         u, v = screen_uv(point, screen.placement, screen.aspect)
         handle = handle_at(u, v, screen.placement, aspect=screen.aspect,
                            resizable=screen.resizable)

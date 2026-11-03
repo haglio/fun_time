@@ -1,26 +1,3 @@
-"""Run a real session out of a branch worktree, so work can be judged before it lands.
-
-Fun Time runs from the primary checkout, which only moves when ``main`` does, so
-a branch waiting on a pull request is code the user cannot see or judge.  The
-project's CLAUDE.md says how an agent hands one over (``--shortcut``, then
-``--remove-shortcut`` once it lands); this is what such a session IS.
-
-**It replaces the live one; it never runs beside it.**  Nearly everything a
-session touches is one-per-machine -- the ``#SingleInstance Force`` hotkey shell,
-the three UDP endpoints and the loopback port, the microphone, the broker holding
-the OSR2's serial port, the monitors.  The integration suite escapes that on a
-hidden desktop with those endpoints stripped; a session watched on the real
-screen cannot.  So two sessions are made impossible instead: the generated config
-carries the live session's ``instance_id``, so both take the *same* mutex and
-whichever starts second is refused.
-
-What a branch session gets of its own is ``state/`` -- command files, playlists,
-logs, thumbnails, resume point -- so a half-finished branch cannot corrupt what
-the live session reads back.  Everything else is deliberately the real thing,
-because a verification run on fixtures verifies fixtures.  The broker's files are
-the exception inside that: they live in ``state/`` but belong to ``../broker``,
-which never learns a session moved, so they stay pinned to the primary's.
-"""
 from __future__ import annotations
 
 import argparse
@@ -41,9 +18,6 @@ from app_support.siblings import RENAMED_SIBLINGS, primary_checkout_of
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import Shortcut, TaskbarApp, describe_taskbar_app, write_shortcut
 
-# PROJECT_DIR names whichever checkout imported the package, and this module is
-# the one place that has to tell two checkouts apart — so it is read through the
-# module at call time rather than bound once at import.
 from . import config as config_module
 from . import preview_marker
 from .branch_seeding import mirror_private_overlays, seed_derived_caches, top_up_thumbnails
@@ -71,7 +45,6 @@ BRANCH_CONFIG_NAME = "fun_time_branch_config.json"
 
 OUT_OF_DATE_NOTE_NAME = "branch_out_of_date.txt"
 
-# The shared launcher every generated shortcut points at, in the primary.
 LAUNCHER_NAME = "launch_branch.vbs"
 
 # Each generated launcher is "Verify <branch>.lnk", written in the worktree it
@@ -164,12 +137,9 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
 
 
 def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
-    """Rewrite *raw* in place so no value depends on which checkout reads it."""
     for section, values in _primary_resolved_values(real).items():
         for key, value in values.items():
             if value is None:
-                # An absent optional stays absent; writing "None" would make
-                # validate_config demand a file by that name.
                 raw.get(section, {}).pop(key, None)
             elif isinstance(value, tuple):
                 raw.setdefault(section, {})[key] = [str(item) for item in value]
@@ -180,13 +150,6 @@ def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
 
 
 def _apply_sibling_checkouts_override(raw: dict, state_dir: Path) -> None:
-    """Let a worktree say for itself which sibling checkouts its session runs.
-
-    Said in the machine's one ``fun_time_config.json``, which every session
-    reads, a pin for one agent's branch reached the user's ordinary session and
-    every other agent's, each silently running an unlanded branch of another
-    repo, and nothing ever took it back out.
-    """
     lines = sibling_checkouts_named_in(state_dir)
     if lines is not None:
         raw.setdefault("paths", {})[SIBLING_CHECKOUTS_KEY] = lines
@@ -198,7 +161,6 @@ def _for_a_branch_from_before_the_rename(raw: dict) -> None:
 
 
 def _apply_origenerator_checkout_override(raw: dict, state_dir: Path) -> None:
-    """The same, for the Origenerator checkout a session hosts."""
     lines = override_lines(state_dir / ORIGENERATOR_DIR_OVERRIDE_NAME)
     if lines is not None:
         raw.setdefault("paths", {})["origenerator_dir"] = lines[0] if lines else ""
@@ -210,19 +172,6 @@ def build_branch_config(
     primary_config_path: Path = DEFAULT_CONFIG_PATH,
     primary: Path | None = None,
 ) -> Path:
-    """Write the config a session in *worktree* runs on, and return its path.
-
-    It is the live config with three changes: every path pinned to what the
-    primary resolved, ``state_dir`` moved into the worktree, and the live
-    session's ``instance_id`` carried over so the two can never both be up.
-
-    Everything else rides through verbatim — including keys *this* code has
-    never heard of, which matters because ``launch_branch.vbs`` runs the primary
-    checkout's copy of this module against a worktree's session.  A branch that
-    starts reading a new config key is therefore launched by a generator that
-    does not pin it: the key reaches the session only if the machine's own
-    ``fun_time_config.json`` already names it, absolutely.
-    """
     worktree = worktree.resolve()
     primary = (primary or config_module.PROJECT_DIR).resolve()
     if worktree == primary:
@@ -234,8 +183,6 @@ def build_branch_config(
     if not (worktree / "fun_time" / "orchestrator.py").is_file():
         raise FileNotFoundError(f"{worktree} is not a Fun Time checkout")
 
-    # Read the way the live session reads it — anchored on the primary — rather
-    # than on whichever checkout this launcher happens to have been started from.
     real = load_config(primary_config_path, project_dir=primary)
     raw = json.loads(primary_config_path.read_text(encoding="utf-8"))
     _pin_paths_to_the_primary(raw, real)
@@ -284,18 +231,6 @@ def describe_the_session_on_the_taskbar(worktree: Path) -> None:
 
 def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
            primary_config_path: Path = DEFAULT_CONFIG_PATH) -> int:
-    """Build the branch config and run a session on it out of *worktree*.
-
-    The orchestrator starts on *this* interpreter — the primary checkout's venv,
-    the only python that has fun_time's sibling packages — but with its working
-    directory in the worktree, and that is what swaps the code: ``python -m``
-    puts the working directory first on the import path.  Every child the session
-    launches (the satellites, the dashboard, the audio companion, the loading
-    and closing screens) inherits that directory and runs the branch's code too.
-
-    Returns the session's exit code once it has quit, so the launcher's console
-    log and its exited sentinel both describe the whole run.
-    """
     worktree = worktree.resolve()
     primary = (primary or primary_checkout()).resolve()
     if being_rebuilt(worktree):
@@ -533,17 +468,6 @@ def _checkouts_the_next_launch_runs(worktree: Path, primary: Path, config_path: 
 def sibling_checkouts_line(
     worktree: Path, primary: Path, *, config_path: Path | None = None
 ) -> str:
-    """One line saying which sibling checkouts *worktree*'s next launch runs.
-
-    Printed with every ``--shortcut``, because this part of the chain has no
-    error state to fail loudly in: an override that is missing, empty, or
-    naming a stale checkout silently runs some other copy of the shared code,
-    and the session then demonstrates code the branch never touched — he
-    watches it and sees no difference.  Resolved exactly the way
-    :func:`build_branch_config` will resolve it — the machine's config, then the
-    worktree's own override on top (:func:`_apply_sibling_checkouts_override`)
-    — so what this says is what the click will do.
-    """
     checkouts = _checkouts_the_next_launch_runs(
         worktree, primary, config_path or _machine_config(primary))
     dirs = checkouts[SIBLING_CHECKOUTS_KEY]
@@ -565,7 +489,6 @@ def branch_label(worktree: Path, branch: str) -> str:
 
 
 def current_branch(worktree: Path) -> str:
-    """The branch *worktree* has checked out, or :data:`DETACHED`."""
     name = _git(["rev-parse", "--abbrev-ref", "HEAD"], worktree).strip()
     return DETACHED if name == "HEAD" else name
 
@@ -587,9 +510,6 @@ def as_a_filename(name: str) -> str:
 
 
 def _generated_shortcuts(folder: Path) -> dict[Path, Path]:
-    """The launchers this module wrote in *folder*, mapped to the worktree each
-    one runs.  A folder can be full of his own files, so a name proves nothing:
-    ownership is the arguments naming the branch launcher."""
     owned: dict[Path, Path] = {}
     found = read_shortcuts(folder, pattern=f"{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}")
     for path, shortcut in found.items():
@@ -600,14 +520,6 @@ def _generated_shortcuts(folder: Path) -> dict[Path, Path]:
 
 
 def prune_stale_shortcuts(primary: Path) -> list[Path]:
-    """Delete the launchers left in *primary* whose worktree is gone; return which.
-
-    Nothing writes there any more -- a launcher lives in the worktree it runs,
-    and goes when that goes -- but the ones written before that still sit in his
-    Fun Time folder, and a worktree going is the only thing that can say one is
-    finished with.  Run whenever a new launcher is written, until the folder is
-    empty of them.
-    """
     removed: list[Path] = []
     for path, worktree in sorted(_generated_shortcuts(primary).items()):
         if not worktree.is_dir():
@@ -661,19 +573,6 @@ def hosted_origenerator_checkout(worktree: Path) -> Path | None:
 def write_launch_shortcut(
     worktree: Path, *, primary: Path | None = None, vr: bool = False
 ) -> Path:
-    """Put a launcher for *worktree* in *worktree*, and return where.
-
-    This is how a branch reaches him: an agent makes one and hands him the
-    one-click link to it.  Nothing to choose — the branch is baked in — and it
-    points at ``launch_branch.vbs`` in the primary rather than carrying the
-    launch, so one made weeks ago still runs today's.
-
-    It lives in the worktree because he never goes looking for the file, and
-    because every launcher in one shared folder is a launcher in every other
-    agent's tidiness check: each of them found launchers that were not theirs to
-    speak for, and told him about them.  Here it belongs to one branch, is
-    invisible to every other, and goes when that branch's worktree goes.
-    """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
     launcher = primary / LAUNCHER_NAME
@@ -708,18 +607,6 @@ def write_launch_shortcut(
 
 
 def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> list[Path]:
-    """Take *worktree*'s launcher back out; return the ones removed.
-
-    An agent's last step once its work has landed: the branch is in Fun Time by
-    then, so a launcher still offering to run it separately can only confuse.
-
-    His Fun Time folder is looked in as well as the worktree, because an agent
-    that made its launcher under the old placement still has to take that one
-    out.  Matched by the worktree the shortcut runs rather than by its name, so
-    a branch renamed since makes no difference and both flavours go.  Run it
-    before removing the worktree: from a gone directory there is no package
-    left to run it with.
-    """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
     removed: list[Path] = []
@@ -763,9 +650,6 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    # A path can carry characters the HUD codepage has no room for, and the
-    # launcher redirects this HUD to a log file.  Mark those rather than let
-    # a print take the launch down.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
     if args.shortcut:

@@ -1,9 +1,3 @@
-"""What the session's Funestras and its device are doing, read off disk.
-
-The Main Funestra and Genau each publish a small key=value status file, the broker writes a
-heartbeat and the OSR2 a receive stamp.  None of it is the dashboard's, though
-it lived in `dashboard_runtime`, whose other six importers wanted only these.
-"""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -35,32 +29,10 @@ def scripted_fields(values: dict[str, str]) -> dict:
 
 @dataclass(frozen=True)
 class MainFunestraStatus(ScriptedStatus):
-    """Snapshot of what the Main Funestra is playing, parsed from its status file.
-
-    The family's seven and then the Main Funestra's own; only the fields with
-    consumers on this Satellite are parsed.  ``position_ms`` and ``duration_ms``
-    give the playback fraction watch tracking needs; the device arbiter drives
-    the OSR2 from the funscript while ``has_funscript`` and not
-    ``funscript_resting``, and hands off to the Robot Hand otherwise — so the
-    hand fills a funscript's quiet lead-in and interior gaps (where
-    ``funscript_resting`` is set).
-
-    ``locked`` defaults on, unlike the family's: that is what a Main Funestra
-    with nothing to say is doing.  the Main Funestra's HUD draws the lock, and in
-    genau mode it is drawn by a Funestra with no such lock of its own to ask — so
-    it comes through here, the way ``loop_state`` does.
-    """
-
     locked: bool = True
     loop_state: LoopState = LoopState.NORMAL
-    # The A/B range the Main Funestra is looping, as it published it — 0/0 when nothing is.
-    # Read through :attr:`loop_bounds` rather than directly; the pair only means
-    # a loop alongside ``loop_state``.
     loop_in_ms: int = 0
     loop_out_ms: int = 0
-    # The video's place in the library, as only the Main Funestra knows it; the
-    # console's buttons for these are lit from here, dim from a Funestra that
-    # says nothing.
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -83,20 +55,10 @@ class MainFunestraStatus(ScriptedStatus):
         return (self.loop_in_ms, self.loop_out_ms)
 
 
-# The status record's reader is app_support's; re-exported for the callers here.
 __all__ = ["read_key_values"]
 
 
 def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None = None) -> MainFunestraStatus:
-    """The Main Funestra's published status, or *fallback* (else a default) when the file is
-    missing or torn mid-replace.
-
-    The fallback matters to the device arbiter: a default snapshot reads
-    ``funscript_driving`` False, so one torn read mid-cluster flipped the
-    device to the hand and the next good read flipped it straight back — a
-    spurious double handoff nobody asked for.  Handing back the last good
-    snapshot makes a failed read a non-event.
-    """
     if not path.exists():
         return fallback or MainFunestraStatus()
     try:
@@ -133,8 +95,6 @@ def _status_flag_or_none(values: dict, key: str) -> bool | None:
 
 
 def _status_touch(values: dict) -> int | None:
-    """The touch-down the Funestra's trace chose for the boundary in play, or None —
-    absent on a raised floor, an unlatched forecast, or an older Funestra."""
     raw = values.get("handoff_touch_ms", "").strip()
     return int(raw) if raw.isdigit() else None
 
@@ -142,26 +102,14 @@ def _status_touch(values: dict) -> int | None:
 @dataclass(frozen=True)
 class GenauStatus:
     learned_active: bool = False
-    # Whether Genau is holding the flick on screen rather than letting its interval
-    # carry it on — the same lock the Main Funestra has, and on for the same reason: a flick
-    # repeating is where Genau opens.
     locked: bool = True
     shape: str = "sine"
-    # The flick on screen, as Genau published it — "" before the first one is up,
-    # and from a Genau too old to say.  Genau rescans its folder every launch and
-    # opens at the top of it, so this is the only record of where a session was.
     flick: str = ""
     flipped: bool = False
     portrait: bool | None = None
 
 
 def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
-    """*key* read as a flag, or *default* where the file does not carry it.
-
-    A default of True is for a flag whose "on" is the Funestra's own resting state:
-    a status that predates the key, or one read before the Funestra's first write,
-    then says what the Funestra is actually doing rather than the opposite.
-    """
     return values.get(key, "1" if default else "0").strip() not in ("0", "false", "")
 
 
@@ -194,13 +142,6 @@ def _genau_status_from(values: dict) -> GenauStatus:
 
 
 def origenerator_has_published(path: Path) -> bool:
-    """Whether the hosted Origenerator has published a status yet.
-
-    The file EXISTING is the whole answer: the app writes it from a poll that
-    only starts once its window is built, so it appearing is how a session
-    learns that app has booted.  Read rather than stat-ed, so a file caught
-    half-written reads as "not yet" and is asked again next tick.
-    """
     if not path.exists():
         return False
     try:

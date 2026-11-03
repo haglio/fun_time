@@ -41,7 +41,6 @@ def fov_to_projection_matrix(
 
 
 def quat_to_rotation_matrix(x: float, y: float, z: float, w: float) -> np.ndarray:
-    """The 3x3 rotation an (x, y, z, w) orientation applies, row-major."""
     xx, yy, zz = x * x, y * y, z * z
     xy, xz, yz = x * y, x * z, y * z
     wx, wy, wz = w * x, w * y, w * z
@@ -53,22 +52,13 @@ def quat_to_rotation_matrix(x: float, y: float, z: float, w: float) -> np.ndarra
 
 
 def yaw_of_orientation(orientation: tuple[float, float, float, float]) -> float:
-    """The heading of an (x, y, z, w) orientation: radians about +Y that turn
-    world-forward (-Z) onto the orientation's forward, projected level.
-
-    What recentering captures — pitch and roll are deliberately dropped, so a
-    scene re-zeroed while glancing at the floor still stands upright.
-    """
     x, y, z, w = orientation
-    # Third column of the rotation matrix applied to (0, 0, -1).
     forward_x = -(2 * (x * z + w * y))
     forward_z = -(1 - 2 * (x * x + y * y))
     return math.atan2(-forward_x, -forward_z)
 
 
 def yaw_rotation_matrix(yaw: float) -> np.ndarray:
-    """A model matrix rotating the scene *yaw* radians about +Y (row-major,
-    like everything here, uploaded with transpose=GL_TRUE)."""
     sin, cos = math.sin(yaw), math.cos(yaw)
     mat = np.eye(4, dtype=np.float32)
     mat[0, 0] = cos
@@ -79,7 +69,6 @@ def yaw_rotation_matrix(yaw: float) -> np.ndarray:
 
 
 def pitch_rotation_matrix(pitch: float) -> np.ndarray:
-    """Tilt *pitch* radians about +X, nose-up; composed inside the yaw."""
     sin, cos = math.sin(pitch), math.cos(pitch)
     mat = np.eye(4, dtype=np.float32)
     mat[1, 1] = cos

@@ -74,17 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def resolve_playlist(args) -> list[PlaylistItem]:
-    """The videos to play, from the explicit ``--playlist`` file.  No file means
-    nothing to play (fun_time always supplies one; standalone without it is an
-    error the caller reports)."""
     if args.playlist is None:
         return []
     return read_playlist(Path(args.playlist))
 
 
 def audio_muted(args) -> bool:
-    """Silent for good: by ``--no-audio``, the ``FUN_TIME_MUTE_AUDIO`` contract, or
-    being off-screen -- so a hidden-desktop run is inaudible however it was launched."""
     return (bool(args.no_audio)
             or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
             or on_hidden_desktop())

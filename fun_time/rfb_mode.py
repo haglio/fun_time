@@ -1,5 +1,3 @@
-"""What holds the Random Favs Browser's place -- the browser, or the hosted
-Origenerator's own window over it -- and the place changing hands."""
 from __future__ import annotations
 
 import logging
@@ -24,10 +22,6 @@ def _rfb_mode_ops(rfb_mode: RfbMode) -> list[WindowOp]:
 
 def origenerator_refused(state: BridgeState, config: BridgeConfig, *,
                          asked_for: bool) -> list[WindowOp] | None:
-    """The message a switch toward Origenerator (*asked_for*) or away from it is
-    refused with, or None.  Whatever draws its Origenerator button dim over the
-    app's boot posts nothing; this answers the key and the spoken word, which
-    have no dim button to look at."""
     if not config.origenerator_enabled:
         return [WindowOp(op="message", key="No Origenerator configured",
                          level=logging.WARNING)]

@@ -33,10 +33,6 @@ class LoopController:
     def on_record_up(self, position_ms: int) -> None:
         if self._state != LoopState.RECORDING:
             return
-        # The record-down point is a hard floor: the loop only extends forward
-        # from it. Seeks are clamped to it while marking, so an out point before
-        # the start only arises from the EOF-wrap race — floor it to the start
-        # rather than let snap_loop flip the loop backwards.
         out_ms = max(position_ms, self._in_ms)
         self._in_ms, self._out_ms = snap_loop(
             self._funscript, self._in_ms, out_ms,
@@ -44,13 +40,6 @@ class LoopController:
         self._state = LoopState.LOOPING
 
     def restore(self, in_ms: int, out_ms: int) -> None:
-        """Come back into a finished loop, without marking it out again.
-
-        For a loop that outlived the session it was made in: the controller a
-        newly loaded video builds is fresh, and the bounds handed to it are ones
-        a record-up already settled — snapped then, against the funscript that
-        was loaded then — so they are taken as given.
-        """
         self._in_ms = in_ms
         self._out_ms = out_ms
         self._state = LoopState.LOOPING
