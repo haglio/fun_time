@@ -104,7 +104,7 @@ from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
-from .voice_control import VoiceController
+from .voice_control import HostedVoice, VoiceController
 from .win32 import (
     close_window,
     describe_windows,
@@ -708,15 +708,10 @@ def prepare_voice_control(
             try:
                 voice_controller = VoiceController(
                     cmd_file=dashboard_cmd_file,
-                    model_path=settings.model_path,
-                    confidence_threshold=settings.confidence_threshold,
-                    device_name=settings.device_name,
-                    sample_rate=settings.sample_rate,
-                    confirm_commands=settings.confirm_commands,
+                    settings=settings,
                     verifying_listener=verifying_listener,
-                    hosted=_what_it_answers(answer),
-                    hosted_cmd_file=hosted_cmd_file,
-                    hosted_said_at_suffix=hosted_said_at_suffix,
+                    hosted=HostedVoice(
+                        _what_it_answers(answer), hosted_cmd_file, hosted_said_at_suffix),
                 )
                 voice_controller.mute()
             except Exception as error:

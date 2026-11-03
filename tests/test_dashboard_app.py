@@ -38,6 +38,7 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import dashboard_app, load_config, preview_marker
+from fun_time.config import VoiceControlConfig
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
@@ -1620,8 +1621,10 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
     written = EventLogHandler(event_log_path(state_dir))
     voice_log.addHandler(written)
     try:
-        VoiceController(cmd_file=dashboard_app_config.dashboard_cmd_file,
-                        model_path="unused").handle_heard(Heard(
+        VoiceController(
+            cmd_file=dashboard_app_config.dashboard_cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        ).handle_heard(Heard(
             Recognition(unrecognized_text="put the kettle on"),
             spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
         deadline = time.monotonic() + 5.0
