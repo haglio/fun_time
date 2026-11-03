@@ -3168,17 +3168,19 @@ class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
         assert self._hanging().right_clicks
 
 
-class TestCoreHangsInTheRoomWhenTheModeSelectorsAskForIt:
-    @pytest.mark.parametrize(("rfb_mode", "portrait_mode", "shows"), [
-        (RfbMode.ORIGENERATOR, KINO_MODE, True),
-        (RfbMode.RFB, ORIGENERATOR_MODE, True),
-        (RfbMode.RFB, KINO_MODE, False),
+class TestCoreShowsInTheHeadsetWheneverOrigeneratorIsUp:
+    @pytest.mark.parametrize(("ready", "rfb_mode", "portrait_mode", "shows"), [
+        (True, RfbMode.RFB, KINO_MODE, True),
+        (True, RfbMode.ORIGENERATOR, KINO_MODE, True),
+        (True, RfbMode.RFB, ORIGENERATOR_MODE, True),
+        (False, RfbMode.ORIGENERATOR, ORIGENERATOR_MODE, False),
     ])
-    def test_it_shows_while_origenerator_holds_the_browsers_place_or_a_satellite(
-            self, tmp_path, rfb_mode, portrait_mode, shows):
+    def test_it_shows_whatever_the_mode_selectors_say_once_origenerator_is_up(
+            self, tmp_path, ready, rfb_mode, portrait_mode, shows):
         state_file = shared_state_path(tmp_path)
         write_shared_state(state_file, BridgeState(
-            rfb_mode=rfb_mode, portrait=SatelliteState(mode=portrait_mode)))
+            origenerator_ready=ready, rfb_mode=rfb_mode,
+            portrait=SatelliteState(mode=portrait_mode)))
         unit = _GalleryUnit(remembered={}, state_dir=tmp_path, shared_state_file=state_file)
 
         unit.pump(threading.Event(), now=0.0)

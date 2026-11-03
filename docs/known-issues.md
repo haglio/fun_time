@@ -38,9 +38,9 @@
     own playlists (`fun_time.funestra_handover`), and the headset's satellites are
     Funestras. `fun_time.hosted_origenerator` brings the app up for either shape
     of session and sees it out of either teardown. The app's own window hangs on a
-    screen of its own in the headset while Origenerator holds the Random Favs
-    Browser's place or either satellite. There is no browser in the headset, and
-    the headset's dashboard carries no Random Favs Browser / Origenerator strip.
+    screen of its own in the headset whenever the app is up, whatever the mode
+    selectors say: there is no browser in the headset, and the headset's dashboard
+    carries no Random Favs Browser / Origenerator strip.
     A session hosting none is still a config naming none.
   - The only place a control may be left dead in the headset is
     `tests/test_vr_control_parity.py`'s own list of what the hosted Origenerator
