@@ -41,3 +41,13 @@ def test_a_folder_is_read_by_the_pattern_alone(tmp_path):
     _made(tmp_path / "other.lnk", target=AN_EXE)
 
     assert list(read_shortcuts(tmp_path, pattern="Verify*.lnk")) == [tmp_path / "Verify a.lnk"]
+
+
+def test_a_command_line_runs_the_target_then_its_arguments_then_what_is_added():
+    shortcut = Shortcut(target="C:/Program Files/App/app.exe", arguments="  --fast  ")
+
+    assert shortcut.command_line("a b") == '"C:/Program Files/App/app.exe" --fast "a b"'
+
+
+def test_a_shortcut_with_blank_arguments_adds_nothing_between_target_and_extras():
+    assert Shortcut(target="app.exe", arguments="   ").command_line("x") == "app.exe x"

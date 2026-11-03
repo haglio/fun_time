@@ -382,3 +382,13 @@ def test_the_file_carries_exactly_these_keys_spelled_exactly_this_way(tmp_path: 
     parser.read(state_file, encoding="utf-8")
 
     assert dict(parser["state"]) == _EXPECTED_STATE_KEYS
+
+
+def test_a_number_a_hand_edit_spoiled_reads_as_that_fields_default(tmp_path):
+    state_file = tmp_path / "shared_state.ini"
+    state_file.write_text("[state]\nmain_mode = video\nvolume = loud\n", encoding="utf-8")
+
+    loaded = read_shared_state(state_file)
+
+    assert loaded is not None
+    assert loaded.volume == BridgeState().volume
