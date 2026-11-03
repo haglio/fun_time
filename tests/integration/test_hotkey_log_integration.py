@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -125,6 +126,39 @@ def _no_one_else_has_it_open(path: Path) -> bool:
         return False
     _kernel32.CloseHandle(handle)
     return True
+
+
+def test_a_press_waits_out_a_hold_on_the_command_file(tmp_path: Path):
+    commands = tmp_path / "dashboard_cmd.txt"
+    commands.touch()
+    trying = tmp_path / "trying.txt"
+    script = tmp_path / "press.ahk"
+    script.write_text(
+        "#Requires AutoHotkey v2.0\n"
+        "#NoTrayIcon\n\n"
+        f"{function_source('AppendWithRetry')}\n\n"
+        'FileAppend("", A_Args[2])\n'
+        'ExitApp(AppendWithRetry("PRESS`n", A_Args[1]) ? 0 : 1)\n',
+        encoding="utf-8",
+    )
+    held = _kernel32.CreateFileW(str(commands), _GENERIC_READ, 0, None, _OPEN_EXISTING, 0, None)
+    assert held != ctypes.wintypes.HANDLE(-1).value, get_last_error()
+
+    def let_go_after_the_script_has_been_refused_a_while():
+        seen_within(trying.exists, seconds=60)
+        time.sleep(1.0)
+        _kernel32.CloseHandle(held)
+
+    holder = threading.Thread(target=let_go_after_the_script_has_been_refused_a_while)
+    holder.start()
+    try:
+        exit_code = run_where_nothing_is_focused(
+            [_ahk_exe(), str(script), str(commands), str(trying)], timeout_seconds=120)
+    finally:
+        holder.join()
+
+    assert exit_code == 0, "the press was dropped"
+    assert commands.read_text(encoding="utf-8") == "PRESS\n"
 
 
 def test_a_logged_line_leaves_no_handle_on_the_log_behind(tmp_path: Path):

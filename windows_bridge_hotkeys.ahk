@@ -385,14 +385,13 @@ QueueCommand(cmd) {
     }
     ; The Python dispatch loop drains this file by renaming it (~20 Hz). A held
     ; key appends fast enough to overlap that rename, and Windows then refuses
-    ; the open with "(32) ... being used by another process". Retry briefly so a
-    ; transient collision drops at most one keypress instead of crashing the
-    ; hotkey script with an unhandled FileAppend error.
+    ; the open with "(32) ... being used by another process". Wait it out, about
+    ; five seconds at most, so a collision on a starved machine costs no keypress.
     if !AppendWithRetry(cmd . "`n", DASHBOARD_CMD_FILE)
         Log("QueueCommand dropped (file busy): " . cmd)
 }
 
-AppendWithRetry(text, path, attempts := 5, delayMs := 5, access := "exclusive") {
+AppendWithRetry(text, path, attempts := 320, delayMs := 5, access := "exclusive") {
     ; FileAppend past transient Windows sharing violations (error 32) that occur
     ; when another process briefly holds the file. Returns true once written.
     ; "append-only" is for a file another process appends to as well: FileAppend
