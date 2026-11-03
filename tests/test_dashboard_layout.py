@@ -1,4 +1,3 @@
-"""Where the dashboard's controls sit, now that it is a bar and not a schematic."""
 from __future__ import annotations
 
 from dataclasses import fields
@@ -23,8 +22,6 @@ from fun_time.window_layout import MonitorRect, WindowRect
 
 
 def test_the_bar_reads_left_to_right_in_the_order_it_is_written():
-    """The app's mark, then the controls — grouped by what they are rather than
-    by which Funestra they used to stand for."""
     layout = compute_dashboard_bar_layout()
 
     xs = [rect.x for rect in layout.every_rect]
@@ -40,9 +37,6 @@ def test_the_vr_reset_stands_beside_the_crossing_it_belongs_with():
 
 
 def test_the_bar_is_wide_enough_for_the_control_only_a_headset_session_draws():
-    """The VR reset is the bar's last button and shows only in the headset, so a
-    width measured to the crossing beside it fitted the desktop and not VR: the
-    reset was cut in half at the bar's edge."""
     layout = compute_dashboard_bar_layout()
     last = layout.vr_reset_button
 
@@ -60,9 +54,6 @@ def test_nothing_in_the_bar_overlaps_anything_else():
 
 
 def test_the_microphone_is_one_of_the_buttons_not_a_light_beside_them():
-    """F-mode was the other light, and it has gone to the Funestras' own HUDs.  A
-    lone chip past a group gap read as adrift from the bar, so the microphone is
-    a button in the same run, at the same size and the same spacing."""
     layout = compute_dashboard_bar_layout()
 
     assert layout.voice_panel.height == layout.quit_button.height == BUTTON
@@ -85,8 +76,6 @@ def test_the_window_leaves_the_log_the_app_the_bar_does_not_take():
 
 
 def test_client_rect_filling_frame_insets_by_the_chrome():
-    """A window's frame is drawn outside its client area, so a popup asked to
-    fill a rect has to be inset by the chrome or its title bar overhangs."""
     rect = Rect(100, 200, 400, 300)
 
     assert client_rect_filling_frame(rect, left=8, upper=31, right=8, lower=8) == (
@@ -96,25 +85,17 @@ def test_client_rect_filling_frame_insets_by_the_chrome():
 
 
 def test_the_bar_uses_the_familys_button_metrics():
-    """A control here is the same object a control on a Funestra's HUD is -- the
-    HUDs' square, since the bar sits directly above them on the same screen and
-    two sizes of one control, one above the other, read as two kinds of chrome."""
     assert BUTTON == BUTTON_SIZE_HUD
     assert GAP == BUTTON_GAP
 
 
 def test_one_rectangle_under_every_name_the_session_calls_it():
-    """Frozen dataclasses declared the same four ints under several names —
-    Rect, MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry — and
-    callers paid for it in hand-written conversions between types that were
-    already identical."""
     every_name = (MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry)
 
     assert all(name is Rect for name in every_name)
 
 
 def test_a_rect_is_still_four_ints_in_that_order():
-    """Every one of those names was constructed positionally somewhere."""
     assert [f.name for f in fields(Rect)] == ["x", "y", "width", "height"]
     assert Rect(1, 2, 3, 4) == Rect(x=1, y=2, width=3, height=4)
 
@@ -126,10 +107,6 @@ def test_a_rect_unpacks_the_way_the_familys_pillow_painters_take_one():
 
 
 class TestARectOnACommandLine:
-    """A rect reaches a child as four separate flags.  Two entry points spelled
-    the quartet out — one of them twice — and each followed it with the same
-    `if None not in {...}` idiom, which nothing pinned in either direction."""
-
     def test_all_four_flags_name_a_rect(self):
         args = parse_args(["state/m.ini", "--x", "100", "--y", "200",
                            "--width", "300", "--height", "400"])
@@ -138,13 +115,11 @@ class TestARectOnACommandLine:
 
     @pytest.mark.parametrize("given", ["--x", "--y", "--width", "--height"])
     def test_any_one_of_them_missing_is_not_a_rect(self, given: str):
-        """Three of four would place a window somewhere nobody asked for."""
         args = parse_args(["state/m.ini", given, "100"])
 
         assert rect_from_arguments(args) is None
 
     def test_a_prefixed_quartet_is_its_own_rect(self):
-        """The panel is handed two: its own, and the browser's."""
         args = parse_args(["state/m.ini", "--rfb-x", "1", "--rfb-y", "2",
                            "--rfb-width", "3", "--rfb-height", "4"])
 

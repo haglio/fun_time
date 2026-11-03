@@ -1,10 +1,3 @@
-"""The genaumacher save itself — the cross-repo contract with genaumacher.create_session.
-
-The dispatcher only raises the ``save_clip`` op (tests/test_command_dispatch.py);
-the loop runs it on a worker thread (tests/test_windows_bridge_dispatch_loop.py).
-What runs is pinned here: the exact command line, the message on success, and on
-failure no message of its own, only the error it logs.
-"""
 from __future__ import annotations
 
 import logging
@@ -101,8 +94,6 @@ def test_a_failed_save_answers_empty(tmp_path: Path):
     {"side_effect": subprocess.TimeoutExpired(cmd="genaumacher", timeout=10)},
 ])
 def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
-    """The save that was asked for did not happen, and the log line is the only
-    word of it that flashes, so it reads red rather than a warning's yellow."""
     config = _make_config(tmp_path)
     config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
@@ -119,7 +110,6 @@ def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
 
 def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
     config = _make_config(tmp_path)
-    # No main_funestra_status file → no current video → nothing to video.
 
     with patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
         message = save_clip_session(config)
@@ -143,8 +133,6 @@ def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
 
 
 def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
-    """The old bare `except Exception` read a TypeError in our own code as
-    "genaumacher failed"; only the OS and subprocess failures are genaumacher's."""
     config = _make_config(tmp_path)
     config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",

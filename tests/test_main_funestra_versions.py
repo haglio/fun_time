@@ -1,9 +1,3 @@
-"""The other versions of the video on screen, as Kino reads them off the library.
-
-The Funestra puts a version up in the video's own place; what is pinned here is
-which files Kino hands it, read off the library's index, and what it says the
-console's version button can do.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -108,9 +102,6 @@ class TestCycling:
         assert engine.opened[opened_before:] == [upscale]
 
     def test_a_version_the_index_does_not_know_is_left_alone(self, tmp_path):
-        """A playlist can carry a video the index was built without -- Fun Time
-        writes one from its own selection -- and cycling it must not swap in
-        somebody else's family."""
         stranger, original, upscale = _videos(tmp_path, "Ann Bly - scene two.mp4", *_SCENE_ONE)
         versions, playback, _engine = _playing(
             [stranger], {stranger: [PlaylistItem(original), PlaylistItem(upscale)]})

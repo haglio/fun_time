@@ -1,6 +1,3 @@
-"""Genau as it runs on the headset's Main Funestra: the desktop's own, browsing
-its VR flicks with the desktop's flat ones, narrowed to a shape when the room
-asks, and handing each frame over with the flick it is a frame of."""
 from __future__ import annotations
 
 import logging
@@ -30,17 +27,12 @@ def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray
 
 
 def _run_now(*, target, args=(), name=""):
-    """The loader's thread runs on the spot; the UDP reader, which would bind a
-    port and loop, is not started at all."""
     if name == "genau-udp":
         return
     target(*args)
 
 
 class HeldDecodes:
-    """A thread starter that runs a decode on the spot until told to hold them,
-    for a flick whose frames are still coming while another's are on screen."""
-
     def __init__(self) -> None:
         self.holding = False
         self._held = []
@@ -61,9 +53,6 @@ class HeldDecodes:
 
 
 class World:
-    """Genau wired the way the headset wires it, over a fabricated flicks
-    folder: its VR flicks, and its flat ones a folder deeper."""
-
     def __init__(self, tmp_path: Path, *, flicks=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
                  flat_flicks=(), start_flick=None, latest=False, start_thread=_run_now) -> None:
         self.flicks_folder = tmp_path / "flicks"
@@ -104,7 +93,7 @@ class World:
             clock=lambda: self.now,
             log=logging.getLogger("test.genau_in_the_headset"),
         )
-        self.genau.tick()  # the first pass puts the first flick's frame up
+        self.genau.tick()
 
     def send(self, line: str) -> None:
         self.channels.command.write_text(line + "\n", encoding="utf-8")
@@ -153,9 +142,6 @@ class TestTheFlickOnScreen:
 
 
 class TestTheDesktopsFlicksAreBrowsedToo:
-    """The headset browses its VR flicks and the desktop's flat ones as one
-    sequence, the way the main rotation joins the VR library to the desktop's."""
-
     def _both(self, tmp_path):
         return World(tmp_path, flicks=("alpha_180.mp4",), flat_flicks=("scene one.mp4",))
 
@@ -177,8 +163,6 @@ class TestTheDesktopsFlicksAreBrowsedToo:
 
 
 class TestNarrowingToAShape:
-    """The HUD's VR and flat pair, said to Genau as SHAPES."""
-
     def test_a_vr_flick_on_screen_gives_way_to_the_flat_ones(self, tmp_path):
         world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))
 
@@ -287,10 +271,6 @@ class TestWhatTheHudCallsTheFlick:
         assert World(tmp_path).genau.top_block() == ModeHud(video="alpha_180")
 
     def test_the_one_still_decoding_while_the_last_stays_up(self, tmp_path):
-        """The headset's HUD names what is on its way rather than what is
-        still up, as it always has there.  The flick after the first is decoded
-        ahead by the first pass; the one after that is not, so a step onto it
-        waits for its decode."""
         decodes = HeldDecodes()
         world = World(tmp_path, start_thread=decodes)
         decodes.holding = True

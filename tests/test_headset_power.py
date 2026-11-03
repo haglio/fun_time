@@ -1,5 +1,3 @@
-"""Fun Time wakes the headset's runtime as it opens and puts it to sleep as it
-closes, so that entering VR does not wait out the runtime's own startup."""
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -37,8 +35,6 @@ def _woken(tmp_path, *, before=None, during=None, ready=True, already_up=False):
 
 class TestWakingItAsFunTimeOpens:
     def test_the_wake_runs_off_the_session_s_own_startup(self, tmp_path):
-        """He said outright that he does not mind Fun Time coming up before the
-        headset is ready, and the room must not wait on it."""
         threads = _Threads()
 
         headset_power.wake_the_headset(tmp_path, start_thread=threads)
@@ -47,8 +43,6 @@ class TestWakingItAsFunTimeOpens:
         assert threads.started[0][2] == (tmp_path,)
 
     def test_a_test_run_wakes_no_headset(self, tmp_path):
-        """The integration suite shares this machine with him: it reaches
-        nothing of his, and the headset is his."""
         threads = _Threads()
 
         headset_power.wake_the_headset(tmp_path, integration=True, start_thread=threads)
@@ -98,8 +92,6 @@ class TestWakingItAsFunTimeOpens:
         assert headset_power.the_headset_runtime_is_ours(tmp_path) is True
 
     def test_a_runtime_he_started_himself_stays_his(self, tmp_path):
-        """His own Pimax, up for another VR app before Fun Time opened: Fun
-        Time uses it and never puts it to sleep."""
         _woken(tmp_path, already_up=True)
 
         assert headset_power.the_headset_runtime_is_ours(tmp_path) is False
@@ -120,15 +112,12 @@ class TestPuttingItToSleepAsFunTimeCloses:
         stopped.assert_called_once_with(tmp_path)
 
     def test_the_ready_word_goes_with_it(self, tmp_path):
-        """A flag left behind would tell the next session the headset is up
-        when the runtime it belonged to has gone."""
         self._closed(tmp_path, crossing=False, ours=True)
 
         assert headset_power.the_headset_is_ready(tmp_path) is False
         assert headset_power.the_headset_runtime_is_ours(tmp_path) is False
 
     def test_a_session_crossing_into_vr_leaves_it_awake(self, tmp_path):
-        """The session arriving in the headset is about to draw in it."""
         slept, stopped = self._closed(tmp_path, crossing=True, ours=True)
 
         assert slept is False

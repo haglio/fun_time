@@ -35,7 +35,6 @@ _WIN32_REACHES = {
     "fun_time/monitors.py": 7,
 }
 
-# What counts as reaching it.
 _WIN32_BINDING_NAMES = frozenset(
     {"windll", "oledll", "WinDLL", "OleDLL", "CDLL", "PyDLL", "WINFUNCTYPE"})
 
@@ -83,7 +82,6 @@ def _win32_reaches(tree) -> int:
             return node.id in bound_to_surface
         return False
 
-    # Locals holding a DLL taken off that surface: the hoist.
     bound_to_surface: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and names_the_surface(node.value):
@@ -95,10 +93,10 @@ def _win32_reaches(tree) -> int:
         if isinstance(node, ast.ImportFrom) and node.module == "ctypes":
             reaches += sum(1 for a in node.names if a.name in _WIN32_BINDING_NAMES)
         elif isinstance(node, ast.Call) and names_the_surface(node.func):
-            reaches += 1                               # a call through it
+            reaches += 1
         elif isinstance(node, ast.Attribute) and node.attr in _WIN32_BINDING_NAMES:
             if isinstance(node.value, ast.Name) and node.value.id in ctypes_names:
-                reaches += 1                           # named, not yet called
+                reaches += 1
     return reaches
 
 
@@ -126,8 +124,6 @@ def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
     )
 
 
-# The command registry's complexity, a ceiling that only comes down: every handler
-# written into it since the first pass had a domain module of its own to go in.
 MAX_DISPATCHER_COMPLEXITY = 59
 MAX_DISPATCH_COMMAND_COMPLEXITY = 9
 
@@ -154,8 +150,6 @@ def _decisions(function: ast.AST) -> int:
 
 
 def _complexity(tree: ast.AST) -> dict[str, int]:
-    """Each function's cyclomatic complexity, as radon counts it: one, plus a
-    point per branch, loop, handler, boolean operand and comprehension."""
     return {node.name: 1 + _decisions(node) for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
 

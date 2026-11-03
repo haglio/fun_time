@@ -52,15 +52,10 @@ def test_nothing_outranks_pyproject_as_the_config_file():
 
 
 def test_an_ordinary_run_does_not_collect_the_integration_suite():
-    """The convenience half of keeping integration runs off the user's screen.
-    The guard half — which fires however the directory is reached — is
-    tests/integration/conftest.py, pinned by tests/test_integration_desktop_guard.py."""
     assert "integration" in _settings()["norecursedirs"]
 
 
 def test_the_sanitize_plugin_and_the_hang_clock_are_on_every_run():
-    """Both were lost by the same wrong ``-c``: the run that leaked windows onto
-    the user's screen also ran with the private-data guard switched off."""
     addopts = _settings()["addopts"]
 
     assert "app_support.sanitize.pytest_plugin" in addopts

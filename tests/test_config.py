@@ -1,4 +1,3 @@
-"""Tests for fun_time.config."""
 from __future__ import annotations
 
 import ast
@@ -17,9 +16,6 @@ from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 from tests.made_up_genau import point_the_shared_settings_at
 
-# ---------------------------------------------------------------------------
-# load_config
-# ---------------------------------------------------------------------------
 
 class TestLoadConfig:
     def test_loads_valid_config(self, cfg_path: Path):
@@ -53,7 +49,7 @@ class TestLoadConfig:
 
     def test_missing_default_without_example_raises_naming_both(self, tmp_path: Path, monkeypatch):
         target = tmp_path / "fun_time_config.json"
-        example = tmp_path / "fun_time_config.example.json"  # deliberately absent
+        example = tmp_path / "fun_time_config.example.json"
         monkeypatch.setattr(config, "DEFAULT_CONFIG_PATH", target)
         monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
 
@@ -62,9 +58,6 @@ class TestLoadConfig:
         assert not target.exists()
 
     def test_missing_explicit_path_raises_without_regenerating(self, tmp_path: Path, monkeypatch):
-        # A caller naming a specific file that isn't there gets a clear error,
-        # and nothing is written in its place — regeneration is only for the
-        # default config.
         default = tmp_path / "fun_time_config.json"
         example = tmp_path / "fun_time_config.example.json"
         example.write_text(config.EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8"), encoding="utf-8")
@@ -129,8 +122,6 @@ class TestLoadConfig:
         assert load_config(path).paths.sibling_checkouts == (tmp_path / "funestra",)
 
     def test_a_config_from_before_the_rename_still_names_them(self, cfg_factory, tmp_path: Path):
-        """A production checkout from before 2026-10-16 writes them into every
-        preview's config under the name they had while they were Genau's."""
         path = cfg_factory({"paths": {"genau_project_dirs": [str(tmp_path / "funestra")]}})
         assert load_config(path).paths.sibling_checkouts == (tmp_path / "funestra",)
 
@@ -140,17 +131,10 @@ class TestLoadConfig:
         assert load_config(path).paths.sibling_checkouts == (tmp_path / "new",)
 
     def test_the_broker_shares_our_state_dir_unless_it_is_named(self, cfg_path: Path):
-        """Which every session but a branch one does — one directory, one broker."""
         cfg = load_config(cfg_path)
         assert cfg.paths.broker_state_dir == cfg.paths.state_dir
 
     def test_the_brokers_files_follow_the_broker_when_it_is_named(self, cfg_factory, tmp_path: Path):
-        """Named, it takes the whole channel with it, not the heartbeat alone.
-
-        Each of these is a file ``../broker`` opens from its own config, so all
-        of them have to leave together — a session reading four out of five from
-        the broker and one from itself is the bug in miniature.
-        """
         broker_state = tmp_path / "primary" / "state"
         path = cfg_factory({"paths": {"broker_state_dir": str(broker_state)}})
         cfg = load_config(path)
@@ -253,8 +237,6 @@ class TestRegenConfig:
         assert cfg.random_favs_browser.lazy_load is True
 
     def test_a_singular_dir_key_is_read_as_a_one_folder_list(self, cfg_path: Path, tmp_path: Path):
-        """README offers `portrait_dir` beside `portrait_dirs` for the one-folder
-        case, and the test config is written the singular way."""
         cfg = load_config(cfg_path)
         assert cfg.paths.portrait_dirs == ((tmp_path / "videos" / "videos" / "portrait").resolve(),)
         assert cfg.paths.landscape_dirs == ((tmp_path / "videos" / "videos" / "landscape").resolve(),)
@@ -308,10 +290,6 @@ class TestGenausFolders:
         assert cfg.paths.genau_dir == genaus_folder
 
 
-# ---------------------------------------------------------------------------
-# ProjectConfig derived properties
-# ---------------------------------------------------------------------------
-
 class TestProjectConfigProperties:
     def test_log_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
@@ -345,10 +323,6 @@ class TestProjectConfigProperties:
         cfg = load_config(cfg_path)
         assert cfg.random_favs_browser_manifest_file == (tmp_path / "state" / "random_favs_browser_urls.txt").resolve()
 
-
-# ---------------------------------------------------------------------------
-# VoiceControlConfig
-# ---------------------------------------------------------------------------
 
 class TestVoiceControlConfig:
     def test_missing_section_defaults_disabled(self, cfg_factory):
@@ -391,21 +365,7 @@ class TestVoiceControlConfig:
                            ).voice_control.confirm_commands is False
 
 
-# ---------------------------------------------------------------------------
-# loopback_port
-# ---------------------------------------------------------------------------
-
 class TestLoopbackPort:
-    """The loopback server's port is the last fixed port a session claims.
-
-    It is machine-wide, so a second session — an integration run, above all —
-    finds it busy and comes up without a loopback server at all: Tampermonkey
-    stops auto-updating and the RFB tab pages never hear about OmniPause, with
-    only a log line to say so.  Naming it in config is what lets a run take one
-    of its own; the default stays the port the userscript's @updateURL is pinned
-    to, so nothing about a real session changes.
-    """
-
     def test_defaults_to_the_port_the_userscript_is_pinned_to(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.loopback_port == LOOPBACK_PORT
@@ -416,22 +376,7 @@ class TestLoopbackPort:
         assert cfg.loopback_port == 54321
 
 
-# ---------------------------------------------------------------------------
-# instance_id
-# ---------------------------------------------------------------------------
-
 class TestInstanceId:
-    """Which running session a config *is*, for the single-instance mutex.
-
-    The mutex used to be taken on the config path directly, which made "one
-    session per config file" the only arrangement expressible.  A
-    branch-verification session needs the opposite: its own config, but the live
-    session's identity, so the two can never both hold the desktop's AHK shell,
-    monitors and fixed ports.  An integration run needs the old behavior and
-    keeps it — its config lives at a unique temp path, so it is its own instance
-    without saying anything.
-    """
-
     def test_defaults_to_the_config_file(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.instance_id == str(cfg_path)
@@ -464,8 +409,6 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_status_file == state / "origenerator_status.txt"
 
     def test_the_hosted_apps_window_is_handed_over_through_the_state_dir(self, cfg_path):
-        """A headset session has no monitor for that window, so the app writes
-        its window's frames into one file and reads the room's presses from another."""
         cfg = load_config(cfg_path)
 
         assert cfg.origenerator_frames_file == (
@@ -482,8 +425,6 @@ class TestOrigeneratorPaths:
             state / "origenerator_landscape_hud.json")
 
     def test_each_satellite_publishes_its_messages_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
-        """Where a satellite says what came of a funscript move, as the Main
-        Funestra does in main_player_notice.txt beside them."""
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
         assert cfg.satellite(FunTimeFunestra.PORTRAIT).notice_file == state / "portrait_notice.txt"
@@ -491,26 +432,14 @@ class TestOrigeneratorPaths:
 
 
 class TestTheProjectsOwnPaths:
-    """Where this checkout is, computed once instead of at six call sites.
-
-    Each copy silently encoded that its module sits exactly one directory below
-    the root, so a module that moved a level took its icon path with it and
-    failed at run time rather than at import.
-    """
-
     def test_the_icon_sits_at_the_root_of_this_checkout(self):
         assert PROJECT_ICON == PROJECT_DIR / "icon.ico"
         assert PROJECT_ICON.is_file()
 
     def test_the_root_is_the_one_the_config_resolves_against(self):
-        """One root, so a relative path in the config and the icon on the
-        window's title bar cannot come from two different checkouts."""
         assert CONFIG_ROOT is PROJECT_DIR
 
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
-        """Read from the source, because some are uses rather than bindings and
-        an alias would not show them.  FunTimeVR's window asks for the other
-        constant -- still project_paths', still not a path it spells itself."""
         wants = {
             "fun_time/process_identity.py": "PROJECT_ICON",
             "fun_time_vr/vr_session.py": "PROJECT_VR_ICON",
@@ -528,8 +457,6 @@ class TestTheProjectsOwnPaths:
             assert recomputed == [], f"{name} still spells the path itself"
 
     def test_a_satellite_spells_no_icon_path_and_imports_nothing_from_fun_time(self):
-        """The session hands a satellite its icon, so `satellite/` needs no path
-        of its own and still imports nothing from `fun_time`."""
         source = (PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8")
         assert "icon.ico" not in source
         tree = ast.parse((PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8"))

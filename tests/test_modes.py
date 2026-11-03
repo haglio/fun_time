@@ -25,12 +25,10 @@ from tests.drive_fakes import files_that_never_answer
 
 
 def _lines(playlist: Path) -> list[str]:
-    """The lines of a playlist file a build just wrote."""
     return playlist.read_text(encoding="utf-8").splitlines()
 
 
 def _mark_generated(video: Path) -> Path:
-    """Record that a bulk run wrote *video*'s funscript, the way the library does."""
     marker = Path(build_generated_marker_path(str(video)))
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.touch()
@@ -55,7 +53,6 @@ def _i2v_meta(image_seed: str, action: str) -> dict:
 
 
 def _stamp_weight(metadata_root: Path, video: str, weight: float) -> None:
-    """The weight Evolver would have summed onto the video's sidecar."""
     sidecar = metadata_path_for(video, metadata_root)
     payload = load_metadata(sidecar)
     payload["watch"] = {"weight": weight}
@@ -63,7 +60,6 @@ def _stamp_weight(metadata_root: Path, video: str, weight: float) -> None:
 
 
 def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
-    """A satellite source dir whose videos (optionally) carry sidecars."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     source_dir = media_root / "portrait"
@@ -130,9 +126,6 @@ def test_build_satellite_playlists_writes_each_satellites_own_favorites(tmp_path
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
 
 
-# --- collect_video_files edge cases ---
-
-
 def test_collect_video_files_skips_empty_source_parts(tmp_path: Path):
     d = tmp_path / "vids"
     d.mkdir()
@@ -171,8 +164,6 @@ def test_collect_video_files_ignores_single_non_video_file(tmp_path: Path):
 
 
 def test_collect_video_files_reads_the_folder_and_asks_no_file_about_itself(tmp_path: Path):
-    """A cloud drive that stops answering about one video must not stop a browse:
-    a folder's listing already says which entries are files."""
     d = tmp_path / "vids"
     (d / "deeper").mkdir(parents=True)
     (d / "clip.mp4").write_text("x", encoding="utf-8")
@@ -183,9 +174,6 @@ def test_collect_video_files_reads_the_folder_and_asks_no_file_about_itself(tmp_
         found = collect_video_files(str(d))
 
     assert sorted(found) == [str(d / "clip.mp4"), str(d / "deeper" / "other.mkv")]
-
-
-# --- build_mirrored_funscript_path edge cases ---
 
 
 def test_a_video_outside_the_mirrored_tree_names_no_funscript():
@@ -203,11 +191,6 @@ def test_a_video_in_the_library_needs_only_its_own_path_to_find_its_script(tmp_p
 
 
 def test_a_marked_script_still_drives_the_video_it_is_out_of_f_mode_for(tmp_path: Path):
-    """Marking is subtractive: the script still pairs, F-mode alone reads the mark.
-
-    Which is the whole point of marking beside the script rather than moving it —
-    this video still drives the OSR2, and F-mode never brings it up.
-    """
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
     script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
     script.parent.mkdir(parents=True)
@@ -220,8 +203,6 @@ def test_a_marked_script_still_drives_the_video_it_is_out_of_f_mode_for(tmp_path
 
 
 def test_an_unmarked_library_keeps_the_f_mode_it_had(tmp_path: Path):
-    """Nothing marked means every scripted video is still F-mode's, so the
-    marking can be filled in after the code lands rather than with it."""
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
     script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
     script.parent.mkdir(parents=True)
@@ -231,7 +212,6 @@ def test_an_unmarked_library_keeps_the_f_mode_it_had(tmp_path: Path):
 
 
 def test_a_marker_without_a_script_is_not_f_modes_either(tmp_path: Path):
-    """A mark outliving its deleted script cannot promote an unscripted video."""
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
     _mark_generated(video)
 
@@ -303,9 +283,6 @@ def test_with_no_records_folder_no_video_is_a_favorite(tmp_path: Path):
     assert not is_favorite(tmp_path / "videos" / "videos" / "scene one.mp4", None)
 
 
-# --- recency ordering ---
-
-
 def test_sort_paths_by_recency_orders_newest_first(tmp_path: Path):
     d = tmp_path / "vids"
     old = d / "old.mp4"
@@ -321,8 +298,6 @@ def test_sort_paths_by_recency_orders_newest_first(tmp_path: Path):
 
 
 def test_sort_paths_by_recency_reads_the_dates_off_the_folder(tmp_path: Path):
-    """Newest-first on a drive that has stopped answering about its videos: the
-    folder listing carries every date the order needs."""
     d = tmp_path / "vids"
     old = d / "old.mp4"
     new = d / "new.mp4"
@@ -386,18 +361,12 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(l_new), str(l_old)]
 
 
-# --- shuffle_paths edge cases ---
-
-
 def test_shuffling_nothing_leaves_nothing():
     assert shuffle_paths([]) == []
 
 
 def test_shuffling_one_video_leaves_that_video():
     assert shuffle_paths(["only.mp4"]) == ["only.mp4"]
-
-
-# --- f_mode=False branches ---
 
 
 def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path):
@@ -409,11 +378,7 @@ def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path)
     assert len(paths) == 2
 
 
-# --- action-group collapse and watch weighting (satellites) ---
-
-
 def test_shuffled_satellite_build_plays_one_item_per_action_group(tmp_path: Path):
-    """Same subject+situation in several actions = one playlist slot, one random item."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
@@ -476,9 +441,6 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
 
 
 def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
-    """Latest shows one entry per action group even while reviewing arrivals:
-    the group's newest item represents it, ungrouped videos pass through, and
-    the whole list stays newest-first."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_old": _i2v_meta("111", "Alpha"),
         "subject1_new": _i2v_meta("111", "Zeta Massage"),
@@ -493,7 +455,6 @@ def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
         recent=True, rng=random.Random(1), metadata_root=metadata_root,
     )
 
-    # subject1's two actions collapse to the newer one; order stays newest-first.
     assert built == [paths["subject1_new"], paths["subject2_solo"], paths["no_metadata"]]
 
 
@@ -517,8 +478,6 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
         assert len(listed) == 1, "the two-action group must collapse to one entry"
         assert listed[0] in paths.values()
 
-
-# --- metadata attribute filtering ------------------------------------------
 
 def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
@@ -546,8 +505,6 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
 
 
 def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
-    # Distinct prompts put the two Alphas in distinct seed families, so the
-    # filtered build keeps both and the Latest newest-first ordering is visible.
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "old": _t2v_meta("Alpha", "1", prompt="scene one"),
         "new": _t2v_meta("Alpha", "2", prompt="scene two"),
@@ -559,11 +516,10 @@ def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
         str(source_dir), False,
         filter_query="alpha", recent=True, metadata_root=metadata_root,
     )
-    assert got == [paths["new"], paths["old"]]  # filtered, newest-first
+    assert got == [paths["new"], paths["old"]]
 
 
 def test_satellite_filter_is_ignored_without_a_library(tmp_path: Path):
-    # No metadata roots means the filter can't be evaluated, so nothing is dropped.
     d = tmp_path / "portrait"
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
@@ -609,11 +565,7 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
     assert l_cum not in landscape_written
 
 
-# --- collapse axis: filtered views group by seed family (params) -------------
-
 def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
-    """A text-to-video sidecar: the action group pins the seed (action varies),
-    while the seed family pins the action (seed varies)."""
     return {
         "video": {
             "prompt": prompt,
@@ -628,8 +580,6 @@ def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
 
 
 def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
-    """A filtered view has already pinned the act, so same-params-different-seed
-    videos are one seed family and collapse to a single entry."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Alpha", "1"),
         "clip_b": _t2v_meta("Alpha", "2"),
@@ -642,12 +592,10 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
         filter_query="alpha", recent=True, metadata_root=metadata_root,
     )
 
-    assert built == [paths["clip_b"]]  # one per param-set, represented by its newest
+    assert built == [paths["clip_b"]]
 
 
 def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
-    """Unfiltered browsing keeps today's one-video-per-subject (action group),
-    so two different-seed subjects both appear."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Alpha", "1"),
         "clip_b": _t2v_meta("Alpha", "2"),
@@ -663,17 +611,12 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
 
 
 def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
-    """Seed-family collapse must not merge different acts: the t2v family pins
-    the action, so a Theta video stays its own family."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Side Alpha", "1"),
         "clip_b": _t2v_meta("Side Alpha", "2"),
         "theta": _t2v_meta("Side Theta", "1"),
     })
 
-    # A filter matching all three (the camera word all their acts carry) still
-    # collapses only within a seed family, so Alpha collapses to one and Theta
-    # survives.
     built = build_satellite_playlist_paths(
         str(source_dir), False,
         filter_query="side", recent=True, metadata_root=metadata_root,

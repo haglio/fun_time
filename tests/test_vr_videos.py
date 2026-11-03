@@ -1,4 +1,3 @@
-"""Which videos are VR masters, and the browse filter built on the answer."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,8 +14,6 @@ class TestIsVrVideo:
         assert not is_vr_video(tmp_path / "flat" / "scene.mp4", [tmp_path / "vr"])
 
     def test_a_name_that_says_its_mastering_is_one_wherever_it_lives(self, tmp_path: Path):
-        """The mastering travels with the file: a master moved out of the VR
-        library still wraps the view."""
         assert is_vr_video(tmp_path / "flat" / "scene_180_sbs.mp4", [tmp_path / "vr"])
         assert is_vr_video(tmp_path / "flat" / "scene_mkx200.mp4", [])
 
@@ -49,8 +46,6 @@ class TestKeepShapes:
         assert kept == [paths[1]]
 
     def test_neither_shape_keeps_nothing(self, tmp_path: Path):
-        """Degenerate, and the answer that was asked for: the caller decides what
-        an empty browse means rather than this widening one nobody widened."""
         paths, vr_dir = self._paths(tmp_path)
 
         assert keep_shapes(paths, vr_dirs=[vr_dir], plays_vr=False, plays_flat=False) == []

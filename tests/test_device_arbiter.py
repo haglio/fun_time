@@ -1,8 +1,3 @@
-"""Who has the OSR2, moment to moment.
-
-The arbiter's whole world is the Funestras' status files and the command files,
-so these drive it with nothing else around it.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -84,13 +79,7 @@ OMNIPAUSED = ["PAUSE", TCODE_ON, "PARK"]
 
 
 class TestNobodyDriving:
-    """Parked, the retract a relief pause leaves, and OmniPause: carried out here
-    rather than at the button, because the turn is stated here whole -- a verb
-    fired from a handler would be undone by the next statement."""
-
     def test_a_hold_gates_the_funscript_and_switches_genaus_output_off(self, tmp_path):
-        """The broker walks the device to that end; Genau plays on with its output
-        off, so the HUD can still draw the motion the hand would be making."""
         for mode in ("kino", "genau"):
             driver = make_driver(tmp_path / f"park-{mode}")
             publish_main_funestra(driver)
@@ -218,16 +207,7 @@ class TestNobodyDriving:
 
 
 class TestKinoModeFunscriptHandoff:
-    """The funscript drives its scripted stretches (the hand yields), and the
-    Robot Hand drives the unscripted ones — a funscript's quiet lead-in and its interior
-    gaps, which the Main Funestra flags as ``funscript_resting``."""
-
     def test_the_flip_waits_for_the_touch_the_trace_chose(self, tmp_path):
-        """The Main Funestra publishes the touch-down its trace drew the blue ending on;
-        the hand keeps the device until the playhead reaches it.  When each Satellite
-        chose its own touch from its own read of the wave, the arbiter could
-        take an earlier one — and the leftover drawn blue vanished the moment
-        the dot reached it."""
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, resting=True, position_ms=14_000)
         driver.sync("kino", paused=False)
@@ -250,8 +230,6 @@ class TestKinoModeFunscriptHandoff:
         assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_no_published_touch_flips_at_once(self, tmp_path):
-        """The ramp case — a raised floor — has no touch to wait for: the
-        descent is the drawn ramp, walked by the Main Funestra's driver."""
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, resting=True, position_ms=14_000)
         driver.sync("kino", paused=False)
@@ -275,10 +253,6 @@ class TestKinoModeFunscriptHandoff:
         assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_a_seek_into_the_script_s_turn_flips_at_once(self, tmp_path):
-        """A hold honors a drawn blue ending, and a seek-entry never drew one:
-        jumped into dense action from a rest, the trace already shows the
-        script's turn running — even a touch left published from before the
-        seek must not hold the flip."""
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, resting=True, position_ms=1_000)
         driver.sync("kino", paused=False)

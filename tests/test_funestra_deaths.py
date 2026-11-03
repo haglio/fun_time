@@ -1,6 +1,3 @@
-"""A Funestra that dies while Fun Time is coming up ends the launch, saying which one
-and what it said -- rather than every window and status wait running out and leaving
-him a session with no Funestras in it and Ctrl+Alt+Q as the only way out (2026-09-22)."""
 from __future__ import annotations
 
 from pathlib import Path

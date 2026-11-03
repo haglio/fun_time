@@ -92,20 +92,13 @@ class TestAppendRecords:
 
 
 class TestLevelColor:
-    """What each level looks like — here in the stream, and on the flash the
-    message overlay draws from the same table."""
-
     def test_an_ordinary_announcement_is_white(self):
-        """Green used to mean "a command did something", which put it on the
-        volume, the browse order and every other confirmation.  It means one thing
-        now: the favorites and the funscripts."""
         assert level_color(MESSAGE).getRgb()[:3] == (240, 240, 240)
 
     def test_the_favorites_and_the_funscripts_keep_the_green(self):
         assert level_color(FAVORITE).getRgb()[:3] == (48, 160, 48)
 
     def test_an_error_is_red_a_warning_yellow_and_chatter_muted(self):
-        """Red is kept for errors: a dead end is a warning, not one."""
         assert level_color(logging.ERROR).getRgb()[:3] == (255, 60, 60)
         assert level_color(logging.WARNING).getRgb()[:3] == (255, 200, 120)
         assert level_color(logging.INFO).getRgb()[:3] == (120, 120, 120)
@@ -113,12 +106,11 @@ class TestLevelColor:
 
 class TestFormatRecord:
     def test_shows_the_clock_time_the_source_and_the_message(self):
-        # 2026-07-09 00:00:00 UTC + local offset — assert on structure, not the hour.
         line = format_record(_record(source="landscape", message="Similar clip", ts=1_752_000_000.0))
 
         assert "landscape" in line
         assert "Similar clip" in line
-        assert line.count(":") == 2  # HH:MM:SS
+        assert line.count(":") == 2
 
 
 class TestCopyButtonPosition:
@@ -130,8 +122,6 @@ class TestCopyButtonPosition:
         assert (x, y) == (300 - 16 - 2, 40 + 2)
 
     def test_a_row_scrolled_off_the_top_keeps_its_button_inside_the_viewport(self):
-        # The topmost row is usually half-scrolled under the top edge; a button
-        # placed at its true top would be drawn where nobody can click it.
         _, y = copy_button_position(
             row_top=-30, viewport_width=300, viewport_height=200, button_size=16, margin=2
         )
@@ -182,7 +172,6 @@ def panel_factory(tmp_path: Path):
 
 
 def _hover_row(panel: LogPanelWidget, row: int) -> None:
-    """Send a real mouse-move over *row*, the way the cursor would."""
     viewport = panel._list.viewport()
     point = QPointF(panel._list.visualItemRect(panel._list.item(row)).center())
     QApplication.sendEvent(
@@ -203,7 +192,6 @@ def _copy_button(panel: LogPanelWidget) -> QToolButton:
 
 
 def _tail_advances(panel: LogPanelWidget, message: str) -> None:
-    """Append a line to the log the panel is tailing and let it pick the line up."""
     with panel._event_log.open("a", encoding="utf-8") as fh:
         fh.write(_event_line(message))
     panel._poll()
@@ -219,12 +207,6 @@ class TestHoverCopyButton:
         assert QApplication.clipboard().text() == panel._list.item(1).text()
 
     def test_the_button_wears_the_familys_copy_mark_and_its_tick(self, panel_factory):
-        """Origenerator's copy button wears this same two-sheets drawing.
-
-        Each app drew its own before, at its own proportions -- the drift the
-        microphone had, one layer down -- so both marks now come out of
-        shared_ui rather than out of a copy kept in either app.
-        """
         panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
         button = _copy_button(panel)
@@ -232,13 +214,13 @@ class TestHoverCopyButton:
 
         assert button.icon().pixmap(size).toImage() ==             icon_pixmap("copy", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
-        button.click()  # and the tick it shows for a moment afterwards
+        button.click()
         assert button.icon().pixmap(size).toImage() ==             icon_pixmap("check", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
     def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
         panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
-        assert _copy_button(panel).isVisible()  # it was there to be dismissed
+        assert _copy_button(panel).isVisible()
 
         QApplication.sendEvent(panel._list, QEvent(QEvent.Type.Leave))
 
@@ -247,8 +229,6 @@ class TestHoverCopyButton:
     def test_a_line_arriving_mid_hover_does_not_strand_the_button_on_a_dead_row(
         self, panel_factory
     ):
-        # Every tail advance clears and refills the list, so a button holding the
-        # item it was shown for would be pointing at a destroyed row by now.
         panel = panel_factory(["Clip state", "No other seeds"])
         _hover_row(panel, 0)
 
@@ -262,7 +242,7 @@ class TestHoverCopyButton:
         _hover_row(panel, 0)
         assert _copy_button(panel).isVisible()
 
-        panel._source_buttons["system"].setChecked(False)  # empties the list
+        panel._source_buttons["system"].setChecked(False)
 
         assert not _copy_button(panel).isVisible()
 

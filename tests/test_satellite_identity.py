@@ -1,4 +1,3 @@
-"""What a satellite window calls itself, and whose icon it wears."""
 from __future__ import annotations
 
 from pathlib import Path

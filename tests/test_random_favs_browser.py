@@ -52,7 +52,6 @@ def test_resolve_profile_directory_finds_named_profile(tmp_path: Path):
     assert resolve_profile_directory(user_data_dir, "Jane Doe") == "Profile 2"
 
 
-
 def test_choose_random_uses_requested_count():
     rng = random.Random(123)
     urls = [f"https://example.com/{i}" for i in range(20)]
@@ -92,7 +91,6 @@ def test_the_manifest_names_the_chrome_profile_and_every_target(cfg_factory, tmp
 
 def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=True,
                     profile_name="Jane Doe", urls=("https://example.com/1",)):
-    """A config exercising one way the browser declines to launch."""
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     if local_state:
@@ -116,8 +114,6 @@ def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=Tr
 
 
 def test_a_disabled_browser_declines_to_launch(cfg_factory, tmp_path: Path):
-    """random_favs_browser.enabled is a documented public config key (genaumacher
-    reads it too), and turning it off must mean no profile and no tabs."""
     cfg_path = _decline_config(cfg_factory, tmp_path, enabled=False)
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
@@ -149,9 +145,6 @@ def test_write_manifest_writes_profile_then_urls(tmp_path: Path):
     )
 
 
-# --- regenerate targets ---
-
-
 def _regen_cfg(cfg_factory, tmp_path: Path) -> Path:
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
@@ -175,13 +168,11 @@ def _regen_cfg(cfg_factory, tmp_path: Path) -> Path:
     )
 
 
-# Where the library actually keeps an upscaled video, mirrored by its sidecar.
 _UPSCALED = Path("2_outbox") / "upscaled_by_orientation" / "portrait"
 
 
 def _write_sidecar(tmp_path: Path, name: str, metadata: dict, *, source: str = "provider",
                    page: str = "") -> Path:
-    """A favorite video, and the record that says so beside what else *metadata* records."""
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / _UPSCALED / source / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
@@ -227,7 +218,6 @@ def test_build_manifest_opens_a_favorite_with_no_recorded_prompt_at_its_gallery(
 
 
 def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_factory, tmp_path: Path):
-    """A dead gallery link becomes the prefilled Provider generate page."""
     video = _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "A PROMPT"}},
                            page="https://example.com/image/abc")
     cfg_path = _regen_cfg(cfg_factory, tmp_path)
@@ -237,12 +227,10 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     assert len(targets) == 1
     assert targets[0].url.startswith("https://example.com/video#ft=")
     assert targets[0].label == "https://example.com/image/abc"
-    # The tab plays the video you are deciding whether to recreate.
     assert targets[0].video_path == str(video)
 
 
 def test_build_manifest_plays_the_original_not_the_upscale(cfg_factory, tmp_path: Path):
-    """The upscale is hundreds of MB of HEVC; its original is a few MB of H.264."""
     _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "P"}}, page="https://example.com/image/abc")
     original = tmp_path / "videos" / "videos" / "2D" / "AI" / "1_sorted" / "provider" / "portrait" / "abc.mp4"
     original.parent.mkdir(parents=True, exist_ok=True)
@@ -255,7 +243,6 @@ def test_build_manifest_plays_the_original_not_the_upscale(cfg_factory, tmp_path
 
 
 def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_factory, tmp_path: Path):
-    """A record saying nothing but that it is a favorite leaves the stored link untouched."""
     video = _favorite_video(tmp_path, "media/provider2/abc.mp4", page="https://example.net/image/abc")
     cfg_path = _regen_cfg(cfg_factory, tmp_path)
 
@@ -280,16 +267,12 @@ def test_build_manifest_labels_a_gallery_less_fav_with_its_filename(cfg_factory,
 
 
 def test_build_manifest_drops_favs_with_nowhere_to_go(cfg_factory, tmp_path: Path):
-    """A non-Provider local file with no gallery link yields no tab at all."""
     _favorite_video(tmp_path, "media/other/abc.mp4")
     cfg_path = _regen_cfg(cfg_factory, tmp_path)
 
     _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
 
     assert targets == []
-
-
-# --- the favorites the browser opens ---
 
 
 def test_the_favorites_are_the_videos_their_records_mark_with_the_pages_they_came_from(tmp_path: Path):
