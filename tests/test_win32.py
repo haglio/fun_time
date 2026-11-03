@@ -48,6 +48,10 @@ from tests.child_reports import an_interpreter_asleep
 from tests.sleeps import sleeps_in
 
 
+def _user32_mocked():
+    return patch("fun_time.win32._user32")
+
+
 class TestFindWindowByPid:
     @staticmethod
     def _mock_user32(mock, *, hwnd: int, pid: int, visible: bool, title_len: int = 8):
@@ -65,22 +69,22 @@ class TestFindWindowByPid:
         mock.GetWindowTextLengthW.return_value = title_len
 
     def test_skips_hidden_window_by_default(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._mock_user32(mock, hwnd=555, pid=42, visible=False)
             assert find_window_by_pid(42) == 0
 
     def test_include_hidden_finds_hidden_window(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._mock_user32(mock, hwnd=555, pid=42, visible=False)
             assert find_window_by_pid(42, include_hidden=True) == 555
 
     def test_visible_window_found_regardless_of_flag(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._mock_user32(mock, hwnd=777, pid=42, visible=True)
             assert find_window_by_pid(42) == 777
 
     def test_untitled_window_skipped_even_when_hidden_included(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._mock_user32(mock, hwnd=555, pid=42, visible=False, title_len=0)
             assert find_window_by_pid(42, include_hidden=True) == 0
 
@@ -95,7 +99,7 @@ class TestMoveWindow:
         def fake_setpos(hwnd, insert_after, x, y, w, h, flags):
             calls.append(("SetWindowPos", (hwnd, insert_after, x, y, w, h, flags)))
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.ShowWindow.side_effect = fake_show
             mock.SetWindowPos.side_effect = fake_setpos
             move_window(111, 10, 20, 800, 600)
@@ -106,7 +110,7 @@ class TestMoveWindow:
 
 class TestSetAlwaysOnTop:
     def test_true_pins_the_window_into_the_topmost_band(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             set_always_on_top(111, True)
 
         args = mock.SetWindowPos.call_args[0]
@@ -114,14 +118,14 @@ class TestSetAlwaysOnTop:
         assert args[1] == HWND_TOPMOST
 
     def test_false_drops_the_window_out_of_the_topmost_band(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             set_always_on_top(111, False)
 
         args = mock.SetWindowPos.call_args[0]
         assert args[1] == HWND_NOTOPMOST
 
     def test_under_a_window_it_lands_directly_beneath_it(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             set_always_on_top(111, True, under=2**40 + 7)
 
         insert_after = mock.SetWindowPos.call_args[0][1]
@@ -129,13 +133,13 @@ class TestSetAlwaysOnTop:
         assert insert_after.value == 2**40 + 7
 
     def test_a_demotion_leaves_the_band_whatever_it_was_under(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             set_always_on_top(111, False, under=99)
 
         assert mock.SetWindowPos.call_args[0][1] == HWND_NOTOPMOST
 
     def test_a_band_change_moves_and_resizes_nothing(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             set_always_on_top(111, True, under=99)
 
         flags = mock.SetWindowPos.call_args[0][6]
@@ -156,7 +160,7 @@ class TestAWindowThatHasStoppedAnswering:
             released.wait(10)
 
         try:
-            with patch("fun_time.win32._user32") as mock:
+            with _user32_mocked() as mock:
                 mock.SetWindowPos.side_effect = block
                 mock.ShowWindow.side_effect = block
                 yield
@@ -168,7 +172,7 @@ class TestAWindowThatHasStoppedAnswering:
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: True)
         threads: list[str] = []
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.SetWindowPos.side_effect = (
                 lambda *_a: threads.append(threading.current_thread().name))
             set_always_on_top(111, True)
@@ -200,7 +204,7 @@ class TestAWindowThatHasStoppedAnswering:
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         order: list[int] = []
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.SetWindowPos.side_effect = lambda hwnd, *_a: order.append(hwnd)
             started = time.monotonic()
             for hwnd in (1, 2, 3):
@@ -220,7 +224,7 @@ class TestAWindowThatHasStoppedAnswering:
             answering.wait(10)
             landed.set()
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.SetWindowPos.side_effect = block
             set_always_on_top(111, True)
             assert not landed.is_set()
@@ -243,7 +247,7 @@ class TestAWindowThatHasStoppedAnswering:
             if len(happened) == 4:
                 both_landed.set()
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.SetWindowPos.side_effect = place
             set_always_on_top(111, False)
             set_always_on_top(111, True)
@@ -263,7 +267,7 @@ class TestAWindowThatHasStoppedAnswering:
                 raise OSError("the window went away")
             placed.append(insert_after)
 
-        with patch("fun_time.win32._user32") as mock, \
+        with _user32_mocked() as mock, \
                 caplog.at_level(logging.ERROR, logger="fun_time.win32"):
             mock.SetWindowPos.side_effect = place
             set_always_on_top(222, False)
@@ -275,7 +279,7 @@ class TestAWindowThatHasStoppedAnswering:
 
 class TestActivateWindow:
     def test_activating_asks_windows_to_bring_it_to_the_foreground(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             activate_window(111)
 
         mock.SetForegroundWindow.assert_called_once_with(111)
@@ -283,25 +287,25 @@ class TestActivateWindow:
 
 class TestMinimizeWindow:
     def test_minimizing_animates_and_may_take_focus_by_default(self):
-        with patch("fun_time.win32._user32") as mock_user32:
+        with _user32_mocked() as mock_user32:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
 
     def test_no_activate_uses_sw_showminnoactive(self):
-        with patch("fun_time.win32._user32") as mock_user32:
+        with _user32_mocked() as mock_user32:
             minimize_window(99999, activate=False)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_SHOWMINNOACTIVE)
 
 
 class TestCloseWindow:
     def test_closing_asks_the_window_to_close_itself_not_the_process(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             close_window(12345)
 
         mock.PostMessageW.assert_called_once_with(12345, 0x0010, 0, 0)
 
     def test_noop_for_zero_hwnd(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             close_window(0)
 
         mock.PostMessageW.assert_not_called()
@@ -309,20 +313,20 @@ class TestCloseWindow:
 
 class TestIsWindowTopmost:
     def test_a_window_in_the_topmost_band_says_so(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = WS_EX_TOPMOST | 0x100
             assert is_window_topmost(111) is True
         mock.GetWindowLongW.assert_called_once_with(111, GWL_EXSTYLE)
 
     def test_a_window_outside_the_topmost_band_says_so(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = 0x100
             assert is_window_topmost(111) is False
 
 
 class TestKeepInTopmostBand:
     def test_a_window_already_where_it_belongs_is_left_alone(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = WS_EX_TOPMOST
             keep_in_topmost_band(111, topmost=True)
             mock.GetWindowLongW.return_value = 0
@@ -331,14 +335,14 @@ class TestKeepInTopmostBand:
         mock.SetWindowPos.assert_not_called()
 
     def test_a_window_that_drifted_out_of_the_band_is_put_back(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = 0
             keep_in_topmost_band(111, topmost=True)
 
         assert mock.SetWindowPos.call_args[0][1] == HWND_TOPMOST
 
     def test_a_window_that_drifted_into_the_band_is_taken_out(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = WS_EX_TOPMOST
             keep_in_topmost_band(111, topmost=False)
 
@@ -497,12 +501,12 @@ class TestWindowRect:
             rect.left, rect.top, rect.right, rect.lower = 0, 400, 1080, 1920
             return 1
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowRect.side_effect = fill
             assert window_rect(123) == (0, 400, 1080, 1520)
 
     def test_reports_nothing_for_a_window_that_is_gone(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowRect.return_value = 0
             assert window_rect(123) is None
 
@@ -511,7 +515,7 @@ class TestWindowTitle:
     def test_a_caption_past_256_characters_comes_back_whole(self):
         caption = "Made-up caption " * 20
         read_at: list[int] = []
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowTextLengthW.return_value = len(caption)
             mock.GetWindowTextW.side_effect = lambda _hwnd, buffer, cap: (
                 read_at.append(cap), setattr(buffer, "value", caption))[0]
@@ -519,7 +523,7 @@ class TestWindowTitle:
         assert read_at == [len(caption) + 1]
 
     def test_an_untitled_window_has_an_empty_title(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowTextLengthW.return_value = 0
             assert window_title(123) == ""
 
@@ -544,25 +548,25 @@ class TestFindWindowByTitle:
         mock.IsWindowVisible.return_value = 1 if visible else 0
 
     def test_a_substring_matches_by_default(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Genau — Example Studio")])
             assert win32.find_window_by_title("Genau") == 11
 
     def test_exact_refuses_the_window_that_merely_contains_the_name(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time", exact=True) == 12
 
     def test_a_substring_would_have_taken_the_wrong_one_of_those(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time") == 11
 
     def test_a_hidden_window_is_skipped_unless_it_is_asked_for(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Fun Time")], visible=False)
             assert win32.find_window_by_title("Fun Time") == 0
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Fun Time")], visible=False)
             assert win32.find_window_by_title("Fun Time", include_hidden=True) == 11
 
@@ -576,7 +580,7 @@ class TestFindWindowByTitle:
                     break
             return True
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.EnumWindows.side_effect = enum
             mock.GetWindowTextW.side_effect = lambda _h, buf, _c: setattr(buf, "value", "Main Funestra")
             mock.IsWindowVisible.return_value = 1
@@ -587,7 +591,7 @@ class TestFindWindowByTitle:
         buffers: list[int] = []
         caps: list[int] = []
 
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Genau"), (12, "Main Funestra")])
             mock.GetWindowTextW.side_effect = lambda hwnd, buf, cap: (
                 buffers.append(id(buf)), caps.append(cap),
@@ -598,7 +602,7 @@ class TestFindWindowByTitle:
         assert len(set(buffers)) == 1, "a buffer per window, not one for the walk"
 
     def test_nothing_matching_is_no_window(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, "Genau")])
             assert win32.find_window_by_title("Origenerator") == 0
 
@@ -662,20 +666,20 @@ class TestFindWindowForProcess:
 
     def test_the_window_of_that_pid_with_that_exact_title(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, "Portrait AI Funestra"),
                                      (12, 500, "Landscape AI Funestra")])
             assert win32.find_window_for_process(500, "Landscape AI Funestra") == 12
 
     def test_a_title_that_merely_contains_the_name_is_not_it(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, "Origenerator — portrait")])
             assert win32.find_window_for_process(500, "Origenerator") == 0
 
     def test_a_caption_test_finds_the_window_whose_caption_it_accepts(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, "Origenerator Loading"),
                                      (12, 500, "Origenerator — preview of a fabricated feature")])
             assert win32.find_window_for_process(
@@ -683,13 +687,13 @@ class TestFindWindowForProcess:
 
     def test_the_same_title_on_another_process_is_not_it(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 999, "Origenerator")])
             assert win32.find_window_for_process(500, "Origenerator") == 0
 
     def test_a_launchers_child_owns_the_window_and_still_resolves(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda pid: [pid + 1])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 501, "Origenerator")])
             assert win32.find_window_for_process(500, "Origenerator") == 11
 
@@ -697,14 +701,14 @@ class TestFindWindowForProcess:
         asked: list[int] = []
         monkeypatch.setattr(
             win32, "list_child_pids", lambda pid: (asked.append(pid), [501])[1])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 502, "Origenerator")])
             assert win32.find_window_for_process(500, "Origenerator") == 0
         assert asked == [500]
 
     def test_an_untitled_window_is_never_the_match(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, "")])
             assert win32.find_window_for_process(500, "") == 0
 
@@ -712,7 +716,7 @@ class TestFindWindowForProcess:
         caps: list[int] = []
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         long_title = "Origenerator " * 30
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, long_title)])
             mock.GetWindowTextW.side_effect = lambda _h, buf, cap: (
                 caps.append(cap), setattr(buf, "value", long_title))[0]
@@ -722,20 +726,20 @@ class TestFindWindowForProcess:
 
     def test_no_pid_is_no_window_and_no_enumeration(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             assert win32.find_window_for_process(0, "Main Funestra") == 0
             mock.EnumWindows.assert_not_called()
 
     def test_a_hidden_window_is_skipped_when_nothing_names_the_one_wanted(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, "_q_titlebar", False),
                                      (12, 500, "Fun Time Library", True)])
             assert win32.find_window_for_process(500) == 12
 
     def test_a_parked_window_still_resolves_for_a_caller_that_asks_for_one(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, "Origenerator", False)])
             assert win32.find_window_for_process(
                 500, "Origenerator", include_hidden=True) == 11
@@ -829,7 +833,7 @@ class TestIterZorder:
         mock.GetWindowRect.side_effect = rect_of
 
     def test_the_walk_reports_front_to_back(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._stack(mock, [
                 (11, "Main Funestra", True, False, (0, 0, 100, 200)),
                 (12, "Fun Time", True, False, (100, 0, 300, 400)),
@@ -841,7 +845,7 @@ class TestIterZorder:
         assert stacked[1].rect == (100, 0, 300, 400)
 
     def test_hidden_minimized_and_untitled_windows_are_left_out(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._stack(mock, [
                 (11, "Hidden", False, False, (0, 0, 10, 10)),
                 (12, "Minimized", True, True, (0, 0, 10, 10)),
@@ -851,32 +855,32 @@ class TestIterZorder:
             assert [w.hwnd for w in win32.iter_zorder()] == [14]
 
     def test_each_window_carries_whether_it_rides_the_topmost_band(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             self._stack(mock, [(11, "Main Funestra", True, False, (0, 0, 10, 10))])
             mock.GetWindowLongW.return_value = win32.WS_EX_TOPMOST
             assert win32.iter_zorder()[0].topmost is True
 
     def test_an_empty_desktop_is_an_empty_stack(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetTopWindow.return_value = 0
             assert win32.iter_zorder() == []
 
 
 class TestIsWindowMinimized:
     def test_an_iconic_window_reads_as_minimized(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.IsIconic.return_value = 1
             assert win32.is_window_minimized(4242) is True
 
     def test_anything_else_does_not(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.IsIconic.return_value = 0
             assert win32.is_window_minimized(4242) is False
 
 
 class TestTheWindowChromeThisProcessGivesItsOwn:
     def test_the_taskbar_pass_keeps_minimize_and_close_and_drops_maximize(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = 0
             win32.set_taskbar_window_styles(4242)
 
@@ -887,7 +891,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert not style & win32.WS_MAXIMIZEBOX
 
     def test_the_taskbar_pass_claims_a_taskbar_button(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = win32.WS_EX_TOOLWINDOW
             win32.set_taskbar_window_styles(4242)
 
@@ -898,14 +902,14 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
 
     def test_the_taskbar_pass_keeps_the_bits_already_on_the_window(self):
         other = 0x00000100
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = other
             win32.set_taskbar_window_styles(4242)
 
         assert all(c.args[2] & other for c in mock.SetWindowLongW.call_args_list)
 
     def test_the_taskbar_pass_asks_the_frame_to_be_recalculated(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetWindowLongW.return_value = 0
             win32.set_taskbar_window_styles(4242)
 
@@ -916,7 +920,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert flags & win32.SWP_NOZORDER
 
     def test_showing_and_hiding_an_own_window(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             win32.hide_own_window(4242)
             win32.show_own_window(4242)
 
@@ -924,7 +928,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
             call(4242, win32.SW_HIDE), call(4242, win32.SW_SHOW)]
 
     def test_the_hidden_topmost_window_is_topmost_never_shown_and_never_focused(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.CreateWindowExW.return_value = 4242
             assert win32.create_hidden_topmost_window() == 4242
 
@@ -936,21 +940,21 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
 
 class TestWhatHeIsUsing:
     def test_the_foreground_window_is_the_one_windows_names(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetForegroundWindow.return_value = 4242
             assert win32.foreground_window() == 4242
             mock.GetForegroundWindow.return_value = None
             assert win32.foreground_window() == 0
 
     def test_the_window_under_the_cursor_is_the_whole_window_not_the_part_of_it(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetCursorPos.return_value = 1
             mock.WindowFromPoint.return_value = 5151
             mock.GetAncestor.side_effect = lambda hwnd, how: {5151: 4242}[hwnd] if how == win32.GA_ROOT else 0
             assert win32.window_under_cursor() == 4242
 
     def test_no_cursor_to_read_is_no_window(self):
-        with patch("fun_time.win32._user32") as mock:
+        with _user32_mocked() as mock:
             mock.GetCursorPos.return_value = 0
             assert win32.window_under_cursor() == 0
         mock.WindowFromPoint.assert_not_called()

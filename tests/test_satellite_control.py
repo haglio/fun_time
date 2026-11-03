@@ -50,9 +50,7 @@ class TestReadSatelliteStatus:
 
     def test_a_file_that_cannot_be_read_reads_as_the_status_handed_as_fallback(self, tmp_path):
         last_known = SatelliteStatus(video="C:/clips/last.mp4")
-        held = PermissionError(13, "Permission denied")
-        with patch("fun_time.satellite_control.read_key_values", side_effect=held):
-            assert read_satellite_status(tmp_path / "s.txt", fallback=last_known) == last_known
+        assert read_satellite_status(tmp_path, fallback=last_known) == last_known
 
     def test_a_volume_that_is_not_a_number_reads_as_none(self, tmp_path):
         status = tmp_path / "s.txt"

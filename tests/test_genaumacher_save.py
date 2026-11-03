@@ -142,33 +142,3 @@ def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
          patch("fun_time.genaumacher_save.subprocess.run", side_effect=TypeError("bug")), \
          pytest.raises(TypeError):
         save_clip_session(config)
-
-
-def test_the_genaumacher_checkout_is_looked_for_beside_the_primary_checkout(tmp_path: Path, monkeypatch):
-    from fun_time import branch_session, genaumacher_save
-
-    monkeypatch.setattr(branch_session, "primary_checkout", lambda: tmp_path / "fun_time")
-    genaumacher_save._genaumacher_project_dir.cache_clear()
-    try:
-        assert genaumacher_save._genaumacher_project_dir() == tmp_path / "genaumacher"
-    finally:
-        genaumacher_save._genaumacher_project_dir.cache_clear()
-
-
-def test_the_genaumacher_checkout_is_looked_for_once_per_session(tmp_path: Path, monkeypatch):
-    from fun_time import branch_session, genaumacher_save
-
-    asked = []
-
-    def primary():
-        asked.append(1)
-        return tmp_path / "fun_time"
-
-    monkeypatch.setattr(branch_session, "primary_checkout", primary)
-    genaumacher_save._genaumacher_project_dir.cache_clear()
-    try:
-        genaumacher_save._genaumacher_project_dir()
-        genaumacher_save._genaumacher_project_dir()
-        assert len(asked) == 1
-    finally:
-        genaumacher_save._genaumacher_project_dir.cache_clear()

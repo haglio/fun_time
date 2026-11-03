@@ -2406,10 +2406,8 @@ class TestIdempotentVoiceCommands:
 
     def test_a_locked_dashboard_state_file_warns_once_a_minute_not_never(self, tmp_path, caplog):
         runner = make_runner(tmp_path, dashboard_enabled=True)
-        with patch(
-            "fun_time.windows_bridge_dispatch_loop.write_dashboard_snapshot",
-            side_effect=OSError("locked"),
-        ), caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_dispatch_loop"):
+        (tmp_path / "dashboard_state.ini").mkdir()
+        with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_dispatch_loop"):
             runner._update_dashboard()
             runner._update_dashboard()
         warnings = [r for r in caplog.records if "dashboard" in r.message]
@@ -2417,10 +2415,8 @@ class TestIdempotentVoiceCommands:
 
     def test_a_locked_dashboard_state_file_warns_again_a_minute_later(self, tmp_path, caplog):
         runner = make_runner(tmp_path, dashboard_enabled=True)
-        with patch(
-            "fun_time.windows_bridge_dispatch_loop.write_dashboard_snapshot",
-            side_effect=OSError("locked"),
-        ), caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_dispatch_loop"):
+        (tmp_path / "dashboard_state.ini").mkdir()
+        with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_dispatch_loop"):
             runner._update_dashboard()
             runner._last_dashboard_warning -= 61.0
             runner._update_dashboard()
