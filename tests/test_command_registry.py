@@ -11,7 +11,7 @@ from fun_time import command_dispatch, dashboard_actions, hud_moves, windows_bri
 from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
-from fun_time.satellite_buttons import funestra_rows
+from fun_time.satellite_buttons import HudState, funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
 from tests.test_command_id_snapshot import (
@@ -100,8 +100,7 @@ def _satellite_verbs() -> frozenset[str]:
         for funestra in ("portrait", "landscape")
         for latest in (None, False, True)
         for mode in (None, *SatellitesMode)
-        for row in funestra_rows(funestra, locked=True, favorites_filter=True, latest=latest,
-                               mode=mode)
+        for row in funestra_rows(funestra, HudState(locked=True, favorites_filter=True, latest=latest, mode=mode))
         for button in row
     )
 

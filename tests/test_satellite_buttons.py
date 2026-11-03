@@ -19,11 +19,11 @@ from funestra.hud_icons import (
 from funestra.modes import SatellitesMode
 from shared_ui.icon_geometry import icon_names
 
-from fun_time.satellite_buttons import funestra_rows
+from fun_time.satellite_buttons import HudState, funestra_rows
 
 
 def _band(**fields) -> tuple[Button, ...]:
-    return funestra_rows("portrait", **fields)[-1]
+    return funestra_rows("portrait", HudState(**fields))[-1]
 
 
 def _names(buttons: tuple[Button, ...]) -> list[str]:
@@ -43,7 +43,7 @@ def test_the_band_is_the_funestras_own_controls_in_the_main_huds_order():
 
 def test_every_button_posts_that_funestras_own_verb():
     for funestra in ("portrait", "landscape"):
-        for button in funestra_rows(funestra, latest=True)[-1]:
+        for button in funestra_rows(funestra, HudState(latest=True))[-1]:
             assert button.command.startswith(f"{funestra}_"), button.command
             assert button.tooltip, button.command
 
@@ -86,7 +86,7 @@ def test_the_bin_takes_something_away():
 
 
 def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
-    rows = funestra_rows("portrait", mode=SatellitesMode.ORIGENERATOR)
+    rows = funestra_rows("portrait", HudState(mode=SatellitesMode.ORIGENERATOR))
 
     assert len(rows) == 2
     assert [b.command for b in rows[0]] == [
@@ -104,9 +104,8 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
 
 
 def test_a_funestra_in_the_headset_has_no_window_to_minimize():
-    plain = funestra_rows("portrait", latest=False, in_vr=True)
-    hosting = funestra_rows("portrait", latest=False, mode=SatellitesMode.KINO,
-                          in_vr=True)
+    plain = funestra_rows("portrait", HudState(latest=False, in_vr=True))
+    hosting = funestra_rows("portrait", HudState(latest=False, mode=SatellitesMode.KINO, in_vr=True))
 
     assert _names(plain[-1])[-1] == "cycle_version"
     assert [b.command for b in hosting[0]] == [
@@ -115,10 +114,8 @@ def test_a_funestra_in_the_headset_has_no_window_to_minimize():
 
 
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
-    starting = {b.command: b for b in funestra_rows(
-        "portrait", mode=SatellitesMode.KINO, origenerator_ready=False)[0]}
-    ready = {b.command: b for b in funestra_rows(
-        "portrait", mode=SatellitesMode.KINO, origenerator_ready=True)[0]}
+    starting = {b.command: b for b in funestra_rows("portrait", HudState(mode=SatellitesMode.KINO, origenerator_ready=False))[0]}
+    ready = {b.command: b for b in funestra_rows("portrait", HudState(mode=SatellitesMode.KINO, origenerator_ready=True))[0]}
 
     assert starting["portrait_origenerator_activate"].dim
     assert "starting" in starting["portrait_origenerator_activate"].tooltip
@@ -212,6 +209,5 @@ def test_the_portrait_funestras_crown_is_lit_while_it_holds_the_crown():
 
 def test_only_the_portrait_funestra_wears_a_crown():
     assert "landscape_crown" not in [
-        button.command for row in funestra_rows("landscape", latest=False,
-                                               mode=SatellitesMode.KINO)
+        button.command for row in funestra_rows("landscape", HudState(latest=False, mode=SatellitesMode.KINO))
         for button in row]

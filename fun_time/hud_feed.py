@@ -19,7 +19,7 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .hud_transport import HudPublisher, hosted_model
+from .hud_transport import HudPublisher, hosted_model, worn
 from .lock_hud import SatelliteInputs, build_satellite_hud
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
@@ -38,6 +38,7 @@ from .osr2_section import (
     osr2_part,
     tell_a_hosted_satellite_whose_the_osr2_is,
 )
+from .satellite_buttons import HudState
 from .satellite_commands import satellite_at_defaults
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
@@ -130,14 +131,12 @@ class HudFeed:
                 tell_a_hosted_satellite_whose_the_osr2_is(self.config, told, funestra,
                                                      funestra is with_the_osr2)
                 held = state.satellite(funestra)
-                self.publisher.publish_text(funestra.label, hud_text(hosted_model(
-                    funestra.label, self._worn_hosted_hud(funestra, state),
-                    active=state.active_funestra == funestra,
-                    origenerator_ready=state.origenerator_ready,
-                    in_vr=self.config.vr_main_funestra,
-                    crowned=state.crowned == funestra.label, device=device(funestra),
-                    hud_corner=held.hud_corner, hud_edge=held.hud_edge,
-                    hud_minimized=held.hud_minimized)))
+                self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
+                    funestra.label, self._worn_hosted_hud(funestra, state), held,
+                    HudState(origenerator_ready=state.origenerator_ready,
+                             in_vr=self.config.vr_main_funestra,
+                             crowned=state.crowned == funestra.label),
+                    active=state.active_funestra == funestra), device(funestra))))
                 continue
             forget_what_a_satellite_was_told_of_the_osr2(told, funestra)
             self.publisher.publish(funestra.label, build_satellite_hud(

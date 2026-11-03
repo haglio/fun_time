@@ -6,7 +6,7 @@ import pytest
 from funestra.modes import MainMode
 
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
-from fun_time.satellite_buttons import funestra_rows
+from fun_time.satellite_buttons import HudState, funestra_rows
 
 _ON_THE_MAIN_HUD = {
     "prev": "main_prev",
@@ -37,7 +37,7 @@ def _declared(rows) -> dict:
 ])
 def test_a_control_both_huds_carry_looks_and_reads_the_same_on_each(state):
     console = _declared(main_hud_rows(MainFunestraFacts(main_mode=MainMode.KINO, **state)))
-    satellite = _declared(funestra_rows("portrait", **state))
+    satellite = _declared(funestra_rows("portrait", HudState(**state)))
 
     for name, command in _ON_THE_MAIN_HUD.items():
         button = satellite[f"portrait_{name}"]
