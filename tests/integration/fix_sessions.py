@@ -124,9 +124,17 @@ def _kept(path: Path) -> dict:
         return {}
 
 
-def look_after_fix_sessions(state: Path, incidents: Sequence[dict], claude: str, shell=run_command,
-                            start: Callable[[FixNotice], None] = _start_notice,
-                            transcripts: Path = CLAUDE_TRANSCRIPTS) -> None:
+@dataclass(frozen=True)
+class FixSessionHands:
+    shell: Callable = run_command
+    start: Callable[[FixNotice], None] = _start_notice
+    transcripts: Path = CLAUDE_TRANSCRIPTS
+
+
+def look_after_fix_sessions(state: Path, incidents: Sequence[dict], claude: str,
+                            hands: FixSessionHands | None = None) -> None:
+    hands = hands or FixSessionHands()
+    shell, start, transcripts = hands.shell, hands.start, hands.transcripts
     told_path, restarts_path = state / FIX_NOTICES_NAME, state / FIX_RESTARTS_NAME
     told, restarts = _kept(told_path), _kept(restarts_path)
     steps = fix_session_steps(incidents, background_sessions(claude, shell), told, restarts,

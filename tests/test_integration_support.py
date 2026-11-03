@@ -36,6 +36,7 @@ from tests.integration.integration_support import (
     INTEGRATION_CONFIG_NAME,
     SESSION_MONITORS,
     FunTimeIntegrationSession,
+    ReadProbe,
     await_window,
     build_integration_config,
     close_the_runs_osr2s,
@@ -645,7 +646,7 @@ def test_a_sample_skips_the_videos_the_drive_cannot_serve_at_speed(monkeypatch, 
 
     chosen = sample_library_videos(
         ["a.mp4", "b.mp4", "c.mp4", "d.mp4"], 2, desc="clips",
-        readable=lambda video: video != "b.mp4",
+        probe=ReadProbe(lambda video: video != "b.mp4"),
     )
 
     assert len(chosen) == 2
@@ -665,7 +666,7 @@ def test_two_versions_of_one_video_count_once_towards_a_draw():
 
 def test_a_sample_fails_saying_so_when_too_few_videos_read_at_speed():
     with pytest.raises(AssertionError, match="read at speed"):
-        sample_library_videos(["a.mp4", "b.mp4"], 2, desc="clips", readable=lambda video: False)
+        sample_library_videos(["a.mp4", "b.mp4"], 2, desc="clips", probe=ReadProbe(lambda video: False))
 
 
 def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
@@ -679,7 +680,7 @@ def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
 
     with pytest.raises(AssertionError, match="the library is cold"):
         sample_library_videos([f"{n}.mp4" for n in range(50)], 2, desc="clips",
-                             readable=probe, budget_s=10.0, now=lambda: next(clock))
+                             probe=ReadProbe(probe, budget_s=10.0, now=lambda: next(clock)))
 
     assert len(probed) == 2
 
