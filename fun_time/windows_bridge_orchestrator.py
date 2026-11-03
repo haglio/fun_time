@@ -15,25 +15,33 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from app_support import osr2_hold
 from app_support.subprocess_utils import tie_to_this_process
 from app_support.threading_utils import wait_until
 from app_support.win32 import process_started
 from funestra.file_channel import append_command
-from funestra.main_hud import HOLD_VERB
 from voice_core.listener import why_unavailable
 from voice_core.whisper_reader import WhisperReader
 
 from . import preview_marker
 from .append_only import append_line
-from .bridge_records import BridgeConfig
-from .broker_control import write_broker_command
 from .checkout_overrides import sibling_checkouts_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import load_config
 from .crown import majority_now
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
-from .dispatch_loop_setup import Publishing, SessionFiles, SessionStart
+from .desktop_session import (
+    NO_FAREWELL,
+    HostedAppFarewell,
+    HotkeyScript,
+    HotkeyScriptLaunch,
+    LaunchedSoFar,
+    RunningSession,
+    SessionLaunch,
+    StartupEnd,
+    hold_the_osr2,
+    release_of,
+    silence_the_funestras,
+)
 from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
 from .fun_time_funestras import FunTimeFunestra
@@ -74,7 +82,6 @@ from .process_identity import NAMER
 from .process_tree import kill_process_tree
 from .raising_the_loading_screen import EXIT_WAIT_S, RaisedLoadingScreen
 from .rfb_slideshow import rfb_slideshow_on
-from .runtime_flow import write_flag_file
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
@@ -91,7 +98,7 @@ from .session_handoff import (
     release_the_headset,
     request_handoff,
 )
-from .shared_state import BridgeState, read_shared_state, shared_state_path
+from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
@@ -112,6 +119,9 @@ from .win32_events import PressAndCaretWatch
 from .window_layout import SecondaryMonitorRects, screen_layout, secondary_monitor_rects
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
+    Publishing,
+    SessionFiles,
+    SessionStart,
     build_bridge_config_from_manifest,
 )
 from .windows_bridge_sequencer import (
@@ -235,16 +245,6 @@ def _park_the_hosted_origenerator(
                           taken_over=taken_over)
     logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
     return True
-
-
-@dataclass(frozen=True)
-class HostedAppFarewell:
-    command_file: Path | None = None
-    keep: bool = False
-    taken_over: bool = False
-
-
-NO_FAREWELL = HostedAppFarewell()
 
 
 def see_the_hosted_app_out(
@@ -384,46 +384,6 @@ def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
         logger.warning("Hotkey script did not exit after cancel, killed")
 
 
-@dataclass(frozen=True)
-class HotkeyScriptLaunch:
-    ahk_exe: str | Path
-    script: str | Path
-    project_dir: str | Path
-
-
-@dataclass(frozen=True)
-class HotkeyScript:
-    proc: subprocess.Popen
-    cmd_file: Path
-
-    def stop(self) -> None:
-        stop_hotkey_script(self.proc, self.cmd_file)
-
-
-@dataclass(frozen=True)
-class SessionLaunch:
-    manifest_path: Path
-    manifest: LaunchManifest
-    bridge_config: BridgeConfig
-    state_dir: Path
-
-    def release_of(self, taken_over: bool) -> Path | None:
-        return self.bridge_config.origenerator_cmd_file if taken_over else None
-
-
-@dataclass(frozen=True)
-class StartupEnd:
-    reason: str
-    canceled: bool = False
-
-
-@dataclass(frozen=True)
-class LaunchedSoFar:
-    pids: list[int]
-    rfb_hwnd: int
-    release_origenerator_via: Path | None = None
-
-
 def _take_down_the_startup(
     end: StartupEnd,
     launched: LaunchedSoFar,
@@ -435,7 +395,7 @@ def _take_down_the_startup(
     back_to = loading_screen.turns_back_to if (
         end.canceled and what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD) else None
     logger.info("%s; tearing down %d launched child(ren)", end.reason, len(launched.pids))
-    hotkeys.stop()
+    stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
     with loading_screen.progress.loading_screen_kept_up():
         for pid in launched.pids:
             kill_process_tree(pid)
@@ -901,16 +861,6 @@ def _start_the_dispatch_loop(dispatch_runner: DispatchLoopRunner) -> threading.T
     return dispatch_thread
 
 
-def silence_the_funestras(commands: CommandFiles) -> None:
-    for paused_file in (
-        commands.main_funestra_paused_file, commands.audio_paused_file,
-        commands.portrait_paused_file, commands.landscape_paused_file,
-        commands.origenerator_paused_file,
-    ):
-        if paused_file.strip():
-            write_flag_file(paused_file, True)
-
-
 DISPATCH_LOOP_STOP_S = 1.0
 
 
@@ -924,12 +874,6 @@ def stop_everything(commands: CommandFiles,
                        DISPATCH_LOOP_STOP_S)
     silence_the_funestras(commands)
     hold_the_osr2(commands)
-
-
-def hold_the_osr2(commands: CommandFiles) -> None:
-    ending = read_shared_state(shared_state_path(Path(commands.state_dir))) or BridgeState()
-    append_command(Path(commands.genau_cmd_file), "PAUSE")
-    write_broker_command(commands.broker_cmd_file, HOLD_VERB.get(ending.osr2_control, osr2_hold.PARK))
 
 
 @dataclass(frozen=True)
@@ -957,14 +901,6 @@ def _wait_for_the_session_to_end(
             return SessionEnd(1, closed)
         time.sleep(poll_s)
     return SessionEnd(ahk_proc.wait())
-
-
-@dataclass(frozen=True)
-class RunningSession:
-    children: dict
-    voice: tuple[VoiceController | None, threading.Thread | None]
-    dispatch: tuple[DispatchLoopRunner, threading.Thread]
-    loopback_server: ThreadingHTTPServer | None
 
 
 def _run_until_the_hotkeys_exit(
@@ -1025,7 +961,7 @@ def _run_until_the_hotkeys_exit(
                     keep=parking, taken_over=result.origenerator_taken_over),
             )
             if crossing is None:
-                hotkeys.stop()
+                stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
             if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
                 logger.info("Esc called the quit off; opening Fun Time again")
                 way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
@@ -1096,13 +1032,13 @@ def run_session(
         return _take_down_the_startup(
             StartupEnd("Startup cancelled by user", canceled=True),
             LaunchedSoFar(cancelled.launched_pids, cancelled.rfb_hwnd,
-                          launch.release_of(cancelled.origenerator_taken_over)),
+                          release_of(launch, cancelled.origenerator_taken_over)),
             launch, loading_screen, hotkey_script)
     except FunestraDied as died:
         _take_down_the_startup(
             StartupEnd(str(died)),
             LaunchedSoFar(died.launched_pids, died.rfb_hwnd,
-                          launch.release_of(died.origenerator_taken_over)),
+                          release_of(launch, died.origenerator_taken_over)),
             launch, loading_screen, hotkey_script)
         said = funestra_died_message(died.funestra, died.said)
         logger.error(said)
@@ -1110,7 +1046,7 @@ def run_session(
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS
                 if not (key == "origenerator_pid" and result.origenerator_taken_over)]
-    started = LaunchedSoFar(launched, result.rfb_hwnd, launch.release_of(result.origenerator_taken_over))
+    started = LaunchedSoFar(launched, result.rfb_hwnd, release_of(launch, result.origenerator_taken_over))
 
     if progress.cancelled:
         return _take_down_the_startup(

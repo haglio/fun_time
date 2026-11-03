@@ -25,7 +25,6 @@ from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
-from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.event_log import open_event_log
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
@@ -120,6 +119,9 @@ from fun_time.voice_control import VoiceController
 from fun_time.vr_videos import shapes_verb
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
+    Publishing,
+    SessionFiles,
+    SessionStart,
     build_bridge_config_from_manifest,
 )
 from fun_time.windows_bridge_orchestrator import (
