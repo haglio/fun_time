@@ -79,13 +79,12 @@ from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.message_feed import MessageFeed
+from fun_time.message_feed import MessageFeed, screens_if_known
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.rfb_mode_selector import RfbModeSelector
 from fun_time.session_end import mark_session_end
-from fun_time.shared_state import shared_state_path
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 
 logger = logging.getLogger(__name__)
@@ -595,14 +594,11 @@ class DashboardWindow(QMainWindow):
             on_arrival=self._press_received.emit)
 
         self._messages = MessageFeed(
-            layout=app_config.layout,
-            rfb_mode_selector=app_config.rfb_mode_selector,
-            event_log_dir=app_config.state_dir,
-            loading_screen_dir=app_config.state_dir,
+            app_config.state_dir,
+            screens_if_known(app_config.layout, app_config.rfb_mode_selector),
             make_overlay=MessageOverlay,
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,
-            shared_state_file=shared_state_path(app_config.state_dir),
         )
         self._timer_calling(self._messages.poll).start(250)
         self._timer_calling(self._refresh).start(500)
