@@ -9,7 +9,8 @@ import os
 import textwrap
 import threading
 import time
-from dataclasses import fields, replace
+from collections.abc import Callable
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1068,9 +1069,18 @@ class TestTheHeadsetsLoadingScreen:
         assert calls["progress.finish"] < calls["release_the_funestras"]
 
 
+@dataclass(frozen=True)
+class Cancelling:
+    children: dict = field(default_factory=dict)
+    by_quit_chord: bool = False
+    crossing: bool = True
+    while_ending: Callable = lambda child: None
+
+
 class TestCancellingALaunch:
-    def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False,
-                crossing=True, taken_over=False, while_ending=lambda child: None):
+    def _cancel(self, tmp_path, monkeypatch, cancelling=None):
+        cancelling = cancelling or Cancelling()
+        children, while_ending = cancelling.children, cancelling.while_ending
         order: list = []
 
         def end(child):
@@ -1080,24 +1090,24 @@ class TestCancellingALaunch:
         monkeypatch.setattr(orchestrator, "stop_hotkey_script",
                             lambda _proc, _file: order.append("hotkeys"))
         monkeypatch.setattr(orchestrator, "kill_recorded_child", end)
-        if crossing:
+        if cancelling.crossing:
             raise_transition_screen(tmp_path, orchestrator.VR)
         loading_screen = orchestrator._LoadingScreen(tmp_path)
         loading_screen.progress.advance("funestras")
         loading_screen.cancel_file.write_text(
-            "quit\n" if by_quit_chord else "cancel\n", encoding="utf-8")
+            "quit\n" if cancelling.by_quit_chord else "cancel\n", encoding="utf-8")
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
 
         code = orchestrator._cancel_vr_startup(
             state_dir=tmp_path, children=children, ahk_proc=None,
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-            taken_over=taken_over, loading_screen=loading_screen, runtime_was_up=True,
+            taken_over=False, loading_screen=loading_screen, runtime_was_up=True,
         )
         return code, order, loading_screen
 
     def test_esc_on_a_launch_nobody_crossed_into_closes_it(self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch, {}, crossing=False)
+        self._cancel(tmp_path, monkeypatch, Cancelling(crossing=False))
 
         assert pending_handoff(tmp_path) is None
 
@@ -1108,7 +1118,7 @@ class TestCancellingALaunch:
             "audio_pid": ChildProcess(pid="audio", created_at=1),
         }
 
-        _code, order, _loading_screen = self._cancel(tmp_path, monkeypatch, children)
+        _code, order, _loading_screen = self._cancel(tmp_path, monkeypatch, Cancelling(children=children))
 
         assert order == ["hotkeys", "audio", "funestras"]
 
@@ -1120,14 +1130,13 @@ class TestCancellingALaunch:
                 heard.append(heard_from_again_once_stale(
                     tmp_path / PROGRESS_FILENAME, stale_after_s=STARTUP_STALE_TIMEOUT_S))
 
-        self._cancel(tmp_path, monkeypatch, {"audio_pid": ChildProcess(pid="audio", created_at=1)},
-                     while_ending=the_audio_companion_takes_its_time)
+        self._cancel(tmp_path, monkeypatch, Cancelling(children={"audio_pid": ChildProcess(pid="audio", created_at=1)}, while_ending=the_audio_companion_takes_its_time))
 
         assert heard == [True]
 
     def test_it_leaves_no_files_behind_and_reads_as_a_clean_exit(
             self, tmp_path, monkeypatch):
-        code, _order, loading_screen = self._cancel(tmp_path, monkeypatch, {})
+        code, _order, loading_screen = self._cancel(tmp_path, monkeypatch)
 
         assert code == 0
         assert not loading_screen.progress_file.exists()
@@ -1135,13 +1144,13 @@ class TestCancellingALaunch:
 
     def test_a_crossings_own_exit_marker_is_not_read_as_a_quit(
             self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch, {})
+        self._cancel(tmp_path, monkeypatch)
 
         assert pending_handoff(tmp_path) == DESKTOP
 
     def test_esc_hands_the_monitors_back_to_the_session_he_came_from(
             self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch, {})
+        self._cancel(tmp_path, monkeypatch)
 
         assert pending_handoff(tmp_path) == DESKTOP
         assert "DONE" not in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
@@ -1152,7 +1161,7 @@ class TestCancellingALaunch:
         monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
                             lambda state_dir, _cmd_file: closed.append(state_dir))
 
-        self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
+        self._cancel(tmp_path, monkeypatch, Cancelling(by_quit_chord=True))
 
         assert closed == [tmp_path]
 
@@ -1161,25 +1170,25 @@ class TestCancellingALaunch:
         monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
                             lambda state_dir, _cmd_file: closed.append(state_dir))
 
-        self._cancel(tmp_path, monkeypatch, {})
+        self._cancel(tmp_path, monkeypatch)
 
         assert closed == []
 
     def test_the_way_back_to_fun_time_offers_no_esc(self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch, {})
+        self._cancel(tmp_path, monkeypatch)
 
         taken = take_handoff_request(tmp_path)
         assert (taken.target, taken.cancelable) == (DESKTOP, False)
 
     def test_the_monitors_say_so_the_moment_esc_lands(self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch, {})
+        self._cancel(tmp_path, monkeypatch)
 
         said = crossing_progress_path(tmp_path).read_text(encoding="utf-8")
         assert CANCELING in said
 
     def test_the_quit_chord_takes_the_monitors_back_instead(
             self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
+        self._cancel(tmp_path, monkeypatch, Cancelling(by_quit_chord=True))
 
         assert pending_handoff(tmp_path) is None
         assert "DONE" in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
