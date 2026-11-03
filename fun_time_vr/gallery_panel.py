@@ -5,6 +5,9 @@ from pathlib import Path
 from app_support.frame_channel import FrameReader
 from funestra.file_channel import append_command
 
+from fun_time.origenerator_switches import RfbMode
+from fun_time.shared_state import BridgeState
+
 from .pointer import RELEASE, PressEvent, surface_pixel
 from .thumbs import CONTROLLER_DEADZONE
 
@@ -21,6 +24,10 @@ _NOTCHES_PER_S = 8.0
 TOKEN = 0
 
 QUIET_S = 5.0
+
+
+def core_hangs_while(state: BridgeState) -> bool:
+    return state.rfb_mode is RfbMode.ORIGENERATOR or state.origenerator_holds_a_satellite()
 
 
 def event_line(event: PressEvent, size: tuple[int, int]) -> str:
