@@ -116,13 +116,6 @@ from tests.test_windows_bridge_dispatch_loop import make_config
 
 
 def _a_session(**kwargs) -> SessionOver:
-    """A session the way a launch runs one: under a loading screen raised before it.
-
-    The loading screen goes up in :mod:`fun_time.orchestrator`, before the checks and the
-    imports that used to run over a bare desktop, and is handed to the session
-    already standing -- so a test that opened one inside ``run_session`` would be
-    driving a shape nothing launches.
-    """
     env = kwargs.get("env", ORDINARY_SESSION)
     loading_screen = open_the_loading_screen(
         Path(kwargs["state_dir"]),
@@ -145,16 +138,7 @@ def _fake_startup_result() -> StartupResult:
 
 
 class TestFixPostLoadingWindows:
-    """The overlay's teardown can shuffle z-order and activation, so the whole
-    window policy is applied again once the overlay process has exited."""
-
     def test_satellites_resolve_by_title_when_their_pids_are_launcher_shims(self):
-        """python_exe is the venv's pythonw SHIM: the recorded satellite pid is
-        the launcher's, not the interpreter that owns the SDL window, so the
-        by-pid lookup finds nothing.  This pass was the only banding the
-        satellites got on a loading-screen startup, and with hwnd 0 it silently
-        skipped them — every session opened with both Funestras out of the
-        topmost band, buried by the first window raised over their rects."""
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
 
@@ -206,15 +190,9 @@ class TestFixPostLoadingWindows:
         ):
             _fix_post_loading_windows(result)
 
-        promote.assert_called_once_with(222, True, under=0)  # only the buried one, once
+        promote.assert_called_once_with(222, True, under=0)
 
     def test_a_buried_main_funestra_is_re_promoted_too(self):
-        """The Main Funestra is decoding its first frame at the reveal, so its
-        promotion times out through the stalled-window guard exactly as a
-        satellite's does — and a timed-out SetWindowPos lands when that window
-        next pumps, which is the second after the loading screen lifts.  He watched the
-        Main Funestra climb over Fun Time there, so it is walked and re-promoted
-        with the other two rather than only logged."""
         result = _fake_startup_result()
         titles = {"Main Funestra": 333}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
@@ -242,9 +220,6 @@ class TestFixPostLoadingWindows:
         promote.assert_called_once_with(333, True, under=0)
 
     def test_a_buried_main_funestra_is_re_promoted_in_genau_mode_too(self):
-        """Genau runs on the Main Funestra's window, so a genau session has no
-        parked Funestra to leave alone: a window over it is a burial in either
-        mode."""
         result = replace(_fake_startup_result(), main_mode=MainMode.GENAU)
         titles = {"Main Funestra": 333}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
@@ -299,8 +274,6 @@ class TestFixPostLoadingWindows:
         promote.assert_called_once_with(222, True, under=77)
 
     def test_the_app_is_banded_under_the_loading_screen_and_the_loading_screen_left_alone(self):
-        """Under the overlay is where this pass belongs: the bands decide what
-        the reveal looks like."""
         result = _fake_startup_result()
 
         with patch(
@@ -322,10 +295,6 @@ class TestFixPostLoadingWindows:
         sequencer_banding.assert_not_called()
 
     def test_the_loading_screen_is_not_a_burial(self):
-        """The overlay covers both Funestras by design, so counting it as a
-        covering window would spend every pass re-promoting Funestras that are
-        exactly where they belong — and each promotion would put one over the
-        curtain."""
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
         loading_screen = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
@@ -354,21 +323,11 @@ class TestFixPostLoadingWindows:
         ):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
-        # Neither Funestra is buried, and the loading screen itself is never touched.
         loading_screen_back.assert_not_called()
         promote.assert_not_called()
         slept.assert_not_called()
 
     def test_the_hosted_app_is_left_entirely_to_the_dispatch_loop(self):
-        """This pass no longer looks for the hosted app at all.
-
-        It used to, because a session could open already in origenerator mode:
-        the loading screen was held for that app's boot, its window restored under the
-        loading screen, and the shows banded here as the roles that loading screen the Funestras.
-        Every session opens in kino mode now -- the boot is what made a launch
-        long -- so the app is still coming up when this runs, and its three
-        windows are the dispatch loop's to find and band when it has them.
-        """
         result = _fake_startup_result()
         by_title = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
 
@@ -390,14 +349,11 @@ class TestFixPostLoadingWindows:
 
         assert not [name for name in apply.call_args.kwargs
                     if name.startswith("origenerator")]
-        # And each satellite rect is watched for its own Funestra, always.
         watched = [call.args[1] for call in obstruction.call_args_list]
         assert 111 in watched
         assert 222 in watched
 
     def test_it_hands_back_the_windows_it_resolved(self):
-        """The reveal re-asserts the bands once the overlay is gone, and does
-        it on these rather than resolving every window a second time."""
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
 
@@ -443,7 +399,6 @@ class TestKillRecordedChild:
         assert "1234" in caplog.text
 
     def test_says_how_long_the_child_took_to_end(self, caplog):
-        """His quit took half a minute once, and nothing said which part held it."""
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
             return_value=111_000,
@@ -476,7 +431,7 @@ class TestKillRecordedChild:
             kill_recorded_child(ChildProcess(pid=1234, created_at=111_000))
 
         mock_kill.assert_not_called()
-        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
+        assert not [r for r in caplog.records if r.levelno >= 30]
         assert "1234" in caplog.text
 
 
@@ -492,8 +447,6 @@ class TestIdentifyChildren:
         assert children["audio_pid"] == ChildProcess(pid=700, created_at=7000)
 
     def test_records_a_child_that_already_exited_as_unkillable(self):
-        """A PID whose creation time cannot be read is already gone; recording
-        0 means no later creation time can ever match it."""
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
             return_value=None,
@@ -504,10 +457,6 @@ class TestIdentifyChildren:
 
 
 def _recorded_children(**overrides: ChildProcess) -> dict[str, ChildProcess]:
-    """Every child a session records, as teardown expects to be handed them.
-
-    Unnamed ones stand in as pid 0 — the never-launched child, which nothing
-    kills."""
     children = {key: ChildProcess(pid=0, created_at=0) for key in _CHILD_PID_KEYS}
     children.update(overrides)
     return children
@@ -533,7 +482,7 @@ class TestShutdownChildren:
             main_funestra_pid=ChildProcess(pid=200, created_at=111),
             portrait_pid=ChildProcess(pid=300, created_at=222),
         )
-        live_creation_times = {200: 111, 300: 999}  # 300 was recycled
+        live_creation_times = {200: 111, 300: 999}
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=live_creation_times.get,
@@ -544,8 +493,6 @@ class TestShutdownChildren:
         mock_kill.assert_called_once_with(200)
 
     def test_every_recorded_child_belongs_to_a_reported_group(self, tmp_path):
-        """The groups teardown walks are the same list startup records, so a
-        seventh child cannot be launched and pinned yet never killed."""
         killed: list[int] = []
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
@@ -559,11 +506,6 @@ class TestShutdownChildren:
         assert sorted(killed) == sorted(child.pid for child in children.values())
 
     def test_the_broker_is_never_a_recorded_child_so_teardown_leaves_it_running(self):
-        """A session's teardown taskkills only the children it recorded at
-        startup.  The broker is deliberately not one of them — it is a service
-        that outlives the session (harem and the user's own tools keep
-        talking to it), launched detached with its handle discarded — so a normal
-        exit must leave it running."""
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
             side_effect=lambda pid: pid * 10,
@@ -606,10 +548,6 @@ class TestWritePidsFile:
 
 
 class TestHotkeySuspendDuringIntegration:
-    """Read as the startup sequence begins: the teardown asks the script to exit
-    through the same mailbox, so what it holds after the session says nothing
-    about what it held going in."""
-
     def _mailbox_at_startup(self, cfg_factory, tmp_path, **session_kwargs):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -630,7 +568,6 @@ class TestHotkeySuspendDuringIntegration:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -656,16 +593,11 @@ class TestRunPythonOrchestratedBridge:
     def test_the_loading_screen_then_the_hotkeys_then_the_startup_then_the_closing_screen(
         self, cfg_factory, tmp_path,
     ):
-        """The loading screen, the hotkeys, the startup sequence, the closing screen, in that
-        order.  Only those four are recorded: the session starts other processes
-        from its own threads meanwhile (the thumbnail warming, for one), at no fixed
-        moment, and the patched Popen is the one every module shares."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
-        # Track call order
         calls: list[str] = []
 
         def fake_sequence(**kwargs):
@@ -698,7 +630,6 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.process_started", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
-
             ended = _a_session(
                 manifest_path=manifest_path,
                 ahk_exe=str(tmp_path / "ahk.exe"),
@@ -710,18 +641,13 @@ class TestRunPythonOrchestratedBridge:
         assert calls == ["launch_loading", "launch_ahk", "startup_sequence", "launch_closing"]
         assert ended == SessionOver(0)
 
-        # Should have killed all 5 child processes
-        assert 200 in killed_pids  # main_player
-        assert 300 in killed_pids  # portrait
-        assert 400 in killed_pids  # landscape
-        assert 500 in killed_pids  # dashboard
-        assert 700 in killed_pids  # audio
+        assert 200 in killed_pids
+        assert 300 in killed_pids
+        assert 400 in killed_pids
+        assert 500 in killed_pids
+        assert 700 in killed_pids
 
     def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path):
-        """The reveal blocks on the HUD's group indexes being built, so Fun Time
-        never appears with its satellites' maps still blank.  Priming runs in this
-        process now (the dispatch loop owns the model), so the wait is on its
-        event rather than a flag file another process writes."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -743,8 +669,6 @@ class TestRunPythonOrchestratedBridge:
         mock_wait.assert_called_once_with(timeout=20.0)
 
     def test_does_not_wait_on_the_hud_when_it_is_disabled(self, cfg_factory, tmp_path):
-        """No publisher (an integration run) means no indexes to prime, so the
-        reveal must not block on one."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -765,9 +689,6 @@ class TestRunPythonOrchestratedBridge:
         mock_wait.assert_not_called()
 
     def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
-        """The RFB tab pages poll the loopback server to decide whether to freeze
-        their videos, so it has to read the dispatch loop as it runs — a state
-        copied at startup would answer "playing" for the rest of the session."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -782,7 +703,6 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner, \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
-
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
@@ -887,11 +807,6 @@ class TestRunPythonOrchestratedBridge:
         assert self._the_watch_a_session_hands_its_loop(load_config(cfg_factory()), tmp_path) is None
 
     def test_serves_on_the_port_its_own_config_named(self, cfg_factory, tmp_path):
-        """8770 is machine-wide, and a busy one costs the loser its whole loopback
-        surface: no Tampermonkey auto-update, and RFB tab pages that never hear
-        about OmniPause.  A session started alongside another — an integration run
-        above all — has to be able to serve somewhere else.
-        """
         cfg = load_config(cfg_factory({"loopback_port": 54321}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -905,7 +820,6 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
-
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
@@ -914,14 +828,6 @@ class TestRunPythonOrchestratedBridge:
         assert mock_serve.call_args.kwargs["port"] == 54321
 
     def test_the_loopback_server_goes_down_with_the_session(self, cfg_factory, tmp_path):
-        """The port is machine-wide, so a server left listening after its
-        session ends is a port the next session cannot have — and the handle
-        was thrown away at the call, so nothing could ever stop it.
-
-        It goes down inside the closing screen, with the other stops, because
-        ``shutdown()`` blocks until ``serve_forever`` returns and that pause
-        must happen under the loading screen.
-        """
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -936,7 +842,6 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback", return_value=server):
-
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
@@ -946,8 +851,6 @@ class TestRunPythonOrchestratedBridge:
         server.server_close.assert_called_once_with()
 
     def test_a_busy_port_leaves_nothing_to_shut_down(self, cfg_factory, tmp_path):
-        """A leftover server on the port is not worth failing startup over, so
-        there is no handle — and the teardown must not trip over its absence."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -962,7 +865,6 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback",
                    side_effect=OSError("port busy")):
-
             assert _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
@@ -993,7 +895,6 @@ class TestRunPythonOrchestratedBridge:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="C:\\ahk.exe",
@@ -1003,19 +904,15 @@ class TestRunPythonOrchestratedBridge:
             )
 
 
-        # Find the AHK launch command (not the loading screen one)
         ahk_cmd = [c for c in popen_cmds if "ahk.exe" in str(c)][0]
         assert ahk_cmd[0] == "C:\\ahk.exe"
         assert ahk_cmd[1] == "C:\\hotkeys.ahk"
         assert ahk_cmd[2] == str(manifest_path)
         assert ahk_cmd[3].endswith(".ini")
-        # What it watches to know, after a crossing, that its session is gone.
         assert ahk_cmd[4] == str(os.getpid())
 
 
 class TestLoadingScreenLifecycle:
-    """Loading screen is launched in normal mode and skipped in integration mode."""
-
     def test_loading_screen_launched_in_normal_mode(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -1042,7 +939,6 @@ class TestLoadingScreenLifecycle:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=result_with_hwnds), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1051,7 +947,6 @@ class TestLoadingScreenLifecycle:
                 project_dir=tmp_path,
             )
 
-        # Loading screen subprocess should have been launched
         loading_cmd = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmd) == 1, "Loading screen subprocess not launched"
 
@@ -1072,7 +967,6 @@ class TestLoadingScreenLifecycle:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1082,18 +976,11 @@ class TestLoadingScreenLifecycle:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        # No loading screen subprocess should have been launched
         loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
 
     def test_the_record_decides_the_loading_screen_and_the_environment_does_not(
             self, cfg_factory, tmp_path):
-        """Read once at the process edge: nothing downstream re-reads the switch.
-
-        The environment here is a production one -- conftest strips
-        FUN_TIME_RUN_INTEGRATION from every unit test -- so a session that still
-        skips the loading screen can only have been told to by its argument.
-        """
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1108,7 +995,6 @@ class TestLoadingScreenLifecycle:
             return fake_ahk_proc
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1121,8 +1007,6 @@ class TestLoadingScreenLifecycle:
         assert not [c for c in popen_calls if "loading_screen" in str(c)]
 
     def test_the_startup_sequence_is_handed_the_same_record(self, cfg_factory, tmp_path):
-        """The sequencer's own window moves ride on it, so a session that read
-        the switch and kept it to itself would still steal focus mid-run."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1137,7 +1021,6 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                    return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1150,7 +1033,6 @@ class TestLoadingScreenLifecycle:
         assert sequence.call_args.kwargs["env"] == env
 
     def test_the_dispatch_loop_is_handed_the_same_record(self, cfg_factory, tmp_path):
-        """Its activate and unsuspend ops ride on it for the rest of the run."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1166,7 +1048,6 @@ class TestLoadingScreenLifecycle:
                    return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1202,7 +1083,6 @@ class TestLoadingScreenLifecycle:
                    return_value=shortcut) as resolve, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1234,7 +1114,6 @@ class TestLoadingScreenLifecycle:
                    return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1264,7 +1143,6 @@ class TestLoadingScreenLifecycle:
                    return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -1278,11 +1156,6 @@ class TestLoadingScreenLifecycle:
 
 
 class TestKeepingTheHostedApp:
-    """A crossing parks Origenerator instead of closing it, because its boot is
-    the longest thing the next startup waits on -- and takes it off the screen
-    entirely, minimizing having left it one Alt+Tab away with nothing to close
-    it by (docs/entering-vr.md)."""
-
     def test_a_crossing_parks_it_and_records_it_instead_of_killing_it(self, tmp_path):
         killed: list[int] = []
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
@@ -1322,7 +1195,6 @@ class TestKeepingTheHostedApp:
     def test_esc_on_the_closing_screen_parks_it_for_fun_time_coming_back(
         self, cfg_factory, tmp_path,
     ):
-        """Fun Time is coming straight back, and this boot is its longest wait."""
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -1340,7 +1212,6 @@ class TestKeepingTheHostedApp:
     def test_a_quit_that_goes_on_after_all_closes_what_esc_had_parked(
         self, cfg_factory, tmp_path,
     ):
-        """The quit chord after the Esc: nothing is coming back to adopt it."""
         flag = tmp_path / "state" / CANCEL_FILENAME
         real_shutdown = windows_bridge_orchestrator._shutdown_children
 
@@ -1432,8 +1303,6 @@ class TestKeepingTheHostedApp:
         assert kept_origenerator(tmp_path).taken_over
 
     def test_a_window_that_cannot_be_found_is_closed_rather_than_kept(self, tmp_path):
-        """Nothing to park means nothing to adopt, so it goes the ordinary way
-        rather than being left running with no record of it."""
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
@@ -1508,7 +1377,7 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
         request_handoff(state_dir, crossing)
 
     def start_up(**_kwargs):
-        if asked_to_end:  # after the leftovers go, as the quit chord's marker lands
+        if asked_to_end:
             (state_dir / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
         return _fake_startup_result()
 
@@ -1529,7 +1398,6 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
             events.append("loading_screen_up")
             at_loading_screen_up()
             if ready:
-                # What a real loading screen does the moment it is painted.
                 ready_file_for(progress).write_text("", encoding="utf-8")
             return fake_overlay_proc
         if "loading_screen" in str(cmd):
@@ -1549,7 +1417,6 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
          patch("fun_time.windows_bridge_orchestrator.close_window",
                side_effect=lambda hwnd: events.append("close_browser")), \
          patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=end):
-
         _a_session(
             manifest_path=manifest_path,
             ahk_exe="ahk.exe",
@@ -1562,9 +1429,6 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
 
 
 class TestClosingScreenLifecycle:
-    """The session's windows go out under a loading screen, the way they came in under
-    one: raised before the first kill, dropped after the last."""
-
     def test_the_closing_screen_goes_the_moment_the_fun_time_that_raised_it_does(
             self, cfg_factory, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.tie_to_this_process") as tie:
@@ -1585,7 +1449,6 @@ class TestClosingScreenLifecycle:
         assert parse_progress(seen_at_launch[0]).message == SHUTDOWN_PHASES[0].message
 
     def test_the_screen_a_crossing_leaves_standing_goes_on_without_it(self, cfg_factory, tmp_path):
-        """It is raised by the session leaving and taken down by the one arriving."""
         with patch("fun_time.windows_bridge_orchestrator.tie_to_this_process") as tie:
             _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
 
@@ -1708,9 +1571,6 @@ class TestClosingScreenLifecycle:
             "The dispatch loop was still busy 1.0s after the session ended"]
 
     def test_nothing_is_killed_until_the_loading_screen_says_it_is_painted(self, cfg_factory, tmp_path):
-        """A tkinter process needs a moment to boot, and a loading screen that is not on
-        screen yet hides nothing — so teardown holds until the screen's own
-        ready flag lands, not merely until its process has been spawned."""
         events: list[str] = []
         seen_when_killing: list[bool] = []
 
@@ -1748,16 +1608,11 @@ class TestClosingScreenLifecycle:
         assert events.index("advance:browser") < events.index("close_browser")
         assert events.index("advance:funestras") < events.index("kill:300")
         assert events.index("advance:companions") < events.index("kill:500")
-        # Nothing of the shutdown channel is left for the next session.
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_a_part_slow_to_end_does_not_let_the_closing_screen_take_itself_down(
             self, cfg_factory, tmp_path):
-        """He quit on a busy machine, and its parts took seconds each to end, one
-        after another.  The closing screen heard nothing for twenty seconds, took
-        that to mean Fun Time had died, and went -- with the dashboard still up,
-        waiting its turn to be closed."""
         heard: list[bool] = []
 
         def the_main_funestra_takes_its_time(pid):
@@ -1773,9 +1628,6 @@ class TestClosingScreenLifecycle:
 
     def test_a_teardown_stuck_anywhere_but_ending_a_part_still_lets_the_closing_screen_go(
             self, cfg_factory, tmp_path):
-        """The closing screen covers every monitor and keeps itself on top, so one
-        that never went would lock him out of the machine.  Only a wait for a part
-        to end, which always ends, may keep it up past its guard."""
         heard: list[bool] = []
 
         def a_hotkey_script_that_will_not_go(_proc, _mailbox):
@@ -1792,9 +1644,6 @@ class TestClosingScreenLifecycle:
     def test_a_crossing_wears_the_transition_screen_and_leaves_it_standing(
         self, cfg_factory, tmp_path,
     ):
-        """The whole point of it: this session's loading screen has to outlive this
-        session, or the monitors go bare while the other one starts up
-        (docs/entering-vr.md).  The arriving session writes the DONE."""
         events: list[str] = []
 
         state_dir = _run_a_session(cfg_factory, tmp_path, events=events, crossing=VR)
@@ -1806,8 +1655,6 @@ class TestClosingScreenLifecycle:
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_a_crossing_leaves_the_hotkey_script_listening_for_esc(self, cfg_factory, tmp_path):
-        """While Fun Time changes over nothing else hears Esc; the relay reads
-        what it dropped once this session has let go."""
         state_dir = _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
 
         mailbox = state_dir / "ahk_cmd.txt"
@@ -1849,7 +1696,6 @@ class TestClosingScreenLifecycle:
     def test_the_quit_chord_on_the_closing_screen_lets_the_quit_go_on(
         self, cfg_factory, tmp_path,
     ):
-        """Even after an Esc: the chord means end everything."""
         def esc_then_the_quit_chord():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\nquit\n", encoding="utf-8")
 
@@ -1859,8 +1705,6 @@ class TestClosingScreenLifecycle:
         assert pending_handoff(state_dir) is None
 
     def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path):
-        """An integration run has no eyes on it and no desktop of its own to
-        loading screen — the same reason it skips the loading screen."""
         events: list[str] = []
 
         _run_a_session(cfg_factory, tmp_path, events=events,
@@ -1901,8 +1745,6 @@ class TestClosingScreenLifecycle:
         assert "startupinfo" not in launched
 
     def test_the_way_back_screen_runs_those_checkouts_too(self, cfg_factory, tmp_path):
-        """Esc on the closing screen raises a loading screen of its own, and one that
-        cannot import the branch's siblings never comes up at all."""
         sibling = tmp_path / "sibling_checkout"
         sibling.mkdir()
         launches: dict[str, dict] = {}
@@ -1921,13 +1763,7 @@ class TestClosingScreenLifecycle:
 
 @pytest.mark.real_startup_waits
 class TestWaitForClosingScreen:
-    """The hold itself, so it runs on the real timeout the session spends."""
-
     def test_returns_as_soon_as_the_flag_lands(self, tmp_path, caplog):
-        """The flag exit is the only quiet one — the other two ways out (a dead
-        screen, the timeout) both log a warning.  So a clean return with no
-        warning is the proof the flag branch took it; without that branch the
-        hold would spin out the whole real timeout and land on the warning."""
         ready_file = tmp_path / "shutdown_ready.flag"
         ready_file.write_text("", encoding="utf-8")
         proc = MagicMock()
@@ -1939,8 +1775,6 @@ class TestWaitForClosingScreen:
         assert not caplog.records
 
     def test_stops_waiting_on_a_screen_that_died(self, tmp_path, caplog):
-        """No flag will ever land from a process that has exited, so waiting out
-        the full timeout would only delay a teardown that has to happen anyway."""
         proc = MagicMock()
         proc.poll.return_value = 1
 
@@ -1952,8 +1786,6 @@ class TestWaitForClosingScreen:
         assert "exited before it was ready" in caplog.text
 
     def test_gives_up_rather_than_wedge_the_teardown(self, tmp_path, caplog, monkeypatch):
-        """A screen that is alive but never reports is worth a flicker, not a
-        session that will not close."""
         monkeypatch.setattr(
             windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0.05
         )
@@ -1969,8 +1801,6 @@ class TestWaitForClosingScreen:
 
 
 class _AStarvedClosingScreen:
-    """Paints at its fourth look, and goes at its fourth look after DONE."""
-
     pid = 4242
 
     def __init__(self, progress_file: Path) -> None:
@@ -1993,7 +1823,6 @@ class _AStarvedClosingScreen:
 
 
 def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosingScreen, bool]:
-    """The screen, and whether it was painted when teardown was let go."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
     screen = _AStarvedClosingScreen(state_dir / SHUTDOWN_PROGRESS_FILENAME)
@@ -2007,9 +1836,6 @@ def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosi
 
 @pytest.mark.real_startup_waits
 class TestAClosingScreenStarvedOfProcessor:
-    """An integration run is below normal, so on a machine whose processors
-    other work holds, the wall goes by while the run's own seconds stand still."""
-
     def test_is_given_its_time_to_paint_on_the_clock_it_is_handed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
             windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0.05
@@ -2059,11 +1885,6 @@ def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None
 
 
 class TestAFunestraThatDiedWhileTheRoomCameUp:
-    """The launch ends and says which Funestra went and what it said, instead of
-    revealing a session with a Funestra missing: his previews waited out every window and
-    status timeout and opened on the browser alone, and Ctrl+Alt+Q was the only way
-    out (2026-09-22)."""
-
     def test_the_half_built_app_is_torn_down_and_the_reason_goes_back_to_the_launch(
         self, cfg_factory, tmp_path,
     ):
@@ -2162,10 +1983,6 @@ class TestAPartThatClosedItselfWhileTheRoomWasUp:
 
 
 class TestStartupCancellation:
-    """Pressing Esc aborts startup: the half-built session is torn down, the
-    hotkey script that read the Esc is taken back out, and the dispatch loop
-    never starts."""
-
     def test_cancel_mid_startup_kills_launched_children_and_stops_the_hotkeys(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -2196,7 +2013,6 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window", side_effect=closed.append), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
-
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
@@ -2205,23 +2021,15 @@ class TestStartupCancellation:
         assert ended == SessionOver(0)
         assert {300, 400, 200} <= set(killed)
         assert 1234 in closed
-        # The hotkey script is up from the start of a launch, so a cancelled one
-        # has to take it back out — left running it would go on swallowing every
-        # key it binds with nothing to hand them to.
         assert len([c for c in popen_cmds if "ahk.exe" in str(c)]) == 1
         assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
         fake_ahk_proc.wait.assert_called()
-        # Its keys never went live: the pids file is what lifts that hold, and
-        # this startup never got as far as writing one.
         assert not (state_dir / "bridge_pids.ini").exists()
         mock_runner.assert_not_called()
-        # The overlay is brought down after teardown.
         fake_loading_proc.wait.assert_called()
 
     def test_a_part_slow_to_end_does_not_let_the_loading_screen_take_itself_down(
             self, cfg_factory, tmp_path):
-        """A quit's teardown, under the loading screen instead of the closing
-        one: a part slow to end must not let it go over the half-built room."""
         manifest_path = write_windows_bridge_manifest(
             load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
         state_dir = tmp_path / "state"
@@ -2246,7 +2054,6 @@ class TestStartupCancellation:
     def test_esc_on_a_launch_arriving_from_vr_goes_back_into_vr_offering_no_esc(
         self, cfg_factory, tmp_path,
     ):
-        """The Exit VR loading screen said Esc cancels exiting VR."""
         state_dir = _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, word="cancel")
 
         taken = take_handoff_request(state_dir)
@@ -2255,8 +2062,6 @@ class TestStartupCancellation:
         assert taken.cancelable is False
 
     def test_the_monitors_stay_covered_on_the_way_back_into_vr(self, cfg_factory, tmp_path):
-        """The loading screen goes with this launch, and nothing else would be
-        on the monitors until the headset session is up."""
         events: list[str] = []
         real_finish = PhaseProgress.finish
 
@@ -2300,8 +2105,6 @@ class TestStartupCancellation:
     def test_the_quit_chord_on_a_launch_arriving_from_vr_lets_the_headset_go(
         self, cfg_factory, tmp_path,
     ):
-        """Nothing is coming back for it: held, it would hang under "Returning
-        to Fun Time..." for minutes after everything else had closed."""
         state_dir = _cancel_a_launch_arriving_from_vr(
             cfg_factory, tmp_path, word="quit",
             before=lambda state_dir: hold_the_headset(state_dir, stop_runtime=True))
@@ -2310,9 +2113,6 @@ class TestStartupCancellation:
         assert pending_handoff(state_dir) is None
 
     def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path):
-        """The user can hit Esc in the sliver between the last checkpoint and the
-        reveal: the sequence returns a full result but the flag is set, so the
-        whole result is torn down and the reveal never happens."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -2346,7 +2146,6 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
-
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
@@ -2357,8 +2156,6 @@ class TestStartupCancellation:
         assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
         assert not (state_dir / "bridge_pids.ini").exists()
         mock_runner.assert_not_called()
-        # Priming is kicked off before the sequence, but the run bailed before the
-        # reveal, so no dispatch loop was ever started to publish what it warmed.
         mock_priming.assert_called_once()
 
     def test_a_cancel_after_taking_over_an_open_origenerator_hands_it_back(
@@ -2430,8 +2227,6 @@ class TestStartupCancellation:
         assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
 
     def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path):
-        """A cancel flag left over from a previous session must not abort this
-        one — it is cleared before the loading screen launches."""
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -2460,15 +2255,13 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
-
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
 
         assert ended == SessionOver(0)
-        assert not stale.exists()  # cleared before startup
-        # Startup ran to completion: the stale flag was not honored as a cancel.
+        assert not stale.exists()
         assert [c for c in popen_cmds if "ahk.exe" in str(c)]
 
     def test_a_new_session_never_shows_the_last_ones_dashboard(self, cfg_factory, tmp_path):
@@ -2549,17 +2342,6 @@ class TestStartupCancellation:
 
 
 class TestHotkeyScriptGoesUpFirst:
-    """The hotkey script is launched before the startup sequence runs, not after
-    it.
-
-    Its hotkeys are the only keys in a launch that do not care which window holds
-    the focus — AHK hooks the keyboard rather than waiting its turn in a window's
-    message queue — so this ordering is what makes Esc reach the cancel after
-    something has taken the focus from the loading screen.  Launched last, as it
-    was, there was nothing hooking Esc during the one stretch where Esc is the
-    only way out.
-    """
-
     def _run(self, cfg_factory, tmp_path, *, on_ahk_launch=None) -> Path:
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -2583,7 +2365,6 @@ class TestHotkeyScriptGoesUpFirst:
                    return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -2614,7 +2395,6 @@ class TestHotkeyScriptGoesUpFirst:
                    side_effect=lambda **kwargs: (calls.append("sequence"), _fake_startup_result())[1]), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -2628,10 +2408,6 @@ class TestHotkeyScriptGoesUpFirst:
     def test_a_dead_sessions_pids_file_is_gone_before_the_script_can_read_it(
         self, cfg_factory, tmp_path
     ):
-        """The pids file appearing is what tells the script the session is up and
-        its keys have something to reach.  A previous session's copy would put
-        every key live over one that is still assembling — and would take Esc's
-        cancel away with them, since Esc only cancels while the hold is on."""
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "bridge_pids.ini").write_text("[pids]\nmain_funestra_pid = 999\n", encoding="utf-8")
@@ -2643,19 +2419,10 @@ class TestHotkeyScriptGoesUpFirst:
         )
 
         assert seen == [False]
-        # …and this session writes its own once startup is done, which is the
-        # handover: from here the hotkeys are live.
         assert (state_dir / "bridge_pids.ini").is_file()
 
 
 class TestPostLoadingWindowState:
-    """Z-order must be re-asserted AFTER the loading screen closes.
-
-    Phase 4 sets topmost while the loading screen overlay is still up.
-    When the overlay is destroyed, the OS may rearrange z-order.  The
-    orchestrator must correct this after the loading screen exits.
-    """
-
     def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -2691,7 +2458,6 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -2700,8 +2466,6 @@ class TestPostLoadingWindowState:
                 project_dir=tmp_path,
             )
 
-        # The windows that own a rect are promoted to topmost, the Main Funestra
-        # (hwnd 2020) included: it floats above the desktop like it always has.
         promoted = [h for h, v in topmost_calls if v]
         assert {DASH_HWND, 2020, 3030, 4040, 55555} <= set(promoted), (
             f"Wrong promotions: {topmost_calls}"
@@ -2709,11 +2473,6 @@ class TestPostLoadingWindowState:
 
 
 class TestMainFunestraObstructionLog:
-    """After the bands are re-applied, the orchestrator walks the real z-order
-    and names whatever still covers the Main Funestra — the diagnostic that turns a "the Main Funestra isn't
-    on top" report into the exact culprit window, since the topmost flag alone
-    reads True even when the Main Funestra is buried."""
-
     def test_names_the_window_covering_main_funestra(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
@@ -2724,7 +2483,7 @@ class TestMainFunestraObstructionLog:
             _log_window_obstruction("Main Funestra", 2020)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "topmost=False" in caplog.text  # a non-topmost window over topmost the Main Funestra
+        assert "topmost=False" in caplog.text
 
     def test_quiet_when_main_funestra_is_frontmost(self, caplog):
         stack = [StackedWindow(hwnd=2020, title="Main Funestra", topmost=True, rect=(2560, 2500, 1440, 900))]
@@ -2732,17 +2491,16 @@ class TestMainFunestraObstructionLog:
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
             _log_window_obstruction("Main Funestra", 2020)
         assert "frontmost over its rect" in caplog.text
-        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
+        assert not [r for r in caplog.records if r.levelno >= 30]
 
     def test_warns_when_main_funestra_unresolved(self, caplog):
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder") as it, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
             _log_window_obstruction("Main Funestra", 0)
-        it.assert_not_called()  # nothing to walk if the Main Funestra never resolved
+        it.assert_not_called()
         assert "unresolved" in caplog.text
 
     def test_quiet_when_only_the_loading_overlay_covers_main_funestra(self, caplog):
-        """The loading screen is over everything on purpose while this runs under it."""
         stack = [
             StackedWindow(hwnd=1010, title="Fun Time is starting", topmost=True,
                           rect=(0, 0, 4000, 3440)),
@@ -2752,7 +2510,7 @@ class TestMainFunestraObstructionLog:
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
             _log_window_obstruction("Main Funestra", 2020, ignore=1010)
         assert "frontmost over its rect" in caplog.text
-        assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
+        assert not [r for r in caplog.records if r.levelno >= 30]
 
     def test_a_third_window_still_warns_past_the_loading_overlay(self, caplog):
         stack = [
@@ -2795,7 +2553,6 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
              patch("fun_time.windows_bridge_orchestrator.WhisperReader"), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -2829,7 +2586,6 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value="No module named vosk"), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class, \
              caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_orchestrator"):
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -2839,12 +2595,10 @@ class TestVoiceControlIntegration:
             )
 
         mock_vc_class.assert_not_called()
-        # Voice was asked for and cannot run at all: an error, so it flashes red.
         assert [r.levelno for r in caplog.records if "import failed" in r.getMessage()] == [
             logging.ERROR]
 
     def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path):
-        # voice_control section absent → defaults to disabled
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -2865,7 +2619,6 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
-
             _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
@@ -2879,9 +2632,6 @@ class TestVoiceControlIntegration:
 
 class TestOpenEventLog:
     def test_truncates_the_previous_session_and_tails_every_fun_time_logger(self, tmp_path):
-        """One handler on the package logger catches every fun_time.* module by
-        propagation, and the package level is opened all the way down: the file
-        carries everything and the log panel picks the verbosity."""
         state_dir = tmp_path / "state"
         state_dir.mkdir()
         event_log_path(state_dir).write_text('{"ts":1,"level":20,"source":"dash","msg":"stale"}\n',
@@ -2922,8 +2672,6 @@ class TestOpenEventLog:
             package_logger.setLevel(original_level)
 
     def test_the_orchestrator_logger_is_enrolled_even_though_it_does_not_propagate(self, tmp_path):
-        """configure_logging turns propagation off for the HUD logger, so the
-        one handler on the package would never see its lines."""
         orch_logger = logging.getLogger("fun_time.orchestrator")
         package_logger = logging.getLogger("fun_time")
         original = (list(package_logger.handlers), list(orch_logger.handlers),
@@ -2952,8 +2700,6 @@ class TestOpenEventLog:
         ("main_latest", "Latest: the Main Funestra"),
     ])
     def test_what_a_dispatched_command_says_reaches_the_bridge_log(self, tmp_path, command, said):
-        """Whichever module answers the command: a handler moved to its domain's
-        module must not fall silent in the bridge log."""
         config = replace(make_config(tmp_path), origenerator_enabled=True,
                          origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         before = {name: (list(logging.getLogger(name).handlers), logging.getLogger(name).level)
@@ -2970,8 +2716,6 @@ class TestOpenEventLog:
                     logging.getLogger(name).setLevel(level)
 
     def test_what_the_familys_listener_says_is_this_sessions_record_too(self, tmp_path):
-        """voice_core says how each utterance ended under its own name, not
-        fun_time's, so neither the panel nor the bridge log would carry it."""
         listener_logger = logging.getLogger("voice_core")
         package_logger = logging.getLogger("fun_time")
         original = (list(package_logger.handlers), list(listener_logger.handlers),
@@ -3014,13 +2758,10 @@ class TestOpenEventLog:
 
 class TestOrigeneratorGracefulClose:
     def test_teardown_closes_the_window_before_the_kill_sweep(self):
-        """Its closeEvent persists the session and queues the absence
-        experiments, so the window is asked to close first; the taskkill that
-        follows is the backstop, not the normal death."""
         closed: list[int] = []
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
-            side_effect=[8000, None],  # recorded alive, then exited after the close
+            side_effect=[8000, None],
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_origenerators_window",
             return_value=4242,
@@ -3047,16 +2788,6 @@ class TestOrigeneratorGracefulClose:
 
 class TestTheFinishingPassFitsUnderTheLoadingScreen:
     def test_it_cannot_outlast_the_covers_staleness_guard(self):
-        """Fun Time is banded and settled under the loading screen, and the loading screen comes
-        down on the DONE written at the end of that.  Nothing writes the progress
-        file in between, so the loading screen's staleness guard — its protection against
-        an orchestrator that died holding the screen — is running the whole time.
-        Outlast it and the loading screen takes itself down mid-pass, which is the user
-        watching the z-order sort itself out: the exact thing it is up for.
-
-        Every wait that pass can take, added up, has to clear that guard.  Four
-        window resolutions: the dashboard, the Main Funestra, and the two satellites.
-        """
         budget = (
             HUD_PRIME_TIMEOUT_S
             + 4 * POST_LOADING_RESOLVE_TIMEOUT_S
@@ -3066,16 +2797,6 @@ class TestTheFinishingPassFitsUnderTheLoadingScreen:
 
 
 class TestTheFunestrasStartWhenTheLoadingScreenIsGone:
-    """The Main Funestra's video and Genau's flicks must not run under the loading screen.
-
-    The phase walk used to release them as its last act, which was also the
-    moment the loading screen came down {D} so they lined up.  Now the loading screen is held
-    through the finishing pass, and releasing with the phases would mean the
-    video (and the audio, which he can hear through nothing) running for seconds
-    under a scrim, its opening spent before he can see it.  So the release is
-    the orchestrator's, and it comes after the loading screen's process is gone.
-    """
-
     def _run(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -3119,14 +2840,6 @@ class TestTheFunestrasStartWhenTheLoadingScreenIsGone:
 
 
 class TestALoadingScreenSlowerThanTheLaunchsWait:
-    """The launch gives the loading screen a few seconds to put its window up, then
-    goes on without it.  On a loaded machine the screen came up later than that,
-    and the finishing pass, told there was no screen, put every Funestra into the
-    band over it; the settle walk then read the screen as burying them and put
-    them back over it, pass after pass, each time showing through it until the
-    screen took the top back -- and "Finalizing..." stood for the whole walk.
-    """
-
     SCREEN_PID = 4100
     SCREEN_HWND = 4101
 
@@ -3263,9 +2976,6 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
 
 
 class TestARoomLeftInOrigeneratorMode:
-    """It opens already in that mode: the loading screen stays up while the hosted app
-    finishes starting, and the switch happens under it."""
-
     def _run(self, cfg_factory, tmp_path, *, the_app_answers: bool) -> list[str]:
         (tmp_path / "origenerator").mkdir(exist_ok=True)
         cfg = load_config(cfg_factory({"paths": {
@@ -3338,8 +3048,6 @@ class TestARoomLeftInOrigeneratorMode:
         )
 
     def test_the_wait_is_named_on_the_loading_screen_before_the_line_that_fills_the_bar(self):
-        """So the bar is still filling while Fun Time waits, and "Finalizing..."
-        is the last thing it says before Fun Time is shown."""
         source = inspect.getsource(windows_bridge_orchestrator._reveal_the_app)
 
         assert source.index("before_the_loading_screen_goes()") < source.index('advance("finalizing")')
@@ -3362,10 +3070,6 @@ class TestARoomLeftInOrigeneratorMode:
 
 
 class TestTheSessionEndsOnItsMarker:
-    """Ending a session leaves the hotkey script running over the closing screen,
-    where Esc can still call the end off -- so the orchestrator cannot wait for
-    the script to exit.  The marker it leaves is the end."""
-
     def test_a_marked_end_is_torn_down_and_only_then_is_the_script_stopped(
         self, cfg_factory, tmp_path,
     ):
@@ -3576,8 +3280,6 @@ class TestStartingVoice:
 
     def test_a_session_that_will_not_listen_never_loads_the_microphone_stack(
             self, cfg_factory, tmp_path):
-        """Every integration session is one: loading the stack only to say it is
-        there spent a start the import of two native libraries."""
         config_path = cfg_factory({"voice_control": {"enabled": False}})
 
         with patch.object(windows_bridge_orchestrator, "why_unavailable") as asked:
@@ -3658,8 +3360,6 @@ class TestTheHudPublisherASessionStarts:
         return publisher, manifest_path
 
     def test_it_names_the_camera_words_the_content_overlay_lists(self, cfg_factory, tmp_path):
-        """The desktop session and the headset's both start their publisher here,
-        so this is the one place the overlay's words reach every Funestra's HUD."""
         publisher, _manifest_path = self._started(cfg_factory, tmp_path,
                                                   camera_words=("Side", "XYZ"))
 

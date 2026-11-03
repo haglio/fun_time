@@ -31,9 +31,6 @@ def test_the_question_mark_is_lit_blue_exactly_while_the_reference_is_open():
     assert _lit(HELP_REFERENCE, reference_open=True) == BLUE
     assert _lit(HELP_REFERENCE, reference_open=False) is None
 def test_entering_vr_is_offered_only_once_the_headset_is_ready():
-    """Pimax takes about eleven seconds to wake, and nothing can be drawn in
-    the headset until it has: pressing Enter VR before then spends the whole
-    crossing on a blank headset."""
     assert _dim(ENTER_VR, headset_ready=False) is True
     assert _dim(ENTER_VR, headset_ready=True) is False
 

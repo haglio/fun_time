@@ -48,8 +48,6 @@ def _recorded_library(tmp_path, records: dict[str, dict | None]) -> tuple[MainLi
 
 class TestFMode:
     def test_it_keeps_the_hand_scripted_video_and_drops_the_bulk_scripted_one(self, tmp_path):
-        """The bulk run is what made "has a funscript" stop meaning anything: the
-        second video has a script too, and is exactly what F-mode is for excluding."""
         root = tmp_path / "videos" / "videos" / "primary"
         hand, bulk, plain = _videos(root, "a.mp4", "b.mp4", "c.mp4")
         scripts = tmp_path / "videos" / "scripts" / "scripts" / "primary"
@@ -175,9 +173,6 @@ class TestShapes:
 
 
 class TestLength:
-    """What Evolver recorded each video as decides the clips and full videos
-    buttons; a video it has no record of counts as a full video."""
-
     def _kinds(self, tmp_path):
         return _recorded_library(tmp_path, {
             "short": {"video": {"type": "short"}},
@@ -242,8 +237,6 @@ class TestLength:
         assert MainListSettings().length is LengthMode.MIXED
 
     def test_a_vr_video_is_a_full_video_and_no_question_is_asked_about_it(self, tmp_path):
-        """The VR library lives on a drive that can take hours to answer about one
-        file, and Evolver keeps no record of it to look for."""
         vr_dir = tmp_path / "VR"
         (vr_video,) = _videos(vr_dir, "scene one.mp4")
         the_list = _the_list(tmp_path, str(vr_dir), vr_dirs=str(vr_dir),
@@ -257,9 +250,6 @@ class TestLength:
 
 
 class TestOrientation:
-    """Which way round Evolver measured each video decides the portrait and
-    landscape buttons; a video it has not measured counts as landscape."""
-
     def _turned(self, tmp_path):
         return _recorded_library(tmp_path, {
             "tall": {"video": {"orientation": "portrait", "type": "short"}},
@@ -396,9 +386,6 @@ class TestWhereItStarts:
 
 
 class TestWhenNothingIsLetThrough:
-    """However the buttons got there, an empty list is written as the video on
-    screen alone, and said to be empty, for the press that emptied it to answer."""
-
     def _library(self, tmp_path):
         root = tmp_path / "vids"
         (on_screen,) = _videos(root / "flat", "scene one.mp4")
@@ -414,8 +401,6 @@ class TestWhenNothingIsLetThrough:
         assert the_list.file.read_text(encoding="utf-8").splitlines() == [on_screen]
 
     def test_it_is_held_for_a_list_asked_for_from_the_top_too(self, tmp_path):
-        """Latest and Shuffle start their list from its top, not from the video
-        on screen, and an empty one still holds that video."""
         the_list, on_screen = self._library(tmp_path)
 
         written = the_list.write(MainListSettings(plays_vr=False, plays_flat=False),

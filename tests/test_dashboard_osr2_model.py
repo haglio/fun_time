@@ -1,5 +1,3 @@
-"""What the Dashboard's OSR2 part reads, and Fun Time it is given: the same on
-the desktop and in the headset."""
 from __future__ import annotations
 
 from funestra.main_hud_painter import MainHud

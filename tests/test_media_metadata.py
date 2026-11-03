@@ -76,9 +76,6 @@ VIDEO_ONLY_META = {
 }
 
 
-# --- metadata_path_for ---
-
-
 def test_metadata_path_mirrors_media_tree_under_metadata_root(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
@@ -102,10 +99,6 @@ def test_without_both_roots_configured_no_metadata_file_is_named(tmp_path: Path)
 
 def test_a_library_folder_kept_on_another_drive_mirrors_as_the_same_tree_would_beside_the_root(
         tmp_path: Path):
-    """The VR folder lives only on the cloud drive, in a copy of the tree the
-    metadata root sits in locally, so none of its videos is beside that root:
-    every one came back with no sidecar path, and nothing chosen for one of
-    them was ever remembered."""
     metadata_root = tmp_path / "local" / "videos" / "metadata"
     away = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
 
@@ -138,14 +131,7 @@ def test_an_outlying_folder_inside_no_library_folder_is_measured_from_the_folder
     assert result == metadata_root / "headset" / "scene one.json"
 
 
-# --- load_metadata ---
-
-
 def test_metadata_path_places_a_lowercased_key_under_a_root_with_a_capital(tmp_path: Path):
-    """The stats file keys a video by its lowercased path, and a library root
-    with a capital in it is the same place on the disks the library lives on
-    -- but not to a case-sensitive ``relative_to``, which is what left the
-    breeding report empty under a checkout path with a capital (bug 53)."""
     library = tmp_path / "Library"
     metadata_root = library / "metadata"
     video = library / "videos" / "2D" / "clip.mp4"
@@ -168,9 +154,6 @@ def test_a_missing_or_unreadable_sidecar_reads_as_no_metadata(tmp_path: Path):
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
     assert load_metadata(bad) == {}
-
-
-# --- recorded_for ---
 
 
 def test_what_was_recorded_for_a_video_is_read_from_its_mirrored_file(tmp_path: Path):
@@ -196,11 +179,7 @@ def test_a_video_kept_on_another_drive_is_read_through_its_outlying_folder(tmp_p
     assert recorded_for(away / "scene one.mp4", metadata_root, outlying_dirs=[away]) == VIDEO_ONLY_META
 
 
-# --- build_group_index ---
-
-
 def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
-    """Write videos (+ optional sidecars) into a media/metadata tree pair."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     paths: dict[str, str] = {}
@@ -241,10 +220,6 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
 
 
 def test_the_index_holds_one_record_per_video(tmp_path: Path):
-    """Seven facts about one video used to be seven dicts keyed by the same path,
-    so every reader normalized the path again and probed several of them to
-    answer one question about one video — and an eighth fact meant an eighth
-    dict, an eighth default and an eighth constructor line."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "subject": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
         "no_metadata": None,
@@ -267,9 +242,6 @@ def test_the_index_holds_one_record_per_video(tmp_path: Path):
 
 
 def test_build_group_index_carries_each_videos_watch_weight(tmp_path: Path):
-    """Evolver sums what every app watched into a weight on the sidecar; the
-    shuffled builds read it off the index they already build, and a video
-    nobody has stamped weighs one."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "loved": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
         "plain": _i2v_meta(action="Alpha", video_seed="2"),
@@ -291,8 +263,6 @@ def test_watch_weight_of_reads_the_stamped_weight_and_defaults_to_one():
 
 
 def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):
-    """The widen ranks by prompt-tag overlap, so the index carries each video's tag
-    set — the image prompt's comma-separated phrases, normalized."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "subject": _i2v_meta(action="Alpha", video_seed="1"),
         "no_metadata": None,
@@ -301,12 +271,9 @@ def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):
     index = build_group_index(paths.values(), metadata_root)
 
     assert index.entry(paths["subject"]).scene_tags == frozenset(
-        {"two cute dolls", "rainbow bedroom"}   # SOURCE_IMAGE's positive_prompt, split on commas
+        {"two cute dolls", "rainbow bedroom"}
     )
     assert index.entry(paths["no_metadata"]).scene_tags == frozenset()
-
-
-# --- cached_group_index ---
 
 
 def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Path):
@@ -339,9 +306,6 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
 
 
 def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
-    """The session's cache was a module dict nothing could hold a second of, so
-    anything wanting an index over a different library — a test, a variant
-    session — could only reach in and clear the one everybody shares."""
     media_root, metadata_root, paths = _library(tmp_path, {
         "known": _i2v_meta(action="Alpha", video_seed="1"),
     })
@@ -400,8 +364,6 @@ def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_
                            metadata_root=metadata_root).entries == {}
 
 
-# --- attribute filtering: haystack + query matching ------------------------
-
 def test_filter_haystack_is_the_recorded_act_lowercased():
     meta = {
         "video": {"action": "Beta Gamma", "prompt": "A Subject LAYING prone"},
@@ -411,17 +373,15 @@ def test_filter_haystack_is_the_recorded_act_lowercased():
 
 
 def test_filter_haystack_excludes_both_prompts():
-    """A prompt says what was asked for, not what the video shows: an act filter
-    that read them handed back videos the HUD labels with some other act."""
     meta = {
         "video": {"action": "Alpha", "prompt": "delta by the pool"},
         "source_image": {"positive_prompt": "gamma", "negative_prompt": "epsilon"},
     }
     hay = filter_haystack(meta)
     assert hay == "alpha"
-    assert "delta" not in hay  # the video prompt
-    assert "gamma" not in hay  # the source image's positive prompt
-    assert "epsilon" not in hay  # and the negative one, as ever
+    assert "delta" not in hay
+    assert "gamma" not in hay
+    assert "epsilon" not in hay
 
 
 def test_filter_haystack_tolerates_missing_blocks():
@@ -436,23 +396,20 @@ def test_matches_query_is_a_case_insensitive_substring_of_the_act():
         "video": {"action": "Side Epsilon", "prompt": "subject subject"},
         "source_image": {"positive_prompt": "pool party"},
     }
-    assert matches_query(meta, "epsilon")  # substring of the action
-    assert matches_query(meta, "Epsilon")  # case-insensitive
-    assert not matches_query(meta, "subject")  # the video prompt is not the act
-    assert not matches_query(meta, "pool")  # nor is the source image's
+    assert matches_query(meta, "epsilon")
+    assert matches_query(meta, "Epsilon")
+    assert not matches_query(meta, "subject")
+    assert not matches_query(meta, "pool")
     assert not matches_query(meta, "delta")
 
 
 def test_matches_query_drops_a_video_that_has_no_act_recorded():
-    """The video a filter used to leave on screen labeled "(unknown)": its prompts
-    named the act, its sidecar recorded none, so nothing in the map said why it
-    was there.  Un-acted videos are the backfill tool's backlog, not filter hits."""
     unlabeled = {
         "video": {"prompt": "epsilon, by the pool"},
         "source_image": {"positive_prompt": "epsilon"},
     }
     assert not matches_query(unlabeled, "epsilon")
-    assert matches_query(unlabeled, "")  # but no filter still passes it
+    assert matches_query(unlabeled, "")
 
 
 def test_matches_query_empty_matches_everything():
@@ -463,10 +420,10 @@ def test_matches_query_empty_matches_everything():
 def test_matches_query_multiword_must_be_contiguous():
     joined = {"video": {"action": "Beta Gamma", "prompt": "x"}}
     assert matches_query(joined, "beta gamma")
-    assert matches_query(joined, "gamma")  # one word of the act still catches it
+    assert matches_query(joined, "gamma")
     scattered = {"video": {"action": "Beta, Theta Gamma", "prompt": "x"}}
     assert matches_query(scattered, "theta gamma")
-    assert not matches_query(scattered, "beta gamma")  # two acts, not one
+    assert not matches_query(scattered, "beta gamma")
 
 
 def test_path_matches_query_reads_the_sidecar(tmp_path):
@@ -481,7 +438,7 @@ def test_path_matches_query_reads_the_sidecar(tmp_path):
 
     assert path_matches_query(str(video), metadata_root, "beta gamma")
     assert not path_matches_query(str(video), metadata_root, "alpha")
-    assert path_matches_query(str(video), metadata_root, "")  # no filter passes all
+    assert path_matches_query(str(video), metadata_root, "")
 
 
 def test_path_matches_query_excludes_videos_without_a_sidecar(tmp_path):
@@ -491,15 +448,11 @@ def test_path_matches_query_excludes_videos_without_a_sidecar(tmp_path):
     video.parent.mkdir(parents=True)
     video.write_bytes(b"")
 
-    # An active filter can't be satisfied by a video with no metadata...
     assert not path_matches_query(str(video), metadata_root, "alpha")
-    # ...but with no filter, everything passes.
     assert path_matches_query(str(video), metadata_root, "")
 
 
 def test_path_matches_query_excludes_a_sidecar_that_records_no_act(tmp_path):
-    """A sidecar whose prompts name the act but whose ``action`` is still empty:
-    the filter used to keep it, and the HUD then labeled it "(unknown)"."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     video = media_root / "portrait" / "provider" / "unlabeled.mp4"
@@ -518,8 +471,6 @@ def test_path_matches_query_excludes_a_sidecar_that_records_no_act(tmp_path):
     assert not path_matches_query(str(video), metadata_root, "alpha")
     assert path_matches_query(str(video), metadata_root, "")
 
-
-# --- group containment for the action/seed loops ----------------------------
 
 def _t2v(action: str, seed: str, prompt: str = "scene") -> dict:
     return {"video": {"prompt": prompt, "action": action, "seed": seed}}
@@ -541,10 +492,8 @@ def _write_library(tmp_path, videos: dict[str, dict]) -> tuple[Path, Path, dict[
 
 def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        # Same prompt+seed => same subject; the action varies within the group.
         "clip": _t2v("Alpha", "1"),
         "twirl": _t2v("Twirling", "1"),
-        # A different seed is a different subject.
         "other": _t2v("Alpha", "2"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
@@ -557,10 +506,8 @@ def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
 
 def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        # Same prompt+action, different seed => same family (another subject).
         "clip_a": _t2v("Alpha", "1"),
         "clip_b": _t2v("Alpha", "2"),
-        # Same subject, different act => not in the alpha seed family.
         "twirl": _t2v("Twirling", "1"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
@@ -572,8 +519,6 @@ def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):
 
 
 def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
-    """An i2v family is keyed on the source image, which does not pin the action,
-    so items must be narrowed to the current video's action."""
     def i2v(action: str, image_seed: str) -> dict:
         return {
             "video": {"prompt": f"do {action}", "action": action, "seed": "77"},
@@ -590,54 +535,41 @@ def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
     items = seed_family_items(index, paths["clip_a"])
 
     assert sorted(items) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["twirl_b"] not in items  # same family, wrong act
+    assert paths["twirl_b"] not in items
 
 
 def test_widened_seed_items_add_the_most_similar_videos_capped(tmp_path: Path):
-    """"more seeds" adds the videos whose prompt is closest to this one — nearest
-    first, and only a handful.  Exact-config sisters come along as always; a
-    same-act video sharing no prompt tags is not "more seeds", it is the rest of
-    the library, so the cap keeps it out."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("Alpha", "1", prompt="a, b, c, d"),
-        "sister": _t2v("Alpha", "2", prompt="a, b, c, d"),   # exact family (same prompt)
-        "near": _t2v("Alpha", "3", prompt="a, b, c, e"),     # 3 of 5 tags shared
-        "far": _t2v("Alpha", "4", prompt="x, y, z"),         # nothing in common
+        "sister": _t2v("Alpha", "2", prompt="a, b, c, d"),
+        "near": _t2v("Alpha", "3", prompt="a, b, c, e"),
+        "far": _t2v("Alpha", "4", prompt="x, y, z"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
     items = widened_seed_items(index, paths["cur"], additions=1)
 
     assert sorted(items) == sorted([paths["cur"], paths["sister"], paths["near"]])
-    assert paths["far"] not in items  # the cap stops at the nearest, not the whole act
+    assert paths["far"] not in items
 
 
 def test_widened_seed_items_never_leave_the_videos_own_action(tmp_path: Path):
-    """The seed axis is "the same act, another subject", so the action bounds the
-    widen outright — a nearer-scened video doing something else is not a wider seed
-    row, it is the action column, and "more seeds" loops what it draws, so ranking
-    that video in put another act on screen."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("Alpha", "1", prompt="a, b, c"),
-        "other_act": _t2v("Theta", "2", prompt="a, b, c"),  # every tag shared
-        "same_act": _t2v("Alpha", "3", prompt="a, x, y"),   # 1 of 5 shared, but the act
+        "other_act": _t2v("Theta", "2", prompt="a, b, c"),
+        "same_act": _t2v("Alpha", "3", prompt="a, x, y"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    # Room for both: the other act is left out because it is the other act, not
-    # because the cap ran out.
     assert widened_seed_items(index, paths["cur"], additions=6) == [
         paths["cur"], paths["same_act"],
     ]
 
 
 def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
-    """An act nothing else in the library does has no wider seed row.  That is a
-    real answer — the caller's "widening net failed" message — and the widen used to
-    dodge it by handing back the nearest video of some other act."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        "solo": _t2v("Zeta", "1", prompt="a, b, c"),   # the only Zeta
-        "near": _t2v("Alpha", "2", prompt="a, b, c"),   # another act, same scene
+        "solo": _t2v("Zeta", "1", prompt="a, b, c"),
+        "near": _t2v("Alpha", "2", prompt="a, b, c"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
@@ -645,9 +577,6 @@ def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path)
 
 
 def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
-    """The library holds "XYZ …" beside "Xyz …".  With the act now bounding the row
-    rather than merely ranking it, a raw string compare would leave a video alone in
-    its casing with no seed row at all."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("XYZ Alpha", "1", prompt="a, b, c"),
         "other_casing": _t2v("Xyz Alpha", "2", prompt="a, b, c"),
@@ -658,9 +587,6 @@ def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: P
 
 
 def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
-    """An image-to-video video and a text-to-video one look drastically different
-    even doing the same act, so within the action the widen ranks its own kind
-    first — and falls through to the other kind rather than to nothing."""
     def i2v(action: str, seed: str, prompt: str) -> dict:
         return {
             "video": {"prompt": f"do {action}", "action": action, "seed": seed},
@@ -669,21 +595,18 @@ def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
 
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": i2v("Delta", "1", "a, b, c"),
-        "t2v_kin": _t2v("Delta", "2", prompt="a, b, c"),  # every tag shared — but t2v
-        "i2v_kin": i2v("Delta", "3", "a, b, d"),          # own kind, a scene further off
+        "t2v_kin": _t2v("Delta", "2", prompt="a, b, c"),
+        "i2v_kin": i2v("Delta", "3", "a, b, d"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
     assert widened_seed_items(index, paths["cur"], additions=1) == [
         paths["cur"], paths["i2v_kin"],
     ]
-    # Only a preference: with no video of its own kind, the other kind still comes.
     assert widened_seed_items(index, paths["t2v_kin"], additions=1)[1:] != []
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
-    """Two Alphas of one seed are ordinary action-group siblings, read as
-    "Alpha 1" and "Alpha 2"."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip_one": _t2v("Alpha", "1"),
         "clip_two": _t2v("Alpha", "1"),
@@ -691,16 +614,13 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    # All three share a subject (same prompt+seed), so they cycle together.
     assert sorted(action_group_items(index, paths["clip_one"])) == sorted(paths.values())
     labels = {action_label(index, paths[name]) for name in ("clip_one", "clip_two")}
     assert labels == {"Alpha 1", "Alpha 2"}
-    assert action_label(index, paths["twirl"]) == "Twirling"  # sole Twirling, unnumbered
+    assert action_label(index, paths["twirl"]) == "Twirling"
 
 
 def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):
-    """Saying the act is wrong empties ``video.action`` — so the video reads as
-    unlabeled again — and keeps what it said under ``video.wrong_action``."""
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
 
     struck = reject_action(paths["clip"], metadata_root)
@@ -713,11 +633,6 @@ def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):
 
 
 def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
-    """Evolver's pipeline and a live session both read this file; written in
-    place it was empty for the length of the write, and a reader landing there
-    took the blank for the sidecar (bug 8, the torn-file half).  It is written
-    beside and renamed over, so a write that cannot land leaves the old file
-    intact -- and nothing beside it once it has landed."""
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
     sidecar = metadata_path_for(paths["clip"], metadata_root)
     before = sidecar.read_text(encoding="utf-8")
@@ -736,13 +651,6 @@ def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
 
 
 def test_reject_action_waits_for_evolvers_writer_and_strikes_what_it_left(tmp_path: Path):
-    """Bug 8's lost update: Evolver's pass and this rejection reach one sidecar.
-
-    The pass holds the document's lock while it stamps a watch onto it; the
-    rejection waits, then strikes the act out of what the pass left rather than
-    out of the document it read before waiting -- which is how the stamp used to
-    disappear a moment after it landed.
-    """
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
     sidecar = metadata_path_for(paths["clip"], metadata_root)
     inside = threading.Event()
@@ -774,9 +682,6 @@ def test_reject_action_waits_for_evolvers_writer_and_strikes_what_it_left(tmp_pa
 
 
 def test_reject_action_leaves_a_sidecar_it_cannot_read_as_a_document(tmp_path: Path):
-    """Several apps own this file, so one that cannot be parsed is left exactly
-    as it is: striking an act out of a document we cannot read would mean
-    writing our own over somebody else's record."""
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
     sidecar = metadata_path_for(paths["clip"], metadata_root)
     sidecar.write_text("[not a document]", encoding="utf-8")
@@ -786,9 +691,6 @@ def test_reject_action_leaves_a_sidecar_it_cannot_read_as_a_document(tmp_path: P
 
 
 def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
-    """A video that was never labeled has nothing to be wrong about, so its
-    sidecar is left exactly as it was — and one with no sidecar at all is left
-    without one."""
     _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
     sidecar = metadata_path_for(paths["clip"], metadata_root)
     sidecar.write_text(json.dumps({"video": {"prompt": "unlabeled"}}), encoding="utf-8")
@@ -803,27 +705,18 @@ def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
 
 
 def test_the_satellite_hud_lights_a_row_for_exactly_the_videos_this_filter_keeps():
-    """The lock HUD's lit filter button and this matcher must not drift apart.
-
-    funestra owns the HUD now and carries its own table of the rule, but its
-    suite runs with funestra alone on the path, so it cannot reach the
-    authority it mirrors.  This Satellite can: fun_time is the repo that wears the
-    HUD and applies the filter, so the agreement is pinned here.  The empty
-    query is the one deliberate difference — it keeps every video, and lights no
-    row.
-    """
     camera_words = ("Side", "XYZ")
     cases = [
-        ("Gamma", "gamma", True),               # the row that names it
-        ("Side Gamma", "gamma", True),          # the query is one act of the row
-        ("Side Gamma", "side gamma", True),     # the filter set from that very row
-        ("XYZ Gamma", "side gamma", False),     # …which is not the other camera's row
-        ("Gamma, Theta", "gamma", True),        # one of two acts on the video
-        ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both Satellites
-        ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very video
-        ("Gamma", "gamma, theta", False),       # …which does not keep a one-act video
+        ("Gamma", "gamma", True),
+        ("Side Gamma", "gamma", True),
+        ("Side Gamma", "side gamma", True),
+        ("XYZ Gamma", "side gamma", False),
+        ("Gamma, Theta", "gamma", True),
+        ("Gamma   Theta", "gamma theta", True),
+        ("Gamma, Theta", "gamma, theta", True),
+        ("Gamma", "gamma, theta", False),
         ("Alpha", "gamma", False),
-        ("Gam", "gamma", False),                # the label is not the longer query
+        ("Gam", "gamma", False),
     ]
     for label, query, expected in cases:
         assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
@@ -834,10 +727,6 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_videos_this_filter_keeps
 
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):
-    """Resolving a path opens it, and on a drive that is busy syncing that can block for
-    minutes: the VR pipeline test sat 240 s in ``Path.resolve`` on a library video while
-    the suites beside it churned the synced tree. A video spelled under the library root
-    needs no such trip; only one reached some other way (a junction) does."""
     def never(self, strict=False):
         raise AssertionError(f"resolved {self}")
 
@@ -860,10 +749,6 @@ def test_a_video_reached_through_a_junction_is_still_placed_under_the_library(tm
 
 
 class TestWhatAVideoIsCalled:
-    """Evolver works the name out once for the whole library and writes it down;
-    what is left here is reading it, and answering for a video it has not
-    reached yet."""
-
     def test_the_recorded_name_is_what_the_video_is_called(self):
         assert video_title(
             {"title": "Jane Doe - Alpha Study: Part Two",

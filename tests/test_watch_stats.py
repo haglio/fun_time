@@ -42,7 +42,6 @@ def test_watch_stats_that_are_missing_or_unreadable_count_as_none(tmp_path: Path
 
 
 def test_record_watch_event_prunes_entries_for_vanished_files(tmp_path: Path):
-    """A video moved away (e.g. sent to Trash) should not leave a stats orphan."""
     stats_file = tmp_path / "watch_stats.json"
     keeper = _touch(tmp_path, "keeper.mp4")
     goner = _touch(tmp_path, "goner.mp4")
@@ -58,9 +57,6 @@ def test_record_watch_event_prunes_entries_for_vanished_files(tmp_path: Path):
 
 
 def test_record_watch_event_keeps_rows_whose_tree_is_out_of_reach(tmp_path: Path):
-    """A volume not mounted when an event lands is not a library of deleted
-    videos.  Every row for it used to go with that one event, with no way
-    back (bug 4): the prune is for a video that left a tree still there."""
     stats_file = tmp_path / "watch_stats.json"
     volume = tmp_path / "volume"
     volume.mkdir()
@@ -73,9 +69,6 @@ def test_record_watch_event_keeps_rows_whose_tree_is_out_of_reach(tmp_path: Path
 
     stats = load_watch_stats(stats_file)
     assert normalize_path_key(unmounted) in stats
-
-
-# --- weighted ordering primitives ---
 
 
 def test_weighted_shuffle_front_loads_heavy_items():
@@ -106,9 +99,6 @@ def test_passes_inclusion_only_drops_below_neutral_weight():
     assert all(passes_inclusion(8.0, rng) for _ in range(100))
     kept = sum(passes_inclusion(0.5, rng) for _ in range(200))
     assert 60 < kept < 140
-
-
-# --- WatchTracker ---
 
 
 class _Clock:
@@ -146,8 +136,6 @@ def test_tracker_counts_a_skip_when_user_navigates_away_early():
 
 
 def test_tracker_is_neutral_when_change_was_not_user_driven():
-    """An early transition without a nearby nav command (unlock's automatic
-    advance, a deleted file) must not penalize the departed video."""
     clock = _Clock()
     tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.2)
@@ -157,7 +145,6 @@ def test_tracker_is_neutral_when_change_was_not_user_driven():
 
 
 def test_tracker_is_neutral_when_user_leaves_late_but_unfinished():
-    """Leaving at 70% is neither a completion nor a skip."""
     clock = _Clock()
     tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.7)
@@ -168,7 +155,6 @@ def test_tracker_is_neutral_when_user_leaves_late_but_unfinished():
 
 
 def test_tracker_counts_each_repeat_wrap_as_a_completion():
-    """Locked repeat-one: every wrap from ~end back to ~start is one full watch."""
     clock = _Clock()
     tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.3)
@@ -186,8 +172,6 @@ def test_tracker_counts_each_repeat_wrap_as_a_completion():
 
 
 def test_tracker_discard_suppresses_classifying_the_departed_video():
-    """Marking trash moves the file away — the transition must record nothing,
-    and the next video is tracked normally."""
     clock = _Clock()
     tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.9)
@@ -200,12 +184,6 @@ def test_tracker_discard_suppresses_classifying_the_departed_video():
 
 
 class TestTheShapeAnotherAppRewrites:
-    """Evolver moves the videos counted here, so it re-keys this file in place
-    and has to keep this app's own normalization -- a key written in any other
-    case never matches again, which strands the counts as thoroughly as the
-    move would have. Nothing over there imports this, so the shape is the whole
-    contract."""
-
     def test_a_row_is_keyed_by_the_path_as_this_app_normalizes_it(self, tmp_path: Path):
         video = tmp_path / "Portrait" / "Example Clip.mp4"
         video.parent.mkdir(parents=True)

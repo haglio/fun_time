@@ -68,11 +68,6 @@ from tests.made_up_machine import running
 
 
 def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path):
-    """A stale heartbeat is not proof of a dead broker.  osr2_broker stops
-    ticking it whenever it cannot hold the serial port, so a powered-off OSR2
-    makes a healthy broker look gone — and that is exactly when a session starts.
-    Launch over it and let the single-instance mutexes make it a no-op, rather
-    than killing what we cannot see."""
     launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
     launcher.parent.mkdir()
     launcher.touch()
@@ -87,12 +82,6 @@ def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path)
 
 
 def test_ensure_broker_restarts_a_broker_older_than_its_own_code(tmp_path: Path):
-    """The one case that earns a kill: the running broker predates the code it
-    should be running, so fun_time's vocabulary is ahead of what it understands
-    and any newer verb is dropped without a word.  That is a fact about two
-    timestamps, unlike the stale heartbeat above, which is only a guess — so it
-    overrides even a perfectly fresh heartbeat.
-    """
     launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
     launcher.parent.mkdir()
     launcher.touch()
@@ -109,9 +98,6 @@ def test_ensure_broker_restarts_a_broker_older_than_its_own_code(tmp_path: Path)
 
 
 def test_ensure_broker_does_not_kill_a_broker_newer_than_its_code(tmp_path: Path):
-    """The usual case, and the one that must never kill: the running broker was
-    started after the last time its sources changed, so it understands everything
-    we can say to it."""
     launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
     launcher.parent.mkdir()
     launcher.touch()
@@ -128,10 +114,6 @@ def test_ensure_broker_does_not_kill_a_broker_newer_than_its_code(tmp_path: Path
 def test_ensure_broker_does_not_ask_about_the_process_when_it_cannot_read_the_code(
     tmp_path: Path,
 ):
-    """No readable broker package means no answer, and no answer is not permission
-    to kill.  It also fixes the order: the directory read comes first, so an
-    ordinary startup never sweeps the machine's processes to ask a question the
-    cheap half has already settled."""
     with patch("fun_time.windows_bridge_startup.broker_process_started_at") as started, \
          patch("fun_time.windows_bridge_startup.broker.is_running", return_value=True), \
          patch("fun_time.windows_bridge_startup.stop_broker_processes") as stop:
@@ -142,10 +124,6 @@ def test_ensure_broker_does_not_ask_about_the_process_when_it_cannot_read_the_co
 
 
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
-    """A fresh heartbeat means a healthy broker is already running — a previous
-    session's, or the one osr2_broker's self-healing task keeps up.  With nothing
-    saying its code has moved on, startup leaves it be: the user's own tools keep
-    talking to it, and tearing it down would drop every client mid-stream."""
     with patch("fun_time.windows_bridge_startup.broker.is_running", return_value=True) as running, \
          patch("fun_time.windows_bridge_startup.broker.start") as launch:
         ensure_broker(tmp_path, tmp_path / "launch_broker_tray.vbs")
@@ -180,27 +158,18 @@ def _reaped_from_the_machine() -> list[int]:
 
 
 def test_reap_orphaned_satellites_ends_the_funestras_stranded_on_this_sessions_files():
-    """A crash or unclean close can strand the two Satellite Funestras; a second
-    session then has four Funestras racing two command/status file sets."""
     assert {41, 42} <= set(_reaped_from_the_machine())
 
 
 def test_reap_orphaned_satellites_leaves_another_sessions_satellites_alone():
-    """Every satellite on the machine runs ``-m satellite``, so a module-only sweep
-    killed *every* satellite alive — including the two in the user's live session,
-    from an integration run whose state dir is somewhere else entirely."""
     assert 43 not in _reaped_from_the_machine()
 
 
 def test_reap_orphaned_satellites_reaches_only_the_satellite_module():
-    """Never the Main Funestra (``-m main_funestra``), nor a module whose name merely
-    starts with the satellite's."""
     assert not {44, 45} & set(_reaped_from_the_machine())
 
 
 def test_reap_orphaned_satellites_does_nothing_without_state_files_to_claim():
-    """No files to take over means no satellite can be stranded on them, so there
-    is nothing to reap — and certainly no licence to sweep the machine."""
     with running("fun_time.windows_bridge_startup", SATELLITES_ON_THE_MACHINE) as ended:
         reap_orphaned_satellites("satellite", [])
 
@@ -236,7 +205,6 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
 def test_prepare_random_favs_browser_manifest_defers_each_tab_after_a_local_page(
     cfg_factory, tmp_path: Path
 ):
-    """With lazy_load the manifest lists local pages, each naming its fav."""
     cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=True)
     output_path = tmp_path / "browser_manifest.txt"
 
@@ -252,7 +220,6 @@ def test_prepare_random_favs_browser_manifest_defers_each_tab_after_a_local_page
 def test_prepare_random_favs_browser_manifest_pages_poll_the_port_this_session_serves_on(
     cfg_factory, tmp_path: Path
 ):
-    """Every page polled the default port whatever the config served on (bug 22)."""
     cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=True)
     raw = json.loads(cfg_path.read_text(encoding="utf-8"))
     raw["loopback_port"] = 8771
@@ -281,7 +248,6 @@ def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_l
 
 
 def _seed_startup_states(tmp_path: Path, **overrides):
-    """seed_startup_states over throwaway paths under *tmp_path*."""
     kwargs = dict(
         genau_paused_file=tmp_path / "genau_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
@@ -306,16 +272,12 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
 
     _seed_startup_states(tmp_path)
 
-    # Genau parked, audio parked, Main Funestra paused until the sequencer's reveal.
     assert genau_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
     assert main_funestra_file.read_text(encoding="utf-8") == "1"
 
 
 def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path: Path):
-    """A fresh session opens in kino mode: the Main Funestra is told Kino has its
-    window, and Genau is held (PAUSE, written whole as the channel's reset)
-    until the reveal."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
@@ -325,15 +287,10 @@ def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path:
 
 
 def _main_funestra_verbs(tmp_path: Path) -> list[str]:
-    """What is queued for the Main Funestra, one verb per line as it drains them."""
     return (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
 
 
 def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path: Path):
-    """A session left showing Genau has to come back showing Genau -- the same
-    verb a live switch says, seeded before the Main Funestra launches instead of
-    sent to a running one, and without the switch's RESUME (the reveal hands
-    that over)."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
@@ -343,10 +300,6 @@ def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path
 
 
 def test_seed_startup_states_holds_every_funestra_for_the_reveal(tmp_path: Path):
-    """Whatever mode is coming back, nothing plays until the loading screen is
-    gone.  The switch this replays would have started Genau outright — right for
-    a live switch, wrong here, where it would drive the OSR2 for the twenty
-    seconds the user spends watching a progress bar."""
     for mode in ("kino", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
@@ -356,7 +309,6 @@ def test_seed_startup_states_holds_every_funestra_for_the_reveal(tmp_path: Path)
 
 
 def _genau_play_verb(tmp_path: Path) -> str | None:
-    """The last PAUSE/RESUME queued for Genau — the one its drain leaves it on."""
     verbs = [
         verb for verb in (tmp_path / "genau_cmd.txt").read_text(encoding="utf-8").splitlines()
         if verb in ("PAUSE", "RESUME")
@@ -365,11 +317,6 @@ def _genau_play_verb(tmp_path: Path) -> str | None:
 
 
 def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: Path):
-    """The flags above do not reach Genau, so the hold has to be said on its own
-    channel as well.  Under Fun Time Genau runs in direct control, where the
-    paused flag is never read and the motion follows PAUSE/RESUME here — so the
-    switch's RESUME was still queued when Genau finished loading, and a session
-    resuming into genau or kino mode drove the OSR2 under the loading screen."""
     for mode in ("kino", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
@@ -377,8 +324,6 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
 
 
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
-    """With nothing asked for, both sinks come up unattenuated and unnarrowed —
-    what a first run, and every session before either was remembered, opens on."""
     volume_file = tmp_path / "audio_volume.txt"
     volume_file.write_text("0", encoding="utf-8")
 
@@ -389,9 +334,6 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
-    """the Main Funestra and the audio companion each launch unattenuated and neither reads a
-    level it already has, so seeding is the only way a resumed session comes up
-    as loud as it was left."""
     volume_file = tmp_path / "audio_volume.txt"
 
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
@@ -401,9 +343,6 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
 
 
 def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
-    """Genau draws the primary display's volume chip in the mode it owns the
-    screen, so it is told the level like the Main Funestra is — in every mode, not only its own,
-    or the chip it draws is wrong for as long as it takes the first "quieter"."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, volume=40, muted=True)
@@ -425,9 +364,6 @@ def test_seed_startup_states_holds_every_funestra_that_can_drive_the_osr2_to_its
 
 
 def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
-    """The companion is only asked to be quiet, so a mute reaches it as zero;
-    The Main Funestra also draws the control, so it gets the level and the flag and can say
-    muted rather than turned all the way down."""
     volume_file = tmp_path / "audio_volume.txt"
 
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40, muted=True)
@@ -437,10 +373,6 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
 
 
 def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tmp_path: Path):
-    """The playlist the Main Funestra is handed has already been narrowed and a list of
-    scripted videos looks like any other, so its HUD can only know from being
-    told — and it is told alongside the level, not instead of it: every verb
-    has to survive on a channel nothing has drained yet."""
     _seed_startup_states(tmp_path, main_list=MainListSettings(scripted_filter=True,
                                                                length=LengthMode.CLIPS))
 
@@ -449,11 +381,6 @@ def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tm
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
-    """The full keyword argument set for a start_core_session call.
-
-    Shared so the several start_core_session tests do not each re-spell the ~26
-    orchestration paths; each test binds what it needs from the returned dict.
-    """
     state_dir = tmp_path / "state"
     return dict(
         config_path="fun_time_config.json",
@@ -481,8 +408,6 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
 
 
 def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
-    """The first-run path: the state dir holds no playlists to resume, so the
-    session is built from scratch and launched."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     result_file = kwargs["result_file"]
@@ -498,17 +423,11 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         start_core_session(**kwargs)
 
-    # A satellite pair stranded by a prior crash on THIS session's own status
-    # files is reaped before the new one launches — and nothing beyond them, so a
-    # session running elsewhere on the machine survives our startup.
     reap.assert_called_once_with(
         "satellite",
         [state_dir / "portrait_status.txt", state_dir / "landscape_status.txt"],
     )
-    # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir, None)
-    # Seeded at what this session opens on — full volume for the sound, no cap on
-    # the OSR2, F-mode off, on the Main Funestra, with no session to come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
@@ -525,21 +444,12 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         mode="kino",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
-    # Both satellites' playlists, each built with its F-mode off — the flags default
-    # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
         portrait=SatelliteBuild(sources=kwargs["portrait"].sources),
         landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
         state_dir=state_dir,
         metadata_root=tmp_path / "metadata",
     )
-    # The two native satellites are launched with OUR python (the Funestra ships
-    # from this repo), the satellite module, the builder's playlists, and each
-    # side's file quartet.
-    # The whole launch bundle travels as the two slots — each Satellite's file
-    # quartet, log, playlist, rect and HUD file in one value — plus the shared
-    # settings, the sibling checkouts among them, because the satellites import
-    # funestra as the Main Funestra does.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
@@ -552,12 +462,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
 
 
 def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
-    """Last session's three playlist files and status files, on disk.
-
-    Each Funestra gets two videos drawn from the very dirs this session's source
-    spec names — the shape a real build leaves — and its status file
-    names the second, so a resume rotates that one to the front.
-    """
     state_dir = kwargs["state_dir"]
     state_dir.mkdir(parents=True, exist_ok=True)
     sources = {
@@ -582,9 +486,6 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
 
 
 def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_path: Path, caplog):
-    """Reopening Fun Time lands on the videos it was closed on: with last
-    session's playlist files still on disk, each is rotated onto the video that
-    Funestra published and no fresh shuffle is built over them."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -603,17 +504,11 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     for name, (first, second) in left_on.items():
         playlist = state_dir / f"{name}_playlist.tsv"
         assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
-    # Which videos you get is the whole difference between the two paths, so the
-    # session says which one it took.
     assert "Resumed last session's playlists" in caplog.text
 
 
 def test_a_session_that_ended_hosting_resumes_its_own_videos_not_the_hosted_apps(
         tmp_path: Path):
-    """Every session is BUILT in kino mode, so a session whose last session ended with
-    the hosted app holding the Funestras must not open playing that app's items
-    — which it did, held on a still nothing would page.  The session's own list
-    was waiting beside each of them the whole time."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -633,11 +528,6 @@ def test_a_session_that_ended_hosting_resumes_its_own_videos_not_the_hosted_apps
 
 
 def _run_start_core_session(kwargs: dict) -> str:
-    """start_core_session with what reaches outside the state dir patched away.
-
-    The seeding is left real — it only writes flags under the state dir, and it
-    is what puts a resumed session's sound level on both audio sinks.
-    """
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch(
@@ -649,10 +539,6 @@ def _run_start_core_session(kwargs: dict) -> str:
 
 
 def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
-    """Which Funestra owns the big display is a thing you set, so leaving the
-    session on Genau and reopening on the Main Funestra is an overnight reset like any other.
-    The mode is also handed back to the caller, because the windows have to be
-    parked to match it and only the sequencer holds their handles."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(
@@ -661,8 +547,6 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
 
     assert _run_start_core_session(kwargs) == "genau"
 
-    # Genau is held; the reveal is what then lets it drive, so no RESUME is
-    # seeded, and Kino's video stays held too.
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "SET_VOLUME 100 0",
     ]
@@ -735,9 +619,6 @@ def test_a_reopen_hands_genau_back_the_robot_hand_it_was_left_with(tmp_path: Pat
 
 
 def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path: Path):
-    """The video the loop was cut from was deleted since, so the rotation had
-    nothing to land on and some other video leads.  Sending the bounds anyway
-    would loop three seconds of a video the user never marked."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
@@ -750,8 +631,6 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
 
 
 def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
-    """Nothing to resume means no mode to come back to, and the Main Funestra's
-    own default is kino mode — the same one every session is built in."""
     kwargs = _start_core_session_kwargs(tmp_path)
 
     assert _run_start_core_session(kwargs) == "kino"
@@ -760,11 +639,6 @@ def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
 def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built_in(
     tmp_path: Path,
 ):
-    """The playlists that just came back were built under last session's F-mode,
-    filter, order and loop, and the dispatch loop opens on the state file — so
-    wiping it left the session playing favorites while every HUD said F-mode
-    was off, and the next "F-mode" then reported it *enabled* to no visible
-    effect.  What shaped the files on disk comes back with them."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
@@ -779,17 +653,10 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
     assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
-    # fun_time draws the satellites' HUD model and the dashboard's off that
-    # state, but the Main Funestra's own HUD can only know F-mode from being told — so it is
-    # told, or the Main Funestra is the one display that comes back saying nothing.
     assert "SET_F_MODE 1" in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
 def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path: Path):
-    """The level lives in the bridge, not in anything the Funestras read on their
-    own, so it reaches this session only by being seeded — to the audio
-    companion as the audible level, and to the Main Funestra as the level plus the mute it
-    draws over it."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(
@@ -826,9 +693,6 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
 
 
 def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):
-    """Nothing to resume: the builder wrote three new playlists with F-mode off,
-    so last session's state describes files that no longer exist.  This is also
-    what clears an OmniPause a crash left stranded."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_file = shared_state_path(kwargs["state_dir"])
     write_shared_state(state_file, BridgeState(main_scripted_filter=True, omni_paused=True))
@@ -840,9 +704,6 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
 
 def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_in(
         tmp_path: Path):
-    """F-mode, the order and the shuffle the session was left in are what the
-    Main Funestra's list is built from, starting at the video it was left on --
-    or one Funestra quietly holds the whole library while the HUDs say F-mode."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     state_dir = kwargs["state_dir"]
@@ -863,15 +724,9 @@ def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_
 def test_start_core_session_never_reopens_a_main_list_another_app_left(
     tmp_path: Path, caplog
 ):
-    """FunTimeVR writes its main playlist to the very file the desktop
-    session opens, and builds it from the VR library merged with this
-    one's — so reopening that file put VR videos on a desktop that must never
-    play them.  The satellites are another matter: both apps build them from the
-    same dirs, so their resume is still last session's and is kept."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
-    # The other app's addition: a video from a library this session never names.
     vr_video = tmp_path / "vr_library" / "headset scene.mp4"
     vr_video.parent.mkdir(parents=True, exist_ok=True)
     vr_video.write_bytes(b"")
@@ -893,11 +748,8 @@ def test_start_core_session_never_reopens_a_main_list_another_app_left(
         with caplog.at_level("INFO", logger="fun_time"):
             start_core_session(**kwargs)
 
-    # The Main Funestra comes back from this session's own library, and the foreign
-    # video is gone from it.
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
-    # The satellites keep the resume; nothing rebuilt them.
     build.assert_not_called()
     for name in ("portrait", "landscape"):
         first, second = left_on[name]
@@ -909,13 +761,6 @@ def test_start_core_session_never_reopens_a_main_list_another_app_left(
 def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
     tmp_path: Path, caplog
 ):
-    """Saying "exit VR" over a video the desktop can play keeps it playing.
-
-    FunTimeVR's rotation is the VR library merged with this one's, so the video
-    on screen is often one of this app's own — the list is built from this
-    app's library all the same, starting at that video.  Building alone is what
-    dropped the Main Funestra while both satellites came back untouched
-    (docs/entering-vr.md)."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -942,9 +787,6 @@ def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
 
 
 def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path: Path):
-    """The loop follows the video: it is queued only when the Main Funestra really
-    did come back onto the video it was cut from, and after a crossing that is
-    exactly when the rebuild could be rotated onto it."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -971,15 +813,11 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
 
 
 def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
-    """A prior session's OmniPause can strand "1" in the satellite paused files;
-    seed_startup_states does not touch them and nothing else clears them, so a
-    fresh session's satellites would read paused and never play (frozen at 0).
-    start_core_session must reset both to "0" before the satellites launch."""
     kwargs = _start_core_session_kwargs(tmp_path)
     portrait_paused = kwargs["portrait"].channels.paused
     landscape_paused = kwargs["landscape"].channels.paused
     portrait_paused.parent.mkdir(parents=True, exist_ok=True)
-    portrait_paused.write_text("1", encoding="utf-8")  # stranded by a prior OmniPause
+    portrait_paused.write_text("1", encoding="utf-8")
     landscape_paused.write_text("1", encoding="utf-8")
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
@@ -998,12 +836,6 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_playing(
     tmp_path: Path,
 ):
-    """Every session is BUILT in kino mode: the hosted app that owns those regions
-    is still booting when Fun Time opens, and nothing waits for it any more.  So
-    both Funestras come up playing whatever mode the last session ended in, and
-    the switch into origenerator mode — which the dispatch loop makes once the
-    app answers — is what pauses them.  Seeded paused off the resumed mode, they
-    sat frozen at position 0 under a mode nothing had entered."""
     kwargs = _start_core_session_kwargs(tmp_path)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
         portrait=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
@@ -1025,16 +857,6 @@ def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_play
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
-    """Opening Fun Time sends the OSR2 home before anything slow begins.
-
-    Startup runs long — two native Funestras decode their first frames while the Main Funestra
-    and Genau scan their libraries — and wherever the last session left the
-    device is where it would sit for all of it.  So the park is queued at the
-    very top, ahead of the launches that make the wait.  The broker reads its
-    command file on a tick and nothing clears it at broker startup, so the verb
-    keeps whether the broker is already up or is still coming up under
-    ``ensure_broker``.
-    """
     kwargs = _start_core_session_kwargs(tmp_path)
     broker_cmd_file = kwargs["broker_cmd_file"]
 
@@ -1050,9 +872,6 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
 
 
-# Genau runs on the Main Funestra's window, driven through files of its own, so
-# every Main Funestra launch carries them; spelled once so a test about something
-# else need not list them.
 GENAUS_FILES = dict(
     genau_command_file="a-state-dir/genau_cmd.txt",
     genau_paused_file="a-state-dir/genau_paused.txt",
@@ -1085,9 +904,6 @@ def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
 
 
 def test_the_main_funestra_is_handed_genaus_own_files(tmp_path: Path):
-    """Genau's channel, its pause and its status: each one named by the session,
-    because Genau resolving one from its own config is how its status once went
-    where the session never read it."""
     command = _launched_main_funestra(tmp_path)
 
     assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
@@ -1096,24 +912,16 @@ def test_the_main_funestra_is_handed_genaus_own_files(tmp_path: Path):
 
 
 def test_the_main_funestra_opens_genau_on_the_flick_it_was_left_showing(tmp_path: Path):
-    """Genau rescans its flicks folder every launch and starts at the top of it,
-    so the flick a session was left on comes back only by being named — on the
-    command line, since it has to be in hand before the first flick decodes."""
     command = _launched_main_funestra(tmp_path, genau_start_flick="C:/flicks/alpha.mp4")
 
     assert command[command.index("--genau-start-flick") + 1] == "C:/flicks/alpha.mp4"
 
 
 def test_the_main_funestra_names_no_flick_for_a_session_with_none_to_resume(tmp_path: Path):
-    """A first run, or a Genau that published nothing: the flag is left off
-    rather than passed empty, so Genau opens where its own scan starts."""
     assert "--genau-start-flick" not in _launched_main_funestra(tmp_path, genau_start_flick="")
 
 
 def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: Path):
-    """Genau's order comes back on the launch line, beside the flick: left off,
-    Genau's config decides, which is the shuffled order a session that was not
-    on Latest wants."""
     assert "--genau-latest" in _launched_main_funestra(tmp_path, genau_latest=True)
     assert "--genau-latest" not in _launched_main_funestra(tmp_path, genau_latest=False)
 
@@ -1173,9 +981,6 @@ def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quot
 
 
 def test_launch_main_funestra_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
-    """Without it the Funestra falls back beside its config, which is the primary
-    checkout's root: the mode it was last in and the point each video was left at
-    then land there as untracked files, dirtying main for everyone."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1243,8 +1048,6 @@ def test_launch_main_funestra_omits_metadata_dir_when_absent(tmp_path: Path):
 
 
 def test_launch_main_funestra_forwards_flicks_dir_when_given(tmp_path: Path):
-    """Genau's loop folder used to reach the Main Funestra through genau's config;
-    Fun Time hands it explicitly now, since the Funestra reads Fun Time's config."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1289,8 +1092,6 @@ def test_launch_main_funestra_omits_flicks_dir_when_absent(tmp_path: Path):
 
 
 def test_launch_main_funestra_hands_it_fun_times_icon(tmp_path: Path):
-    """the Main Funestra's window is one of Fun Time's, so it wears Fun Time's icon — the
-    launcher's to say, since the icon is not the Main Funestra's own."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1361,8 +1162,6 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         assert self._identity(command) == APP_USER_MODEL_ID
 
     def test_it_is_the_identity_the_pinned_shortcut_is_stamped_with(self):
-        """The icon and the name come off that shortcut, so a second spelling here
-        would group these windows under a button with no icon at all."""
         assert taskbar_identity_args() == ("--taskbar-identity", APP_USER_MODEL_ID)
 
     def test_a_branch_sessions_funestras_join_its_own_button_wearing_its_yellow_letter(
@@ -1406,12 +1205,6 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
 
 
 class TestTheCheckoutsTheMainFunestraStartsWith:
-    """``funestra`` resolves through this repo's venv, at the tag it pins.  Naming
-    a directory puts it on the Main Funestra's ``PYTHONPATH``, ahead of
-    site-packages, so a worktree can be run; without it a branch could only be
-    judged by landing it first.
-    """
-
     class _Proc:
         pid = 42
 
@@ -1439,9 +1232,6 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         assert self._path(popen)[0] == str(checkout)
 
     def test_several_checkouts_are_run_against_each_other(self, tmp_path: Path):
-        """A change is often in two of these repos at once — Fun Time's Main
-        Funestra on a channel in ../funestra — and running one branch against
-        the other's landed code is not running the change."""
         fun_time, core = tmp_path / "fun_time", tmp_path / "funestra"
         fun_time.mkdir()
         core.mkdir()
@@ -1454,8 +1244,6 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         assert self._path(popen)[:2] == [str(fun_time), str(core)]
 
     def test_naming_none_leaves_it_to_its_venv(self, tmp_path: Path):
-        """What every session did before this, and what an ordinary one still
-        does: nothing said about the path, so the venv's install answers."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(tmp_path))
@@ -1463,8 +1251,6 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
         assert "env" not in popen.call_args.kwargs
 
     def test_a_checkout_that_is_gone_is_dropped_rather_than_fatal(self, tmp_path: Path):
-        """A worktree named in the config outlives the worktree itself — a
-        session must still start rather than die on its way up."""
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}):
             launch_main_funestra(**self._main_funestra(tmp_path, sibling_checkouts=str(tmp_path / "removed")))
@@ -1639,9 +1425,6 @@ def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
 
 
 def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_path: Path):
-    """The dashboard has always run the checkouts a session names, and the
-    companion reads the same funestra beside it -- the flag files, and which
-    output the session's named device is."""
     checkout = tmp_path / "funestra"
     checkout.mkdir()
     result_file = tmp_path / "ui_companions.ini"
@@ -1679,10 +1462,6 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
 
 
 def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_path: Path):
-    """launch_core_apps spawns exactly two native satellites — portrait then
-    landscape — each with its own playlist and command/paused/status quartet, and
-    records both pids in the result INI.  The native Funestra owns its playlist and
-    plays at once, so nothing is enqueued, repeat-set, or waited for here."""
     result_file = tmp_path / "core_apps.ini"
     state_dir = tmp_path / "state"
     portrait_playlist = state_dir / "portrait_playlist.tsv"
@@ -1703,15 +1482,10 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
             result_file=result_file,
         )
 
-    # Exactly two native satellites: portrait first, then landscape.
     assert launch_satellite_mock.call_count == 2
     portrait_kwargs = launch_satellite_mock.call_args_list[0].kwargs
     landscape_kwargs = launch_satellite_mock.call_args_list[1].kwargs
 
-    # Each satellite gets OUR python, the satellite module, its own playlist,
-    # and its own command/paused/status quartet.  Each also gets a DISTINCT title
-    # so the sequencer can resolve each window to its slot by caption when the pid
-    # lookup fails — the portrait title on the Portrait Satellite, never swapped.
     assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
     assert portrait_kwargs["placement"].title == "Portrait AI Funestra"
@@ -1728,14 +1502,9 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert landscape_kwargs["channels"].paused == state_dir / "landscape_paused.txt"
     assert landscape_kwargs["channels"].status == state_dir / "landscape_status.txt"
 
-    # Each Satellite's crash log is its own file, so a death on one Satellite is legible
-    # without untangling it from the other's output.
     assert portrait_kwargs["log_file"] == state_dir / "portrait_satellite.log"
     assert landscape_kwargs["log_file"] == state_dir / "landscape_satellite.log"
 
-    # Each satellite launches straight into its own real rect, so the portrait
-    # rect must land on the portrait satellite and the landscape rect on the
-    # landscape one — never swapped.
     for kwargs, rect in ((portrait_kwargs, portrait_rect),
                          (landscape_kwargs, landscape_rect)):
         placed = kwargs["placement"]
@@ -1750,9 +1519,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert set(parser["result"].keys()) == {"portrait_pid", "landscape_pid"}
 
 
-
 def _a_satellite_channels(**overrides) -> SatelliteChannels:
-    """One Satellite's files, filled in: what a session hands a satellite."""
     return SatelliteChannels(
         playlist=Path("state/portrait_playlist.tsv"),
         command=Path("state/portrait_cmd.txt"),
@@ -1770,7 +1537,6 @@ def _a_satellite_argv(*, title="Portrait AI Funestra", **channels) -> list[str]:
 
 
 def _launch(funestra, sources, state_dir, rect) -> SatelliteLaunch:
-    """One Satellite's launch bundle, spelled the way the sequencer spells it."""
     satellite = funestra.label
     return SatelliteLaunch(
         funestra=funestra,
@@ -1815,26 +1581,18 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
 
 
 def test_build_satellite_launch_command_forwards_the_distinct_title():
-    # The two satellites carry distinct captions; the sequencer resolves each
-    # window to its place by title when the pid lookup fails, so a shared caption
-    # (or a dropped --title) would let the portrait/landscape windows cross.
     cmd = _a_satellite_argv(title="Landscape AI Funestra")
 
     assert cmd[cmd.index("--title") + 1] == "Landscape AI Funestra"
 
 
 def test_build_satellite_launch_command_leaves_the_audio_switchable():
-    # A satellite opens muted whatever it is launched with, so --no-audio would
-    # buy nothing here but a dead volume chip on its own window: the flag is the
-    # permanent silence the unattended hidden-desktop runs ask for by env var.
     cmd = _a_satellite_argv()
 
     assert "--no-audio" not in cmd
 
 
 def test_build_satellite_launch_command_passes_no_config_flag():
-    # The satellite CLI takes no --config (unlike the Main Funestra); it is fully specified by
-    # the file quartet and geometry, so none must be forwarded.
     cmd = _a_satellite_argv()
 
     assert "--config" not in cmd
@@ -1889,15 +1647,11 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
     stream = popen.call_args.kwargs["stdout"]
     assert popen.call_args.kwargs["stderr"] is stream
     assert Path(stream.name) == log_file
-    # The launcher keeps no handle of its own: a long-lived orchestrator would
-    # otherwise leak one per launch and block the log ever being rolled aside.
     assert stream.closed
     assert "-m satellite" in log_file.read_text(encoding="utf-8")
 
 
 def test_build_satellite_launch_command_forwards_the_hud_files():
-    """The HUD is drawn inside the Funestra now, so each satellite is told which
-    HUD file to render and where to post the clicks on it."""
     cmd = _a_satellite_argv(hud=Path("state/portrait_hud.json"),
                             dashboard_cmd=Path("state/dashboard_cmd.txt"))
 
@@ -1906,8 +1660,6 @@ def test_build_satellite_launch_command_forwards_the_hud_files():
 
 
 def test_build_satellite_launch_command_omits_an_absent_hud():
-    """No HUD file means no HUD: the flags are dropped rather than passed empty,
-    so a satellite launched without one simply draws no map."""
     cmd = _a_satellite_argv(hud=None, dashboard_cmd=None)
 
     assert "--hud-file" not in cmd
@@ -1915,23 +1667,8 @@ def test_build_satellite_launch_command_omits_an_absent_hud():
 
 
 class TestEveryChildIsLaunchedUnderAFunTimeName:
-    """Each app a session starts runs through a copy of the interpreter named
-    for its role, so the task list says which rows are Fun Time's.
-
-    Without this a stranded child is an anonymous ``pythonw.exe`` among the
-    user's other Python apps, and the only way to end it is to guess.  Asserted
-    at each launch site rather than on ``NAMER.named_exe`` alone: the
-    module can be right while a launcher still passes the plain interpreter
-    straight through, which is exactly how the audio companion came to be the
-    one process nobody could name.
-    """
-
     @staticmethod
     def _interpreter(tmp_path: Path) -> Path:
-        # A real interpreter, because naming one writes a description into its
-        # version resource and only a real executable can carry one — a stub
-        # file falls back to being launched unnamed, which is the very thing
-        # these assert against.
         exe = tmp_path / ".venv" / "Scripts" / "pythonw.exe"
         exe.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(sys.executable, exe)
@@ -2055,9 +1792,6 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
 
     def test_the_satellite_reap_can_still_find_a_funestra_under_its_new_name(self):
-        """The reap that clears stranded Funestras bounds itself by image name.
-        Renaming the Funestras without widening it would leave every one of them
-        beyond the reach of the sweep written to collect them."""
         assert 41 in _reaped_from_the_machine()
 
 
@@ -2074,11 +1808,6 @@ def _handed_funestras() -> dict[str, HandedFunestra]:
 
 
 def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
-    """The argv is origenerator's --fun-time contract: the RFB rect as the main
-    window's, both Satellite Funestras' channels, the hosted app's own files, and
-    the session's taskbar identity — run from the checkout so ``-m`` resolves
-    that checkout's code, exactly like its own launcher does."""
-
     class FakeProc:
         pid = 77
 
@@ -2124,21 +1853,12 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     ):
         assert flag in command, flag
         assert command[command.index(flag) + 1] == value, flag
-    # The Funestras are handed over, so the regions are no longer the hosted
-    # app's to cover with windows of its own: no rect of theirs goes across.
     assert not any(flag.startswith(("--portrait_", "--landscape_")) for flag in command)
-    # cwd is what picks the checkout: -m resolves the package from it.
     assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")
-    # A primary checkout is the live install — no branch-session flag.
     assert "env" not in popen.call_args.kwargs
 
 
 def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
-    """A worktree checkout is unlanded code under judgment, not the live
-    install: it seeds its database from the primary's and skips the library
-    maintenance only the live app should run — origenerator's own preview
-    launcher sets the same flag for the same reason."""
-
     class FakeProc:
         pid = 78
 
@@ -2173,8 +1893,6 @@ def test_a_hosted_checkout_is_run_from_its_own_install(tmp_path: Path):
 
 
 def test_a_hosted_worktree_is_run_from_the_primary_checkouts_install(tmp_path: Path):
-    """A worktree has no install of its own, and the primary's is the one its
-    own preview sessions run from."""
     primary = tmp_path / "origenerator"
     worktree = primary / ".claude" / "worktrees" / "my-branch"
     for command in (["init", str(primary)],
@@ -2187,9 +1905,6 @@ def test_a_hosted_worktree_is_run_from_the_primary_checkouts_install(tmp_path: P
 
 
 class TestLaunchingTheAudioCompanionOnItsOwn:
-    """The VR session launches the companion without the dashboard beside it,
-    and sends its sound to the headset."""
-
     def _launch(self, **over):
         with patch(
             "fun_time.windows_bridge_startup.subprocess.Popen", return_value=_FakeProc(33),
@@ -2225,10 +1940,6 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         assert "--audio-device" not in argv
 
     def test_it_runs_the_checkouts_this_session_names(self, tmp_path: Path):
-        """It reaches into funestra like every other child -- for the flag
-        files, and for which output a named device is -- so a branch of that
-        checkout has to reach it too, or the companion answers a session with
-        the landed copy while the Funestras beside it run the branch."""
         checkout = tmp_path / "funestra"
         checkout.mkdir()
 

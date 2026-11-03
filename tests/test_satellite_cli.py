@@ -50,22 +50,15 @@ def test_parser_accepts_the_file_quartet_and_geometry(tmp_path):
 
 
 def test_title_defaults_to_satellite():
-    """Standalone (no --title) keeps the plain caption used before fun_time
-    needed to tell the two apart."""
     assert build_parser().parse_args([]).title == "Satellite"
 
 
 def test_title_is_taken_from_the_flag():
-    """fun_time gives each satellite a distinct caption so the sequencer can
-    resolve each window to its Portrait or Landscape Satellite; a shared title crosses
-    them, which is the visual swap this prevents."""
     args = build_parser().parse_args(["--title", "Portrait AI Funestra"])
     assert args.title == "Portrait AI Funestra"
 
 
 def test_parser_takes_the_hud_and_command_files():
-    """The lock HUD is drawn inside the Funestra, so fun_time hands it the HUD to
-    render and the command file its clicks post back to."""
     args = build_parser().parse_args(
         ["--hud-file", "state/portrait_hud.json",
          "--dashboard-cmd-file", "state/dashboard_cmd.txt"]

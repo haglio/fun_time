@@ -1,4 +1,3 @@
-"""Which sibling checkouts a session runs, said by the checkout itself."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,8 +22,6 @@ class TestTheFileThatNamesTheSiblingCheckouts:
         assert sibling_checkouts_named_in(tmp_path) == ["C:/funestra-fix"]
 
     def test_a_worktree_from_before_the_rename_is_read_under_genaus_old_name(self, tmp_path: Path):
-        """Every worktree on the machine wrote it under that name until
-        2026-10-16, and each one rebased onto the rename still means it."""
         (tmp_path / "genau_project_dirs.txt").write_text("C:/funestra-fix\n", encoding="utf-8")
         assert sibling_checkouts_named_in(tmp_path) == ["C:/funestra-fix"]
 
@@ -39,8 +36,6 @@ class TestTheFileThatNamesTheSiblingCheckouts:
 
 class TestOverrideLines:
     def test_an_absent_file_is_not_an_empty_one(self, tmp_path: Path):
-        """None and [] are different answers: absent means the machine's config
-        still decides, empty means this checkout has overruled it."""
         assert override_lines(tmp_path / "nothing.txt") is None
         (tmp_path / "empty.txt").write_text("", encoding="utf-8")
         assert override_lines(tmp_path / "empty.txt") == []
@@ -52,8 +47,6 @@ class TestOverrideLines:
 
 
 def test_the_sys_path_override_only_adds_directories_that_exist(tmp_path, monkeypatch):
-    """A path naming a checkout that has been retired would otherwise sit in
-    front of the venv's install, shadowing nothing and finding nothing."""
     state = tmp_path / "state"
     state.mkdir()
     real = tmp_path / "real_checkout"
@@ -97,9 +90,6 @@ def _this_checkout_names(tmp_path, monkeypatch, override: str, entry: str) -> No
 
 
 def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path, monkeypatch, cfg_path):
-    """The branch-config generator runs the PRIMARY checkout's copy of this
-    module, so a branch that INTRODUCES the override cannot rely on it — the
-    orchestrator applies the file against its own checkout at launch instead."""
     _this_checkout_names(tmp_path, monkeypatch, ORIGENERATOR_DIR_OVERRIDE_NAME,
                          "C:/origenerator/.claude/worktrees/mine")
 
@@ -123,13 +113,10 @@ def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch
 
     config = apply_this_checkouts_overrides(load_config(cfg_path), integration=True)
 
-    assert config.paths.origenerator_dir is None  # the config's own answer stands
+    assert config.paths.origenerator_dir is None
 
 
 def test_a_session_runs_the_sibling_checkouts_its_own_checkout_names(tmp_path, monkeypatch, cfg_path):
-    """A production checkout from before 2026-10-16 reads only the file's old
-    name when it writes a preview's config, so a branch that names its checkouts
-    under the new one has them applied at launch, against its own checkout."""
     _this_checkout_names(tmp_path, monkeypatch, SIBLING_CHECKOUTS_OVERRIDE_NAME,
                          "C:/funestra/.claude/worktrees/mine")
 
@@ -140,9 +127,6 @@ def test_a_session_runs_the_sibling_checkouts_its_own_checkout_names(tmp_path, m
 
 def test_an_integration_run_keeps_the_sibling_checkouts_its_config_names(
         tmp_path, monkeypatch, cfg_path):
-    """A check that starts a Funestra on a checkout of its own -- one that dies
-    at import, say -- names it in the run's config, which already carries this
-    checkout's siblings."""
     _this_checkout_names(tmp_path, monkeypatch, SIBLING_CHECKOUTS_OVERRIDE_NAME,
                          "C:/funestra/.claude/worktrees/mine")
 

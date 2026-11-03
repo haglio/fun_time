@@ -1,4 +1,3 @@
-"""What kind of session this is, read once at the process edge."""
 from __future__ import annotations
 
 from fun_time.session_environment import SessionEnvironment
@@ -18,7 +17,6 @@ class TestFromEnviron:
         assert env.show_overlays is False
 
     def test_an_integration_run_can_ask_for_the_loading_screen_back(self):
-        """The hidden desktop tests the exact startup a real session takes."""
         env = SessionEnvironment.from_environ(
             {"FUN_TIME_RUN_INTEGRATION": "1", "FUN_TIME_INTEGRATION_OVERLAYS": "1"})
 

@@ -1,4 +1,3 @@
-"""The last listing of the library, kept so the next browse opens on it at once."""
 from __future__ import annotations
 
 import json
@@ -62,8 +61,6 @@ class TestWhatIsNotTrusted:
         assert remembered_listing(kept, lambda: _a_listing("a.mp4")) == ["a.mp4"]
 
     def test_an_empty_read_is_not_kept_over_what_was_there(self, kept):
-        """An unreachable drive lists as nothing, and keeping that would lose the
-        library until the next read happened to succeed."""
         remembered_listing(kept, lambda: _a_listing("a.mp4"))
 
         assert remembered_listing(kept, list, afresh=True) == []

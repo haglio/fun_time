@@ -1,11 +1,3 @@
-"""What this app reads off a library video's record, held to Evolver's promise.
-
-Evolver writes that record; this app reads one on every video it shows and
-writes one field back. Both spelled every block and field name for themselves,
-and nothing compared them: a key renamed there left this app quietly answering
-"nothing recorded" about a video whose record was right there. Walking up to
-evolver_contract.json is the one place the two can be compared.
-"""
 from __future__ import annotations
 
 import json
@@ -35,14 +27,10 @@ def _fields(block: str) -> set[str]:
 
 
 def test_the_kind_this_app_bands_videos_by_is_one_evolver_records():
-    """A kind spelled differently here puts every carved scene in the wrong
-    band, silently -- there is no error for a value that simply never matches."""
     assert media_metadata.EXCERPT in _record()["video_kinds"]
 
 
 def test_the_act_and_its_rejection_are_where_evolver_says():
-    """Clearing the act puts a video back in front of the backfill tool; the
-    rejection beside it says it was REJECTED rather than never labeled."""
     record = _record()
     video = record["blocks"]["video"]
 
@@ -52,7 +40,6 @@ def test_the_act_and_its_rejection_are_where_evolver_says():
 
 
 def test_every_field_a_videos_identity_is_built_from_is_promised():
-    """These decide which videos are kin; a moved field makes each its own."""
     assert set(video_families.VIDEO_BASE_FIELDS) <= _fields("video")
     assert set(video_families.IMAGE_IDENTITY_FIELDS) <= _fields("source_image")
 
@@ -66,8 +53,6 @@ def test_what_a_video_is_called_and_what_it_was_cut_from_are_promised():
 
 
 def test_the_orientation_the_portrait_and_landscape_buttons_read_is_promised():
-    """A field or a word spelled differently here leaves every video counted
-    landscape, silently, which is what an unmeasured one is."""
     assert media_metadata.ORIENTATION_FIELD in _fields("video")
     assert set(_record()["video_orientations"]) == set(ORIENTATIONS)
 
@@ -77,12 +62,8 @@ def test_the_running_time_f_mode_measures_a_funscript_against_is_promised():
 
 
 def test_the_playback_weight_this_app_draws_by_is_promised():
-    """A weight read as missing is a video shuffled as though nobody had ever
-    watched it."""
     assert "weight" in _fields(media_metadata.WATCH_BLOCK)
 
 
 def test_the_favorite_f_mode_keeps_is_the_mark_evolver_promises():
-    """A key spelled differently there leaves F-mode keeping nothing, and the
-    HUD's star dark on every video, with nothing to say why."""
     assert favorites.FAVORITE_KEY in _record()["top_level_keys"]

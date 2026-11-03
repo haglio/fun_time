@@ -1,4 +1,3 @@
-"""Unit tests: an integration run keeps its own time, and its tests time out on it."""
 from __future__ import annotations
 
 import threading

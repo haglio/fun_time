@@ -74,9 +74,9 @@ class TestEventLogHandler:
 
     def test_emit_never_raises_when_the_file_cannot_be_written(self, tmp_path: Path):
         logger = _logger(tmp_path / "missing_dir" / "deep" / "e.jsonl", "test.event_log.unwritable")
-        logger.handlers[0].path = tmp_path  # a directory: opening it for append fails
+        logger.handlers[0].path = tmp_path
 
-        logger.info("swallowed")  # must not raise
+        logger.info("swallowed")
 
 
 class TestNotice:
@@ -136,12 +136,6 @@ class TestReadEvents:
         assert read_events(tmp_path / "absent.jsonl") == ([], 0)
 
     def test_a_truncated_file_is_re_read_from_the_start(self, log_path: Path):
-        """A new session truncates the log; a stale offset must not skip it.
-
-        Written by hand rather than through a logger: the timestamps a logger
-        stamps vary in digit count, so the two files' sizes would not reliably
-        differ, and it is the shrink that read_events detects.
-        """
         log_path.write_text(
             '{"ts": 1.0, "level": 25, "source": "main", "msg": "a long line from the old session"}\n',
             encoding="utf-8",

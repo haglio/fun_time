@@ -29,10 +29,6 @@ class TestFindAudio:
 
 
 class TestTheFlagFilesThisProcessReads:
-    """Both are read through `funestra.file_channel.read_paused_state`, which
-    every other Funestra in the family already reads its own with.  This module
-    carried two byte-identical copies of that body, differing only in name."""
-
     @pytest.mark.parametrize("text, expected", [
         ("1", True), ("0", False), ("", False), ("true", False),
         (" 1 \n", True), ("\ufeff1", True),
@@ -48,7 +44,6 @@ class TestTheFlagFilesThisProcessReads:
 
     @staticmethod
     def _reader_the_runtime_was_given(tmp_path, cfg_path):
-        """The callable `main` actually hands the runtime, both times."""
         (tmp_path / "audio").mkdir(exist_ok=True)
         with patch.object(audio_companion_app.pygame.mixer, "init"), \
              patch.object(audio_companion_app, "AudioCompanionRuntime") as runtime, \
@@ -68,9 +63,6 @@ class TestTheFlagFilesThisProcessReads:
     ])
     def test_that_reader_is_the_one_this_process_hands_its_runtime(
             self, tmp_path, cfg_path, unmuted, text: str, expected: bool):
-        """Not the library function in the abstract — the closure `main` builds.
-        Invert it and the companion plays whenever genau mode is OFF; nothing
-        else in the suite would message."""
         read_flag = self._reader_the_runtime_was_given(tmp_path, cfg_path)
         path = tmp_path / "flag.txt"
         path.write_text(text, encoding="utf-8")
@@ -144,8 +136,6 @@ class TestAudioPlaybackController:
         )
 
     def _running(self, tmp_path: Path, monkeypatch):
-        """A controller in genau mode with a real flick file, a remembering
-        mixer, and a hand-turned clock."""
         music = _FakeMusic()
         clock = {"now": 100.0}
         monkeypatch.setattr(
@@ -176,11 +166,11 @@ class TestAudioPlaybackController:
         clock["now"] += 4.0
         controller.handle_udp_line("VISIBLE 0")
 
-        clock["now"] += 60.0  # hidden time must not advance the clip
+        clock["now"] += 60.0
         controller.handle_udp_line("VISIBLE 1")
 
         assert music.events[-1] == "unpause"
-        assert music.play_starts == [0.0]  # resumed, never re-played
+        assert music.play_starts == [0.0]
         clock["now"] += 1.0
         assert controller.current_position_for_active_clip() == pytest.approx(5.0)
 
@@ -196,7 +186,6 @@ class TestAudioPlaybackController:
         controller.switch_clip(first)
 
         assert music.loaded == str(first)
-        # Back where it left off — three seconds in, not the top.
         assert music.play_starts[-1] == pytest.approx(3.0)
 
     def test_manual_pause_holds_even_while_visible_and_a_resume_lifts_it(self, tmp_path, monkeypatch):
@@ -274,13 +263,11 @@ class TestAudioPlaybackController:
         music = MagicMock()
         controller = self._make_controller(tmp_path, music)
 
-        controller.set_volume(100)  # already full
+        controller.set_volume(100)
 
         music.set_volume.assert_not_called()
 
     def test_a_force_muted_controller_never_touches_the_mixer(self, tmp_path: Path):
-        """FUN_TIME_MUTE_AUDIO silences hidden and integration runs; no level the
-        bridge publishes may bring their sound back."""
         music = MagicMock()
         controller = self._make_controller(tmp_path, music, force_muted=True)
 
@@ -293,16 +280,11 @@ class TestAudioPlaybackController:
         clip = tmp_path / "demo.mp3"
         clip.write_bytes(b"demo")
 
-        controller.clip_lengths[clip] = 10.0  # the cache the real lookup fills
+        controller.clip_lengths[clip] = 10.0
         assert controller.normalize_position(clip, 12.5) == pytest.approx(2.5)
 
 
 class TestWhenTheSoundWillNotDoWhatItIsAsked:
-    """This process is launched hidden with its stdout redirected to a child
-    log, so a swallowed failure is the difference between a diagnosable line
-    and a companion that simply plays nothing.  None of these arms was reached
-    by any test before."""
-
     @staticmethod
     def _controller(tmp_path, music, **overrides):
         return AudioPlaybackController(
@@ -334,8 +316,6 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
 
     def test_a_seek_that_fails_after_the_start_says_so_and_carries_on(
             self, tmp_path, caplog):
-        """The older channel path: play() takes no start, so the position is
-        set afterwards — and that call can fail on its own."""
         music = MagicMock()
         music.play.side_effect = [TypeError("no start="), None]
         music.set_pos.side_effect = RuntimeError("format cannot seek")
@@ -353,8 +333,6 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
         assert "seek" in caplog.text.lower()
 
     def test_a_clip_that_cannot_be_measured_does_not_wrap(self, tmp_path):
-        """The length lookup answers None, and a position past the end is then
-        left alone rather than being taken modulo nothing."""
         controller = self._controller(tmp_path, MagicMock())
         clip = tmp_path / "demo.mp3"
 
@@ -362,8 +340,6 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
 
     def test_measuring_a_clip_is_where_the_sound_librarys_failures_live(
             self, tmp_path, cfg_path, unmuted):
-        """main binds the measurement, so the controller can take any source
-        that answers None — and the warning names the clip."""
         (tmp_path / "audio").mkdir(exist_ok=True)
         logger = MagicMock()
         with patch.object(audio_companion_app.pygame.mixer, "init"), \
@@ -385,11 +361,6 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
 
 
 class TestTheOutputItPlaysOn:
-    """In VR the clip music belongs on the headset with everything else the
-    session plays; the default device is the room's speakers.  Which output a
-    name means is funestra's rule, the one the Funestras follow -- what is
-    tested here is that the companion asks it and opens on the answer."""
-
     STREAMING = "Speakers (Example AirLink)"
     HEADSET = "Headphones (Example Headset)"
     NAMES: ClassVar[list[str]] = ["Speakers (Example Audio)", HEADSET, "Digital Output"]
@@ -418,8 +389,6 @@ class TestTheOutputItPlaysOn:
         init.assert_any_call(devicename=self.HEADSET)
 
     def test_a_name_no_output_carries_means_the_default(self):
-        """Rather than a companion that will not start: the session still plays,
-        through the room."""
         with patch("fun_time.audio_companion_app.get_audio_device_names", return_value=self.NAMES), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \
              patch.object(audio_companion_app.pygame.mixer, "quit"):
@@ -429,7 +398,6 @@ class TestTheOutputItPlaysOn:
         init.assert_called_with(devicename=None)
 
     def test_the_outputs_are_listed_only_once_the_audio_subsystem_is_up(self):
-        """Listing before the mixer opened raised "Audio system not initialised", crashing the companion on every VR launch."""
         audio_up = False
 
         def opened(devicename=None):
@@ -453,7 +421,6 @@ class TestTheOutputItPlaysOn:
         assert picked == self.HEADSET
 
     def test_with_nothing_wanted_the_devices_are_not_even_listed(self):
-        """The desktop session: the default output, no SDL device enumeration."""
         with patch("fun_time.audio_companion_app.get_audio_device_names") as listed, \
              patch.object(audio_companion_app.pygame.mixer, "init") as init:
             picked = init_mixer(None)

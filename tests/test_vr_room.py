@@ -1,4 +1,3 @@
-"""What the headset's room holds, gathered from the things that hang it there."""
 from __future__ import annotations
 
 import ast
@@ -21,8 +20,6 @@ def _screen(name: str, **flags) -> Screen:
 
 
 class _Thing:
-    """Something in the room, hanging whatever it was given."""
-
     def __init__(self, *hangings: Hanging) -> None:
         self._hangings = hangings
 
@@ -58,7 +55,6 @@ class TestWhatThePointerIsOffered:
             _Thing(Hanging(_screen("notes"))), stacking=stacking) == ["clock", "alarm", "notes"]
 
     def test_a_screen_docked_to_another_comes_forward_when_that_one_does(self):
-        """It rides on what is above it, without being part of it."""
         stacking = Stacking()
         stacking.take("clock")
 
@@ -111,8 +107,6 @@ class TestWhatReachesTheEyes:
         assert [mesh for mesh, _frame, _blend in drawn] == ["clock", "notes"]
 
     def test_a_screen_the_compositor_took_as_a_quad_is_left_out(self):
-        """The runtime composites those over this layer, so drawing it here
-        would show through whatever the quad is under."""
         assert self._drawn(_hanging("notes"), _hanging("clock"), as_quads=("notes",)) == [
             ("clock", "clock", False)]
 
@@ -134,8 +128,6 @@ class TestWhatReachesTheEyes:
 
 
 class _Hanger:
-    """Something in the room that hangs nothing, but is moved by a drag."""
-
     def __init__(self, hangs) -> None:
         self._hangs = hangs
 
@@ -163,7 +155,6 @@ class TestWhereEachScreenHangs:
         assert moved.placement == ELSEWHERE
 
     def test_two_things_hanging_by_one_name_both_move(self):
-        """The Main Funestra is two Funestras' screens, whichever is showing."""
         one, other = _Moved(SOMEWHERE), _Moved(SOMEWHERE)
 
         where = room.where_they_hang([_Hanger({"main": room.Hangs((one,))}),
@@ -183,20 +174,12 @@ class TestWhereEachScreenHangs:
         assert where["notes"].spot("notes") == "notes"
 
     def test_a_screen_with_two_spots_says_which_one_the_drag_landed_in(self):
-        """The dashboard keeps one spot for each of the places it hangs."""
         hangs = room.Hangs((_Moved(SOMEWHERE),), kept_as=lambda: "wrapped")
 
         assert room.where_they_hang([_Hanger({"dash": hangs})])["dash"].spot("dash") == "wrapped"
 
 
 class TestTheGatesOnTheRoomsAssembly:
-    """Two branches that each added a screen used to conflict on six places at
-    once — both assembly functions, both call sites, the frame loop's own map
-    and the loop's construction — because every screen was threaded through the
-    loop by hand.  These hold that shut: the assembly knows nothing about what
-    kinds of screen there are, and a screen is registered in one place.
-    """
-
     def _source(self, thing) -> str:
         return inspect.getsource(thing).lstrip()
 
@@ -213,7 +196,6 @@ class TestTheGatesOnTheRoomsAssembly:
                 if name.isupper() and isinstance(value, str) and value == value.lower()}
 
     def test_there_are_screens_and_names_to_find(self):
-        """The two gates below pass trivially if these ever come back empty."""
         assert len(self._kinds_of_screen()) >= 8
         assert len(self._screen_names()) >= 7
 
@@ -221,7 +203,6 @@ class TestTheGatesOnTheRoomsAssembly:
         assert self._kinds_of_screen() & self._names_in(self._source(funestras.draw_eyes)) == set()
 
     def test_the_assembly_names_no_kind_of_screen_and_no_screen(self):
-        """It is handed what each thing hangs, and walks that."""
         named = self._names_in(self._source(under_test))
 
         assert self._kinds_of_screen() & named == set()
@@ -233,8 +214,6 @@ class TestTheGatesOnTheRoomsAssembly:
         funestras.Arrangement.arrange, funestras.Arrangement._move,
     ])
     def test_the_frame_loop_names_no_screen_of_its_own(self, step):
-        """Every screen it works on comes from the room, so adding one is a
-        registration rather than a line in here."""
         assert self._screen_names() & self._names_in(self._source(step)) == set()
 
     def _spots_held_by(self, module) -> dict[str, object]:
@@ -243,9 +222,6 @@ class TestTheGatesOnTheRoomsAssembly:
                     isinstance(one, Placement) for one in value.values()))}
 
     def test_no_screen_keeps_its_opening_spot_anywhere_but_on_its_own_unit(self):
-        """The second place a new screen had to be written: one line of data in
-        the layout module beside its unit.  Two branches adding unrelated
-        screens met there; there is nowhere left for them to meet."""
         assert self._spots_held_by(layout) == {}
         assert {name for name, kind in vars(funestras).items()
                 if isinstance(kind, type) and getattr(kind, "SPOTS", None)} == {

@@ -1,4 +1,3 @@
-"""The OSR2 part the Dashboard draws, and the OSR2 button every Funestra wears."""
 from __future__ import annotations
 
 import pytest
@@ -43,9 +42,6 @@ def _actions(part) -> list[str]:
 
 
 class TestTheOsr2Switch:
-    """One switch saying what the room is doing to the OSR2: on while driving,
-    off while parked, and a press flips it."""
-
     def test_it_is_there_whichever_funestra_has_the_osr2_in_either_mode(self):
         for holder in FunTimeFunestra:
             for mode in MainMode:
@@ -89,17 +85,6 @@ class TestTheRowThatAimsTheDevice:
 
 
 class TestTheReadoutTheWordLeaves:
-    """The part the feed publishes and the drive readout a press lands on,
-    joined up.
-
-    Kept together because the failure lived in the seam and neither half could
-    see it: the word published was tested on its own and the painter for what
-    it does with a word handed to it, so a genau-mode session publishing
-    "funscript" -- the word for "somebody else has the device" -- passed both
-    suites while every mark and every draggable band on Genau's own readout
-    silently refused to be pressed.
-    """
-
     @staticmethod
     def _readout(main_mode: MainMode, *, funscript_driving: bool, max_intensity: int = 100,
                  tmp_path):
@@ -127,9 +112,6 @@ class TestTheReadoutTheWordLeaves:
         return left + x + w // 2, top + y + h // 2
 
     def test_genaus_marks_and_bands_answer_a_press_in_genau_mode(self, tmp_path):
-        """Even with the video the Main Funestra is parked on carrying a funscript:
-        the Main Funestra is not on screen there, so nothing of its is driving and
-        Genau's controls are live."""
         painter = self._readout(MainMode.GENAU, funscript_driving=True, tmp_path=tmp_path)
 
         marks = {b.command: r for r, b in painter.buttons
@@ -142,8 +124,6 @@ class TestTheReadoutTheWordLeaves:
             assert painter.holding, f"the {track.axis} band at {track.rect} refused a press"
 
     def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
-        """In kino mode the two drivers take turns on one device, and adjusting a
-        motion Genau is not sending is what put both of them on it at once."""
         painter = self._readout(MainMode.KINO, funscript_driving=True, tmp_path=tmp_path)
 
         for track in self._readouts_own(painter):
@@ -159,8 +139,6 @@ class TestTheReadoutTheWordLeaves:
 
 
 class TestTheBroker:
-    """The device's own control: the broker that talks to the OSR2 at all."""
-
     @pytest.mark.parametrize("running", [True, False])
     def test_the_part_wears_funestras_broker_button_as_the_broker_stands(self, running):
         assert _part(broker=running).osr2_controls == osr2_controls(broker_running=running)

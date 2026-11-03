@@ -62,27 +62,21 @@ class TestGroupVersions:
         groups = group_versions([scripted, unscripted])
 
         assert len(groups) == 1
-        assert groups[0].canonical is unscripted  # larger
+        assert groups[0].canonical is unscripted
         assert groups[0].alternates == [scripted]
         assert groups[0].alternates[0].funscript == Path("John-Roe.funscript")
 
     def test_upscale_with_appended_tag_folds_into_original(self):
-        # The real-world miss: the upscale is the original's name plus an
-        # appended tag, and the original's trailing hash is stripped while the
-        # upscale keeps it mid-name — so exact-title matching split them. A
-        # token-wise prefix match ("richard roe" begins the upscale) folds them.
         original = _entry("Richard-Roe-ab12cd34.mp4", size=166)
         upscale = _entry("Richard-Roe-ab12cd34_3_apf2_iris2.mp4", size=6035)
 
         groups = group_versions([original, upscale])
 
         assert len(groups) == 1
-        assert groups[0].canonical is upscale  # larger
+        assert groups[0].canonical is upscale
         assert groups[0].alternates == [original]
 
     def test_numbered_scenes_with_shared_prefix_stay_separate(self):
-        # Same performer, different scene index — NOT versions of each other,
-        # even though they share the first two tokens.
         one = _entry("Mary-Roe-1_1080-wxyzabcd.mp4", size=1043)
         two = _entry("Mary-Roe-2_720-mnpq12rs.mp4", size=347)
 
@@ -91,10 +85,6 @@ class TestGroupVersions:
         assert len(groups) == 2
 
     def test_upscales_of_different_numbered_scenes_form_separate_pairs(self):
-        # Several short scenes, each with an appended-tag upscale, must fold
-        # into one pair per scene — not a single over-grouped blob (which the
-        # old first-two-tokens + duration heuristic produced for same-length
-        # videos of one performer).
         entries = []
         for n in (1, 2, 3):
             entries.append(_entry(f"clip-{n}.mp4", size=10))
@@ -106,10 +96,6 @@ class TestGroupVersions:
         assert all(len(g.entries) == 2 for g in groups)
 
     def test_bracketed_numbers_mark_different_scenes(self):
-        # A downloader that meets the same title twice names the second copy
-        # "(1)", the third "(2)".  Those are different scenes, so the plain
-        # name must not anchor a group they all join -- but a tag appended to
-        # one of them is still a version of THAT scene.
         plain = _entry("Jane Doe - Example Studio.mp4", size=100)
         second = _entry("Jane Doe - Example Studio (1).mp4", size=110)
         third = _entry("Jane Doe - Example Studio (2).mp4", size=120)
@@ -128,12 +114,7 @@ class TestGroupVersions:
         assert upscaled.alternates == [third]
 
 
-
 class TestRecordedFamiliesSplitByCopyIndex:
-    """Evolver records one family id for every file whose name begins the same
-    way, so a downloaded set comes back as one family when it is several scenes.
-    The id still anchors the family; the bracketed number refines it."""
-
     def _grouped(self, names):
         ids = dict.fromkeys(names, "Jane Doe - Example Studio")
         entries = [_entry(name, size=100 + i) for i, name in enumerate(names)]
@@ -163,8 +144,6 @@ class TestRecordedFamiliesSplitByCopyIndex:
         }
 
     def test_a_family_with_no_numbers_in_it_is_untouched(self):
-        """A hand-renamed re-encode is exactly what the recorded id is for, and
-        nothing here may come between it and its original."""
         groups = self._grouped([
             "Jane Doe - Example Studio.mp4",
             "a totally different name.mp4",
@@ -197,16 +176,13 @@ class TestVersionIndex:
 
 class TestRealWorldNameGrouping:
     def test_original_with_hash_and_appended_upscale_fold(self):
-        # The upscale is the original's name — trailing hash and all — plus an
-        # appended pipeline tag, so the original's normalized title is a clean
-        # token prefix of the upscale's. This is the dominant real-world shape.
         original = _entry("redacted_560-XmbgwUF4.mp4", size=289_000_000)
         upscale = _entry("redacted_560-XmbgwUF4_apo8_iris2.mp4", size=31_822_000_000)
 
         groups = group_versions([original, upscale])
 
         assert len(groups) == 1
-        assert groups[0].canonical is upscale  # larger file
+        assert groups[0].canonical is upscale
         assert groups[0].alternates == [original]
 
     def test_different_scene_names_stay_separate(self):
@@ -223,8 +199,6 @@ class TestCollapsePlaylistVersions:
         return version_index_from_groups(group_versions(entries))
 
     def test_keeps_one_slot_per_group_at_first_seen_position(self):
-        # A rotation listing both original and upscale collapses to the larger,
-        # at the first-seen position, dropping the later duplicate.
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
         items = [
             PlaylistItem(Path("Richard.mp4")),
@@ -248,7 +222,6 @@ class TestCollapsePlaylistVersions:
         assert result == [(Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript"))]
 
     def test_keeps_only_present_member_when_larger_absent(self):
-        # F-mode may have filtered the upscale out; keep whatever version is here.
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
         items = [PlaylistItem(Path("Richard.mp4"), Path("Richard.funscript"))]
 
@@ -271,7 +244,7 @@ class TestGroupVersionsByRecordedId:
         groups = group_versions([a, b], ids.get)
 
         assert len(groups) == 1
-        assert groups[0].canonical is b  # larger
+        assert groups[0].canonical is b
         assert groups[0].alternates == [a]
 
     def test_videos_without_a_recorded_id_fall_back_to_name_grouping(self):
@@ -279,7 +252,7 @@ class TestGroupVersionsByRecordedId:
         rec_b = _entry("other.mp4", 100)
         richard = _entry("Richard.mp4", 50)
         richard_up = _entry("Richard_topaz.mp4", 800)
-        ids = {rec_a.video: "f", rec_b.video: "f"}  # these two have no sidecar
+        ids = {rec_a.video: "f", rec_b.video: "f"}
 
         groups = group_versions([rec_a, rec_b, richard, richard_up], ids.get)
 

@@ -116,8 +116,6 @@ def _snapshot(**overrides) -> DashboardSnapshot:
 
 @pytest.fixture
 def dashboard_app_config(cfg_path):
-    """The dashboard's own config, loaded back off a written manifest exactly
-    the way the real dashboard process loads it."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     return load_dashboard_app_config(manifest_path)
@@ -196,16 +194,7 @@ def _fill(scene, rect):
     return next(item.fill for item in scene.rects if item.rect == rect)
 
 
-# --- the control bar ---------------------------------------------------------
-# Every Funestra draws its own HUD, so what is left on the bar is the handful of
-# controls that belong to no Funestra.
-
-
 def test_the_bar_carries_only_what_belongs_to_no_funestra():
-    """Quit, pause everything, the reference popup, and the microphone — then the
-    room's own F-mode and Reset All, and the way across to the headset.  Anything
-    about ONE Funestra, the broker and that Funestra's own F-mode and reset
-    included, is on that Funestra's HUD."""
     scene = _scene()
 
     assert [action for action, _rect in scene.actions] == [
@@ -215,9 +204,6 @@ def test_the_bar_carries_only_what_belongs_to_no_funestra():
 
 
 def test_the_every_funestra_pair_and_the_crossing_each_stand_in_a_group_of_their_own():
-    """The four before them are the session's own chrome; F-mode and Reset All
-    reach into all three Funestras and Enter VR ends the session altogether, so
-    none of them reads as one more of the four."""
     layout = compute_dashboard_bar_layout()
 
     assert layout.fmode_button.x - (layout.voice_panel.x + layout.voice_panel.width) == GROUP_GAP
@@ -269,9 +255,6 @@ def test_the_filter_row_makes_the_window_taller_rather_than_the_list_shorter(pla
 
 
 def test_the_window_is_the_bar_and_the_log_under_it():
-    """The window used to be as tall as a scale drawing of the taller monitor,
-    with the log squeezed into the strip beside it.  Now it is the bar plus the
-    log — a fraction of the height, which the browser below inherits."""
     layout = compute_dashboard_bar_layout()
 
     assert dashboard_window_height() > layout.height
@@ -304,8 +287,6 @@ def test_a_branch_session_names_itself_in_the_preview_ink_and_says_what_it_demos
 
 
 def test_the_pause_button_says_which_way_it_will_go():
-    """Paused, it offers to resume; running, it offers to pause — the button is
-    the action it will take, not the state it is in."""
     layout = compute_dashboard_bar_layout()
 
 
@@ -319,8 +300,6 @@ def test_the_pause_button_says_which_way_it_will_go():
 
 
 def test_pausing_everything_does_not_paint_the_button_a_state_color():
-    """The chips beside it are lights; this is a button, and coloring it would
-    read as one of them having come on."""
     layout = compute_dashboard_bar_layout()
 
     assert _fill(_scene(_snapshot(omni_paused=True)), layout.omnipause_button) == COLOR_PANEL
@@ -335,7 +314,6 @@ def test_the_microphone_comes_on_with_what_it_reports():
 
 
 def test_the_microphone_carries_its_own_mark():
-    """It is an icon rather than a word, so the bar stays a bar."""
     layout = compute_dashboard_bar_layout()
     drawn = {item.rect for item in _scene().images}
 
@@ -343,13 +321,6 @@ def test_the_microphone_carries_its_own_mark():
 
 
 def test_the_microphone_is_the_one_the_family_shares():
-    """Origenerator's toolbar wears this same drawing.
-
-    The two apps sit on one screen at once, and while each painted its own
-    microphone the two icons came out visibly different shapes -- one control
-    reading as two.  So the icon on the panel has to be the shared glyph itself,
-    pixel for pixel, rather than a copy that can drift from it again.
-    """
     panel = compute_dashboard_bar_layout().voice_panel
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
@@ -372,9 +343,6 @@ def test_a_control_whose_mark_this_version_lacks_says_why_on_hover():
 
 
 def test_a_pressed_control_lightens_while_the_press_shows():
-    """Onto the family's own on-ground, which is what Origenerator's toolbar
-    lights a control with -- these buttons had their own lightening before, and
-    sat on a darker resting ground than any other app's."""
     layout = compute_dashboard_bar_layout()
 
     resting = _fill(_scene(), layout.quit_button)
@@ -385,8 +353,6 @@ def test_a_pressed_control_lightens_while_the_press_shows():
 
 
 def test_a_control_wearing_a_state_color_lightens_that_color_instead():
-    """A pressed voice panel has to stay blue.  Sending every press to the one
-    gray ground would say "voice is off" for as long as the finger is down."""
     layout = compute_dashboard_bar_layout()
 
     pressed = _fill(_scene(_snapshot(voice_active=True),
@@ -397,8 +363,6 @@ def test_a_control_wearing_a_state_color_lightens_that_color_instead():
 
 
 def test_the_config_reads_only_what_the_bar_needs(cfg_path: Path, tmp_path: Path):
-    """The dashboard used to read every Funestra's status file to draw its panels.
-    It draws no panels, so it reads none of them."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config, tmp_path / "manifest.ini")
 
@@ -433,9 +397,9 @@ def test_write_dashboard_command_retries_past_a_transient_file_lock(
     monkeypatch.setattr(Path, "open", flaky_open)
 
     with sleeps_in(file_channel):
-        write_dashboard_command(command_file, "quit")  # must not raise
+        write_dashboard_command(command_file, "quit")
 
-    assert attempts["n"] >= 2  # retried past the first failure
+    assert attempts["n"] >= 2
     assert command_file.read_text(encoding="utf-8").strip() == "quit"
 
 
@@ -456,15 +420,12 @@ def test_write_dashboard_command_drops_rather_than_raises_when_locked(
     monkeypatch.setattr(Path, "open", always_locked)
 
     with sleeps_in(file_channel):
-        write_dashboard_command(command_file, "quit")  # must not raise
+        write_dashboard_command(command_file, "quit")
 
     assert not command_file.exists()
 
 
 def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
-    """Two clicks landing between dispatch-loop drains must both survive: the
-    writer appends newline-terminated lines, so ``poll_dashboard_commands`` reads
-    both in order rather than only the last."""
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
 
     write_dashboard_command(command_file, "portrait_lock")
@@ -493,8 +454,6 @@ def _window_under_the_loading_screen(app_config, **placed):
 
 
 def test_minimize_routes_omniminimize_command(dashboard_window, dashboard_app_config):
-    """Minimizing the dashboard writes the omniminimize command for the dispatch loop."""
-
     window = dashboard_window
 
     cmd_file = dashboard_app_config.dashboard_cmd_file
@@ -507,19 +466,15 @@ def test_minimize_routes_omniminimize_command(dashboard_window, dashboard_app_co
 
 
 def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboard_app_config):
-    """Only the not-minimized -> minimized transition routes; restore/repeat do not."""
-
     window = dashboard_window
     window.setWindowState(Qt.WindowState.WindowMinimized)
 
     cmd_file = dashboard_app_config.dashboard_cmd_file
     cmd_file.unlink()
 
-    # Already minimized, state re-asserted — no new transition.
     window.setWindowState(Qt.WindowState.WindowMinimized)
     assert not cmd_file.exists()
 
-    # Restore (minimized -> normal) routes its own command, never this one.
     window.setWindowState(Qt.WindowState.WindowNoState)
     assert "omniminimize" not in cmd_file.read_text(encoding="utf-8")
 
@@ -537,10 +492,6 @@ def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_
 
 
 def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_config):
-    """The reveal from hidden fires no restore edge, so the FIRST edge after
-    it is the reveal's own restore: it must not route omnirestore — but it
-    must clear the suppression, or the dashboard silently stops routing the
-    minimize gestures for the rest of the session."""
     window = _window_under_the_loading_screen(dashboard_app_config)
     assert window._reveal.routing_suppressed is True
     cmd_file = dashboard_app_config.dashboard_cmd_file
@@ -549,7 +500,7 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_con
 
     window.setWindowState(Qt.WindowState.WindowMinimized)
     window.setWindowState(Qt.WindowState.WindowNoState)
-    assert not cmd_file.exists()  # the reveal's own edge routes nothing
+    assert not cmd_file.exists()
 
     window.setWindowState(Qt.WindowState.WindowMinimized)
     cmd_file.unlink()
@@ -559,10 +510,6 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_con
 
 
 def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_config):
-    """The deferred half of the geometry guard: while the window is hidden
-    under the loading screen, a render must not touch its geometry — the
-    reveal owns the first placement.  (The minimized half has its own test
-    below.)"""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     window = _window_under_the_loading_screen(dashboard_app_config, launch_geometry=launch_geo)
 
@@ -575,19 +522,15 @@ def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_
 
 
 def test_restore_routes_omnirestore_command(dashboard_window, dashboard_app_config):
-    """Un-minimizing the dashboard writes omnirestore so the others come back too."""
-
     window = dashboard_window
     window.setWindowState(Qt.WindowState.WindowMinimized)
 
     cmd_file = dashboard_app_config.dashboard_cmd_file
     cmd_file.unlink()
 
-    # Restore edge (minimized -> normal) routes omnirestore.
     window.setWindowState(Qt.WindowState.WindowNoState)
     assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
 
-    # Steady state and the minimize edge must not route omnirestore.
     cmd_file.unlink()
     window.setWindowState(Qt.WindowState.WindowNoState)
     assert not cmd_file.exists()
@@ -596,8 +539,6 @@ def test_restore_routes_omnirestore_command(dashboard_window, dashboard_app_conf
 
 
 def test_do_render_skips_geometry_reapply_while_minimized(dashboard_window, dashboard_app_config):
-    """The refresh loop must not re-assert geometry on a minimized window (which would restore it)."""
-
     window = dashboard_window
 
     with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
@@ -612,10 +553,6 @@ def test_do_render_skips_geometry_reapply_while_minimized(dashboard_window, dash
 
 
 def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
-    """While startup is still building Fun Time the dashboard is fully hidden
-    (SW_HIDE) — never shown, never minimized — so there is no flash and no
-    minimize animation.  Built by hand: the deferral is decided at
-    construction, so the patches must wrap the build itself."""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     show_window = MagicMock()
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
@@ -634,11 +571,6 @@ def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
 
 
 def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
-    """Once startup reaches its last phase the dashboard is shown (SW_SHOW) and
-    minimize routing is re-enabled — a reveal from hidden fires no restore edge
-    to do it.  The loading screen is still up at that point; the two tests below say
-    where the panel is put relative to it.  Built by hand: the deferral is
-    decided at construction, so the patch must wrap the build itself."""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
@@ -664,14 +596,6 @@ def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
 
 
 def test_dashboard_reveals_itself_underneath_the_loading_screen(cfg_path: Path):
-    """The panel shows itself while the loading screen is still up, so it must go BELOW it.
-
-    Both windows are topmost and showing a window puts it at the top of its band,
-    so a plain reveal would paint the panel over the loading screen until the loading screen's next
-    200ms poll re-asserted itself — a flash of exactly what the loading screen is there to
-    prevent.  So the same SetWindowPos that shows it names the loading screen as the window
-    to sit under, and does not activate.
-    """
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -710,10 +634,6 @@ def test_dashboard_reveals_itself_underneath_the_loading_screen(cfg_path: Path):
 
 
 def test_dashboard_leaves_the_band_alone_when_there_is_no_loading_screen(cfg_path: Path):
-    """No loading screen to find is not a reason to move the panel around: it is shown
-    where it already sits, exactly as it was before there was a loading screen to duck.
-    The band drop exists only to duck one, and a panel dropped out of the band
-    with nothing to duck would be shown under every Funestra instead."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -740,16 +660,6 @@ def test_dashboard_leaves_the_band_alone_when_there_is_no_loading_screen(cfg_pat
 
 
 def test_the_panel_leaves_the_topmost_band_before_it_becomes_visible(dashboard_app_config):
-    """Showing a topmost window puts it at the TOP of the band — over the loading screen —
-    and it stays there until something puts it back, which is a SetWindowPos
-    away in a process the machine may not run for tens of milliseconds.  That
-    gap was the panel drawn through the scrim for 68ms in one loaded run.
-
-    So the reveal drops it out of the band first.  A window that is not topmost
-    cannot be above one that is, whatever the machine does next, so the panel is
-    under the loading screen from the instant it is visible; the promotion that follows
-    names the loading screen and lands directly beneath it.  The loading screen is resolved before
-    any of it, while nothing has moved."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config)
     try:
@@ -788,9 +698,6 @@ def test_the_panel_leaves_the_topmost_band_before_it_becomes_visible(dashboard_a
 @pytest.mark.parametrize("building", [True, False])
 def test_the_messages_start_held_exactly_when_the_panel_starts_hidden(
         building, dashboard_app_config):
-    """One answer decides both.  Read separately they could disagree — startup
-    finishes between the two reads — and the panel would then come up holding
-    messages nothing releases, or releasing them over the loading screen."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -801,16 +708,12 @@ def test_the_messages_start_held_exactly_when_the_panel_starts_hidden(
         with patch("fun_time.message_feed.loading_screen_is_up", return_value=True):
             window._messages.poll()
 
-        # Held exactly when the panel is: one answer decided both.
         assert (window._messages.overlay.flashed == []) is building
     finally:
         window.close()
 
 
 def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
-    """The panel shows itself one phase BEFORE the loading screen goes, so a message
-    released here would still flash through the scrim.  They wait for the loading screen
-    itself; see NoticeFeed."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -825,8 +728,6 @@ def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
             window._reveal.maybe_reveal()
 
         assert window._reveal.deferred is False
-        # Asked of the feed, which owns the hold — a reveal that cleared it
-        # would flash a message through the scrim the loading screen is still holding up.
         window._messages.overlay = _FakeOverlay()
         _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
         with patch("fun_time.message_feed.loading_screen_is_up", return_value=True):
@@ -844,19 +745,16 @@ def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_
 
     window = dashboard_window
 
-    # Entering OmniPause while topmost drops the dashboard out of the band.
     with patch("fun_time.win32.is_window_topmost", return_value=True), \
          patch("fun_time.win32.set_always_on_top") as mock_set:
         window._sync_own_topmost(omni_paused=True)
     mock_set.assert_called_once_with(window._dash_hwnd, False)
 
-    # Leaving OmniPause while non-topmost floats it back on top.
     with patch("fun_time.win32.is_window_topmost", return_value=False), \
          patch("fun_time.win32.set_always_on_top") as mock_set:
         window._sync_own_topmost(omni_paused=False)
     mock_set.assert_called_once_with(window._dash_hwnd, True)
 
-    # Already in the desired band → no redundant SetWindowPos (no flicker).
     with patch("fun_time.win32.is_window_topmost", return_value=False), \
          patch("fun_time.win32.set_always_on_top") as mock_set:
         window._sync_own_topmost(omni_paused=True)
@@ -871,33 +769,24 @@ def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_wind
 
     with patch.object(window, "_sync_own_topmost") as mock_sync:
         window._do_render(_snapshot(omni_paused=True), frozenset())
-    # True, from the snapshot: rendering with None and asserting False
-    # was satisfied by an implementation that hardcodes False.
     mock_sync.assert_called_once_with(True)
 
 
 def test_reference_dialog_syncs_topmost_with_omnipause():
-    """The reference popup is its own top-level window — not a MANAGED_ROLE the
-    orchestrator can drop, and not a child riding the dashboard's band — so it
-    corrects its OWN band: out of topmost while paused, back on top after,
-    drift-corrected so it never issues a redundant SetWindowPos."""
     dialog = ReferenceDialog()
     try:
         hwnd = int(dialog.winId())
 
-        # Entering OmniPause while topmost drops the popup out of the band.
         with patch("fun_time.win32.is_window_topmost", return_value=True), \
              patch("fun_time.win32.set_always_on_top") as mock_set:
             dialog.sync_topmost(omni_paused=True)
         mock_set.assert_called_once_with(hwnd, False)
 
-        # Leaving OmniPause while non-topmost floats it back on top.
         with patch("fun_time.win32.is_window_topmost", return_value=False), \
              patch("fun_time.win32.set_always_on_top") as mock_set:
             dialog.sync_topmost(omni_paused=False)
         mock_set.assert_called_once_with(hwnd, True)
 
-        # Already in the desired band → no redundant SetWindowPos (no flicker).
         with patch("fun_time.win32.is_window_topmost", return_value=False), \
              patch("fun_time.win32.set_always_on_top") as mock_set:
             dialog.sync_topmost(omni_paused=True)
@@ -928,9 +817,6 @@ def test_the_popup_asks_for_its_handle_again_every_time_it_is_banded():
 
 
 def test_every_render_drives_the_popups_band_off_the_same_snapshot(dashboard_window, dashboard_app_config):
-    """Every render drives the popup's band off the same snapshot the dashboard's
-    own band comes from, so a pause entered while it is open drops it too."""
-
     window = dashboard_window
 
     with patch.object(window._reference, "sync_topmost") as mock_sync:
@@ -939,9 +825,6 @@ def test_every_render_drives_the_popups_band_off_the_same_snapshot(dashboard_win
 
 
 def test_sync_reference_topmost_is_a_noop_with_no_popup(dashboard_window, dashboard_app_config):
-    """The popup only exists once it has been opened; before that there is no
-    window to band, and the sync must not reach for one."""
-
     window = dashboard_window
 
     assert window._reference.dialog is None
@@ -959,12 +842,11 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
     window._last_snapshot = _snapshot(omni_paused=True)
     dialog = MagicMock()
     with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
-        window._on_action("help_reference")   # the production path, band and all
+        window._on_action("help_reference")
     dialog.sync_topmost.assert_called_once_with(True)
 
 
 def test_help_action_opens_dialog_locally_without_routing_command(dashboard_window, dashboard_app_config):
-    """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     window = dashboard_window
 
     cmd_file = dashboard_app_config.dashboard_cmd_file
@@ -976,7 +858,6 @@ def test_help_action_opens_dialog_locally_without_routing_command(dashboard_wind
 
     mock_dialog.assert_called_once()
     mock_dialog.return_value.show.assert_called_once()
-    # Must NOT be routed to the dispatch loop / command file.
     assert not cmd_file.exists(), "help_reference should not be written as a command"
 
 
@@ -1017,16 +898,11 @@ def test_a_closed_window_is_not_drawn_again_when_its_last_press_goes_out(dashboa
 
 
 def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboard_app_config):
-    """A voice "help" reaches the dashboard as a UDP press, not a button click;
-    processing that press must toggle the reference popup."""
-
     window = dashboard_window
 
     window._apply_presses(["help_reference"])
 
     try:
-        # The observable: a real popup is up.  (Asserting the toggle METHOD
-        # was called passed even if the toggle itself did nothing.)
         assert window._reference.dialog is not None
         assert window._reference.dialog.isVisible()
     finally:
@@ -1035,20 +911,17 @@ def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboa
 
 
 def test_help_reference_close_press_closes_reference_dialog(dashboard_window, dashboard_app_config):
-    """A voice "close help" arrives as a press and must only dismiss the popup —
-    never open it."""
-
     window = dashboard_window
 
-    window._apply_presses(["help_reference"])  # a popup is open...
+    window._apply_presses(["help_reference"])
     assert window._reference.dialog is not None
     assert window._reference.dialog.isVisible()
 
-    window._apply_presses(["help_reference_close"])  # ...and the close dismisses it
+    window._apply_presses(["help_reference_close"])
 
     assert window._reference.dialog is None or not window._reference.dialog.isVisible()
 
-    window._apply_presses(["help_reference_close"])  # closing again must not reopen
+    window._apply_presses(["help_reference_close"])
 
     assert window._reference.dialog is None or not window._reference.dialog.isVisible()
 
@@ -1094,25 +967,21 @@ def test_the_reference_takes_the_keyboard_however_it_was_opened(dashboard_window
 
 
 def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
-    """The same trigger opens the popup, then closes it on the next invocation."""
     window = dashboard_window
 
     with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
         dialog = mock_dialog.return_value
         dialog.isVisible.return_value = False
-        window._reference.toggle(omni_paused=False)  # closed → opens
+        window._reference.toggle(omni_paused=False)
         dialog.show.assert_called_once()
         dialog.close.assert_not_called()
 
         dialog.isVisible.return_value = True
-        window._reference.toggle(omni_paused=False)  # visible → closes
+        window._reference.toggle(omni_paused=False)
         dialog.close.assert_called_once()
 
 
 def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
-    """The reference popup is sized so its whole FRAME — title bar included —
-    fills the RFB rect: it is placed at the rect, then its client insets by the
-    window's chrome margins so the decoration no longer overhangs the top."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -1123,32 +992,27 @@ def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
 
     try:
         dialog = MagicMock()
-        # An 8px border and a 31px title bar: the client is where it was placed,
-        # the frame extends around it.
         dialog.geometry.return_value = QRect(7, 408, 640, 984)
         dialog.frameGeometry.return_value = QRect(7 - 8, 408 - 31, 640 + 16, 984 + 39)
         with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
             window._reference.open(omni_paused=False)
         calls = [c.args for c in dialog.setGeometry.call_args_list]
         assert calls[0] == (7, 408, 640, 984), "first placed at the rect"
-        # Then inset so the frame fills it: down by the title bar, in by the borders.
         assert calls[-1] == (15, 439, 624, 945)
     finally:
         window.close()
 
 
 def test_the_popup_is_fitted_to_the_browsers_rect_on_the_first_open_only(cfg_path: Path):
-    """It fills the Random Favs Browser's rect the first time it opens; after
-    that it keeps wherever the user moved it to."""
     config = load_config(cfg_path)
     app_config = load_dashboard_app_config(write_windows_bridge_manifest(config))
     rfb = Rect(x=10, y=20, width=300, height=400)
     window = build_dashboard_window(app_config, rfb_rect=rfb)
     try:
         with patch.object(window._reference, "_fit_to", wraps=window._reference._fit_to) as fit:
-            window._reference.toggle(omni_paused=False)   # opens, and is fitted
-            window._reference.toggle(omni_paused=False)   # closes
-            window._reference.toggle(omni_paused=False)   # opens again, and is not
+            window._reference.toggle(omni_paused=False)
+            window._reference.toggle(omni_paused=False)
+            window._reference.toggle(omni_paused=False)
 
         assert fit.call_count == 1
     finally:
@@ -1178,8 +1042,6 @@ def test_the_popup_lands_in_the_right_band_after_it_is_shown_not_before(cfg_path
 
 
 def test_reference_dialog_window_title_is_the_content_title():
-    """The popup carries its name on the window chrome (the redundant in-window
-    heading was removed), so the chrome title IS the reference's title."""
     dialog = ReferenceDialog()
     try:
         assert dialog.windowTitle() == "Hotkeys & Voice Commands Reference"
@@ -1248,7 +1110,6 @@ def test_lighten_color_caps_at_255():
 
 
 def test_dashboard_widget_emits_action_on_click():
-    """Clicking inside an action rect should emit action_triggered with the action ID."""
     layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, icons=IconCache())
 
@@ -1256,7 +1117,6 @@ def test_dashboard_widget_emits_action_on_click():
     received: list[str] = []
     widget.action_triggered.connect(received.append)
 
-    # Simulate a click in the center of the quit button
     quit_rect = None
     for action_id, rect in scene.actions:
         if action_id == QUIT_BUTTON:
@@ -1274,7 +1134,6 @@ def test_dashboard_widget_emits_action_on_click():
 
 
 def test_dashboard_widget_ignores_click_outside_actions():
-    """Clicking outside any action rect should not emit."""
     layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, icons=IconCache())
 
@@ -1287,8 +1146,6 @@ def test_dashboard_widget_ignores_click_outside_actions():
     widget.mousePressEvent(event)
 
     assert received == []
-
-
 
 
 def _point_at(widget, x: int, y: int) -> None:
@@ -1392,11 +1249,6 @@ def test_a_control_that_takes_no_press_names_itself_but_does_not_light_under_the
 
 
 def test_every_control_on_the_bar_wears_a_drawn_mark():
-    """Typed as font characters, each control came out at whatever weight its
-    face gave it -- the help "?" was set in the body face rather than a symbol
-    one and was visibly smaller than every icon beside it, and quit's power
-    symbol was a different weight from the one Evolver draws.  So the bar's
-    controls are drawn now, and only the app's own name is set in type."""
     layout = compute_dashboard_bar_layout()
     scene = _scene()
     drawn = {item.rect: item.pixmap for item in scene.images}
@@ -1411,7 +1263,6 @@ def test_every_control_on_the_bar_wears_a_drawn_mark():
 
 
 def test_the_help_mark_is_as_big_as_the_marks_beside_it():
-    """It was a text character among icons and read as an afterthought."""
     layout = compute_dashboard_bar_layout()
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
@@ -1421,9 +1272,6 @@ def test_the_help_mark_is_as_big_as_the_marks_beside_it():
 
 
 def test_the_pause_tooltip_names_the_act_the_press_will_take():
-    """The mark already flips to a play triangle when everything is paused; the
-    tooltip said "Pause everything" either way, so hovering a paused bar offered
-    to do what it had already done."""
     layout = compute_dashboard_bar_layout()
 
     def tip(paused: bool) -> str:
@@ -1461,13 +1309,6 @@ def _icon_side(rect) -> int:
 
 
 class TestMarkCache:
-    """The pixmaps the bar is painted from, and who owns them.
-
-    Both were module-level dicts that grew for the life of the process and were
-    never cleared: one keyed icons by (name, width, height) under an annotation
-    that said (name, height), the other icons by (file, height).
-    """
-
     def test_the_same_mark_at_the_same_size_is_drawn_once(self):
         icons = IconCache()
         rect = compute_dashboard_bar_layout().quit_button
@@ -1489,8 +1330,6 @@ class TestMarkCache:
         assert icons.icon(PROJECT_ICON, 24) is not icons.icon(PROJECT_ICON, 25)
 
     def test_a_second_bar_paints_out_of_a_cache_of_its_own(self):
-        """The point of the owner: nothing is shared between two bars, and a
-        test starts with an empty one instead of whatever ran before it."""
         rect = compute_dashboard_bar_layout().quit_button
 
         assert IconCache().family_icon("power", rect) is not IconCache().family_icon("power", rect)
@@ -1502,14 +1341,7 @@ class TestMarkCache:
 
 
 def _resized(rect, satellite: int):
-    """*rect* with its own position and a square side, for the cache cases."""
     return type(rect)(x=rect.x, y=rect.y, width=satellite, height=satellite)
-
-
-# --- the press channel -------------------------------------------------------
-# The dispatch loop tells the bar that a hotkey or a voice phrase took by
-# sending it the action id over UDP, so the control flashes the way a click on
-# it would.  The loop finds the port in a file this end publishes.
 
 
 def _press_port_file(app_config) -> Path:
@@ -1522,7 +1354,6 @@ def _send_press(port: int, payload: bytes) -> None:
 
 
 def _drain(window, expected: str, *, timeout: float = 5.0) -> list[str]:
-    """Every action the channel queued, up to and including *expected*."""
     seen: list[str] = []
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -1535,9 +1366,6 @@ def _drain(window, expected: str, *, timeout: float = 5.0) -> list[str]:
 
 def test_the_press_port_is_published_where_the_dispatch_loop_looks(
         dashboard_window, dashboard_app_config):
-    """The far end reads exactly this file and int()s exactly this text
-    (windows_bridge_dispatch_loop._send_press); a trailing newline or another
-    encoding would leave every press undeliverable and say nothing."""
     published = _press_port_file(dashboard_app_config)
 
     raw = published.read_bytes()
@@ -1566,8 +1394,6 @@ def test_a_datagram_lights_the_control_it_names(dashboard_window, dashboard_app_
 
 def test_a_press_arrives_stripped_of_whatever_framed_it(
         dashboard_window, dashboard_app_config):
-    """The sender writes the bare verb with no terminator, but the reader
-    strips anyway, so a sender that ever adds one stays understood."""
     port = int(_press_port_file(dashboard_app_config).read_text(encoding="utf-8"))
 
     _send_press(port, b"  quit \n")
@@ -1577,8 +1403,6 @@ def test_a_press_arrives_stripped_of_whatever_framed_it(
 
 def test_the_machine_picks_the_port_so_two_sessions_never_collide(
         dashboard_app_config, dashboard_window):
-    """A fixed port would be taken by whichever session on this machine came
-    up first, and every press of the second one would land in the first."""
     other = build_dashboard_window(dashboard_app_config)
     try:
         assert dashboard_window._press_channel.port != other._press_channel.port
@@ -1587,8 +1411,6 @@ def test_the_machine_picks_the_port_so_two_sessions_never_collide(
 
 
 def test_closing_the_window_asks_the_hotkey_script_to_end_the_session(dashboard_app_config):
-    """Not to exit: a script that exits takes Esc with it, and Esc over the
-    closing screen is how a quit gets called off."""
     window = build_dashboard_window(dashboard_app_config)
 
     window.close()
@@ -1606,8 +1428,6 @@ def test_a_window_that_cannot_ask_the_hotkey_script_still_closes(dashboard_app_c
 
 
 def test_closing_the_window_ends_the_listener(dashboard_app_config):
-    """Several dashboards are built and closed in one test process; a listener
-    left blocked in recvfrom would outlive every one of them."""
     window = build_dashboard_window(dashboard_app_config)
     listener = next(t for t in threading.enumerate() if t.name == "press-listener")
 
@@ -1655,14 +1475,7 @@ def test_a_taskbar_that_refuses_the_sessions_identity_does_not_stop_the_dashboar
     dashboard_app.claim_taskbar_identity("FunTime.MadeUp", refused)
 
 
-# --- the message feed ---------------------------------------------------------
-# A second, faster tail of the same event log the strip reads, flashing each
-# announcement over the Funestra it is about.
-
-
 class _FakeOverlay:
-    """A message overlay that records what it was asked to flash."""
-
     def __init__(self) -> None:
         self.flashed: list[tuple[str, object]] = []
         self.shut_down = False
@@ -1675,14 +1488,11 @@ class _FakeOverlay:
 
 
 def _monitors(primary=(0, 0, 1920, 1080), secondary=(1920, 0, 1080, 1920)):
-    """Two monitors, patched in where enumerate_monitors would read them."""
     return [MonitorInfo(*primary), MonitorInfo(*secondary)]
 
 
 def test_the_funestra_rects_come_from_the_layout_startup_positions_with(
         dashboard_app_config):
-    """The message has to land ON the window, not near it, so both ends compute
-    the rect from the same two functions rather than from two descriptions."""
     with patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
@@ -1708,20 +1518,17 @@ def test_the_funestra_rects_come_from_the_layout_startup_positions_with(
 @pytest.mark.parametrize("failure", [ValueError("no such monitor"), OSError("no display")])
 def test_monitors_that_cannot_be_read_leave_the_messages_off_rather_than_crash(
         failure, dashboard_app_config):
-    """A headless run has no monitors to enumerate; the panel still comes up,
-    it just has nowhere to put a message."""
     with patch("fun_time.window_layout.enumerate_monitors", side_effect=failure):
         window = build_dashboard_window(dashboard_app_config)
     try:
         assert window._messages.funestra_rects is None
         assert window._messages.overlay is None
-        window._messages.poll()  # and polling is a no-op rather than an error
+        window._messages.poll()
     finally:
         window.close()
 
 
 def _message_window(dashboard_app_config, *, held: bool):
-    """A window whose message feed is wired to a fake overlay."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=held), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -1730,7 +1537,6 @@ def _message_window(dashboard_app_config, *, held: bool):
 
 
 def _write_event(app_config, message: str, *, level: int) -> None:
-    """One line onto the shared event log, the way EventLogHandler writes it."""
     path = app_config.state_dir / EVENT_LOG_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -1763,10 +1569,6 @@ def test_a_main_funestra_message_lands_on_the_main_funestra_wherever_the_crown_h
 
 def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_either(
         dashboard_app_config):
-    """A message is topmost, so one that fired while the loading screen was up would
-    appear for a moment through the scrim the loading screen is there to be.  Held, the
-    read offset does not advance, so the announcement arrives afterwards over
-    Fun Time it is about."""
     window = _message_window(dashboard_app_config, held=True)
     try:
         _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
@@ -1785,8 +1587,6 @@ def test_nothing_flashes_through_the_loading_screen_and_nothing_is_dropped_eithe
 
 
 def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_config):
-    """Once the loading screen is down it never comes back, and this runs four times a
-    second for the length of the session."""
     window = _message_window(dashboard_app_config, held=True)
     try:
         loading_screen = patch("fun_time.message_feed.loading_screen_is_up", return_value=False)
@@ -1801,7 +1601,6 @@ def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_con
 
 
 def test_a_window_that_never_waited_asks_about_the_loading_screen_at_all(dashboard_app_config):
-    """Started after the loading screen was gone, the feed is live from its first poll."""
     window = _message_window(dashboard_app_config, held=False)
     try:
         with patch("fun_time.message_feed.loading_screen_is_up") as is_up:
@@ -1814,8 +1613,6 @@ def test_a_window_that_never_waited_asks_about_the_loading_screen_at_all(dashboa
 
 def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         dashboard_app_config):
-    """The strip shows every event; only the announcements get a message — and an
-    event that gets none must still not be re-read on the next poll."""
     window = _message_window(dashboard_app_config, held=False)
     try:
         _write_event(dashboard_app_config, "just a log line", level=logging.INFO)
@@ -1876,10 +1673,6 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
 
 
 def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
-    """A branch session runs from a worktree by setting the working directory,
-    and nothing said whether that had taken.  A change that is in the code and
-    not on the screen then leaves no way to tell an implementation fault from a
-    delivery one, which costs a review round every time it happens."""
     written = record_source_checkout(tmp_path)
 
     assert written.name == SOURCE_CHECKOUT_FILENAME
@@ -1907,10 +1700,6 @@ def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
 
 
 def test_the_dashboards_config_names_the_one_directory_its_files_live_in(tmp_path: Path):
-    """The state directory is the manifest's own.  It used to be re-derived from
-    two fields, and a manifest naming a command file by bare name fell back to
-    a relative path, so half the dashboard's file IPC went to the process's
-    working directory while the other half went to the state dir (bug 23)."""
     manifest_path = tmp_path / "state" / "windows_bridge_manifest.ini"
     manifest_path.parent.mkdir()
     manifest_path.write_text(
@@ -1925,9 +1714,6 @@ def test_the_dashboards_config_names_the_one_directory_its_files_live_in(tmp_pat
     assert app_config.state_dir == manifest_path.parent
     assert app_config.dashboard_state_file == manifest_path.parent / "dashboard_state.ini"
     assert app_config.dashboard_cmd_file == manifest_path.parent / "dashboard_cmd.txt"
-
-
-# --- the mode selector under the log ----------------------------------------------------
 
 
 def _strip_app_config(cfg_factory, tmp_path):
@@ -2037,9 +1823,6 @@ def test_origenerator_on_the_mode_selector_says_it_is_starting_until_the_pointer
     _point_at(selector, 0, 0)
 
     assert selector._tooltip.said == [STILL_STARTING_TOOLTIP, None]
-
-
-# --- the OSR2 part at the window's right end -------------------------------------
 
 
 def test_a_press_on_the_osr2_part_is_posted_where_the_bars_presses_are(
