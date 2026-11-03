@@ -8,13 +8,14 @@ from funestra.modes import MainMode, Osr2State
 from funestra.osr2_visualizer import DriveHud, publish_drive, read_drive
 
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.osr2_section import osr2_part, osr2_part_path, osr2_readout_path
+from fun_time.osr2_section import Osr2PartFacts, osr2_part, osr2_part_path, osr2_readout_path
 
 
 def a_part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, *, broker: bool = True) -> MainHudModel:
-    return osr2_part(holder, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
-                     control=OSR2_DRIVING, paused=False, learned=False, shape="sine",
-                     broker=broker, max_intensity=100)
+    return osr2_part(holder, Osr2PartFacts(
+        main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND, control=OSR2_DRIVING, paused=False,
+        learned=False, shape="sine", broker=broker, max_intensity=100,
+    ))
 
 
 def a_readout(speed: int = 50) -> DriveHud:

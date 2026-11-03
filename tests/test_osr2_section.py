@@ -24,7 +24,7 @@ from funestra.robot_hand import WaveformShape
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_funestra_hud import osr2_state
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows, osr2_rows
-from fun_time.osr2_section import osr2_button, osr2_part
+from fun_time.osr2_section import Osr2PartFacts, osr2_button, osr2_part
 
 
 @dataclass(frozen=True)
@@ -38,9 +38,10 @@ class PartSetup:
 
 def _part(holder: FunTimeFunestra = FunTimeFunestra.MAIN, setup: PartSetup | None = None):
     setup = setup or PartSetup()
-    return osr2_part(holder, main_mode=setup.main_mode, osr2=Osr2State.ROBOT_HAND,
-                     control=setup.control, paused=False, learned=setup.learned,
-                     shape=setup.shape, broker=setup.broker, max_intensity=100)
+    return osr2_part(holder, Osr2PartFacts(
+        main_mode=setup.main_mode, osr2=Osr2State.ROBOT_HAND, control=setup.control, paused=False,
+        learned=setup.learned, shape=setup.shape, broker=setup.broker, max_intensity=100,
+    ))
 
 
 def _button(part, action: str) -> Button:
@@ -98,11 +99,12 @@ class TestTheReadoutTheWordLeaves:
     @staticmethod
     def _readout(main_mode: MainMode, *, funscript_driving: bool, max_intensity: int = 100,
                  tmp_path):
-        part = osr2_part(
-            FunTimeFunestra.MAIN, main_mode=main_mode, control=OSR2_DRIVING, paused=False,
+        part = osr2_part(FunTimeFunestra.MAIN, Osr2PartFacts(
+            main_mode=main_mode, control=OSR2_DRIVING, paused=False,
             osr2=osr2_state(main_mode=main_mode, osr2_mode=Osr2Mode.CONTROLLED,
                             funscript_driving=funscript_driving),
-            learned=False, shape="sine", broker=True, max_intensity=max_intensity)
+            learned=False, shape="sine", broker=True, max_intensity=max_intensity,
+        ))
         published = tmp_path / "dashboard_osr2.json"
         published.write_text(main_hud_text(part), encoding="utf-8")
         painter = MainHudPainter(device_only=True)
