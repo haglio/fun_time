@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -52,9 +54,19 @@ class HeldDecodes:
         self._held.clear()
 
 
+@dataclass(frozen=True)
+class WorldSetup:
+    flicks: tuple = ("alpha_180.mp4", "beta_180.mp4", "gamma.mp4")
+    flat_flicks: tuple = ()
+    start_flick: Path | None = None
+    latest: bool = False
+    start_thread: Callable = _run_now
+
+
 class World:
-    def __init__(self, tmp_path: Path, *, flicks=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
-                 flat_flicks=(), start_flick=None, latest=False, start_thread=_run_now) -> None:
+    def __init__(self, tmp_path: Path, setup: WorldSetup | None = None) -> None:
+        setup = setup or WorldSetup()
+        flicks, flat_flicks = setup.flicks, setup.flat_flicks
         self.flicks_folder = tmp_path / "flicks"
         self.vr_dir = self.flicks_folder / "VR"
         self.vr_dir.mkdir(parents=True)
@@ -84,12 +96,12 @@ class World:
             notifier=self.notifier,
             tcode_sink=self.sink,
             stop_event=self.stop,
-            start_flick=start_flick,
-            latest=latest,
+            start_flick=setup.start_flick,
+            latest=setup.latest,
             metadata_root=self.metadata_root,
             messages=MessageWriter(self.notice_file),
             decode=lambda _path: _frames(),
-            start_thread=start_thread,
+            start_thread=setup.start_thread,
             clock=lambda: self.now,
             log=logging.getLogger("test.genau_in_the_headset"),
         )
@@ -126,7 +138,7 @@ class TestTheFlickOnScreen:
         assert world.notifier.flicks == [world.vr_dir / "alpha_180.mp4"]
 
     def test_it_opens_on_the_flick_an_orchestrator_names_in_the_order_it_names(self, tmp_path):
-        world = World(tmp_path, latest=True, start_flick=tmp_path / "flicks" / "VR" / "beta_180.mp4")
+        world = World(tmp_path, WorldSetup(latest=True, start_flick=tmp_path / "flicks" / "VR" / "beta_180.mp4"))
 
         assert world.on_screen() == world.vr_dir / "beta_180.mp4"
         world.send("NEXT")
@@ -143,7 +155,7 @@ class TestTheFlickOnScreen:
 
 class TestTheDesktopsFlicksAreBrowsedToo:
     def _both(self, tmp_path):
-        return World(tmp_path, flicks=("alpha_180.mp4",), flat_flicks=("scene one.mp4",))
+        return World(tmp_path, WorldSetup(flicks=("alpha_180.mp4",), flat_flicks=("scene one.mp4",)))
 
     def test_the_desktops_flicks_follow_the_vr_ones(self, tmp_path):
         world = self._both(tmp_path)
@@ -164,7 +176,7 @@ class TestTheDesktopsFlicksAreBrowsedToo:
 
 class TestNarrowingToAShape:
     def test_a_vr_flick_on_screen_gives_way_to_the_flat_ones(self, tmp_path):
-        world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))
+        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4", "epsilon.mp4")))
 
         world.send("SHAPES flat")
 
@@ -175,7 +187,7 @@ class TestNarrowingToAShape:
         assert world.on_screen() == world.flat_dir / "delta.mp4"
 
     def test_it_says_which_shape_it_kept(self, tmp_path):
-        world = World(tmp_path, flat_flicks=("delta.mp4",))
+        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4",)))
 
         world.send("SHAPES flat")
 
@@ -189,8 +201,7 @@ class TestNarrowingToAShape:
         assert world.flash_message() == no_other_flicks()
 
     def test_a_flick_on_screen_of_the_shape_kept_stays_up(self, tmp_path):
-        world = World(tmp_path, flat_flicks=("delta.mp4",),
-                      start_flick=tmp_path / "flicks" / "VR" / "beta_180.mp4")
+        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4",), start_flick=tmp_path / "flicks" / "VR" / "beta_180.mp4"))
         up_before = list(world.notifier.flicks)
 
         world.send("SHAPES vr")
@@ -203,8 +214,7 @@ class TestNarrowingToAShape:
 
     def test_a_flick_decoding_ahead_when_its_shape_is_kept_goes_up_once_decoded(self, tmp_path):
         decodes = HeldDecodes()
-        world = World(tmp_path, flicks=("alpha_180.mp4",), flat_flicks=("delta.mp4",),
-                      start_thread=decodes)
+        world = World(tmp_path, WorldSetup(flicks=("alpha_180.mp4",), flat_flicks=("delta.mp4",), start_thread=decodes))
         decodes.holding = True
         world.genau.tick()
 
@@ -216,7 +226,7 @@ class TestNarrowingToAShape:
         assert world.genau.own_frame().frame is not None
 
     def test_a_reorder_rescans_under_the_shape_kept(self, tmp_path):
-        world = World(tmp_path, flat_flicks=("delta.mp4",))
+        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4",)))
         world.send("SHAPES flat")
 
         world.send("LATEST")
@@ -228,7 +238,7 @@ class TestNarrowingToAShape:
 class TestWhatArrivesInItsFolders:
     def test_under_latest_one_of_the_shape_kept_comes_up_next_and_the_other_shape_does_not(
             self, tmp_path):
-        world = World(tmp_path, latest=True)
+        world = World(tmp_path, WorldSetup(latest=True))
         world.genau.set_showing(True)
         world.send("SHAPES vr")
 
@@ -245,7 +255,7 @@ class TestWhatArrivesInItsFolders:
 
 class TestFMode:
     def test_it_keeps_the_favorites_of_the_shape_kept(self, tmp_path):
-        world = World(tmp_path, flat_flicks=("delta.mp4", "epsilon.mp4"))
+        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4", "epsilon.mp4")))
         mark_favorite(world.flat_dir / "epsilon.mp4", world.metadata_root, True)
         mark_favorite(world.vr_dir / "beta_180.mp4", world.metadata_root, True)
         world.send("SHAPES flat")
@@ -272,7 +282,7 @@ class TestWhatTheHudCallsTheFlick:
 
     def test_the_one_still_decoding_while_the_last_stays_up(self, tmp_path):
         decodes = HeldDecodes()
-        world = World(tmp_path, start_thread=decodes)
+        world = World(tmp_path, WorldSetup(start_thread=decodes))
         decodes.holding = True
         world.send("NEXT")
 
@@ -285,4 +295,4 @@ class TestWhatTheHudCallsTheFlick:
 class TestAFolderWithNothingToShow:
     def test_is_refused_at_once(self, tmp_path):
         with pytest.raises(RuntimeError, match="No video flicks"):
-            World(tmp_path, flicks=())
+            World(tmp_path, WorldSetup(flicks=()))
