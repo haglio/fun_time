@@ -332,3 +332,21 @@ def test_the_hosted_app_has_published_once_its_status_file_can_be_read(tmp_path:
     assert origenerator_has_published(tmp_path) is False
     status_file.write_text("", encoding="utf-8")
     assert origenerator_has_published(status_file) is True
+def test_a_range_with_nothing_looping_is_no_loop(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
+    status_file.write_text(
+        "video=C:/clip.mp4\nloop_state=normal\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        encoding="utf-8",
+    )
+
+    assert read_main_funestra_status(status_file).loop_bounds is None
+
+
+def test_a_looping_state_with_an_empty_range_is_no_loop(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
+    status_file.write_text(
+        "video=C:/clip.mp4\nloop_state=looping\nloop_in_ms=3000\nloop_out_ms=3000\n",
+        encoding="utf-8",
+    )
+
+    assert read_main_funestra_status(status_file).loop_bounds is None

@@ -4,6 +4,7 @@ import pytest
 
 from fun_time.monitors import (
     MonitorInfo,
+    enumerate_monitors,
     get_logical_monitor_rects,
 )
 from fun_time.window_layout import MonitorRect
@@ -59,3 +60,9 @@ class TestOrientationCorrection:
     def test_empty_monitors_raises(self):
         with pytest.raises(ValueError, match="No monitors"):
             get_logical_monitor_rects([], primary_index=1, secondary_index=2)
+
+
+def test_fake_monitors_replace_whatever_the_machine_lists(monkeypatch):
+    monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;2560,0,1440,3440")
+
+    assert enumerate_monitors() == [_mi(0, 0, 2560, 1392), _mi(2560, 0, 1440, 3440)]
