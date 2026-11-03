@@ -48,11 +48,6 @@ class TestClaimingTheSession:
         let_the_session_go(second)
 
     def test_a_name_left_behind_by_a_session_nothing_is_playing_from_is_claimed(self):
-        """Windows keeps a mutex alive while any handle to it is open, and a
-        session whose process it has not finished reaping still holds one -- so
-        a launch that refused on the name alone refused for as long as the
-        machine was up, with no Fun Time running at all.  Ownership is what says
-        a session is live, and this name is owned by nobody."""
         name = self._a_name()
         left_behind = _left_behind(name)
 
@@ -123,9 +118,6 @@ class TestShowAlreadyRunningMessage:
         assert show_alert.call_args.args[0] == "Fun Time"
 
     def test_asking_whether_it_is_alone_does_not_drag_in_qt(self):
-        """The orchestrator asks this long before it has any use for Qt, and
-        on the answer it wants it never builds a window at all -- so the
-        dialog's imports live inside the call, not at the top of the module."""
         module = ast.parse(Path(single_instance.__file__).read_text(encoding="utf-8"))
         at_the_top = [
             name

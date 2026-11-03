@@ -42,9 +42,6 @@ _UNARRANGED = Arranged([], [], np.eye(4, dtype=np.float32), 0.0, 0.0)
 
 
 class _ASession:
-    """What the frame loop asks of the OpenXR session, answered from canned
-    frames and written down."""
-
     def __init__(self, *frames, ready=True, running=True, focused=True):
         self.frames = list(frames)
         self.session_ready = ready

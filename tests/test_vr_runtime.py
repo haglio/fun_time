@@ -26,14 +26,6 @@ from tests.sleeps import sleeps_in
 
 
 def _xr_exceptions():
-    """The loader's exception hierarchy — real where the loader imports.
-
-    On Windows (CI, the authority) this is pyopenxr's own module, so a rename
-    there cannot pass silently.  On this Mac pyopenxr's loader refuses to
-    import at all (NotImplementedError from xr.library), so stand-ins with
-    the same names keep the platform-independent probe logic testable; the
-    probe only ever meets these types through the stub module either way.
-    """
     try:
         import xr  # noqa: PLC0415 — only the cases that need the loader should load it
 
@@ -234,20 +226,12 @@ from fun_time_vr.vr_runtime import _EXPLANATIONS
 
 @contextmanager
 def _loader(stub):
-    """Stand *stub* in for the OpenXR loader ``probe()`` imports for itself."""
     with patch.dict(sys.modules, {"xr": stub}):
         yield
 
 
 @contextmanager
 def _a_loader_that_will_not_load(exc):
-    """Fail the import itself, the way a loader that cannot load does.
-
-    Not an ``ImportError``: pyopenxr raises ``NotImplementedError`` off Windows,
-    and ``LoadLibrary`` raises ``OSError`` on a Windows machine whose loader DLL is
-    unusable.  Neither ever happens on the machine the gate runs on, which is
-    why this has to be staged rather than waited for.
-    """
     real_import = builtins.__import__
 
     def _import(name, *args, **kwargs):

@@ -1,6 +1,3 @@
-"""The Funestras' engine, checked and repaired at launch: every Funestra must be able
-to import libmpv before a session opens, or the launch says why instead of
-leaving him an empty room under the loading screen."""
 from __future__ import annotations
 
 import subprocess
@@ -124,7 +121,6 @@ def test_nothing_is_said_when_the_funestras_load_the_engine():
 
 
 def test_the_probe_is_the_engine_import_itself():
-    # A probe that stopped importing mpv would pass forever over a dead engine.
     run = _runner([0])
 
     engine_missing_abort(_config(), run=run, alert=lambda _text: None)

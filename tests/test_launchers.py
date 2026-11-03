@@ -1,17 +1,3 @@
-"""The ways a session is started: the Windows launchers and the shell wrapper.
-
-Both must run the orchestrator on the project venv.  ``fun_time`` imports its
-sibling packages â€” ``app_support``, ``funestra`` â€” and those are editable
-installs that exist only in ``.venv``.  A python taken from PATH finds the
-sibling *repo* directories as namespace packages instead and dies on
-``No module named 'funestra.playlist'`` while importing, which is before the
-orchestrator has configured any logging: the app never appears and no log
-anywhere says why.
-
-The ``.vbs`` launchers are rendered from their specs in pyproject.toml, and the
-family's gates ask every launcher what every launcher owes.  What is Fun Time's
-is asked of each one under the real script host.
-"""
 from __future__ import annotations
 
 import sys

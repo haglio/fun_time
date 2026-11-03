@@ -1,4 +1,3 @@
-"""A sweep of the machine's processes is a question this process asks Windows."""
 from __future__ import annotations
 
 from unittest.mock import patch

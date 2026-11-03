@@ -1,43 +1,3 @@
-"""Run the integration suite on a hidden Win32 desktop — invisibly, focus-safe.
-
-The suite launches real windows (the Main Funestra/the satellites — all mpv, the dashboard, AHK) and asserts on
-real window state, so it must run on the native Qt platform — but that throws those
-windows onto the monitors and can grab focus.  A Win32 *desktop* other than the
-input desktop fixes this: its windows are real HWNDs (winId != 0, real styles, real
-Direct3D11 video output) yet render to nothing and can never hold the input desktop's
-foreground.
-
-``CreateDesktopW`` makes the desktop; ``CreateProcessW`` with ``STARTUPINFO.lpDesktop``
-binds pytest to it, and every subprocess pytest spawns (orchestrator -> the
-satellites / the Main Funestra / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
-desktop, so they see the app because pytest shares the hidden desktop.  There is no
-silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
-can never leak onto the real screen.
-
-The desktop is also this module's authority over where the suite may run at all:
-``require_hidden_desktop`` refuses a run that is not on it, which is what keeps
-bare ``pytest tests/integration/`` off the user's screen.
-
-What the desktop does *not* isolate is anything without a per-desktop version —
-sockets, devices, machine singletons.  Those are stripped out of the run's config
-instead (``integration_support.isolate_shared_resources``), and between the two a
-run reaches nothing of the user's.
-
-pytest is also placed in a *job object* that this runner alone holds a handle to.
-Windows destroys a job when its last handle closes, and a job with
-``KILL_ON_JOB_CLOSE`` takes its processes down with it — so however the run ends, it
-cannot leave a Funestra or an AHK to poison the next one.  The broker is the sole
-exception: it is a service that outlives the session, and it breaks away (see
-``funestra.broker.launch_kwargs``).
-
-Usage (default integration command):
-
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -x
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -x -k main_funestra   # extra args pass through
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -x tests/integration/test_x.py   # that file alone
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # each changed file whole, then ten runs of each changed test, to the first failure
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --changed   # the tests that run what this branch changed, to the first failure
-"""
 from __future__ import annotations
 
 import ctypes
@@ -82,19 +42,22 @@ REFUSED_EXIT_CODE = 4
 
 STOP_AT_THE_FIRST_FAILURE = "-x"
 HELP_FLAG = "--help"
+_USAGE = """.venv/Scripts/python.exe -m tests.integration.hidden_desktop -x
+    the whole suite, on a hidden desktop
+... -x -k main_funestra
+    extra arguments pass through to pytest
+... -x tests/integration/test_x.py
+    that file alone
+... --changed
+    the tests that run what this branch changed
+... --repeat-changed
+    each changed file whole, then each changed test ten times"""
 _MODES = frozenset({REPEAT_CHANGED_FLAG, CHANGED_FLAG})
 REPEAT_RUNS = 10
-# What a repeat may spend on runs, the whole-file runs before its repeats
-# included. A branch that renames a file changes every test in it, and ten runs
-# of each would outlast the day; past this the gate stops starting runs and
-# names what it left, which a killed run cannot.
 REPEAT_BUDGET_MINUTES = 45
 
 
 def build_run_argv(extra_args: list[str]) -> list[str]:
-    """pytest over the integration tests *extra_args* name, or over the whole
-    integration dir when they name none -- pytest runs every file of a directory
-    it is handed, whatever else it is handed beside it."""
     return [
         sys._base_executable, "-m", "pytest",
         *([] if _names_its_tests(extra_args) else [INTEGRATION_DIR]),
@@ -135,12 +98,6 @@ def _is_in_the_suite(arg: str) -> bool:
 
 
 def _venv_environment(venv_python: str | Path) -> dict[str, str]:
-    """This environment, naming the venv the :func:`build_run_argv` interpreter runs in.
-
-    A venv's python.exe is only a launcher that runs the real interpreter as its
-    child, so a run started through it would hand back the launcher's handle.
-    ``__PYVENV_LAUNCHER__`` is how that launcher hands the venv over itself, and
-    how multiprocessing starts its workers without one (bpo-35797)."""
     return {**os.environ, "__PYVENV_LAUNCHER__": str(venv_python)}
 
 
@@ -213,8 +170,6 @@ _user32.GetWindowThreadProcessId.restype = wt.DWORD
 
 
 def current_desktop_name() -> str:
-    """Name of the desktop the calling thread is on — ``'Default'`` on the normal
-    interactive desktop, ``HIDDEN_DESKTOP_NAME`` under the hidden-desktop runner."""
     hdesk = _user32.GetThreadDesktop(_kernel32.GetCurrentThreadId())
     buf = ctypes.create_unicode_buffer(256)
     needed = wt.DWORD()
@@ -224,15 +179,6 @@ def current_desktop_name() -> str:
 
 
 def pids_with_window_on_current_desktop() -> set[int]:
-    """PIDs owning a top-level window on the calling thread's desktop.
-
-    The hidden integration desktop is shared: ``CreateDesktopW`` opens the
-    existing one whenever a previous run's processes still hold it, so this
-    returns the caller's own windows, a leftover session's, and the pytest of
-    any run queued after this one.  What it never returns is the user's real
-    (input-desktop) session — which is what makes a scoped kill safe to fire
-    unattended.  Callers must still decide which of these PIDs are theirs to
-    kill (see ``_kill_leftover_app_processes``)."""
     hdesk = _user32.GetThreadDesktop(_kernel32.GetCurrentThreadId())
     pids: set[int] = set()
 
@@ -248,24 +194,10 @@ def pids_with_window_on_current_desktop() -> set[int]:
 
 
 def on_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> bool:
-    """Whether the caller is on the hidden desktop — the same question
-    ``require_hidden_desktop`` answers, for a caller that wants to branch on it
-    rather than be stopped by it."""
     return desktop_name() == HIDDEN_DESKTOP_NAME
 
 
 def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> None:
-    """Refuse to run the suite anywhere but the hidden desktop.
-
-    Bare ``pytest tests/integration/`` runs on the user's own desktop, where the
-    suite's real windows, AHK bridge and Funestras land on their monitors, steal
-    focus, and are resolved by title alongside their session's.  That invocation
-    has always been forbidden and never enforced — and the harness grew a
-    machine-wide by-name process sweep to serve it, which is precisely the shape
-    of kill that took the user's Funestras down.
-
-    Enforcing it here is what lets the reap have no second mode.
-    """
     current = desktop_name()
     if current != HIDDEN_DESKTOP_NAME:
         raise RuntimeError(
@@ -287,18 +219,6 @@ def _repo_root() -> Path:
 
 
 def create_run_job() -> JobObject:
-    """A job object that outlives nothing: destroying it kills its processes.
-
-    The runner holds the job's only handle, so whichever way the runner ends —
-    a clean exit, a crash, a TerminateProcess — Windows closes that handle,
-    destroys the job, and terminates every process the run still had running.
-    A run therefore cannot strand a Funestra (or an AHK, or an orchestrator) for
-    the next run to trip over.
-
-    Letting its processes break away is what lets the broker opt out with
-    CREATE_BREAKAWAY_FROM_JOB: it is a service that outlives the session that
-    starts it, so it must not be swept up with the run.
-    """
     return JobObject(processes_end_with_it=True, processes_may_break_away=True,
                      priority_class=subprocess.BELOW_NORMAL_PRIORITY_CLASS)
 
@@ -326,13 +246,6 @@ def _environment_block(environment: Mapping[str, str] | None) -> ctypes.Array | 
 
 def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: JobObject,
                        environment: Mapping[str, str] | None = None) -> _PROCESS_INFORMATION:
-    """Start *cmdline* on *desktop*, inside *job*, and let it run.
-
-    Created suspended so the process is in the job before it can execute a
-    single instruction: a child spawned between CreateProcess and
-    AssignProcessToJobObject would never join the job, and would survive the
-    run.  ``desktop`` of None inherits the caller's desktop.
-    """
     si = _STARTUPINFOW()
     si.cb = ctypes.sizeof(si)
     si.lpDesktop = desktop
@@ -360,14 +273,6 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: JobObje
 
 
 def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0) -> int:
-    """Run *argv* on a desktop of its own, made empty, and return its exit code.
-
-    ``GetForegroundWindow`` answers NULL where there is no window to name, and a
-    desktop with nothing on it is the one state that guarantees it — which is
-    what makes this the harness for anything that has to survive being asked
-    which window has the focus.  The job object is what ends a run that stops on
-    a dialog instead of exiting, since nobody can reach one here to dismiss it.
-    """
     desktop = f"{HIDDEN_DESKTOP_NAME}Empty{os.getpid()}"
     hdesk = _user32.CreateDesktopW(desktop, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
@@ -388,8 +293,6 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
         _user32.CloseDesktop(hdesk)
 
 
-# How long a run that never decides an exit code is waited on.  A green suite is
-# about thirteen minutes, so this is the ceiling on a wedge, not a budget.
 RUN_CEILING_S = 45 * 60
 
 # What such a run exits with.  pytest's own codes stop at 5, so this cannot be
@@ -410,10 +313,6 @@ def _the_runs_own_time(job: JobObject) -> Iterator[None]:
 
 
 def _wait_for_the_run(process: int, ceiling_s: float, pulse: PulseWatch | None = None) -> int:
-    """pytest's exit code, as soon as pytest has decided it.
-
-    A process can have exited and never be gone: Windows records its exit code,
-    then may never finish taking it down, and a handle to it never signals."""
     stopped = pulse.has_stopped if pulse else lambda: False
     if (code := _exit_code_within(process, ceiling_s, stopped)) is None:
         why = (f"pytest stopped running any Python during {pulse.last_test() or 'its startup'}, where no "
@@ -462,17 +361,8 @@ def _announce_waiting(waiting: Waiting) -> None:
 
 
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
-    """Create the hidden desktop, run the integration pytest bound to it, and
-    return pytest's exit code.  The desktop handle is closed on the way out, and
-    the run's job object with it — so nothing the run spawned can survive it.
-
-    The machine-wide queue is waited out HERE, around the child rather than
-    inside it: held session-scoped in the conftest, the wait was charged to the
-    first test's setup and pytest's own per-test timeout killed the run, so a
-    run that was merely queued reported a test timeout.
-    """
     if extra_args[:1] == [HELP_FLAG]:
-        print(__doc__)
+        print(_USAGE)
         return 0
     extra_args = _without_a_stop_beside_a_mode(extra_args)
     if not _MODES.isdisjoint(extra_args[1:]):

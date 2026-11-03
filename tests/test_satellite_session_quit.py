@@ -1,24 +1,3 @@
-"""Nothing ends a satellite on its own — not a key, and not the window's close.
-
-A satellite is one of a set the sequencer placed, so ending one alone leaves the
-session running around a gap nothing refills.  Two roads lead there and both are
-shut: the loop answers no keyboard event at all (``satellite/app.py`` used to
-have a Ctrl+Q handler), and the close every Windows window has — Alt+F4, the
-taskbar, the system menu — is handed to the Funestra, which asks the session.
-
-The close is the one that bit.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4, so
-it took out the Main Funestra, then the portrait satellite, then the landscape one, a press at
-a time, while the dashboard, Genau and the audio companion carried on and the
-session had to be ended by voice.  The gesture itself is
-``funestra.session_quit``'s, and tested there; what is here is that the
-loop hands the close on, and that the verb it posts is the dashboard's.
-
-The satellite reads its window's events through ``main_funestra.input``, the Main
-Funestra's own reader, so the scans read that module and check the satellite
-still hands its events to it.  Read off the source rather than run:
-``satellite/app.py`` needs a real window and the libmpv DLL, the same reason
-``test_satellite_focus_clickthrough`` reads its guarantee that way.
-"""
 from __future__ import annotations
 
 import ast
@@ -44,7 +23,6 @@ def _tree(source: Path = WINDOW_INPUT) -> ast.Module:
 
 
 def _pygame_event_names() -> set[str]:
-    """Every ``pygame.<NAME>`` the module tests an event's ``.type`` against."""
     names: set[str] = set()
     for node in ast.walk(_tree()):
         if not isinstance(node, ast.Compare):

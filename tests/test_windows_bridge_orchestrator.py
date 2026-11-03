@@ -156,12 +156,6 @@ class TestFixPostLoadingWindows:
         assert apply.call_args.kwargs["landscape_hwnd"] == 222
 
     def test_a_buried_satellite_is_re_promoted_until_frontmost(self):
-        """The banding waits on each window's own thread, and the satellites
-        are at their busiest exactly at the reveal — a promotion that times
-        out through the stalled-window guard leaves the Funestra under whatever
-        the user had on that monitor (a maximized Chrome sat over the
-        Landscape Funestra until the next full re-band).  The pass now walks
-        the real z-order afterwards and re-promotes whoever is still buried."""
         result = _fake_startup_result()
         titles = {"Portrait AI Funestra": 111, "Landscape AI Funestra": 222}
         chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
@@ -386,8 +380,6 @@ class TestKillRecordedChild:
         mock_kill.assert_called_once_with(1234)
 
     def test_does_not_kill_a_pid_windows_recycled_to_another_process(self, caplog):
-        """The recorded child died and Windows handed its PID to something else —
-        an integration run's pytest, say.  Killing it would take that process down."""
         with patch(
             "fun_time.windows_bridge_orchestrator.process_started",
             return_value=222_000,
@@ -539,8 +531,6 @@ class TestWritePidsFile:
         assert parser.getint("pids", "audio_pid") == 700
 
     def test_writes_the_creation_time_that_pins_each_pid(self, tmp_path):
-        """Teardown reads this back to tell our child from whatever process
-        Windows has since handed the PID to."""
         parser = self._write(tmp_path)
 
         assert parser.getint("created_at", "main_funestra_pid") == 2000
@@ -1729,12 +1719,6 @@ class TestClosingScreenLifecycle:
 
     @pytest.mark.parametrize("loading_screen", ["loading_screen", "closing_screen", "transition_screen"])
     def test_no_loading_screen_opens_a_main_hud_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
-        """A loading screen is started through a named copy of whichever interpreter the
-        session runs under, and that is the CONSOLE one for a session launch.vbs
-        started -- while a session the crossing relay started has no console at
-        all, so Windows gives such a child a console window on screen.  The flag
-        says no console; the absence of a startupinfo is the other half, since
-        the hiding one would hide the loading screen's own window too."""
         launches: dict[str, dict] = {}
 
         _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,

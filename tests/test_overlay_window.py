@@ -86,13 +86,6 @@ class _FakeCanvas:
 
 def _loading_screen(tmp_path: Path, *, stale_timeout_s: float = 5.0,
            title: str = "Fun Time Loading", taking_over: TakingOver | None = None) -> OverlayWindow:
-    """The overlay's live loops over fakes standing in for Tk.
-
-    The real window is a borderless loading screen over every monitor of whoever runs
-    the suite, and unlike Qt, tkinter has no offscreen platform.  So the label
-    the panel is drawn into is the boundary faked here, and everything from the
-    progress file to the destroy decision runs for real.
-    """
     return OverlayWindow(
         tmp_path / "progress.txt",
         _FakeRoot(),
@@ -174,9 +167,6 @@ def test_the_two_wordmarks_take_their_tone_from_one_place():
 
 
 def test_a_loading_screen_process_loads_no_qt():
-    """A loading screen's whole job is to be on screen fast, and the orchestrator waits
-    on its window before it goes on.  Taking the palette or the face from
-    shared_ui would put PyQt6 on that path for five strings."""
     loaded = subprocess.run(
         [sys.executable, "-c",
          "import sys, fun_time.overlay_window\n"
@@ -190,10 +180,6 @@ def test_a_loading_screen_process_loads_no_qt():
 
 
 class TestTheLoadingScreenKeepsTheTopOfItsBand:
-    """Nothing keeps a topmost window above the OTHER topmost windows: every
-    window a session raises lands over this one, and Windows never says so.
-    How fast this runs IS how long a Funestra shows through the scrim."""
-
     def test_the_handle_is_resolved_by_title_once_and_then_reused(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         looked_up: list[tuple] = []

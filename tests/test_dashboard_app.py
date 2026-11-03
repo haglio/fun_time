@@ -123,12 +123,6 @@ def dashboard_app_config(cfg_path):
 
 @pytest.fixture
 def dashboard_window(dashboard_app_config):
-    """A built dashboard window that closes however the test ends.
-
-    The per-test try/finally discipline, guaranteed instead of remembered —
-    a forgotten finally used to leak a top-level Qt window into the shared
-    session QApplication for the rest of the run.
-    """
     window = build_dashboard_window(
         dashboard_app_config,
         launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400),
@@ -375,12 +369,6 @@ def test_the_config_reads_only_what_the_bar_needs(cfg_path: Path, tmp_path: Path
 def test_write_dashboard_command_retries_past_a_transient_file_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """The dispatch loop drains this file ~20x/s by renaming it, so a click whose
-    write overlaps a drain hits a Windows sharing violation (WinError 32) — the
-    same race AHK's QueueCommand retries past.  The write must retry rather than
-    raise: unhandled, the PermissionError propagates out of the Qt slot and PyQt6
-    aborts the whole dashboard, which is the "power button closed the Dash instead
-    of quitting Fun Time" bug."""
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
@@ -406,9 +394,6 @@ def test_write_dashboard_command_retries_past_a_transient_file_lock(
 def test_write_dashboard_command_drops_rather_than_raises_when_locked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """If the file stays locked for every retry, the click is dropped — never
-    raised.  A raise here aborts the whole PyQt6 dashboard; a dropped click just
-    means the user clicks again."""
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
@@ -738,11 +723,6 @@ def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
 
 
 def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_app_config):
-    """OmniPause must free the desktop, so the dashboard drops its OWN topmost
-    while paused (via its reliable handle, since the orchestrator's drop of this
-    Qt window is unreliable) and restores it after — drift-corrected, so it
-    never issues a redundant SetWindowPos."""
-
     window = dashboard_window
 
     with patch("fun_time.win32.is_window_topmost", return_value=True), \
@@ -762,9 +742,6 @@ def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_
 
 
 def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_window, dashboard_app_config):
-    """Every render drives the topmost sync off the snapshot's omni_paused, so
-    the dashboard's band stays correct even if Qt re-asserts its StaysOnTop."""
-
     window = dashboard_window
 
     with patch.object(window, "_sync_own_topmost") as mock_sync:
@@ -796,9 +773,6 @@ def test_reference_dialog_syncs_topmost_with_omnipause():
 
 
 def test_the_popup_asks_for_its_handle_again_every_time_it_is_banded():
-    """Qt may recreate a native window across a hide/show, so a handle cached
-    at construction would band a window that no longer exists — and the popup
-    is hidden and shown by every toggle."""
     dialog = ReferenceDialog()
     try:
         handles: list[int] = []
@@ -834,9 +808,6 @@ def test_sync_reference_topmost_is_a_noop_with_no_popup(dashboard_window, dashbo
 
 
 def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_window, dashboard_app_config):
-    """Qt applies StaysOnTop on show, so opening the popup mid-pause would
-    strand it over the freed desktop until the next refresh — it is banded at
-    open time instead, from the last snapshot's omni_paused."""
     window = dashboard_window
 
     window._last_snapshot = _snapshot(omni_paused=True)
@@ -1021,9 +992,6 @@ def test_the_popup_is_fitted_to_the_browsers_rect_on_the_first_open_only(cfg_pat
 
 
 def test_the_popup_lands_in_the_right_band_after_it_is_shown_not_before(cfg_path: Path):
-    """Qt applies the StaysOnTop hint on show, so a band set before the show
-    would be undone by the show itself and the popup would sit over a desktop
-    OmniPause had just freed."""
     config = load_config(cfg_path)
     app_config = load_dashboard_app_config(write_windows_bridge_manifest(config))
     window = build_dashboard_window(app_config)
@@ -1050,7 +1018,6 @@ def test_reference_dialog_window_title_is_the_content_title():
 
 
 def test_reference_dialog_renders_hotkeys_and_voice():
-    """The real dialog must render the reference content via QTextBrowser."""
     dialog = ReferenceDialog()
     try:
         browser = dialog.findChild(QTextBrowser)
@@ -1681,8 +1648,6 @@ def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
 
 
 def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
-    """`message_feed` is not held to this: it reads `message_overlay`, whose
-    widget half imports PyQt6."""
     def loads_qt(module: str) -> bool:
         result = subprocess.run(
             [sys.executable, "-c",

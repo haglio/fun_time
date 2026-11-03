@@ -99,15 +99,6 @@ def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path,
 
 
 def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch, cfg_path):
-    """An integration run's config decides what it hosts — isolation strips the
-    key, and the origenerator-mode test names its own stub.  The override
-    out-ranking them made every session the suite launched from a worktree
-    carrying the file host the REAL app: the machine's one ComfyUI, booted on
-    the hidden desktop by a test run.
-
-    Told by its argument, not by the environment: the process edge reads the
-    switch once and every layer below takes the answer.
-    """
     _this_checkout_names(tmp_path, monkeypatch, ORIGENERATOR_DIR_OVERRIDE_NAME,
                          "C:/origenerator/.claude/worktrees/mine")
 

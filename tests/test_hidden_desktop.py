@@ -1,10 +1,3 @@
-"""Unit tests for the hidden-desktop integration runner.
-
-The desktop plumbing (create/enumerate) is validated by actually running the suite
-through it.  Here we pin the pure decisions — what pytest command the hidden desktop
-runs and whether it runs at all — plus when a run is over, and the job object that
-guarantees a run cannot outlive itself.
-"""
 from __future__ import annotations
 
 import contextlib
@@ -466,14 +459,6 @@ def test_the_waiting_message_reads_what_the_line_reports():
 
 
 def test_the_queue_is_waited_out_before_pytest_is_started():
-    """A run that has to queue must do its waiting OUT HERE, not inside pytest.
-
-    Held session-scoped in the conftest, the wait was charged to the first
-    test's setup and pytest's 240 s per-test timeout killed the run: three runs
-    in a row reported a timeout in test_branch_session_integration when all
-    that had happened was another agent's suite holding the machine-wide lock.
-    A queued run is not a failing run.
-    """
     events: list[str] = []
 
     class _Lock:
@@ -703,9 +688,6 @@ def _wait_until_dead(pid: int, timeout: float = 5.0) -> bool:
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 job objects")
 def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
-    """The runner holds the job's only handle, so however the runner ends — a
-    clean exit, a crash, a kill — Windows terminates whatever the run left
-    running.  No integration run can strand a Funestra for the next one to trip on."""
     cmdline = subprocess.list2cmdline(_python("-c", "import time; time.sleep(60)"))
     with create_run_job() as job:
         pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)
@@ -952,3 +934,11 @@ def test_asking_for_help_prints_the_usage_without_joining_the_line(capsys):
     assert code == 0
     assert places == []
     assert "--repeat-changed" in capsys.readouterr().out
+
+
+def test_help_names_every_way_to_run(capsys):
+    assert hidden_desktop.run_on_hidden_desktop([hidden_desktop.HELP_FLAG]) == 0
+
+    said = capsys.readouterr().out
+    assert hidden_desktop.CHANGED_FLAG in said
+    assert hidden_desktop.REPEAT_CHANGED_FLAG in said

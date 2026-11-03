@@ -1,10 +1,3 @@
-"""Unit tests: the integration suite runs on the hidden desktop or not at all.
-
-Bare ``pytest tests/integration/`` has always been forbidden — it throws the
-suite's real windows onto the user's monitors and grabs focus — but nothing
-enforced it, and the harness quietly grew a second, machine-wide reap to serve
-it.  Documentation is not a guard; this is.
-"""
 from __future__ import annotations
 
 import ast
@@ -44,8 +37,6 @@ def test_the_refusal_names_the_runner_to_use_instead():
 
 
 def test_the_guard_defaults_to_the_desktop_it_is_actually_running_on():
-    """Wired to the real Win32 lookup rather than left to each caller — a unit
-    run is on the ordinary desktop, so the default wiring must refuse."""
     with pytest.raises(RuntimeError):
         require_hidden_desktop()
 
@@ -101,10 +92,6 @@ def test_the_unit_suite_never_inherits_the_integration_flag():
 
 @pytest.mark.repo_check
 def test_every_integration_module_stays_off_a_machine_that_is_not_windows():
-    """Off Windows the session-start refusal returns early, so a module's own
-    platform mark is all that keeps ``pytest tests/integration/`` from starting
-    the satellite and VR Funestras there.  Two of the fourteen once carried none
-    (bug 35); this walks them all so a fifteenth cannot arrive without one."""
     integration = Path(__file__).resolve().parent / "integration"
     unguarded = [
         module.name

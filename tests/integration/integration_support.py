@@ -74,15 +74,6 @@ from .run_clock import Budget
 
 
 def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
-    """The children the orchestrator recorded at startup, by role.
-
-    Identity is the ``(pid, created_at)`` pair, never the PID alone: Windows
-    hands freed PIDs straight back out, so a teardown that killed by PID would
-    eventually shoot whatever inherited a dead child's number.
-
-    Empty when no session has ever written ``bridge_pids.ini`` — or when startup
-    failed before it got that far.
-    """
     pids_file = state_dir / "bridge_pids.ini"
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -105,9 +96,6 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
         status = read(path)
     return status
 
-# Every integration config is written under this name, in a temp tree of its own.
-# It is also what tells an integration orchestrator apart from the user's on a
-# command line, so the two uses share the constant rather than the spelling.
 INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 _MACHINES_OWN_PORTS = frozenset({50555, 50556, 50558, LOOPBACK_PORT})
 
@@ -135,23 +123,6 @@ def _is_leftover_app(pid: int) -> bool:
 
 
 def _kill_leftover_app_processes() -> None:
-    """Kill leftover Funestras / AHK / pythonw from a prior session so the next
-    one starts clean.
-
-    Bounded to the hidden integration desktop's own windows.  Nothing on that
-    desktop belongs to the user's real (input-desktop) session, which is what
-    makes a run safe to fire unattended.  They are not all *ours*, though — the
-    desktop is shared with any leftover session and with the pytest of a run
-    queued after this one — so kill only the app images, never a python.exe.
-
-    Anywhere else there is nothing of ours to find and nothing safe to kill, so
-    this does nothing at all.  It used to fall back to
-    ``Get-Process pythonw,autohotkey64 | where StartTime > -5min | Stop-Process``
-    — every Funestra, companion and AHK bridge of any session started in the last
-    five minutes, the user's included.  That existed to serve bare
-    ``pytest tests/integration/``, the one invocation the suite forbids and now
-    refuses outright.
-    """
     if current_desktop_name() != HIDDEN_DESKTOP_NAME:
         return
     window_pids = pids_with_window_on_current_desktop()
@@ -162,25 +133,11 @@ def _kill_leftover_app_processes() -> None:
 
 
 def _kill_leftover_hosted_apps(window_pids) -> None:
-    """Reap a leftover hosted Origenerator, which the image-name pass spares.
-
-    It runs on its own interpreter — a plain ``python.exe`` — exactly the image
-    the pass above deliberately never kills, because the pytest of a queued run
-    is python.exe too.  The command line is what tells them apart: only the
-    hosted app was launched ``-m origenerator``, and a leftover one owns real
-    windows on this desktop that can sit over a later session's Funestras (a
-    stalled boot's splash covered a satellite for a whole test run).
-    """
     for pid in sorted(set(window_pids)):
         if re.search(r"-m +origenerator", command_line_of(pid) or "", re.IGNORECASE):
             kill_process_tree(pid)
 
 
-
-# Every budget below is counted in the seconds the run could run (run_clock), so
-# the minutes other agents' normal-priority work holds every processor are not
-# spent: a session that opens in 5 to 10 seconds took 24 to 101 on the wall
-# beside them, and on 2026-10-10 the ones that missed 120 were still starting.
 QUIT_BUDGET_S = 60.0
 START_BUDGET_S = 120.0
 
@@ -188,7 +145,6 @@ STARTUP_STOPPED = "Fun Time stopped starting up"
 
 CHILDREN_GONE_TIMEOUT_S = 20.0
 
-# How long a command is given to show in what a Funestra publishes.
 COMMAND_BUDGET_S = 120.0
 
 # Windows leaves a monitor that is asleep out of the ones it lists.
@@ -296,36 +252,15 @@ class FunTimeIntegrationSession:
         return self.config.paths.trash_dir
 
     def read_main_funestra_status(self) -> MainFunestraStatus:
-        """Parse the Main Funestra's published status file."""
         return published_status(read_main_funestra_status, self.config.main_funestra_status_file)
 
     def read_child_pids(self) -> dict[str, int]:
-        """Read all child PIDs from bridge_pids.ini."""
         return {key: child.pid for key, child in self.read_child_processes().items()}
 
     def read_child_processes(self) -> dict[str, ChildProcess]:
-        """Read the children the orchestrator recorded — PID and creation time."""
         return read_recorded_children(self.config.paths.state_dir)
 
     def quit_gracefully(self, timeout: float = QUIT_BUDGET_S) -> int:
-        """Simulate the Ctrl+Alt+Q quit path by telling the AHK process to exit.
-
-        In a live session ``exit`` marks the session's end and exits, and
-        either one ends the orchestrator's wait, triggering the finally block
-        which calls _shutdown_children().
-
-        The command is re-sent until the process goes.  ``ahk_cmd.txt`` is a
-        one-slot mailbox that AHK reads-and-deletes on a 50ms timer, and the
-        dispatch loop writes to it too — an OmniPause enter puts
-        ``suspend_hotkeys`` there — so a lone write can be overwritten before
-        AHK ever reads it, and an exit lost that way never arrives.  That is
-        what made ``test_fun_time_reopens_on_the_video_it_was_closed_on``
-        (which quits from inside OmniPause) fail about one run in ten.  Nothing
-        in production races here: the dispatch loop is the mailbox's only
-        writer and returns the moment it has written "exit".
-
-        Returns the orchestrator process exit code.
-        """
         if not self._proc or self._proc.poll() is not None:
             raise RuntimeError("Orchestrator is not running")
         ahk_cmd = self.config.paths.state_dir / "ahk_cmd.txt"
@@ -347,26 +282,7 @@ class FunTimeIntegrationSession:
 
     def start(self, wait_seconds: float = START_BUDGET_S, project_dir: Path | None = None,
               env_overrides: dict[str, str] | None = None) -> None:
-        """Launch the orchestrator and wait for it to report the bridge up.
-
-        *project_dir* is the working directory the orchestrator runs in, which
-        is also the checkout it resolves ``fun_time`` and ``satellite`` from —
-        ``fun_time`` is not installed into the venv, so the working directory is
-        what chooses the code.  It defaults to this checkout; a branch-session
-        test passes the worktree, which is the whole mechanism under test.
-
-        *env_overrides* land on top of the integration defaults — how the
-        loading-screen test forces the production overlay path
-        (``FUN_TIME_INTEGRATION_OVERLAYS=1``) that integration mode otherwise
-        skips.
-        """
         already_logged = self._launch(project_dir=project_dir, env_overrides=env_overrides)
-        # The hotkey script goes up with the loading screen now, ahead of every
-        # window, so its own "started" line says nothing about the session — it
-        # lands seconds before there is one.  This is the line it writes when the
-        # orchestrator's pids file appears, which is exactly when startup has
-        # finished.  (Its keys stay suspended in a run like this one; the hold
-        # this line reports is the separate startup one.)
         self._wait_for_own_log(
             "Session up; startup hold released", after=already_logged, timeout=wait_seconds
         )
@@ -391,10 +307,6 @@ class FunTimeIntegrationSession:
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
         self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
-        # The windows-bridge log outlives the session that wrote it, so a
-        # whole-file search would answer with a PREVIOUS session's line and hand
-        # back a session that has not launched anything yet.  Only what is
-        # appended from here on can satisfy the wait.
         already_logged = len(self._read_windows_bridge_log())
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
@@ -407,7 +319,6 @@ class FunTimeIntegrationSession:
         return already_logged
 
     def _wait_for_own_log(self, needle: str, *, after: int, timeout: float) -> None:
-        """Wait for *needle* among the log characters written past *after*."""
         if seen_within(lambda: needle in self._read_windows_bridge_log()[after:], seconds=timeout):
             return
         raise AssertionError(
@@ -424,27 +335,16 @@ class FunTimeIntegrationSession:
                 self._proc.kill()
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
-        # Deterministically kill the children by their recorded PIDs first —
-        # hard-terminating the orchestrator above skips its graceful
-        # _shutdown_children(), so the satellites would otherwise survive
-        # until the racy name+StartTime sweep happens to catch them.
         self._kill_recorded_children()
         self._reap_leftover_runtime_processes()
 
     def write_dashboard_command(self, action: str) -> None:
-        """Press a Dash button the way `dashboard_app` presses it."""
         append_command(self.dashboard_cmd_file, action)
 
     def is_favorite(self, path: Path) -> bool:
         return is_favorite(path, self.config.regen.metadata_root)
 
     def messages(self) -> list[EventRecord]:
-        """Every announcement in this session's event log so far.
-
-        The overlay flashes exactly what clears :func:`is_announcement`, so a
-        record here with the right source is a message over the right Funestra —
-        assertable without a QApplication.
-        """
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))
         return [record for record in records if is_announcement(record)]
 
@@ -540,20 +440,6 @@ class FunTimeIntegrationSession:
             return ""
 
     def _kill_recorded_children(self) -> None:
-        """Deterministically kill this session's children by their recorded identity.
-
-        stop() hard-terminates the orchestrator with TerminateProcess, so the
-        orchestrator's own graceful _shutdown_children() never runs and the
-        processes it launched (the two satellites, plus Main Funestra/Genau/dashboard/
-        audio) are orphaned.  Kill them via the production kill_recorded_child,
-        which taskkills a recorded PID only while its creation time still names
-        the process the orchestrator launched — a child that has already died
-        and had its PID handed to some other process (this run's pytest, or a
-        queued run's) is left alone.
-
-        bridge_pids.ini is absent only when startup failed before writing it —
-        then there is nothing of ours to kill.
-        """
         try:
             children = self.read_child_processes()
         except (KeyError, OSError, ValueError):
@@ -565,13 +451,6 @@ class FunTimeIntegrationSession:
     def _wait_for_the_children_to_be_gone(
         self, children, timeout_s: float = CHILDREN_GONE_TIMEOUT_S,
     ) -> None:
-        """Hold until the killed children are off the machine, or *timeout_s*.
-
-        A test that opens a second session over this state dir hands it a Funestra
-        still publishing: the dying one holds the temp name its own status file is
-        written through, and the new Funestra's first write of it raises the sharing
-        violation, which takes that startup down.
-        """
         budget = Budget(timeout_s)
         for child in children:
             if not child.pid:
@@ -584,21 +463,6 @@ class FunTimeIntegrationSession:
         self._wait_for_orchestrators_to_exit()
 
     def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
-        """Block until no *integration* fun_time.orchestrator processes remain.
-
-        Killing a session's AHK wakes its orchestrator, whose shutdown then
-        taskkills the PIDs it recorded at startup.  Windows recycles PIDs
-        aggressively, so if a NEW session launches during that window the
-        dying orchestrator can kill the new session's freshly-spawned
-        processes.  Serialize the handoff: let the old orchestrator finish
-        its shutdown storm before anything new starts.
-
-        Bounded to orchestrators started from an integration config.  Matching
-        every orchestrator on the machine swept in the user's live session, which
-        is never going to exit for us — so both ends of every session burned the
-        whole timeout, and a run's own teardown waited on a session it has
-        nothing to do with.
-        """
         an_integration_orchestrator = rf"fun_time\.orchestrator .*{re.escape(INTEGRATION_CONFIG_NAME)}"
         budget = Budget(timeout)
         while not budget.expired():
@@ -607,13 +471,7 @@ class FunTimeIntegrationSession:
             time.sleep(0.5)
 
 
-
 def _free_port(socket_kind: int) -> int:
-    """A loopback port the OS says is free, for something else to bind.
-
-    The machine's fixed ports sit inside the range the OS hands out, and being
-    free this moment says only that the user's session has not bound one yet.
-    """
     while True:
         with socket.socket(socket.AF_INET, socket_kind) as probe:
             probe.bind(("127.0.0.1", 0))
@@ -631,9 +489,6 @@ def _free_tcp_port() -> int:
 
 
 class TheRunsOsr2:
-    """The broker's own slot, on a port of the run's: what the sender holding it
-    sends is heard here, as the OSR2 would hear it, and goes no further."""
-
     def __init__(self) -> None:
         self._heard: queue.Queue[tuple[float, str, str]] = queue.Queue()
         self._slot = Osr2Slot(port=0, logger=logging.getLogger(__name__),
@@ -644,7 +499,6 @@ class TheRunsOsr2:
         self.port = self._slot.address[1]
 
     def take(self) -> list[tuple[float, str, str]]:
-        """Every line heard since the last take: when, from whom, and what."""
         lines = []
         while True:
             try:
@@ -688,7 +542,6 @@ def tcode_heard(port: int, *, seconds: float) -> list[tuple[float, str, float]]:
 
 
 def senders(heard: list[tuple[float, str, float]]) -> dict[str, tuple]:
-    """Each sender heard: how many moves, over which seconds, between which heights."""
     return {sender: (len(moves), min(at for at, _h in moves), max(at for at, _h in moves),
                      round(min(h for _at, h in moves), 2), round(max(h for _at, h in moves), 2))
             for sender in {sender for _at, sender, _h in heard}
@@ -702,27 +555,6 @@ def close_the_runs_osr2s() -> None:
 
 
 def _isolate_shared_ports(config: dict) -> None:
-    """Move every port this run would otherwise share with the machine.
-
-    Three fixed ports are machine-global, and a socket is not per-desktop — so
-    the hidden desktop does nothing for any of them:
-
-    * The **audio companion** ``bind``s its port, and Genau notifies it there,
-      off the same key.  Two sessions cannot both have it: the loser dies
-      with WSAEADDRINUSE, and if the run got there first the loser is the user's
-      — they open Fun Time and it comes up with no companion audio and nothing to
-      say why.
-    * **Genau's inbound port** is bound with SO_REUSEADDR, which on Windows lets
-      a second Genau bind it rather than refusing — so two Genaus split one
-      datagram stream between them at random, and a run's Genau swallows packets
-      meant for the user's.
-    * The **broker's slot for the OSR2** is the one output that reaches hardware.
-      The broker holds the OSR2's serial port, so a run that kept the production
-      slot would drive the user's device while they are using it.  The run gets
-      a slot of its own, the broker's own code on a port of the run's, where
-      every Funestra and Genau of the run connect, so a run's stream is heard
-      where it lands.
-    """
     config["audio_companion"]["port"] = _free_udp_port()
 
     genaus_own = {field.name for field in dataclasses.fields(GenauSettings)}
@@ -733,62 +565,18 @@ def _isolate_shared_ports(config: dict) -> None:
 
 
 def real_config_path() -> Path:
-    """The machine's real runtime config, found from a worktree as well.
-
-    ``fun_time_config.json`` is a private overlay now — git-ignored, with only
-    the sanitized example committed — so it is checked out in the primary
-    checkout and nowhere else.  Worktrees made before it stopped being tracked
-    still carry a copy; ones made since have none, and every integration run in
-    them died at setup on a missing file.
-
-    A run needs the real one (it links its sample videos out of the actual
-    library), and the overlay describes the machine rather than the checkout, so
-    a worktree borrows the primary checkout's.  ``--git-common-dir`` is what
-    names it: worktrees share one git dir, and its parent is that checkout.
-    """
     if DEFAULT_CONFIG_PATH.exists():
         return DEFAULT_CONFIG_PATH
     return primary_checkout_of(PROJECT_DIR) / DEFAULT_CONFIG_PATH.name
 
 
 def isolate_shared_resources(config: dict) -> None:
-    """Strip the config of everything a run would otherwise share with the machine.
-
-    Rewriting *paths* gives a run its own state dir, media and logs; the hidden
-    desktop gives it its own windows, input queue and process sweep.  What is
-    left over is everything those two do not reach — sockets, devices and
-    machine singletons, none of which have a per-desktop or per-directory
-    version.  Each one is named here, so there is one place to look for what a
-    run is still allowed to touch, and one place to add the next.
-
-    Removing a resource is preferred to teaching production code a test mode:
-    an empty ``broker_tray_launcher`` makes every broker path inert on its own
-    terms, where a ``FUN_TIME_RUN_INTEGRATION`` branch would be a second
-    behavior that only the tests exercise.
-    """
     _isolate_shared_ports(config)
 
-    # The loopback server binds a fixed TCP port, and the loser of a race for it
-    # loses the surface entirely: no Tampermonkey auto-update, and RFB tab pages
-    # that never learn about OmniPause.  Startup treats a busy port as a warning
-    # rather than a failure, so the loss is silent.
     config["loopback_port"] = _free_tcp_port()
 
-    # The broker is a machine singleton holding the OSR2's serial port, and it
-    # outlives the sessions that use it.  Without a launcher a run cannot start
-    # one, and the kill path (a machine-wide sweep matched by command line)
-    # needs a *fresh* heartbeat — which a run's own state dir, where no broker
-    # writes, never has.
     config["paths"]["broker_tray_launcher"] = ""
 
-    # And the broker's own directory, which a config may pin away from the
-    # session's own so the two land on the machine's one broker (a branch session
-    # does — see :mod:`fun_time.branch_session`).  A run copies the config whole,
-    # so it would inherit that pin: park and retract written into the live
-    # broker's command file, and its heartbeat read back as the run's own — the
-    # fresh heartbeat that is the one thing the kill path above waits for.
-    # Dropping the key puts the whole channel back inside the run's state dir,
-    # where no broker writes and none is ever started.
     config["paths"].pop("broker_state_dir", None)
 
     # There is one microphone.  Windows shares an input device between listeners
@@ -815,27 +603,10 @@ def run_from_this_installation(config: dict) -> None:
 
 
 def apply_this_checkouts_siblings(config: dict) -> None:
-    """Run this checkout's ``state/sibling_checkouts.txt`` over *config*, the
-    way a branch session's own config generator does.
-
-    A run launches this checkout's code, so it has to launch this checkout's
-    SIBLINGS too: a branch that leans on an unlanded ``funestra`` change —
-    the satellites' HUD moved there, say — otherwise starts Funestras that import
-    a name the primary's install does not have, and every one of them dies at
-    import with no window and no status file, which reads as a suite of
-    timeouts rather than as a path problem.  Ordinary checkouts have no
-    override file and this changes nothing.
-
-    Applied through the production function rather than re-read here, so the
-    file means in a run exactly what it means in the session the run is
-    standing in for.
-    """
     _apply_sibling_checkouts_override(config, PROJECT_DIR / STATE_DIRNAME)
 
 
 def this_checkouts_siblings() -> str:
-    """Those same directories as a ``PYTHONPATH`` string, for a test that
-    launches a child itself instead of through a session's manifest."""
     raw: dict = {}
     apply_this_checkouts_siblings(raw)
     return os.pathsep.join(raw.get("paths", {}).get(SIBLING_CHECKOUTS_KEY, []))
@@ -893,11 +664,6 @@ def build_integration_config(tmp_path: Path) -> Path:
     return config_path
 
 
-# Every temp root this run has built.  A root goes on the list the moment it
-# exists rather than when the test that built it is done with it: two VR tests
-# never said they were done, and each run left their roots in the system temp
-# dir for good -- 196 of the 1,633 standing there came from the three days
-# before this was written.
 RUN_ROOTS: list[Path] = []
 
 
@@ -949,18 +715,13 @@ def keep_what_the_run_logged(keep_in: Path) -> Path | None:
 
 
 class RootsLeftBehind(OSError):
-    """What a run could not take away again, and why."""
+    pass
 
 
-# How long the end of a run waits for its last sessions' Funestras to let go of
-# their logs.  stop() reaps them, but a Funestra takes a while to finish going:
-# 22 to 59 seconds on a machine the flake gate kept busy, and a minute was once
-# not enough.
 RELEASE_BUDGET_S = 180.0
 
 
 def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:
-    """Delete every root this run built, and say which ones would not go."""
     budget = Budget(budget_s)
     refused = _remove_each(RUN_ROOTS)
     while refused and not budget.expired():
@@ -991,9 +752,6 @@ PROBE_BUDGET_S = 90.0
 
 
 def library_videos(roots) -> list[Path]:
-    """Every video under *roots*.  Point it at local folders only: a walk that
-    reaches into the cloud drive can block inside its driver, where nothing ends
-    it and the process can never finish exiting."""
     return [
         Path(dirpath) / name
         for root in roots
@@ -1005,23 +763,6 @@ def library_videos(roots) -> list[Path]:
 
 def sample_library_videos(candidates, count: int, *, desc: str, readable=None,
                          budget_s: float = PROBE_BUDGET_S, now=run_clock.now) -> list:
-    """*count* videos drawn at random from *candidates*, reproducibly.
-
-    A fresh draw each run — the same videos every run masks bugs that only one
-    codec, aspect or duration shows — but never an unrepeatable one: the seed
-    comes from ``FUN_TIME_INTEGRATION_SEED`` when set (re-running a failure on
-    the same media) or is drawn fresh, and the seed is printed either way, so a
-    failure can be run again on what it played without naming it: the names are
-    his, and a run's output ends up in an agent's transcript.  Candidates are
-    sorted first so the draw depends only on the seed, not on glob order, and
-    a library smaller than *count* fails saying so instead of raising
-    ``Sample larger than population`` from inside a test.
-
-    With *readable* (see :func:`readable_at_speed`), a drawn video the machine
-    cannot serve right now is skipped, named, and replaced by the next draw --
-    for at most *budget_s*, since every skip costs a real wait and a whole cold
-    library would otherwise outlast the test.
-    """
     candidates = sorted(candidates, key=str)
     assert len(candidates) >= count, (
         f"need {count} {desc}, found {len(candidates)}"
@@ -1054,14 +795,6 @@ def one_video_per_video(videos, version_index) -> list[Path]:
 
 
 def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read=None) -> bool:
-    """Whether the first *size* bytes of *path* arrive within *budget_s*.
-
-    The VR masters sit on the pCloud drive, which fetches a file from the
-    internet the first time anything on this machine opens it, and a cold one
-    can take minutes: a Funestra fed one stalls on the fetch, not on the code
-    under test.  The read runs on a thread it may never return from, so a
-    cold file costs the budget and nothing more.
-    """
     read = _read_head if read is None else read
     arrived = threading.Event()
 
@@ -1132,24 +865,11 @@ def _safe_link(src: Path, dest: Path) -> None:
         shutil.copy2(src, dest)
 
 
-
 def window_is_quiet(frame_ms, *, budget_ms: float) -> bool:
-    """Whether nine frames in ten of *frame_ms* came in under *budget_ms*.
-
-    Not the median: a window taken while a session is still tearing down can
-    hold a median of a millisecond and a 428ms frame at the same time, and a
-    measurement started there indicts the code instead of the machine.
-    """
     ordered = sorted(frame_ms)
     return ordered[len(ordered) * 9 // 10] < budget_ms
 
 
 def stall_per_transition(passes) -> float:
-    """The median across *passes* of each pass's worst frame, in milliseconds.
-
-    A regression that stalls the render thread stalls every transition, so
-    the typical pass is what says whether one is back; the single worst frame
-    across all of them is the one number a machine's own hiccup can own.
-    """
     worst = sorted(max(one) for one in passes)
     return worst[len(worst) // 2]

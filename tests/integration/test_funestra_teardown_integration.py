@@ -1,18 +1,3 @@
-"""Closing a Funestra must raise nothing its host would read as a crash.
-
-libmpv raises Windows structured exceptions from its Lua engine, and a host that
-has armed faulthandler -- pytest for this whole suite, and
-``app_support.logging_utils.enable_faulthandler`` for Origenerator --
-answers each one by dumping every thread's Python frames without the GIL.  mpv's
-teardown is exactly when python-mpv's event thread is exiting, so the walk can
-reach a thread state being freed and fault; nothing handles that, and the process
-dies mid-dump.  It killed two hidden-desktop runs, and the second time it went
-before pytest printed its summary, so an earlier failure in that run was never
-reported at all.
-
-Only reachable here: it takes the real DLL and a real GL context, which is why
-funestra's own suite cannot ask this question.
-"""
 from __future__ import annotations
 
 import os
@@ -43,8 +28,6 @@ PROBE_TIMEOUT_S = 180.0
 
 
 def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: Path):
-    """The probe is a child because the regression is fatal: in this process it
-    would take the run down before pytest could say which test was running."""
     log = tmp_path / "faulthandler.log"
     probe = run_within(
         [sys.executable, "-m", "tests.integration.teardown_probe", str(log), str(TEARDOWNS)],
@@ -60,7 +43,6 @@ def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: P
         f"opening and closing {TEARDOWNS} Funestras ended the process "
         f"({probe.returncode}): {probe.stderr.strip() or caught.strip()}"
     )
-    # An empty log is also what a probe that opened nothing would leave.
     assert probe.stdout.strip() == f"{TEARDOWNS} opened and closed", probe.stdout
     assert caught == "", (
         f"libmpv raised something faulthandler reported while {TEARDOWNS} Funestras "

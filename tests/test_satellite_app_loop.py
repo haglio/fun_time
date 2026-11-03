@@ -1,10 +1,3 @@
-"""Fun Time's satellite program: the window it opens, and the Funestra it runs on that window.
-
-pygame is the one fake (the window system, this process's true boundary), the
-args come from the production parser, and what the loop hands the Funestra --
-the handle, the launch's channels and list, each pass's window size, each press
-and the close -- is read back off a fake Funestra.
-"""
 from __future__ import annotations
 
 import contextlib

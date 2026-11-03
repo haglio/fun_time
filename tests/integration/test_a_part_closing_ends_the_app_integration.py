@@ -1,10 +1,3 @@
-"""A part of Fun Time that closes while the session is up takes all of Fun Time
-down with it, on a real session.
-
-His rule (2026-10-08): "If one component of Fun Time dies, the whole thing
-should die." The unit tests hold the decision; this holds that a real session
-acts on it: a Funestra that goes is noticed, and every other window goes too.
-"""
 from __future__ import annotations
 
 import sys

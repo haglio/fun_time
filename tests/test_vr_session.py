@@ -1,7 +1,3 @@
-"""The OpenXR session's decisions that need no headset: whether a located view
-is worth drawing from, what the runtime's session states ask of the session, and
-what each controller binds.
-"""
 from __future__ import annotations
 
 import ast
@@ -189,9 +185,6 @@ class TestControllerBindings:
 
 
 def test_the_scene_window_wears_the_sessions_button_before_it_reaches_the_taskbar():
-    """Its thread is off bringing up OpenXR the moment it is shown, too busy to
-    tell the taskbar its icon -- so what the button shows has to be on the
-    window already, read off it rather than asked of it."""
     calls = {ast.unparse(node.func): node.lineno
              for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(VRSession._init_glfw))))
              if isinstance(node, ast.Call)}

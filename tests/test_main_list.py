@@ -367,8 +367,6 @@ class TestWhereItStarts:
         assert vr_only == [video for video in after_it if "vr scene" in video]
 
     def test_a_video_named_in_another_case_is_the_same_video(self, tmp_path):
-        """The list and the Funestra's status are written by different processes,
-        and Windows hands the same file back in either case."""
         the_list = self._library(tmp_path)
         whole = the_list.videos(MainListSettings(shuffle_seed=7))
 

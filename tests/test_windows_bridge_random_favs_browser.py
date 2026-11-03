@@ -21,13 +21,6 @@ from fun_time.windows_bridge_random_favs_browser import (
 
 
 def windows_argv(command_line: str) -> list[str]:
-    """What Windows itself parses *command_line* into.
-
-    The only judge that matters: this string is handed to CreateProcessW, which
-    parses it with these rules and no others.  Asked of the OS rather than
-    reimplemented, because a hand-rolled parser would agree with whatever we
-    believed when we wrote it.
-    """
     shell32 = ctypes.WinDLL("shell32", use_last_error=True)
     shell32.CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
     shell32.CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
@@ -208,11 +201,6 @@ _WINDOWS_COMMAND_LINE_LIMIT = 32767
 
 
 def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path: Path):
-    """A regenerate URL's #ft= payload must never reach Chrome's argv.
-
-    Ten of them are ~50 KB — past the CreateProcess ceiling, which fails the
-    launch with WinError 206.  The payload rides in the lazy-load pages instead.
-    """
     payload = "%22" * 1300
     targets = [
         TabTarget(url=f"https://example.com/create#ft={payload}", label=f"https://example.com/image/{i}")
@@ -236,9 +224,6 @@ def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path:
 
 @needs_windows
 def test_a_quote_in_a_profile_name_no_longer_malforms_the_command_line():
-    """Values were wrapped in bare double quotes with no escaping, so one that
-    contained a quote of its own closed the wrapper early and handed Chrome a
-    different argument list than the one asked for."""
     cmd = build_open_rfb_tab_command(
         urls=[r'https://example.com/a"b'],
         shortcut=Shortcut(target=r"C:\Chrome\chrome.exe", work_dir="", arguments=""),

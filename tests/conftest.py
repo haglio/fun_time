@@ -1,4 +1,3 @@
-"""Shared pytest fixtures for Fun Time tests."""
 from __future__ import annotations
 
 import _winapi
@@ -96,10 +95,6 @@ def _never_mutate_a_real_window(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _never_switch_a_real_browsers_tabs(monkeypatch):
-    """The RFB slideshow presses Chrome's tabs through Windows' accessibility
-    interface, and the Chrome on this machine is the user's own: a unit test that
-    reached it would change which tab he is looking at.  The integration suite
-    overrides this, because it drives a throwaway Chrome of its own."""
     def _refuse():
         raise RuntimeError("a unit test tried to reach a real browser's tabs")
 
@@ -138,17 +133,6 @@ def _never_reach_the_real_headset(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _never_hold_the_live_loopback_port(monkeypatch):
-    """Keep the orchestrator tests off the port a live session serves on.
-
-    Every test that runs ``run_session`` reaches the real
-    ``serve_loopback``, and a bound port is a bound port: for the length of the
-    run this pytest — not the user — would own 8770.  A Fun Time opened meanwhile
-    finds it busy, logs the warning, and comes up with no loopback server at
-    all, so Tampermonkey stops auto-updating and the RFB tab pages never hear
-    about OmniPause.  The integration suite needs no override: it runs the
-    orchestrator as a subprocess, which never sees this patch, and gives that
-    subprocess a ``loopback_port`` of its own to serve on.
-    """
     monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
 
 
@@ -183,15 +167,6 @@ def _never_start_a_real_loading_screen(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _never_leave_a_loading_screen_heartbeat_running(monkeypatch):
-    """Keep a session's transition-screen heartbeat from outliving its test.
-
-    Each session and the relay between them keep the loading screen up from a thread
-    that reads the progress file in their state dir once a second for the
-    rest of the process's life -- in a unit run, the rest of the suite.  One
-    caught reading as its test's tmp_path went held the file open, and
-    Windows will not delete an open file.  The heartbeat's own tests call it
-    by the name they imported, which this leaves alone.
-    """
     for module in (orchestrator, session_handoff, vr_orchestrator):
         monkeypatch.setattr(module, "keep_the_transition_screen", lambda _state_dir: None)
 
@@ -281,16 +256,6 @@ TMP_ROOT = Path(
 
 @pytest.fixture
 def tmp_path() -> Path:
-    """Replace pytest's builtin ``tmp_path`` with a checkout-local scratch dir.
-
-    Each test gets ``.tmp-pytest-local/case_<uuid>``, removed when it ends —
-    including on failure, so unlike pytest's own fixture there is no
-    retained-last-3-runs debris to inspect afterwards.  Note the trade-offs:
-    the scratch tree lives inside the checkout (git-ignored, but on a synced
-    drive), and ``tmp_path_factory`` (and plugins built on it) still point at
-    the system temp dir, so the two are not interchangeable.  Set
-    ``FUN_TIME_PYTEST_TMP_ROOT`` to relocate it.
-    """
     with scratch_dir(TMP_ROOT) as path:
         yield path
 

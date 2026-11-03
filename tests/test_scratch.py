@@ -12,7 +12,6 @@ from tests.scratch import scratch_dir
 
 
 def test_a_read_only_file_does_not_keep_the_scratch_standing(tmp_path: Path):
-    """git writes its object files read-only, and Windows refuses to delete one."""
     with scratch_dir(tmp_path) as scratch:
         written = scratch / "object"
         written.write_bytes(b"what git writes under .git/objects")

@@ -1,29 +1,3 @@
-"""Nothing shows through the loading screen for long enough to see.
-
-His: "many things flash out for a split second from underneath the loading
-screen's scrim."  Nothing keeps a topmost window above the OTHER topmost
-windows — every raise a session makes while the loading screen is up (showing a Funestra,
-moving it onto its rect, promoting it into the band) inserts that window ABOVE
-the loading screen, and Windows never tells a window it has been displaced.
-
-The loading screen answers by taking the top back every 16ms, which is what bounds a
-flash on an idle machine — measured at 27ms for one raise, against the 200ms
-the loading screen's first defense took.  It is no bound at all on a busy one: with
-twice as many busy processes as the machine has cores, ten of twenty-four
-raises sat over the loading screen past the budget and the worst sat there for 198ms.
-So a window that must not flash is never put above the loading screen in the first
-place — the session's promotions land under it (``set_always_on_top(under=)``)
-and the panel leaves the topmost band before it becomes visible
-(:mod:`fun_time.loading_reveal`) — and the loading screen's own poll is the backstop
-for whatever nobody thought of.
-
-This watches the window immediately above the loading screen, at 2ms, for the whole
-time the loading screen is up, and asks how LONG anything managed to stay there.  Not
-whether anything ever got above it: a raise and the answer to it are two
-SetWindowPos calls and the gap between them is real, so the only truthful
-question is whether that gap is short enough that no frame is ever drawn from
-it.  :mod:`above_the_loading_screen` holds the budget and the arithmetic.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -96,8 +70,6 @@ def test_nothing_stays_over_the_loading_screen_long_enough_to_be_seen():
     watcher = AboveTheLoadingScreen()
     watcher.start()
     try:
-        # With the dashboard, because it and its message overlay are two of the
-        # topmost windows that can land over the loading screen.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
@@ -118,8 +90,6 @@ def test_nothing_stays_over_the_loading_screen_long_enough_to_be_seen():
 
 
 class _Windows(threading.Thread):
-    """Windows on a thread of their own that answers, as a Funestra's own does."""
-
     def __init__(self, *titles: str, style: int = WS_POPUP, ex_style: int = 0) -> None:
         super().__init__(daemon=True)
         self.hwnds: dict[str, int] = {}
@@ -171,8 +141,6 @@ def _a_real_loading_screen(progress_file: Path):
 
 @contextmanager
 def _unable_to_run(hwnd: int):
-    """The thread that owns *hwnd*, suspended: to everything that needs it to
-    answer, a thread starved by a loaded machine looks exactly like this."""
     thread = _kernel32.OpenThread(
         THREAD_SUSPEND_RESUME, False, _user32.GetWindowThreadProcessId(hwnd, None))
     _kernel32.SuspendThread(thread)
@@ -208,12 +176,6 @@ def test_an_app_banded_under_a_loading_screen_too_busy_to_answer_never_shows_thr
 
 
 class _ShowsItself:
-    """What the reveal is handed: a window whose ``show`` makes it visible.
-
-    The panel's own ``show`` is Qt's, which ends in the same ShowWindow — and
-    ShowWindow is what puts a topmost window at the top of the band.
-    """
-
     def __init__(self, hwnd: int) -> None:
         self._hwnd = hwnd
 
@@ -222,12 +184,6 @@ class _ShowsItself:
 
 
 def test_the_panel_revealed_under_a_loading_screen_too_busy_to_answer_never_shows_through_it(tmp_path):
-    """The panel comes out from under the loading screen one phase before the loading screen goes,
-    and it is topmost, so showing it used to put it at the top of the band —
-    over the loading screen — until the call after it put it back.  That gap is whatever
-    the machine gives the two processes: 68ms of the panel drawn through the
-    scrim in one loaded run, and here the loading screen cannot answer at all.
-    """
     progress_file = tmp_path / PROGRESS_FILENAME
     watcher = AboveTheLoadingScreen(timeout_s=60.0)
     with _Windows("panel", ex_style=WS_EX_TOPMOST) as windows:
@@ -248,14 +204,10 @@ def test_the_panel_revealed_under_a_loading_screen_too_busy_to_answer_never_show
             "revealed while the loading screen could not answer, these sat over it: "
             + "; ".join(watcher.too_long())
         )
-        # Inside the block that owns the window: a destroyed one reads as not
-        # topmost, so an assertion after it passes whatever the reveal did.
         assert is_window_topmost(panel), "the panel never got back into the band"
 
 
 class _Launches:
-    """``subprocess.Popen``, keeping hold of the loading screen it starts."""
-
     def __init__(self, popen) -> None:
         self._popen = popen
         self.loading_screen: subprocess.Popen | None = None
@@ -268,11 +220,6 @@ class _Launches:
 
 
 class _TheWayBack(threading.Thread):
-    """Which of "Returning to Fun Time..." and the loading screen can be seen,
-    sampled until stopped.  The first is looked at first, so a sample that finds
-    neither means it went before the loading screen was up -- never that both
-    changed between the two looks."""
-
     def __init__(self, crossing: subprocess.Popen, launches: _Launches) -> None:
         super().__init__(daemon=True)
         self._crossing = crossing
@@ -292,9 +239,6 @@ class _TheWayBack(threading.Thread):
 
 
 def _the_way_back(state_dir: Path, monkeypatch, *, waiting_s: float) -> _TheWayBack:
-    """A launch from "Returning to Fun Time..." that waits *waiting_s* for its
-    loading screen, with the launch's usual wait set to none at all -- so every
-    loading screen is later than that -- watched until both have been seen."""
     monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_S", 0.0)
     monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_UNDER_A_CROSSING_S", waiting_s)
     launches = _Launches(subprocess.Popen)
@@ -328,10 +272,6 @@ def _the_way_back(state_dir: Path, monkeypatch, *, waiting_s: float) -> _TheWayB
 @pytest.mark.real_startup_waits
 def test_the_way_back_from_vr_never_shows_the_desktop_before_a_late_loading_screen(
         tmp_path, monkeypatch):
-    """"Returning to Fun Time..." stands until the loading screen is up to take
-    over from it.  The launch used to give the loading screen a few seconds and
-    take "Returning to Fun Time..." down whether or not it had come, so on a busy
-    computer the desktop showed between the two."""
     watcher = _the_way_back(tmp_path, monkeypatch, waiting_s=60.0)
 
     assert watcher.bare_samples == 0, (
@@ -341,8 +281,6 @@ def test_the_way_back_from_vr_never_shows_the_desktop_before_a_late_loading_scre
 
 @pytest.mark.real_startup_waits
 def test_a_way_back_that_stops_waiting_first_shows_the_desktop(tmp_path, monkeypatch):
-    """The old hand-over, run so the check above is known to see what it rules
-    out: a sample finding neither screen is a sample of the bare desktop."""
     watcher = _the_way_back(tmp_path, monkeypatch, waiting_s=0.0)
 
     assert watcher.bare_samples > 0, (

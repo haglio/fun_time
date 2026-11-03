@@ -109,7 +109,6 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
 
 
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """The bare command still narrows every Funestra at once, and lifts it again."""
     shared_integration_session.write_dashboard_command("fmode_toggle")
     shared_integration_session.wait_for_new_log("F-mode enabled: main, portrait, landscape")
 
@@ -118,8 +117,6 @@ def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 
 def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegrationSession):
-    """What a satellite's own F button posts: that Funestra alone goes into F-mode,
-    and the whole-room command afterwards finishes the job rather than undoing it."""
     shared_integration_session.write_dashboard_command("portrait_fmode")
     shared_integration_session.wait_for_new_log("F-mode enabled: portrait")
 
@@ -148,7 +145,6 @@ def test_fun_time_spoken_favorites_flips_that_satellites_f_mode(
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """Pressing 'g' (genau_activate) then 'h' (main_kino_activate) switches modes."""
     s = shared_integration_session
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode")
@@ -169,8 +165,6 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         lambda: s.config.main_funestra_paused_file.read_text(encoding="utf-8") == "0",
         description="the Main Funestra paused file to flip back off (active)",
     )
-    # Genau runs on in kino mode — its HUD over the video, the Robot Hand
-    # under it for the funscript's gaps — so its flag never flips back.
     assert s.config.genau_paused_file.read_text(encoding="utf-8") == "0"
 
 
@@ -262,10 +256,6 @@ def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
 
 def test_fun_time_mode_switch_keeps_the_one_main_funestra_window_up_and_topmost(
         shared_integration_session: FunTimeIntegrationSession):
-    """Kino and Genau both run on the Main Funestra's window, so a mode switch
-    parks nothing and promotes nothing: the window stays up and topmost through
-    both switches, and what changes is which of the two is playing on it --
-    Kino's video is held in genau mode and plays again in kino mode."""
     s = shared_integration_session
 
     s.wait_until(
@@ -357,15 +347,6 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
 
 def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_funestra_running(
         shared_integration_session: FunTimeIntegrationSession):
-    """Regression: omnipause must pause Genau, not close it.
-
-    The old AHK HandleOmniPauseToggle never removed Genau's topmost
-    flag.  When omnipause was ported to Python, an explicit
-    set_topmost(Genau, False) was added by mistake, causing the
-    window to fall under other windows (appearing "closed").  Genau runs on
-    the Main Funestra's window now, so that is the process an omnipause
-    round-trip in genau mode must leave running.
-    """
     s = shared_integration_session
     rh_pid = s.read_child_pids()["main_funestra_pid"]
     assert is_process_alive(rh_pid), "the Main Funestra should be alive before test"
@@ -394,31 +375,19 @@ def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_funestra_running(
 
 
 def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_session: FunTimeIntegrationSession):
-    """Entering OmniPause must free the desktop — the Portrait and Landscape
-    satellites must leave the topmost band, not stay pinned on top of the
-    windows the user reaches for while paused."""
     s = shared_integration_session
-    # Known starting point: kino mode, not omnipaused ("play" is an idempotent
-    # leave-omnipause; a no-op when already live).
     s.write_dashboard_command("main_kino_activate")
     s.write_dashboard_command("play")
 
-    # Resolve exactly as startup does: by each satellite's DISTINCT caption
-    # ("Portrait AI Funestra" / "Landscape AI Funestra").  A pid cannot find either
-    # window — the venv's pythonw launcher spawns the interpreter that owns it as
-    # a child — and the distinct captions are what tell portrait from landscape
-    # without swapping them.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     assert portrait_hwnd, "Portrait satellite window must be resolvable"
     assert landscape_hwnd, "Landscape satellite window must be resolvable"
 
-    # Satellites float topmost while the desktop is live.
     s.wait_until(
         lambda: is_window_topmost(portrait_hwnd) and is_window_topmost(landscape_hwnd),
         description="Portrait + Landscape satellites to be topmost before OmniPause",
     )
 
-    # Enter OmniPause — every managed window must drop out of the topmost band.
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: entering")
     s.wait_until(
@@ -430,7 +399,6 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
         description="Landscape satellite to leave the topmost band on OmniPause enter",
     )
 
-    # Restore the shared session.
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: leaving")
 
@@ -438,18 +406,12 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
 def test_fun_time_omnipause_freezes_the_satellites(
     shared_integration_session: FunTimeIntegrationSession,
 ):
-    """OmniPause freezes the native satellites through their paused flag file.
-
-    The Funestra obeys that flag every tick and simply cannot auto-advance while it
-    is set, so entering OmniPause is a settled state that needs no policing.  We
-    assert each satellite reports paused and its playhead stops moving."""
     s = shared_integration_session
     portrait_status = s.config.paths.state_dir / "portrait_status.txt"
     landscape_status = s.config.paths.state_dir / "landscape_status.txt"
 
-    # Known starting point (kino mode, live): the satellites are playing.
     s.write_dashboard_command("main_kino_activate")
-    s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
+    s.write_dashboard_command("play")
     s.wait_until(
         lambda: not read_satellite_status(portrait_status).paused,
         description="Portrait satellite to be playing before OmniPause",
@@ -465,13 +427,11 @@ def test_fun_time_omnipause_freezes_the_satellites(
         lambda: read_satellite_status(landscape_status).paused,
         description="Landscape satellite to report paused under OmniPause",
     )
-    # The playhead must not advance while paused.
     pos_a = published_status(read_satellite_status, portrait_status).position_ms
     let_seconds_pass(1.2)
     pos_b = published_status(read_satellite_status, portrait_status).position_ms
     assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
 
-    # Restore the shared session.
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: leaving")
 
@@ -563,8 +523,6 @@ def _nudge(session: FunTimeIntegrationSession, command: str, *, by_ms: int) -> N
 
 
 def test_fun_time_main_funestra_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
-    """main_nudge_next/prev in kino mode drive the Main Funestra's seek via its command
-    file, observed through the Main Funestra's published status position."""
     s = shared_integration_session
     _main_funestra_playing_in_kino_mode(s)
     with _main_funestra_held_still(s):
@@ -607,7 +565,6 @@ def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteFil
 def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
-    """A video made for the test, since each step it refuses needs one longer than ten seconds."""
     s = shared_integration_session
     portrait = s.config.satellite(FunTimeFunestra.PORTRAIT)
     video = video_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640", seconds=20)
@@ -638,8 +595,6 @@ def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_s
 
 
 def test_fun_time_main_funestra_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
-    """The record gesture round-trips through the Main Funestra: record → looping → cancel,
-    observed through the Main Funestra's published loop state."""
     s = shared_integration_session
     _main_funestra_playing_in_kino_mode(s)
     with _main_funestra_held_still(s):
@@ -665,16 +620,6 @@ def test_fun_time_main_funestra_record_loop_cancel_cycle(shared_integration_sess
 
 
 def test_fun_time_kino_mode_comes_back_to_the_video_main_funestra_was_showing(shared_integration_session: FunTimeIntegrationSession):
-    """A round trip through genau mode hands the Main Funestra nothing new: the video it was
-    parked on is the one it resumes, and prev/next/nudge dispatch to it again
-    just as before.
-
-    (The precise +10s the Main Funestra seek is covered by the nudge test above, which
-    exercises the identical dispatch path.)
-
-    Must run before isolated-session tests (trash), whose teardown kills all
-    recent Funestra processes and would leave the shared session's Funestras dead.
-    """
     s = shared_integration_session
 
     main_funestra_video_before = s.read_main_funestra_status().video
@@ -685,13 +630,11 @@ def test_fun_time_kino_mode_comes_back_to_the_video_main_funestra_was_showing(sh
     s.write_dashboard_command("main_kino_activate")
     s.wait_for_new_log("Switched to kino mode")
 
-    # The Main Funestra is the display again and keeps playing its current video — no handoff.
     s.wait_until(
         lambda: s.read_main_funestra_status().video == main_funestra_video_before,
         description="the Main Funestra to come back on the video it was showing",
     )
 
-    # A nudge in kino mode reaches the normal dispatch path.
     s.write_dashboard_command("main_nudge_next")
     s.wait_for_new_log("Dispatching command: main_nudge_next")
 
@@ -824,10 +767,6 @@ def _showing(satellite: SatelliteFiles) -> Path:
 def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
-    """Every sample the isolated session links in is marked a favorite on its
-    record, so the video on screen is a favorite and discard demotes it: the mark
-    comes off, the file stays in the library, and the video stays in the rotation —
-    W then A comes straight back to it."""
     s = isolated_integration_session
     landscape = s.config.satellite(FunTimeFunestra.LANDSCAPE)
     held = _held_still(s, landscape)
@@ -868,23 +807,14 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
 def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_trash(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
-    """Discarding a video that is not in the favorites is the full condemnation —
-    it leaves the playlist and the file moves into the trash dir."""
     status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
     isolated_integration_session.wait_until(
         lambda: bool(read_satellite_status(status_file).video),
         description="portrait satellite to publish the clip it is playing",
     )
-    # Hold the video before reading which one it is.  These are a few seconds long,
-    # so an unlocked satellite can advance between the read below and the discard,
-    # and then the discard meets a *different* video — one still in the favorites, so
-    # it is unfavorited instead of condemned and the trash-dir wait times out on a
-    # file that was never going there.  A lock is repeat-one, which closes that.
     isolated_integration_session.write_dashboard_command("portrait_lock_on")
     isolated_integration_session.wait_for_new_log("Locked portrait satellite")
     held = published_status(read_satellite_status, status_file).video
-    # Take the video out of the favorites the way the app does, so the discard
-    # below meets an ordinary library file rather than a favorite.
     mark_favorite(held, isolated_integration_session.config.regen.metadata_root, False)
 
     isolated_integration_session.write_dashboard_command("portrait_trash")
@@ -938,31 +868,17 @@ def test_fun_time_reset_all_leaves_every_funestra_unlocked(
 
 
 def _videos(playlist: Path) -> list[str]:
-    """The video column of each playlist line, dropping any funscript."""
     return [
         line.partition("\t")[0]
         for line in playlist.read_text(encoding="utf-8").splitlines()
     ]
 
 
-# Two session starts, a quit and up to five command waits, each at the family's budget:
-# on a loaded machine the two starts alone have taken the suite's whole 240s.
 TWO_SESSIONS_BUDGET_S = 2 * START_BUDGET_S + QUIT_BUDGET_S + 5 * COMMAND_BUDGET_S
 
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_on_the_video_it_was_closed_on():
-    """Close Fun Time on one video and it comes back on that one.
-
-    Nothing is written at shutdown: each Funestra publishes what it is showing to
-    its status file every tick, and the next start rotates that Funestra's playlist
-    onto the video named there rather than building a fresh shuffle.  Only a real
-    session proves it — the record has to survive the force-kill that ends one.
-
-    The Main Funestra carries the assertion because its library is the several-entry one, so
-    the resumed playlist has to be an exact rotation of the last one — an order
-    a rebuild would reproduce only by chance.
-    """
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
 
@@ -971,16 +887,11 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
     try:
         first.start()
         opened_with = _videos(playlist)
-        # Navigate off the top of the playlist, so resuming onto entry 0 — which
-        # every session does anyway — cannot pass this by accident.
         first.write_dashboard_command("main_next")
         first.wait_until(
             lambda: first.read_main_funestra_status().video not in ("", opened_with[0]),
             description="the Main Funestra to navigate off the first video",
         )
-        # Then freeze the session before closing it. Some of the Main Funestra library
-        # is seconds long, and a Main Funestra that auto-advanced while the shutdown ran
-        # would leave a different video than the one read here.
         first.write_dashboard_command("omnipause_toggle")
         first.wait_until(
             lambda: first.read_main_funestra_status().paused,
@@ -1014,15 +925,6 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
-    """Close Fun Time with Fun Time playing fast and unheld, and it comes back
-    that way.
-
-    A Funestra's rate and its hold live in the Funestra process, so Fun Time keeps
-    them as each Funestra publishes them to its status file, and the reopened
-    session re-sends both from Fun Time's state.  Only a real session proves that:
-    they have to survive the force-kill that ends one and arrive as verbs the new
-    Funestra obeys.
-    """
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
 
@@ -1059,7 +961,6 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
 
 
 def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
-    """*names* as two-second test patterns in *folder*, the first the oldest arrival."""
     flicks = []
     for arrived, name in enumerate(names, start=1):
         flick = video_of_a_test_pattern(folder / name, size="160x120", seconds=2)
@@ -1069,8 +970,6 @@ def _flicks_oldest_to_newest(folder: Path, *names: str) -> list[Path]:
 
 
 def _config_whose_genau_browses_in_folder_order(temp_root: Path) -> Path:
-    """Genau unshuffled, so the order it reopens in can be told from the order
-    it was left in."""
     config_path = build_integration_config(temp_root)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     config["genau"]["shuffle_on_load"] = False
@@ -1088,19 +987,6 @@ def _wait_for_genau_on(session: FunTimeIntegrationSession, flick: Path, waiting_
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing(monkeypatch):
-    """Close Fun Time with Genau browsing Latest and it comes back browsing
-    Latest, on the flick it was on.
-
-    Genau has no playlist file to resume from: it rescans its folder every
-    launch, so its order and its flick are both named on its launch line, off
-    the state and the status the last session published.  Only a real session
-    proves the two arrive together -- the LATEST verb sent after the launch
-    browses the new order from its top and loses the flick.
-
-    Three flicks, oldest to newest: alpha, beta, gamma.  Latest is gamma, beta,
-    alpha, and the session closes on beta -- so a reopen that kept the order
-    steps from beta to alpha, where the folder's order would step to gamma.
-    """
     temp_root = build_integration_temp_root()
     genau = made_up_genau(temp_root)
     point_the_shared_settings_at(monkeypatch, genau)
@@ -1176,7 +1062,6 @@ def test_fun_time_reopens_holding_the_osr2_to_the_max_intensity_it_was_closed_at
 
 
 def test_fun_time_quit_cleans_up_processes():
-    """The real quit path (AHK exit → orchestrator cleanup) must kill all child processes."""
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)

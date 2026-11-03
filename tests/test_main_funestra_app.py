@@ -1,9 +1,3 @@
-"""``main_funestra.app``: the window it opens, and what it hands the Funestra.
-
-``main_funestra.app`` is imported inside each test rather than at module scope: importing
-it pulls pygame in for real, and the view tests that replace pygame with a mock
-go red inside pygame's own resource lookup if that happens before they run.
-"""
 from __future__ import annotations
 
 import ast
@@ -41,9 +35,6 @@ def _keywords(call: ast.Call) -> dict[str, str]:
 
 
 class TestWhatTheFunestraIsHanded:
-    """`_run` needs a window and libmpv, so the wiring is read off the source: each
-    of these is a mis-wiring every unit test would stay green through."""
-
     def test_the_main_funestra_opens_holding_its_item_with_the_rooms_sound_and_tiling(self):
         given = _keywords(_call(_function("_run"), "Funestra.on_window"))
 

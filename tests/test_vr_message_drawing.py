@@ -125,6 +125,4 @@ class TestWhatTheOverlayGets:
         assert x + bgra.shape[1] <= 1152
 
     def test_a_frame_with_no_size_yet_gets_nothing(self):
-        """Before mpv reports its dimensions the target is 1x1; a message drawn
-        onto that is a message mpv would scale over the whole screen."""
         assert message_bgra("skip", MESSAGE, width=1, height=1) is None

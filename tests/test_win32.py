@@ -226,11 +226,6 @@ class TestAWindowThatHasStoppedAnswering:
 
     def test_a_window_that_is_not_answering_takes_its_calls_in_the_order_they_were_made(
             self, monkeypatch):
-        """When the window takes messages again, Windows wakes every call waiting
-        on it at once and whichever thread runs first lands first: a demotion made
-        before a promotion then lands after it, 8 times in 200 on a real stalled
-        window, and the Funestra sits out of the band a pause and a resume put it
-        back in.  So a window is sent its next call only once the last has landed."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         answering = threading.Event()
@@ -704,11 +699,6 @@ class TestFindWindowForProcess:
             mock.EnumWindows.assert_not_called()
 
     def test_a_hidden_window_is_skipped_when_nothing_names_the_one_wanted(self, monkeypatch):
-        """Qt gives a process hidden top-level windows that carry captions of
-        their own — ``_q_titlebar``, ``Default IME`` — so with no title to
-        match on, the enumeration order alone decided which one a caller got.
-        The library browse promotion asked this way and promoted a hidden
-        internal window instead of the browse, leaving it buried."""
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, 500, "_q_titlebar", False),
@@ -887,8 +877,6 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert all(c.args[2] & other for c in mock.SetWindowLongW.call_args_list)
 
     def test_the_taskbar_pass_asks_the_frame_to_be_recalculated(self):
-        """A style set with no SWP_FRAMECHANGED is a style Windows has not
-        drawn yet."""
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = 0
             win32.set_taskbar_window_styles(4242)

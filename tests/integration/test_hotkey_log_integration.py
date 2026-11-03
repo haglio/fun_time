@@ -1,11 +1,3 @@
-"""The hotkey script and the orchestrator both append to the bridge log.
-
-A run polls that log for the line a session start waits on.  The script's
-FileAppend took the file exclusively, and a line that met another handle was
-retried three times and dropped; shared, the two writers' appends landed on each
-other's offsets instead.  Either way a start that lost "Session up" timed out
-with its session fully up.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -50,7 +42,6 @@ _ERROR_SHARING_VIOLATION = 32
 
 
 def _logging_script(tmp_path: Path, body: str) -> Path:
-    """A script that has the real Log() and runs *body* with it."""
     script = tmp_path / "log.ahk"
     script.write_text(
         "#Requires AutoHotkey v2.0\n"

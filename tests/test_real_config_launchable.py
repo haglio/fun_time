@@ -1,30 +1,3 @@
-"""The config this machine will actually launch with must name things that exist.
-
-Every other guard here stops one step short of that. ``test_startup_imports``
-drives the launch graph's *import* phase and never calls ``main()``, so
-``validate_config`` is never reached -- and it forces overlay reads onto
-``content.example.json``, a different file from ``fun_time_config.json``, which
-it never opens. ``test_orchestrator.TestValidateConfig`` does call
-``validate_config``, but on a fixture config whose executables it creates under
-``tmp_path``. The integration tests are the only ones that load the real config,
-and none of them validates it.
-
-So nothing asserted that the paths in the real config point at anything. Moving
-the checkouts out of the synced tree invalidated three of them, and Fun Time
-died on the first -- ``FileNotFoundError`` from ``require_file``, before any
-window, with the launcher's hidden console the only place it was written down.
-
-This is that assertion and nothing more: load the default config the way
-``main()`` does, and check it. It calls ``validate_config`` directly rather than
-``orchestrator.main(--check)`` on purpose -- that path also takes the
-single-instance lock (so it fails whenever Fun Time is genuinely running) and
-stamps the taskbar shortcut's AppUserModelID, neither of which a test should do
-to the machine it runs on.
-
-``fun_time_config.json`` is git-ignored, so a fresh or public checkout -- and CI
--- has none and everything here skips. This is a check on the machine's state,
-not on the code.
-"""
 from __future__ import annotations
 
 from pathlib import Path

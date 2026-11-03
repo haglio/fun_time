@@ -1,16 +1,3 @@
-"""Open and close the Funestras' engine with faulthandler armed, as a host arms it.
-
-A child process, not a test body, because what it is watching for is a crash: a
-structured exception raised inside libmpv is answered by faulthandler's vectored
-handler, which dumps every thread's Python frames without the GIL, and in the
-wrong microsecond that walk reads a thread state python-mpv is freeing and
-faults.  Nothing catches that one, so the process dies where it stands -- which
-in-process would be the whole suite.
-
-Writes faulthandler's output to *log*, so the caller can read what it caught:
-
-    python -m tests.integration.teardown_probe <log> <rounds>
-"""
 from __future__ import annotations
 
 import faulthandler

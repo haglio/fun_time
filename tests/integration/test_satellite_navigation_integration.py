@@ -1,14 +1,3 @@
-"""Integration: navigate the native Satellite Funestra through its file protocol.
-
-Drives a real, launched native satellite (this repo's ``satellite`` package) purely
-through the command/paused/status file quartet — ``append_command`` in,
-``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
-Complements ``test_satellite_native_integration`` (which proves basic
-play/lock/pause) by covering navigation inverses, wrap-around, discard, playlist
-reload, PLAY_FILE, and a video that arrives while the Satellite plays its Latest list.
-
-Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
-"""
 from __future__ import annotations
 
 import os
@@ -51,9 +40,6 @@ def satellite():
     lone = a_lone_satellite()
     with lone.launched(library_videos_of("portrait", 4), width=800, height=600, hud=True):
         lone.wait_until_playing()
-        # Lock so the video on screen never auto-advances mid-test, making each
-        # navigation's effect unambiguous.  A locked satellite still obeys NEXT/PREV
-        # (they load a new video); it just does not walk on its own.
         lone.send(LOCK_ON)
         lone.wait_for(lambda: read_satellite_status(lone.status).locked,
                       desc="the satellite to lock")
@@ -88,9 +74,6 @@ def test_navigation_wraps_around(satellite):
 
 
 def test_play_file_switches_to_a_specific_video(satellite):
-    """A line of the playlist is a video and, where it has one, a TAB and its
-    funscript, and ``PLAY_FILE`` carries that whole line -- so what the Funestra
-    then reports playing is the video half of it."""
     start = satellite.video()
     target = next(item for item in read_playlist(satellite.playlist)
                   if str(item.path) != start)
@@ -110,15 +93,11 @@ def test_trash_advances_off_the_discarded_video(satellite):
 
 
 def test_reload_playlist_keeps_the_current_video(satellite):
-    """A loop/filter reshape writes a new playlist that still contains the video on
-    screen and sends RELOAD_PLAYLIST; the native Funestra keeps that video playing."""
     current = satellite.video()
     videos = [v.strip() for v in satellite.playlist.read_text(encoding="utf-8").splitlines() if v.strip()]
-    # Rebuild the playlist with the current video kept and the order changed.
     reshaped = [current] + [v for v in videos if v != current]
     write_playlist_file(satellite.playlist, reshaped)
     satellite.send("RELOAD_PLAYLIST")
-    # The video on screen must survive the reload — never restarted to item 0.
     time.sleep(1.0)
     assert satellite.video() == current, "RELOAD_PLAYLIST should keep the current clip"
 
@@ -128,14 +107,6 @@ def _playlist_videos(satellite: LoneSatellite) -> list[str]:
 
 
 def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
-    """A BridgeConfig whose portrait side drives this launched satellite.
-
-    Only the portrait quartet has to be real — the loop commands touch just the
-    satellite they address — so every other file points somewhere beside it.
-    """
-    # The state dir is where a rebuild writes the Satellite's playlist, and the satellite
-    # is already reading portrait_playlist.tsv there — the same name — so they have
-    # to be the same directory or the rebuild would land beside the running Funestra.
     state_dir = satellite.folder
     runtime = state_dir.parent
     return BridgeConfig(
@@ -166,40 +137,18 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
 
 
 def _drained(satellite: LoneSatellite) -> None:
-    """Block until the Funestra has consumed everything on its command file.
-
-    No file at all is the drained state, and the usual one: the Funestra claims the
-    queue by renaming it aside and deletes what it read
-    (``funestra.file_channel.consume_command_file``), so a fully drained queue
-    leaves nothing.  Reading it outright raised FileNotFoundError from
-    inside the wait — a drain looked like a hang.
-
-    A read caught DURING that rename is denied outright by Windows, which is
-    not an answer either way — the queue is mid-claim, so the honest reading is
-    "not drained yet" and the next poll is milliseconds away.  Left to raise, it
-    took the whole run down with a PermissionError from inside the wait.
-    """
     def empty() -> bool:
         try:
             return not satellite.cmd.read_text(encoding="utf-8").strip()
         except FileNotFoundError:
             return True
         except PermissionError:
-            return False  # claimed this instant; ask again next poll
+            return False
 
     satellite.wait_for(empty, desc="the Funestra to drain its command file")
 
 
 def test_latest_puts_the_newest_video_on_screen(satellite):
-    """The user-visible contract of "portrait latest": the newest arrival is what
-    comes up.
-
-    Reordering the queue is not enough — the reload keeps the video on screen playing
-    while it survives the new list, so the newest-first order applied only *after*
-    it and the top of the list was never reached.  This drives the production
-    dispatch over a small real source tree with mtimes we set, so "newest" is a fact
-    of the filesystem rather than of a stub.
-    """
     made: list[str] = []
     for i in range(4):
         video = video_of_a_test_pattern(satellite.sources / f"clip{i}.mp4", size="240x426",
@@ -208,8 +157,6 @@ def test_latest_puts_the_newest_video_on_screen(satellite):
         made.append(str(video))
     oldest, newest = made[0], made[-1]
 
-    # Start on the oldest, which the rebuilt list still holds: without the jump to
-    # the head, the reload would simply keep playing it.
     satellite.send(f"PLAY_FILE {oldest}")
     satellite.wait_for(lambda: Path(satellite.video()) == Path(oldest), desc="the oldest clip")
 
@@ -221,9 +168,6 @@ def test_latest_puts_the_newest_video_on_screen(satellite):
 
 
 def test_a_video_that_arrives_under_latest_comes_up_after_the_one_on_screen(satellite):
-    """What the session hands a Funestra that plays its Latest list when a video comes
-    into its library, read by the real Funestra: the video on screen stays up, and
-    the next one is the video that came in."""
     video_of_a_test_pattern(satellite.sources / "already there.mp4", size="240x426", seconds=3)
     arrivals = LatestArrivals(_bridge_config(satellite))
     arrivals.look()
@@ -242,17 +186,6 @@ def test_a_video_that_arrives_under_latest_comes_up_after_the_one_on_screen(sate
 
 
 def test_no_loop_keeps_the_video_on_screen_playing(satellite):
-    """Turning a loop OFF must leave the video on screen alone, changing only what
-    comes up next — the whole contract of the loop toggle.
-
-    The interesting case is the real one: a loop cycles a group whose items are
-    NOT in the browse it returns to (the browse holds one video per group), and a
-    Funestra whose video is missing from a reloaded playlist restarts at the top.  So
-    this drives the production ``portrait_no_loop`` against a real Funestra with
-    exactly that shape of browse — stubbing only where the browse's *contents* come
-    from, since the real library might happen to include the video on screen and
-    then never exercise the case at all.
-    """
     config = _bridge_config(satellite)
     playing = satellite.video()
     browse = [v for v in _playlist_videos(satellite) if v != playing]
@@ -282,32 +215,11 @@ def test_next_leaves_a_loop_down_to_one_video_for_another_video(satellite):
 
 
 def _decoding(satellite: LoneSatellite) -> bool:
-    """Whether the Funestra still has a decoded video on screen.
-
-    ``duration_ms`` and ``position_ms`` are mpv's own ``duration`` / ``time_pos``,
-    which are None — published as 0 — the moment mpv has no file open.  A Funestra
-    showing a black window reads exactly that way, so this is what tells a video
-    still being drawn from an empty video output.
-    """
     status = published_status(read_satellite_status, satellite.status)
     return status.duration_ms > 0 and status.position_ms > 0
 
 
 def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
-    """"More seeds" reshapes a seed loop's playlist a second time, seconds after
-    the loop itself reshaped it — and the Funestra must still be drawing its video.
-
-    This is the sequence off the HUD's expand button: lock a video, start its seed
-    loop (one playlist rewrite + RELOAD_PLAYLIST), then widen the net (another).
-    Only the widening pool is stubbed, so which videos come back is fixed while
-    every reshape, verb and reload is the production one — the point is what two
-    reloads in a row do to a real mpv, not what the library ranks.
-
-    On the landscape library at a landscape slot's size, because that is where the
-    load is: those videos are the upscaled 4K ones, prefetch has mpv opening the
-    next while the current still decodes, and widening is exactly what puts a
-    satellite into a tight loop over a handful of them.
-    """
     videos = library_videos_of("landscape", 8)
     satellite = a_lone_satellite()
     with satellite.launched(videos[:3], width=1706, height=1410, hud=True):

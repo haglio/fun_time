@@ -1,8 +1,3 @@
-"""The crown on real windows: a portrait video or Genau flick on the crowned Main
-Funestra trades places with the Portrait Funestra on the secondary monitor, and
-crowning the Portrait Funestra trades them back -- the windows moved, and what
-each draws resized with them.  The videos are synthetic test patterns made for
-the run."""
 from __future__ import annotations
 
 import ctypes

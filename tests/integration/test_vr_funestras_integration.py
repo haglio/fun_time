@@ -1,18 +1,3 @@
-"""Integration: the headset's whole pipeline minus the headset.
-
-Builds the real units (`_MainUnit`, two `_SatelliteUnit`s) from a manifest
-produced by the production `build_vr_manifest`, decodes real library media
-through real mpv render contexts into GL textures — each Funestra painting in a
-GL context of its own, as the headset session has it — runs the production
-file-channel worker beside the frame loop, and paces the loop at the headset's
-90Hz.  Everything FunTimeVR does except OpenXR itself.
-
-The frame-budget assertion is the regression guard this suite exists for:
-libmpv's render call blocks until the frame's own display time unless told
-not to, which paced the whole session at the videos' 30fps — the exact
-"runs but not smooth" the headset showed.  A reintroduced blocker pins the
-loop's median at a video frame period and fails here loudly.
-"""
 from __future__ import annotations
 
 import os
@@ -84,7 +69,6 @@ def _no_gl_call_waits_for_the_drivers_error_report_as_in_the_headset_session():
     )
 
 
-# One headset refresh period at the Crystal Super's 90Hz.
 FRAME_BUDGET_MS = 1000.0 / 90.0
 # What the median gates compare against.  The regression they guard — an mpv
 # render PACING the loop (video_dims querying a locked core) — showed as
@@ -92,10 +76,6 @@ FRAME_BUDGET_MS = 1000.0 / 90.0
 # so half a period of headroom is margin the machine can spend, not the
 # pipeline.
 MEDIAN_BUDGET_MS = FRAME_BUDGET_MS * 1.5
-# How many 120-frame windows the settle probe below will spend waiting for a
-# quiet one.  Generous: what it is waiting out is a whole session's teardown,
-# seconds of it, and every window it spends is one the sample does not have to
-# distrust.
 SETTLE_WINDOWS = 12
 
 
@@ -124,7 +104,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     manifest_path = write_manifest_data(
         manifest_data, config.paths.state_dir / "windows_bridge_launch.ini"
     )
-
 
 
     manifest = LaunchManifest.read(manifest_path)
@@ -169,12 +148,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     pump_failure: list[BaseException] = []
 
     def pump_channels() -> None:
-        """The production worker, with whatever it raises kept for the test.
-
-        What it does *after* the Funestras close is the point of the teardown
-        check at the end, and a worker that died quietly in that window would
-        otherwise look exactly like one that had nothing left to do.
-        """
         try:
             vrp._pump_channels(units, stop, perf)
         except BaseException as exc:  # noqa: BLE001 — re-raised, and reported
@@ -186,8 +159,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     )
 
     def has_frame(unit) -> bool:
-        """Whether a horizontal strip through the target's middle holds any
-        non-black pixel — resilient to a video that opens on a dark scene."""
         strip = np.zeros((1, 64, 4), dtype=np.uint8)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, unit.target.fbo)
         GL.glReadPixels(
@@ -217,15 +188,12 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     try:
         pump_thread.start()
 
-        # Status flows from the worker before any frame renders — the
-        # orchestrator's startup gate reads this exact file.
         wait_for(
             lambda: read_main_funestra_status(Path(commands.main_funestra_status_file)).video,
             desc="the Main Funestra's first status write",
         )
 
-        # All three Funestras decode into their textures.
-        run_frames(240, measure=False)  # warm-up: files open, targets allocate
+        run_frames(240, measure=False)
         for unit, name in ((main, "main"), (satellites[0], "portrait"), (satellites[1], "landscape")):
             wait_for(
                 lambda u=unit: (run_frames(9, measure=False) or u.target.ready),
@@ -257,8 +225,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                 f"against a {FRAME_BUDGET_MS:.1f}ms frame — nothing was measured"
             )
 
-        # The regression guard: three live decoders must not pace the loop, and
-        # a loop kept fast by videos that stopped reaching it proves nothing.
         for unit in units:
             unit.layer_dirty = False
         run_frames(540, measure=True)
@@ -272,7 +238,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                    if not unit.layer_dirty]
         assert not stalled, f"no new frame reached the scene from {stalled} in six seconds"
 
-        # Commands travel the file channel through the worker thread.
         first_video = published_status(
             read_main_funestra_status, Path(commands.main_funestra_status_file)).video
         append_command(Path(commands.main_funestra_cmd_file), "NEXT")
@@ -333,7 +298,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             "the frame loop is waiting on the GL driver or on mpv while a clip changes"
         )
 
-        # The paused flag freezes a satellite where it stands.
         Path(commands.portrait_paused_file).write_text("1", encoding="utf-8")
         wait_for(
             lambda: read_satellite_status(Path(commands.portrait_status_file)).paused,
@@ -342,15 +306,13 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         position_before = published_status(
             read_satellite_status, Path(commands.portrait_status_file)).position_ms
         run_frames(90, measure=False)
-        let_seconds_pass(0.3)  # one worker tick past the last status write
+        let_seconds_pass(0.3)
         position_after = published_status(
             read_satellite_status, Path(commands.portrait_status_file)).position_ms
         assert position_after == position_before, (
             f"paused satellite kept playing ({position_before} -> {position_after})"
         )
 
-        # The projection resolved for the playing video is a renderable mode:
-        # either an immersive wrap this renderer has a shader for, or flat.
         from fun_time_vr.projection import PROJECTIONS  # noqa: PLC0415
 
         assert main.verbs.projection in PROJECTIONS
@@ -371,7 +333,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         for unit in units:
             unit.close()
         closed = True
-        let_seconds_pass(0.5)  # more worker turns against Funestras that are already gone
+        let_seconds_pass(0.5)
         stop.set()
         assert joined_within(pump_thread, 30.0), (
             "the file-channel worker never came back after the Funestras closed"
@@ -389,17 +351,11 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
 
 def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
-    """He put the headset on in genau mode, said "kino mode", and the Main
-    Funestra sat on one frame for the rest of the session -- unpaused, its
-    duration known, its position stuck at zero.  This walks that exact path: the
-    Main Funestra comes up paused the way a genau-mode session leaves it, and the
-    PRODUCTION mode switch is what unpauses it."""
     temp_root = build_integration_temp_root()
     config = load_config(build_integration_config(temp_root))
     manifest_path = write_manifest_data(
         build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
-
 
 
     manifest = LaunchManifest.read(manifest_path)
@@ -409,8 +365,6 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
         encoding="utf-8",
     )
-    # Genau mode is where the Main Funestra waits paused, and the flag survives a
-    # session end -- so this is the state a headset session opens in.
     Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
@@ -458,14 +412,6 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         main.close()
         glfw.terminate()
 def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
-    """The record gesture round-trips through the headset's Main Funestra the way
-    `test_fun_time_integration`'s does through the desktop's: record -> looping
-    -> cancel, over real libmpv, read back off the status file a crossing hands
-    the loop over on.
-
-    Marked with the video held still, so where the two presses land is a spot the
-    test knows rather than wherever the clock had reached between them.
-    """
     temp_root = build_integration_temp_root()
     config = load_config(build_integration_config(temp_root))
     manifest_path = write_manifest_data(
@@ -503,8 +449,6 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
         return read_main_funestra_status(status_file)
 
     def after_frames(answer):
-        """*answer*, asked only once the loop has turned over: every verb here is
-        drained on the worker thread and acted on between frames."""
         return lambda: (run_frames(9) or answer())
 
     try:
@@ -536,8 +480,6 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
                  desc="the loop to be dropped")
         assert published().loop_bounds is None
 
-        # And the crossing's own leg: a loop the last session published, sent
-        # back whole rather than gestured out again (session_resume.resume_main_loop).
         append_command(cmd_file, f"{SET_LOOP} {held_at} {held_at + 2_000}")
         wait_for(after_frames(lambda: published().loop_state is LoopState.LOOPING),
                  desc="the loop the crossing handed over to start")

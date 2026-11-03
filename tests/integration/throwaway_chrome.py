@@ -1,9 +1,3 @@
-"""A real Chrome in a user data directory of the test's own, for the RFB's tests.
-
-The Random Favs Browser is a window of the user's own Chrome, so these tests
-never touch that one: Chrome's singleton is keyed on the user data directory,
-and a fresh directory under the run's tmp_path is a browser of its own.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -58,17 +52,6 @@ def chrome_exe() -> Path:
 
 
 class ThrowawayChrome:
-    """One browser, and every window and tab the test hands it.
-
-    ``close`` waits for that browser to exit, ends what it leaves running, and
-    takes its profile away itself.  Under the flake gate's load the browser
-    exits while its crash handler and utility processes run on for up to a
-    minute and a half, the handler holding CrashpadMetrics.pma, and a scratch
-    directory removed under them failed the test that owned it.  The Popen
-    handle keeps the browser's pid from being reused, so its children are
-    found by that pid alone.
-    """
-
     def __init__(self, directory: Path) -> None:
         self._exe = chrome_exe()
         self._pages = directory / "pages"

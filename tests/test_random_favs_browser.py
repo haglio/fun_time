@@ -119,8 +119,6 @@ def test_a_disabled_browser_declines_to_launch(cfg_factory, tmp_path: Path):
 
 
 def test_a_missing_local_state_declines_to_launch(cfg_factory, tmp_path: Path):
-    """No Chrome Local State file — a machine without that Chrome profile
-    store — reads as 'no profile', not as a crash."""
     cfg_path = _decline_config(cfg_factory, tmp_path, local_state=False)
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 

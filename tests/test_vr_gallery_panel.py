@@ -62,8 +62,6 @@ class TestTheChannelTheFrameArrivesThrough:
             panel.close()
 
     def test_the_size_a_press_is_placed_on_is_the_size_that_arrived(self, tmp_path):
-        """The app publishes the window at whatever size Qt gave it, so nothing
-        here may assume one."""
         panel = GalleryPanel(tmp_path)
         writer = FrameWriter(tmp_path / FRAME_FILENAME, max_pixels=64)
         try:

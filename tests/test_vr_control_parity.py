@@ -304,8 +304,6 @@ class TestTheLoopInFrontOfTheDispatch:
 
 
 class TestWhatAHeadsetDoesNotHost:
-    """Windows, for any role; and an Origenerator, where its config names none."""
-
     def test_a_config_naming_no_origenerator_sends_one_nothing(self, landed_hosting_none):
         routed = {
             where: written["origenerator_cmd_file"]

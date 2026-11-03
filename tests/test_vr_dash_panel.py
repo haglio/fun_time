@@ -336,7 +336,6 @@ class TestTheColumnBesideTheOsr2Part:
         assert inked[:, 1].max() <= osr2_part_rect().x - PAD
 
     def test_a_word_too_wide_for_a_row_is_clipped_at_the_columns_edge(self):
-        """With no icon, as the desktop's log is, which turns Qt's ellipsis off."""
         quiet = np.asarray(paint_dash(DashState(), [])).astype(int)
         clipped = np.asarray(paint_dash(DashState(), [_record("x" * 200)])).astype(int)
         inked = np.argwhere((quiet != clipped).any(axis=2))

@@ -210,8 +210,6 @@ class TestTheHeadsetHold:
 
 class TestTheKeptOrigenerator:
     def test_the_record_is_the_pid_and_the_creation_time(self, tmp_path: Path):
-        """Never the pid alone: Windows hands freed pids straight back out, and
-        the adopting session checks the pair against the process still there."""
         keep_the_origenerator(tmp_path, pid=4321, created_at=99)
 
         assert kept_origenerator(tmp_path) == (4321, 99, False)
@@ -259,9 +257,6 @@ class TestWaitingForTheOutgoingSession:
             assert wait_for_the_session_to_let_go("m", timeout_s=0, poll_s=0) is False
 
     def test_a_name_left_behind_by_a_session_that_is_gone_is_not_one_playing(self):
-        """What blocked every launch on this machine on 2026-09-19: a session
-        whose process Windows had not finished reaping still held the name, and
-        nothing was playing."""
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.CreateMutexW.restype = ctypes.c_void_p
         name = rf"Local\FunTimeTest.{uuid4().hex}"

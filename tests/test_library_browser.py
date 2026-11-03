@@ -91,12 +91,6 @@ def _header_words(window) -> str:
 
 
 def _click(view: QAbstractItemView, row: int) -> None:
-    """Deliver a real press and release onto *row*, through the viewport.
-
-    Sent as events rather than by calling the handler, so the test exercises the
-    same route a mouse takes — and a heading, which emits none of Qt's own click
-    signals, can only be reached that way.
-    """
     point = QPointF(view.visualItemRect(view.item(row)).center())
     for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
         QApplication.sendEvent(view.viewport(), QMouseEvent(
@@ -125,13 +119,6 @@ def _until(condition, *, within_s: float = 10.0) -> None:
 
 @pytest.fixture
 def browser(tmp_path):
-    """Build LibraryBrowserWindow(s) that always close with the test.
-
-    Each construction is a real top-level Qt window in the shared session
-    QApplication; before this factory, thirty were built per run and three
-    ever closed, the rest living on for the whole session.  It asks for
-    ``tmp_path`` so as to be torn down before it.
-    """
     opened: list[LibraryBrowserWindow] = []
 
     def build(handles, **kwargs):
@@ -436,12 +423,6 @@ def test_a_folder_tile_is_thumbnailed_with_a_still_from_inside_it(browser, tmp_p
 
 
 def test_the_browser_keeps_out_of_the_taskbar(browser, tmp_path: Path):
-    """A browse is a thing you open and dismiss, not a program that is running.
-
-    Qt's Tool window type is what clears the taskbar button on Windows.  Without
-    it the grid gets its own indicator — and, having declared no identity of its
-    own, one Windows hangs off whatever unrelated app it can pair it with.
-    """
     window = browser(
         [_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=lambda _video: None,
     )
@@ -548,11 +529,6 @@ def test_the_sidebar_is_alphabetical_where_the_grid_is_ranked(browser, tmp_path:
 
 
 def test_a_heading_is_not_something_the_arrows_can_land_on(browser, tmp_path: Path):
-    """It names a group rather than being one of them, so Qt steps over it.
-
-    Flagless is what does that: arrow navigation and type-ahead both skip a
-    disabled row, which keeps a walk down the index a walk down its names.
-    """
     window = browser(
         [_handle("Alpha Scene", section="main")], thumbnail_cache=tmp_path, on_pick=lambda _v: None,
     )
@@ -628,11 +604,6 @@ def test_choosing_a_name_moves_the_grid_to_it(browser, tmp_path: Path):
 def test_clicking_a_letter_moves_the_grid_to_where_that_letter_starts(
     browser, tmp_path: Path,
 ):
-    """The headings are the index's table of contents, so they answer a click.
-
-    Qt gives a disabled row no clicked/activated signal of its own, which is why
-    this is the gesture worth testing rather than a handler call.
-    """
     handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.resize(900, 600)
@@ -647,9 +618,6 @@ def test_clicking_a_letter_moves_the_grid_to_where_that_letter_starts(
 def test_reopening_a_letter_takes_the_grid_back_after_it_has_wandered(
     browser, tmp_path: Path,
 ):
-    """The grid has a selection of its own, and it moves on its own — so opening
-    the same letter again must bring it back, though the index has not moved
-    and Qt reports no change of current row."""
     handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.resize(900, 600)
@@ -743,8 +711,6 @@ def _mark_on(index, letter: str) -> str | None:
 
 
 def test_a_letter_wears_its_mark_after_it_in_its_own_ink(browser, tmp_path: Path):
-    """A heading takes no selection, so Qt would draw it disabled, and a disabled
-    item's mark is the gray one."""
     window = browser([_handle("Alpha Scene", section="main")],
                      thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.open_folder(("main",))
@@ -800,7 +766,6 @@ def test_clicking_the_open_letter_closes_it(browser, tmp_path: Path):
 
 
 def test_clicking_a_name_still_selects_it(browser, tmp_path: Path):
-    """The press only answers a heading; on a name it is Qt's to handle."""
     handles = [_handle("Zebra Scene", section="main"), _handle("Zulu Scene", section="main")]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.resize(900, 600)
@@ -909,10 +874,6 @@ def test_the_grid_takes_the_focus_though_the_sidebar_stands_first(browser, tmp_p
 
 
 def test_opening_the_browser_brings_it_in_front_of_the_funestras(tmp_path: Path):
-    """The regression: the browse used to come up under the Main Funestra, with
-    the arrows and Enter still going to the Funestra, because the entry point
-    asked Qt to activate a window Windows would not let this process activate.
-    """
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
 
@@ -1094,9 +1055,6 @@ def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
 
 
 def test_closing_the_browse_tells_the_process_it_is_over(browser, tmp_path: Path):
-    """Nothing else can: Qt does not count a Tool window towards the last-window
-    quit, so without this the picked video would sit in the result file with the
-    bridge still blocked on a process that had nothing left to do."""
     ended: list[str] = []
     window = browser(
         [_handle("alpha scene")],

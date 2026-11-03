@@ -1,13 +1,3 @@
-"""Unit tests for the integration test-support harness (teardown safety).
-
-These guard the deterministic child-process cleanup that
-``FunTimeIntegrationSession.stop()`` must perform.  ``stop()`` hard-terminates
-the orchestrator, so the orchestrator's own graceful ``_shutdown_children()``
-never runs and its children (the two satellites, plus Main Funestra/Genau/dashboard/
-audio) are orphaned.  The teardown must therefore kill them itself, by the
-exact processes recorded in ``bridge_pids.ini`` — PID *and* creation time, so a
-PID Windows has since recycled is recognized rather than shot.
-"""
 from __future__ import annotations
 
 import ast
@@ -166,7 +156,6 @@ def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
 
 
 def test_stop_gives_up_on_a_child_that_never_goes(session):
-    """Bounded: a pid Windows will not reap must not hold the suite for good."""
     _write_bridge_pids(session, {"main_funestra_pid": ChildProcess(201, 2010)})
 
     with patch.object(windows_bridge_orchestrator, "process_started",
@@ -178,8 +167,6 @@ def test_stop_gives_up_on_a_child_that_never_goes(session):
 
 
 def test_stop_does_not_kill_a_recorded_pid_windows_recycled(session):
-    """Killing a recycled PID is how a run murders another run's pytest: the
-    dead child's PID now belongs to somebody else."""
     _write_bridge_pids(session, {"audio_pid": ChildProcess(205, 2050)})
     killed: list[int] = []
     with patch.object(windows_bridge_orchestrator, "process_started", return_value=9999), \
@@ -417,17 +404,6 @@ def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeyp
 
 
 def test_the_orchestrator_wait_only_ever_waits_on_integration_orchestrators(session):
-    """Between a session's teardown and the next one's start, the harness waits
-    for the *previous run's* orchestrator to finish its shutdown storm — that
-    orchestrator taskkills the PIDs it recorded, and Windows recycles PIDs fast
-    enough for it to shoot a new session's freshly-spawned ones.
-
-    Matching every ``fun_time.orchestrator`` on the machine makes that wait
-    include the user's live session, which will not exit — so the harness burns
-    its whole 15s timeout on both ends of every session, and its own teardown
-    becomes hostage to a session it has nothing to do with.  Only orchestrators
-    started from an integration config can be the one we are waiting on.
-    """
     with running("tests.integration.integration_support", [LIVE_ORCHESTRATOR]), \
          patch.object(integration_support.time, "sleep",
                       side_effect=AssertionError("it waited on the live session")):
@@ -554,24 +530,12 @@ def test_a_run_never_inherits_a_pin_at_the_machines_broker_directory(isolated_po
 
 
 def test_a_run_never_opens_the_microphone(isolated_ports):
-    """Voice control resolves its mic by name and opens the machine's one Brio.
-
-    Windows shares an input device between listeners rather than refusing the
-    second, so a run would not fail — it would quietly listen in on the user and
-    act on what they said to their own session.  There is one microphone and no
-    per-desktop version of it, so the only isolation is not opening it.
-    """
     config = isolated_ports
 
     assert config["voice_control"]["enabled"] is False
 
 
 def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_ports):
-    """Genau *binds* its UDP port to hear from the broker, and binds it with
-    SO_REUSEADDR — which on Windows lets a second Genau bind the same port
-    rather than refusing it.  Two Genaus then split one datagram stream between
-    them at random, so a run's Genau would swallow packets meant for the user's.
-    """
     assert isolated_ports["genau"]["udp_port"] != GENAU_INBOUND_PORT
 
 
@@ -605,11 +569,6 @@ def test_a_runs_sessions_start_their_programs_from_the_installation_the_run_runs
 
 
 def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):
-    """The hosted Origenerator is a second app with machine ends of its own:
-    the one ComfyUI server on its fixed port (which it would START if absent),
-    the GPU that server generates on, and the app's one database.  None has a
-    per-desktop version, so a run hosts none — the key gone means the session
-    has no origenerator mode at all."""
     config = isolated_ports
 
     assert "origenerator_dir" not in config["paths"]
@@ -667,9 +626,6 @@ def test_a_run_finds_genau_where_this_machine_keeps_it_and_reads_the_rest_of_the
 
 
 def test_a_video_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
-    """The VR masters sit on the pCloud drive, which fetches a file from the
-    internet the first time anything here opens it; a Funestra fed one stalls
-    on the fetch, not on the code under test."""
     def instant(path, size):
         return None
 
@@ -713,11 +669,6 @@ def test_a_sample_fails_saying_so_when_too_few_videos_read_at_speed():
 
 
 def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
-    """Every skip costs a real two-second wait, so a library the drive has gone
-    cold on can outlast the whole test.  It did: pytest's timeout fired, its
-    thread could not interrupt the blocked read, and the run sat there holding
-    the machine-wide lock until somebody killed it by hand.  A budget makes that
-    a named failure instead."""
     monkeypatch.setenv("FUN_TIME_INTEGRATION_SEED", "7")
     probed: list[str] = []
     clock = iter([0.0, 0.0, 1.0, 99.0, 99.0, 99.0])
@@ -811,11 +762,6 @@ def test_a_satellites_draw_never_waits_on_a_video_it_lists(tmp_path, monkeypatch
 
 
 def test_the_vr_test_draws_nothing_from_the_vr_library():
-    """The VR masters sit on the cloud drive, where opening a cold file blocks
-    inside the drive's own driver: no timeout ends a thread stuck there, and
-    Windows cannot finish closing a process that has one.  Every run that drew
-    from them left an unkillable python process -- fifteen on 2026-09-12 -- so the
-    VR test draws from the desktop library alone."""
     vr_test = Path(integration_support.__file__).with_name("test_vr_funestras_integration.py")
 
     assert "vr.library_dirs" not in vr_test.read_text(encoding="utf-8")
@@ -853,8 +799,6 @@ def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
 
 
 def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch):
-    """Windows can refuse a read outright while the Funestra replaces its status
-    file, and the refusal went straight up into the test that asked."""
     session.config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
     session.config.main_funestra_status_file.write_text("", encoding="utf-8")
     refusals = iter([PermissionError(13, "Permission denied")])
@@ -896,15 +840,6 @@ def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
 
 
 class TestPostingADashboardCommand:
-    """The harness presses the Dash's buttons, so it has to press them the way
-    the Dash does.  It replaced the command file outright instead, which cost a
-    run two ways: a press landing inside the bridge's ~20x/s drain was refused
-    by Windows and the refusal went straight up into the test that asked, and a
-    press landing on one still queued wiped it.  `dashboard_app` has used
-    `append_command` -- which retries the refusal and queues rather than
-    replaces -- all along.
-    """
-
     def test_a_press_joins_one_still_queued_rather_than_wiping_it(self, session):
         session.write_dashboard_command("main_kino_activate")
         session.write_dashboard_command("genau_activate")
@@ -913,7 +848,6 @@ class TestPostingADashboardCommand:
         assert queued == ["main_kino_activate", "genau_activate"]
 
     def test_a_press_refused_mid_drain_is_pressed_again(self, session, monkeypatch):
-        """Windows refuses the open outright while the bridge rewrites the file."""
         refusals = iter([PermissionError(13, "Permission denied")])
         real_open = Path.open
 

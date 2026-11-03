@@ -1,18 +1,3 @@
-"""Unit tests: one pytest configuration file, and it is the one a caller would name.
-
-pytest takes its whole configuration from a single file.  While these settings lived
-in a ``pytest.ini`` beside ``pyproject.toml``, passing ``-c pyproject.toml`` — the
-natural thing to reach for in a worktree, and what an agent did — selected a config
-that declared nothing: no ``addopts`` (so no sanitize plugin and no timeout) and no
-``norecursedirs``, which swept ``tests/integration/`` into what was meant to be a unit
-run and put the suite's real Funestras, the Main Funestra and AHK bridge on the user's monitors while
-he was working.
-
-Holding the settings in ``pyproject.toml`` is what makes an explicit ``-c`` and bare
-discovery the same file.  A ``pytest.ini`` (or a ``[tool:pytest]`` / ``[pytest]``
-section elsewhere) reintroduces the split silently, because it outranks
-``pyproject.toml`` without saying so — hence the shadow check below.
-"""
 from __future__ import annotations
 
 import configparser
@@ -36,10 +21,6 @@ def test_the_settings_live_in_pyproject():
 
 
 def test_nothing_outranks_pyproject_as_the_config_file():
-    """pytest's precedence is pytest.ini, then pyproject.toml, then tox.ini, then
-    setup.cfg.  Any of the others carrying pytest settings takes the whole
-    configuration with it, and the file a caller names stops being the file that
-    was configured."""
     assert not (REPO_ROOT / "pytest.ini").exists()
 
     for name, section in (("tox.ini", "pytest"), ("setup.cfg", "tool:pytest")):

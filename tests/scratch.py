@@ -24,7 +24,6 @@ def scratch_dir(root: Path) -> Iterator[Path]:
 
 
 def remove_scratch(path: Path) -> None:
-    """Delete *path* and all of it, clearing the read-only bit Windows stops on."""
     shutil.rmtree(path, onexc=_clear_the_read_only_bit_and_try_again)
 
 

@@ -234,9 +234,6 @@ def test_read_main_funestra_status_reads_no_loop_where_nothing_is_looping(tmp_pa
 
 
 def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
-    """The Main Funestra published the state before it published the range, so a status file
-    left by that version names a loop it cannot describe.  Sending mpv a
-    zero-length A/B range would strand the video on one frame."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nloop_state=looping\n", encoding="utf-8")
 

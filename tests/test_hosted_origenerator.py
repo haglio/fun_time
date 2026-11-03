@@ -198,8 +198,6 @@ class TestTellingAKeptAppWhereItsWindowGoes:
 
     def test_an_app_still_publishing_keeps_the_frame_it_is_publishing(
             self, cfg_factory, tmp_path):
-        """Windows refuses to remove a file a process has mapped, which is how
-        the clearing above tells a dead session's frame from a live one's."""
         held = tmp_path / "state" / "origenerator_frame.bin"
         held.parent.mkdir(parents=True, exist_ok=True)
         held.write_bytes(bytes(64))
@@ -234,8 +232,6 @@ class TestAdoptingAKeptOrigenerator:
         assert kept_origenerator(tmp_path) is None, "the record outlived its one use"
 
     def test_a_recycled_pid_is_never_adopted(self, tmp_path: Path):
-        """Windows hands freed pids straight back out, so the creation time is
-        what says the process is still the one that was parked."""
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
         with patch("fun_time.hosted_origenerator.process_started",
                    return_value=45):

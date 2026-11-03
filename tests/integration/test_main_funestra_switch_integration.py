@@ -56,9 +56,6 @@ SWITCHES = (("genau_activate", "genau"), ("main_kino_activate", "kino"))
 
 def test_a_switch_either_way_leaves_the_main_funestra_up_and_frontmost(
         shared_integration_session: FunTimeIntegrationSession):
-    """Kino and Genau run on the one window, so a switch has nothing to park and
-    nothing to stack: the Main Funestra stays up, stays frontmost over its rect,
-    and no second window appears in the slot."""
     s = shared_integration_session
     main_funestra = _main_funestra(s)
     for command, mode in SWITCHES:
@@ -73,9 +70,6 @@ def test_a_switch_either_way_leaves_the_main_funestra_up_and_frontmost(
 
 def test_a_switch_while_paused_leaves_the_main_funestra_where_the_pause_put_it(
         shared_integration_session: FunTimeIntegrationSession):
-    """OmniPause owns the window state while it holds: a switch under it changes
-    what plays on the Main Funestra and moves the window nowhere, and leaving the
-    pause brings it back frontmost."""
     s = shared_integration_session
     main_funestra = _main_funestra(s)
     s.write_dashboard_command("omnipause_toggle")

@@ -119,9 +119,6 @@ class TestResumePlaylists:
         assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
 
     def test_drops_videos_that_no_longer_exist(self, tmp_path: Path):
-        """A playlist built moments before launch could only name files that were
-        there; one resumed from yesterday can name files trashed since, and mpv
-        cannot load those — so they come out as the file is rewritten."""
         a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         gone = str(tmp_path / "gone.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
@@ -307,10 +304,6 @@ class TestResumeSharedState:
 
 
 class TestResumeSatelliteLocks:
-    """A lock is repeat-one in mpv's own loop_file, so it dies with the Funestra
-    process and has to be re-sent — unlike a filter or a loop, which ride back in
-    on the playlist file the new Funestra reads."""
-
     def test_queues_a_lock_for_the_satellite_that_was_holding_one(self, tmp_path: Path):
         portrait = tmp_path / "portrait_cmd.txt"
         landscape = tmp_path / "landscape_cmd.txt"
@@ -671,8 +664,6 @@ class TestPlaylistOpensOn:
         assert playlist_opens_on(playlist, a) is False
 
     def test_case_alone_is_not_a_different_video(self, tmp_path: Path):
-        """The playlist and the status file are written by different processes,
-        and Windows hands the same file back in either case."""
         playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [str(tmp_path / "Sub" / "a.mp4")])
 

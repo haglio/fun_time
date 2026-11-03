@@ -263,9 +263,6 @@ def test_the_reference_calls_a_funestras_hud_its_hud_and_never_its_panel():
 
 
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
-    """The Kino/Genau nav rows surface the mode-named phrases under their friendly
-    names ("kino next", "genau next") — never the raw vosk sound-alike ("go
-    now")."""
     rows = _all_rows()
     main_next_row = next(r for r in rows if "main_next" in r.commands)
     assert {"kino next", "next kino"} <= set(main_next_row.voice)
@@ -310,9 +307,6 @@ def test_the_quit_row_no_longer_offers_the_exit_synonym():
 
 
 def test_reference_popup_row_shows_toggle_and_close_names():
-    """One row documents both toggling ("help", "hotkeys", …) and closing
-    ("close help", …) the popup, always under the friendly "hotkeys" name — never
-    the raw vosk recognizer form "hot keys"."""
     rows = _all_rows()
     help_rows = [r for r in rows if "help_reference" in r.commands]
     assert len(help_rows) == 1, "expected exactly one reference-popup row"
@@ -347,12 +341,6 @@ def test_no_say_column_leaks_the_raw_un_mute_form():
 
 
 def test_latest_is_spoken_only_and_the_older_names_are_gone():
-    """The newest-first refresh is branded "Latest", by voice alone: it lost the P
-    key along with the global command that key used to send.
-
-    Both older names are gone rather than kept as synonyms — "recents" especially,
-    which the small vosk model has no word for and heard as "reset".
-    """
     rows = [r for r in _all_rows() if "both_latest" in r.commands]
     assert len(rows) == 1, "expected exactly one Latest row"
     row = rows[0]
@@ -560,9 +548,6 @@ def test_omnipause_row_uses_esc_and_pause_play_voice():
 
 
 def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
-    """Shift+Esc is documented next to plain Esc, and its phrase reads as one
-    word — vosk has no "omnipause" token, so the recognizer listens for the
-    three-word "relief omni pause" while the legend shows "relief omnipause"."""
     assert VOICE_COMMANDS["relief omni pause"] == "relief_omnipause"
     assert "relief omnipause" not in VOICE_COMMANDS
 
@@ -596,9 +581,6 @@ def test_no_say_column_leaks_the_raw_omni_pause_form():
 
 
 def test_funscript_rows_show_the_joined_word_the_recognizer_cannot_hear():
-    """The small vosk model has no "funscript" token, so the recognizer listens
-    for "fun script" — but nobody says it that way, and reading it in the popup
-    would teach the wrong phrase."""
     assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert "jump to funscript" not in VOICE_COMMANDS
 
@@ -614,11 +596,6 @@ def test_funscript_rows_show_the_joined_word_the_recognizer_cannot_hear():
 
 
 def test_reference_does_not_import_voice_runtime():
-    """Importing the reference must not drag in voice_control (and its vosk runtime).
-
-    The dashboard process imports command_reference; it should stay free of the
-    speech-recognition libraries, which only the orchestrator's VoiceController needs.
-    """
     code = (
         "import fun_time.command_reference, sys; "
         "bad = [m for m in sys.modules if m in ('fun_time.voice_control', 'vosk', 'sounddevice')]; "

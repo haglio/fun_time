@@ -114,11 +114,6 @@ class TestResolveRole:
 
 class TestParking:
     def test_a_mode_switch_holds_its_outgoing_funestra_up_for_the_settle(self):
-        """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
-        compositing it — so the Funestra a switch is leaving must go down only
-        once the DISPLAY_OFF sent in the same breath is on screen.  Minimize in
-        the frame or two that takes and the thumbnail keeps the video frame the
-        Funestra was sitting on, which is the whole thing the blanking is for."""
         clock = FakeClock()
         windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
 

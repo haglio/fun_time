@@ -1,21 +1,3 @@
-"""Force the real Windows platform for the integration suite, and serialize runs.
-
-Integration tests launch the real bridge and inspect real native windows (the
-dashboard, the Main Funestra, the satellites), so they must run on the native Qt platform — never the
-offscreen platform the unit suite defaults to. The root ``tests/conftest.py`` sets
-``QT_QPA_PLATFORM=offscreen`` so routine unit runs don't flash windows; because it is
-an ancestor conftest it is imported first, so by the time this module runs the variable
-is already ``"offscreen"``.
-
-Remove it here — before any ``QApplication`` is created or any bridge/the Main Funestra subprocess is
-spawned — so Qt falls back to the native windows platform and every child process the
-integration session launches inherits a real platform too. Without this, those windows
-would render offscreen and the Win32 inspection helpers would find nothing.
-
-Removing it is also the one thing this file does that a *unit* run can feel, so it is
-done only on the hidden desktop; and this file holds the two hooks that refuse a run
-anywhere else, one for each way the directory can be reached.
-"""
 from __future__ import annotations
 
 import os
@@ -41,18 +23,12 @@ from .line_record import require_a_run_that_holds_the_machine
 from .run_pulse import PULSE_ENV, Pulse
 from .throwaway_chrome import ThrowawayChrome
 
-# Only on the desktop this suite is allowed to run on.  Importing this file is not
-# the same thing as running it: a unit run that merely *recurses* into this
-# directory imports it too, and popping the variable there would take the whole
-# unit suite off the offscreen platform — every widget test flashing a real window
-# onto the user's monitors, before a single integration test had started.
 if sys.platform != "win32" or on_hidden_desktop():
     os.environ.pop("QT_QPA_PLATFORM", None)
     os.environ.pop("SDL_VIDEODRIVER", None)
 
 
 def refuse_a_run_that_may_not_start() -> None:
-    """End a run that would reach the user's screen, or that Line was not told of."""
     if sys.platform != "win32":
         return
     try:
@@ -89,7 +65,6 @@ def _say_how_much_of_the_run_was_its_own(clock: run_clock.RunClock, started: flo
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_timeout_set_timer(item, settings):
-    """pytest-timeout's own thread and its own verdict, on the run's clock."""
     if settings.method != "thread":
         return None
     item.cancel_timeout = run_clock.watch_for_a_timeout(
@@ -103,33 +78,10 @@ def pytest_runtest_protocol(item, nextitem):
 
 
 def pytest_sessionstart(session):
-    """Refuse a run that is not on the hidden desktop, before anything launches.
-
-    Earlier than any fixture, so the refusal lands before the run lock is taken,
-    before a session is started, and above all before the first reap — which is
-    now desktop-scoped with no fallback, and would silently skip its cleanup here
-    rather than sweep the machine.
-    """
     refuse_a_run_that_may_not_start()
 
 
 def pytest_collection_modifyitems(session, config, items):
-    """The same refusal, for a run that never named this directory.
-
-    ``pytest_sessionstart`` above can only fire when this conftest is one of the
-    run's *initial* conftests — which it is only when the command line names
-    ``tests/integration/``.  A run that instead recurses in from ``tests``
-    imports this file partway through collection, long after sessionstart has
-    passed, so the refusal never ran at all: the suite launched real Funestras, a
-    real Main Funestra and a real AHK bridge onto the user's monitors on top of his work.
-    That is not hypothetical — it is what ``-c pyproject.toml`` did while the
-    ``norecursedirs`` exclusion still lived in a separate pytest.ini.
-
-    Registered by the same import, and called once collection has finished and
-    before the first test runs, this hook fires however the directory was
-    reached.  ``norecursedirs`` decides what an ordinary run *collects*; this
-    decides what is allowed to *launch*, and only the second is a guard.
-    """
     refuse_a_run_that_may_not_start()
 
 
@@ -153,65 +105,36 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(autouse=True)
 def _never_inherit_the_integration_flag():
-    """Override the unit suite's flag scrub.
-
-    The hidden-desktop runner exported ``FUN_TIME_RUN_INTEGRATION`` on
-    purpose, and every production branch under test here reads it live —
-    scrubbing it per test would run the session with the real focus steals
-    and activations the flag exists to suppress.
-    """
     yield
 
 
 @pytest.fixture(autouse=True)
 def _never_mutate_a_real_window():
-    """Override the unit suite's window-mutation guard.
-
-    These tests launch the real bridge and position / topmost / activate / minimize
-    real native windows on the hidden desktop, so the ``user32`` mutating calls must
-    run for real.  A window call resolves handles on the caller's own desktop, so
-    nothing here can reach a window of the user's — they are all on ``Default``.
-    """
     yield
 
 
 @pytest.fixture(autouse=True)
 def _never_start_a_real_loading_screen():
-    """Override the unit suite's refusal of the screens over every monitor:
-    the tests here start them for real, on the hidden desktop."""
     yield
 
 
 @pytest.fixture(autouse=True)
 def _never_switch_a_real_browsers_tabs():
-    """Override the unit suite's browser guard: the slideshow's test drives a
-    throwaway Chrome on the hidden desktop, never the user's."""
     yield
 
 
 @pytest.fixture(autouse=True)
 def _never_listen_to_his_desktop():
-    """Override the unit suite's refusal: a watch started here hears the hidden
-    desktop's presses, never his."""
     yield
 
 
 @pytest.fixture(autouse=True)
 def _no_thread_outlives_its_test():
-    """Override the unit suite's thread guard: a sample video's first read is
-    left on a thread it may never return from, a cold one on the cloud drive
-    being minutes long, so that a slow drive costs the budget and no more
-    (``integration_support.readable_at_speed``)."""
     yield
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _release_the_runs_udp_sinks():
-    """Hand back the ports this run bound to catch its own T-Code.
-
-    Session-scoped because the sinks are: every config a run builds binds one,
-    and each has to stay bound while any session might still be sending at it.
-    """
     yield
     close_the_runs_osr2s()
 
@@ -224,7 +147,6 @@ def _genau_where_this_machine_keeps_it():
 
 @pytest.fixture
 def chrome(tmp_path: Path):
-    """A Chrome of the test's own, closed and its profile taken away when it ends."""
     browser = ThrowawayChrome(tmp_path)
     try:
         yield browser

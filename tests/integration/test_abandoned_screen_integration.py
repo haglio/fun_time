@@ -1,9 +1,3 @@
-"""A real screen over every monitor, left with nothing to take it down.
-
-The unit suite drives the screens' polls over fake Tk widgets; here the real
-process runs on the hidden desktop, so what is checked is the thing he saw:
-whether the window goes away on its own.
-"""
 from __future__ import annotations
 
 import os
@@ -49,8 +43,6 @@ time.sleep(3600)
 
 
 def _its_window_came_up(pid: int, title: str, *, within_s: float) -> bool:
-    """By the screen's own process: an earlier test's screen wears the same
-    title, and may still be on this desktop."""
     budget = Budget(within_s)
     while not budget.expired() and is_process_alive(pid):
         if find_window_for_process(pid, title):
@@ -60,8 +52,6 @@ def _its_window_came_up(pid: int, title: str, *, within_s: float) -> bool:
 
 
 def _removed_once_released(folder: Path) -> None:
-    """A process ended from outside reads as dead a moment before Windows has
-    closed the files it had open."""
     budget = Budget(RELEASE_BUDGET_S)
     while folder.exists():
         try:
@@ -74,11 +64,6 @@ def _removed_once_released(folder: Path) -> None:
 
 def test_a_screen_whose_progress_file_goes_before_its_first_look_takes_itself_down(
         tmp_path: Path):
-    """What forced his two restarts on 2026-09-26: a unit test's loading
-    screen lost its progress file with the test's scratch folder before its
-    first look, and stood over every monitor for good.  The VR/Desktop
-    screen here, for its twenty-second wait; the loading screen runs the same
-    poll on a minute."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
     screen = launch_transition_screen(state_dir, VR, sibling_checkouts=this_checkouts_siblings())
@@ -100,8 +85,6 @@ def test_a_screen_whose_progress_file_goes_before_its_first_look_takes_itself_do
 
 
 def test_a_loading_screen_goes_the_moment_the_fun_time_that_raised_it_dies(tmp_path: Path):
-    """His answer when asked whether a crashed Fun Time's loading screen
-    should sit out its minute first: no, it goes at once."""
     report = tmp_path / "screen_pid.txt"
     fun_time = subprocess.Popen(
         [sys.executable, "-c", _RAISES_A_LOADING_SCREEN.format(

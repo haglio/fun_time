@@ -19,11 +19,6 @@ ROLES = (
 
 
 class TestTheStringsOtherLanguagesMatchOn:
-    """Two strings are matched on outside this repo's own calls: an image name a
-    VBScript looks for on disk, and the regex the process sweeps match image
-    names with.  Neither has a caller that would fail if it changed, so both are
-    held here to the byte."""
-
     def test_the_sweep_pattern_is_the_one_the_sweeps_were_written_against(self):
         assert NAMER.process_name_pattern == (
             r"^pythonw?\.exe$|^py\.exe$|^FunTime-[A-Za-z]+\.exe$")
@@ -67,9 +62,6 @@ class TestTheRolesThisRepoLaunches:
             assert NAMER.description(role).startswith("Fun Time"), role
 
     def test_the_reap_claims_their_copies_and_no_bare_interpreter(self):
-        # The integration reap is bounded by the hidden desktop and by the image
-        # name, never by a command line -- and the run's own pytest is on that
-        # desktop under a bare python.
         for role in ROLES:
             assert NAMER.owns_exe_name(NAMER.exe_name("pythonw.exe", role)), role
         for name in ("python.exe", "pythonw.exe", "py.exe"):

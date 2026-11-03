@@ -1,4 +1,3 @@
-"""The loopback server answers Chrome: the autofill script, and the pause state."""
 from __future__ import annotations
 
 import json

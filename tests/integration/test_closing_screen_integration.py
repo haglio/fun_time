@@ -1,12 +1,3 @@
-"""Real-window checks for the loading screen a session goes out under.
-
-The unit suite can only fake the tkinter overlay — building the real one puts a
-window over every monitor.  Here it is built for real on the hidden desktop,
-where it renders to nothing, so the one thing the unit tests cannot reach is
-covered: that ``_closing_screen`` actually gets a painted window onto the screen
-before it hands teardown the go-ahead, and that the window is gone again by the
-time the block ends.
-"""
 from __future__ import annotations
 
 import os
@@ -23,8 +14,6 @@ from tests.integration import run_clock
 from tests.integration.integration_support import let_seconds_pass, this_checkouts_siblings
 
 pytestmark = [
-    # The loading screen is a real window on a real desktop, and the wait for it is the
-    # thing under test; the unit conftest's zeroed startup waits do not apply.
     pytest.mark.real_startup_waits,
     pytest.mark.skipif(sys.platform != "win32", reason="launches a real Win32 window"),
     pytest.mark.skipif(
@@ -35,9 +24,6 @@ pytestmark = [
 
 
 def test_the_real_loading_screen_is_on_screen_for_the_whole_teardown(tmp_path: Path):
-    """Everything teardown does happens between these two asserts, so the window
-    being up at the first and gone by the second is the guarantee the feature is:
-    no window of the session is ever seen going out on its own."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
@@ -46,7 +32,6 @@ def test_the_real_loading_screen_is_on_screen_for_the_whole_teardown(tmp_path: P
         assert find_window_by_title(WINDOW_TITLE, exact=True), (
             "the loading screen was not on screen when teardown was let go"
         )
-        # The flag teardown waited on came from the screen itself, not from us.
         assert ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         progress.advance("funestras")
 
@@ -58,8 +43,6 @@ def test_the_real_loading_screen_is_on_screen_for_the_whole_teardown(tmp_path: P
 
 def test_the_real_loading_screen_stays_up_while_a_part_takes_longer_than_its_guard_to_end(
         tmp_path: Path):
-    """His quit on a busy machine: the parts took longer to end than the loading screen
-    waits without news, and it went with the dashboard still on screen."""
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 

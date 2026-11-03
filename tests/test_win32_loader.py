@@ -1,16 +1,3 @@
-"""What a Win32 wrapper does on a machine that has no Win32.
-
-Every wrapper in this package binds its DLLs while it is being imported, so an
-interpreter whose ``ctypes`` carries no ``windll`` cannot import them — and a
-``conftest`` that names one takes the whole run down with it rather than losing
-the tests that actually need Windows.  These cases pin the other outcome: the
-modules import, they say plainly that they bound nothing, and a call that
-reaches a stand-in names itself instead of returning a plausible zero.
-
-The child interpreters below delete the Windows half of ``ctypes`` before
-importing anything, so each case asks the same question on Windows as it does
-anywhere else.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -49,14 +36,6 @@ PACKAGE_MODULES = tuple(
 
 
 def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProcess:
-    """Run *body* in a child whose ``ctypes`` has had its Windows half removed.
-
-    ``PYTHONPATH`` names only the sibling checkouts this branch runs, so the
-    child cannot pick up a shim that fakes that surface back in, the way a run
-    on a developer's non-Windows machine does -- and the checkout's own sibling
-    override still applies, as it does at every launch: a branch leaning on an
-    unlanded funestra imports that one.
-    """
     return subprocess.run(
         [sys.executable, "-c", _STRIP_WIN32_FROM_CTYPES + body],
         cwd=str(REPO_DIR), env=environment_with_this_checkouts_siblings(),
@@ -79,13 +58,6 @@ def test_the_package_modules_are_found():
 
 
 def test_every_module_in_the_package_imports_where_ctypes_has_no_windll():
-    """No module in the package may be the one that decides a run exists.
-
-    Collection imports far more of the package than the Windows tests need, so
-    it is not enough for the wrappers under test to import: any module that
-    binds Win32 while it is being imported takes down every test module that
-    reaches it, whatever that module is about.
-    """
     result = _run_without_the_win32_ctypes_surface(
         "import importlib\n"
         "failures = []\n"
@@ -101,13 +73,6 @@ def test_every_module_in_the_package_imports_where_ctypes_has_no_windll():
 
 
 def test_the_integration_support_modules_import_where_ctypes_has_no_windll():
-    """The unit suite reads the integration runner's own modules.
-
-    They drive real Win32 desktops, so they bind Win32 the way the package does
-    — and the unit tests that check the runner's argv, its refusal to run on the
-    live desktop and its reaping rules import them at collection, which puts
-    them on the same footing as the package.
-    """
     result = _run_without_the_win32_ctypes_surface(
         "import tests.integration.hidden_desktop\n"
         "import tests.integration.integration_support\n"
@@ -117,13 +82,6 @@ def test_the_integration_support_modules_import_where_ctypes_has_no_windll():
 
 
 def test_our_own_rect_carries_win32s_own_memory_layout():
-    """The four field NAMES are ours; the memory they sit in is Win32's.
-
-    ``GetWindowRect`` and ``GetMonitorInfoW`` write four LONGs at fixed offsets
-    into whatever structure they are handed, so a structure that agrees on the
-    layout may disagree on the spelling -- and one that drifts on the layout
-    reads garbage without saying so.
-    """
     theirs = ctypes.wintypes.RECT
     ours = win32.Win32Rect
 

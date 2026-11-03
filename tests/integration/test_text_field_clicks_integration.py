@@ -120,8 +120,6 @@ def _clicked_into(clicks: TextFieldClicks, watch: PressAndCaretWatch, *, within:
 
 @pytest.fixture
 def watch():
-    # The hidden desktop has no pointer to read, so every press counts as one
-    # made with the text pointer here; which pointer it was is the unit tests'.
     watching = PressAndCaretWatch(text_pointer=lambda: True)
     watching.start()
     yield watching

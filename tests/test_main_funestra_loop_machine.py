@@ -1,11 +1,3 @@
-"""What a loop asks of the Funestra, once the state machine has settled it.
-
-`main_funestra.loop_controller` decides where the bounds go; its own tests loading screen that and
-are not repeated here.  These are about the half that has a Funestra: the range
-mpv is handed, the playhead landing on its start, the range cleared again, the
-device taken back when a loop is left, the mark a Funestra is told to keep, and
-what each tick of the playhead does to a mark that is still open.
-"""
 from __future__ import annotations
 
 from funestra.funscript import Funscript

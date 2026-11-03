@@ -1,25 +1,3 @@
-"""What Fun Time looks like at the exact instant the loading screen lifts.
-
-He has reported this one over and over: "when I start up Fun Time, its windows
-still are not ready by the time the loading screen goes away."  Every earlier
-attempt asked the question a second or two AFTER startup settled, by which time
-Fun Time has caught up and every check passes.  So this asks it at the one moment
-the complaint is about — the first poll on which the loading overlay's window is
-gone — and reports what was still missing then.
-
-Two things have to be true at that instant.  Every window the session shows must
-be ON SCREEN: the dashboard hides itself under the loading screen and shows itself again
-on a cue, and taking that cue from the loading screen's own departure meant the control
-panel arrived seconds after Fun Time it controls.  And the pass that puts the
-room in z-order must ALREADY HAVE RUN: it is written to run under the loading screen, and
-a loading screen that leaves first turns it into a session sorting itself out in front of him.
-
-Whether anything is COVERING those windows is a separate question, and one
-``test_loading_screen_startup_integration`` already asks of the satellites.  It is
-left there: the dashboard this session runs with brings its message overlay, whose
-whole job is to flash over a Funestra for a couple of seconds, so a coverage check
-here would go red on a message doing exactly what it is for.
-"""
 from __future__ import annotations
 
 import sys
@@ -45,24 +23,14 @@ pytestmark = pytest.mark.skipif(
     reason="Fun Time integration tests require Windows",
 )
 
-# The windows a session puts on screen, by exact title.
 SHOWN_TITLES = ("Fun Time", "Portrait AI Funestra", "Landscape AI Funestra", "Main Funestra")
 
-# What the orchestrator logs when Fun Time has been banded and settled.
 BANDED = "Post-loading window state corrected"
 
 _POLL_S = 0.02
 
 
 class _AtTheReveal(threading.Thread):
-    """Watch for the loading screen's window to go, and photograph Fun Time the instant it
-    does.
-
-    A thread because the reveal happens deep inside ``session.start()``, which
-    does not return until the bridge is fully up — long after the moment this
-    test is about.
-    """
-
     def __init__(self, timeout_s: float = 240.0) -> None:
         super().__init__(daemon=True)
         self._timeout_s = timeout_s
@@ -81,18 +49,10 @@ class _AtTheReveal(threading.Thread):
             time.sleep(_POLL_S)
         else:
             return
-        # One photograph, taken as close to the reveal as a 20ms poll allows.
-        # Everything asserted on comes out of this instant: asking again later is
-        # asking a different question, and it is the one that kept passing.
-        # Wall clock, so it can be read against the orchestrator's own log.
         self.lifted_at = time.time()
         self.hwnds = {
             title: find_window_by_title(title, exact=True) for title in SHOWN_TITLES
         }
-        # And the same lookup counting hidden windows, so a failure says which
-        # kind of missing it was: a window that never launched, or one that is
-        # up but still SW_HIDE under the loading screen it was meant to be revealed
-        # under.  The two want opposite fixes.
         self.hidden_hwnds = {
             title: find_window_by_title(title, exact=True, include_hidden=True)
             for title in SHOWN_TITLES
@@ -106,8 +66,6 @@ def test_the_app_is_finished_when_the_loading_screen_lifts():
     watcher = _AtTheReveal()
     watcher.start()
     try:
-        # The dashboard is the window this is mostly about, so this is one of the
-        # few sessions that runs with it enabled.
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
             "FUN_TIME_DISABLE_DASHBOARD": "0",
@@ -131,8 +89,6 @@ def test_the_app_is_finished_when_the_loading_screen_lifts():
             if watcher.hidden_hwnds.get(title) else f"{title} (no window at all)"
             for title, hwnd in watcher.hwnds.items() if not hwnd
         ]
-        # Which children the session recorded, so "no window at all" can be
-        # told from "a child that never launched".
         pids = session.read_child_pids()
         assert not missing, (
             "the loading screen lifted on a session still missing "

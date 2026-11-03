@@ -908,10 +908,6 @@ def test_video_nav_voice_phrases():
 
 
 def test_funscript_nav_voice_phrases_are_split_for_vosk():
-    """The small vosk model has no "funscript" token, so the recognizer listens
-    for the two-word form; the reference rejoins it (see friendly_voice).  Said
-    bare it follows the Funestra last navigated; with "main" it is the Main
-    Funestra's own, under the ids its HUD posts."""
     assert VOICE_COMMANDS["jump to fun script"] == "active_funscript_jump"
     assert VOICE_COMMANDS["next fun scripted"] == "active_next_funscripted"
     assert VOICE_COMMANDS["main jump to fun script"] == "main_funestra_funscript_jump"
@@ -2479,9 +2475,6 @@ def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
 
 
 def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
-    """What either Funestra's slider asks for: an absolute level, not a step.  It
-    lifts a mute for the same reason reaching for the volume does in the Windows
-    mixer."""
     config = _make_config(tmp_path)
 
     new_state, ops = dispatch_command(
@@ -2566,8 +2559,6 @@ def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
 
 
 def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
-    """As reaching for the volume does in the Windows mixer — a "louder" that
-    left Fun Time silent would read as the command having been missed."""
     config = _make_config(tmp_path)
 
     new_state, _ops = dispatch_command(
@@ -3683,11 +3674,6 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
 
 
 def test_the_genaumacher_sibling_is_found_beside_the_primary_not_beside_a_worktree():
-    """``../genaumacher`` measured from this file names a directory inside
-    ``.claude/worktrees`` whenever the session is a branch-verification one, and
-    there is nothing there — the save died in its ``cwd=`` and the hotkey looked
-    like the branch had broken it.  The siblings live beside the primary
-    checkout, which a worktree can name because they share a git directory."""
     _genaumacher_project_dir.cache_clear()
     try:
         resolved = _genaumacher_project_dir()
@@ -3699,8 +3685,6 @@ def test_the_genaumacher_sibling_is_found_beside_the_primary_not_beside_a_worktr
 
 
 def test_the_genaumacher_sibling_falls_back_to_this_checkout_without_git(tmp_path):
-    """No worse than it was: where git cannot answer, the checkout that is
-    running is the only guess available."""
     genaumacher_save._genaumacher_project_dir.cache_clear()
     try:
         with patch("fun_time.config.PROJECT_DIR", tmp_path / "fun_time"):

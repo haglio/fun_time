@@ -1,18 +1,3 @@
-"""The Satellite's origenerator mode, proven on a real session.
-
-The unit tests prove the plans and ops; what they cannot prove is what the
-room does with them — that the hosted app's parked window actually rises over
-the RFB on the switch and parks again on the way back, that the two Funestras
-really play what the hosted app hands them and get their own lists back
-afterwards, and that the satellites hold their topmost band.  Those are claims
-about real HWNDs and real Funestras, so they are tested by running a real
-session against a STUB hosted app: a fabricated tkinter window that speaks
-just enough of the ``--fun-time`` contract (the captions, the parked boot, the
-Funestras it is handed, the QUIT verb) for the session to manage it.  A stub
-rather than the real Origenerator because the suite must not touch the
-machine's one ComfyUI, GPU queue, or gallery database — the same reason
-``isolate_shared_resources`` strips the config key outright.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -75,8 +60,6 @@ from .integration_support import (
 )
 
 pytestmark = [
-    # Real Funestras on a real desktop: the post-loading pass has to be given
-    # the real resolve budget, not the unit conftest's zeroed one.
     pytest.mark.real_startup_waits,
     pytest.mark.skipif(
     sys.platform != "win32",
@@ -84,20 +67,6 @@ pytestmark = [
 ),
 ]
 
-# A fabricated stand-in for the hosted app: parses the --fun-time contract
-# loosely, boots the way the real one does — a short-lived splash wearing the
-# app's caption FIRST (the twin that once got cached as the app), then
-# Core, parked (iconified) and topmost — and exits on QUIT.  It
-# publishes the status file too, from the same poll and only once booted, which
-# is what the real app's Fun Time bridge does and what a session reads to learn
-# the app is up: a stub that stayed silent there would leave origenerator mode
-# closed for the whole run.  Its shows are the real app's shape too: a list
-# written for each Funestra it was handed, the verb that makes that Funestra read
-# it, and a HUD for the session to put on the Funestra.  Launched without
-# --fun-time it opens in Standalone, as he opens the real one, offers itself to a
-# session and answers a takeover -- holding its first status back afterwards,
-# as a busy app would, so a session that waited to hear from an app already
-# open would show the mode closed.
 _STUB_MAIN = textwrap.dedent(
     """
     import argparse
@@ -304,12 +273,8 @@ _STUB_MAIN = textwrap.dedent(
 
 _FUNESTRAS = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
 _A_START_WITH_EVERY_CORE_BUSY_S = 2 * START_BUDGET_S
-# The session that comes back to the mode holds its own startup open for the
-# hosted app, so its start is that much longer than any other test's.
 _A_START_THAT_WAITS_FOR_THE_APP_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + ORIGENERATOR_BOOT_BUDGET_S)
-# Every wait the two-session check makes, at its own budget: both starts and
-# both Funestras' images in the second one.
 _TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + _A_START_THAT_WAITS_FOR_THE_APP_S
     + 2 * COMMAND_BUDGET_S)
@@ -334,8 +299,6 @@ def _write_stub_checkout(destination: Path) -> Path:
 def _host_stub(config_path: Path, stub_root: Path) -> None:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
     raw["paths"]["origenerator_dir"] = str(stub_root)
-    # The stub is plain tkinter over funestra, so the suite's own
-    # interpreter runs it.
     raw["paths"]["origenerator_python_exe"] = sys.executable
     config_path.write_text(json.dumps(raw), encoding="utf-8")
 
@@ -347,13 +310,6 @@ def _parked_core(pid: int) -> int:
 
 @pytest.fixture(scope="module")
 def hosted_session():
-    """A real session hosting the stub app, plus that app's main HWND.
-
-    One session for the whole module: launching a session is the expensive
-    half of these tests, and every extra launch is GPU and decode churn the
-    suite's perf-gated tests downstream then pay for.  The tests leave the
-    session the way they found it (kino mode, satellites banded).
-    """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
@@ -363,8 +319,6 @@ def hosted_session():
         session.start()
         pid = session.read_child_pids().get("origenerator_pid", 0)
         assert pid, "the session did not record a hosted origenerator child"
-        # Wait past the splash decoy for the PARKED Core — the decoy
-        # wears the same caption but is a normal visible window.
         hwnd = seen_within(lambda: _parked_core(pid), seconds=20.0)
         stderr_file = session.config.paths.state_dir / "orchestrator_stderr.log"
         stderr_tail = stderr_file.read_text(encoding="utf-8", errors="replace")[-2000:] \
@@ -384,8 +338,6 @@ def _shows_the_stub(session, funestra: FunTimeFunestra) -> bool:
 
 
 def _own_videos(session, funestra: FunTimeFunestra) -> list[Path]:
-    """What *Funestra*'s playlist holds, once that is the session's own videos
-    again rather than anything the hosted app wrote there."""
     folders = (session.config.paths.portrait_dirs if funestra is FunTimeFunestra.PORTRAIT
                else session.config.paths.landscape_dirs)
     listed = [item.path for item in read_playlist(session.config.satellite(funestra).playlist_file)]
@@ -395,22 +347,12 @@ def _own_videos(session, funestra: FunTimeFunestra) -> list[Path]:
 
 
 def _wait_for_the_slideshows(session) -> None:
-    """Wait for the hosted app to have put its slideshow on both Funestras."""
     for funestra in _FUNESTRAS:
         wait_for(lambda funestra=funestra: _shows_the_stub(session, funestra),
                  desc=f"the {funestra.label} Funestra to show the hosted app's slideshow")
 
 
 def _bring_the_satellites_home(session) -> None:
-    """Press each satellite's Kino once the app has both Funestras, and wait for
-    them home.
-
-    The wait below cannot tell a Funestra handed its list back from one the app
-    never took, so the press has to come after the app has answered the open
-    the way in sent it: pressed before that, the app writes its lists onto the
-    Funestras after this test has ended, and the next one reads a playlist
-    holding the app's items (tests/test_origenerator_mode_way_back.py).
-    """
     _wait_for_the_slideshows(session)
     for funestra in _FUNESTRAS:
         session.write_dashboard_command(f"{funestra.label}_kino_activate")
@@ -421,9 +363,6 @@ def _bring_the_satellites_home(session) -> None:
 
 
 def _press_once_origenerator_is_up(session, *commands: str) -> Path:
-    """Press *commands* once the hosted app is up to answer them: Fun Time
-    opens with the app booting on out of sight, and every Origenerator button
-    is dim until it answers."""
     state_file = shared_state_path(session.config.paths.state_dir)
     wait_for(lambda: read_shared_state(state_file).origenerator_ready,
              timeout=START_BUDGET_S, desc="the hosted app to publish a status")
@@ -451,14 +390,8 @@ def _put_origenerator_in_the_browsers_place(session) -> None:
 
 
 def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hosted_session):
-    """The user-visible contract of the mode selector under the Dashboard's log, on real
-    windows: the hosted app boots parked; its Origenerator restores it over the
-    RFB's rect and into the topmost band; its Random Favs Browser parks it
-    again.  Driven through an OmniPause cycle first, because that is the
-    sequence the demo failed in — the pause demotes every managed window, and
-    the switch afterwards has to promote this one back itself."""
     session, hwnd = hosted_session
-    assert is_window_minimized(hwnd)  # booted parked
+    assert is_window_minimized(hwnd)
 
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_log("OmniPause: entering")
@@ -478,9 +411,6 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hos
 
 
 def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_own(hosted_session):
-    """What the mode is for, on the real Funestras: each one plays the list the
-    hosted app writes for it, and leaving the mode hands it back the session's
-    own list — the same videos, not the app's items and not an empty list."""
     session, _hwnd = hosted_session
     own_lists = {funestra: sorted(_own_videos(session, funestra)) for funestra in _FUNESTRAS}
     assert all(own_lists.values()), "the Funestras had no lists of their own to begin with"
@@ -518,7 +448,6 @@ def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_b
 
 
 def _huds_worn_until(session, funestra: FunTimeFunestra, done) -> list:
-    """Every HUD the session published for *Funestra* until *done*, each once."""
     hud_file, worn = session.config.satellite(funestra).hud_file, []
 
     def look():
@@ -534,7 +463,6 @@ def _huds_worn_until(session, funestra: FunTimeFunestra, done) -> list:
 
 
 def _a_whole_huds_mode(hud, funestra: FunTimeFunestra, own: list[Path]) -> str:
-    """Which mode's whole HUD *hud* is, or "" for one that is neither."""
     lit = [button.command for button in hud.rows[0] if button.lit] if hud.rows else []
     if lit == [f"{funestra.label}_kino_activate"] and hud.corner and Path(hud.corner.path) in own:
         return "kino"
@@ -550,8 +478,6 @@ def _wears(session, funestra: FunTimeFunestra, own: list[Path]) -> str:
 
 
 def _published(hud_file: Path) -> str:
-    """*hud_file*'s text, or "" while it is missing or being replaced: Windows
-    refuses a read of a file in the middle of the publisher's rename."""
     try:
         return hud_file.read_text(encoding="utf-8")
     except OSError:
@@ -603,13 +529,6 @@ def test_no_funestra_keeps_input_method_windows_that_could_stall_its_band(hosted
 
 
 def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):
-    """The demo's 'Landscape Funestra under other windows': the post-overlay
-    pass resolved the satellites by pid, python_exe is the venv's pythonw
-    shim, and both lookups found nothing — so the pass silently skipped the
-    only banding the satellites get on a loading-screen startup.  Reproduced
-    here with the session's real recorded pids and real windows: demote both
-    Funestras (what the overlay's teardown can leave), run the pass, and the
-    title fallback must put both back in the band."""
     session, _hwnd = hosted_session
     pids = session.read_child_pids()
     portrait = await_window("Portrait AI Funestra", 10, exact=True)
@@ -617,10 +536,6 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     assert portrait
     assert landscape
 
-    # Every band read here is waited for rather than taken once: a Funestra
-    # reloading its own list after a mode switch takes no messages for a
-    # moment, and a SetWindowPos that timed out on it is not dropped -- it
-    # lands when that Funestra pumps again.
     set_always_on_top(portrait, False)
     set_always_on_top(landscape, False)
     for funestra, hwnd in (("portrait", portrait), ("landscape", landscape)):
@@ -643,12 +558,6 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
-    """He watched the HUD change in stages: a bare "Origenerator mode" HUD over
-    the video still playing, and on the way back a Kino HUD with no map
-    (2026-10-29).
-
-    A session of its own with the dashboard enabled, since that is what
-    publishes the HUDs the Funestras wear."""
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
@@ -678,17 +587,6 @@ def test_a_satellite_switching_modes_wears_one_whole_hud_then_the_other():
 
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
-    """The one he kept reporting: the mode puts a slideshow on each Satellite and then
-    something buries it a few seconds later.
-
-    A session of its own rather than the module's, because what buries a Satellite
-    is the settle pass and the bands a full launch lays down, so the mode has
-    to be entered on a session that took the loading-screen path with every
-    window real — and with the dashboard enabled, since that is what publishes
-    the HUDs the Funestras wear.  Asked over ten seconds rather than once: the
-    burial arrived a few seconds late every time he saw it, so a single look
-    right after the switch is exactly the check that kept passing.
-    """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
@@ -719,10 +617,6 @@ def test_entering_the_mode_on_a_real_session_leaves_its_slideshows_on_top():
             assert worn.rows[0][1].lit
 
         funestras = {title: await_window(title, 10, exact=True) for title in _FUNESTRA_TITLES}
-        # Ten seconds of it, because the burial he saw landed seconds after the
-        # image did.  The first window over it wins: report it and stop.
-        # Each other is not a burial: the faked monitors are small enough that
-        # the two Funestras' rects overlap here, which they never do on his.
         siblings = set(funestras.values())
         burial = seen_within(lambda: _first_burial(funestras, siblings), seconds=10.0, every_s=0.5)
         assert not burial, burial
@@ -739,7 +633,6 @@ def _first_burial(funestras: dict[str, int], siblings: set[int]) -> str:
 
 
 def _hud_of(hud_file: Path, funestra: FunTimeFunestra):
-    """The HUD published for *Funestra*, once it is the hosted app's own."""
     if not hud_file.exists():
         return None
     hud = parse_hud(hud_file.read_text(encoding="utf-8"))
@@ -750,19 +643,6 @@ def _hud_of(hud_file: Path, funestra: FunTimeFunestra):
 
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
 def test_an_app_left_in_the_mode_opens_in_it_as_it_was_left():
-    """A session left in origenerator mode opens in it, with no switch pressed: the
-    session holds its own loading screen up for the hosted app and takes the mode up under
-    it, so it is already in the mode when Fun Time is shown.
-
-    A real session runs first because the state file and the playlists the next
-    one reads are what that session leaves on disk -- a session opening on a state
-    dir with neither builds fresh ones and carries nothing.  The mode goes into
-    that file the way a session left in the mode leaves it; pressing the switch to
-    get it there costs an app boot and a wait on it, and the test above is what
-    covers the press.  That first session is ended the way a crash ends one, so it
-    hands its Origenerator to nobody: handed back, the app goes standalone and the
-    next session takes it over, which is the slowest way it can come up.
-    """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
@@ -825,9 +705,6 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
     _host_stub(config_path, stub_root)
-    # By path rather than -m: a session's start reaps every `-m origenerator`
-    # an earlier run left on this desktop, and this one is meant to be open.
-    # Open as a preview, the copy he most often has open when a session starts.
     open_app = subprocess.Popen(
         [sys.executable, str(stub_root / "origenerator" / "__main__.py"), "--caption",
          window_title(ORIGENERATOR_TITLE, Preview(feature="a fabricated feature"))],
@@ -835,8 +712,6 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
     session = FunTimeIntegrationSession(config_path)
     try:
         offer = stub_root / "state" / "fun_time_offer.txt"
-        # The pid the app names for itself, not the Popen's: a venv's python.exe
-        # is a launcher, and the app is the interpreter it starts.
         offered_pid = int(wait_for(lambda: offer.exists() and offer.read_text(
             encoding="utf-8").split(), desc="the open app to offer itself")[0])
         session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
@@ -858,9 +733,6 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
 
         wait_for(offer.exists, desc="the handed-back app to offer itself again")
         assert open_app.poll() is None, "the session closed the app it was meant to hand back"
-        # Waited for, not read once: the app offers itself again as it comes
-        # back, and the window manager takes it out of the band and out of the
-        # taskbar in its own time after that.
         wait_for(lambda: not is_window_minimized(hwnd),
                  desc="the handed-back window to stand open again")
         wait_for(lambda: not is_window_topmost(hwnd),

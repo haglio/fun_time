@@ -1,11 +1,3 @@
-"""The RFB slideshow against a real Chrome.
-
-The switch goes through Windows' accessibility interface, the only way into
-Chrome's tabs from outside it, and one of the two ways that interface offers
-would steal the foreground: pressing a tab's "select" activates its window, and
-Chrome then treats that window as the one its profile last used.  Only a real
-Chrome can show which way the slideshow took.
-"""
 from __future__ import annotations
 
 import os
@@ -27,7 +19,6 @@ pytestmark = [
     ),
 ]
 
-# Fabricated markers, so a window is identified by a title no real page carries.
 FIRST_SLIDE = "FUNTIMEMARK-SLIDE-FIRST"
 SECOND_SLIDE = "FUNTIMEMARK-SLIDE-SECOND"
 THIRD_SLIDE = "FUNTIMEMARK-SLIDE-THIRD"
@@ -65,12 +56,6 @@ def test_the_slideshow_shows_each_tab_in_turn_and_starts_over_after_the_last(chr
 
 
 def test_a_slide_leaves_his_own_window_the_one_chrome_hands_his_links_to(chrome, switcher_for):
-    """Chrome gives a page opened from outside it to the window of the profile
-    that was activated last.  His own window opened last here, so it is that
-    window, and after the slide it still has to be: had the slide activated the
-    RFB, the page would land in the RFB instead.  The last half is the control,
-    showing a real activation of the RFB moves the page, so the check can fail.
-    """
     rfb = chrome.open_window(FIRST_SLIDE, SECOND_SLIDE)
     his_window = chrome.open_window(HIS_OWN_PAGE)
 

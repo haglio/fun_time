@@ -124,9 +124,6 @@ def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerat
 
 
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
-    """The corner is the video on screen, so it stays (the Funestra draws a
-    placeholder); a sibling whose frame the prewarm hasn't produced simply isn't
-    on the nav map yet, exactly as the Qt HUD skipped it."""
     with patch("fun_time.hud_transport.cached_thumbnail", return_value=None):
         payload = hud_model(_hud(), Path("C:/state/thumbs"))
 

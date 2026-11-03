@@ -29,15 +29,6 @@ _IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "flick_flip_phrases", "acts")
 
 
 def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:
-    """Import the launch module graph in a fresh interpreter, with every content
-    overlay read forced onto *content_overlay* — simulating a checkout whose sole
-    content overlay is that file, whatever the developer's git-ignored
-    ``content.local.json`` happens to hold.
-
-    The overlay path is patched onto ``content.load_content`` before the consumer
-    modules import, so their module-level reads resolve to it; the entrypoint and
-    the two lazily-imported launch modules are then imported the way startup does.
-    """
     imports = "; ".join(f"import {name}" for name in _STARTUP_MODULES)
     driver = (
         "import sys; from pathlib import Path; overlay = Path(sys.argv[1]); "

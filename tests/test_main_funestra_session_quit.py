@@ -1,22 +1,3 @@
-"""The Main Funestra does not quit itself — it asks the session to quit.
-
-Every gesture that ends a window on its own — the close button, Alt+F4, Ctrl+Q —
-ends only that window, and inside a Fun Time session that is wrong: the
-sequencer put six windows up together and there is nothing to refill the gap
-one leaving makes.  It bit for real: Opt+Cmd+Q on a Mac keyboard arrives as
-Alt+F4, so it closed the Main Funestra, then the portrait satellite, then the
-landscape one, one press at a time, while the dashboard, Genau and the audio
-companion carried on and the session had to be ended by voice.
-
-Read off the source rather than run: the run loop needs a real window and the
-libmpv DLL, the same reason ``test_focus_clickthrough`` reads its guarantee
-that way.  The chain is two links — the loop hands its events to
-``main_funestra.input``, and that module answers a QUIT by telling the Funestra
-its window was asked to close, which the Funestra answers by asking the session
-— and both are scanned, because scanning only the second would pass a loop that
-took its events back and ended itself, leaving ``input.py`` correct and unused.
-A synthetic QUIT is fed to the module directly in ``test_main_funestra_input``.
-"""
 from __future__ import annotations
 
 import ast

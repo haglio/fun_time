@@ -1,5 +1,3 @@
-"""On a real hidden desktop, on_hidden_desktop() and the Funestras that consult it
-turn silent -- the end-to-end check the unit tests cannot make against faked names."""
 from __future__ import annotations
 
 import argparse
