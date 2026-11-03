@@ -20,6 +20,7 @@ from shared_ui.colors import dress_application
 from fun_time.library_browser import (
     FLICKS_TOP_LEVEL_NAME,
     TOP_LEVEL_NAME,
+    BrowseCallbacks,
     LibraryBrowserWindow,
     load_browser_config,
     load_flick_browser_config,
@@ -79,8 +80,8 @@ class HeadsetBrowse:
     def _browser(self, handles: Sequence[LibraryHandle], top_level_name: str) -> LibraryBrowserWindow:
         window = LibraryBrowserWindow(
             handles, thumbnail_cache=self._thumbnail_cache,
-            on_pick=lambda video: self._say(picked_line(video)),
-            on_dismiss=lambda: self._say(DISMISSED),
+            callbacks=BrowseCallbacks(on_pick=lambda video: self._say(picked_line(video)),
+                                      on_dismiss=lambda: self._say(DISMISSED)),
             activate_on_click=True,
             top_level_name=top_level_name,
         )

@@ -17,6 +17,8 @@ from fun_time.config import load_config
 from fun_time.library_browser import (
     TOP_LEVEL_NAME,
     WINDOW_TITLE,
+    BrowseCallbacks,
+    BrowseOpening,
     LibraryBrowserWindow,
     browse_library,
 )
@@ -63,7 +65,8 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
     cache.mkdir()
     handles = _handles(tmp_path, cache)
 
-    window = LibraryBrowserWindow(handles, thumbnail_cache=cache, on_pick=lambda _v: None)
+    window = LibraryBrowserWindow(
+        handles, thumbnail_cache=cache, callbacks=BrowseCallbacks(on_pick=lambda _v: None))
     try:
         window.setGeometry(0, 0, 600, 300)
         window.show()
@@ -90,7 +93,8 @@ def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
     cache = tmp_path / "cache"
     cache.mkdir()
     window = LibraryBrowserWindow(
-        _handles(tmp_path, cache), thumbnail_cache=cache, on_pick=lambda _v: None,
+        _handles(tmp_path, cache), thumbnail_cache=cache,
+        callbacks=BrowseCallbacks(on_pick=lambda _v: None),
     )
     try:
         window.show()
@@ -123,7 +127,8 @@ def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
     app = QApplication.instance()
     picked: list[str] = []
     window = LibraryBrowserWindow(
-        handles, thumbnail_cache=cache, on_pick=picked.append, on_close=app.quit,
+        handles, thumbnail_cache=cache,
+        callbacks=BrowseCallbacks(on_pick=picked.append, on_close=app.quit),
     )
     window.open_folder((SECTIONS[0],))
     window.resize(800, 500)
@@ -143,7 +148,8 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
     cache = tmp_path / "cache"
     cache.mkdir()
     window = LibraryBrowserWindow(
-        _handles(tmp_path, cache), thumbnail_cache=cache, on_pick=lambda _v: None,
+        _handles(tmp_path, cache), thumbnail_cache=cache,
+        callbacks=BrowseCallbacks(on_pick=lambda _v: None),
     )
     try:
         window.resize(800, 500)
@@ -190,7 +196,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     set_always_on_top(stand_in_hwnd, False)
 
     browsing = threading.Thread(
-        target=lambda: browse_library(manifest, sys.executable, over=(100, 100, 900, 700)),
+        target=lambda: browse_library(manifest, sys.executable, BrowseOpening(over=(100, 100, 900, 700))),
         daemon=True,
     )
     browsing.start()
@@ -238,7 +244,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
 
     browsing = threading.Thread(
         target=lambda: browse_library(
-            manifest, sys.executable, over=(100, 100, 900, 700), runner=runner),
+            manifest, sys.executable, BrowseOpening(over=(100, 100, 900, 700)), runner=runner),
         daemon=True,
     )
     browsing.start()

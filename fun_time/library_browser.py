@@ -384,17 +384,21 @@ class FolderIndex(BrowseList):
             self._on_activate(row)
 
 
+@dataclass(frozen=True)
+class BrowseCallbacks:
+    on_pick: Callable[[str], None]
+    on_close: Callable[[], None] | None = None
+    on_dismiss: Callable[[], None] | None = None
+
+
 class LibraryBrowserWindow(QWidget):
     def __init__(
         self,
         handles: Sequence[LibraryHandle],
         *,
         thumbnail_cache: str | Path,
-        on_pick: Callable[[str], None],
-        on_close: Callable[[], None] | None = None,
-        playing: str | None = None,
+        callbacks: BrowseCallbacks,
         activate_on_click: bool = False,
-        on_dismiss: Callable[[], None] | None = None,
         top_level_name: str = TOP_LEVEL_NAME,
     ) -> None:
         super().__init__(None)
@@ -405,8 +409,8 @@ class LibraryBrowserWindow(QWidget):
         self.setWindowFlags(Qt.WindowType.Tool)
         self.setWindowTitle(WINDOW_TITLE)
         self._handles = tuple(handles)
-        self._on_pick = on_pick
-        self._on_close = on_close
+        self._on_pick = callbacks.on_pick
+        self._on_close = callbacks.on_close
         self._top_level_name = top_level_name
         self._path: tuple[str, ...] = ()
 
@@ -421,8 +425,8 @@ class LibraryBrowserWindow(QWidget):
         self.header = folder_header()
         self.header.step_clicked.connect(self._open_depth)
         self.dismiss_button = None
-        if on_dismiss is not None:
-            self.dismiss_button = dismiss_button(lambda: self._dismiss(on_dismiss))
+        if callbacks.on_dismiss is not None:
+            self.dismiss_button = dismiss_button(lambda: self._dismiss(callbacks.on_dismiss))
             inside = QHBoxLayout(self.header)
             inside.setContentsMargins(0, 0, MARGIN_STANDARD, 0)
             inside.addStretch(1)
@@ -445,7 +449,7 @@ class LibraryBrowserWindow(QWidget):
         palette.setColor(QPalette.ColorRole.Window, BG_PRIMARY)
         self.setPalette(palette)
 
-        self.open_on(playing)
+        self.open_folder(())
         self.grid.setFocus()
 
     def open_on(self, video: str | None) -> None:
@@ -618,13 +622,18 @@ def pick_file_for(manifest_path: str | Path) -> Path:
     return Path(manifest_path).parent / PICK_FILENAME
 
 
+@dataclass(frozen=True)
+class BrowseOpening:
+    over: tuple[int, int, int, int] | None = None
+    playing: str | None = None
+    flicks: bool = False
+
+
 def browse_library(
     manifest_path: str | Path,
     python_exe: str,
+    opening: BrowseOpening,
     *,
-    over: tuple[int, int, int, int] | None = None,
-    playing: str | None = None,
-    flicks: bool = False,
     runner: Callable[..., object] = subprocess.run,
 ) -> str | None:
     pick_file = pick_file_for(manifest_path)
@@ -634,12 +643,12 @@ def browse_library(
         NAMER.named_exe(python_exe, "LibraryBrowser"),
         "-m", "fun_time.library_browser", str(manifest_path), str(pick_file),
     ]
-    if over is not None:
-        x, y, width, height = over
+    if opening.over is not None:
+        x, y, width, height = opening.over
         command += ["--x", str(x), "--y", str(y), "--width", str(width), "--height", str(height)]
-    if playing:
-        command += ["--playing", playing]
-    if flicks:
+    if opening.playing:
+        command += ["--playing", opening.playing]
+    if opening.flicks:
         command.append(GENAU_FLAG)
     sibling_checkouts = _read_manifest(manifest_path).get(
         "runtime", "sibling_checkouts", fallback="")
@@ -718,11 +727,13 @@ def main(argv: list[str] | None = None) -> int:
         window = LibraryBrowserWindow(
             config.handles(),
             thumbnail_cache=config.thumbnail_cache,
-            on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
-            on_close=app.quit,
-            playing=args.playing,
+            callbacks=BrowseCallbacks(
+                on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
+                on_close=app.quit,
+            ),
             top_level_name=config.top_level_name,
         )
+        window.open_on(args.playing)
         if None not in {args.x, args.y, args.width, args.height}:
             window.setGeometry(args.x, args.y, args.width, args.height)
         window.show()
