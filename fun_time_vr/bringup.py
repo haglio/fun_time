@@ -21,6 +21,11 @@ _NO_SESSION = (
 )
 
 
+class WallClock:
+    now = staticmethod(time.monotonic)
+    sleep = staticmethod(time.sleep)
+
+
 @dataclass(frozen=True)
 class Bringup:
     session: Any = None
@@ -33,19 +38,18 @@ def open_vr_session(
     device_not_ready: type[BaseException],
     timeout_s: float = SESSION_BRINGUP_TIMEOUT_S,
     retry_s: float = SESSION_BRINGUP_RETRY_S,
-    now: Callable[[], float] = time.monotonic,
-    sleep: Callable[[float], None] = time.sleep,
+    clock: Any = WallClock,
 ) -> Bringup:
-    deadline = now() + timeout_s
+    deadline = clock.now() + timeout_s
     while True:
         try:
             return Bringup(session=make_session())
         except device_not_ready as exc:
-            if now() >= deadline:
+            if clock.now() >= deadline:
                 logger.error("VR session bring-up failed: %s", exc)
                 return Bringup(message=_NOT_READY.format(error=exc))
             logger.info("VR runtime's graphics device not ready yet; retrying bring-up")
-            sleep(retry_s)
+            clock.sleep(retry_s)
         except Exception as exc:
             logger.exception("VR session bring-up failed")
             return Bringup(message=_NO_SESSION.format(error=exc))
