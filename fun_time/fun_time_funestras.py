@@ -13,13 +13,6 @@ class FunTimeFunestra(IntEnum):
         return self.name.lower()
 
     @classmethod
-    def label_of(cls, number: int) -> str:
-        try:
-            return cls(number).label
-        except ValueError:
-            return ""
-
-    @classmethod
     def for_scope(cls, scope: str) -> tuple[FunTimeFunestra, ...]:
         if scope == "both":
             return cls.SATELLITES
