@@ -224,20 +224,6 @@ _ACTION_TOOLTIPS: dict[str, str] = {
 OMNIPAUSE_RESUME_TOOLTIP = "Play everything"
 
 
-def bar_state_of(snapshot: DashboardSnapshot | None, reference_open: bool = False) -> BarState:
-    if snapshot is None:
-        return BarState(reference_open=reference_open)
-    return BarState(
-        omni_paused=snapshot.omni_paused,
-        voice_active=snapshot.voice_active,
-        f_mode=snapshot.f_mode,
-        in_vr=snapshot.in_vr,
-        reference_open=reference_open,
-        nothing_to_reset=snapshot.nothing_to_reset,
-        headset_ready=snapshot.headset_ready,
-    )
-
-
 def build_dashboard_scene(
     layout: DashboardBarLayout,
     state: BarState,
@@ -680,7 +666,7 @@ class DashboardWindow(QMainWindow):
     def _bar_scene(self, pressed_actions: frozenset[str]) -> DashboardScene:
         return build_dashboard_scene(
             self._bar_layout,
-            bar_state_of(self._last_snapshot, self._reference.is_open),
+            BarState.of(self._last_snapshot, self._reference.is_open),
             icons=self._icons,
             pressed_actions=pressed_actions,
             shown_as=self._shown_as,

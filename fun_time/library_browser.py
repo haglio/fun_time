@@ -54,6 +54,7 @@ from shared_ui.spacing import (
 )
 
 from . import preview_marker
+from .browse_records import BrowseCallbacks, BrowseOpening
 from .checkout_overrides import sibling_checkouts_kwargs
 from .folder_listings import FolderListings
 from .library_handles import (
@@ -384,13 +385,6 @@ class FolderIndex(BrowseList):
             self._on_activate(row)
 
 
-@dataclass(frozen=True)
-class BrowseCallbacks:
-    on_pick: Callable[[str], None]
-    on_close: Callable[[], None] | None = None
-    on_dismiss: Callable[[], None] | None = None
-
-
 class LibraryBrowserWindow(QWidget):
     def __init__(
         self,
@@ -620,13 +614,6 @@ PICK_FILENAME = "library_browser_pick.txt"
 
 def pick_file_for(manifest_path: str | Path) -> Path:
     return Path(manifest_path).parent / PICK_FILENAME
-
-
-@dataclass(frozen=True)
-class BrowseOpening:
-    over: tuple[int, int, int, int] | None = None
-    playing: str | None = None
-    flicks: bool = False
 
 
 def browse_library(
