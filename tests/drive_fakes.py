@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 
 class DriveNeverAnswered(BaseException):
-    """Raised where the drive would hang for hours instead."""
+    pass
 
 
 _QUESTIONS = (
@@ -31,11 +31,6 @@ _QUESTIONS = (
 
 @contextmanager
 def files_that_never_answer(folder: Path) -> Iterator[None]:
-    """Within the block, any question about a file under *folder* never answers.
-
-    Listing the folder itself keeps working, which is how the real drive
-    behaves -- and is the only way anything can still be read off it.
-    """
     silent = {
         os.path.normcase(str(path)) for path in folder.rglob("*") if path.is_file()
     }
@@ -60,11 +55,6 @@ def files_that_never_answer(folder: Path) -> Iterator[None]:
 
 @contextmanager
 def folders_listed() -> Iterator[list[str]]:
-    """Collects the folders listed inside the block, one entry per listing.
-
-    A listing is the one question the drive always answers, so what matters is
-    how many of them a drawing takes -- one per folder, however many videos.
-    """
     read: list[str] = []
     real = os.scandir
 

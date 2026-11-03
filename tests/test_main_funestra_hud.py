@@ -1,4 +1,3 @@
-"""The HUD Fun Time publishes for the Main Funestra's HUD to draw."""
 from __future__ import annotations
 
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
@@ -27,8 +26,6 @@ def _actions(model: MainHudModel) -> list[str]:
 
 
 class TestOsr2State:
-    """What has the device, as one compact word — the HUD badges it."""
-
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
         for osr2_mode, expected in ((Osr2Mode.OFF, Osr2State.OFF),
                                     (Osr2Mode.AUTO, Osr2State.AUTO)):
@@ -40,9 +37,6 @@ class TestOsr2State:
                           funscript_driving=True) == Osr2State.FUNSCRIPT
 
     def test_a_scripted_videos_quiet_stretch_reads_as_the_robot_hand_not_funscript(self):
-        """The reported bug: on a rest gap of a scripted video the Robot Hand drives, but
-        it said funscript because a funscript merely *existed*.  It is the driving
-        state that decides now, not the file's presence."""
         assert osr2_state(main_mode=MainMode.KINO, osr2_mode=Osr2Mode.CONTROLLED,
                           funscript_driving=False) == Osr2State.ROBOT_HAND
 
@@ -58,10 +52,6 @@ class TestOsr2State:
                               funscript_driving=True, trouble=trouble) == expected
 
     def test_a_main_funestra_parked_off_screen_cannot_claim_the_device(self):
-        """The reported bug: in genau mode the Main Funestra is paused off screen, but its
-        status file still describes the scripted video it was last showing —
-        so this said "funscript" while Genau had the device, which dims every
-        control on the drive readout and refuses every press on it."""
         assert osr2_state(main_mode=MainMode.GENAU, osr2_mode=Osr2Mode.CONTROLLED,
                           funscript_driving=True) == Osr2State.ROBOT_HAND
 
@@ -86,9 +76,6 @@ class TestPayload:
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
 
     def test_declares_the_main_funestras_loop_machine_on_the_record_button(self):
-        """The HUD is drawn in genau mode too, by a Funestra with no loop machine
-        to ask — so where the Main Funestra is in the gesture rides here with the rest of the
-        room, and the record button can say which press comes next."""
         recording = _button(_payload(main_funestra=MainFunestraStatus(loop_state=LoopState.RECORDING)),
                             "main_funestra_record_tap")
         resting = _button(_payload(), "main_funestra_record_tap")
@@ -99,9 +86,6 @@ class TestPayload:
         assert not resting.hold
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
-        """One padlock on the HUD, so one flag: the Main Funestra's hold on its video where
-        The Main Funestra is on screen, Genau's hold on its flick where Genau is.  Publishing
-        both is what left kino mode drawing two locks that meant different things."""
         held_flick, loose_flick = GenauStatus(locked=True), GenauStatus(locked=False)
         held_video, loose_video = MainFunestraStatus(locked=True), MainFunestraStatus(locked=False)
 
@@ -122,16 +106,11 @@ class TestPayload:
         assert _button(_payload(main_mode=MainMode.GENAU), "genau_flip_ends").lit is False
 
     def test_genaus_pace_is_named_on_its_lock(self):
-        """Genau publishes how long an unheld flick stays up, and the lock in genau
-        mode says so on hover -- the only place the number is spelled out."""
         payload = _payload(main_mode=MainMode.GENAU, genau=GenauStatus(locked=False), genau_pace_s=7)
 
         assert "every 7s" in _button(payload, "main_lock").tooltip
 
     def test_declares_what_the_main_funestra_published_about_its_video(self):
-        """The compilation, version and video-jump buttons are lit and named from
-        the Main Funestra's own titles: only it knows them, and a Funestra
-        that says nothing leaves them dim."""
         known = _payload(main_funestra=MainFunestraStatus(
             compilation="Vol 3", has_compilation=True, has_other_versions=True, jump_to="scene"))
         unknown = _payload()
@@ -145,9 +124,6 @@ class TestPayload:
 
 
 def test_the_hud_carries_the_main_funestras_browse_order():
-    """Latest and Shuffle are the orchestrator's to set — a spoken word or a key it
-    owns — and the Main Funestra cannot tell which way round the playlist it was handed was built,
-    so the order rides the HUD exactly as F-mode does."""
     assert _payload(latest=True).latest is True
     assert _payload().latest is False
     assert _button(_payload(latest=True), "main_latest").lit is True
@@ -165,8 +141,6 @@ def test_in_genau_mode_f_mode_lights_off_genaus_own_and_not_kinos():
 
 
 def test_the_length_pair_lights_off_what_the_orchestrator_holds():
-    """The length narrows Fun Time's one list, so its pair is lit from Fun Time's
-    own state, as F-mode and the order are, whatever the Funestra has said."""
     lit = [button.lit for button in _payload(length_mode=LengthMode.CLIPS).rows[1]
            if button.command.startswith("main_funestra_length")]
 
@@ -174,11 +148,6 @@ def test_the_length_pair_lights_off_what_the_orchestrator_holds():
 
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():
-    """One slot on the HUD, so one flag, resolved the way the padlock is: the Main Funestra's
-    playlist order where the Main Funestra is on screen, the order Genau last rescanned its flicks
-    folder in where Genau is.  They are separate flags because a Genau reorder
-    rewrites nothing of the Main Funestra's — reporting the Main Funestra's in genau mode said "Shuffle" at
-    someone who had just asked Genau for the latest."""
     assert _payload(main_mode=MainMode.KINO, latest=True, genau_latest=False).latest is True
     assert _payload(main_mode=MainMode.KINO, latest=False, genau_latest=True).latest is False
 
@@ -187,14 +156,11 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
 
 
 def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():
-    """Two flags with a third answer: None where the rotation holds one shape,
-    which is every session outside the headset, and the HUD then draws no pair
-    of buttons for a choice there is none to make."""
     assert not any(a.startswith("main_projection") for a in _actions(_payload()))
 
     headset = _payload(plays_vr=True, plays_flat=False)
-    assert _button(headset, "main_projection_none").lit is True     # the VR button, lit
-    assert _button(headset, "main_projection_both").lit is False    # the flat one, dark
+    assert _button(headset, "main_projection_none").lit is True
+    assert _button(headset, "main_projection_both").lit is False
 
 
 def test_the_shapes_reported_are_the_shapes_of_whoever_is_showing():
@@ -254,8 +220,6 @@ class TestTheDeclaredRows:
         return left + x + w // 2, top + y + h // 2
 
     def test_the_declared_rows_are_what_the_funestra_presses(self, tmp_path):
-        """The whole way round: a button declared here, published, read back and
-        painted, posts on the HUD exactly the verb it was declared with."""
         painter, origin = self._readout(_payload(main_mode=MainMode.KINO), tmp_path)
 
         rect = next(r for r, b in painter.buttons if b.command == "main_next")

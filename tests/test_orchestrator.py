@@ -1,4 +1,3 @@
-"""Tests for fun_time.orchestrator."""
 from __future__ import annotations
 
 import configparser
@@ -34,20 +33,11 @@ from tests.made_up_genau import point_the_shared_settings_at
 
 
 def _a_loading_screen() -> MagicMock:
-    """A loading screen with the two things a launch asks of it: a line to name what it
-    is doing, and a way to take the screen down again."""
     return MagicMock(spec=["progress", "take_it_down"])
 
 
 @contextmanager
 def _a_launch(**overrides):
-    """``main()`` with every step that reaches the machine held off.
-
-    They are held in one place because forgetting one is not a failing test:
-    an unpatched ``open_the_loading_screen`` throws a real loading screen over his
-    monitors, and an unpatched engine check spends a second of subprocesses.
-    Each is overridable by name, which is how a test says what it is about.
-    """
     steps = {
         "configure_logging": MagicMock(return_value=MagicMock()),
         "install_exception_logging": MagicMock(),
@@ -71,9 +61,6 @@ def _a_launch(**overrides):
             stack.enter_context(patch(f"fun_time.orchestrator.{name}", mock))
         yield SimpleNamespace(**steps)
 
-# ---------------------------------------------------------------------------
-# build_parser
-# ---------------------------------------------------------------------------
 
 class TestBuildParser:
     def test_defaults(self):
@@ -90,22 +77,17 @@ class TestBuildParser:
         assert args.config == "/path/config.json"
 
 
-# ---------------------------------------------------------------------------
-# require_file / require_dir
-# ---------------------------------------------------------------------------
-
 class TestRequireFile:
     def test_passes_for_existing_file(self, tmp_path: Path):
         f = tmp_path / "exists.txt"
         f.touch()
-        require_file(f)  # should not raise
+        require_file(f)
 
     def test_raises_for_missing_file(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError, match="Missing file"):
             require_file(tmp_path / "missing.exe")
 
     def test_raises_for_directory(self, tmp_path: Path):
-        # A directory is not a file
         with pytest.raises(FileNotFoundError):
             require_file(tmp_path)
 
@@ -114,7 +96,7 @@ class TestRequireDir:
     def test_passes_for_existing_dir(self, tmp_path: Path):
         d = tmp_path / "mydir"
         d.mkdir()
-        require_dir(d)  # should not raise
+        require_dir(d)
 
     def test_raises_for_missing_dir(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError, match="Missing directory"):
@@ -126,10 +108,6 @@ class TestRequireDir:
         with pytest.raises(FileNotFoundError):
             require_dir(f)
 
-
-# ---------------------------------------------------------------------------
-# windows bridge manifest
-# ---------------------------------------------------------------------------
 
 class TestControllerManifest:
     def test_every_section_the_launch_needs_is_in_the_manifest(self, cfg_path: Path):
@@ -166,9 +144,6 @@ class TestControllerManifest:
     def test_the_brokers_files_are_manifested_from_the_brokers_own_directory(
         self, tmp_path: Path, cfg_factory,
     ):
-        """Every child reads its paths back out of this manifest, so a session
-        whose state dir has moved has to be told the broker's rather than left to
-        derive one from its own."""
         broker_state = tmp_path / "primary_state"
         path = cfg_factory({"paths": {"broker_state_dir": str(broker_state)}})
         commands = build_windows_bridge_manifest(load_config(path))["commands"]
@@ -225,9 +200,6 @@ class TestControllerManifest:
         assert result["dashboard"]["enabled"] == "1"
 
     def test_dashboard_enabled_can_be_disabled_for_integration(self, cfg_path: Path):
-        """The switch is an argument here, not the ambient environment: this
-        builder writes a config artifact, and what it writes has to be readable
-        off its call."""
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg, dashboard_enabled=False)
         assert result["dashboard"]["enabled"] == "0"
@@ -300,8 +272,6 @@ class TestControllerManifest:
 
         assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert parser["runtime"]["config_path"] == str(cfg.config_path)
-        # The native satellites are wired through their command/paused/status/playlist
-        # files, so the written INI carries the quartet.
         assert parser["modules"]["satellite_module"] == "satellite"
         assert parser["commands"]["portrait_playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
@@ -314,30 +284,14 @@ class TestControllerManifest:
         assert parser["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
 
 
-# ---------------------------------------------------------------------------
-# validate_config – only tests logic that doesn't require real binaries
-# ---------------------------------------------------------------------------
-
 class TestValidateConfig:
     def _make_config_with_stubs(self, cfg_path: Path):
-        """Load config and stub the executables validate_config looks for.
-
-        Only the exe paths need stubbing — they point inside the test's
-        tmp_path.  The rest of what validate_config checks is addressed off
-        ``config.project_dir``, which is always the real package directory
-        (``config.PROJECT_DIR``), so those files are genuinely on disk.  A
-        test must never create them: writing under project_dir drops files
-        into the repo itself.
-        """
         cfg = load_config(cfg_path)
         for p in (cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
         return cfg
 
     def test_validates_a_well_formed_config(self, cfg_path: Path):
-        """A config naming the executables startup actually needs — AHK and
-        Python — passes validation, so nothing beyond those two is demanded of
-        the machine."""
         cfg = self._make_config_with_stubs(cfg_path)
 
         validate_config(cfg)
@@ -378,12 +332,6 @@ class TestValidateConfig:
 
 class TestBrokerHelpers:
     def test_the_broker_is_left_to_the_one_policy_inside_the_launch(self, cfg_path: Path):
-        """There were two start-if-missing policies, both running per launch on
-        different signals: this one before the bridge, and
-        ``windows_bridge_startup.ensure_broker`` inside it.  The one that
-        survives is the richer of the two — it can also replace a broker older
-        than its own sources — and it runs where it is needed, so this entry
-        point has no broker business at all now."""
         with _a_launch() as launch:
             result = main(["--config", str(cfg_path)])
 
@@ -404,8 +352,6 @@ class TestRunController:
             result = run_windows_bridge(cfg, logger, SessionEnvironment(), loading_screen)
 
         assert result == SessionOver(0)
-        # The manifest is written from the config plus the one switch the
-        # process edge read, which decides whether this session has a dashboard.
         writer.assert_called_once_with(cfg, dashboard_enabled=True)
         bridge.assert_called_once()
         call_kwargs = bridge.call_args.kwargs
@@ -415,22 +361,10 @@ class TestRunController:
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
         assert call_kwargs["project_dir"] == cfg.project_dir
         assert call_kwargs["env"] == SessionEnvironment()
-        # The session runs under the loading screen the launch already raised, never one
-        # of its own: by the time it starts, that loading screen has been up for seconds.
         assert call_kwargs["loading_screen"] is loading_screen
 
 
-# --- main() --check flag ---
-
-
 class TestTheProcessEdgeReadsTheSwitchesOnce:
-    """The FUN_TIME_* switches are answered once, here, and handed down.
-
-    Read at the point of use they were ambient: eleven reads in eight modules,
-    none of them visible in a signature.  Everything below this call takes the
-    record instead, so what a session does can be read off its arguments.
-    """
-
     def test_main_hands_the_session_what_the_environment_said(self, cfg_path: Path, monkeypatch):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
         monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
@@ -456,8 +390,6 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
 class TestTheCheckoutsItsOwnCheckoutNames:
     def test_the_session_and_its_loading_screen_run_the_sibling_checkouts_this_checkout_names(
             self, cfg_path: Path, tmp_path: Path, monkeypatch):
-        """Whatever wrote its config: a production checkout from before
-        2026-10-16 reads only the old name of the file that names them."""
         checkout = tmp_path / "funestra_worktree"
         (tmp_path / "state").mkdir(exist_ok=True)
         (tmp_path / "state" / SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text(
@@ -488,8 +420,6 @@ class TestMainCheckFlag:
         launch.run_windows_bridge.assert_not_called()
 
     def test_a_check_raises_no_loading_screen_and_stamps_no_pin(self, cfg_path: Path):
-        """It validates and exits: a loading screen flashed over his monitors, and his
-        taskbar pin relabelled, are a launch's doing and not a check's."""
         with _a_launch() as launch:
             main(["--config", str(cfg_path), "--check"])
 
@@ -498,12 +428,6 @@ class TestMainCheckFlag:
 
 
 class TestTheCrossingIntoTheOtherSession:
-    """Both ends of it: the request cleared coming in, and the relay going out.
-
-    docs/entering-vr.md has the design; what is held here is that this
-    orchestrator is where each end actually happens.
-    """
-
     def _main(self, cfg_path: Path, *, during_session=lambda: None):
         run_bridge = MagicMock(side_effect=lambda *_a, **_k: (during_session(), SessionOver(0))[1])
         with _a_launch(run_windows_bridge=run_bridge) as launch, \
@@ -533,8 +457,6 @@ class TestTheCrossingIntoTheOtherSession:
     def test_a_request_a_crash_left_behind_never_reaches_the_next_session(
         self, cfg_path: Path,
     ):
-        """It describes one ending; obeyed later it would send an ordinary
-        launch into the headset on its way out, hours after."""
         config = load_config(cfg_path)
         request_handoff(config.paths.state_dir, VR)
 
@@ -617,14 +539,6 @@ class TestMainDescribesTheSessionsTaskbarButton:
 
 
 class TestMainStampsOnlyTheMachinesOwnShortcut:
-    """The taskbar pin belongs to the installed app, not to whoever is running.
-
-    Stamping it writes into ``%APPDATA%``, outside every checkout — so a session
-    started from some other config (an integration run's temp one, a developer's
-    alternate) was reaching into the user's shell to relabel a shortcut that
-    points at neither of them.
-    """
-
     def _main(self, cfg_path: Path, stamp):
         with _a_launch(stamp_shortcut_aumid=stamp):
             return main(["--config", str(cfg_path)])
@@ -637,7 +551,6 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
         stamp.assert_not_called()
 
     def test_the_installed_app_still_stamps_its_own_pin(self, cfg_path: Path):
-        """Without this the indicator never gets set for the session that owns it."""
         stamp = MagicMock()
 
         with patch("fun_time.orchestrator.DEFAULT_CONFIG_PATH", Path(cfg_path)):
@@ -657,17 +570,10 @@ class TestOrchestratorSingleInstance:
         show_msg.assert_called_once()
         assert "already running" in show_msg.call_args[0][0]
         launch.run_windows_bridge.assert_not_called()
-        # That message is a window of its own, and a loading screen raised over it would
-        # leave him a monitor of nothing to answer.
         launch.open_the_loading_screen.assert_not_called()
 
 
 class TestTheLoadingScreenGoesUpFirst:
-    """A launch used to do its own work over a bare desktop -- the engine
-    probes, the session machinery's import, the taskbar pin -- and only cover
-    the monitors once all of it was done, six or seven seconds in.  The loading screen
-    goes up first now, and that work runs under it, named on it as it goes."""
-
     def _order_of(self, cfg_path: Path) -> list[str]:
         order: list[str] = []
         loading_screen = _a_loading_screen()
@@ -688,8 +594,6 @@ class TestTheLoadingScreenGoesUpFirst:
         assert self._order_of(cfg_path)[-1] == "session"
 
     def test_the_loading_screen_says_the_engine_is_being_checked_while_it_is(self, cfg_path: Path):
-        """The bar is the only thing he can read the wait off, so the phase is
-        named before the probes rather than after them."""
         said: list[str] = []
         loading_screen = _a_loading_screen()
         loading_screen.progress.announce.side_effect = said.append
@@ -704,9 +608,6 @@ class TestTheLoadingScreenGoesUpFirst:
         assert said == ["engine", "probed"]
 
     def test_a_launch_that_fails_under_the_loading_screen_takes_it_down(self, cfg_path: Path):
-        """Nothing else would: the screen sits out its whole staleness guard,
-        topmost over every monitor, with the launcher's failure dialog stuck
-        under it."""
         loading_screen = _a_loading_screen()
 
         with _a_launch(
@@ -718,8 +619,6 @@ class TestTheLoadingScreenGoesUpFirst:
         loading_screen.take_it_down.assert_called_once()
 
     def test_a_missing_engine_is_told_to_uncover_before_it_says_so(self, cfg_path: Path):
-        """Its alert is a window like any other, and one raised under the loading screen
-        cannot be read or clicked."""
         loading_screen = _a_loading_screen()
         abort = MagicMock(return_value=True)
 
@@ -731,17 +630,7 @@ class TestTheLoadingScreenGoesUpFirst:
         assert abort.call_args.kwargs["uncover"] == loading_screen.take_it_down
 
 
-# ---------------------------------------------------------------------------
-# startup marker — what tells launch.vbs a hidden launch got off the ground
-# ---------------------------------------------------------------------------
-
-
 class TestStartupMarker:
-    """``launch.vbs`` runs the orchestrator hidden and can only tell a good
-    launch from a silent crash by whether this marker appears.  The contract:
-    the app writes it once startup has resolved, and every silent failure the
-    launcher exists to surface leaves it absent."""
-
     def test_marker_lives_in_the_state_dir(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         assert startup_marker_path(cfg) == cfg.paths.state_dir / "launcher.ready"
@@ -754,8 +643,6 @@ class TestStartupMarker:
         assert startup_marker_path(cfg).is_file()
 
     def test_signal_creates_the_state_dir_if_absent(self, cfg_factory, tmp_path: Path):
-        # The already-running branch signals before ensure_runtime_files runs,
-        # so the state dir may not exist yet.
         cfg = load_config(cfg_factory({"paths": {"state_dir": str(tmp_path / "not_yet")}}))
 
         signal_startup_resolved(cfg)
@@ -763,16 +650,11 @@ class TestStartupMarker:
         assert startup_marker_path(cfg).is_file()
 
     def test_signal_swallows_write_failure(self, cfg_factory, tmp_path: Path):
-        """A launcher that can't write its own marker must still launch.
-
-        The failure is real: a plain FILE stands where the state dir should
-        be, so the marker write hits a genuine OSError instead of a patched
-        Path.write_text that rerouted every write in the process."""
         blocked = tmp_path / "blocked_state"
         blocked.write_text("", encoding="utf-8")
         cfg = load_config(cfg_factory({"paths": {"state_dir": str(blocked)}}))
 
-        signal_startup_resolved(cfg)  # must not raise
+        signal_startup_resolved(cfg)
 
         assert not startup_marker_path(cfg).exists()
 
@@ -784,8 +666,6 @@ class TestStartupMarker:
         assert startup_marker_path(load_config(cfg_path)).is_file()
 
     def test_already_running_leaves_the_marker(self, cfg_path: Path):
-        """The user got our own message; the marker keeps the launcher from
-        stacking a misleading "failed to start" dialog on top of it."""
         with _a_launch(claim_the_session=MagicMock(return_value=None),
                        show_already_running_message=MagicMock()):
             result = main(["--config", str(cfg_path)])
@@ -794,8 +674,6 @@ class TestStartupMarker:
         assert startup_marker_path(load_config(cfg_path)).is_file()
 
     def test_validation_failure_leaves_no_marker(self, cfg_path: Path):
-        """A missing library dir (or any validation failure) must leave the
-        marker absent so the launcher surfaces the log."""
         with _a_launch(
             validate_config=MagicMock(side_effect=FileNotFoundError("missing dir")),
         ), pytest.raises(FileNotFoundError):
@@ -804,8 +682,6 @@ class TestStartupMarker:
         assert not startup_marker_path(load_config(cfg_path)).exists()
 
     def test_check_only_run_leaves_no_marker(self, cfg_path: Path):
-        """``--check`` validates and exits without launching, so it is not a
-        started session and must not claim to be one."""
         with _a_launch():
             result = main(["--config", str(cfg_path), "--check"])
 

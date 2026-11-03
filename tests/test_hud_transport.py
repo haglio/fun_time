@@ -1,4 +1,3 @@
-"""Publishing each satellite's HUD HUD to the file its Funestra renders from."""
 from __future__ import annotations
 
 import json
@@ -25,7 +24,6 @@ def _hud(**overrides) -> SatelliteHud:
 
 
 def _thumb(path: str) -> Path:
-    """A stand-in cached thumbnail: <name>.jpg beside the video."""
     return Path(path).with_suffix(".jpg")
 
 
@@ -45,8 +43,6 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
 
 
 def test_hud_payload_names_the_librarys_camera_words():
-    """The Funestra sets a leading camera word apart from the act on a row, and only
-    fun_time knows which words the library writes there."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         model = hud_model(_hud(), Path("C:/t"), ("Side", "XYZ"))
 
@@ -54,9 +50,6 @@ def test_hud_payload_names_the_librarys_camera_words():
 
 
 def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
-    """The nav map is built on the dispatch loop, so a question per video is a question
-    per video put to the library drive -- and a drive stuck on one of them takes
-    every button and spoken command in the session down with it."""
     folder = tmp_path / "vids"
     folder.mkdir()
     cache = tmp_path / "thumbs"
@@ -77,7 +70,6 @@ def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
 
 
 def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
-    """The Funestra draws the dot; only fun_time knows which side has the floor."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         active = hud_model(_hud(active=True), Path("C:/state/thumbs"))
         idle = hud_model(_hud(active=False), Path("C:/state/thumbs"))
@@ -86,23 +78,16 @@ def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
     assert idle.active is False
 
 def test_hud_payload_carries_whether_the_video_is_a_favorite():
-    """The dashboard's HUD said this by turning green; the HUD marks it instead,
-    so the flag has to reach the Funestra along with the nav map."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         assert hud_model(_hud(is_favorite=True), Path("C:/t")).is_favorite is True
         assert hud_model(_hud(), Path("C:/t")).is_favorite is False
 
 
 def _band(model) -> dict[str, object]:
-    """The Satellite's own buttons, by what each is for."""
     return {button.command.removeprefix(f"{model.funestra}_"): button for button in model.rows[-1]}
 
 
 def test_hud_payload_declares_the_browse_order_pair_only_where_the_satellite_names_an_order():
-    """The Funestra draws the Shuffle/Latest pair only for a HUD that declares
-    it — so a satellite gets the pair, one of the two lit, and the
-    origenerator-mode HUD, whose Funestra is black and paused under a show,
-    gets neither."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         newest = _band(hud_model(_hud(latest=True), Path("C:/t")))
         shuffled = _band(hud_model(_hud(latest=False), Path("C:/t")))
@@ -117,8 +102,6 @@ def test_hud_payload_declares_the_browse_order_pair_only_where_the_satellite_nam
 
 
 def test_hud_payload_declares_the_satellites_buttons_lit_off_its_own_state():
-    """The lock and F-mode light off the Satellite's state, and every button posts
-    that Satellite's own verb -- what the dispatcher answers for it."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         band = _band(hud_model(_hud(locked=True, favorites_filter=True), Path("C:/t")))
 
@@ -161,8 +144,6 @@ def test_hud_payload_has_no_corner_when_nothing_is_playing():
 
 
 def test_hud_payload_marks_the_cell_actually_on_screen():
-    """Mid-loop the nav map holds still and a non-corner cell is what is playing; the
-    payload names that cell so the Funestra lights it instead of the corner."""
     hud = _hud(active_loop="seed", playing="C:/v/s1.mp4")
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(hud, Path("C:/t"))
@@ -172,10 +153,6 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
 
 
 def test_a_running_loop_publishes_every_item_it_cycles():
-    """The Funestra windows the looped axis around the video on screen, so it has to be
-    given the whole loop.  Capping it at the handful of cells a nav map can draw is what
-    left the highlight nowhere to be once the loop advanced past them — the user saw
-    three thumbnails, then a stretch with nothing lit and an unrecognisable video."""
     seeds = [f"C:/v/s{i}.mp4" for i in range(12)]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
 
@@ -187,9 +164,6 @@ def test_a_running_loop_publishes_every_item_it_cycles():
 
 
 def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
-    """Dropping it would renumber every cell after it and slide the Funestra's window
-    off the video on screen, so a loop item with no frame yet is published with an
-    empty thumbnail — drawn as a placeholder, in the loop's own order."""
     seeds = ["C:/v/s0.mp4", "C:/v/s1.mp4", "C:/v/s2.mp4"]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[2])
 
@@ -203,8 +177,6 @@ def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
 
 
 def test_the_axis_a_loop_is_not_running_on_stays_capped():
-    """Only the looped axis needs the whole group; the other one is still the browse
-    map, so it keeps its draw cap and its cached-only rule."""
     actions = [f"C:/v/a{i}.mp4" for i in range(9)]
     hud = _hud(active_loop="seed", action_siblings=actions, action_labels=tuple("x" * 9))
 
@@ -215,8 +187,6 @@ def test_the_axis_a_loop_is_not_running_on_stays_capped():
 
 
 def test_hud_payload_falls_back_to_the_corner_for_an_off_map_video():
-    """A satellite that auto-advanced off the drawn map has no cell to light, so
-    the corner stays bright rather than nothing at all."""
     hud = _hud(playing="C:/v/elsewhere.mp4")
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(hud, Path("C:/t"))
@@ -225,8 +195,6 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_video():
 
 
 def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
-    """The Funestra re-renders whenever the file changes, so an unchanged tick must
-    not rewrite it — the dispatch loop publishes many times per video."""
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 
@@ -239,19 +207,12 @@ def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
 
 
 def test_publish_republishes_a_hud_whose_write_never_landed(tmp_path: Path):
-    """A dropped write must not be remembered as published: the HUD the Funestra
-    is reading would then stay stale until something else changed it, which for a
-    locked satellite can be a very long time.
-
-    (Getting the HUD onto disk whole, and riding out a reader's hold on the
-    file, is ``funestra.file_channel.publish_whole`` and is covered there.)"""
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         with patch("fun_time.hud_transport.publish_whole", return_value=False):
             assert publisher.publish("portrait", _hud()) is False
-        # The very same HUD, now that the file is free again.
         assert publisher.publish("portrait", _hud()) is True
 
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True

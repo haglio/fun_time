@@ -100,13 +100,6 @@ class TestPhaseProgress:
         assert progress_file.read_text(encoding="utf-8").endswith("|Quick...")
 
     def test_the_bar_tracks_time_spent_not_steps_taken(self, tmp_path: Path):
-        """One tenth of the wait moves the bar one tenth, not a third of it.
-
-        A step counter gave every phase the same share, so the longest one — the
-        wait for the Funestras' windows — held the bar at 83% for most of startup
-        while four sub-second phases spent the rest of it.  Phases are weighted by
-        how long they take, in hundredths of a second.
-        """
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=TWO_PHASES)
 
@@ -117,12 +110,6 @@ class TestPhaseProgress:
         assert progress_file.read_text(encoding="utf-8") == "100/1000|Slow..."
 
     def test_only_the_final_phase_puts_the_bar_on_the_total(self, tmp_path: Path):
-        """A full bar means "the last phase has begun", nothing sooner.
-
-        So each phase reports the wait BEFORE it, never its own: crediting a
-        phase's time as it began would read as finished one phase early, and the
-        companions take that reading as their cue to show themselves.
-        """
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=TWO_PHASES)
 
@@ -146,9 +133,6 @@ class TestPhaseProgress:
         assert announced.read_text(encoding="utf-8") == advanced.read_text(encoding="utf-8")
 
     def test_an_announced_phase_is_not_a_checkpoint(self, tmp_path: Path):
-        """The launch names what it is doing before it has anything to tear
-        down; the cancel waiting on disk is answered at the first phase that
-        does, which is where the teardown lives."""
         progress_file = tmp_path / PROGRESS_FILENAME
         cancel_file_for(progress_file).write_text(f"{CANCEL_WORD}\n", encoding="utf-8")
         progress = PhaseProgress(progress_file, phases=TWO_PHASES,
@@ -162,7 +146,7 @@ class TestPhaseProgress:
             progress.advance("slow")
 
     def test_a_null_reporter_answers_an_announcement_too(self, tmp_path: Path):
-        NullProgress().announce("quick")  # must not raise: integration runs with no loading screen
+        NullProgress().announce("quick")
 
     def test_finish_writes_done(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"
@@ -178,30 +162,19 @@ class TestStartupPhases:
         assert len(keys) == len(set(keys))
 
     def test_the_waits_under_the_loading_screen_run_before_the_line_that_fills_the_bar(self):
-        """A session left with Origenerator showing waits out that app under the loading screen,
-        and every session waits for its voice commands to listen.  Put after the last
-        line, a wait read as a step past "Finalizing..." with the bar already full
-        -- finished, and still working."""
         keys = [phase.key for phase in STARTUP_PHASES]
 
         assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
                              "finalizing"]
 
     def test_the_loading_screen_says_origenerator_is_activating_whatever_it_comes_back_into(self):
-        """A session can come back with only one satellite on Origenerator's
-        slideshow and the browser in its place, so the step names the app."""
         assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
     def test_the_launch_names_its_own_work_before_the_app_arrives(self):
-        """Loading itself and checking the Funestras' engine took seconds off an
-        uncovered desktop; they run under the loading screen, so the loading screen says so."""
         assert (*LAUNCH_PHASES, *APP_PHASES) == STARTUP_PHASES
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
     def test_only_the_last_phase_claims_no_time(self):
-        """It has to land the bar on the total, which is what tells a companion
-        window to show itself while the loading screen is still up -- and nothing may be
-        reported after it, or the bar would read full with work still to do."""
         weights = [phase.weight for phase in STARTUP_PHASES]
 
         assert weights[-1] == 0.0
@@ -214,12 +187,6 @@ class TestShutdownPhases:
         assert len(keys) == len(set(keys))
 
     def test_no_phase_lands_the_bar_on_the_total(self, tmp_path: Path):
-        """Teardown's bar never reads full before teardown is finished.
-
-        Every shutdown phase has real work to do, so a full bar during one of
-        them would say Fun Time was clear with children still being killed — and
-        windows going out one by one is the whole thing the loading screen is there for.
-        """
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES)
 
@@ -282,7 +249,6 @@ class TestPhaseProgressCancellation:
         with pytest.raises(StartupCancelled):
             progress.advance("quick")
 
-        # The cancelled step is aborted before it touches the progress file.
         assert not progress_file.exists()
 
     def test_advance_proceeds_while_the_flag_is_absent(self, tmp_path: Path):
@@ -317,20 +283,11 @@ class TestPhaseProgressCancellation:
 class TestNullProgressCancellation:
     def test_null_progress_never_cancels(self):
         progress = NullProgress()
-        progress.advance("anything")  # must not raise
+        progress.advance("anything")
         assert progress.cancelled is False
 
 
 class TestStartupStillBuilding:
-    """Which reading of the progress file tells a companion window to show itself.
-
-    Not "the loading screen has gone": the loading screen is the last thing to leave, so a
-    companion that waits for it arrives after the reveal — the user watching the
-    session's own control panel turn up on a session that was supposed to be
-    finished.  It waits for the FULL BAR instead, which the final phase writes
-    while the loading screen is still up.
-    """
-
     def _state_dir(self, tmp_path: Path, text: str | None) -> Path:
         if text is not None:
             (tmp_path / PROGRESS_FILENAME).write_text(text, encoding="utf-8")
@@ -351,13 +308,6 @@ class TestStartupStillBuilding:
         assert startup_still_building(self._state_dir(tmp_path, "DONE")) is False
 
     def test_the_companions_are_told_before_the_loading_screen_is(self, tmp_path: Path):
-        """The whole ordering, walked: every companion is on screen under the
-        loading screen before anything asks the loading screen to leave.
-
-        The loading screen closes on the DONE flag alone (``OverlayWindow._poll``), and
-        that is written only by ``finish()`` — one full sequence after the
-        reading the companions act on.
-        """
         progress_file = tmp_path / PROGRESS_FILENAME
         progress = PhaseProgress(progress_file, phases=STARTUP_PHASES)
         loading_screen_may_close = lambda: parse_progress(  # noqa: E731
@@ -371,8 +321,6 @@ class TestStartupStillBuilding:
 
         for phase in STARTUP_PHASES[len(carries_time):]:
             progress.advance(phase.key)
-            # The companions show themselves at the first of these — and the loading screen
-            # is still up, through a wait for the hosted Origenerator as well.
             assert startup_still_building(tmp_path) is False
             assert loading_screen_may_close() is False
 

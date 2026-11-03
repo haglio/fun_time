@@ -16,9 +16,6 @@ from fun_time.origenerator_switches import RfbMode
 
 
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
-    """The five facts the bar draws travelled as five loose keywords on the way
-    out and as a record on the way back, so adding a sixth was an edit in four
-    files.  It is the one record both ways now."""
     snapshot = DashboardSnapshot(
         omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
         origenerator_ready=True, rfb_mode=RfbMode.ORIGENERATOR,
@@ -31,16 +28,6 @@ def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
 
 
 def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
-    """A section nobody reads is republished on every sync tick, forever.
-
-    The dashboard in its own process is the only reader of this file in the
-    family, and it asks for exactly these -- whether Fun Time is omnipaused,
-    whether voice is listening, whether every Funestra is in F-mode, whether
-    every Funestra is already at its defaults, whether this session is the
-    headset's, whether the headset's runtime is awake to cross into, and for
-    the strip under the log, whether Origenerator is up and whether it holds
-    the Random Favs Browser's place.
-    """
     parser = configparser.ConfigParser()
     parser.read_string(build_dashboard_snapshot_text())
 
@@ -101,12 +88,6 @@ def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_p
 
 
 class TestTheSnapshotsEncoding:
-    """One decoder for a file with one writer and two readers.
-
-    The panel's reader accepted utf-8-sig, utf-16 and utf-8; this Satellite accepted
-    utf-16 and utf-8.  Both now ask the module that writes it.
-    """
-
     def test_what_the_writer_wrote_reads_back(self, tmp_path):
         path = tmp_path / "dashboard_state.ini"
         write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True))
@@ -122,7 +103,6 @@ class TestTheSnapshotsEncoding:
 
     @pytest.mark.parametrize("encoding", ["utf-16", "utf-8", "utf-8-sig"])
     def test_an_older_sessions_file_is_still_readable(self, tmp_path, encoding):
-        """Both readers took more than the writer emits, and must keep to it."""
         assert decode_snapshot("[voice]\nactive=1\n".encode(encoding)) == (
             "[voice]\nactive=1\n")
 
@@ -131,7 +111,6 @@ class TestTheSnapshotsEncoding:
             decode_snapshot(b"\xff\xfe\xfd")
 
     def test_this_satellite_never_fails_a_write_over_an_unreadable_file(self, tmp_path):
-        """A snapshot it cannot read is one it has to overwrite, not raise on."""
         path = tmp_path / "dashboard_state.ini"
         path.write_bytes(b"\xff\xfe\xfd")
 
@@ -139,10 +118,6 @@ class TestTheSnapshotsEncoding:
 
 
 class TestTheWriterSkipsAnUnchangedSnapshot:
-    """The dispatch loop calls this on every 200ms tick, and the panel reads
-    the same file every 500ms without a lock — so a rewrite that changes
-    nothing is a torn-read window opened for no reason."""
-
     def _write_as_windows_would(self, path: Path, text: str) -> None:
         """`write_text` opens in text mode, so on Windows every \\n reaches the
         disk as \\r\\n.  This is that file, on any platform."""
@@ -156,8 +131,6 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
         assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is False
 
     def test_nor_when_the_file_carries_the_line_endings_windows_gave_it(self, tmp_path):
-        """The reader has to undo what the writer's text mode did, or the two
-        never match and every tick rewrites the file."""
         path = tmp_path / "dashboard_state.ini"
         self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
@@ -169,8 +142,6 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
 
         assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=False)) is True
 def test_whether_the_headset_is_ready_survives_the_round_trip(tmp_path):
-    """The bar offers Enter VR only once the headset's runtime is awake, and
-    the bar is drawn in another process than the one that knows."""
     state_file = tmp_path / "dashboard_state.ini"
     write_dashboard_snapshot(state_file, DashboardSnapshot(headset_ready=True))
     assert load_dashboard_snapshot(state_file).headset_ready is True
@@ -180,8 +151,6 @@ def test_whether_the_headset_is_ready_survives_the_round_trip(tmp_path):
 
 
 def test_a_snapshot_from_a_session_that_never_knew_offers_the_crossing(tmp_path):
-    """An older session's file says nothing about the headset: the button it
-    draws has always worked, so it stays offered."""
     state_file = tmp_path / "dashboard_state.ini"
     state_file.write_text("[session]\nvr=0\n", encoding="utf-8")
 

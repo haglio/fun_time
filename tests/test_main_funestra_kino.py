@@ -1,5 +1,3 @@
-"""Kino as it runs on the Main Funestra: its verbs, its pass each frame, its lines
-in the status file and the HUD's top block, over a real Playback."""
 from __future__ import annotations
 
 import json
@@ -213,9 +211,6 @@ class TestWhatItSays:
 
 
 class TestKinoOnTheLibrary:
-    """The one Kino the desktop's Main Funestra and the headset's both run: built
-    off the Main Funestra's own flags, the library and the mode it remembers."""
-
     def _args(self, tmp_path):
         return build_parser({}).parse_args([
             "--playlist", str(tmp_path / "main_player_playlist.tsv"),

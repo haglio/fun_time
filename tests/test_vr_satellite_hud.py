@@ -1,4 +1,3 @@
-"""A satellite's HUD hanging under its item: the screen it is, and the size it hangs at."""
 from __future__ import annotations
 
 from fun_time_vr.main_hud import DEG_PER_PX
@@ -12,7 +11,4 @@ class TestScreenNames:
 
 
 def test_the_hud_hangs_at_the_main_huds_own_pixel_scale():
-    """A HUD pixel subtends what a console pixel does, so the two read at one
-    size whatever the video's resolution -- scaled to the video's pixels a
-    HUD under a 1080p satellite was a few degrees wide and unpressable."""
     assert 300 * DEG_PER_PX > 20.0

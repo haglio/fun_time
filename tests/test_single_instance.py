@@ -1,5 +1,3 @@
-"""Tests for fun_time.single_instance: the name Fun Time claims and the message
-it shows.  The mutex itself is app_support.win32's, and tested there."""
 from __future__ import annotations
 
 import ast
@@ -23,8 +21,6 @@ from fun_time.single_instance import (
 
 
 class TestClaimingTheSession:
-    """What tells a second launch that a session is already playing."""
-
     def _a_name(self) -> str:
         return f"Local\\FunTimeTest.{uuid4().hex}"
 
@@ -35,8 +31,6 @@ class TestClaimingTheSession:
         let_the_session_go(claimed)
 
     def test_a_name_a_live_session_holds_is_refused(self):
-        """Asked from a thread of its own, because ownership is a thread's: the
-        second launch is another process, and this is the nearest a test gets."""
         name = self._a_name()
         first = claim_the_session(name)
 
@@ -69,14 +63,6 @@ class TestClaimingTheSession:
         _close(left_behind)
 
     def test_letting_go_of_a_name_a_wedged_session_abandoned_frees_it_for_the_next(self):
-        """A session that hangs on the way out leaves the name ABANDONED: its
-        owning thread is gone, its process lingers holding a handle open.  The
-        relay that carries a crossing only ASKS whether the outgoing session has
-        let go -- and asking took the name and did not give it back, so the wait
-        said free, the relay started the other session, and that session was
-        refused by the relay itself.  A crossing on 2026-09-20 left nothing
-        running at all that way, with the desktop session already shut down.
-        """
         name = self._a_name()
         wedged = _abandoned_by_a_dead_owner(name)
 
@@ -87,8 +73,6 @@ class TestClaimingTheSession:
 
 
 def _claimed_elsewhere(name: str) -> int | None:
-    """What a claim from another thread answers -- a mutex is re-entrant for the
-    thread that owns it, so one from this thread would say yes to itself."""
     answer: list[int | None] = []
     thread = threading.Thread(target=lambda: answer.append(claim_the_session(name)))
     thread.start()
@@ -98,8 +82,6 @@ def _claimed_elsewhere(name: str) -> int | None:
 
 
 def _abandoned_by_a_dead_owner(name: str) -> int:
-    """A handle to *name* whose owner thread has gone, as a session wedged on
-    the way out leaves: the object stays alive on the handle, owned by nobody."""
     claimed: list[int | None] = []
     owner = threading.Thread(target=lambda: claimed.append(claim_the_session(name)))
     owner.start()
@@ -110,7 +92,6 @@ def _abandoned_by_a_dead_owner(name: str) -> int:
 
 
 def _left_behind(name: str) -> int:
-    """A handle to *name* that owns nothing, as a session that died leaves."""
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.restype = ctypes.c_void_p
     return kernel32.CreateMutexW(None, False, name)
@@ -123,9 +104,6 @@ def _close(handle: int) -> None:
 
 
 def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
-    # Spelled out rather than derived: a session started before a change to
-    # this string is not refused by a session started after it, and the two
-    # then drive the same Funestras' channels together.
     assert MUTEX_ORCHESTRATOR == "Global\\FunTime.Orchestrator"
 
 

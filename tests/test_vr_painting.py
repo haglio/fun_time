@@ -1,7 +1,3 @@
-"""The paint thread's decisions, run against an engine and a GPU that need no
-context: when a painted frame is relayed, when a still is left, what is said of
-a GPU that is slow or a video that has stopped drawing, and how a relayed frame
-reaches the screen."""
 from __future__ import annotations
 
 import logging
@@ -30,8 +26,6 @@ class _AMark:
 
 
 class _AGpu:
-    """The GL the paint thread asks for, answered without a context."""
-
     def __init__(self, *, reaches_marks: bool = True) -> None:
         self.reaches_marks = reaches_marks
         self.flushes = 0
@@ -195,7 +189,7 @@ class TestAGpuThatIsSlow:
             painting.paint(targets, None)
             painting.paint(targets, None)
 
-        assert gpu.flushes == 2  # the draw's own, and the one that chased it
+        assert gpu.flushes == 2
         assert caplog.messages == ["The main-video video's frame has waited 1s for the GPU; flushing"]
 
     def test_a_frame_the_gpu_never_finishes_is_shown_anyway(self, caplog):
@@ -258,7 +252,6 @@ class TestShowingTheNewestFrame:
         assert (target.width, target.height, target.video, target.painted) == (640, 360, "c.mp4", True)
 
     def test_a_target_is_marked_painted_only_where_a_frame_lands_in_it(self):
-        """The flag the blank-screen check reads: sized is not painted."""
         target = _ATarget(5)
         target.ensure(640, 360)
 
@@ -273,7 +266,7 @@ class TestShowingTheNewestFrame:
         showing.show_newest(_ATarget(5))
         relay.painted(2, texture=22, width=640, height=360, video="c.mp4")
 
-        assert showing.show_newest(_ATarget(5)) is False  # slot 1 is still being copied
+        assert showing.show_newest(_ATarget(5)) is False
         gpu.reaches_marks = True
         assert showing.show_newest(_ATarget(5)) is True
         assert gpu.copied[-1] == (22, 25)
@@ -291,8 +284,6 @@ class TestShowingTheNewestFrame:
 
 
 def test_the_engine_stand_in_answers_only_what_the_headsets_engine_does():
-    """A name the real engine renames would leave the stand-in answering it and
-    this file green; the untested-shells gate holds the shell to the same."""
     answered = {"video_dims", "has_frame_to_draw", "position_ms", "render"}
 
     assert answered <= set(dir(HeadsetEngine))

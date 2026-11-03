@@ -48,18 +48,14 @@ from tests.sleeps import sleeps_in
 
 
 class TestFindWindowByPid:
-    """The EnumWindows visibility filter, and the include_hidden override the
-    startup sequencer needs to resolve the dashboard while it is hidden under
-    the loading overlay (a hidden window has WS_VISIBLE cleared)."""
-
     @staticmethod
     def _mock_user32(mock, *, hwnd: int, pid: int, visible: bool, title_len: int = 8):
         def gwtpid(_hwnd, pid_byref):
-            pid_byref._obj.value = pid  # write the out-param DWORD
+            pid_byref._obj.value = pid
             return 1
 
         def enum(proc, _lparam):
-            proc(hwnd, 0)  # invoke the enumeration callback with our window
+            proc(hwnd, 0)
             return True
 
         mock.GetWindowThreadProcessId.side_effect = gwtpid
@@ -138,8 +134,6 @@ class TestSetAlwaysOnTop:
         assert mock.SetWindowPos.call_args[0][1] == HWND_NOTOPMOST
 
     def test_a_band_change_moves_and_resizes_nothing(self):
-        """Only the z-order: the panel's reveal runs this over a window already
-        sized and placed, and the Funestras' bands over windows on their rects."""
         with patch("fun_time.win32._user32") as mock:
             set_always_on_top(111, True, under=99)
 
@@ -150,21 +144,9 @@ class TestSetAlwaysOnTop:
 
 
 class TestAWindowThatHasStoppedAnswering:
-    """SetWindowPos and ShowWindow SEND messages to the thread owning the window
-    and wait for it to handle them, with no timeout — so a Funestra whose own loop
-    has stalled froze the session that called them.  Startup's topmost pass wedged
-    on Genau's window: no Main Funestra, no hotkey script, and no way to quit.
-    """
-
     @staticmethod
     @contextlib.contextmanager
     def _stalled(monkeypatch):
-        """A user32 whose calls never return, freed again when the block ends.
-
-        A scoped ``with patch(...)`` rather than ``.start()`` + a finally's
-        ``patch.stopall()`` — the stopall stopped EVERY active patch in the
-        process, and a raise between start() and the finally leaked the stub
-        into the rest of the session."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         released = threading.Event()
@@ -178,12 +160,9 @@ class TestAWindowThatHasStoppedAnswering:
                 mock.ShowWindow.side_effect = block
                 yield
         finally:
-            released.set()  # free the workers still parked on the block
+            released.set()
 
     def test_our_own_windows_are_called_straight(self, monkeypatch):
-        """The send would go to this process's UI thread — the very thread waiting
-        on the worker — so waiting on it deadlocks against a pump that cannot
-        happen.  It cost the dashboard the band on its own reference popup."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: True)
         threads: list[str] = []
@@ -203,12 +182,9 @@ class TestAWindowThatHasStoppedAnswering:
             restore_window(111, activate=False)
             move_window(111, 0, 0, 10, 10)
 
-            # Generous next to the 0.05s timeout, tight next to the 10s each
-            # blocked call would cost if the give-up stopped working.
             assert time.monotonic() - started < 5
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
-        """The session gave no clue which of six windows had wedged it."""
         with self._stalled(monkeypatch):
             with caplog.at_level(logging.WARNING, logger="fun_time.win32"):
                 set_always_on_top(4242, True)
@@ -217,9 +193,6 @@ class TestAWindowThatHasStoppedAnswering:
         assert "stopped answering" in caplog.text
 
     def test_a_window_that_answers_is_not_slowed_down(self, monkeypatch):
-        """The wait is only ever spent on a window that has stalled: a healthy one
-        returns in microseconds, and the call order the caller made — which is what
-        stacks Genau's HUD above the Main Funestra's video — is unchanged."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 30)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         order: list[int] = []
@@ -235,10 +208,6 @@ class TestAWindowThatHasStoppedAnswering:
 
     def test_a_call_that_outlasted_the_wait_still_lands_when_the_window_answers(
             self, monkeypatch):
-        """Giving up on the wait does not take the call back.  It waits in that
-        window's queue and is carried out when the thread takes messages again —
-        by then AFTER everything placed meanwhile, so a placement that has to
-        land in order cannot be sent to a window that is not answering."""
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         answering = threading.Event()
@@ -251,8 +220,8 @@ class TestAWindowThatHasStoppedAnswering:
         with patch("fun_time.win32._user32") as mock:
             mock.SetWindowPos.side_effect = block
             set_always_on_top(111, True)
-            assert not landed.is_set()  # the caller has given up on it
-            answering.set()  # the window starts taking messages again
+            assert not landed.is_set()
+            answering.set()
             assert landed.wait(5), "the call the caller gave up on never happened"
 
     def test_a_window_that_is_not_answering_takes_its_calls_in_the_order_they_were_made(
@@ -384,13 +353,9 @@ class TestIsProcessAlive:
         assert is_process_alive(os.getpid()) is True
 
     def test_false_for_pid_zero(self):
-        # Callers pass 0 for children that were never launched.
         assert is_process_alive(0) is False
 
     def test_false_for_exited_process_whose_handle_is_still_open(self):
-        # Popen holds the child's process handle, keeping the kernel object
-        # (and the PID) alive after exit — OpenProcess still succeeds on such
-        # a zombie, so liveness must come from GetExitCodeProcess.
         proc = subprocess.Popen([sys.executable, "-c", ""])
         proc.wait()
 
@@ -417,15 +382,6 @@ class TestProcessTable:
 
 
 class TestWindowsObscuring:
-    """The pure z-order analysis under the startup 'what's covering the Main Funestra' log.
-
-    Given the visible windows front-to-back and a target hwnd, report which
-    windows sit ABOVE the target AND overlap its rect — the ones actually
-    hiding it.  A topmost flag alone can't answer this (a window can carry
-    WS_EX_TOPMOST yet be buried under another overlapping topmost window), so
-    the diagnostic walks the real stacking order instead.
-    """
-
     @staticmethod
     def _w(hwnd, rect, *, topmost=False, title="w"):
         return StackedWindow(hwnd=hwnd, title=title, topmost=topmost, rect=rect)
@@ -441,8 +397,6 @@ class TestWindowsObscuring:
         assert windows_obscuring(1, [loading_screen, main_funestra]) == [loading_screen]
 
     def test_non_overlapping_window_above_is_ignored(self):
-        # A window on another monitor sits above the Main Funestra in the topmost band but
-        # never covers it — dashboard/logs/rfb are exactly this case.
         elsewhere = self._w(9, (5000, 0, 100, 100))
         main_funestra = self._w(1, (0, 0, 100, 100))
         assert windows_obscuring(1, [elsewhere, main_funestra]) == []
@@ -456,8 +410,6 @@ class TestWindowsObscuring:
         assert windows_obscuring(1, [self._w(2, (0, 0, 100, 100))]) == []
 
     def test_edge_touching_rects_do_not_count_as_overlap(self):
-        # The Main Funestra's rect starts exactly where the portrait satellite's ends; a
-        # shared edge is not coverage.
         adjacent = self._w(9, (0, 0, 100, 100))
         main_funestra = self._w(1, (100, 0, 100, 100))
         assert windows_obscuring(1, [adjacent, main_funestra]) == []
@@ -467,29 +419,21 @@ class TestWindowsObscuring:
         # frame, hanging ~8px onto the neighboring monitor — the startup log
         # warned that a maximized Chrome on one monitor "covered" the Funestra
         # on the monitor next to it, over pixels nobody can see.
-        chrome = self._w(9, (-8, -8, 2576, 1426))     # maximized on 2560x1410
-        portrait = self._w(1, (2560, 0, 1440, 2560))  # the next monitor over
+        chrome = self._w(9, (-8, -8, 2576, 1426))
+        portrait = self._w(1, (2560, 0, 1440, 2560))
         assert windows_obscuring(1, [chrome, portrait]) == []
 
     def test_real_coverage_past_the_ghost_frame_still_counts(self):
         chrome = self._w(9, (-8, -8, 2576, 1426))
-        landscape = self._w(1, (854, 0, 1706, 1410))  # same monitor: buried
+        landscape = self._w(1, (854, 0, 1706, 1410))
         assert windows_obscuring(1, [chrome, landscape]) == [chrome]
 
     def test_the_ghost_frame_rule_holds_on_the_vertical_axis_too(self):
-        """Vertically stacked windows are the NORMAL case on the portrait
-        monitor — the portrait satellite sits directly above the Main Funestra —
-        so this is the axis the startup diagnostic actually runs on.  Every
-        other fixture here stands side by side, which left the vertical half
-        of the tolerance deletable with the class green."""
-        # A maximized window above, its invisible frame hanging ~8px down
-        # onto the window below it: a sliver, not coverage.
-        upper = self._w(9, (0, -8, 1440, 2516))       # lower edge at y=2508
-        lower = self._w(1, (0, 2500, 1440, 940))      # the Funestra beneath
+        upper = self._w(9, (0, -8, 1440, 2516))
+        lower = self._w(1, (0, 2500, 1440, 940))
         assert windows_obscuring(1, [upper, lower]) == []
 
-        # Past the frame it is real coverage again.
-        deeper = self._w(9, (0, -8, 1440, 2560))      # lower edge at y=2552
+        deeper = self._w(9, (0, -8, 1440, 2560))
         assert windows_obscuring(1, [deeper, lower]) == [deeper]
 
     def test_what_covers_a_window_is_named_one_window_at_a_time(self):
@@ -503,7 +447,6 @@ class TestWindowsObscuring:
 class TestConstants:
     def test_hwnd_topmost_is_64bit_pointer(self):
         assert isinstance(HWND_TOPMOST, ctypes.c_void_p)
-        # Must be 0xFFFFFFFFFFFFFFFF on 64-bit, not truncated 0xFFFFFFFF
         assert HWND_TOPMOST.value == (2**64 - 1)
 
     def test_hwnd_notopmost_is_64bit_pointer(self):
@@ -512,32 +455,19 @@ class TestConstants:
 
 
 class TestLiveWindowMutationGuard:
-    """The autouse guard in tests/conftest.py must keep a unit test from moving,
-    topmosting, activating or closing a REAL window — the test bleed that surfaced for
-    months as "the main player pops on top during OmniPause" (a concurrent agent's unit run
-    resolving the live 'Main Funestra'/'Genau' window by title and forcing it topmost)."""
-
     def test_mutating_user32_calls_are_inert(self):
         for name in ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW",
                      "BringWindowToTop"):
             # Stubbed to an inert no-op for the whole unit suite: callable, returns the
             # sentinel, and can never reach the real Win32 API on any hwnd.
             assert getattr(win32._user32, name)(0xDEAD, 0, 0, 0, 0, 0, 0) == 0
-        # so a full wrapper call is a harmless no-op, even on a would-be live hwnd
         assert set_always_on_top(0xDEAD, True) is None
 
     def test_reader_user32_calls_stay_real(self):
-        # Only the mutators are neutralised; is_window_topmost reads GWL_EXSTYLE through
-        # the real GetWindowLongW, which returns 0 for a bogus hwnd -> False.  (A blanket
-        # _user32 stub would have made this a truthy Mock instead.)
         assert is_window_topmost(0xDEAD) is False
 
 
-
-
 class TestWindowRect:
-    """Where a window sits, for a second window that must stand exactly on it."""
-
     def test_reports_the_windows_position_and_size(self):
         def fill(_hwnd, rect_ref):
             rect = rect_ref._obj
@@ -572,16 +502,8 @@ class TestWindowTitle:
 
 
 class TestFindWindowByTitle:
-    """The lookup every role resolution and both screens go through.
-
-    Only the integration suite has ever driven it against real windows, so its
-    two switches — substring versus exact, and whether a hidden window counts —
-    are pinned here against a faked enumeration instead.
-    """
-
     @staticmethod
     def _enumerating(mock, windows, *, visible=True):
-        """Answer EnumWindows with *windows*, a list of (hwnd, title)."""
         titles = dict(windows)
 
         def enum(proc, _lparam):
@@ -604,23 +526,16 @@ class TestFindWindowByTitle:
             assert win32.find_window_by_title("Genau") == 11
 
     def test_exact_refuses_the_window_that_merely_contains_the_name(self):
-        """The session opens three windows whose titles start "Fun Time" — the
-        dashboard, the loading screen and the library browser — so only the whole
-        caption tells the dashboard from the loading screen it hides under."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time", exact=True) == 12
 
     def test_a_substring_would_have_taken_the_wrong_one_of_those(self):
-        """The other half of the case above: without ``exact`` the loading screen
-        answers a lookup meant for the dashboard."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time") == 11
 
     def test_a_hidden_window_is_skipped_unless_it_is_asked_for(self):
-        """The dashboard is SW_HIDE under the loading screen when startup has
-        to resolve it."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time")], visible=False)
             assert win32.find_window_by_title("Fun Time") == 0
@@ -646,10 +561,6 @@ class TestFindWindowByTitle:
         assert seen == [11]
 
     def test_every_title_is_read_into_ONE_buffer_of_256(self):
-        """One buffer, allocated once outside the callback and reused for every
-        window — so a read is capped at 256 characters however long the real
-        title is, and `find_window_for_process` next door does the opposite on
-        purpose.  Two windows, so a per-window allocation cannot pass."""
         buffers: list[int] = []
         caps: list[int] = []
 
@@ -670,8 +581,6 @@ class TestFindWindowByTitle:
 
 
 class TestWaitForWindowByTitle:
-    """Polling the lookup above until a window arrives, or the budget is spent."""
-
     def test_the_first_hit_returns_without_spending_the_rest(self, monkeypatch):
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 77)
 
@@ -706,16 +615,8 @@ class TestWaitForWindowByTitle:
 
 
 class TestFindWindowForProcess:
-    """Pid AND title, because neither alone names one window.
-
-    A process can own several titled windows (the hosted Origenerator opens one
-    per satellite region) and a title can land on another process's window (a
-    standalone Origenerator carries the same captions).
-    """
-
     @staticmethod
     def _enumerating(mock, windows):
-        """*windows* is a list of (hwnd, pid, title) or (hwnd, pid, title, visible)."""
         rows = [(*window, True)[:4] for window in windows]
         by_hwnd = {hwnd: (pid, title, visible) for hwnd, pid, title, visible in rows}
 
@@ -744,8 +645,6 @@ class TestFindWindowForProcess:
             assert win32.find_window_for_process(500, "Landscape AI Funestra") == 12
 
     def test_a_title_that_merely_contains_the_name_is_not_it(self, monkeypatch):
-        """The match is the whole caption, not a substring of it — this lookup
-        has no ``exact`` switch because it is always exact."""
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, 500, "Origenerator — portrait")])
@@ -766,16 +665,12 @@ class TestFindWindowForProcess:
             assert win32.find_window_for_process(500, "Origenerator") == 0
 
     def test_a_launchers_child_owns_the_window_and_still_resolves(self, monkeypatch):
-        """A venv's ``Scripts\\python.exe`` spawns the interpreter that owns the
-        windows, so the recorded pid is one generation short."""
         monkeypatch.setattr(win32, "list_child_pids", lambda pid: [pid + 1])
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, 501, "Origenerator")])
             assert win32.find_window_for_process(500, "Origenerator") == 11
 
     def test_only_one_generation_of_children_counts(self, monkeypatch):
-        """One hop is the launcher pattern; nothing spawns windows two shims
-        deep, and the walk is asked for exactly once."""
         asked: list[int] = []
         monkeypatch.setattr(
             win32, "list_child_pids", lambda pid: (asked.append(pid), [501])[1])
@@ -791,13 +686,9 @@ class TestFindWindowForProcess:
             assert win32.find_window_for_process(500, "") == 0
 
     def test_each_title_is_read_into_a_buffer_of_its_own_exact_length(self, monkeypatch):
-        """Unlike :func:`find_window_by_title`, which reuses one 256-character
-        buffer for every window it visits, this one asks each window how long
-        its caption is and allocates for exactly that — so a caption past 256
-        characters still compares whole.  The two are not interchangeable."""
         caps: list[int] = []
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
-        long_title = "Origenerator " * 30  # 390 characters
+        long_title = "Origenerator " * 30
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, 500, long_title)])
             mock.GetWindowTextW.side_effect = lambda _h, buf, cap: (
@@ -825,8 +716,6 @@ class TestFindWindowForProcess:
             assert win32.find_window_for_process(500) == 12
 
     def test_a_parked_window_still_resolves_for_a_caller_that_asks_for_one(self, monkeypatch):
-        """Hosted Core boots hidden and must still be found,
-        which is what ``include_hidden`` is for."""
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, 500, "Origenerator", False)])
@@ -853,8 +742,6 @@ def _answer_the_snapshot_with(mock, rows, *, handle=4321):
 
 
 class TestListChildPids:
-    """The one hop from a recorded pid to the process that owns the windows."""
-
     def test_only_the_pids_whose_parent_is_the_one_asked_about(self):
         with patch("fun_time.win32_process._kernel32") as mock:
             _answer_the_snapshot_with(mock, [(501, 500), (502, 999), (503, 500)])
@@ -867,16 +754,12 @@ class TestListChildPids:
             mock.CloseHandle.assert_called_once_with(4321)
 
     def test_a_snapshot_that_could_not_be_taken_is_no_children(self):
-        """INVALID_HANDLE_VALUE, which is what the declared restype makes the
-        documented failure come back as.  Undeclared it answered -1, the guard
-        never fired, and the walk went on to close an invalid handle."""
         with patch("fun_time.win32_process._kernel32") as mock:
             mock.CreateToolhelp32Snapshot.return_value = ctypes.wintypes.HANDLE(-1).value
             assert win32_process.list_child_pids(500) == []
             mock.CloseHandle.assert_not_called()
 
     def test_the_snapshot_answers_as_a_handle_not_a_32_bit_int(self):
-        """Its failure value only equals INVALID_HANDLE_VALUE when it does."""
         assert win32_process._kernel32.CreateToolhelp32Snapshot.restype is (
             ctypes.wintypes.HANDLE)
         assert win32_process._kernel32.CreateToolhelp32Snapshot.argtypes == [
@@ -903,15 +786,8 @@ class TestProcessRunning:
 
 
 class TestIterZorder:
-    """The real stacking order, which EnumWindows does not give.
-
-    This is what the startup diagnostic's "what is covering the Main Funestra" reads, and the
-    only walk in the module that uses GetTopWindow + GW_HWNDNEXT.
-    """
-
     @staticmethod
     def _stack(mock, windows):
-        """*windows* is a list of (hwnd, title, visible, iconic, rect)."""
         by_hwnd = {hwnd: rest for hwnd, *rest in windows}
         order = [hwnd for hwnd, *_ in windows]
 
@@ -947,8 +823,6 @@ class TestIterZorder:
         assert stacked[1].rect == (100, 0, 300, 400)
 
     def test_hidden_minimized_and_untitled_windows_are_left_out(self):
-        """None of the three can visibly loading screen anything, and the title filter is
-        what keeps the log line legible among the system's own surfaces."""
         with patch("fun_time.win32._user32") as mock:
             self._stack(mock, [
                 (11, "Hidden", False, False, (0, 0, 10, 10)),
@@ -983,12 +857,6 @@ class TestIsWindowMinimized:
 
 
 class TestTheWindowChromeThisProcessGivesItsOwn:
-    """Three calls the dashboard used to make raw, on its OWN window.
-
-    None goes through :func:`_without_hanging`, and must not: the send would go
-    to this process's UI thread, which is the thread that would be waiting.
-    """
-
     def test_the_taskbar_pass_keeps_minimize_and_close_and_drops_maximize(self):
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = 0
@@ -1001,8 +869,6 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert not style & win32.WS_MAXIMIZEBOX
 
     def test_the_taskbar_pass_claims_a_taskbar_button(self):
-        """WS_EX_APPWINDOW on and WS_EX_TOOLWINDOW off is what puts the panel
-        in the taskbar at all."""
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = win32.WS_EX_TOOLWINDOW
             win32.set_taskbar_window_styles(4242)
@@ -1013,8 +879,6 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert not ex_style & win32.WS_EX_TOOLWINDOW
 
     def test_the_taskbar_pass_keeps_the_bits_already_on_the_window(self):
-        """Read-modify-write: the pass adds and removes its own bits and leaves
-        every other one the window came with."""
         other = 0x00000100
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = other
@@ -1051,7 +915,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         ex_style, _class, _title, style = mock.CreateWindowExW.call_args.args[:4]
         assert ex_style & win32.WS_EX_TOPMOST
         assert ex_style & win32.WS_EX_NOACTIVATE
-        assert not style & 0x10000000  # WS_VISIBLE
+        assert not style & 0x10000000
 
 
 class TestWhatHeIsUsing:

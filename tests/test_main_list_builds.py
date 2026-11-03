@@ -42,8 +42,6 @@ def test_a_rebuild_tells_the_main_funestra_its_f_mode_on_the_write_the_reload_ri
 
 
 def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so(tmp_path, caplog):
-    """The one answer to an empty list, whichever buttons emptied it: here videos
-    alone, over a library of videos Evolver has no record of, which are all full."""
     library = tmp_path / "library"
     library.mkdir()
     on_screen, other = library / "scene one.mp4", library / "scene two.mp4"

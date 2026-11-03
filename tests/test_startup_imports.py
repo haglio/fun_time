@@ -1,18 +1,3 @@
-"""Guard the launch's import phase against a break that only shows at runtime.
-
-Several startup modules do real work at *import* time: ``voice_commands`` builds
-its phrase table from ``load_content()["clip_jump_phrases"]`` and ``filter_vocab``
-from ``load_content()["acts"]``, both at module level.  A missing overlay
-key therefore raises ``KeyError`` the instant orchestrator startup imports the
-module — before any window opens — and nothing else in the unit suite imports
-that graph in a fresh interpreter, so a bad overlay (or any broken top-level
-import on the launch path) would first surface as a black-screen launch.
-
-The import is driven in a subprocess, faithful to ``python -m fun_time.orchestrator``
-(the entrypoint ``launch.vbs`` starts), against the committed
-``content.example.json`` — the only content overlay a fresh or public checkout
-has.  So the committed example alone must be enough to bring the graph up.
-"""
 from __future__ import annotations
 
 import ast
@@ -26,22 +11,12 @@ import pytest
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 
-# The launch entrypoint.  Importing it transitively pulls the whole launch
-# graph — the single-instance guard, the manifest, the dispatch loop, the
-# Funestras' wiring, and voice_control -> voice_commands -> filter_vocab ->
-# content, which is where the module-level overlay reads live.
 _STARTUP_MODULES = (
-    "fun_time.orchestrator",     # python -m fun_time.orchestrator
-    # The session machinery, which the launch loads a second later, under the
-    # loading screen: the overlay reads above are on its side of that import.
+    "fun_time.orchestrator",
     "fun_time.windows_bridge_orchestrator",
-    "fun_time.voice_commands",   # module-level load_content()["clip_jump_phrases"]
+    "fun_time.voice_commands",
 )
 
-# What may not be loaded to raise the loading screen, all of it seconds of import on a
-# cold machine: the session machinery and the libraries under it.  Each used to
-# load before anything was on screen, which is what he was watching a bare
-# desktop for.
 _NOT_BEFORE_THE_LOADING_SCREEN = (
     "fun_time.windows_bridge_orchestrator",
     "numpy",
@@ -50,8 +25,6 @@ _NOT_BEFORE_THE_LOADING_SCREEN = (
     "tkinter",
 )
 
-# Overlay keys read at import time by the launch graph; each must be present in
-# the committed example or the graph refuses to import.
 _IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "flick_flip_phrases", "acts")
 
 
@@ -82,17 +55,12 @@ def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:
 
 
 def test_startup_graph_imports_against_the_example_overlay():
-    """A public checkout, whose only content overlay is the committed example,
-    must be able to import the whole launch graph without error."""
     result = _import_startup_graph(EXAMPLE_CONTENT)
     assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("required_key", _IMPORT_TIME_OVERLAY_KEYS)
 def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key):
-    """The guard above is only meaningful if a missing overlay key actually
-    fails the import — otherwise it could pass vacuously.  Drop each import-time
-    key from the example and confirm the graph refuses to come up, naming it."""
     data = json.loads(EXAMPLE_CONTENT.read_text(encoding="utf-8"))
     del data[required_key]
     broken_overlay = tmp_path / "content.json"
@@ -104,8 +72,6 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
 
 
 def test_the_launch_loads_nothing_the_loading_screen_does_not_need():
-    """The first thing a launch does is cover the monitors, so what it imports
-    to get there is what he waits through.  The rest loads under the loading screen."""
     result = subprocess.run(
         [sys.executable, "-c",
          "import fun_time.orchestrator, sys;"

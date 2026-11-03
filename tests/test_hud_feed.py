@@ -1,8 +1,3 @@
-"""What the Funestras draw: each satellite's lock map, and the Main Funestra's HUD.
-
-The feed's inputs are the session's config, the bridge state and a publisher,
-so these build one and ask it — no dispatch loop, no windows, no tick.
-"""
 from __future__ import annotations
 
 import json
@@ -62,8 +57,6 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 
 def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
-    """*state* with the named sides -- both, with none named -- in their
-    Origenerator mode."""
     for funestra in funestras or ("portrait", "landscape"):
         state = state.with_satellite(FunTimeFunestra[funestra.upper()],
                                      mode=SatellitesMode.ORIGENERATOR, handed_over=True)
@@ -71,8 +64,6 @@ def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
 
 
 def hosting_config(tmp_path) -> BridgeConfig:
-    """A session hosting an Origenerator, with the files that app publishes
-    each Funestra's HUD to."""
     return make_config(
         tmp_path, origenerator_enabled=True,
         origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
@@ -116,47 +107,37 @@ def dashboard(tmp_path) -> dict:
 
 
 def f_mode_button(published: dict) -> dict:
-    """The F-mode button a published satellite HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("_fmode"))
 
 
 def reset_button(published: dict) -> dict:
-    """The reset button a published HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("reset"))
 
 
 def skip_ahead(published: dict) -> dict:
-    """The Skip ahead button a published HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button.get("command", "").endswith("_funscript_jump"))
 
 
 def ten_second_steps(published: dict) -> list[dict]:
-    """The back and forward 10s buttons a published HUD declares, as written."""
     return [button for row in published["rows"] for button in row
             if button.get("command", "").endswith(("_nudge_prev", "_nudge_next"))]
 
 
 def version_button(published: dict) -> dict:
-    """The versions button a published satellite HUD declares, as written."""
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("_cycle_version"))
 
 
 def broker_is_up(published: dict) -> bool:
-    """What the published OSR2 part's broker button says of the broker: lit
-    while the service runs, red (``warn``) while it is down."""
     (broker,) = published["osr2_controls"]
     assert broker["command"] == "broker_panel"
     return bool(broker.get("lit")) and not broker.get("warn")
 
 
 class TestHudPublishing:
-    """Each satellite's lock map and the Main Funestra's HUD, built from the session's
-    config and the bridge state and published to the files the Funestras read."""
-
     def test_each_satellites_hud_carries_its_own_video_and_lock(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
@@ -169,7 +150,6 @@ class TestHudPublishing:
         landscape = hud(tmp_path, "landscape")
         assert portrait["funestra"] == "portrait"
         assert portrait["locked"] is True
-        # The title composes the lot — lock, order, and the filter unlabeled.
         assert portrait["title"] == "Locked · Shuffle · alpha"
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
         assert landscape["locked"] is False
@@ -177,9 +157,6 @@ class TestHudPublishing:
 
 
     def test_a_satellite_the_hosted_app_has_wears_that_apps_own_hud(self, tmp_path):
-        """The hosted app publishes the Funestra's map, line and buttons; the
-        session puts its own row over them -- the way back to its videos, and
-        minimize for the Funestra's window -- and says which Funestra has the floor."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(
             funestra="portrait", title="Unlocked · Shuffle",
@@ -204,9 +181,6 @@ class TestHudPublishing:
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
     def test_the_job_queue_the_hosted_app_painted_reaches_that_satellites_hud(self, tmp_path):
-        """The hosted app paints its Job Queue to a file while Core is hidden
-        behind the Random Favs Browser, and the Satellite showing its slideshow
-        draws that file at its HUD's foot."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         foot = PaintedFoot(file=str(tmp_path / "origenerator_portrait_hud_foot_a1.png"),
                            width=200, height=40, stamp="a1",
@@ -219,8 +193,6 @@ class TestHudPublishing:
         assert parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8")).foot == foot
 
     def test_a_satellite_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
-        """A Satellite the app holds with nothing of its own on it -- a slideshow over and
-        none after it -- names the mode, with the way back on it, and no map."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         (tmp_path / "origenerator_landscape_hud.json").write_text("", encoding="utf-8")
@@ -239,9 +211,6 @@ class TestHudPublishing:
 
     def test_a_satellite_switched_to_origenerator_keeps_its_whole_kino_hud_until_the_app_takes_it(
             self, tmp_path):
-        """Filling a Satellite takes Origenerator seconds, and the Satellite plays its own
-        videos meanwhile: it goes on wearing their HUD whole, Kino lit, and
-        changes in one step once the app has it (2026-10-29)."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         asked = BridgeState(origenerator_ready=True).with_satellite(
@@ -256,9 +225,6 @@ class TestHudPublishing:
 
     def test_a_satellite_handed_back_wears_the_kino_hud_of_the_video_it_comes_home_to_at_once(
             self, tmp_path):
-        """Its Funestra goes on naming the app's picture until it has opened the
-        video it was handed back on, and a Kino HUD built around that picture
-        has no map (2026-10-29)."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         status = tmp_path / "portrait_status.txt"
         publish_satellite_status(status, "C:/v/p.mp4")
@@ -308,9 +274,6 @@ class TestHudPublishing:
     def test_no_funestra_in_a_headset_session_offers_to_minimize(
         self, tmp_path, hosting, hosted_satellites,
     ):
-        """There every Funestra is a screen in the scene with no window of its own
-        to park -- whichever row minimize would ride on the desktop: the end of
-        a Satellite's band, the session's row over it, or the HUD's mode row."""
         config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
         feed = make_feed(tmp_path, config=replace(config, vr_main_funestra=True))
 
@@ -326,8 +289,6 @@ class TestHudPublishing:
         assert [command for command in commands if command.endswith("_minimize")] == []
 
     def test_a_hosted_hud_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
-        """A read that loses to the app's own republish is not the app letting
-        go: the Funestra keeps the HUD it had rather than flashing the mode's."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
@@ -360,10 +321,6 @@ class TestHudPublishing:
     def test_a_hosted_app_still_booting_is_published_so_the_button_can_dim(
         self, tmp_path,
     ):
-        """The HUDs draw the mode pair, so they are where a mode that cannot be
-        entered yet has to show — dim, and posting nothing.  What they cannot
-        work out for themselves is whether the app is up: only the loop reads
-        its status file, so the answer rides out on the button it declares."""
         feed = make_feed(tmp_path, config=make_config(
             tmp_path, origenerator_enabled=True,
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
@@ -382,11 +339,6 @@ class TestHudPublishing:
         assert not origenerator_button().get("dim")
 
     def test_the_published_hud_says_when_that_satellites_f_mode_is_on(self, tmp_path):
-        """The flag lives on the bridge state and nowhere the Funestra can see, so the
-        publish is the only way F-mode reaches the screen a satellite is on — as the
-        title, and as the flag its own button lights off.
-
-        It is sided: the satellite that is not in F-mode must not say it is."""
         feed, state = make_feed(tmp_path), BridgeState()
         for funestra in ("portrait", "landscape"):
             publish_satellite_status(tmp_path / f"{funestra}_status.txt",
@@ -403,8 +355,6 @@ class TestHudPublishing:
         assert not f_mode_button(landscape).get("lit")
 
     def test_a_satellite_at_every_default_draws_its_reset_faded(self, tmp_path):
-        """Pressing it would change nothing, so the button says as much rather
-        than offering an act that does nothing."""
         feed = make_feed(tmp_path)
         for satellite in ("portrait", "landscape"):
             publish_satellite_status(tmp_path / f"{satellite}_status.txt", f"C:/v/{satellite}.mp4")
@@ -471,9 +421,6 @@ class TestHudPublishing:
             None, None]
 
     def test_the_versions_button_lights_for_a_video_the_library_has_twice(self, tmp_path):
-        """The upscale the Satellite plays and the sorted original it was made from:
-        the button is pressable exactly where there is a second rendition on
-        disk, the way the Main Funestra's reads its own library."""
         media_root = tmp_path / "AI"
         upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
                    / "provider" / "clip_topaz.mp4")
@@ -492,8 +439,6 @@ class TestHudPublishing:
 
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
-        """That reset belongs to the show, whose state this session cannot see, so
-        it stays pressable however settled the Funestra underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(funestra="portrait", title="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
@@ -506,9 +451,6 @@ class TestHudPublishing:
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
 
     def test_the_published_hud_says_which_satellite_has_the_floor(self, tmp_path):
-        """The active Funestra is a slot number in the state and a Funestra *name* on the
-        HUD, so exactly one satellite can claim it — and neither does while the
-        the Main Funestra holds it."""
         feed, state = make_feed(tmp_path), BridgeState()
         for funestra in ("portrait", "landscape"):
             publish_satellite_status(tmp_path / f"{funestra}_status.txt",
@@ -524,17 +466,14 @@ class TestHudPublishing:
         assert actives(1) == (False, False)
 
     def test_the_main_hud_says_when_the_primary_has_the_floor(self, tmp_path):
-        """The Main Funestra's dot rides the HUD file, the same file that carries the
-        rest of its HUD — one source for both Funestras, in place of the separate
-        command it used to be sent."""
         feed, state = make_feed(tmp_path), BridgeState()
 
         def active(slot: int) -> bool:
             feed.publish(replace(state, active_funestra=slot))
             return console(tmp_path)["active"]
 
-        assert active(1) is True   # the Main Funestra holds it
-        assert active(2) is False  # a satellite does
+        assert active(1) is True
+        assert active(2) is False
 
     def test_the_main_hud_says_what_has_the_osr2_and_the_osr2_part_whether_the_broker_is_up(
             self, tmp_path):
@@ -568,9 +507,6 @@ class TestHudPublishing:
         assert console(tmp_path)["osr2"] == Osr2State.UNPLUGGED
 
     def test_a_broker_waiting_for_an_unplugged_osr2_is_lit_as_running(self, tmp_path):
-        """It renews its word that the OSR2 is unplugged instead of the heartbeat,
-        which stops while it holds no port; the light read that silence as a
-        Broker that was not running."""
         feed = make_feed(tmp_path)
         (tmp_path / "osr2_not_found.txt").write_text(str(time.time()), encoding="utf-8")
 
@@ -579,14 +515,6 @@ class TestHudPublishing:
         assert broker_is_up(dashboard(tmp_path))
 
     def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
-        """A branch session moves ``state/`` into its worktree; the machine's one
-        broker keeps writing where it always did.
-
-        Reading the heartbeat and the serial stamp out of the *session's*
-        directory is what had this HUD calling a live broker dead and a
-        driven OSR2 off — so a stamp in the session's own directory must not
-        light either one.
-        """
         broker_state = tmp_path / "primary_state"
         broker_state.mkdir()
         feed = make_feed(tmp_path, config=make_config(
@@ -602,7 +530,6 @@ class TestHudPublishing:
             feed.publish(state)
             return console(tmp_path), dashboard(tmp_path)
 
-        # The worktree's own state dir: fresh stamps nothing reads.
         session, session_part = published(tmp_path)
         assert not broker_is_up(session_part)
         assert session["osr2"] == "off"
@@ -612,8 +539,6 @@ class TestHudPublishing:
         assert broker["osr2"] != "off"
 
     def test_the_main_huds_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
-        """In genau mode the lock says how long an unheld flick stays up, and the
-        one place Genau says its pace is the drive readout it publishes."""
         feed, state = make_feed(tmp_path), BridgeState(main_mode=MainMode.GENAU)
         publish_drive(feed.config.genau_drive_file,
                       DriveHud(speed=50, amplitude=60, center=50, advance_interval=7))
@@ -625,9 +550,6 @@ class TestHudPublishing:
         assert "every 7s" in lock["tooltip"]
 
     def test_the_main_hud_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
-        """Each Funestra owns its own lock, and neither can see the other's — so
-        both go out on their status files and the one the mode says is showing
-        comes back down here, the way the loop state does."""
         feed, state = make_feed(tmp_path), BridgeState()
         main_funestra = feed.config.main_funestra_status_file
         genau = feed.config.state_dir / "genau_status.txt"
@@ -699,8 +621,6 @@ class TestHudPublishing:
         assert not reset_button(console(tmp_path)).get("dim")
 
     def test_each_satellites_hud_says_whether_its_own_video_is_a_favorite(self, tmp_path):
-        """The dashboard's HUD used to say this by turning green; the HUD marks
-        it, so the loop has to judge each Funestra's video against its record."""
         feed, state = make_feed(tmp_path), BridgeState()
         feed.config.regen_metadata_root = tmp_path / "metadata"
         portrait, landscape = tmp_path / "v" / "p.mp4", tmp_path / "v" / "l.mp4"
@@ -716,9 +636,6 @@ class TestHudPublishing:
         assert landscape["is_favorite"] is False
 
     def test_a_videos_record_is_re_read_only_when_it_moves(self, tmp_path):
-        """Every publish asks the question, ~7x a second for the whole session,
-        while a record moves a few times an hour — so the read is gated on the
-        file actually having changed, and picks the change up when it does."""
         feed, state = make_feed(tmp_path), BridgeState()
         feed.config.regen_metadata_root = tmp_path / "metadata"
         video = tmp_path / "v" / "p.mp4"
@@ -740,8 +657,6 @@ class TestHudPublishing:
         assert portrait["is_favorite"] is True
 
     def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
-        """The loop ticks 20x/s; rebuilding and rewriting both HUDs that often
-        is waste the nav map never shows, so publishing runs on its own cadence."""
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
 
@@ -755,20 +670,12 @@ class TestHudPublishing:
         assert publish.call_count == 4
 
     def test_a_status_that_cannot_be_read_keeps_the_video_it_last_named(self, tmp_path):
-        """A satellite always has a video, so a status file that reads blank means
-        the read lost — not that the Funestra has nothing.
-
-        Believing the blank republishes an empty HUD, which the Funestra renders
-        as a HUD with nothing on it, and the next tick puts it back: the nav map
-        blinks.  It is most visible under OmniPause, where the frame is frozen
-        and the nav map is the only thing that can move.
-        """
         feed, state = make_feed(tmp_path), BridgeState()
         status = tmp_path / "portrait_status.txt"
         publish_satellite_status(status, "C:/v/p.mp4")
         feed.publish(state)
 
-        status.write_text("", encoding="utf-8")  # caught mid-republish
+        status.write_text("", encoding="utf-8")
         feed.publish(state)
 
         portrait = hud(tmp_path, "portrait")
@@ -780,14 +687,12 @@ class TestHudPublishing:
         publish_satellite_status(status, "C:/v/p.mp4", speed=1.5)
         feed.publish(state)
 
-        status.write_text("", encoding="utf-8")  # caught mid-republish
+        status.write_text("", encoding="utf-8")
         feed.publish(state)
 
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_hud(self, tmp_path):
-        # The other Funestra of it: before a satellite's first status there is no
-        # video to hold onto, and an empty map is the truth.
         feed, state = make_feed(tmp_path), BridgeState()
 
         feed.publish(state)
@@ -796,7 +701,6 @@ class TestHudPublishing:
         assert portrait["corner"] is None
 
     def test_a_session_without_a_publisher_publishes_nothing(self, tmp_path):
-        """FunTimeVR and the integration runs bring no HUD files with them."""
         HudFeed(config=make_config(tmp_path), publisher=None).publish(BridgeState())
 
         assert not (tmp_path / "portrait_hud.json").exists()
@@ -966,9 +870,6 @@ class TestASatelliteWithTheOsr2:
 
 
 class TestOsr2Mode:
-    """What the Main Funestra's HUD is told the OSR2 is doing, read from the broker's
-    files the one way every app reads them (app_support's osr2_device)."""
-
     def test_a_device_never_heard_from_is_off(self, tmp_path):
         assert make_feed(tmp_path).osr2_mode() is Osr2Mode.OFF
 
@@ -1017,9 +918,6 @@ def test_the_portrait_huds_crown_is_lit_once_the_app_gives_it_the_crown(tmp_path
 
 
 class TestWhatTheHudSaysAboutWhereItSits:
-    """Where a HUD sits and whether it is collapsed travel with the HUD: the
-    Funestra draws them, and only the session knows what the keys did."""
-
     def test_each_hud_carries_its_own_corner_and_collapse(self, tmp_path):
         feed = make_feed(tmp_path)
         state = replace(

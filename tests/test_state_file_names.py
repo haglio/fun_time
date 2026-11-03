@@ -1,5 +1,3 @@
-"""A state directory written before 2026-09-11 holds the Main Funestra's files under
-its old name; a session opening on it must resume from them, not from nothing."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,8 +33,6 @@ def test_every_file_of_the_old_name_comes_back_under_the_new_one(tmp_path: Path)
 
 
 def test_a_file_already_under_the_new_name_is_not_replaced_by_the_old_one(tmp_path: Path):
-    """The old copy is from a session that ended before the new name existed, so
-    a newer session's file always says more."""
     (tmp_path / "nau_status.txt").write_text("video=old.mp4\n", encoding="utf-8")
     (tmp_path / "main_player_status.txt").write_text("video=new.mp4\n", encoding="utf-8")
 

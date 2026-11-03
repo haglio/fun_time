@@ -1,4 +1,3 @@
-"""Git commands for a repository a test makes, committed under an invented author."""
 from __future__ import annotations
 
 import os

@@ -17,9 +17,6 @@ from fun_time.window_layout import (
 
 
 def test_screen_layout_plans_for_the_monitors_this_machine_has(cfg_path: Path):
-    """The one incantation from a layout config to every window's rect: the
-    startup sequencer, a VR session's hosted app and the message overlay each
-    spelled it out for themselves."""
     config = load_config(cfg_path)
     monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
 
@@ -65,9 +62,6 @@ def test_the_primary_monitor_holds_the_landscape_satellite_and_the_browser(cfg_p
 
 
 def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path):
-    """The dashboard and the RFB stack in the left column so every window
-    is fully visible at once.  The dashboard is flush against the column's
-    top-left corner."""
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -81,10 +75,6 @@ def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path
 
 
 def test_dashboard_spans_the_whole_left_column_above_the_rfb(cfg_path: Path):
-    """The dashboard now embeds the log stream, so its window spans the full
-    left-column width — the control bar and the log down its left, the OSR2 part
-    at its right end — rather than leaving room for a second log-panel window
-    beside it."""
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -108,11 +98,8 @@ def test_rfb_fills_the_rectangle_below_the_dashboard(cfg_path: Path):
     )
 
     assert plan.random_favs_browser.x == 0
-    # The RFB starts exactly at the dashboard's lower edge (no gap) ...
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
-    # ... spans the full left-column width ...
     assert plan.random_favs_browser.width + plan.landscape.width == 2560
-    # ... and reaches down to the monitor's lower edge.
     assert (
         plan.random_favs_browser.y + plan.random_favs_browser.height == 1392
     )
@@ -134,10 +121,6 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
 
 
 def test_the_main_funestras_rect_is_on_the_secondary_below_the_portrait_satellite(cfg_path: Path):
-    """The Main Funestra fills the secondary monitor below the portrait's slice
-    — the rect startup launches Main Funestra/Genau into and the message overlay flashes
-    Main Funestra messages over.  It abuts the portrait window with no gap and no
-    overlap, and reaches the monitor's lower edge."""
     config = load_config(cfg_path)
     secondary = MonitorRect(2560, 0, 1440, 3440)
 
@@ -150,15 +133,11 @@ def test_the_main_funestras_rect_is_on_the_secondary_below_the_portrait_satellit
 
     assert main.x == secondary.x
     assert main.width == secondary.width
-    # Starts exactly where the portrait satellite ends, and runs to the lower edge.
     assert main.y == plan.portrait.y + plan.portrait.height
     assert main.y + main.height == secondary.y + secondary.height
 
 
 def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_path: Path):
-    """The dashboard used to stand as tall as a scale drawing of the taller
-    monitor.  It is a control bar over a log now, so the browser under it gets
-    the height the drawing was using."""
     config = load_config(cfg_path)
     main = MonitorRect(0, 0, 2560, 1392)
 
@@ -169,16 +148,12 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     )
 
     assert plan.dashboard.height == dashboard_window_height()
-    # It spans the whole left column.
     assert plan.dashboard.width == plan.random_favs_browser.width
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
     assert plan.random_favs_browser.height > plan.dashboard.height
 
 
 def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_path: Path):
-    """Where the session hosts an Origenerator, the strip that says what holds
-    the browser's place makes the dashboard that much taller and the place
-    itself that much shorter."""
     def plan(**strip):
         return compute_window_layout(
             primary_monitor=MonitorRect(0, 0, 2560, 1392),
@@ -193,7 +168,6 @@ def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_pa
     assert with_mode_selector.random_favs_browser.y == (
         with_mode_selector.dashboard.y + with_mode_selector.dashboard.height)
     assert with_mode_selector.dashboard.height == dashboard_window_height(rfb_mode_selector=True)
-
 
 
 def test_a_main_funestra_given_most_of_the_screen_trades_sizes_with_the_portrait_funestra(

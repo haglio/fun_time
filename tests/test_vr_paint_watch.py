@@ -69,7 +69,6 @@ class TestWatchingForFrames:
             None, None, NO_FRAME_AFTER_S, None]
 
     def test_a_video_holding_still_is_not_a_gap(self):
-        """Paused, or a file still opening: no frame is owed while nothing plays."""
         watch = FrameWatch()
 
         assert self._gap(watch, (1_000.0, 0.0), (1_000.0, NO_FRAME_AFTER_S * 5)) == [None, None]

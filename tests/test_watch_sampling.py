@@ -1,9 +1,3 @@
-"""Watch tracking: what each Funestra is on, and how a departure is classified.
-
-Driven directly, without a dispatch loop around it — the sampler's whole input
-is three status files and a stats file, so nothing else needs to exist for it
-to be asked what it recorded.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,7 +17,6 @@ def make_sampler(tmp_path: Path) -> WatchSampler:
 
 
 def _publish(path: Path, video, *, fraction: float) -> None:
-    """A Satellite Funestra's status file, the way its own writer publishes it."""
     path.write_text(
         f"video={video}\nposition_ms={round(fraction * 1000)}\nduration_ms=1000\n"
         "paused=0\nlocked=0\n",
@@ -48,8 +41,6 @@ def test_a_video_watched_to_the_end_is_recorded_as_a_completion(tmp_path):
 
 
 def test_a_satellite_playing_the_hosted_apps_images_books_nothing(tmp_path):
-    """In its Origenerator mode a satellite shows that app's slideshow, which is
-    no library video: an image held to its end is no completion."""
     image = tmp_path / "scene one.png"
     image.write_text("x", encoding="utf-8")
     sampler = make_sampler(tmp_path)
@@ -65,7 +56,6 @@ def test_a_satellite_playing_the_hosted_apps_images_books_nothing(tmp_path):
 
 def _publish_main_funestra(path: Path, video, *, position_ms: int, duration_ms: int,
                  paused: bool = False) -> None:
-    """The Main Funestra's status file, the way main_funestra/status.py writes it."""
     path.write_text(
         f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
         f"loop_state=normal\npaused={'1' if paused else '0'}\n",
@@ -74,7 +64,6 @@ def _publish_main_funestra(path: Path, video, *, position_ms: int, duration_ms: 
 
 
 def _make_video(tmp_path: Path, name: str) -> Path:
-    """A real file on disk — record_watch_event prunes keys that don't exist."""
     path = tmp_path / name
     path.write_text("x", encoding="utf-8")
     return path
@@ -93,8 +82,6 @@ class TestSamplingCadence:
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
     def test_a_paused_room_is_not_sampled_at_all(self, tmp_path):
-        """OmniPause freezes playback, so a position held near the end under it
-        must not later read as a video watched to the end."""
         sampler = make_sampler(tmp_path)
         video = _make_video(tmp_path, "alpha.mp4")
 
@@ -107,8 +94,6 @@ class TestSamplingCadence:
 
 
 class TestTheMainFunestra:
-    """The Main Funestra's status feed is watch-tracked just like a satellite's."""
-
     def _sample(self, sampler, at: float) -> None:
         sampler.sample_due(now=at, paused=False)
 
@@ -127,8 +112,6 @@ class TestTheMainFunestra:
         assert stats[normalize_path_key(str(watched))]["completions"] == 1
 
     def test_an_unknown_duration_yields_no_sample(self, tmp_path):
-        """Before the Main Funestra knows the video length it publishes duration_ms=0; no
-        fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
@@ -155,8 +138,6 @@ class TestTheMainFunestra:
         assert normalize_path_key(str(watched)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
     def test_the_blank_between_videos_is_not_a_departure(self, tmp_path):
-        """Between videos the Main Funestra can briefly publish an empty video path; that blank
-        must not read as the watched video departing (a spurious completion)."""
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         status = tmp_path / "main_player_status.txt"
@@ -169,8 +150,6 @@ class TestTheMainFunestra:
         assert normalize_path_key(str(watched)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
     def test_next_marks_the_departed_main_funestra_video_as_a_skip(self, tmp_path):
-        """Pressing next on the Main Funestra is the "user nav" signal: a Main Funestra video
-        left early right after a next counts as a skip, like a satellite next."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
@@ -186,8 +165,6 @@ class TestTheMainFunestra:
         assert stats[normalize_path_key(str(early))]["skips"] == 1
 
     def test_a_trashed_video_is_booked_against_nobody(self, tmp_path):
-        """The file is going away; classifying its departure would credit or
-        penalize a video the user threw out."""
         sampler = make_sampler(tmp_path)
         alpha = _make_video(tmp_path, "alpha.mp4")
 
@@ -201,10 +178,6 @@ class TestTheMainFunestra:
 
 
 class TestBackDating:
-    """A phrase is only recognized once the speaker stops, so a satellite can
-    have auto-advanced between "lock…" and "…portrait"; the timeline says which
-    video was on screen when the utterance began."""
-
     def _observe(self, sampler, satellite: str, video: str, *, at: float) -> None:
         _publish(sampler.satellite_status_files[2 if satellite == "portrait" else 3],
                  video, fraction=0.1)
@@ -218,8 +191,6 @@ class TestBackDating:
         assert sampler.video_at("portrait_lock", 100.2) == "C:\\clips\\meant.mp4"
 
     def test_each_satellite_reads_its_own_timeline(self, tmp_path):
-        """A landscape command must not be back-dated against the portrait's
-        videos."""
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\portrait.mp4", at=100.0)
         self._observe(sampler, "landscape", "C:\\clips\\landscape.mp4", at=100.6)
@@ -236,7 +207,6 @@ class TestBackDating:
         assert sampler.video_at("portrait_lock_on", 100.2) == "C:\\images\\meant.png"
 
     def test_a_hotkey_command_names_no_video(self, tmp_path):
-        """A keypress is instantaneous: it means whatever is playing right now."""
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
 

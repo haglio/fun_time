@@ -1,6 +1,3 @@
-"""The headset's own verbs on the Main Funestra: a projection to walk and a
-field of view to dial, written into the video's record; a heading to re-zero
-onto, a tilt and a layout to put back; a scene to jump to."""
 from __future__ import annotations
 
 import json
@@ -29,9 +26,6 @@ HOUR_MS = 3_600_000.0
 
 
 class _ALook:
-    """FrameLook's surface, with the looking done by hand: ``found`` is the
-    call the real one makes from its own thread once it has seen a shape twice."""
-
     def __init__(self, looked: list[Path]) -> None:
         self._looked = looked
         self._asked: tuple[Path, object] | None = None
@@ -72,8 +66,6 @@ def headset(tmp_path):
 
 
 def _step(headset, delta: int = 1) -> None:
-    """The item moves on the Funestra's playback; the headset's verbs message
-    on their next pass."""
     headset.playback.step(delta)
     headset.verbs.tick(now=0.0)
 
@@ -84,9 +76,6 @@ def test_a_verb_that_is_not_the_headsets_own_is_refused(headset):
 
 
 class TestTheProjectionAFrameIsWrappedIn:
-    """The headset keeps a video's last frame up while the next one opens, and
-    that frame goes on being wrapped the way its own video is."""
-
     def test_it_opens_on_the_first_item_in_its_projection(self, headset):
         assert headset.verbs.projection == EQUIRECT_180_SBS
 
@@ -101,9 +90,6 @@ class TestTheProjectionAFrameIsWrappedIn:
 
 
 class TestLookingAtWhatIsOnScreen:
-    """A VR video nobody has chosen a projection for gets its frame looked at,
-    and a fisheye circle found there is what it opens in from then on."""
-
     def _looking(self, headset):
         looked: list[Path] = []
         headset.verbs.look_with(_ALook(looked))
@@ -115,7 +101,7 @@ class TestLookingAtWhatIsOnScreen:
     def test_each_vr_video_opened_after_that_is_looked_at_too(self, headset):
         looked = self._looking(headset)
 
-        _step(headset, -1)  # scene three, a VR video
+        _step(headset, -1)
 
         assert looked[-1] == headset.files[2]
 
@@ -123,7 +109,7 @@ class TestLookingAtWhatIsOnScreen:
         looked = self._looking(headset)
         del looked[:]
 
-        _step(headset)  # scene two, a flat video
+        _step(headset)
 
         assert looked == []
 
@@ -132,7 +118,7 @@ class TestLookingAtWhatIsOnScreen:
         headset.verbs.look_with(look)
         assert not look.ended
 
-        _step(headset)  # scene two, a flat video
+        _step(headset)
 
         assert look.ended
 
@@ -155,7 +141,7 @@ class TestLookingAtWhatIsOnScreen:
         headset.verbs.look_with(look)
         _step(headset, -1)
         looked_at = headset.playback.current_video
-        _step(headset)  # back to scene one
+        _step(headset)
 
         look.found(FISHEYE_CIRCLE, video=looked_at)
 
@@ -516,7 +502,6 @@ class TestScenes:
 
     def test_a_video_in_a_vr_folder_kept_away_from_the_library_reads_its_scenes_off_its_record(
             self, tmp_path):
-        """Its scenes are read from the record its projection is kept in."""
         metadata = tmp_path / "local" / "videos" / "metadata"
         vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
         vr_dir.mkdir(parents=True)

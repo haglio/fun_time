@@ -1,4 +1,3 @@
-"""The headset's side of its library browser: the desktop's browser, run for it."""
 from __future__ import annotations
 
 import subprocess
@@ -69,7 +68,6 @@ def _host(tmp_path: Path, launched: list):
 
 class TestTheBrowserItRuns:
     def test_it_runs_the_desktops_browser_with_no_window_as_live_use(self, tmp_path):
-        """Below normal it drew nothing for 90s on a machine busy with test runs."""
         launched: list = []
         host = _host(tmp_path, launched)
         try:

@@ -31,15 +31,12 @@ S1 = "C:/vids/seed1.mp4"
 
 
 def _entries(*videos: VideoEntry) -> dict[str, VideoEntry]:
-    """The index's video records, keyed the way production keys them."""
     return {K(video.path): video for video in videos}
 
 
 def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     action_all = sorted([current, *action_sibs])
     seed_all = sorted([current, *seed_sibs])
-    # An action group varies the act; a seed family repeats the current video's
-    # act under other seeds — seed_family_items narrows on exactly that.
     acts = {current: "Alpha", **{p: f"Act{i}" for i, p in enumerate(action_sibs)},
             **dict.fromkeys(seed_sibs, "Alpha")}
     seeds = {p: ("S", str(i)) for i, p in enumerate(seed_all)}
@@ -55,7 +52,6 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
 
 
 def _hud(funestra: str = "portrait", *, index, active: bool = False, **satellite_fields):
-    """One Funestra's HUD, built from the SatelliteInputs production builds."""
     return build_hud(SatelliteInputs(funestra, **satellite_fields), index=index,
                      active=active)
 
@@ -74,15 +70,11 @@ def test_hud_gathers_action_and_seed_siblings_and_labels_the_lock():
 
 
 def test_hud_carries_axis_labels_for_the_map():
-    """The nav map's rows are named by action: the current video's own action labels
-    the top row, and each action sibling carries its action name, in step with
-    action_siblings, so the HUD can draw the row labels."""
     index = _index(current=CUR, action_sibs=[A1, A2], seed_sibs=[S1])
 
     hud = _hud("portrait", locked=True, current=CUR, index=index)
 
     assert hud.current_action == "Alpha"
-    # action_siblings is sorted([A1, A2]); A1→"Act0", A2→"Act1" in _index.
     assert hud.action_labels == ("Act0", "Act1")
     assert len(hud.action_labels) == len(hud.action_siblings)
 
@@ -94,8 +86,7 @@ def test_hud_labels_an_unlocked_satellite():
 
     assert hud.locked is False
     assert hud.title == "Unlocked · Shuffle"
-    assert hud.action_siblings == [A1]  # siblings show whether locked or not
-
+    assert hud.action_siblings == [A1]
 
 
 def test_hud_without_a_current_video_has_no_siblings():
@@ -125,40 +116,31 @@ def test_without_a_loop_the_map_anchors_on_the_live_video():
 
     assert hud.active_loop == ""
     assert hud.current == CUR
-    assert hud.playing == CUR  # the corner is what's on
+    assert hud.playing == CUR
 
 
 def test_a_seed_loop_freezes_the_map_on_the_video_the_loop_started_on():
-    """While the seed row loops, the nav map anchors on the video the loop started on —
-    the video that heads the queue the loop wrote — so the nav map holds still and reads
-    in the order the Funestra plays it: that video in the corner, the rest running
-    right from it.  ``playing`` follows the video actually on screen.
-    """
     index = _index(current=CUR, seed_sibs=[S1])
 
-    # The loop started on S1, so S1 is the corner even though CUR sorts first.
     hud = _hud(
         "portrait", locked=False, current=S1, index=index, loop_axis="seed", nav_map_anchor=S1,
     )
 
     assert hud.active_loop == "seed"
-    assert hud.current == S1        # the video the loop started on — the corner
-    assert hud.playing == S1        # …and, at the start, what is on screen
-    assert hud.seed_siblings == [CUR]   # the rest of the family runs right from it
+    assert hud.current == S1
+    assert hud.playing == S1
+    assert hud.seed_siblings == [CUR]
 
 
 def test_a_seed_loop_keeps_its_anchor_as_the_loop_advances():
-    """The anchor is the loop's fixed head, not the live video: once the loop rolls
-    on, the nav map stays put and only ``playing`` moves."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    # Started on S1; the loop has since advanced to CUR.
     hud = _hud(
         "portrait", locked=False, current=CUR, index=index, loop_axis="seed", nav_map_anchor=S1,
     )
 
-    assert hud.current == S1        # frozen on the loop's head
-    assert hud.playing == CUR       # the seed actually on screen
+    assert hud.current == S1
+    assert hud.playing == CUR
     assert hud.seed_siblings == [CUR]
 
 
@@ -169,9 +151,6 @@ NX = "C:/vids/nextseed_zeta.mp4"
 
 
 def _two_seed_index() -> GroupIndex:
-    """Two seeds of one act, each with a distinct other act of its own: A (act
-    Alpha) with its Beta sibling AY, and seed sibling N (act Alpha) with its Zeta
-    sibling NX.  Action groups are seed-scoped, so A's column and N's differ."""
     return GroupIndex(
         entries=_entries(
             VideoEntry(A, action="Alpha", action_key="GA", seed_key=("F", "1")),
@@ -185,18 +164,15 @@ def _two_seed_index() -> GroupIndex:
 
 
 def test_a_seed_loops_column_belongs_to_the_playing_seed():
-    """Out along the row, the column swaps to the playing seed's own acts: an
-    action group is seed-scoped, so the corner's acts are another video's — and the
-    ones you would step down into from here are the seed on screen's."""
     index = _two_seed_index()
 
     hud = _hud(
         "portrait", locked=False, current=N, index=index, loop_axis="seed", nav_map_anchor=A,
     )
 
-    assert hud.current == A              # the nav map still hangs on the loop's head
+    assert hud.current == A
     assert hud.playing == N
-    assert hud.action_siblings == [NX]   # the playing seed's other act
+    assert hud.action_siblings == [NX]
     assert hud.action_labels == ("Zeta",)
 
 
@@ -212,8 +188,6 @@ def test_at_the_loops_head_the_column_is_the_corners_own():
 
 
 def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
-    """Ending the loop changes only the loop's own chrome: the column stays the
-    playing seed's, exactly as it stood the moment the loop was switched off."""
     index = _two_seed_index()
 
     hud = _hud(
@@ -226,8 +200,6 @@ def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
 
 
 def test_a_nav_frozen_maps_column_follows_the_selected_seed():
-    """Arrowing out to a seed selects it on a frozen nav map — and the column under it
-    is that seed's own acts, the ones a further "down" dives into."""
     index = _two_seed_index()
 
     hud = _hud(
@@ -240,8 +212,6 @@ def test_a_nav_frozen_maps_column_follows_the_selected_seed():
 
 
 def test_a_video_down_the_column_keeps_the_corners_column():
-    """With the live video on the action axis the column is the axis it sits on, so
-    it stays the corner's — for the held nav map and for the nav-frozen one alike."""
     index = _two_seed_index()
 
     held = _hud(
@@ -258,9 +228,6 @@ def test_a_video_down_the_column_keeps_the_corners_column():
 
 
 def test_an_action_loop_anchors_on_its_start_video_and_marks_the_playing_action():
-    """The action column runs down from the video the loop started on, in the queue's
-    own order — so the lit row walks downward as the group plays, not upwards
-    from wherever the group's lowest-keyed item happened to sit."""
     index = _index(current=CUR, action_sibs=[A1])
 
     hud = _hud(
@@ -268,14 +235,12 @@ def test_an_action_loop_anchors_on_its_start_video_and_marks_the_playing_action(
     )
 
     assert hud.active_loop == "action"
-    assert hud.current == CUR       # the corner is where the loop started
+    assert hud.current == CUR
     assert hud.playing == CUR
-    assert hud.action_siblings == [A1]   # the other act runs down from it
+    assert hud.action_siblings == [A1]
 
 
 def _twin_index(current: str, twin: str) -> GroupIndex:
-    """A subject whose whole group is two renders of ONE act — the twins the action
-    axis's distinct-acts view collapses into a single entry."""
     items = sorted([current, twin])
     return GroupIndex(
         entries=_entries(*(VideoEntry(p, action="Alpha", action_key="A") for p in items)),
@@ -285,13 +250,6 @@ def _twin_index(current: str, twin: str) -> GroupIndex:
 
 
 def test_a_running_action_loop_draws_every_video_it_cycles():
-    """The nav map of a loop is the loop: an action loop over two renders of one act has
-    to draw both rows, or the HUD says a two-video loop is one video long.
-
-    The loop cycles the subject's whole group, so leaving the browse map's one-row-
-    per-distinct-act answer in place while it ran collapsed the nav map to a single row —
-    and the corner stayed lit as the loop played the video that was never drawn.
-    """
     index = _twin_index(CUR, A1)
 
     hud = _hud(
@@ -299,25 +257,21 @@ def test_a_running_action_loop_draws_every_video_it_cycles():
     )
 
     assert hud.action_siblings == [A1]
-    assert hud.action_count == 2      # the size the loop's own message reports
+    assert hud.action_count == 2
 
 
 def test_a_looped_action_column_lights_the_twin_actually_playing():
-    """With the column holding the loop's own items, the live video IS a cell — so
-    the lit row follows the loop instead of falling back to the corner."""
     index = _twin_index(CUR, A1)
 
     hud = _hud(
         "portrait", locked=False, current=A1, index=index, loop_axis="action", nav_map_anchor=CUR,
     )
 
-    assert hud.current == CUR   # the nav map still hangs on the video the loop started on
-    assert hud.playing == A1    # …and lights the twin on screen
+    assert hud.current == CUR
+    assert hud.playing == A1
 
 
 def test_the_browse_map_still_collapses_same_act_twins():
-    """Off a loop the action axis steps between distinct acts, so twins stay one
-    row: the collapse is right there, and wrong only while a loop is running."""
     index = _twin_index(CUR, A1)
 
     hud = _hud("portrait", locked=False, current=CUR, index=index)
@@ -327,24 +281,19 @@ def test_the_browse_map_still_collapses_same_act_twins():
 
 
 def test_ending_a_loop_leaves_the_map_hanging_where_it_was():
-    """Switching a loop off must change only the loop's own chrome — the lit button
-    and the rectangle round the group.  The nav map itself goes on hanging where it was,
-    so the thumbnails do not re-home onto whichever item the loop had reached."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
         "portrait", locked=False, current=S1, index=index, loop_axis="", nav_map_anchor=CUR,
     )
 
-    assert hud.active_loop == ""      # the loop is off, so no chrome
-    assert hud.current == CUR         # …but the nav map has not moved
-    assert hud.playing == S1          # and still lights the video on screen
+    assert hud.active_loop == ""
+    assert hud.current == CUR
+    assert hud.playing == S1
     assert hud.seed_siblings == [S1]
 
 
 def test_a_map_anchor_is_let_go_once_the_video_leaves_the_map():
-    """The freeze is only worth holding while there is a cell to light: once the
-    browse moves on past the group, the nav map re-homes on the live video."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -355,10 +304,7 @@ def test_a_map_anchor_is_let_go_once_the_video_leaves_the_map():
 
 
 def test_ending_a_widened_loop_keeps_the_row_wide():
-    """The widened row is part of what must not change when the loop ends: narrowing
-    it back to the exact family would redraw the nav map, which is exactly the jump the
-    freeze exists to prevent."""
-    near = "C:/vids/near.mp4"  # not in CUR's exact family, but near its scene
+    near = "C:/vids/near.mp4"
     index = GroupIndex(
         entries=_entries(
             VideoEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
@@ -370,21 +316,16 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
         seed_items={"S": [CUR]},
     )
 
-    # The loop was widened around CUR and had advanced onto the near-match when it
-    # was switched off.
     hud = _hud(
         "portrait", locked=False, current=near, index=index,
         loop_axis="", nav_map_anchor=CUR, widen_video=CUR,
     )
 
     assert hud.current == CUR
-    assert hud.seed_siblings == [near]  # still the widened row, not CUR's exact family
+    assert hud.seed_siblings == [near]
 
 
 def test_the_title_holds_every_state_the_satellite_is_in():
-    """One line to read the satellite off: the lock, what is looping, which order its
-    browse is in, and the filter.  Anything the HUD knows about how the Funestra is
-    behaving belongs up there, not spread around the HUD."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     looping = _hud(
@@ -398,9 +339,6 @@ def test_the_title_holds_every_state_the_satellite_is_in():
 
 
 def test_the_title_says_when_f_mode_is_narrowing_the_library():
-    """F-mode is a filtering layer of its own — favorites only — sitting under
-    whatever else the Funestra is doing.  Left off the line, a Funestra that has been cut
-    to a handful of videos looks identical to one browsing everything."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     on = _hud("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
@@ -411,9 +349,6 @@ def test_the_title_says_when_f_mode_is_narrowing_the_library():
 
 
 def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
-    """The unlabeled phrase at the end can only be the filter — that is what makes
-    it readable without a label — so a second, fixed filtering word goes ahead of it
-    rather than after."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -425,7 +360,6 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
 
 
 def test_the_title_names_the_axis_that_is_looping():
-    """"Looping" alone leaves you looking at the nav map to find out which axis it is."""
     seed_index = _index(current=CUR, seed_sibs=[S1])
     action_index = _index(current=CUR, action_sibs=[A1])
 
@@ -439,9 +373,6 @@ def test_the_title_names_the_axis_that_is_looping():
 
 
 def test_the_lock_word_stands_down_while_a_loop_runs():
-    """A loop is repeat-all over a group, so the lock is off and saying so is noise.
-    The browse order stays on the line: the moment the loop ends, that is what the
-    Funestra goes back to playing."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -454,9 +385,6 @@ def test_the_lock_word_stands_down_while_a_loop_runs():
 
 
 def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
-    """Locking does not end a loop — it holds one position in it — so the line has
-    to carry both.  Dropping "Looping seeds" the moment the lock went on read as the
-    loop having ended, and then unlocking looked like it came back from nowhere."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -467,25 +395,19 @@ def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
 
 
 def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_video():
-    """The whole HUD goes on reading as a loop: the button stays lit, the nav map
-    stays anchored on the video the loop started on, and ``playing`` names the item
-    the lock is holding — which is the cell the HUD rings."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    # The loop started on CUR and had reached S1 when the lock was taken.
     hud = _hud(
         "portrait", locked=True, current=S1, index=index, loop_axis="seed", nav_map_anchor=CUR,
     )
 
     assert hud.locked is True
-    assert hud.active_loop == "seed"   # still looping — the lit button, the rectangle
-    assert hud.current == CUR          # …over the nav map the loop pinned
-    assert hud.playing == S1           # …held on the item it had reached
+    assert hud.active_loop == "seed"
+    assert hud.current == CUR
+    assert hud.playing == S1
 
 
 def test_the_title_says_looping_without_counting():
-    """The size of each axis is on the nav map itself now, so this line just says what is
-    looping, not how much of it."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"])
 
     hud = _hud(
@@ -497,20 +419,15 @@ def test_the_title_says_looping_without_counting():
 
 
 def test_the_hud_counts_the_seeds_and_actions_the_map_stands_for():
-    """The nav map draws only the cells that fit, so the counts are the only thing that
-    says how big each axis really is — counted before any draw cap."""
     index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"], action_sibs=[A1])
 
     hud = _hud("portrait", locked=False, current=CUR, index=index)
 
-    assert hud.seed_count == 3    # the whole family, the video on screen included
-    assert hud.action_count == 2  # the distinct acts, its own included
+    assert hud.seed_count == 3
+    assert hud.action_count == 2
 
 
 def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
-    """A loop with no anchor to read — state written before a session restart, or an
-    anchor video since trashed — must still hold the nav map still, so it falls back to
-    the group's lowest-keyed item instead of re-orienting on every auto-advance."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -518,13 +435,11 @@ def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
     )
 
     assert hud.active_loop == "seed"
-    assert hud.current == CUR       # lowest-keyed item, stable across advances
+    assert hud.current == CUR
     assert hud.playing == S1
 
 
 def test_widen_grows_the_seed_row_with_the_nearest_videos():
-    """"more seeds" widens the display: the seed row grows past the exact family to
-    the nearest-scened videos of this act, without the current video changing."""
     other = "C:/vids/other.mp4"
     index = GroupIndex(
         entries=_entries(
@@ -532,7 +447,6 @@ def test_widen_grows_the_seed_row_with_the_nearest_videos():
                       scene_tags=frozenset({"a", "b", "c"})),
             VideoEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1"),
                       scene_tags=frozenset({"a", "b", "c"})),
-            # `other` is not in the family but shares most of the scene's tags.
             VideoEntry(other, action="Alpha", action_key="g2",
                       scene_tags=frozenset({"a", "b", "d"})),
         ),
@@ -543,14 +457,12 @@ def test_widen_grows_the_seed_row_with_the_nearest_videos():
     narrow = _hud("portrait", locked=False, current=CUR, index=index)
     wide = _hud("portrait", locked=False, current=CUR, index=index, widen_video=CUR)
 
-    assert narrow.seed_siblings == [S1]                 # exact family only
-    assert set(wide.seed_siblings) == {S1, other}       # widened to the near-match
-    assert wide.current == CUR                          # the video on screen is unchanged
+    assert narrow.seed_siblings == [S1]
+    assert set(wide.seed_siblings) == {S1, other}
+    assert wide.current == CUR
 
 
 def test_widen_off_a_loop_resets_once_its_anchor_video_leaves_the_screen():
-    """Without a loop, the widen holds only while its exact anchor is on screen —
-    a plain auto-advance to another video drops it (the same-video reset)."""
     other = "C:/vids/other.mp4"
     index = GroupIndex(
         entries=_entries(
@@ -562,19 +474,12 @@ def test_widen_off_a_loop_resets_once_its_anchor_video_leaves_the_screen():
         seed_items={"S": sorted([CUR, S1])},
     )
 
-    # Widened around CUR, but the live video is now `other` and no loop is running.
     hud = _hud("portrait", locked=False, current=other, index=index, widen_video=CUR)
 
-    assert hud.seed_siblings == []  # `other` has no same-act sisters of its own
+    assert hud.seed_siblings == []
 
 
 def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
-    """The bug: a seed loop over the widened pool auto-advances to a near-match (a
-    different exact seed family) that is not in the current video's exact family. The
-    row must stay wide and the nav map stay frozen on the widened anchor — not collapse
-    onto that video's own exact family with no loop shown."""
-    # x, x2 share the exact family F1; y and z are their own renders F2, F3; all four
-    # are the same scene, so y and z rank into the pool widened around x.
     x, x2, y, z = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4", "C:/v/z.mp4"
     seeds = {x: ("F1", "0"), x2: ("F1", "1"), y: ("F2", "0"), z: ("F3", "0")}
     index = GroupIndex(
@@ -587,21 +492,17 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
         seed_items={"F1": sorted([x, x2]), "F2": [y], "F3": [z]},
     )
 
-    # The loop was widened around x; the satellite has auto-advanced to y, a near-match
-    # that is NOT in x's exact seed family {x, x2}.
     hud = _hud(
         "portrait", locked=False, current=y, index=index, loop_axis="seed", widen_video=x,
     )
 
-    assert hud.active_loop == "seed"                 # still looping — not reset
-    assert hud.current == x                          # frozen on the widened anchor (min key)
-    assert hud.playing == y                          # the widened item actually on screen
-    assert set(hud.seed_siblings) == {x2, y, z}      # the whole widened pool, minus the anchor
+    assert hud.active_loop == "seed"
+    assert hud.current == x
+    assert hud.playing == y
+    assert set(hud.seed_siblings) == {x2, y, z}
 
 
 def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
-    """With no widen anchor, a seed loop stays on the exact family even when the
-    live video has near-matches outside it — the widen is opt-in."""
     x, x2, y = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4"
     seeds = {x: ("F1", "0"), x2: ("F1", "1"), y: ("F2", "0")}
     index = GroupIndex(
@@ -619,13 +520,11 @@ def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
     )
 
     assert hud.active_loop == "seed"
-    assert hud.current == x                     # anchored on the exact family, not widened
-    assert set(hud.seed_siblings) == {x2}       # exact family only — y is not on the row
+    assert hud.current == x
+    assert set(hud.seed_siblings) == {x2}
 
 
 def test_a_group_of_one_does_not_freeze_the_map():
-    """A "loop" over a family of one is really a lock, so there is nothing to
-    freeze — the nav map stays anchored on the live video and reports no loop."""
     index = _index(current=CUR)
 
     hud = _hud("portrait", locked=False, current=CUR, index=index, loop_axis="seed")
@@ -636,17 +535,12 @@ def test_a_group_of_one_does_not_freeze_the_map():
 
 
 def test_nav_anchor_freezes_the_map_on_the_video_navigation_began_from():
-    """Keyboard navigation pins the nav map to the video the user began from: while
-    the live video is still one of its cells the corner stays the anchor and
-    ``playing`` marks the cell on screen, so a highlight moves across a stable
-    map (not a loop — playback still auto-advances)."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    # Started from CUR; the satellite has since been switched to seed S1.
     hud = _hud("portrait", locked=False, current=S1, index=index, nav_anchor=CUR)
 
-    assert hud.current == CUR       # frozen on the start video, not the live one
-    assert hud.playing == S1        # the seed actually on screen is lit
+    assert hud.current == CUR
+    assert hud.playing == S1
     assert hud.seed_siblings == [S1]
     assert hud.active_loop == ""
 
@@ -654,7 +548,6 @@ def test_nav_anchor_freezes_the_map_on_the_video_navigation_began_from():
 def test_nav_anchor_lights_a_selected_action_cell():
     index = _index(current=CUR, action_sibs=[A1])
 
-    # Navigated down from CUR onto its action sibling A1.
     hud = _hud("portrait", locked=False, current=A1, index=index, nav_anchor=CUR)
 
     assert hud.current == CUR
@@ -663,8 +556,6 @@ def test_nav_anchor_lights_a_selected_action_cell():
 
 
 def test_nav_anchor_equal_to_the_live_video_is_the_ordinary_map():
-    """Right after navigation starts (before any switch) the anchor is the live
-    video, so the nav map is the plain one homed on it."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud("portrait", locked=False, current=CUR, index=index, nav_anchor=CUR)
@@ -675,21 +566,17 @@ def test_nav_anchor_equal_to_the_live_video_is_the_ordinary_map():
 
 
 def test_nav_anchor_re_homes_once_the_video_drifts_off_the_map():
-    """If the satellite auto-advances to a video that is not on the frozen nav map, the
-    map re-homes on the live video rather than lying about what is playing."""
     index = _index(current=CUR, seed_sibs=[S1])
-    elsewhere = "C:/vids/elsewhere.mp4"  # not on CUR's family — the satellite advanced off it
+    elsewhere = "C:/vids/elsewhere.mp4"
 
     hud = _hud("portrait", locked=False, current=elsewhere, index=index, nav_anchor=CUR)
 
-    assert hud.current == elsewhere   # frozen anchor abandoned
+    assert hud.current == elsewhere
     assert hud.playing == elsewhere
     assert hud.seed_siblings == []
 
 
 def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
-    """A running loop wins the freeze — starting a loop is what clears any nav
-    anchor, so if both arrive the loop's frozen group is what shows."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -697,15 +584,10 @@ def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
     )
 
     assert hud.active_loop == "seed"
-    assert hud.current == CUR  # the loop's family anchor, not the nav anchor
-
-
-# --- map navigation geometry ---
+    assert hud.current == CUR
 
 
 def test_navigate_from_the_corner_steps_onto_the_action_column():
-    """From the anchor, down enters the column of other acts and up comes round
-    the other way, onto its last cell."""
     corner = ("corner", 0)
     assert navigate_cell(corner, "down", action_count=2) == ("action", 0)
     assert navigate_cell(corner, "up", action_count=2) == ("action", 1)
@@ -719,15 +601,11 @@ def test_navigate_walks_the_action_column_and_wraps_past_its_end():
 
 
 def test_navigate_from_a_seed_cell_is_a_no_op():
-    """The nav map is an L and a seed has nothing below it.  A seed lit by a click
-    is stepped down into by re-rooting the nav map on it, which is the dispatcher's
-    own move (see navigate_hud), not this one's."""
     assert navigate_cell(("seed", 1), "down", action_count=2) == ("seed", 1)
     assert navigate_cell(("seed", 1), "up", action_count=2) == ("seed", 1)
 
 
 def test_navigate_along_the_row_is_no_longer_a_direction():
-    """Left and right are the versions of the video on screen now."""
     corner = ("corner", 0)
     assert navigate_cell(corner, "right", action_count=2) == corner
     assert navigate_cell(corner, "left", action_count=2) == corner
@@ -747,14 +625,10 @@ def test_locate_cell_matches_the_corner_a_seed_or_an_action():
 
 
 def test_locate_cell_is_none_when_the_video_is_off_the_map():
-    """A video the nav map does not draw — e.g. after the satellite auto-advanced off
-    the family — is reported as absent so the caller can re-home."""
     assert locate_cell("C:/vids/elsewhere.mp4", CUR, [S1], [A1]) is None
 
 
 def test_locate_cell_matches_case_insensitively():
-    """Paths are keyed by ``normalize_path_key`` (a case fold), so a differently
-    cased current video still finds its cell."""
     assert locate_cell("C:/VIDS/SEED1.MP4", CUR, [S1], []) == ("seed", 0)
 
 
@@ -772,8 +646,6 @@ def test_cell_path_is_empty_for_an_out_of_range_cell():
 
 
 def test_hud_map_cells_lists_the_drawn_seed_and_action_videos():
-    """Navigation walks the same seed row and action column the HUD draws around
-    an anchor, so a keyboard selection always lands on a visible thumbnail."""
     index = _index(current=CUR, action_sibs=[A1, A2], seed_sibs=[S1])
 
     seeds, actions = nav_map_cells(index, CUR)
@@ -789,9 +661,6 @@ def test_hud_map_cells_caps_each_axis_at_the_draw_limit():
     seeds, _actions = nav_map_cells(index, CUR, seed_limit=6, action_limit=4)
 
     assert len(seeds) == 6
-
-
-# --- build_satellite_hud ---
 
 
 def _i2v(action: str, video_seed: str, image_seed: str = "100") -> dict:
@@ -821,15 +690,11 @@ def _video(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
 
 
 def test_prime_group_indexes_builds_both_satellites_up_front(tmp_path: Path):
-    """Priming builds each Funestra's real index up front and caches it, so a later
-    read serves it from memory — no per-video rebuild during the session."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
     prime_group_indexes((sources, sources), metadata_root)
 
-    # Served from the primed cache: a lazy build here (empty supplier) would be
-    # empty, so a non-empty index proves prime populated it from the real tree.
     index = cached_group_index(sources, paths_supplier=list, metadata_root=metadata_root, must_contain=None)
     assert index.entries
 
@@ -857,9 +722,6 @@ def test_a_satellites_hud_indexes_its_own_satellite_and_carries_the_lock(tmp_pat
 
 
 def test_only_the_active_funestras_hud_is_marked_active(tmp_path: Path):
-    """A bare "lock" or "next" goes to whichever Funestra was addressed last, and
-    nothing on screen said which that was — so each HUD carries whether it is
-    the one those words would reach.  Exactly one Funestra can be it."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -871,12 +733,10 @@ def test_only_the_active_funestras_hud_is_marked_active(tmp_path: Path):
 
     assert actives("portrait") == (True, False)
     assert actives("landscape") == (False, True)
-    assert actives("main") == (False, False)  # the Main Funestra has it; neither satellite does
+    assert actives("main") == (False, False)
 
 
 def test_a_satellites_hud_says_f_mode_only_when_that_satellite_is_in_it(tmp_path: Path):
-    """F-mode is sided now — each satellite has its own button for it — so the
-    title says it on the Funestra it is on, and the other HUD stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -889,13 +749,10 @@ def test_a_satellites_hud_says_f_mode_only_when_that_satellite_is_in_it(tmp_path
 
     assert "F-Mode" in portrait.title
     assert "F-Mode" not in landscape.title
-    # …and the flag itself rides along, so the Funestra's own button can light.
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 
 
 def test_a_satellites_hud_carries_the_loop_kind(tmp_path: Path):
-    """The loop kind comes off the shared state and must reach the HUD so the
-    map freezes — two seeds of one act make a real family to loop."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _a = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _video(media_root, metadata_root, "b", _i2v("Alpha", "2"))
@@ -906,62 +763,47 @@ def test_a_satellites_hud_carries_the_loop_kind(tmp_path: Path):
         metadata_root, "")
 
     assert portrait.active_loop == "seed"
-    assert portrait.seed_siblings  # the other seed is on the row
+    assert portrait.seed_siblings
 
 
 def test_a_satellites_hud_carries_the_nav_anchor(tmp_path: Path):
-    """The nav anchor comes off the shared state and must reach the HUD so the
-    map freezes on the video navigation began from while the satellite plays a
-    sibling."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     a = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _video(media_root, metadata_root, "b", _i2v("Alpha", "2"))
     sources = str(media_root / "portrait")
 
-    # Navigation began from a; the satellite has since switched to its seed sibling b.
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, nav_anchor=a),
         metadata_root, "")
 
-    assert portrait.current == a       # frozen on the start video
-    assert portrait.playing == b       # the sibling on screen is lit
+    assert portrait.current == a
+    assert portrait.playing == b
 
 
 def test_a_satellites_hud_keeps_a_widened_seed_loop_wide_across_the_loose_family(
         tmp_path: Path):
-    """The repro: widen the row, loop it, then let the loop auto-advance to a loose-
-    family re-render that is not in the exact seed family.  The HUD must stay
-    widened and frozen on the anchor — not collapse with no loop shown."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    # a and a2 share the exact seed family (identical config, seed varied); b is the
-    # same scene re-rendered with a render setting freed (a different model), so it joins
-    # a's loose family but is its own exact family.
     a = _video(media_root, metadata_root, "a", _i2v("Alpha", "1", image_seed="100"))
     a2 = _video(media_root, metadata_root, "a2", _i2v("Alpha", "2", image_seed="101"))
     b_meta = _i2v("Alpha", "3", image_seed="200")
-    b_meta["source_image"]["model"] = "Y Sweet"  # a render setting freed → a loose sibling
+    b_meta["source_image"]["model"] = "Y Sweet"
     b = _video(media_root, metadata_root, "b", b_meta)
     sources = str(media_root / "portrait")
 
-    # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
-    # that is not in a's exact seed family {a, a2}.
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_video=a),
         metadata_root, "")
 
-    assert portrait.active_loop == "seed"            # the loop is still recognized
-    assert portrait.current == a                     # frozen on the widened anchor
-    assert portrait.playing == b                     # the widened item on screen
-    assert set(portrait.seed_siblings) == {a2, b}    # the whole loose family, minus the anchor
-
-
-# --- hud_thumbnails ---
+    assert portrait.active_loop == "seed"
+    assert portrait.current == a
+    assert portrait.playing == b
+    assert set(portrait.seed_siblings) == {a2, b}
 
 
 def test_hud_thumbnails_caps_at_limit_and_skips_unreadable():
     def fake_thumbnailer(path: str, cache_dir) -> Path | None:
         if "bad" in path:
-            return None  # unreadable video
+            return None
         return Path(cache_dir) / f"{Path(path).stem}.jpg"
 
     pairs = hud_thumbnails(

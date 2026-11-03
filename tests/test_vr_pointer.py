@@ -1,4 +1,3 @@
-"""The controller's ray over the scene: what it hits, and what a squeeze on it does."""
 from __future__ import annotations
 
 import math
@@ -68,8 +67,6 @@ class TestTheCylinderThePointerIsReadOn:
         assert point.distance == pytest.approx(RADIUS_M)
 
     def test_a_ray_from_the_hand_lands_where_it_points_not_where_the_head_does(self):
-        # The hand sits half a meter right of the eye and points a little left,
-        # so it crosses the center line before it reaches the cylinder.
         ray = Ray(origin=(0.5, -0.3, 0.0), direction=(-0.25, 0.0, -1.0))
 
         point = cylinder_hit(ray)
@@ -120,7 +117,6 @@ _HANDLE = RADIUS_M * math.radians(HANDLE_DEG)
 
 
 def _anchored(anchor: tuple[float, float], side: float, width_deg: float, aspect: float) -> Placement:
-    """The screen *width_deg* wide whose upper corner across from *side* is seen at *anchor*."""
     azimuth, y = anchor
     half = math.radians(width_deg) / 2
     lift = y / math.cos(half) - RADIUS_M * math.tan(half) / aspect
@@ -158,8 +154,6 @@ class TestWhereOnAScreenAPointLands:
         assert near[1] < 0
 
     def test_a_spot_on_the_far_side_of_the_viewer_is_nowhere_on_the_screen(self):
-        """Carried on round past the viewer, a flat screen's plane lands this spot in
-        the middle of its frame: a laser pointed the other way pressed it."""
         far_side = _on_the_cylinder(_A_SCREEN.azimuth_deg - 180.0, -_lift(_A_SCREEN))
 
         u, v = screen_uv(far_side, _A_SCREEN, aspect=16 / 9)
@@ -195,8 +189,6 @@ class TestTheRayInTheScene:
         assert ray.origin == pytest.approx((0.3, -0.2, -0.1))
 
     def test_a_recentered_scene_is_pointed_at_where_it_now_hangs(self):
-        # Recentered a quarter turn left, the scene's own forward is the
-        # world's left: a hand pointing left points at the primary's middle.
         turned = yaw_rotation_matrix(math.pi / 2)
 
         ray = scene_ray(((0.0, 0.0, 0.0), _FACING_LEFT), head=(0.0, 0.0, 0.0), scene_rotation=turned)
@@ -224,9 +216,6 @@ class TestTheRayInTheScene:
 
 
 class TestTheHandles:
-    """A screen's chrome: a bar to move it by, hanging just above its top edge so
-    it takes nothing from the frame, and two corner squares to resize it by."""
-
     _ASPECT = 16 / 9
     _DU = _HANDLE / _drawn_size(_A_SCREEN, _ASPECT)[0]
     _DV = _HANDLE / _drawn_size(_A_SCREEN, _ASPECT)[1]
@@ -244,8 +233,6 @@ class TestTheHandles:
         assert self._at(0.5, 1.0 + self._DV * 1.5) is None
 
     def test_the_lower_corners_resize_it_from_clear_of_the_frame(self):
-        """Diagonally outside each lower corner rather than straddling it, so the
-        scrubber along the frame's lower edge keeps the whole of that edge."""
         assert self._at(1.0 + self._DU / 2, -self._DV / 2) == RESIZE
         assert self._at(-self._DU / 2, -self._DV / 2) == RESIZE
         assert self._at(1.0 - self._DU / 4, self._DV / 4) == SURFACE
@@ -253,8 +240,6 @@ class TestTheHandles:
         assert self._at(1.0 + self._DU / 2, self._DV / 4) is None
 
     def test_a_handle_is_the_same_size_on_every_screen_whatever_its_shape(self):
-        """One length each way, so a tall thin portrait offers the same target as
-        a wide one -- and a screen far to the side is still grabbable."""
         portrait = Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=12.0)
         dv = _HANDLE / _drawn_size(portrait, 9 / 16)[1]
 
@@ -273,9 +258,6 @@ def _lift(placement: Placement) -> float:
 
 
 class TestAGrab:
-    """The pointer took hold of a handle; where it goes next moves or resizes
-    the screen, and letting go leaves the screen there."""
-
     _ASPECT = 16 / 9
 
     def test_dragging_the_bar_sideways_turns_the_screen_with_the_pointer(self):
@@ -297,8 +279,6 @@ class TestAGrab:
         assert raised.width_deg == _A_SCREEN.width_deg
 
     def test_the_spot_taken_hold_of_stays_under_the_pointer_as_it_is_dragged(self):
-        """Off a flat screen's middle its frame stands further out than the
-        cylinder the pointer is read on, so a rise there moves the screen further."""
         start = _seen_at(_A_SCREEN, self._ASPECT, 0.15, 1.02)
         grab = Grab(MOVE, _A_SCREEN, start=start, aspect=self._ASPECT)
         end = _on_the_cylinder(start.azimuth_deg + 5.0, start.y + 0.4)
@@ -322,11 +302,9 @@ class TestAGrab:
         assert grab.dragged_to(_on_the_cylinder(-175.0, 0.0)).azimuth_deg == pytest.approx(150.0)
 
     def _corner(self, placement: Placement, side: float) -> SurfacePoint:
-        """A lower corner of *placement* (+1 right, -1 left): a resize handle."""
         return _seen_at(placement, self._ASPECT, (1 + side) / 2, 0.0)
 
     def _upper(self, placement: Placement, side: float) -> tuple[float, float]:
-        """An upper corner as (azimuth, y): what a resize on the other side pins."""
         spot = _seen_at(placement, self._ASPECT, (1 + side) / 2, 1.0)
         return spot.azimuth_deg, spot.y
 
@@ -345,9 +323,6 @@ class TestAGrab:
         assert self._upper(grown, -side) == pytest.approx(anchor)
 
     def test_the_two_corners_carry_the_screen_opposite_ways(self):
-        """Each pins the corner across from it, so the same growth from the left
-        handle and from the right leaves the screen in different places — which
-        is the whole reason for two handles rather than one."""
         wider = 2 * _A_SCREEN.width_deg
         pulled = {}
         for side in (1.0, -1.0):
@@ -361,9 +336,6 @@ class TestAGrab:
 
     @pytest.mark.parametrize("side", [1.0, -1.0])
     def test_a_corner_swung_on_past_the_half_turn_holds_the_widest(self, side):
-        """Past a half turn the short way round reverses: the width read off it
-        collapsed to MIN_WIDTH_DEG and the screen vanished out of the headset
-        mid-drag.  The width already reached says which way round was meant."""
         anchor = self._upper(_A_SCREEN, -side)
         grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, side), aspect=self._ASPECT)
         widest = self._grabbed_corner_at(anchor, side, MAX_WIDTH_DEG)
@@ -438,12 +410,10 @@ class TestTheTrigger:
         assert trigger.update(0.1) is None
 
     def test_the_press_and_release_levels_leave_room_between_them(self):
-        """A trigger resting right at one level would otherwise chatter."""
         assert 0.0 < RELEASE_LEVEL < PRESS_LEVEL < 1.0
 
 
 def _aim_at(azimuth_deg: float, y: float) -> tuple:
-    """A controller at the head, pointed at that spot on the cylinder."""
     return ((0.0, 0.0, 0.0), scene_placement_quaternion(-azimuth_deg, math.degrees(math.atan2(y, RADIUS_M))))
 
 
@@ -574,8 +544,6 @@ class TestThePointerOverTheScene:
         assert frame.taken == "panel"
 
     def test_a_squeeze_on_a_corner_grows_the_screen_off_the_opposite_one(self):
-        """The screen's own aspect has to reach the grab for this to land: it is
-        what turns the pointer's reach into a width, and the anchor into a place."""
         placement, aspect = _LANDSCAPE.placement, _LANDSCAPE.aspect
         top_left = _seen_at(placement, aspect, 0.0, 1.0)
         corner = _seen_at(
@@ -634,10 +602,6 @@ class TestThePointerOverTheScene:
         assert let_go.settled
 
     def test_a_click_where_a_wrapped_frame_is_all_there_is_presses_it_when_let_go(self):
-        """A VR180 or 360 Main Funestra is round the viewer rather than hanging in
-        the scene, so it has no rectangle to aim at — it is what a squeeze lands
-        on wherever no hanging screen is, reported at its middle since there is
-        no point on it to give."""
         pointer = Pointer()
         held = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
                            screens=[_WRAPPED, _MAIN_HUD])
@@ -649,9 +613,6 @@ class TestThePointerOverTheScene:
                                  PressEvent(RELEASE, "primary"))
 
     def test_a_trigger_pulled_with_the_stick_held_in_is_a_right_click(self):
-        """A controller has one trigger, so the room's second button is the
-        stick pushed in.  A right-click is a click of its own: nothing is held
-        down, and no release follows it."""
         pointer = Pointer()
         aimed = _aim_at_uv(_GALLERY, 0.25, 0.75)
 
@@ -665,8 +626,6 @@ class TestThePointerOverTheScene:
         assert let_go.events == ()
 
     def test_a_screen_that_takes_no_right_click_is_pressed_as_ever(self):
-        """Only the hosted app's window has a menu to open on one, and every
-        other screen reads an event kind it has never heard of as a release."""
         pointer = Pointer()
         aimed = _aim_at_uv(_MAIN_HUD, 0.25, 0.75)
 
@@ -684,8 +643,6 @@ class TestThePointerOverTheScene:
         assert frame.events[0].screen == "panel"
 
     def test_the_wrap_is_never_hovered_and_takes_nothing_but_a_press(self):
-        """A cursor on it would follow the ray everywhere, saying nothing about
-        what is under it — and there is nothing out there to hold or to drag."""
         pointer = Pointer()
         away = _hands(right=_aim_at(140.0, -0.6))
         scene = [_WRAPPED, _MAIN_HUD]
@@ -721,10 +678,6 @@ class TestThePointerOverTheScene:
 
     @pytest.mark.parametrize("u, v", [(0.3, 0.02), (0.97, 0.02)], ids=["lower edge", "corner"])
     def test_a_squeeze_along_a_frames_lower_edge_is_a_click_on_it_like_any_other(self, u, v):
-        """The row that was drawn along a frame's lower edge is on the HUD
-        beside it now, so no part of a frame seeks or sets the level: a
-        squeeze there still sat on an invisible scrubber and chip for two
-        weeks after the row moved."""
         portrait = _PORTRAIT
         pointer = Pointer()
         scene = [portrait, _MAIN_HUD]
@@ -893,8 +846,6 @@ class TestWhatIsDrawnForThePointer:
         across_near = strip[1, :3] - strip[0, :3]
         across_far = strip[3, :3] - strip[2, :3]
         assert np.dot(across_near, ray.direction) == pytest.approx(0.0, abs=1e-6)
-        # Edge-on to the eye would vanish: the ribbon's width runs across the
-        # line of sight, so it is at right angles to the eye's view of it.
         assert np.dot(across_near, (strip[0, :3] + strip[1, :3]) / 2) == pytest.approx(0.0, abs=1e-6)
         assert np.linalg.norm(across_far) > np.linalg.norm(across_near) > 0
 
@@ -924,8 +875,6 @@ class TestWhatIsDrawnForThePointer:
             RADIUS_M * math.radians(HANDLE_DEG), abs=1e-6)
 
     def test_the_corner_squares_sit_just_clear_of_the_lower_corners(self):
-        """Outside the frame rather than straddling it, so the scrubber along
-        its lower edge is not a quarter covered at each end."""
         strips = handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=True)
         screen = surface_vertices(_A_SCREEN, aspect=16 / 9)
         handle = RADIUS_M * math.radians(HANDLE_DEG)

@@ -8,7 +8,7 @@ from fun_time.media_metadata import metadata_path_for
 
 
 def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
-    media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
+    media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     paths: dict[str, str] = {}
     for name, meta in videos.items():
@@ -32,7 +32,6 @@ def _meta(action: str, image_seed: str, prompt: str = "two cute dolls,  rainbow 
 
 
 def _watched(meta: dict | None, completions: int, skips: int, locks: int, weight: float) -> dict:
-    """What Evolver stamps: the counts summed from every app, and their weight."""
     return {
         **(meta or {}),
         "watch": {"completions": completions, "skips": skips, "locks": locks, "weight": weight},
@@ -93,7 +92,6 @@ def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path)
     assert "p" * 100 not in report, "long prompts must be truncated"
     hated_line = next(line for line in lines if "hated.mp4" in line)
     assert "x0.12" in hated_line
-    # The fading section lists the most-skipped first.
     assert lines.index(hated_line) > lines.index(loved_line)
 
 

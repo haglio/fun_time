@@ -1,5 +1,3 @@
-"""An OSR2 part and a readout made up for a test, and published where the
-Dashboard reads them, on the desktop and in the headset alike."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,21 +22,18 @@ def a_readout(speed: int = 50) -> DriveHud:
 
 
 def published(state_dir: Path, part: MainHudModel) -> MainHudModel:
-    """*part* written where the room publishes it, as it reads back."""
     path = osr2_part_path(state_dir)
     path.write_text(main_hud_text(part), encoding="utf-8")
     return read_main_hud(path)
 
 
 def handed_on(state_dir: Path, holder: FunTimeFunestra, readout: DriveHud) -> DriveHud:
-    """*readout* written where *holder* hands its readout on, as it reads back."""
     path = osr2_readout_path(state_dir, holder.label)
     publish_drive(path, readout)
     return read_drive(path)
 
 
 def center_of(part: MainHudModel, command: str) -> tuple[int, int]:
-    """The middle of the button posting *command*, in the part's own pixels."""
     painter = MainHudPainter(device_only=True)
     painter.rgba(MainHud(main_hud_model=part))
     x, y, width, height = next(rect for rect, button in painter.buttons if button.command == command)
@@ -46,7 +41,6 @@ def center_of(part: MainHudModel, command: str) -> tuple[int, int]:
 
 
 def band_of(part: MainHudModel, readout: DriveHud, axis: str) -> tuple[int, int, int, int]:
-    """Where the readout's band for *axis* is, in the part's own pixels."""
     painter = MainHudPainter(device_only=True)
     painter.rgba(MainHud(main_hud_model=part, drive=readout))
     return next(track.rect for track in painter.tracks if track.axis == axis)

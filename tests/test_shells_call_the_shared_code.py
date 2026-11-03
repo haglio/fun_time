@@ -7,7 +7,6 @@ the code the apps share: the shared code renames one of the words it takes, both
 suites stay green, and he meets it as a room that shows its loading screen and
 then goes.  His 2026-10-12 session died that way, on a word that had become
 ``host_controls`` in the funestra this computer had installed:
-
     TypeError: Funestra.__init__() got an unexpected keyword argument 'host_block'
 
 So each shell's source is read rather than run, and every word it hands a name
@@ -22,8 +21,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-#: The shells fun_time's CLAUDE.md names as untested on purpose, and the only
-#: ones whose calls nothing else can catch.
 SHELLS = (
     "fun_time_vr/app.py",
     "fun_time_vr/render.py",
@@ -69,14 +66,14 @@ def test_every_word_a_shell_hands_the_shared_code_is_one_it_takes():
             if not isinstance(call, ast.Call) or not call.keywords:
                 continue
             if any(word.arg is None for word in call.keywords):
-                continue  # a call that spreads a mapping names no words here
+                continue
             target = _what_it_calls(borrowed, ast.unparse(call.func))
             if target is None:
                 continue
             try:
                 signature = inspect.signature(target)
             except (TypeError, ValueError):
-                continue  # something the interpreter will not describe
+                continue
             signature.bind_partial(
                 **dict.fromkeys(word.arg for word in call.keywords))
             checked += 1

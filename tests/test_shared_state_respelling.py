@@ -1,9 +1,3 @@
-"""The session state file, rewritten once from last session's key spelling.
-
-The keys were renamed on 2026-09-13, and the file on his machine was written
-under the old ones.  It is rewritten at the startup that first reads it, and only
-the new spelling is ever read -- the reader knows no other.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,9 +15,6 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 
-# The state file as a session of that day wrote it: the two locks by slot
-# number, the active Funestra as a Satellite, one F-mode name for two filters, and two
-# mode words the app has since dropped.
 _LAST_SESSIONS_STATE = (
     "[state]\nmain_mode = hybrid\nsatellites_mode = player\nmain_f_mode = 1\n"
     "omni_paused = 0\nmain_latest = 0\nmain_plays_vr = 1\nmain_plays_flat = 1\n"
@@ -34,8 +25,6 @@ _LAST_SESSIONS_STATE = (
     "landscape_latest = 1\nlandscape_loop = \nlandscape_map_anchor = \n"
     "landscape_widen_video = \nlandscape_nav_anchor = \n"
 )
-
-
 
 
 class TestTheSharedStateFile:
@@ -75,8 +64,6 @@ class TestTheSharedStateFile:
             assert old not in text, old
 
     def test_a_mode_word_this_app_has_dropped_comes_back_as_kino(self, tmp_path: Path):
-        """hybrid, player and video were mode words once.  The record reads a word
-        it does not know as its default, so no table of old words is kept."""
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
 
@@ -89,10 +76,6 @@ class TestTheSharedStateFile:
 
     def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
             self, tmp_path: Path):
-        """The Satellite's one mode became each Satellite Funestra's own and
-        a switch of its own for the browser's place, so a room left in it comes
-        back with both Funestras in theirs and Origenerator in the browser's
-        place -- the room it was."""
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text("[state]\nsatellites_mode = origenerator\n", encoding="utf-8")
 
@@ -121,9 +104,6 @@ class TestTheSharedStateFile:
         assert not state_file.exists()
 
     def test_a_resumed_session_reads_last_sessions_file_through_the_rewrite(self, tmp_path: Path):
-        """Startup is where the file is first read, so it is where the rewrite
-        happens: a session resumed over the old spelling comes back locked and
-        narrowed the way it was left."""
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
 
