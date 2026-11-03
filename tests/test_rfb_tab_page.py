@@ -120,3 +120,33 @@ def test_write_tab_pages_clears_pages_from_the_previous_session(tmp_path: Path):
 
     assert not stale.exists()
     assert (pages / "tab_01.html").is_file()
+
+
+def test_locking_the_same_video_twice_rewrites_one_page(tmp_path: Path):
+    pages = tmp_path / "rfb_tabs"
+    target = TabTarget(REGEN_URL, "a")
+
+    first = write_lock_tab_page(pages, target)
+    second = write_lock_tab_page(pages, target)
+
+    assert first == second
+    assert len(list(pages.glob("lock_*.html"))) == 1
+
+
+def test_a_lock_page_never_takes_a_start_pages_name(tmp_path: Path):
+    pages = tmp_path / "rfb_tabs"
+    write_tab_pages(pages, [TabTarget("https://a", "a")])
+
+    write_lock_tab_page(pages, TabTarget("https://a", "a"))
+
+    assert (pages / "tab_01.html").is_file()
+    assert len(list(pages.glob("lock_*.html"))) == 1
+
+
+def test_write_tab_pages_clears_the_previous_sessions_lock_pages_too(tmp_path: Path):
+    pages = tmp_path / "rfb_tabs"
+    write_lock_tab_page(pages, TabTarget("https://locked", "locked"))
+
+    write_tab_pages(pages, [TabTarget("https://a", "a")])
+
+    assert list(pages.glob("lock_*.html")) == []

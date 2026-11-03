@@ -17,6 +17,7 @@ from fun_time.modes import (
     has_matching_funscript,
     matching_funscript,
     order_paths,
+    rotated_onto,
     shuffle_paths,
     sort_paths_by_recency,
     write_playlist_file,
@@ -626,3 +627,15 @@ def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     assert paths["theta"] in built
 
 
+
+
+def test_a_queue_is_rotated_so_the_video_the_funestra_left_on_leads():
+    assert rotated_onto(["a.mp4", "b.mp4", "c.mp4"], "b.mp4", path_of=str) == ["b.mp4", "c.mp4", "a.mp4"]
+
+
+def test_a_queue_not_holding_the_video_comes_back_from_its_top():
+    assert rotated_onto(["a.mp4", "b.mp4"], "gone.mp4", path_of=str) == ["a.mp4", "b.mp4"]
+
+
+def test_a_funestra_that_published_no_status_leaves_the_queue_as_it_was():
+    assert rotated_onto(["a.mp4", "b.mp4"], "", path_of=str) == ["a.mp4", "b.mp4"]

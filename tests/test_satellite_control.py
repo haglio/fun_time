@@ -4,7 +4,11 @@ from unittest.mock import patch
 
 from app_support.testing import no_wait_for_a_held_file
 
-from fun_time.satellite_control import SatelliteStatus, read_satellite_status
+from fun_time.satellite_control import (
+    SatelliteStatus,
+    published_satellite_status,
+    read_satellite_status,
+)
 
 
 class TestReadSatelliteStatus:
@@ -43,6 +47,39 @@ class TestReadSatelliteStatus:
         held = PermissionError(13, "Permission denied")
         with patch("fun_time.satellite_control.read_key_values", side_effect=held):
             assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
+
+    def test_a_file_that_cannot_be_read_reads_as_the_status_handed_as_fallback(self, tmp_path):
+        last_known = SatelliteStatus(video="C:/clips/last.mp4")
+        held = PermissionError(13, "Permission denied")
+        with patch("fun_time.satellite_control.read_key_values", side_effect=held):
+            assert read_satellite_status(tmp_path / "s.txt", fallback=last_known) == last_known
+
+    def test_a_volume_that_is_not_a_number_reads_as_none(self, tmp_path):
+        status = tmp_path / "s.txt"
+        status.write_text("video=v\nvolume=loud\nmuted=maybe\n", encoding="utf-8")
+        read = read_satellite_status(status)
+        assert (read.volume, read.muted) == (None, None)
+
+    def test_a_published_volume_and_mute_are_read(self, tmp_path):
+        status = tmp_path / "s.txt"
+        status.write_text("video=v\nvolume=35\nmuted=1\n", encoding="utf-8")
+        read = read_satellite_status(status)
+        assert (read.volume, read.muted) == (35, True)
+
+    def test_a_playlist_length_that_is_not_a_number_reads_as_zero(self, tmp_path):
+        status = tmp_path / "s.txt"
+        status.write_text("video=v\nplaylist_length=many\n", encoding="utf-8")
+        assert read_satellite_status(status).playlist_length == 0
+
+    def test_a_status_file_with_no_speed_is_not_yet_published(self, tmp_path):
+        status = tmp_path / "s.txt"
+        status.write_text("video=v\n", encoding="utf-8")
+        assert published_satellite_status(status) is None
+
+    def test_a_status_file_with_a_speed_is_published(self, tmp_path):
+        status = tmp_path / "s.txt"
+        status.write_text("video=v\nspeed=1.5\n", encoding="utf-8")
+        assert published_satellite_status(status).video == "v"
 
     def test_a_funestra_that_has_not_published_yet_is_not_waited_for(self, tmp_path):
         with patch("fun_time.satellite_control.read_key_values",
