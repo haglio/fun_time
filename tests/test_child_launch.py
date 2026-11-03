@@ -143,6 +143,27 @@ class TestOpenChildLog:
         assert (tmp_path / "portrait_satellite.log.1").read_text(encoding="utf-8") == "x" * 200
         assert "x" * 200 not in log_file.read_text(encoding="utf-8")
 
+    def test_a_log_that_cannot_be_opened_hands_back_a_handle_that_discards_instead_of_raising(self, tmp_path: Path):
+        blocker = tmp_path / "state"
+        blocker.write_text("a file where the directory should be", encoding="utf-8")
+
+        with open_child_log(blocker / "portrait_satellite.log", ["pythonw.exe"]) as handle:
+            handle.write(b"lost")
+
+        assert blocker.read_text(encoding="utf-8") == "a file where the directory should be"
+
+    def test_a_log_that_cannot_be_rolled_aside_is_appended_to_all_the_same(self, tmp_path: Path):
+        log_file = tmp_path / "portrait_satellite.log"
+        log_file.write_text("x" * 200, encoding="utf-8")
+        (tmp_path / "portrait_satellite.log.1").mkdir()
+
+        with open_child_log(log_file, ["pythonw.exe"], max_bytes=100):
+            pass
+
+        written = log_file.read_text(encoding="utf-8")
+        assert written.startswith("x" * 200)
+        assert "launch: pythonw.exe" in written
+
     def test_creates_the_state_directory(self, tmp_path: Path):
         log_file = tmp_path / "state" / "portrait_satellite.log"
 
