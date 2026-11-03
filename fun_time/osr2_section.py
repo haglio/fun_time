@@ -55,16 +55,26 @@ def osr2_button(funestra: FunTimeFunestra, *, has_it: bool) -> Button:
                   width=BUTTON_WORD_W)
 
 
-def osr2_part(holder: FunTimeFunestra, *, main_mode: MainMode, osr2: Osr2State, control: str,
-              paused: bool, learned: bool, shape: str, broker: bool,
-              max_intensity: int) -> MainHudModel:
+@dataclass(frozen=True)
+class Osr2PartFacts:
+    main_mode: MainMode
+    osr2: Osr2State
+    control: str
+    paused: bool
+    learned: bool
+    shape: str
+    broker: bool
+    max_intensity: int
+
+
+def osr2_part(holder: FunTimeFunestra, facts: Osr2PartFacts) -> MainHudModel:
     return MainHudModel(
         funestra=holder.label,
-        main_mode=main_mode if holder is FunTimeFunestra.MAIN else MainMode.KINO,
-        osr2=osr2, osr2_control=control, paused=paused,
-        osr2_rows=(aim_row(learned=learned, shape=shape, control=control),),
-        osr2_controls=osr2_controls(broker_running=broker),
-        max_intensity=max_intensity,
+        main_mode=facts.main_mode if holder is FunTimeFunestra.MAIN else MainMode.KINO,
+        osr2=facts.osr2, osr2_control=facts.control, paused=facts.paused,
+        osr2_rows=(aim_row(learned=facts.learned, shape=facts.shape, control=facts.control),),
+        osr2_controls=osr2_controls(broker_running=facts.broker),
+        max_intensity=facts.max_intensity,
     )
 
 

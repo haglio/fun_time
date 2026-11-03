@@ -24,7 +24,7 @@ from fun_time.main_hud_buttons import (
     main_hud_rows,
     osr2_rows,
 )
-from fun_time.osr2_section import osr2_button, osr2_part
+from fun_time.osr2_section import Osr2PartFacts, osr2_button, osr2_part
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
 CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
@@ -64,9 +64,10 @@ _EVERY_FACE_SLOTS = (
 
 def _every_button() -> list[Button]:
     declared = [b for facts in _EVERY_FACE_SLOTS for row in _every_row(facts) for b in row]
-    part = osr2_part(FunTimeFunestra.MAIN, main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND,
-                     control=OSR2_DRIVING, paused=False, learned=False, shape="sine",
-                     broker=True, max_intensity=100)
+    part = osr2_part(FunTimeFunestra.MAIN, Osr2PartFacts(
+        main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND, control=OSR2_DRIVING, paused=False,
+        learned=False, shape="sine", broker=True, max_intensity=100,
+    ))
     return [*declared, *(b for row in part.osr2_rows for b in row), *part.osr2_controls]
 
 

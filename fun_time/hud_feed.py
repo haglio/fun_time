@@ -33,6 +33,7 @@ from .origenerator_switches import hosts, origenerator_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
+    Osr2PartFacts,
     forget_what_a_satellite_was_told_of_the_osr2,
     funestra_with_the_osr2,
     osr2_part,
@@ -177,9 +178,11 @@ class HudFeed:
             has_osr2=with_the_osr2 is FunTimeFunestra.MAIN,
         ))))
         self.publisher.publish_text(DASHBOARD_OSR2_PART, main_hud_text(osr2_part(
-            with_the_osr2, main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
-            paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
-            broker=broker_running, max_intensity=state.max_intensity)))
+            with_the_osr2, Osr2PartFacts(
+                main_mode=state.main_mode, osr2=osr2, control=state.osr2_control,
+                paused=state.omni_paused, learned=genau.learned_active, shape=genau.shape,
+                broker=broker_running, max_intensity=state.max_intensity,
+            ))))
 
     def _holders_osr2(self, holder: FunTimeFunestra, main_mode: MainMode,
                       main_funestra: MainFunestraStatus, osr2_mode: Osr2Mode,
