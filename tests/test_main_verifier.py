@@ -288,14 +288,9 @@ def test_a_run_checks_main_out_where_the_runner_keeps_it_and_names_the_tests_tha
 
 
 def test_the_tests_a_run_failed_are_read_off_its_summary_lines():
-    output = "\n".join([
-        "tests\\integration\\test_crown_integration.py ..F.                [ 10%]",
-        "=========================== short test summary info ===========================",
-        "FAILED tests\\integration\\test_crown_integration.py::test_one_crown - AssertionError: Timed out",
-        "ERROR tests/integration/test_quit_integration.py::test_quit[fast] - OSError: [WinError 32]",
-        "FAILED tests\\integration\\test_crown_integration.py::test_one_crown - AssertionError: again",
-        "========== 1 failed, 110 passed, 1 error in 640.10s (0:10:40) ==========",
-    ])
+    output = (
+        "tests\\integration\\test_crown_integration.py ..F.                [ 10%]\n=========================== short test summary info ===========================\nFAILED tests\\integration\\test_crown_integration.py::test_one_crown - AssertionError: Timed out\nERROR tests/integration/test_quit_integration.py::test_quit[fast] - OSError: [WinError 32]\nFAILED tests\\integration\\test_crown_integration.py::test_one_crown - AssertionError: again\n========== 1 failed, 110 passed, 1 error in 640.10s (0:10:40) =========="
+    )
 
     assert main_verifier.failed_tests(output) == [
         "tests/integration/test_crown_integration.py::test_one_crown",
@@ -471,7 +466,7 @@ def test_a_check_that_could_not_reach_main_is_logged_and_tried_again_next_time(t
         def head(self):
             raise main_verifier.CommandFailed("git fetch origin main: could not resolve host")
 
-    naps, nap = stop_after_two_naps()
+    _naps, nap = stop_after_two_naps()
     with caplog.at_level("INFO"), pytest.raises(KeyboardInterrupt):
         main_verifier.keep_verifying(a_ledger(tmp_path), OfflineBench("c3", ["c3"]), nap=nap)
 
@@ -657,7 +652,7 @@ SHIPPED_AGAIN = {"kind": "unreliable check", "commit": "d4", "tests": ["tests/in
                  "pull_request": 41, "shipped_again_by": 79}
 
 
-@pytest.mark.parametrize("earlier, pull_requests, tests", [
+@pytest.mark.parametrize(("earlier", "pull_requests", "tests"), [
     ([TAKEN_BACK, SHIPPED_AGAIN], {"c3": 41, "d4": 77}, ("tests/integration/test_x.py::test_y",)),
     ([TAKEN_BACK], {"c3": 41, "d4": 50}, ("tests/integration/test_x.py::test_y",)),
     ([TAKEN_BACK], {"c3": 41, "d4": 77},
@@ -1076,7 +1071,7 @@ def test_a_fix_session_that_stopped_on_an_error_from_the_claude_service_is_start
     assert steps.messages == []
 
 
-@pytest.mark.parametrize("waiting_for, needs", [(None, "answer"), ("input needed", "answer"),
+@pytest.mark.parametrize(("waiting_for", "needs"), [(None, "answer"), ("input needed", "answer"),
                                                 ("permission prompt", "permission")])
 def test_a_fix_session_blocked_on_anything_but_an_error_is_waiting_for_him(waiting_for, needs):
     session = a_fix_session("blocked", **({"waitingFor": waiting_for} if waiting_for else {}))
@@ -1134,7 +1129,7 @@ def write_transcript(transcripts, session, *records):
     kept.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
 
 
-@pytest.mark.parametrize("records, died", [
+@pytest.mark.parametrize(("records", "died"), [
     ((), False),
     ((ASKED, FAILED_BY_THE_SERVICE, TURN_ENDED), True),
     ((ASKED, FAILED_BY_THE_SERVICE, ASKED, ANSWERED, TURN_ENDED), False),

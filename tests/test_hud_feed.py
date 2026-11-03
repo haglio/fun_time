@@ -27,31 +27,31 @@ from fun_time.shared_state import BridgeState, SatelliteState
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
-    settings = dict(
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        portrait_paused_file=tmp_path / "portrait_paused.txt",
-        portrait_status_file=tmp_path / "portrait_status.txt",
-        portrait_playlist_file=tmp_path / "portrait_playlist.tsv",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
-        landscape_paused_file=tmp_path / "landscape_paused.txt",
-        landscape_status_file=tmp_path / "landscape_status.txt",
-        landscape_playlist_file=tmp_path / "landscape_playlist.tsv",
-        trash_dir=tmp_path / "trash",
-        state_dir=tmp_path,
-        main_sources="",
-        portrait_sources="",
-        landscape_sources="",
-        broker_mode_file=tmp_path / "rh_mode.txt",
-        genau_cmd_file=tmp_path / "rh_cmd.txt",
-        genau_paused_file=tmp_path / "rh_paused.txt",
-        genau_status_file=tmp_path / "genau_status.txt",
-        audio_paused_file=tmp_path / "audio_paused.txt",
-        audio_volume_file=tmp_path / "audio_volume.txt",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
-        main_funestra_status_file=tmp_path / "main_player_status.txt",
-        dashboard_state_file=tmp_path / "dashboard_state.ini",
-    )
+    settings = {
+        "portrait_cmd_file": tmp_path / "portrait_cmd.txt",
+        "portrait_paused_file": tmp_path / "portrait_paused.txt",
+        "portrait_status_file": tmp_path / "portrait_status.txt",
+        "portrait_playlist_file": tmp_path / "portrait_playlist.tsv",
+        "landscape_cmd_file": tmp_path / "landscape_cmd.txt",
+        "landscape_paused_file": tmp_path / "landscape_paused.txt",
+        "landscape_status_file": tmp_path / "landscape_status.txt",
+        "landscape_playlist_file": tmp_path / "landscape_playlist.tsv",
+        "trash_dir": tmp_path / "trash",
+        "state_dir": tmp_path,
+        "main_sources": "",
+        "portrait_sources": "",
+        "landscape_sources": "",
+        "broker_mode_file": tmp_path / "rh_mode.txt",
+        "genau_cmd_file": tmp_path / "rh_cmd.txt",
+        "genau_paused_file": tmp_path / "rh_paused.txt",
+        "genau_status_file": tmp_path / "genau_status.txt",
+        "audio_paused_file": tmp_path / "audio_paused.txt",
+        "audio_volume_file": tmp_path / "audio_volume.txt",
+        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
+        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
+        "main_funestra_status_file": tmp_path / "main_player_status.txt",
+        "dashboard_state_file": tmp_path / "dashboard_state.ini",
+    }
     settings.update(overrides)
     return BridgeConfig(**settings)
 

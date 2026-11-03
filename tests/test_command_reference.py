@@ -398,7 +398,7 @@ def test_the_reference_names_genaus_flicks_in_the_overlays_word():
 
     assert [row.description for row in genau.rows[:2]] == [
         f"Previous Genau {flick.one}", f"Next Genau {flick.one}"]
-    assert seconds.voice == (f"{flick.one} seconds 1–60",)
+    assert seconds.voice == (f"{flick.one} seconds 1\u201360",)
     assert [row.description for row in genau.rows if re.search(r"\bclips?\b", row.description)] == []
     assert [row.description for row in _all_rows()
             if re.search(r"Genau(?:'s)? clips?\b", row.description)] == []
@@ -487,7 +487,7 @@ def test_previous_shape_is_a_separate_keyless_line():
 def test_min_max_value_live_on_their_own_consecutive_set_lines():
     rows = _all_rows()
     amp_updown = next(r for r in rows if "robot_hand_amplitude_up" in r.commands)
-    assert not any(("min" in v or "max" in v or "0–100" in v) for v in amp_updown.voice)
+    assert not any(("min" in v or "max" in v or "0\u2013100" in v) for v in amp_updown.voice)
 
     genau_rows = {s.title: s for s in build_reference_sections()}["Robot Hand"].rows
     descs = [r.description for r in genau_rows]

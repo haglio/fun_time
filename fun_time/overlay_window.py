@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import time
 import tkinter as tk
 from collections.abc import Callable
@@ -125,19 +126,15 @@ class OverlayWindow:
             self._hwnd = find_window_by_title(self._title, exact=True)
         if self._hwnd:
             set_always_on_top(self._hwnd, True)
-        try:
+        with contextlib.suppress(tk.TclError):
             self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
-        except tk.TclError:
-            pass
 
     def _on_escape(self, _event: object = None) -> None:
         if not self._offering or self._status_held:
             return
         self._say_canceling()
-        try:
+        with contextlib.suppress(OSError):
             cancel_file_for(self._progress_file).write_text(f"{CANCEL_WORD}\n", encoding="utf-8")
-        except OSError:
-            pass
 
     def _say_canceling(self) -> None:
         self._status_held = True

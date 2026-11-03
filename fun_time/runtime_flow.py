@@ -9,8 +9,6 @@ from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
 from funestra.modes import SatellitesMode
 
-logger = logging.getLogger(__name__)
-
 from .bridge_records import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import keep_aside
@@ -28,6 +26,8 @@ from .modes import (
 )
 from .origenerator_switches import CLOSE_SLIDESHOW, KINO_MODE, OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
+
+logger = logging.getLogger(__name__)
 
 
 def write_flag_file(path: str | Path, value: bool) -> None:

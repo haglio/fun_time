@@ -46,7 +46,7 @@ class TestLoadConfig:
         monkeypatch.setattr(config, "DEFAULT_CONFIG_PATH", target)
         monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
 
-        with pytest.raises(FileNotFoundError, match="fun_time_config.example.json"):
+        with pytest.raises(FileNotFoundError, match=r"fun_time_config\.example\.json"):
             load_config()
         assert not target.exists()
 
@@ -58,7 +58,7 @@ class TestLoadConfig:
         monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
 
         missing = tmp_path / "somewhere-else.json"
-        with pytest.raises(FileNotFoundError, match="somewhere-else.json"):
+        with pytest.raises(FileNotFoundError, match=r"somewhere-else\.json"):
             load_config(missing)
         assert not missing.exists()
         assert not default.exists()

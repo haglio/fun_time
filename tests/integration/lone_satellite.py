@@ -72,15 +72,18 @@ class LoneSatellite:
         return wait_for(predicate, desc=desc, explain=self.what_it_last_said)
 
     def wait_until_playing(self) -> SatelliteStatus:
-        return self.wait_for(
-            lambda: (lambda status: status if status.duration_ms > 0 and status.position_ms > 0
-                     else None)(read_satellite_status(self.status)),
-            desc="the satellite to start playing")
+        def status_once_playing() -> SatelliteStatus | None:
+            status = read_satellite_status(self.status)
+            return status if status.duration_ms > 0 and status.position_ms > 0 else None
+
+        return self.wait_for(status_once_playing, desc="the satellite to start playing")
 
     def wait_for_video(self, *, other_than: str = "") -> str:
-        return self.wait_for(
-            lambda: (lambda video: video if video and video != other_than else None)(self.video()),
-            desc="the satellite's clip to change")
+        def video_once_changed() -> str | None:
+            video = self.video()
+            return video if video and video != other_than else None
+
+        return self.wait_for(video_once_changed, desc="the satellite's clip to change")
 
     def what_it_last_said(self) -> str:
         if self.status.exists():

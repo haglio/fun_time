@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
@@ -94,10 +95,8 @@ class LibraryHost:
         self._output = Path(state_dir) / OUTPUT_FILENAME
         frames = Path(state_dir) / FRAME_FILENAME
         for left_over in (self._input, self._output, frames):
-            try:
+            with contextlib.suppress(OSError):
                 left_over.unlink(missing_ok=True)
-            except OSError:
-                pass
         self._frames = FrameReader(frames)
         self._process = launch(
             [NAMER.named_exe(python_exe, "LibraryBrowser"), "-m", HOST_MODULE, str(manifest_path),

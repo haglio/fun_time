@@ -132,7 +132,7 @@ class TestClipNav:
         assert nav.clip_of(clip) is None
 
     def test_clip_of_none_for_unrelated(self, tmp_path):
-        nav, clips, full = self._nav(tmp_path)
+        _nav, clips, full = self._nav(tmp_path)
         lib = tmp_path / "videos" / "videos"
         stranger = _sidecar(lib, tmp_path / "videos" / "metadata", "other/Some Random Movie.mp4", {})
         nav2 = ClipNav.build([*clips, full, stranger], tmp_path / "videos" / "metadata")

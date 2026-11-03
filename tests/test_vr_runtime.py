@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import builtins
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from fun_time_vr import vr_runtime
 from fun_time_vr.vr_runtime import (
+    _EXPLANATIONS,
     _QUIT_SERVICES,
     Probe,
     Readiness,
@@ -216,12 +221,6 @@ def test_every_readiness_is_either_explained_or_deliberately_not():
 
     assert unexplained == {Readiness.READY, Readiness.FAILED}
 
-import builtins
-from contextlib import contextmanager
-
-import pytest
-
-from fun_time_vr.vr_runtime import _EXPLANATIONS
 
 
 @contextmanager

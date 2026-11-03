@@ -1283,12 +1283,12 @@ def _frame(painted):
 
 
 def _room(*, main=True, portrait=True, landscape=True, main_hud_unit=True, main_hud_in_the_room=True):
-    return dict(
-        main_unit=SimpleNamespace(screen_name="main", texture_on_the_screen=_frame(main)),
-        satellites=[SimpleNamespace(screen_name="portrait", target=_frame(portrait)),
+    return {
+        "main_unit": SimpleNamespace(screen_name="main", texture_on_the_screen=_frame(main)),
+        "satellites": [SimpleNamespace(screen_name="portrait", target=_frame(portrait)),
                     SimpleNamespace(screen_name="landscape", target=_frame(landscape))],
-        main_hud_unit=SimpleNamespace(texture=_frame(main_hud_unit), in_the_room=main_hud_in_the_room),
-    )
+        "main_hud_unit": SimpleNamespace(texture=_frame(main_hud_unit), in_the_room=main_hud_in_the_room),
+    }
 
 
 class TestWhenTheRoomIsUp:

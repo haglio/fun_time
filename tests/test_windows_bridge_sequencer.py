@@ -148,8 +148,8 @@ def _seed_paused_flags(manifest_path) -> dict[str, Path]:
 
 def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
     with _sequencer_stubs(
-            start_core_session=dict(side_effect=_fake_core_in(mode)),
-            wait_for_window_by_title=dict(return_value=88888)):
+            start_core_session={"side_effect": _fake_core_in(mode)},
+            wait_for_window_by_title={"return_value": 88888}):
         run_startup_sequence(
             manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False,
         )
@@ -164,14 +164,14 @@ _STUB_MODULES = {"launch_origenerator": "fun_time.hosted_origenerator",
 @contextlib.contextmanager
 def _sequencer_stubs(**overrides):
     spec: dict[str, dict] = {
-        "start_core_session": dict(side_effect=_fake_core),
-        "launch_main_funestra": dict(side_effect=_fake_main_funestra),
-        "launch_ui_companions": dict(side_effect=_fake_ui),
-        "screen_layout": dict(side_effect=fake_screen_layout),
-        "wait_for_window_by_title": dict(return_value=99999),
+        "start_core_session": {"side_effect": _fake_core},
+        "launch_main_funestra": {"side_effect": _fake_main_funestra},
+        "launch_ui_companions": {"side_effect": _fake_ui},
+        "screen_layout": {"side_effect": fake_screen_layout},
+        "wait_for_window_by_title": {"return_value": 99999},
         "move_window": {},
         "set_always_on_top": {},
-        "is_process_alive": dict(return_value=True),
+        "is_process_alive": {"return_value": True},
     }
     spec.update(overrides)
     with contextlib.ExitStack() as stack:
@@ -243,8 +243,8 @@ class TestRunStartupSequence:
             ui_called.update(kwargs)
             _write_result(kwargs["result_file"], UI_PIDS)
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core),
-                              launch_ui_companions=dict(side_effect=capture_ui), **stubs):
+        with _sequencer_stubs(start_core_session={"side_effect": capture_core},
+                              launch_ui_companions={"side_effect": capture_ui}, **stubs):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
         return cfg, result, core_called, ui_called
 
@@ -304,7 +304,7 @@ class TestRunStartupSequence:
             self, cfg_factory, tmp_path):
         _cfg, _result, _core, ui_called = self._captured_launch(
             cfg_factory, tmp_path, paths={"origenerator_dir": str(tmp_path / "origenerator")},
-            launch_origenerator=dict(side_effect=_fake_origenerator))
+            launch_origenerator={"side_effect": _fake_origenerator})
 
         assert ui_called["dashboard_height"] == dashboard_window_height(rfb_mode_selector=True)
         assert ui_called["rfb_y"] == ui_called["dashboard_y"] + ui_called["dashboard_height"]
@@ -318,7 +318,7 @@ class TestRunStartupSequence:
             main_funestra_kwargs.update(kwargs)
             return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}, wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert main_funestra_kwargs == {
@@ -362,7 +362,7 @@ class TestRunStartupSequence:
             main_funestra_kwargs.update(kwargs)
             return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra)):
+        with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert main_funestra_kwargs["python_exe"] == str(cfg.paths.python_exe)
@@ -379,7 +379,7 @@ class TestRunStartupSequence:
             main_funestra_kwargs.update(kwargs)
             return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra)):
+        with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert main_funestra_kwargs["config_path"] == str(cfg.config_path)
@@ -394,7 +394,7 @@ class TestRunStartupSequence:
             main_funestra_kwargs.update(kwargs)
             return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}, wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert main_funestra_kwargs["sibling_checkouts"] == str(checkout)
@@ -409,7 +409,7 @@ class TestRunStartupSequence:
         assert stubs.start_core_session.call_args.kwargs["sibling_checkouts"] == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
             "Main Funestra": 2525,
@@ -419,7 +419,7 @@ class TestRunStartupSequence:
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), move_window=dict(side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
+        with _sequencer_stubs(wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 0)}, move_window={"side_effect": lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))}, set_always_on_top={"side_effect": lambda h, v, **_kw: topmost_calls.append((h, v))}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         moved_hwnds = {c[0] for c in move_calls}
@@ -429,7 +429,7 @@ class TestRunStartupSequence:
         assert promoted == {3030, 4040, 2525}
 
     def test_non_hidden_path_unpauses_main_funestra(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
@@ -437,7 +437,7 @@ class TestRunStartupSequence:
         main_funestra_paused.parent.mkdir(parents=True, exist_ok=True)
         main_funestra_paused.write_text("1", encoding="utf-8")
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
         assert main_funestra_paused.read_text(encoding="utf-8").strip() == "0"
@@ -449,7 +449,7 @@ class TestRunStartupSequence:
             "flick=C:\\flicks\\alpha.mp4\n", encoding="utf-8",
         )
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             launch = stubs.launch_main_funestra
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
@@ -457,20 +457,20 @@ class TestRunStartupSequence:
         assert launch.call_args.kwargs["genau_start_flick"] == "C:\\flicks\\alpha.mp4"
 
     def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         write_shared_state(shared_state_path(tmp_path), BridgeState(genau_latest=True))
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert stubs.launch_main_funestra.call_args.kwargs["genau_latest"] is True
 
     def test_genau_is_launched_in_the_f_mode_it_was_left_in_over_the_apps_favorites(
             self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         write_shared_state(shared_state_path(tmp_path), BridgeState(genau_favorites_filter=True))
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         given = stubs.launch_main_funestra.call_args.kwargs
@@ -483,7 +483,7 @@ class TestRunStartupSequence:
         cfg = load_config(cfg_factory({"regen": {"metadata_root": str(records)}}))
         manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert Path(stubs.launch_main_funestra.call_args.kwargs["metadata_dir"]) == records
@@ -493,20 +493,20 @@ class TestRunStartupSequence:
         cfg = load_config(cfg_factory({"osr2_slot_port": 50599}))
         manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert stubs.launch_main_funestra.call_args.kwargs["osr2_port"] == "50599"
 
     def test_a_genau_session_opens_with_the_main_funestra_up_and_in_the_band(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
             "Main Funestra": 2525,
             "Portrait AI Funestra": 3030, "Landscape AI Funestra": 4040,
         }
         topmost_calls: list[tuple] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.GENAU)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
+        with _sequencer_stubs(start_core_session={"side_effect": _fake_core_in(MainMode.GENAU)}, wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 0)}, set_always_on_top={"side_effect": lambda h, v, **_kw: topmost_calls.append((h, v))}):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
@@ -553,14 +553,14 @@ class TestRunStartupSequence:
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_kino_session_opens_with_every_funestra_in_the_band(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
             "Main Funestra": 2525,
             "Portrait AI Funestra": 3030, "Landscape AI Funestra": 4040,
         }
         topmost_calls: list[tuple] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.KINO)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
+        with _sequencer_stubs(start_core_session={"side_effect": _fake_core_in(MainMode.KINO)}, wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 0)}, set_always_on_top={"side_effect": lambda h, v, **_kw: topmost_calls.append((h, v))}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
@@ -611,12 +611,12 @@ class TestTheOrderInsideTheStartupPhases:
                 return then(*args, **kwargs) if then is not None else 0
             return recorder
 
-        stubs = dict(
-            screen_layout=dict(side_effect=note("layout", fake_screen_layout)),
-            start_core_session=dict(side_effect=note("core", _fake_core)),
-            launch_main_funestra=dict(side_effect=note("main_funestra", _fake_main_funestra)),
-            launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
-        )
+        stubs = {
+            "screen_layout": {"side_effect": note("layout", fake_screen_layout)},
+            "start_core_session": {"side_effect": note("core", _fake_core)},
+            "launch_main_funestra": {"side_effect": note("main_funestra", _fake_main_funestra)},
+            "launch_ui_companions": {"side_effect": note("companions", _fake_ui)},
+        }
         stubs.update(extra_stubs or {})
         with _sequencer_stubs(**stubs), \
              patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser",
@@ -658,15 +658,17 @@ class TestTheOrderInsideTheStartupPhases:
 
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         ui = MagicMock()
 
-        with _sequencer_stubs(launch_ui_companions=dict(ui)):
-            with pytest.raises(StartupCancelled) as excinfo:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path,
-                    progress=_CancelOnAdvance(cancel_on=2), hide_windows=True,
-                )
+        with (
+            _sequencer_stubs(launch_ui_companions=dict(ui)),
+            pytest.raises(StartupCancelled) as excinfo,
+        ):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path,
+                progress=_CancelOnAdvance(cancel_on=2), hide_windows=True,
+            )
 
         exc = excinfo.value
         assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID}
@@ -674,14 +676,16 @@ class TestRunStartupSequenceCancellation:
         ui.assert_not_called()
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        with _sequencer_stubs(_maybe_launch_random_favs_browser=dict(return_value=7777), wait_for_window_by_title=dict(return_value=88888)):
-            with pytest.raises(StartupCancelled) as excinfo:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path,
-                    progress=_CancelOnAdvance(cancel_on=5), hide_windows=True,
-                )
+        with (
+            _sequencer_stubs(_maybe_launch_random_favs_browser={"return_value": 7777}, wait_for_window_by_title={"return_value": 88888}),
+            pytest.raises(StartupCancelled) as excinfo,
+        ):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path,
+                progress=_CancelOnAdvance(cancel_on=5), hide_windows=True,
+            )
 
         exc = excinfo.value
         assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, 50, 70}
@@ -690,7 +694,7 @@ class TestRunStartupSequenceCancellation:
 
 class TestAFunestraThatDiesWhileTheRoomComesUp:
     def test_the_startup_ends_naming_the_funestra_and_what_it_said(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         def a_main_funestra_that_cannot_load_its_engine(**kwargs):
             with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
@@ -698,29 +702,33 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
                           "C:\\funestra\\vendor (no libmpv-2.dll in it)\n")
             return MAIN_FUNESTRA_PID
 
-        with _sequencer_stubs(
-                launch_main_funestra=dict(side_effect=a_main_funestra_that_cannot_load_its_engine),
-                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_FUNESTRA_PID)):
-            with pytest.raises(FunestraDied) as died:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+        with (
+            _sequencer_stubs(
+                launch_main_funestra={"side_effect": a_main_funestra_that_cannot_load_its_engine},
+                is_process_alive={"side_effect": lambda pid: pid != MAIN_FUNESTRA_PID}),
+            pytest.raises(FunestraDied) as died,
+        ):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
         assert died.value.funestra.name == "the Main Funestra"
         assert "no libmpv-2.dll in it" in died.value.said
 
     def test_what_was_launched_comes_back_with_it_to_be_torn_down(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        with _sequencer_stubs(
-                is_process_alive=dict(side_effect=lambda pid: pid != MAIN_FUNESTRA_PID)):
-            with pytest.raises(FunestraDied) as died:
-                run_startup_sequence(
-                    manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+        with (
+            _sequencer_stubs(
+                is_process_alive={"side_effect": lambda pid: pid != MAIN_FUNESTRA_PID}),
+            pytest.raises(FunestraDied) as died,
+        ):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
 
         assert set(died.value.launched_pids) >= {30, 40, MAIN_FUNESTRA_PID}
 
     def test_an_app_whose_funestras_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs():
             result = run_startup_sequence(
@@ -731,7 +739,7 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
 
 class TestLoadingScreenStartup:
     def test_defers_positioning_under_the_overlay(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {"Portrait AI Funestra": 3030, "Landscape AI Funestra": 4040}
         move_calls: list[tuple] = []
@@ -741,7 +749,7 @@ class TestLoadingScreenStartup:
             move_calls.append((hwnd, x, y, w, h))
             move_activates.append(kw.get("activate", True))
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 88888)), move_window=dict(side_effect=track_move)):
+        with _sequencer_stubs(wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 88888)}, move_window={"side_effect": track_move}):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -755,7 +763,7 @@ class TestLoadingScreenStartup:
             f"move_window must not activate in loading screen mode: {move_activates}"
 
     def test_resolves_every_window_by_title_never_by_a_launcher_pid(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
             "Portrait AI Funestra": 3030,
@@ -764,7 +772,7 @@ class TestLoadingScreenStartup:
             "Fun Time": 5050,
         }
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0))):
+        with _sequencer_stubs(wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 0)}):
             result = run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -833,7 +841,7 @@ class TestPhase4Reveal:
             status.write_text("video=a.mp4\nposition_ms=250\n", encoding="utf-8")
         topmost_tracker = (lambda h, v, **_kw: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v, **_kw: None)
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(mode)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker)):
+        with _sequencer_stubs(start_core_session={"side_effect": _fake_core_in(mode)}, wait_for_window_by_title={"side_effect": lambda title, **kw: title_map.get(title, 0)}, set_always_on_top={"side_effect": topmost_tracker}):
             return run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -841,7 +849,7 @@ class TestPhase4Reveal:
             )
 
     def test_every_funestra_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         held = _pause_every_funestra(m)
 
@@ -851,7 +859,7 @@ class TestPhase4Reveal:
             assert flag.read_text(encoding="utf-8").strip() == "1", flag.name
 
     def test_the_release_starts_the_funestras_the_mode_shows(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         _pause_every_funestra(m)
 
@@ -862,7 +870,7 @@ class TestPhase4Reveal:
         assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
 
     def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         topmost_calls: list[tuple] = []
         self._run_hidden(
@@ -880,7 +888,7 @@ class TestMainFunestraGatesTheReveal:
             events.append(f"wait-for-main_player:{status_file}")
             return True
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_main_funestra_loaded=dict(side_effect=track_wait)):
+        with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}, _wait_for_main_funestra_loaded={"side_effect": track_wait}):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -915,7 +923,7 @@ class TestMainFunestraGatesTheReveal:
             seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
             return _fake_main_funestra(**kwargs)
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core), launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(start_core_session={"side_effect": capture_core}, launch_main_funestra={"side_effect": capture_main_funestra}, wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1087,9 +1095,8 @@ class TestWaitForMainFunestraLoaded:
             def advance(self, phase: str) -> None: pass
             def finish(self) -> None: pass
 
-        with sleeps_in(windows_bridge_sequencer) as slept:
-            with pytest.raises(StartupCancelled):
-                _wait_for_main_funestra_loaded(tmp_path / "never.txt", Cancelled())
+        with sleeps_in(windows_bridge_sequencer) as slept, pytest.raises(StartupCancelled):
+            _wait_for_main_funestra_loaded(tmp_path / "never.txt", Cancelled())
 
         slept.assert_not_called()
 
@@ -1109,7 +1116,7 @@ class TestOrigeneratorLaunch:
             captured.update(kwargs)
             return 91
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": capture}):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_pid == 91
@@ -1136,7 +1143,7 @@ class TestOrigeneratorLaunch:
             captured.update(kwargs, stale_at_launch=stale.exists())
             return 91
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": capture}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         for funestra in FunTimeFunestra.SATELLITES:
@@ -1161,15 +1168,15 @@ class TestOrigeneratorLaunch:
             captured.update(kwargs)
             return 91
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": capture}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert Path(captured["python_exe"]) == (
             tmp_path / "origenerator" / ".venv" / "Scripts" / "python.exe")
 
     def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        with _sequencer_stubs(launch_origenerator={}) as stubs:
             launch = stubs.launch_origenerator
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -1207,10 +1214,10 @@ class TestOrigeneratorLaunch:
     def test_an_origenerator_still_starting_is_taken_over_rather_than_launched(
         self, cfg_factory, tmp_path
     ):
-        cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
+        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, starting=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
+        with _sequencer_stubs(launch_origenerator={}) as stubs, \
                 self._answering() as handed:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -1223,10 +1230,10 @@ class TestOrigeneratorLaunch:
     ):
         worktree = a_worktree_of(tmp_path / "origenerator",
                                  tmp_path / "origenerator" / ".claude" / "worktrees" / "some-branch")
-        cfg, manifest_path, everyday, open_app = self._checkout_with_an_open_app(
+        _cfg, manifest_path, _everyday, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, hosting=worktree)
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
+        with _sequencer_stubs(launch_origenerator={}) as stubs, \
                 self._answering() as handed:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -1240,7 +1247,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, starting=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
+        with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert not result.origenerator_already_open
@@ -1249,10 +1256,10 @@ class TestOrigeneratorLaunch:
     def test_a_startup_canceled_after_taking_over_an_app_still_starting_leaves_it_off_the_kill_list(
         self, cfg_factory, tmp_path
     ):
-        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, starting=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering(), \
+        with _sequencer_stubs(launch_origenerator={}), self._answering(), \
              pytest.raises(StartupCancelled) as excinfo:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
                                  progress=_CancelOnAdvance(cancel_on=2))
@@ -1263,10 +1270,10 @@ class TestOrigeneratorLaunch:
     def test_an_origenerator_already_open_is_taken_over_rather_than_launched(
         self, cfg_factory, tmp_path
     ):
-        cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
+        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs,                 self._answering() as handed:
+        with _sequencer_stubs(launch_origenerator={}) as stubs,                 self._answering() as handed:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         stubs.launch_origenerator.assert_not_called()
@@ -1283,12 +1290,12 @@ class TestOrigeneratorLaunch:
     def test_an_app_that_never_answers_the_takeover_is_replaced_by_one_we_launch(
         self, cfg_factory, tmp_path
     ):
-        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+        cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
         stale_status = Path(cfg.origenerator_status_file)
         stale_status.write_text("portrait_active=1\n", encoding="utf-8")
 
-        with _sequencer_stubs(launch_origenerator=dict(return_value=91)) as stubs, \
+        with _sequencer_stubs(launch_origenerator={"return_value": 91}) as stubs, \
              patch("fun_time.hosted_origenerator.ANSWER_BUDGET_S", 0.05):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -1306,15 +1313,15 @@ class TestOrigeneratorLaunch:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator={}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert handoff.a_session_claims_the_osr2(checkout / "state")
 
     def test_a_session_with_no_checkout_claims_nothing(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator={}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert not list(tmp_path.glob(f"**/{handoff.SESSION}"))
@@ -1331,7 +1338,7 @@ class TestOrigeneratorLaunch:
         keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=open_app,
                               created_at=process_started(open_app), taken_over=True)
 
-        with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
+        with _sequencer_stubs(launch_origenerator={}) as stubs, \
              pytest.raises(StartupCancelled) as excinfo:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
                                  progress=_CancelOnAdvance(cancel_on=2))
@@ -1346,7 +1353,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
+        with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_taken_over
@@ -1354,10 +1361,10 @@ class TestOrigeneratorLaunch:
     def test_a_startup_canceled_after_a_takeover_leaves_that_app_off_the_kill_list(
         self, cfg_factory, tmp_path
     ):
-        cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering(), \
+        with _sequencer_stubs(launch_origenerator={}), self._answering(), \
              pytest.raises(StartupCancelled) as excinfo:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
                                  progress=_CancelOnAdvance(cancel_on=2))
@@ -1371,7 +1378,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
+        with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_already_open
@@ -1382,7 +1389,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, showing_on="landscape")
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
+        with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_slideshow_on == (FunTimeFunestra.LANDSCAPE,)
@@ -1393,7 +1400,7 @@ class TestOrigeneratorLaunch:
         _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
 
-        with _sequencer_stubs(launch_origenerator=dict()), self._answering():
+        with _sequencer_stubs(launch_origenerator={}), self._answering():
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_slideshow_on == ()
@@ -1410,7 +1417,7 @@ class TestOrigeneratorLaunch:
         keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=kept_app,
                               created_at=process_started(kept_app))
 
-        with _sequencer_stubs(launch_origenerator=dict()):
+        with _sequencer_stubs(launch_origenerator={}):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_pid == kept_app
@@ -1423,17 +1430,17 @@ class TestOrigeneratorLaunch:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": _fake_origenerator}):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_pid == ORIGENERATOR_PID
         assert not result.origenerator_already_open
 
     def test_an_offer_left_by_an_app_since_closed_launches_one(self, cfg_factory, tmp_path):
-        cfg, manifest_path, checkout, _open_app = self._checkout_with_an_open_app(
+        _cfg, manifest_path, checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, created_at=1)
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)) as stubs:
+        with _sequencer_stubs(launch_origenerator={"side_effect": _fake_origenerator}) as stubs:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         stubs.launch_origenerator.assert_called_once()
@@ -1460,7 +1467,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     ):
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path, left_in_origenerator=True)
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": _fake_origenerator}):
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1485,8 +1492,8 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
             return stub
 
         with _sequencer_stubs(
-            launch_origenerator=dict(side_effect=note("origenerator", _fake_origenerator)),
-            start_core_session=dict(side_effect=note("satellites", _fake_core)),
+            launch_origenerator={"side_effect": note("origenerator", _fake_origenerator)},
+            start_core_session={"side_effect": note("satellites", _fake_core)},
         ):
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
@@ -1499,7 +1506,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         _cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
         progress = _TrackingProgress()
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": _fake_origenerator}):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path,
                 progress=progress, hide_windows=True,
@@ -1514,7 +1521,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         (cfg.paths.state_dir / "origenerator_cmd.txt").write_text(
             "PORTRAIT_NEXT\n", encoding="utf-8")
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": _fake_origenerator}):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1534,7 +1541,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
             seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
             return _fake_origenerator(**kwargs)
 
-        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
+        with _sequencer_stubs(launch_origenerator={"side_effect": capture}):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )

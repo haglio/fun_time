@@ -185,9 +185,11 @@ class TestAWindowThatHasStoppedAnswering:
             assert time.monotonic() - started < 5
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
-        with self._stalled(monkeypatch):
-            with caplog.at_level(logging.WARNING, logger="fun_time.win32"):
-                set_always_on_top(4242, True)
+        with (
+            self._stalled(monkeypatch),
+            caplog.at_level(logging.WARNING, logger="fun_time.win32"),
+        ):
+            set_always_on_top(4242, True)
 
         assert "4242" in caplog.text
         assert "stopped answering" in caplog.text

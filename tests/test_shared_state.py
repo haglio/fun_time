@@ -285,7 +285,7 @@ class TestTheSideLens:
         assert BridgeState(landscape=SatelliteState(loop="seed")).satellite(
             FunTimeFunestra.LANDSCAPE) != SatelliteState()
 
-    @pytest.mark.parametrize("portrait, landscape, holds", [
+    @pytest.mark.parametrize(("portrait", "landscape", "holds"), [
         (SATELLITES_KINO_MODE, SATELLITES_KINO_MODE, False),
         (SATELLITES_ORIGENERATOR_MODE, SATELLITES_KINO_MODE, True),
         (SATELLITES_KINO_MODE, SATELLITES_ORIGENERATOR_MODE, True),

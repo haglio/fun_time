@@ -479,8 +479,8 @@ class Pointer:
             carried = (turn_deg(squeeze.bearing[0], bearing[0]), bearing[1] - squeeze.bearing[1])
             squeeze.bearing = bearing
         under = None if squeeze.carrying or point is None else _hover_at(point, screens)
-        seen = dict(ray=ray, point=point, hover=None if under is None else under[1],
-                    carried=carried)
+        seen = {"ray": ray, "point": point, "hover": None if under is None else under[1],
+                    "carried": carried}
         return self._let_go(**seen) if edge == RELEASE else Frame(**seen)
 
     def _dragging(self, ray: Ray, point: SurfacePoint | None, edge: str | None) -> Frame:
@@ -491,7 +491,7 @@ class Pointer:
             moved[screen.name] = grab.dragged_to(point)
             shown = widened(moved[screen.name], screen.widened_by)
         u, v = screen_uv(point, shown, screen.aspect) if point is not None else (0.5, 0.5)
-        seen = dict(ray=ray, point=point, hover=Hover(screen.name, grab.handle, u, v), moved=moved)
+        seen = {"ray": ray, "point": point, "hover": Hover(screen.name, grab.handle, u, v), "moved": moved}
         return self._let_go(**seen) if edge == RELEASE else Frame(**seen)
 
     def _pressing_on(self, ray: Ray, point: SurfacePoint | None, edge: str | None) -> Frame:

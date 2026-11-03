@@ -4,7 +4,6 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeVar
 
 from .config import ProjectConfig, RegenConfig
 from .content import WebProvider
@@ -12,8 +11,6 @@ from .media_metadata import favorites_in
 from .media_renditions import original_rendition
 from .regen import regen_url_for_video
 from .rfb_tab_page import TabTarget
-
-_T = TypeVar("_T")
 
 
 def resolve_profile_directory(user_data_dir: Path, profile_name: str) -> str:
@@ -62,7 +59,7 @@ def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProv
     )
 
 
-def choose_random(items: list[_T], count: int, rng: random.Random | None = None) -> list[_T]:
+def choose_random[T](items: list[T], count: int, rng: random.Random | None = None) -> list[T]:
     if not items or count <= 0:
         return []
     chooser = rng or random.SystemRandom()

@@ -190,7 +190,7 @@ LANDS_AS = {
 
 
 class TestTheCommandLineFunTimeLaunchesMainFunestraWith:
-    @pytest.mark.parametrize("name, expected", sorted(LANDS_AS.items()))
+    @pytest.mark.parametrize(("name", "expected"), sorted(LANDS_AS.items()))
     def test_each_flag_lands_on_the_namespace_as_itself(self, name, expected):
         args = build_parser({}).parse_args(FUN_TIME_ARGV)
 
@@ -355,7 +355,7 @@ class TestTheConfigsOwnDefaults:
         },
     }
 
-    @pytest.mark.parametrize("name, expected", [
+    @pytest.mark.parametrize(("name", "expected"), [
         ("videos_dir", Path("C:/example/library/videos")),
         ("metadata_dir", Path("C:/example/library/metadata")),
     ])

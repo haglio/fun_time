@@ -87,16 +87,16 @@ def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
 
 def the_session_it_is_handed(m: LaunchManifest, plan: WindowLayoutPlan, *,
                              in_a_headset: bool) -> dict:
-    return dict(
-        layout_plan=plan,
-        frames_file=m.commands.origenerator_frames_file if in_a_headset else None,
-        input_file=m.commands.origenerator_input_file if in_a_headset else None,
-        command_file=m.commands.origenerator_cmd_file,
-        paused_file=m.commands.origenerator_paused_file,
-        status_file=m.commands.origenerator_status_file,
-        dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        funestras=_the_funestras_it_is_handed(m),
-    )
+    return {
+        "layout_plan": plan,
+        "frames_file": m.commands.origenerator_frames_file if in_a_headset else None,
+        "input_file": m.commands.origenerator_input_file if in_a_headset else None,
+        "command_file": m.commands.origenerator_cmd_file,
+        "paused_file": m.commands.origenerator_paused_file,
+        "status_file": m.commands.origenerator_status_file,
+        "dashboard_cmd_file": m.commands.dashboard_cmd_file,
+        "funestras": _the_funestras_it_is_handed(m),
+    }
 
 
 def what_an_adopted_app_is_told(frames_file: str, input_file: str, *, in_a_headset: bool) -> str:

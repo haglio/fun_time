@@ -30,10 +30,12 @@ def test_a_log_the_case_opened_in_its_scratch_is_closed_before_the_scratch_goes(
 
 
 def test_a_file_the_case_left_open_is_named_instead_of_left_behind(tmp_path: Path):
-    with contextlib.ExitStack() as still_open:
-        with pytest.raises(PermissionError, match="held.log"):
-            with scratch_dir(tmp_path) as scratch:
-                still_open.enter_context((scratch / "held.log").open("w"))
+    with (
+        contextlib.ExitStack() as still_open,
+        pytest.raises(PermissionError, match=r"held\.log"),
+        scratch_dir(tmp_path) as scratch,
+    ):
+        still_open.enter_context((scratch / "held.log").open("w"))
 
 
 def test_a_file_linked_in_from_outside_keeps_its_read_only_bit(tmp_path: Path):
@@ -41,9 +43,11 @@ def test_a_file_linked_in_from_outside_keeps_its_read_only_bit(tmp_path: Path):
     outside.write_bytes(b"a video its library keeps read-only")
     outside.chmod(stat.S_IREAD)
     try:
-        with pytest.raises(PermissionError, match="linked.mp4"):
-            with scratch_dir(tmp_path) as scratch:
-                os.link(outside, scratch / "linked.mp4")
+        with (
+            pytest.raises(PermissionError, match=r"linked\.mp4"),
+            scratch_dir(tmp_path) as scratch,
+        ):
+            os.link(outside, scratch / "linked.mp4")
 
         assert not outside.stat().st_mode & stat.S_IWRITE
     finally:

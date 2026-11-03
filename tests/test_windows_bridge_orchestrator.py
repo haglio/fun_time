@@ -894,7 +894,7 @@ class TestRunPythonOrchestratedBridge:
             )
 
 
-        ahk_cmd = [c for c in popen_cmds if "ahk.exe" in str(c)][0]
+        ahk_cmd = next(c for c in popen_cmds if "ahk.exe" in str(c))
         assert ahk_cmd[0] == "C:\\ahk.exe"
         assert ahk_cmd[1] == "C:\\hotkeys.ahk"
         assert ahk_cmd[2] == str(manifest_path)

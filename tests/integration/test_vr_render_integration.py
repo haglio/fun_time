@@ -196,7 +196,7 @@ def test_a_fisheye_reads_the_frame_out_to_the_angle_it_is_given_and_past_its_cir
         _where_in_the_eye_a_fisheye_reads(fov_deg))
 
 
-@pytest.mark.parametrize("projection, reads", [
+@pytest.mark.parametrize(("projection", "reads"), [
     (EQUIRECT_180_SBS, _where_in_the_eye_an_equirect_reads(180.0)),
     (RECTILINEAR_SBS, _where_in_the_eye_a_rectilinear_reads(120.0)),
     (FISHEYE_180_SBS, _where_in_the_eye_a_fisheye_reads(180.0)),

@@ -146,10 +146,11 @@ def test_a_frame_put_up_over_an_image_moves_on_when_the_image_would_have():
     with satellite.launched(images, width=480, height=640):
         first = satellite.wait_for(lambda: _the_image_on_screen(satellite),
                                    desc="the satellite to show an image")
-        second = satellite.wait_for(
-            lambda: (lambda video: video if video not in ("", first) else None)(
-                read_satellite_status(satellite.status).video),
-            desc="the next image")
+        def the_next_image():
+            video = read_satellite_status(satellite.status).video
+            return video if video not in ("", first) else None
+
+        second = satellite.wait_for(the_next_image, desc="the next image")
         satellite.send(f"{SHOW_FRAME} {frames[0]}")
         time.sleep(1.0)
         satellite.send(f"{SHOW_FRAME} {frames[1]}")

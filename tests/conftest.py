@@ -8,38 +8,7 @@ import re
 import sys
 from pathlib import Path
 
-# Render Qt offscreen for the whole unit suite. Agents run these GUI tests on every
-# commit; without this, each test that shows a widget throws a real window onto the
-# screen for a few milliseconds, so a run flashes a burst of windows across the
-# monitors. Must be set before any QApplication is created (the _qapp fixture below).
-# setdefault lets a developer override it to watch a test on a real display, and lets
-# tests/integration/conftest.py restore the native platform — the integration tests
-# inspect real windows and need real HWNDs, which the offscreen platform cannot give.
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-# SDL the same way: the Main Funestra's window is pygame's, on the machine that
-# also runs the live Funestras.  tests/integration/conftest.py takes both off
-# again on the hidden desktop, where the real windows are the point.
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ["FUN_TIME_MUTE_AUDIO"] = "1"
-
-from tests.git_isolation import forget_the_enclosing_repository
-
-forget_the_enclosing_repository(os.environ)
-
 import pytest
-from hypothesis import settings
-
-settings.register_profile("on_a_machine_other_runs_share", deadline=None)
-settings.load_profile("on_a_machine_other_runs_share")
-
-from fun_time.project_paths import apply_sibling_checkouts_to_sys_path
-
-apply_sibling_checkouts_to_sys_path()
-
-from app_support import haglio_settings
-from shared_ui.application import application
-
-os.environ[haglio_settings.SETTINGS_ENV] = haglio_settings.THE_EXAMPLE
 
 from fun_time import (
     chrome_accessibility,
@@ -61,6 +30,7 @@ from fun_time_vr import vr_runtime, windows_sound
 from tests.logging_state import logging_given_back
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 from tests.process_state import the_guard_for
+from tests.qt_application import application
 from tests.scratch import scratch_dir
 from tests.thread_state import no_thread_outlives_this
 

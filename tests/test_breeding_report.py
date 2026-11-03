@@ -39,7 +39,7 @@ def _watched(meta: dict | None, completions: int, skips: int, locks: int, weight
 
 
 def test_build_breeding_rows_ranks_by_the_stamped_weight_with_metadata_identity(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "loved": _watched(_meta("Alpha", "111"), 6, 0, 1, 8.0),
         "wide_meh": _watched(_meta("Dancing", "222"), 1, 1, 0, 1.0),
         "hated_bare": _watched(None, 0, 9, 0, 0.125),
@@ -67,7 +67,7 @@ def test_build_breeding_rows_ranks_by_the_stamped_weight_with_metadata_identity(
 
 
 def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "loved": _watched(_meta("Alpha", "111", prompt="p" * 100), 6, 0, 1, 8.0),
         "meh": _watched(_meta("Dancing", "222"), 1, 1, 0, 1.0),
         "hated": _watched(_meta("Spinning", "333"), 0, 9, 0, 0.125),
@@ -115,7 +115,7 @@ def test_render_breeding_report_limits_rows_and_handles_empty():
 
 
 def test_main_prints_the_leaderboard_for_the_configured_library(cfg_factory, tmp_path, capsys):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    media_root, metadata_root, _paths = _library(tmp_path, {
         "loved": _watched(_meta("Alpha", "111"), 0, 0, 1, 2.0),
         "unwatched": _meta("Alpha", "222"),
     })

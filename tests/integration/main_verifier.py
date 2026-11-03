@@ -384,8 +384,8 @@ class MachineBench:
 
 
 def _what_failed(tests: list[str]) -> list[str]:
-    return ["Fun Time's main verifier started this session. It is a program on this machine, not him, so report "
-            "the way the laws ask of work another agent assigned you.",
+    return [("Fun Time's main verifier started this session. It is a program on this machine, not him, so report "
+            "the way the laws ask of work another agent assigned you."),
             "",
             "The verifier ran Fun Time's whole integration suite on main, and these tests failed:",
             *(f"- {test}" for test in tests)]
@@ -397,23 +397,23 @@ def fixing_a_take_back(taken: TakeBack, tests: list[str], log: Path) -> FixSessi
     branch = branch_of(checkout)
     return FixSession(checkout, f"Fix #{number}: {taken.title}", "\n".join([
         *_what_failed(tests),
-        f'It traced the failure to #{number} ("{taken.title}") and opened #{by}, which takes #{number} back out '
-        f"of main. The failing run's output is in {log}.",
+        (f'It traced the failure to #{number} ("{taken.title}") and opened #{by}, which takes #{number} back out '
+        f"of main. The failing run's output is in {log}."),
         "",
         f"Ship #{number}'s change again, without the failure:",
-        f"1. Wait for #{by} to ship (gh pr view {by} --repo {REPO} --json state). If it is closed without "
-        "shipping, stop and say so.",
-        f"2. Rebase this branch, {branch}, onto origin/main, then revert #{by}'s commit, which brings "
-        f"#{number}'s change back.",
-        f"3. Find why those tests fail with #{number}'s change in, and fix the cause. A test that turns out to "
-        "be wrong is fixed like any other code, never deleted or loosened to pass.",
-        "4. Run the unit suite, the integration tests this branch needs "
+        (f"1. Wait for #{by} to ship (gh pr view {by} --repo {REPO} --json state). If it is closed without "
+        "shipping, stop and say so."),
+        (f"2. Rebase this branch, {branch}, onto origin/main, then revert #{by}'s commit, which brings "
+        f"#{number}'s change back."),
+        (f"3. Find why those tests fail with #{number}'s change in, and fix the cause. A test that turns out to "
+        "be wrong is fixed like any other code, never deleted or loosened to pass."),
+        ("4. Run the unit suite, the integration tests this branch needs "
         "(python -m tests.integration.hidden_desktop --changed) and the tests above by name, until every one "
-        "passes.",
-        f"5. He accepted #{number}'s change before it shipped. If your fix changes nothing he would see "
+        "passes."),
+        (f"5. He accepted #{number}'s change before it shipped. If your fix changes nothing he would see "
         f"compared with #{number}, ship it the way this repo's CLAUDE.md says, without asking him. If it does "
         "change something he would see, do not ship it: open it as a draft pull request, say in your reply "
-        "what he would see differently, and stop.",
+        "what he would see differently, and stop."),
     ]))
 
 
@@ -425,15 +425,15 @@ def fixing_unreliable_checks(head: str, tests: list[str], log: Path, why: str) -
         f"{why} The failing run's output is in {log}, and each later run of these tests is beside it.",
         "",
         "Make them pass every time:",
-        f"1. Find why they fail only some of the time, and fix the cause on this branch, {branch_of(checkout)}. "
+        (f"1. Find why they fail only some of the time, and fix the cause on this branch, {branch_of(checkout)}. "
         "A test that turns out to be wrong is fixed like any other code, never deleted, skipped or loosened "
-        "to pass.",
-        "2. Run the unit suite, the integration tests this branch needs "
+        "to pass."),
+        ("2. Run the unit suite, the integration tests this branch needs "
         "(python -m tests.integration.hidden_desktop --changed) and the tests above by name, several times, "
-        "until every run passes.",
-        "3. If your fix changes nothing he would see, ship it the way this repo's CLAUDE.md says, without "
+        "until every run passes."),
+        ("3. If your fix changes nothing he would see, ship it the way this repo's CLAUDE.md says, without "
         "asking him. If it does change something he would see, do not ship it: open it as a draft pull "
-        "request, say in your reply what he would see differently, and stop.",
+        "request, say in your reply what he would see differently, and stop."),
     ]))
 
 
@@ -442,19 +442,19 @@ def fixing_an_outside_break(head: str, last_passed: str, tests: list[str], log: 
     files = sorted({PurePosixPath(test.split("::")[0]).stem for test in tests})
     return FixSession(checkout, f"Find what outside Fun Time broke {' and '.join(files)}", "\n".join([
         *_what_failed(tests),
-        f"They fail the same way on {last_passed}, the last commit of main that passed, so no change shipped "
+        (f"They fail the same way on {last_passed}, the last commit of main that passed, so no change shipped "
         "since then is what failed them: something outside Fun Time's own code changed under them, such as "
         "the Origenerator a session hosts, a library this computer has installed, the settings Fun Time or "
         f"Origenerator read, or the machine itself. The failing run's output is in {log}, and the run on "
-        f"{last_passed} is beside it. The verifier took nothing back for them.",
+        f"{last_passed} is beside it. The verifier took nothing back for them."),
         "",
         "Find what changed and put it right where it lives:",
-        "1. Read both failing runs, then compare what those tests reach outside Fun Time now with what it was "
-        f"when {last_passed} passed.",
-        "2. Where the cause is another repo's change, fix it in that repo, the way its CLAUDE.md says, and ship "
-        f"it. Where it is Fun Time's own code after all, fix it on this branch, {branch_of(checkout)}.",
-        "3. Where only he can put it right, such as a key his own settings file does not have yet, never change "
-        "his files yourself: say in your reply exactly what he must do, in plain words, and stop.",
+        ("1. Read both failing runs, then compare what those tests reach outside Fun Time now with what it was "
+        f"when {last_passed} passed."),
+        ("2. Where the cause is another repo's change, fix it in that repo, the way its CLAUDE.md says, and ship "
+        f"it. Where it is Fun Time's own code after all, fix it on this branch, {branch_of(checkout)}."),
+        ("3. Where only he can put it right, such as a key his own settings file does not have yet, never change "
+        "his files yourself: say in your reply exactly what he must do, in plain words, and stop."),
         "4. Main is tried again the next time a change ships, and the tests above have to pass there.",
     ]))
 

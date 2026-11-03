@@ -282,7 +282,7 @@ class TestAFrameKeepsItsArea:
         assert _area(shown_at(MAIN, slot, 9 / 16), 9 / 16) == pytest.approx(
             _area(shown_at(MAIN, slot, 16 / 9), 16 / 9))
 
-    @pytest.mark.parametrize("name, usual", [
+    @pytest.mark.parametrize(("name", "usual"), [
         (MAIN, 16 / 9), (LANDSCAPE, 16 / 9), (PORTRAIT, 9 / 16)])
     def test_a_frame_of_its_screens_usual_shape_is_as_wide_as_the_screen_was_left(
             self, name, usual):

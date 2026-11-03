@@ -480,7 +480,7 @@ class TestThePointerOverTheScene:
 
     def test_a_squeeze_on_the_bar_drags_the_screen_and_letting_go_leaves_it_there(self):
         pointer = Pointer()
-        du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
+        _du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
 
         held = self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 0.5, 1 + dv / 2),
                                            right_trigger=1.0))
@@ -515,7 +515,7 @@ class TestThePointerOverTheScene:
 
     def test_a_drag_let_go_of_moves_nothing_while_the_trigger_stays_down(self):
         pointer = Pointer()
-        du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
+        _du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
         self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 0.5, 1 + dv / 2), right_trigger=1.0))
 
         pointer.let_go()
@@ -526,7 +526,7 @@ class TestThePointerOverTheScene:
 
     def test_a_squeeze_takes_hold_of_the_screen_it_lands_on_once(self):
         pointer = Pointer()
-        du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
+        _du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
         bar = _aim_at_uv(_LANDSCAPE, 0.5, 1 + dv / 2)
 
         hovered = self._frame(pointer, _hands(right=bar))
@@ -676,7 +676,7 @@ class TestThePointerOverTheScene:
         assert (press.u, press.v) == pytest.approx((0.4, 0.6), abs=1e-6)
         assert release == PressEvent(RELEASE, "portrait")
 
-    @pytest.mark.parametrize("u, v", [(0.3, 0.02), (0.97, 0.02)], ids=["lower edge", "corner"])
+    @pytest.mark.parametrize(("u", "v"), [(0.3, 0.02), (0.97, 0.02)], ids=["lower edge", "corner"])
     def test_a_squeeze_along_a_frames_lower_edge_is_a_click_on_it_like_any_other(self, u, v):
         portrait = _PORTRAIT
         pointer = Pointer()
@@ -741,7 +741,7 @@ class TestThePointerOverTheScene:
 
     def test_the_hand_that_squeezes_takes_the_pointer_and_keeps_it(self):
         pointer = Pointer()
-        both = dict(right=_aim_at_uv(_LANDSCAPE, 0.5, 0.5), left=_aim_at_uv(_MAIN_HUD, 0.5, 0.5))
+        both = {"right": _aim_at_uv(_LANDSCAPE, 0.5, 0.5), "left": _aim_at_uv(_MAIN_HUD, 0.5, 0.5)}
 
         assert self._frame(pointer, _hands(**both)).hover.screen == "landscape"
         assert self._frame(pointer, _hands(**both, left_trigger=1.0)).hover.screen == "panel"
@@ -750,7 +750,7 @@ class TestThePointerOverTheScene:
 
     def test_a_hand_cannot_take_the_pointer_mid_press(self):
         pointer = Pointer()
-        both = dict(right=_aim_at_uv(_MAIN_HUD, 0.5, 0.5), left=_aim_at_uv(_LANDSCAPE, 0.5, 0.5))
+        both = {"right": _aim_at_uv(_MAIN_HUD, 0.5, 0.5), "left": _aim_at_uv(_LANDSCAPE, 0.5, 0.5)}
 
         pressed = self._frame(pointer, _hands(**both, right_trigger=1.0))
         stolen = self._frame(pointer, _hands(**both, right_trigger=1.0, left_trigger=1.0))
@@ -803,7 +803,7 @@ class TestThePointerOverTheScene:
 
     def test_a_grab_holds_through_the_ray_leaving_the_cylinder_and_the_hand_losing_tracking(self):
         pointer = Pointer()
-        du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
+        _du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
         bar = _aim_at_uv(_LANDSCAPE, 0.5, 1 + dv / 2)
         ceiling = ((0.0, 0.0, 0.0), scene_placement_quaternion(0.0, 90.0))
 

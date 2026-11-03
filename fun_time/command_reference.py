@@ -189,9 +189,9 @@ _SECTIONS: tuple[_Section, ...] = (
         "Robot Hand",
         (
             _Row("Amplitude up / down", ("9", "7"), ("robot_hand_amplitude_up", "robot_hand_amplitude_down")),
-            _Row("Set amplitude", (), (), ("min amp", "max amp", "amp 0–100")),
+            _Row("Set amplitude", (), (), ("min amp", "max amp", "amp 0\u2013100")),
             _Row("Center up / down", ("O", "U"), ("robot_hand_center_up", "robot_hand_center_down")),
-            _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
+            _Row("Set center", (), (), ("min center", "max center", "center 0\u2013100")),
             _Row(
                 "Speed up / down — the motion's rate, or the video's playback "
                 "rate while a funscript is driving the OSR2 (the script scales "
@@ -199,7 +199,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("L", "J"),
                 ("speed_up", "speed_down"),
             ),
-            _Row("Set speed", (), (), ("speed 0–100",)),
+            _Row("Set speed", (), (), ("speed 0\u2013100",)),
             _Row("Previous waveform shape", (), ("robot_hand_cycle_shape_prev",)),
             _Row("Next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
             _Row(
@@ -252,7 +252,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "while it is unlocked (the , key holds it)",
                 (),
                 ("genau_flick_seconds_down", "genau_flick_seconds_up"),
-                (f"{_FLICK.one} seconds 1–60",),
+                (f"{_FLICK.one} seconds 1\u201360",),
             ),
         ),
     ),
@@ -312,7 +312,7 @@ _SECTIONS: tuple[_Section, ...] = (
                                "main playback speed down"),
             ),
             _Row(
-                "Set video speed (0.25×–2×; the funscript follows, and so do both "
+                "Set video speed (0.25\u00d7\u20132\u00d7; the funscript follows, and so do both "
                 "satellites)",
                 (),
                 (
@@ -438,7 +438,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Lock / unlock",
                 ("Down",),
-                ("portrait_lock", "landscape_lock") + _sided("lock_on", "lock_off"),
+                ("portrait_lock", "landscape_lock", *_sided("lock_on", "lock_off")),
                 hotkeys_alt=("S",),
             ),
             _Row("Cycle action — same subject(s) & scene, another act", (), _sided("cycle_action")),
@@ -520,7 +520,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _sided("speed_up", "speed_down"),
             ),
             _Row(
-                "Set playback speed — 0.25× to 2×",
+                "Set playback speed — 0.25\u00d7 to 2\u00d7",
                 (),
                 _sided("speed_min", "speed_max", "speed_25", "speed_50", "speed_75",
                        "speed_100", "speed_125", "speed_150", "speed_175", "speed_200"),
@@ -628,8 +628,8 @@ def _cell(content: str, *, width: str = "") -> str:
 
 def render_reference_html() -> str:
     parts: list[str] = [
-        f'<body style="background:{_BG};color:{_TEXT};'
-        f'font-family:\'{FONT_UI}\';font-size:{SIZE_BODY}pt">',
+        (f'<body style="background:{_BG};color:{_TEXT};'
+        f'font-family:\'{FONT_UI}\';font-size:{SIZE_BODY}pt">'),
     ]
     for section in build_reference_sections():
         parts.append(

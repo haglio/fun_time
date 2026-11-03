@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import contextlib
 import queue
 import string
 import subprocess
@@ -706,10 +707,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    try:
+    with contextlib.suppress(OSError):
         set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
-    except OSError:
-        pass
 
     with application([]) as app:
         dress_application(app)

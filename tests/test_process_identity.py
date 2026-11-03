@@ -56,8 +56,8 @@ class TestTheRolesThisRepoLaunches:
             assert not re.match(NAMER.process_name_pattern, name), name
 
     def test_each_one_reads_as_english_under_the_app_s_own_name(self):
-        assert NAMER.description("AudioCompanion") == "Fun Time – Audio Companion"
-        assert NAMER.description("LibraryBrowser") == "Fun Time – Library Browser"
+        assert NAMER.description("AudioCompanion") == "Fun Time \u2013 Audio Companion"
+        assert NAMER.description("LibraryBrowser") == "Fun Time \u2013 Library Browser"
         for role in ROLES:
             assert NAMER.description(role).startswith("Fun Time"), role
 
@@ -76,7 +76,7 @@ class TestPrepareOrchestratorLauncher:
                 app_name="Fun Time",
                 role="Orchestrator",
                 interpreter="python.exe",
-                row="Fun Time – Orchestrator",
+                row="Fun Time \u2013 Orchestrator",
                 icon=PROJECT_ICON,
             ),
         )

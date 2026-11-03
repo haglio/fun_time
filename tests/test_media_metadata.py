@@ -196,7 +196,7 @@ def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path
 
 
 def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "subject1_zeta": _i2v_meta(action="Zeta Massage", video_seed="1"),
         "subject1_alpha": _i2v_meta(action="Alpha", video_seed="2"),
         "subject2_alpha": _i2v_meta(action="Alpha", video_seed="3", image_overrides={"seed": "999"}),
@@ -220,7 +220,7 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
 
 
 def test_the_index_holds_one_record_per_video(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "subject": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
         "no_metadata": None,
     })
@@ -242,7 +242,7 @@ def test_the_index_holds_one_record_per_video(tmp_path: Path):
 
 
 def test_build_group_index_carries_each_videos_watch_weight(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "loved": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
         "plain": _i2v_meta(action="Alpha", video_seed="2"),
         "no_metadata": None,
@@ -263,7 +263,7 @@ def test_watch_weight_of_reads_the_stamped_weight_and_defaults_to_one():
 
 
 def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "subject": _i2v_meta(action="Alpha", video_seed="1"),
         "no_metadata": None,
     })
@@ -306,7 +306,7 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
 
 
 def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "known": _i2v_meta(action="Alpha", video_seed="1"),
     })
     mine, yours = GroupIndexCache(), GroupIndexCache()
@@ -328,7 +328,7 @@ def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
 
 
 def test_a_video_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "subject1_zeta": _i2v_meta(action="Zeta Massage", video_seed="1"),
         "subject1_alpha": _i2v_meta(action="Alpha", video_seed="2"),
         "subject2_alpha": _i2v_meta(action="Alpha", video_seed="3", image_overrides={"seed": "9"}),
@@ -342,7 +342,7 @@ def test_a_video_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp
 
 def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_a_rescan(
         tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
+    _media_root, metadata_root, paths = _library(tmp_path, {
         "known": _i2v_meta(action="Alpha", video_seed="1"),
         "arrived": _i2v_meta(action="Zeta Massage", video_seed="2"),
     })
@@ -491,7 +491,7 @@ def _write_library(tmp_path, videos: dict[str, dict]) -> tuple[Path, Path, dict[
 
 
 def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip": _t2v("Alpha", "1"),
         "twirl": _t2v("Twirling", "1"),
         "other": _t2v("Alpha", "2"),
@@ -505,7 +505,7 @@ def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
 
 
 def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip_a": _t2v("Alpha", "1"),
         "clip_b": _t2v("Alpha", "2"),
         "twirl": _t2v("Twirling", "1"),
@@ -525,7 +525,7 @@ def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
             "source_image": {"positive_prompt": "subject", "seed": image_seed},
         }
 
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip_a": i2v("Alpha", "1"),
         "clip_b": i2v("Alpha", "2"),
         "twirl_b": i2v("Twirling", "2"),
@@ -539,7 +539,7 @@ def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
 
 
 def test_widened_seed_items_add_the_most_similar_videos_capped(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("Alpha", "1", prompt="a, b, c, d"),
         "sister": _t2v("Alpha", "2", prompt="a, b, c, d"),
         "near": _t2v("Alpha", "3", prompt="a, b, c, e"),
@@ -554,7 +554,7 @@ def test_widened_seed_items_add_the_most_similar_videos_capped(tmp_path: Path):
 
 
 def test_widened_seed_items_never_leave_the_videos_own_action(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("Alpha", "1", prompt="a, b, c"),
         "other_act": _t2v("Theta", "2", prompt="a, b, c"),
         "same_act": _t2v("Alpha", "3", prompt="a, x, y"),
@@ -567,7 +567,7 @@ def test_widened_seed_items_never_leave_the_videos_own_action(tmp_path: Path):
 
 
 def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "solo": _t2v("Zeta", "1", prompt="a, b, c"),
         "near": _t2v("Alpha", "2", prompt="a, b, c"),
     })
@@ -577,7 +577,7 @@ def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path)
 
 
 def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": _t2v("XYZ Alpha", "1", prompt="a, b, c"),
         "other_casing": _t2v("Xyz Alpha", "2", prompt="a, b, c"),
     })
@@ -593,7 +593,7 @@ def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
             "source_image": {"positive_prompt": prompt, "seed": seed},
         }
 
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": i2v("Delta", "1", "a, b, c"),
         "t2v_kin": _t2v("Delta", "2", prompt="a, b, c"),
         "i2v_kin": i2v("Delta", "3", "a, b, d"),
@@ -607,7 +607,7 @@ def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
-    media_root, metadata_root, paths = _write_library(tmp_path, {
+    _media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip_one": _t2v("Alpha", "1"),
         "clip_two": _t2v("Alpha", "1"),
         "twirl": _t2v("Twirling", "1"),

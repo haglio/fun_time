@@ -265,7 +265,7 @@ def test_the_generated_config_lands_where_git_ignores_it(checkouts):
 
 
 def test_the_primary_checkout_is_refused(checkouts):
-    with pytest.raises(ValueError, match="launch.vbs"):
+    with pytest.raises(ValueError, match=r"launch\.vbs"):
         branch_session.build_branch_config(
             checkouts.primary,
             primary_config_path=checkouts.config_path,
@@ -510,7 +510,7 @@ def test_a_shortcut_is_refused_when_the_hosted_app_carries_none_of_its_own_state
         f"{hosted}\n", encoding="utf-8")
 
     with pytest.raises(branch_session.HostedAppWithoutItsOwnState,
-                       match="content.local.json"):
+                       match=re.escape("content.local.json")):
         branch_session.write_launch_shortcut(
             primary_with_launcher.newer, primary=primary_with_launcher.primary)
 

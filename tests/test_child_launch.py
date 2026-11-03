@@ -26,9 +26,8 @@ def _spawn_calls() -> list[tuple[Path, ast.Call]]:
     found = []
     for path in sorted(p for pkg in PACKAGES for p in pkg.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and _is_a_spawn(node.func):
-                found.append((path, node))
+        found.extend((path, node) for node in ast.walk(tree)
+                     if isinstance(node, ast.Call) and _is_a_spawn(node.func))
     return found
 
 

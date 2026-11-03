@@ -43,7 +43,7 @@ def parse_progress(text: str) -> Progress:
     if text == "DONE":
         return Progress(done=True)
     try:
-        position, message, hint = (text.split("|", 2) + ["", ""])[:3]
+        position, message, hint = ([*text.split("|", 2), "", ""])[:3]
         step_str, total_str = position.split("/")
         return Progress(step=int(step_str), total=int(total_str), message=message, hint=hint)
     except (ValueError, IndexError):
