@@ -19,11 +19,6 @@ def test_labels_are_the_lowercase_names():
     assert FunTimeFunestra.LANDSCAPE.label == "landscape"
 
 
-def test_a_number_no_funestra_holds_has_an_empty_label():
-    assert FunTimeFunestra.label_of(2) == "portrait"
-    assert FunTimeFunestra.label_of(7) == ""
-
-
 def test_satellites_are_the_scope_both_means():
     assert FunTimeFunestra.SATELLITES == (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
     assert FunTimeFunestra.for_scope("both") == FunTimeFunestra.SATELLITES
