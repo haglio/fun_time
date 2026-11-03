@@ -253,7 +253,7 @@ class TestHandleHeard:
     ):
         vc = _controller(tmp_path)
         seen = []
-        monkeypatch.setattr(voice_control, "flash_message",
+        monkeypatch.setattr(voice_control, "list_message",
                             lambda _log, _msg, *, source, **_: seen.append(source))
         monkeypatch.setattr(voice_control, "flash_unlogged",
                             lambda _dir, _msg, *, source, **_: seen.append(source))
