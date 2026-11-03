@@ -54,7 +54,7 @@ from shared_ui.spacing import (
 )
 
 from . import preview_marker
-from .browse_records import BrowseCallbacks, BrowseOpening
+from .browse_records import GENAU_FLAG, BrowseCallbacks, BrowseOpening
 from .checkout_overrides import sibling_checkouts_kwargs
 from .folder_listings import FolderListings
 from .library_handles import (
@@ -71,7 +71,6 @@ from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnai
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
 FLICKS_TOP_LEVEL_NAME = "Genau"
-GENAU_FLAG = "--genau"
 
 TILE_WIDTH = 200
 TILE_HEIGHT = 168
@@ -630,13 +629,7 @@ def browse_library(
         NAMER.named_exe(python_exe, "LibraryBrowser"),
         "-m", "fun_time.library_browser", str(manifest_path), str(pick_file),
     ]
-    if opening.over is not None:
-        x, y, width, height = opening.over
-        command += ["--x", str(x), "--y", str(y), "--width", str(width), "--height", str(height)]
-    if opening.playing:
-        command += ["--playing", opening.playing]
-    if opening.flicks:
-        command.append(GENAU_FLAG)
+    command += opening.arguments()
     sibling_checkouts = _read_manifest(manifest_path).get(
         "runtime", "sibling_checkouts", fallback="")
     runner(command, **hidden_subprocess_kwargs(), **sibling_checkouts_kwargs(sibling_checkouts))
