@@ -89,11 +89,7 @@ def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, vie
         headset.session.bind_eye_framebuffer(eye_index)
         headset.renderer.begin_eye(LOADING_SCREEN_CLEAR)
         if loading_screen.screen.ready:
-            projection = fov_to_projection_matrix(
-                view.fov.angle_left, view.fov.angle_right,
-                view.fov.angle_up, view.fov.angle_down,
-                0.05, 100.0,
-            )
+            projection = fov_to_projection_matrix(view.fov, 0.05, 100.0)
             view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
             headset.renderer.draw_screen(
                 loading_screen.screen.mesh, loading_screen.texture.texture,

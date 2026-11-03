@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import sys
+from types import SimpleNamespace
 
 import glfw
 import numpy as np
@@ -78,7 +79,8 @@ def _frame_whose_red_and_green_are_where_in_its_eye_each_pixel_is():
 
 def _inverse_of_looking_straight_ahead():
     projection = fov_to_projection_matrix(
-        -LOOKS_OUT_TO, LOOKS_OUT_TO, LOOKS_OUT_TO, -LOOKS_OUT_TO, 0.05, 100.0)
+        SimpleNamespace(angle_left=-LOOKS_OUT_TO, angle_right=LOOKS_OUT_TO,
+                        angle_up=LOOKS_OUT_TO, angle_down=-LOOKS_OUT_TO), 0.05, 100.0)
     return np.linalg.inv(projection).astype(np.float32)
 
 

@@ -5,18 +5,11 @@ import math
 import numpy as np
 
 
-def fov_to_projection_matrix(
-    angle_left: float,
-    angle_right: float,
-    angle_up: float,
-    angle_down: float,
-    near: float,
-    far: float,
-) -> np.ndarray:
-    tan_l = math.tan(angle_left)
-    tan_r = math.tan(angle_right)
-    tan_u = math.tan(angle_up)
-    tan_d = math.tan(angle_down)
+def fov_to_projection_matrix(fov, near: float, far: float) -> np.ndarray:
+    tan_l = math.tan(fov.angle_left)
+    tan_r = math.tan(fov.angle_right)
+    tan_u = math.tan(fov.angle_up)
+    tan_d = math.tan(fov.angle_down)
 
     width = tan_r - tan_l
     height = tan_u - tan_d
