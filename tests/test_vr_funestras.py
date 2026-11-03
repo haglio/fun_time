@@ -147,6 +147,7 @@ from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
     RADIUS_M,
+    Footprint,
     Placement,
     attached_below,
     attached_to,
@@ -977,7 +978,7 @@ class TestTheConsoleUnderTheSlot:
         flick = p.main_unit.users_frame_texture.aspect
         assert placed == attached_below(
             shown_at(MAIN, p.main_unit.screen.placement, flick), aspect=flick,
-            width_deg=HUD_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakeMainHudTexture.aspect,
+            shape=Footprint(HUD_WIDTH_PX * DEG_PER_PX, _FakeMainHudTexture.aspect),
             gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
 
     def test_it_hangs_along_the_edge_the_room_moved_it_to(self):
@@ -994,7 +995,7 @@ class TestTheConsoleUnderTheSlot:
 
         assert placed == attached_below(
             p.dash.screen.placement, aspect=p.dash.texture.aspect,
-            width_deg=HUD_WIDTH_PX * DEG_PER_PX, hanging_aspect=_FakeMainHudTexture.aspect,
+            shape=Footprint(HUD_WIDTH_PX * DEG_PER_PX, _FakeMainHudTexture.aspect),
             gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
 
     @pytest.mark.parametrize("wrapped", [False, True])
@@ -1090,8 +1091,8 @@ class TestASatellitesButtonsInTheHeadset:
 
         assert unit.hud_screen.placement == attached_to(
             HudEdge.LEFT, unit.shown, aspect=16 / 9,
-            width_deg=_FakeMainHudTexture.width * DEG_PER_PX,
-            hanging_aspect=_FakeMainHudTexture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
+            shape=Footprint(_FakeMainHudTexture.width * DEG_PER_PX, _FakeMainHudTexture.aspect),
+            gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
         assert {toggle_screen_name(PORTRAIT), hud_screen_name(PORTRAIT)} <= set(self._hanging_names(unit))
 
     def test_minimized_its_plus_hangs_where_the_minus_was_and_the_hud_does_not(
@@ -2841,7 +2842,7 @@ def _a_satellite(funestra: str, *, hud: bool = False):
         screen_name=funestra, target=SimpleNamespace(ready=True, aspect=16 / 9),
         screen=SimpleNamespace(placement=placement), hud_ready=hud,
         hud_screen=SimpleNamespace(placement=attached_below(
-            placement, aspect=16 / 9, width_deg=20.0, hanging_aspect=6.0)),
+            placement, aspect=16 / 9, shape=Footprint(20.0, 6.0))),
         hud_texture=SimpleNamespace(aspect=6.0),
         _buttons=_buttons_not_hanging_names(funestra),
     ))

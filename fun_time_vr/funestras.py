@@ -164,6 +164,7 @@ from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
     RADIUS_M,
+    Footprint,
     Placement,
     attached_below,
     attached_to,
@@ -703,8 +704,8 @@ class _SatelliteUnit(_VideoUnit):
         if self._hud_shown and self.target.ready:
             self.hud_screen.placement = attached_to(
                 self.funestra.hud_edge, self.shown, aspect=self.target.aspect,
-                width_deg=self.hud_texture.width * DEG_PER_PX,
-                hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
+                shape=Footprint(self.hud_texture.width * DEG_PER_PX, self.hud_texture.aspect),
+                gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
 
@@ -832,8 +833,8 @@ class _MainHudUnit:
         if not (self._shown and self.texture.ready):
             return
         self.screen.placement = attached_to(
-            edge, under, aspect=aspect, width_deg=self.texture.width * DEG_PER_PX,
-            hanging_aspect=self.texture.aspect, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
+            edge, under, aspect=aspect, shape=Footprint(self.texture.width * DEG_PER_PX, self.texture.aspect),
+            gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
         )
         self.screen.rehang(self.texture.aspect)
 
@@ -1030,7 +1031,7 @@ class _ReferenceUnit:
         under = self._main_hud if self._dash.carrying_the_main_hud else self._dash
         self.screen.placement = attached_below(
             under.screen.placement, aspect=under.texture.aspect,
-            width_deg=REFERENCE_WIDTH_DEG, hanging_aspect=self.texture.aspect)
+            shape=Footprint(REFERENCE_WIDTH_DEG, self.texture.aspect))
         self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:

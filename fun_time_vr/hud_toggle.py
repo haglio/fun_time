@@ -12,7 +12,7 @@ from .main_hud import DEG_PER_PX
 from .pointer import PRESS, PressEvent, Screen
 from .room import Hanging
 from .satellite_hud import HUD_GAP_DEG
-from .scene import Placement, attached_to
+from .scene import Footprint, Placement, attached_to
 from .surfaces import red_and_blue_swapped
 
 TOGGLE = "toggle"
@@ -59,8 +59,7 @@ class HudToggle:
 
     def hang(self, outside, item: Placement, aspect: float, *, edge: HudEdge) -> None:
         self._outside = outside
-        placement = attached_to(edge, item, aspect=aspect, width_deg=BUTTON_DEG,
-                                hanging_aspect=1.0, gap_deg=HUD_GAP_DEG)
+        placement = attached_to(edge, item, aspect=aspect, shape=Footprint(BUTTON_DEG, 1.0), gap_deg=HUD_GAP_DEG)
         self._button = Screen(toggle_screen_name(self._screen_name), placement, 1.0,
                               pressable=True)
         painted = outside.toggle(pointed=self._pointed).bgra
