@@ -36,6 +36,7 @@ from fun_time_vr.wraps import immersive_wrap
 from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
 
 from .integration_support import (
+    ReadProbe,
     build_integration_config,
     build_integration_temp_root,
     joined_within,
@@ -85,7 +86,7 @@ SETTLE_WINDOWS = 12
 def _sample_library_videos(dirs, count: int) -> list[str]:
     return [str(video) for video in sample_library_videos(
         library_videos(dirs), count,
-        desc=f"sample videos under {dirs}", readable=readable_at_speed,
+        desc=f"sample videos under {dirs}", probe=ReadProbe(readable_at_speed),
     )]
 
 
@@ -94,7 +95,7 @@ def _main_videos_next_can_step_between(config, manifest, vr) -> list[str]:
     return [str(video) for video in sample_library_videos(
         one_video_per_video(library_videos(config.paths.main_funestra_library_dirs),
                            library.source.version_index), 2,
-        desc="different videos in the Main Funestra's library", readable=readable_at_speed,
+        desc="different videos in the Main Funestra's library", probe=ReadProbe(readable_at_speed),
     )]
 
 

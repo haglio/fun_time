@@ -17,6 +17,7 @@ import pytest
 from fun_time.win32_process import is_process_alive
 from tests.integration import commands, fix_sessions, main_verifier
 from tests.integration.coverage_map import CoverageMap
+from tests.integration.fix_sessions import FixSessionHands
 
 
 def test_the_change_that_broke_main_is_the_first_one_the_failing_tests_fail_on():
@@ -1180,8 +1181,9 @@ def test_a_fix_session_that_died_on_an_error_is_started_again_where_it_was_and_c
     shell = FakeShell({"agents --json --all": json.dumps([session]), "auth status": '{"loggedIn": true}'})
     told = []
 
-    fix_sessions.look_after_fix_sessions(state, [FIX], "claude.exe", shell=shell, start=told.append,
-                                         transcripts=transcripts)
+    fix_sessions.look_after_fix_sessions(state, [FIX], "claude.exe",
+                                         FixSessionHands(shell=shell, start=told.append,
+                                                         transcripts=transcripts))
 
     assert told == []
     signed_in = (["claude.exe", "auth", "status"], None)
@@ -1199,8 +1201,9 @@ def test_a_fix_session_that_cannot_be_started_again_is_tried_next_time_and_the_o
 
     with caplog.at_level("WARNING", logger="main_verifier"):
         fix_sessions.look_after_fix_sessions(state, [FIX, {**UNRELIABLE, "fix_session": "9f8e7d6c"}],
-                                             "claude.exe", shell=shell, start=told.append,
-                                             transcripts=transcripts)
+                                             "claude.exe",
+                                             FixSessionHands(shell=shell, start=told.append,
+                                                             transcripts=transcripts))
 
     assert [notice.title for notice in told] == ["Fix the unreliable test_x finished"]
     assert not [command for command, _ in shell.commands if "--resume" in command]
@@ -1217,8 +1220,10 @@ def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier
         return json.dumps(sessions)
 
     for _ in range(2):
-        fix_sessions.look_after_fix_sessions(tmp_path, [FIX], "claude.exe", shell=shell, start=told.append)
+        fix_sessions.look_after_fix_sessions(tmp_path, [FIX], "claude.exe",
+                                             FixSessionHands(shell=shell, start=told.append))
     sessions[0] = a_fix_session("done")
-    fix_sessions.look_after_fix_sessions(tmp_path, [FIX], "claude.exe", shell=shell, start=told.append)
+    fix_sessions.look_after_fix_sessions(tmp_path, [FIX], "claude.exe",
+                                             FixSessionHands(shell=shell, start=told.append))
 
     assert [notice.state for notice in told] == ["blocked", "done"]

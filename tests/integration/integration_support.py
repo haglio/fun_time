@@ -761,8 +761,14 @@ def library_videos(roots) -> list[Path]:
     ]
 
 
-def sample_library_videos(candidates, count: int, *, desc: str, readable=None,
-                         budget_s: float = PROBE_BUDGET_S, now=run_clock.now) -> list:
+@dataclasses.dataclass(frozen=True)
+class ReadProbe:
+    readable: Callable
+    budget_s: float = PROBE_BUDGET_S
+    now: Callable = run_clock.now
+
+
+def sample_library_videos(candidates, count: int, *, desc: str, probe: ReadProbe | None = None) -> list:
     candidates = sorted(candidates, key=str)
     assert len(candidates) >= count, (
         f"need {count} {desc}, found {len(candidates)}"
@@ -770,21 +776,21 @@ def sample_library_videos(candidates, count: int, *, desc: str, readable=None,
     seed = os.environ.get("FUN_TIME_INTEGRATION_SEED") or str(random.randrange(10 ** 8))
     rng = random.Random(seed)
     print(f"[integration] sample seed {seed} for {count} of {len(candidates)} {desc}")
-    if readable is None:
+    if probe is None:
         chosen = rng.sample(candidates, count)
     else:
         chosen = []
-        stop_at = now() + budget_s
+        stop_at = probe.now() + probe.budget_s
         for video in rng.sample(candidates, len(candidates)):
-            if len(chosen) == count or now() >= stop_at:
+            if len(chosen) == count or probe.now() >= stop_at:
                 break
-            if readable(video):
+            if probe.readable(video):
                 chosen.append(video)
             else:
                 print("[integration]   skipped one not readable at speed")
         assert len(chosen) == count, (
             f"need {count} {desc} that read at speed, found {len(chosen)} "
-            f"within {budget_s:g}s -- the library is cold on this machine"
+            f"within {probe.budget_s:g}s -- the library is cold on this machine"
         )
     return chosen
 
