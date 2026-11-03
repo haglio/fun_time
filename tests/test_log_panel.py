@@ -301,6 +301,12 @@ class TestTheSavedViewState:
         assert state.verbosity == MESSAGE
         assert state.sources == ALL_SOURCES
 
+    def test_a_source_the_app_no_longer_has_is_dropped_from_the_saved_set(self, tmp_path: Path):
+        path = tmp_path / "log_panel_state.ini"
+        path.write_text("[panel]\nverbosity = 25\nsources = main,retired\n", encoding="utf-8")
+
+        assert load_ui_state(path).sources == frozenset({"main"})
+
     def test_saving_creates_the_parent_directory(self, tmp_path: Path):
         path = tmp_path / "nested" / "log_panel_state.ini"
 
