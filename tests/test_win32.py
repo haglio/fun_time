@@ -96,8 +96,8 @@ class TestMoveWindow:
         def fake_show(hwnd, cmd):
             calls.append(("ShowWindow", (hwnd, cmd)))
 
-        def fake_setpos(hwnd, insert_after, x, y, w, h, flags):
-            calls.append(("SetWindowPos", (hwnd, insert_after, x, y, w, h, flags)))
+        def fake_setpos(hwnd, *placement):
+            calls.append(("SetWindowPos", (hwnd, *placement)))
 
         with _user32_mocked() as mock:
             mock.ShowWindow.side_effect = fake_show

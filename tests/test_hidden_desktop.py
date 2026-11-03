@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -227,32 +228,35 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
 _PICKS_NOTHING = Picked()
 
 
+@dataclass
+class RunsSeen:
+    ceilings: list[float] = field(default_factory=list)
+    places: list[dict] = field(default_factory=list)
+    told: list[str | None] = field(default_factory=list)
+    bases: list[str] = field(default_factory=list)
+
+
 @contextlib.contextmanager
 def _runs_launched_into(launched: list[tuple[str, str]], *, changed_files=(), exit_codes=(),
-                        ceilings: list[float] | None = None, places: list[dict] | None = None,
-                        told: list[str | None] | None = None, picked: Picked = _PICKS_NOTHING,
-                        bases: list[str] | None = None):
+                        picked: Picked = _PICKS_NOTHING, seen: RunsSeen | None = None):
+    seen = seen or RunsSeen()
     codes = iter(exit_codes)
 
     def needs(base):
-        if bases is not None:
-            bases.append(base)
+        seen.bases.append(base)
         return picked
 
     def hold(**place):
-        if places is not None:
-            places.append(place)
+        seen.places.append(place)
         return contextlib.nullcontext()
 
     def launch(cmdline, desktop, cwd, job, environment=None):
         launched.append((cmdline, str(environment["__PYVENV_LAUNCHER__"])))
-        if told is not None:
-            told.append(environment.get(RUN_RECORD_ENV))
+        seen.told.append(environment.get(RUN_RECORD_ENV))
         return SimpleNamespace(hProcess=None)
 
     def wait(process, ceiling_s, pulse):
-        if ceilings is not None:
-            ceilings.append(ceiling_s)
+        seen.ceilings.append(ceiling_s)
         return next(codes, 0)
 
     with (patch.object(hidden_desktop, "hold_integration_lock", hold),
@@ -292,12 +296,12 @@ def test_every_run_records_the_claude_session_that_asked_for_it(tmp_path, monkey
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_the_tests_a_run_starts_are_told_which_written_down_run_is_theirs(tmp_path, monkeypatch):
     monkeypatch.setenv("FUN_TIME_LINE_RECORDS", str(tmp_path))
-    told: list[str | None] = []
-    with _runs_launched_into([], told=told):
+    seen = RunsSeen()
+    with _runs_launched_into([], seen=seen):
         hidden_desktop.run_on_hidden_desktop(["-k", "test_x"])
 
     [written] = tmp_path.glob("*.json")
-    assert told == [str(written)]
+    assert seen.told == [str(written)]
     assert RUN_RECORD_ENV not in os.environ
 
 
@@ -322,11 +326,11 @@ def test_a_run_whose_tests_could_not_be_started_still_writes_down_that_it_ended(
     (["--repeat-changed"], True), ([], False), (["-x", "--maxfail", "1"], False),
     (["--deselect", "tests/integration/test_x.py::test_y"], False)])
 def test_a_run_narrowed_below_the_whole_suite_waits_in_line_as_a_short_run(args, short):
-    places: list[dict] = []
-    with _runs_launched_into([], places=places):
+    seen = RunsSeen()
+    with _runs_launched_into([], seen=seen):
         hidden_desktop.run_on_hidden_desktop(args)
 
-    assert [place["short"] for place in places] == [short]
+    assert [place["short"] for place in seen.places] == [short]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -372,27 +376,27 @@ def test_a_repeat_names_the_files_it_runs_whole_and_says_when_it_stops_at_them(c
 def test_the_repeats_get_what_running_the_files_whole_left_of_the_budget():
     minutes_into_the_repeat = iter([0.0, 10.0])
     launched: list[tuple[str, str]] = []
-    ceilings: list[float] = []
-    with (_runs_launched_into(launched, changed_files=["tests/integration/test_a.py"], ceilings=ceilings),
+    seen = RunsSeen()
+    with (_runs_launched_into(launched, changed_files=["tests/integration/test_a.py"], seen=seen),
           patch.object(hidden_desktop, "monotonic", lambda: 60 * next(minutes_into_the_repeat))):
         hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
 
     gate = launched[1][0].split()
     left = hidden_desktop.REPEAT_BUDGET_MINUTES - 10
     assert gate[gate.index("--budget-minutes") + 1] == str(left)
-    assert ceilings == [hidden_desktop.RUN_CEILING_S, left * 60 + hidden_desktop.RUN_CEILING_S]
+    assert seen.ceilings == [hidden_desktop.RUN_CEILING_S, left * 60 + hidden_desktop.RUN_CEILING_S]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_with_no_file_to_run_whole_the_repeats_against_origin_main_get_the_whole_budget():
     launched: list[tuple[str, str]] = []
-    ceilings: list[float] = []
-    with _runs_launched_into(launched, ceilings=ceilings):
+    seen = RunsSeen()
+    with _runs_launched_into(launched, seen=seen):
         hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
 
     budget = hidden_desktop.REPEAT_BUDGET_MINUTES
     assert launched == [(subprocess.list2cmdline(build_gate_argv("origin/main", budget)), "gate-python")]
-    assert ceilings == [budget * 60 + hidden_desktop.RUN_CEILING_S]
+    assert seen.ceilings == [budget * 60 + hidden_desktop.RUN_CEILING_S]
 
 
 def test_the_files_run_whole_are_the_integration_files_holding_a_test_the_branch_changed(tmp_path):
@@ -735,13 +739,13 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
 def test_a_run_of_what_a_change_needs_runs_the_tests_the_coverage_map_picks_as_a_short_run():
     picked = Picked(files=frozenset({"tests/integration/test_b.py", "tests/integration/test_a.py"}))
     launched: list[tuple[str, str]] = []
-    places: list[dict] = []
-    with _runs_launched_into(launched, places=places, picked=picked):
+    seen = RunsSeen()
+    with _runs_launched_into(launched, seen=seen, picked=picked):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     files = ["tests/integration/test_a.py", "tests/integration/test_b.py"]
     assert launched == [(subprocess.list2cmdline(build_run_argv([*files, "-x"])), sys.executable)]
-    assert [place["short"] for place in places] == [True]
+    assert [place["short"] for place in seen.places] == [True]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -758,12 +762,12 @@ def test_a_run_of_what_a_change_needs_writes_down_that_it_is_one_with_the_tests_
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_a_change_the_coverage_map_cannot_place_runs_the_whole_suite_in_line_as_a_full_run():
     launched: list[tuple[str, str]] = []
-    places: list[dict] = []
-    with _runs_launched_into(launched, places=places, picked=Picked(because="launch.vbs")):
+    seen = RunsSeen()
+    with _runs_launched_into(launched, seen=seen, picked=Picked(because="launch.vbs")):
         hidden_desktop.run_on_hidden_desktop(["--changed"])
 
     assert launched == [(subprocess.list2cmdline(build_run_argv(["-x"])), sys.executable)]
-    assert [place["short"] for place in places] == [False]
+    assert [place["short"] for place in seen.places] == [False]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -902,11 +906,11 @@ def test_a_test_that_lets_go_in_time_meets_its_own_clock_before_the_pulse_is_cal
 @pytest.mark.parametrize(("args", "base"), [
     (["-x", "--changed"], "origin/main"), (["--changed", "-x"], "origin/main"), (["-x", "--changed", "abc"], "abc")])
 def test_a_stop_flag_beside_changed_still_runs_what_the_change_needs(args, base):
-    bases: list[str] = []
-    with _runs_launched_into([], bases=bases):
+    seen = RunsSeen()
+    with _runs_launched_into([], seen=seen):
         assert hidden_desktop.run_on_hidden_desktop(args) == 0
 
-    assert bases == [base]
+    assert seen.bases == [base]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -920,21 +924,21 @@ def test_a_stop_flag_before_repeat_changed_still_repeats_what_changed():
 
 
 def test_a_mode_flag_after_other_arguments_is_refused_without_joining_the_line():
-    places: list[dict] = []
-    with _runs_launched_into([], places=places):
+    seen = RunsSeen()
+    with _runs_launched_into([], seen=seen):
         code = hidden_desktop.run_on_hidden_desktop(["-k", "test_x", "--changed"])
 
     assert code == hidden_desktop.REFUSED_EXIT_CODE
-    assert places == []
+    assert seen.places == []
 
 
 def test_asking_for_help_prints_the_usage_without_joining_the_line(capsys):
-    places: list[dict] = []
-    with _runs_launched_into([], places=places):
+    seen = RunsSeen()
+    with _runs_launched_into([], seen=seen):
         code = hidden_desktop.run_on_hidden_desktop(["--help"])
 
     assert code == 0
-    assert places == []
+    assert seen.places == []
     assert "--repeat-changed" in capsys.readouterr().out
 
 
