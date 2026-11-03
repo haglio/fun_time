@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import call, patch
 
 from fun_time import win32, win32_process
+from fun_time.dashboard_layout import Rect
 from fun_time.win32 import (
     GWL_EXSTYLE,
     HWND_NOTOPMOST,
@@ -102,7 +103,7 @@ class TestMoveWindow:
         with _user32_mocked() as mock:
             mock.ShowWindow.side_effect = fake_show
             mock.SetWindowPos.side_effect = fake_setpos
-            move_window(111, 10, 20, 800, 600)
+            move_window(111, Rect(10, 20, 800, 600))
 
         assert calls[0] == ("ShowWindow", (111, SW_RESTORE))
         assert calls[1] == ("SetWindowPos", (111, 0, 10, 20, 800, 600, SWP_NOZORDER | SWP_NOACTIVATE))
@@ -185,7 +186,7 @@ class TestAWindowThatHasStoppedAnswering:
             set_always_on_top(111, True)
             minimize_window(111, activate=False)
             restore_window(111, activate=False)
-            move_window(111, 0, 0, 10, 10)
+            move_window(111, Rect(0, 0, 10, 10))
 
             assert time.monotonic() - started < 5
 
