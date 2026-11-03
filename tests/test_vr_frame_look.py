@@ -68,8 +68,6 @@ def test_a_look_that_shows_nothing_is_passed_over():
 
 
 def test_it_waits_before_each_look_so_the_file_asked_for_is_the_one_playing():
-    """mpv takes a moment to let go of the last file, and its frame would be
-    read as the new one's."""
     events: list[str] = []
     engine = _Engine([_bgra(CIRCLE), _bgra(CIRCLE)])
     grab = engine.take_a_still

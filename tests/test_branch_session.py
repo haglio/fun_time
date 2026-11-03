@@ -1,13 +1,3 @@
-"""The branch-verification launch: a real session out of a worktree.
-
-The whole mechanism turns on which checkout a config is read against. Every
-relative path in it resolves against the checkout that imported the package — so
-the live config read from a worktree quietly names files *inside that worktree*:
-a broker launcher one directory above ``.claude/worktrees``, a Chrome shortcut
-that is untracked and therefore nowhere. These tests load the generated config
-anchored on the worktree, which is precisely how the branch session will read
-it, and assert it still lands on the machine's real files.
-"""
 from __future__ import annotations
 
 import json
@@ -263,10 +253,6 @@ def test_the_override_lands_where_git_ignores_it(checkouts):
 
 
 def test_the_generated_config_lands_where_git_ignores_it(checkouts):
-    """It is the live config with the machine's real library paths in it. The
-    worktree is a checkout of a public repo, so the only safe place to put it is
-    one git already ignores."""
-
     written = branch_session.build_branch_config(
         checkouts.worktree,
         primary_config_path=checkouts.config_path,
@@ -298,10 +284,6 @@ def test_a_directory_that_is_not_a_checkout_is_refused(checkouts, tmp_path):
 
 
 def test_the_private_overlays_follow_the_session_into_the_worktree(checkouts):
-    """``content.local.json`` is git-ignored and found relative to the package
-    that reads it, so a worktree has none and falls back to the committed
-    placeholder — the browser's filters come up ``alpha``/``beta``/``gamma`` and
-    the user is looking at a wrongness the branch did not cause."""
     (checkouts.primary / "content.local.json").write_text(
         json.dumps({"studios": ["Example Studio"]}), encoding="utf-8"
     )
@@ -341,8 +323,6 @@ def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
 
 
 def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
-    """Worktrees share the Main Funestra's git directory, so the launcher finds the
-    machine's real config and overlays from any of them."""
     assert primary_checkout_of(repo_with_worktrees.newer).resolve() == (
         repo_with_worktrees.primary.resolve()
     )
@@ -456,8 +436,6 @@ def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_la
 
 
 def test_a_worktree_on_no_branch_is_named_after_its_directory():
-    """``git worktree add`` without ``-b`` leaves a detached checkout, which has
-    no branch name to put in a filename."""
     detached = Path("C:/checkouts/.claude/worktrees/wonderful-ellis-fbdb9e")
 
     assert branch_session.shortcut_name(detached, branch_session.DETACHED) == (

@@ -1,26 +1,3 @@
-"""The REAL hosted Origenerator, launched by the REAL command, proven to boot.
-
-Everything else about origenerator mode is tested against a stub app (see
-``test_origenerator_mode_integration``), because the suite must not touch the
-machine's one ComfyUI, GPU queue or gallery database.  That leaves one gap the
-stub can never cover, and it is the one that actually bit: whether the real app
-STARTS.  A session came up missing Origenerator entirely because a module it
-imports could not resolve under the interpreter this launch names — the process
-died before logging was configured, so there was no traceback anywhere, and the
-startup sequencer sat out its whole timeout waiting for a window that was never
-coming.  Every unit test in both repos was green through it: they run on a venv
-where the sibling checkouts are installed, and this launch does not.
-
-So this runs the launch itself.  ``--check-launch`` (origenerator.fun_time_mode)
-is a mode the app grew for exactly this: it boots as far as importing everything
-the launch imports, then exits 0 without opening the database, reaching ComfyUI,
-or showing a window.  So a run here costs the machine nothing and contends with
-no live session — while still failing on the real interpreter, the real working
-directory, the real PYTHONPATH and the real argv.
-
-The command is built by the production functions rather than written out here.
-A hand-written copy is exactly what would keep passing while production broke.
-"""
 from __future__ import annotations
 
 import os
@@ -57,8 +34,6 @@ def _the_settings_this_machine_has():
     with on_the_settings_this_machine_has():
         yield
 
-# Rects with no bearing on anything: --check-launch never places a window, and
-# the point here is that the app can PARSE and boot on the contract's shape.
 _PLAN = WindowLayoutPlan(
     portrait=WindowRect(2560, 3, 1440, 1720),
     landscape=WindowRect(2560, 1723, 1440, 1720),
@@ -68,7 +43,6 @@ _PLAN = WindowLayoutPlan(
 
 
 def _funestras(tmp_path: Path) -> dict[str, HandedFunestra]:
-    """Both Satellite Funestras, handed over the way a session hands them."""
     return {
         satellite: HandedFunestra(
             playlist_file=tmp_path / f"{satellite}_playlist.tsv",
@@ -81,12 +55,6 @@ def _funestras(tmp_path: Path) -> dict[str, HandedFunestra]:
 
 
 def _real_config():
-    """The user's own config, which is where the hosted checkout is named.
-
-    Skipped rather than faked when it is absent (a fresh clone, CI): the whole
-    value of this test is that it runs the launch the machine would really run,
-    and a fabricated interpreter path would only prove the fabrication boots.
-    """
     here = Path(__file__).resolve()
     # This checkout first, then the primary when this is a worktree: the config
     # is git-ignored, so it exists only in the primary — which sits exactly
@@ -102,10 +70,6 @@ def _real_config():
 
 
 def _hosted_checkout_and_python():
-    """The Origenerator this branch would launch: the one its own
-    ``state/origenerator_dir.txt`` names, which is how a worktree under
-    judgment is paired with a worktree of Origenerator, else the one the
-    machine's config names."""
     config = _real_config()
     if config is None:
         pytest.skip("no local fun_time_config.json (git-ignored; absent in CI)")
@@ -130,12 +94,8 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         funestras=_funestras(tmp_path),
     )
-    # The same siblings the session would hand it: a branch of funestra on
-    # its PYTHONPATH, exactly as launch_origenerator passes them along.
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=checkout, sibling_checkouts=this_checkouts_siblings() or None)
-    # Windowless whatever the app would otherwise do, and captured so a failure
-    # arrives as its traceback rather than as an exit code to go hunting for.
     kwargs.pop("creationflags", None)
     kwargs.pop("startupinfo", None)
     env = dict(kwargs.pop("env", None) or {})
@@ -146,7 +106,6 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
 
 
 def test_the_real_launch_command_boots_the_real_app(tmp_path):
-    """Failing here is a session that comes up with Origenerator missing."""
     result = _run_the_launch(tmp_path, ["--check-launch"])
 
     assert result.returncode == 0, (
@@ -156,19 +115,12 @@ def test_the_real_launch_command_boots_the_real_app(tmp_path):
 
 
 def test_a_launch_that_cannot_import_fails_here(tmp_path):
-    """A negative control.  Without it, an app that ignored --check-launch and
-    exited 0 regardless would make the test above pass vacuously — and this test
-    exists because a guard that could not see the break is what let the break
-    ship."""
     result = _run_the_launch(tmp_path, ["--check-launch", "--no-such-flag"])
 
     assert result.returncode != 0
 
 
 def test_the_command_under_test_is_the_one_production_builds(tmp_path):
-    """The contract that keeps this honest: what ran above is the production
-    argv, not a copy of it that can drift.  A rect the app parses into its
-    session, the Funestras it is handed, and the module the launcher runs."""
     checkout, python_exe = _hosted_checkout_and_python()
     command = origenerator_launch_command(
         python_exe=python_exe,
@@ -183,7 +135,6 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
 
     assert command[1:3] == ["-m", "origenerator"]
     assert "--fun-time" in command
-    # The RFB's rect is Core's, and both Funestras are handed over.
     assert command[command.index("--width") + 1] == "854"
     assert command[command.index("--portrait-playlist") + 1] == str(
         tmp_path / "portrait_playlist.tsv")
@@ -193,8 +144,6 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
 
 
 def _the_contract_it_publishes(checkout: Path) -> dict:
-    """What the hosted app says its launch takes, read from the checkout this
-    session would actually start."""
     published = published_by(checkout)
     if published is None:
         pytest.skip(f"the hosted app at {checkout} publishes no {CONTRACT_FILE}")

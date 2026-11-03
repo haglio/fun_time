@@ -173,9 +173,6 @@ class TestReadingItBack:
         assert str(path) in str(raised.value)
 
     def test_the_message_survives_str_without_repr_escaping(self):
-        """str() of the error is the message verbatim, so a Windows manifest
-        path keeps its single backslashes.  A KeyError base applies repr() and
-        would double every one, and the file the error names is the point of it."""
         message = r"[runtime] main_funestra_cmd_file missing from D:\a\fun_time\state\bridge.ini"
         assert str(ManifestKeyMissing(message)) == message
 

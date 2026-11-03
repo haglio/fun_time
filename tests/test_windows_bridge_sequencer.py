@@ -633,9 +633,6 @@ class TestTheOrderInsideTheStartupPhases:
         assert order.index("layout") < order.index("core")
 
     def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
-        """The Main Funestra is launched as early as possible so it can init
-        pygame, scan media and decode first frames while the rest of startup
-        continues — which is only worth anything if the rest still follows."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order.index("main_funestra") < order.index("companions")
@@ -1059,15 +1056,6 @@ class TestResolveSatelliteHwnds:
 
 
 class TestWaitForMainFunestraLoaded:
-    """the Main Funestra's window is not the signal that Main Funestra is ready.
-
-    The Main Funestra opens its window within half a second of launch and reads its library
-    under it — one ffprobe per unprobed video on a cold cache, tens of seconds —
-    painting its OWN loading screen into it meanwhile.  So a caption lookup
-    returns while the Main Funestra is still loading.  Its status file does not: the Main Funestra writes
-    that from its playback loop, once a video is up.
-    """
-
     def test_returns_once_main_funestra_reports_a_video(self, tmp_path):
         status_file = tmp_path / "main_player_status.txt"
 

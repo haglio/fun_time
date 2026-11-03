@@ -1,5 +1,3 @@
-"""The headset's main screen is painted at a 60fps video's own rate: every
-frame the engine decodes reaches the texture, not every other one."""
 from __future__ import annotations
 
 import os

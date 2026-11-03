@@ -1,12 +1,3 @@
-"""Real-window checks for the dashboard's native title-bar chrome.
-
-These build a real ``DashboardWindow`` and read its Win32 window styles straight off
-``winId()`` — the taskbar/tool-window flags and the minimize/close/maximize buttons are
-applied with ``ctypes.SetWindowLongW`` on the native HWND (see ``build_dashboard_window``).
-That only works on the real Qt windows platform, so the tests live in the integration
-suite (which runs on the native platform) rather than the offscreen-by-default unit
-suite, where ``winId()`` is not a real top-level HWND and the styles read back as garbage.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -47,7 +38,6 @@ pytestmark = [
 
 
 def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
-    """Window must show in taskbar (WS_EX_APPWINDOW) and close handler ends the session."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -56,13 +46,11 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
     window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
-        # Window decorations: visible on taskbar via WS_EX_APPWINDOW.
         hwnd = int(window.winId())
-        ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)  # GWL_EXSTYLE
+        ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
         assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
         assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
 
-        # Close handler: closeEvent writes 'end_session' to ahk_cmd.txt.
         ahk_cmd_file = manifest_path.parent / "ahk_cmd.txt"
         assert not ahk_cmd_file.exists(), "ahk_cmd.txt should not exist before close"
         window.closeEvent(QCloseEvent())
@@ -73,7 +61,6 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
 
 
 def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path):
-    """Top-right title-bar controls: minimize + close, but no maximize."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -83,7 +70,7 @@ def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path
 
     try:
         hwnd = int(window.winId())
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)  # GWL_STYLE
+        style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)
         assert style & 0x00080000, "WS_SYSMENU must be set (enables the close button)"
         assert style & 0x00020000, "WS_MINIMIZEBOX must be set (enables minimize)"
         assert not (style & 0x00010000), "WS_MAXIMIZEBOX must NOT be set (no maximize)"
@@ -92,9 +79,6 @@ def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path
 
 
 def _build_merged_dashboard(cfg_path: Path):
-    """Build the real dashboard at the rect production computes — one window that
-    spans the whole left column, with the log stream embedded under the control bar.
-    """
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -109,26 +93,18 @@ def _build_merged_dashboard(cfg_path: Path):
         plan.dashboard.x, plan.dashboard.y, plan.dashboard.width, plan.dashboard.height,
     )
     window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-    # Let the central layout distribute the strip to the embedded log widget so
-    # its geometry is final before the tests read it.
     QApplication.processEvents()
     return window, manifest_path.parent
 
 
 def test_log_stream_fills_the_column_under_the_control_bar(cfg_path: Path):
-    """The bar runs along the top and the log takes everything beneath it, down
-    the window's left -- where it used to be a strip beside a drawing of the
-    monitors -- and the OSR2 part stands at the window's right end, from its top."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         bar, log, osr2 = window._widget, window._log_widget, window._osr2
         central = window.centralWidget()
-        # The log starts at the bar's lower edge ...
         assert log.y() == bar.y() + bar.height()
-        # ... runs across to the OSR2 part, which ends at the window's edge ...
         assert log.width() == osr2.x()
         assert (osr2.x() + osr2.width(), osr2.y()) == (central.width(), 0)
-        # ... and the bar and the log together fill the window's client height.
         assert bar.height() + log.height() == central.height()
         assert log.height() > bar.height()
     finally:
@@ -137,7 +113,6 @@ def test_log_stream_fills_the_column_under_the_control_bar(cfg_path: Path):
 
 def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edge(
         cfg_factory, tmp_path: Path):
-    """Under the log, as wide as it, as tall as the bar, and the log stops above it."""
     (tmp_path / "origenerator").mkdir()
     window, _state_dir = _build_merged_dashboard(
         cfg_factory({"paths": {"origenerator_dir": str(tmp_path / "origenerator")}}))
@@ -152,17 +127,12 @@ def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edg
 
 
 def test_log_filters_fit_one_row_inside_the_log_panel_and_lines_word_wrap(cfg_path: Path):
-    """The verbosity dial and source toggles share a single row that fits inside
-    the log panel's own margins (real font metrics enforce a minimum the
-    offscreen platform never does), and long log lines wrap instead of being cut
-    off with an ellipsis."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         panel = window._log_widget
         last = panel._source_buttons["system"]
         assert last.y() == panel._verbosity.y()
         assert last.x() + last.width() <= panel.width() - MARGIN_STANDARD
-        # Long lines wrap rather than elide.
         assert panel._list.wordWrap()
         assert panel._list.textElideMode() == Qt.TextElideMode.ElideNone
     finally:
@@ -170,9 +140,6 @@ def test_log_filters_fit_one_row_inside_the_log_panel_and_lines_word_wrap(cfg_pa
 
 
 def test_a_message_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path: Path):
-    """End to end over a real file: a NOTICE the dispatch loop would emit is
-    picked up by the dashboard's tail and flashed, at the top-center of the
-    window its source names — the overlay that replaced the AHK tooltip."""
     window, state_dir = _build_merged_dashboard(cfg_path)
     try:
         writer = logging.getLogger("integration.event_log.writer")
@@ -188,12 +155,9 @@ def test_a_message_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path
         assert overlay is not None
         assert overlay.isVisible()
         assert overlay.text() == "Clip saved"
-        # Centered across the Portrait Funestra's top, not the dashboard's.
         portrait = window._messages.funestra_rects.portrait
         assert portrait.x <= overlay.x() <= portrait.x + portrait.width
         assert overlay.y() < portrait.y + portrait.height // 2
-        # A normal message reads white; a dead end (WARNING) reads yellow.  The
-        # flash color is applied by stylesheet, so assert against level_color directly.
         assert level_color(MESSAGE).name() in overlay.styleSheet()
         flash_message(writer, "No other seeds", source="portrait", level=logging.WARNING)
         window._messages.poll()
@@ -205,28 +169,17 @@ def test_a_message_in_the_event_log_flashes_over_the_funestra_it_is_for(cfg_path
 
 
 def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
-    """The state file's snapshot, as the dashboard's refresh reads it."""
     return DashboardSnapshot(omni_paused=omni_paused)
 
 
 def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Path):
-    """The hotkeys & voice reference must free the desktop with everything else.
-
-    It is a top-level window of its own — not one of the bridge's managed windows
-    the orchestrator can drop, and not a child riding the dashboard's band — so
-    nothing took it out of WS_EX_TOPMOST and it stayed pinned over the desktop
-    for the whole pause.  Read off the real HWND: only the native platform gives
-    the popup a top-level window whose ex-style means anything.
-    """
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
-        window._on_action(HELP_REFERENCE)  # the ? button's own path
+        window._on_action(HELP_REFERENCE)
         dialog = window._reference.dialog
         assert dialog is not None
         hwnd = int(dialog.winId())
-        # The window we are banding is the one the user sees by name.
         assert find_window_by_title(REFERENCE_WINDOW_TITLE, exact=True) == hwnd
-        # It floats over the Funestras while the desktop is live.
         assert is_window_topmost(hwnd), "the popup should open topmost"
 
         window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
@@ -239,9 +192,6 @@ def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Pat
 
 
 def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
-    """Qt applies StaysOnTop as the popup is shown, so opening it mid-pause would
-    strand it over the freed desktop until the next refresh corrected it — it is
-    banded at open time instead, off the last snapshot."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
@@ -255,11 +205,6 @@ def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
 
 
 def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path):
-    """A dashboard left running keeps polling the Funestras' status files twice a
-    second and holds a UDP socket.  Several dashboards are built and closed
-    inside this one pytest process, so a leaked poller would keep reading — and
-    keep its socket bound — for the rest of the run.  The embedded log widget's
-    tail must stop with them."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     log = window._log_widget
     overlay = window._messages.overlay

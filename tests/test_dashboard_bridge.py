@@ -95,9 +95,6 @@ class TestTheSnapshotsEncoding:
         assert decode_snapshot(path.read_bytes()) == build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True))
 
     def test_the_decoder_normalizes_the_newlines_text_mode_writes(self):
-        """`write_text` opens in text mode, so on Windows the writer's ``\n``
-        lands as ``\r\n``.  The decoder every reader shares normalizes it back,
-        so a round trip equals what the builder emits on every platform."""
         assert decode_snapshot("[voice]\r\nactive=1\r\n".encode("utf-16")) == (
             "[voice]\nactive=1\n")
 
@@ -119,8 +116,6 @@ class TestTheSnapshotsEncoding:
 
 class TestTheWriterSkipsAnUnchangedSnapshot:
     def _write_as_windows_would(self, path: Path, text: str) -> None:
-        """`write_text` opens in text mode, so on Windows every \\n reaches the
-        disk as \\r\\n.  This is that file, on any platform."""
         with open(path, "w", encoding="utf-16", newline="\r\n") as handle:
             handle.write(text)
 

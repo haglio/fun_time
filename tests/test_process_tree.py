@@ -29,9 +29,6 @@ class _Process:
 
 
 class FakeWindows:
-    """A process table the way Windows shows it: a pid, its parent's pid and
-    when it was created, with a handle that keeps a pid from being handed on."""
-
     def __init__(self, processes: dict[int, tuple[int, int]]):
         self.running = {pid: _Process(*each) for pid, each in processes.items()}
         self.when_ended: dict[int, callable] = {}

@@ -1,17 +1,3 @@
-"""The production startup path, curtain included, on real windows.
-
-Every other integration session skips the loading screen (integration mode's
-default), so the exact path a real session takes — launch hidden under the
-overlay, reveal, then the post-overlay z-order pass — ran only on the user's
-own desktop, where "the landscape player is under other windows on startup"
-was reported and could not be reproduced by any test.  This session forces
-the overlay path (``FUN_TIME_INTEGRATION_OVERLAYS=1``) and then asks the one
-question that bug is about: once startup settles, is each satellite frontmost
-over its own rect?  Not merely "does it carry the topmost flag" — a window
-can carry WS_EX_TOPMOST and still sit buried under another topmost window
-promoted after it — but the real z-order, with the covering windows named in
-the failure.
-"""
 from __future__ import annotations
 
 import os
@@ -55,15 +41,8 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
     config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
     try:
-        # Longer than the default: this startup also boots the loading screen
-        # process and holds for the reveal.  "Hotkey script started" (what
-        # start waits for) comes after the post-overlay pass, so by the time
-        # this returns the pass has run.
         session.start(wait_seconds=90.0,
                       env_overrides={"FUN_TIME_INTEGRATION_OVERLAYS": "1"})
-        # Prove the loading screen actually ran — green through the overlay-less path
-        # would be this test testing nothing.  The startup-phase messages land
-        # in the session's event log (the windows-bridge routing begins later).
         events = event_log_path(session.config.paths.state_dir)
         text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
         assert "Loading screen launched" in text, (
@@ -79,17 +58,11 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
         for title, hwnd in hwnds.items():
             assert hwnd, f"{title} window never appeared after the reveal"
 
-        # Settle: the reveal's last activations can still be in flight.
         let_seconds_pass(1.0)
         stack = iter_zorder()
         for title, hwnd in hwnds.items():
             covering = windows_obscuring(hwnd, stack)
             if covering:
-                # The session's logs outlive the temp root's teardown: this is
-                # a window-choreography failure, and the sequencer's own
-                # account of what it resolved and moved is the diagnosis.
-                # Copied only on the way to a failure — a green run leaves
-                # nothing in the checkout.
                 _preserve_session_logs(session)
             assert not covering, (
                 f"{title} (hwnd={hwnd}) is covered after startup by: {describe_windows(covering)}")
@@ -98,8 +71,6 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
 
 
 def _preserve_session_logs(session) -> None:
-    """Copy the session's logs somewhere the temp-root teardown cannot reach —
-    the checkout's git-ignored state dir."""
     keep = Path(__file__).resolve().parents[2] / "state" / "loading_screen_test_logs"
     keep.mkdir(parents=True, exist_ok=True)
     state_dir = session.config.paths.state_dir

@@ -32,10 +32,6 @@ __path__.append(next(real for real in _where_the_real_modules_could_be
 
 
 def _a_funestra_whose_flick_folder_dies_importing(root: Path) -> Path:
-    """A checkout whose funestra is the real one under a flick_folder that
-    raises on import.  The Main Funestra imports that module as Genau's engine
-    comes up; the satellites never do, and Fun Time's check of the video engine
-    reads the real loader -- so the one death is the Main Funestra's."""
     package = root / "a_checkout_whose_flick_folder_dies_importing" / "funestra"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text(_THE_REAL_PACKAGE_UNDER_IT, encoding="utf-8")

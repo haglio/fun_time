@@ -55,9 +55,6 @@ class TestWakingItAsFunTimeOpens:
         assert answered.readiness is Readiness.READY
 
     def test_his_sound_goes_back_where_the_runtime_moved_it(self, tmp_path):
-        """The runtime makes the headset Windows' default as it comes up, and he
-        is still at his desk: a VR session names its own output, so nothing
-        needs the default left on the headset."""
         _, put_back, _ = _woken(
             tmp_path, before={OUTPUT_FOR_MUSIC: SPEAKERS}, during={OUTPUT_FOR_MUSIC: HEADSET})
 

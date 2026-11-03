@@ -85,12 +85,6 @@ time.sleep(120)
 
 
 def test_dead_holder_does_not_deadlock_the_queue(tmp_path):
-    """If the holder dies without releasing, the next caller still acquires.
-
-    This is the crash-recovery guarantee: a Windows mutex owned by a terminated
-    process is *abandoned* by the OS, and the next waiter is granted ownership
-    (WAIT_ABANDONED).  Without it, one crashed run would wedge the queue forever.
-    """
     name = _unique_name()
     sentinel = tmp_path / "held.flag"
     root = str(Path(__file__).resolve().parents[1])

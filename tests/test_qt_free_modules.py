@@ -1,11 +1,3 @@
-"""The parts of the panel code that must load without a window toolkit.
-
-Two GUI modules used to split themselves in half with a second block of PyQt6
-imports written 128 and 57 lines in — a real convention, for a good reason (the
-upper half tests without a QApplication, and the session's own message feed reads
-the placement rules), with nothing enforcing it. A module boundary enforces it,
-and this is what says so.
-"""
 from __future__ import annotations
 
 import subprocess

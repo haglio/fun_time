@@ -243,9 +243,6 @@ class TestAFileThatVanishedMidScan:
 
 class TestTitles:
     def test_a_clip_is_called_by_the_pair_recorded_for_it(self, tmp_path):
-        """A Windows filename cannot hold a colon, so the movie's own punctuation
-        survives only in the record -- which is why the record names it and the
-        name it was saved under does not."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Jane Doe - Alpha Study Part Two.mp4", "Vol2", 3,
                      "Alpha Study: Part Two", "Jane Doe")

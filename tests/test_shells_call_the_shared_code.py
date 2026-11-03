@@ -1,17 +1,3 @@
-"""The shells call the shared code with words it takes, checked without building them.
-
-A shell is a module no test can build -- it needs the libmpv DLL, a GL context,
-a headset, a real Chrome or the machine's own sound devices -- so the suites
-reach every line around it and none of its own.  What hides there is a call into
-the code the apps share: the shared code renames one of the words it takes, both
-suites stay green, and he meets it as a room that shows its loading screen and
-then goes.  His 2026-10-12 session died that way, on a word that had become
-``host_controls`` in the funestra this computer had installed:
-    TypeError: Funestra.__init__() got an unexpected keyword argument 'host_block'
-
-So each shell's source is read rather than run, and every word it hands a name
-borrowed from the shared packages is held against what that name takes now.
-"""
 from __future__ import annotations
 
 import ast

@@ -14,9 +14,6 @@ from fun_time.filter_vocab import (
     set_commands_for_scope,
 )
 
-# A tame stand-in for the real (git-ignored) vocabulary. It exercises every
-# mechanic the module has: a plain act, a multi-word query, and an act whose
-# spoken form differs from the query it matches.
 ACTS = {
     "alpha": ("alpha",),
     "beta gamma": ("beta gamma",),

@@ -1,10 +1,3 @@
-"""The seconds an integration run could have run: its waits are counted in these, not the wall's.
-
-A run's processes run below normal so that they never compete with his live session, and
-work at normal priority that holds every processor leaves them next to nothing.  Over any
-stretch, the processors other work left free -- the machine's busy time less the run's own --
-say how far the run could get: a whole processor free is full speed, half of one is half.
-"""
 from __future__ import annotations
 
 import ctypes

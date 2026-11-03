@@ -1,8 +1,3 @@
-"""Integration: a real satellite steps through the video on screen ten seconds at a
-time, as the back and forward 10s buttons on its HUD ask.
-
-Requires: FUN_TIME_RUN_INTEGRATION=1 and a real display (the hidden-desktop runner).
-"""
 from __future__ import annotations
 
 import os
@@ -30,8 +25,6 @@ SEEK_SLACK_MS = 1_000
 
 
 def test_seek_steps_a_held_video_ten_seconds_either_way():
-    """A video made for the test rather than a sample, since stepping ten seconds
-    both ways needs one longer than most of the library's."""
     satellite = a_lone_satellite()
     video = video_of_a_test_pattern(satellite.sources / "test_pattern.mp4", size="360x640", seconds=40)
     with satellite.launched([str(video)], width=640, height=360, hud=True):

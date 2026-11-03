@@ -80,11 +80,6 @@ class TestTheFlagFilesThisProcessReads:
 
 
 class _FakeMusic:
-    """The pygame music channel with a memory: what was loaded, whether it is
-    playing, where each play started, and the level it was set to.  The one
-    thing these tests stub — everything the controller itself does (position
-    arithmetic, pause bookkeeping, the visibility/mode gate) runs for real."""
-
     def __init__(self):
         self.loaded: str | None = None
         self.busy = False
@@ -297,8 +292,6 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
 
     def test_a_channel_that_cannot_start_part_way_in_starts_the_clip_over(
             self, tmp_path, caplog):
-        """pygame.error is a RuntimeError.  A format the channel will play but
-        cannot seek into must still play."""
         music = MagicMock()
         music.play.side_effect = [RuntimeError("Unable to seek"), None]
         controller = self._controller(tmp_path, music)
@@ -375,9 +368,6 @@ class TestTheOutputItPlaysOn:
         init.assert_any_call(devicename=self.HEADSET)
 
     def test_a_software_output_of_the_same_name_does_not_take_the_sound(self):
-        """The headset maker's own streaming driver carries its name too and
-        Windows lists it first, so taking the first match left the room silent.
-        """
         with software_outputs_are(frozenset({self.STREAMING})), \
              patch("fun_time.audio_companion_app.get_audio_device_names",
                    return_value=[self.STREAMING, self.HEADSET]), \

@@ -1,11 +1,3 @@
-"""Integration: the native Satellite Funestra launches, plays, obeys commands, and
-composites its lock HUD.
-
-Proves the mpv-backed Satellite Funestra (this repo's `satellite` package) works
-end-to-end on the real platform — through the file quartet fun_time drives it
-with, plus the HUD HUD fun_time publishes for it to draw.  Launched via the
-production `launch_satellite`; the playlist is a random real sample.
-"""
 from __future__ import annotations
 
 import os
@@ -40,7 +32,6 @@ def test_native_satellite_plays_and_obeys_commands():
     satellite = a_lone_satellite()
     with satellite.launched(library_videos_of("portrait", 3), width=800, height=600):
         first = satellite.wait_until_playing()
-        # Lock (stops auto-advance) so NEXT's effect on the video is unambiguous.
         satellite.send(LOCK_ON)
         satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
                            desc="the satellite to lock")
@@ -52,7 +43,6 @@ def test_native_satellite_plays_and_obeys_commands():
         satellite.send(f"{SET_SPEED} 2")
         satellite.wait_for(lambda: read_satellite_status(satellite.status).speed == 2.0,
                            desc="the satellite to report double speed")
-        # The paused flag freezes playback.
         satellite.paused.write_text("1", encoding="utf-8")
         satellite.wait_for(lambda: read_satellite_status(satellite.status).paused,
                            desc="the satellite to report paused")
@@ -60,24 +50,14 @@ def test_native_satellite_plays_and_obeys_commands():
         let_seconds_pass(1.2)
         pos_b = published_status(read_satellite_status, satellite.status).position_ms
         assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
-        assert first.video  # a real video was playing
+        assert first.video
 
 
 def test_another_sessions_startup_reap_leaves_this_satellite_alone():
-    """The startup reap must not be able to leave its own session.
-
-    Every satellite on the machine runs ``-m satellite``, so a reap matched on the
-    module alone swept the whole machine: an integration run coming up killed both
-    Funestras in the user's live session, with no traceback anywhere because nothing
-    had crashed — they were terminated.  Only a real process can prove the
-    reap's filter actually holds, so this launches one and fires both halves of
-    the contract at it: a stranger's reap must spare it, its own must still take it.
-    """
     satellite = a_lone_satellite()
     with satellite.launched(library_videos_of("portrait", 2), width=800, height=600):
         satellite.wait_until_playing()
 
-        # A session whose state dir is somewhere else entirely comes up.
         elsewhere = satellite.folder.parent / "some_other_session"
         reap_orphaned_satellites(
             "satellite",
@@ -87,22 +67,12 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
         assert process_started(satellite.pid) is not None, (
             "another session's startup reap killed this satellite")
 
-        # ...and the reap still does its own job, on its own files.
         reap_orphaned_satellites("satellite", [satellite.status])
         satellite.wait_for(lambda: process_started(satellite.pid) is None,
                            desc="our own reap to clear a satellite stranded on our files")
 
 
 def test_the_satellite_composites_the_published_lock_hud(tmp_path):
-    """The HUD is drawn INTO the video by mpv, so nothing outside the Funestra can
-    read it back — what this proves is that the whole render path survives the
-    real platform: real thumbnails, real fonts, a real BGRA overlay handed to a
-    real mpv, redrawn when the HUD changes, with the video still advancing after.
-    A crash anywhere in it takes the Funestra down and the status file goes stale.
-
-    The HUD is built by the production publisher from a production SatelliteHud, so
-    the bytes the Funestra parses are exactly the bytes fun_time writes.
-    """
     videos = library_videos_of("portrait", 2)
     cache_dir = tmp_path / THUMBNAIL_CACHE_DIRNAME
     for video in videos:
@@ -123,8 +93,6 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
 
     with satellite.launched(videos, width=800, height=600, hud=True):
         satellite.wait_until_playing()
-        # Republish a changed HUD: the Funestra must re-render and composite it
-        # without disturbing playback.
         publish(locked=True)
         before = published_status(read_satellite_status, satellite.status).position_ms
         let_seconds_pass(2.0)
@@ -154,7 +122,6 @@ def test_a_satellite_holds_an_image_for_the_pace_it_is_sent_and_under_a_lock():
     with satellite.launched(images, width=480, height=640):
         first = satellite.wait_for(lambda: _the_image_on_screen(satellite),
                                    desc="the satellite to show an image")
-        # Past the four seconds a Funestra opens at, so only the nought can be holding it.
         let_seconds_pass(6.0)
         assert satellite.video() == first, "an image held at a pace of nought moved on"
 

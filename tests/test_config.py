@@ -27,13 +27,6 @@ class TestLoadConfig:
             load_config(tmp_path / "nonexistent.json")
 
     def test_missing_default_regenerates_from_example_then_raises(self, tmp_path: Path, monkeypatch):
-        # Root cause #1: the git-ignored fun_time_config.json got swept away and
-        # startup died on an opaque FileNotFoundError.  A missing *default*
-        # config now writes a starter copy from the committed example (so there
-        # is a file to fill in) and still stops — the example's paths are
-        # placeholders that must not be taken for a real library — with a clear
-        # message naming the file.  Expectation derived from the committed
-        # example so this holds on a public checkout.
         example_text = config.EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8")
         example = tmp_path / "fun_time_config.example.json"
         example.write_text(example_text, encoding="utf-8")
@@ -187,10 +180,6 @@ class TestRegenConfig:
         assert cfg.random_favs_browser.enabled is False
 
     def test_a_browser_section_that_names_no_profile_stays_off(self, cfg_factory):
-        """The defaults used to be one machine's own shortcut and profile, so a
-        section saying only ``enabled`` launched Chrome into somebody's profile
-        by guess.  Nobody's to guess: off until the section says whose, and the
-        shortcut placeholder is a file the launch validation refuses by name."""
         path = cfg_factory({"random_favs_browser": {"enabled": True, "open_count": 3}})
         cfg = load_config(path)
         assert cfg.random_favs_browser.enabled is False

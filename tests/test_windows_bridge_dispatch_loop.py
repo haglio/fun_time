@@ -822,7 +822,6 @@ class TestDispatchLoopRunner:
         }
 
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
-        """Windows whose lookup returns 0 are skipped — no minimize call for them."""
         runner = make_runner(tmp_path, rfb_hwnd=0)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
@@ -1337,15 +1336,6 @@ def test_a_word_the_app_hears_as_a_lock_locks_a_satellite_showing_the_hosted_app
 
 
 class TestOpenRfbTab:
-    """A lock's tab has to reach the session's own Chrome window.
-
-    That window shares a profile with whatever windows of it the user already
-    had open, and Chrome gives a forwarded URL to the most recently activated
-    window of the profile — so these tests pin the two things that make the
-    session's window the one it picks: it is activated first, and a handoff is
-    refused outright when the session has no window of its own left.
-    """
-
     @staticmethod
     def _rfb_patches(calls: list[tuple[str, object]], *, alive: bool = True):
         return (
@@ -1393,9 +1383,6 @@ class TestOpenRfbTab:
         ]
 
     def test_rfb_window_is_activated_before_the_handoff(self, tmp_path):
-        """Chrome gives the URL to the most recently activated window of the
-        profile, so the activation has to happen before chrome.exe is launched —
-        after it, the user's own window is still the one Chrome would pick."""
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=777,
@@ -1416,9 +1403,6 @@ class TestOpenRfbTab:
         assert [name for name, _ in calls] == ["activate", "open"]
 
     def test_open_rfb_tab_op_skipped_when_the_rfb_window_is_gone(self, tmp_path):
-        """A handle outlives the window it named.  With no window of its own to
-        open into, every URL handed to Chrome lands in one of the user's — so the
-        tab is dropped rather than opened somewhere Fun Time does not own."""
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
@@ -1475,8 +1459,6 @@ class TestOpenRfbTab:
         assert calls == []
 
     def test_lock_both_opens_both_videos_in_one_launch(self, tmp_path):
-        """"lock both" locks two videos in one tick; their RFB tabs must open in
-        a single Chrome launch, or the second races the singleton and is dropped."""
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
@@ -2064,10 +2046,6 @@ class TestBrowseLibrary:
         assert mock_browse.call_args.kwargs["over"] is None
 
     def test_a_second_browse_while_one_is_open_is_dropped(self, tmp_path):
-        """The browser is the user's window, not the loop's: a second request
-        while one is open would stack a second Chrome window and a second
-        topmost drop/restore pair.  So while a browse holds the floor, another
-        press is a no-op — dropped without blocking, not queued after it."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 

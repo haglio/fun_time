@@ -9,13 +9,6 @@ from tests.integration.hidden_desktop import HIDDEN_DESKTOP_NAME
 
 
 def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
-    """pytest runs as python.exe and owns real Qt windows on this desktop — both
-    this run's and any run queued after it.  Killing one leaves a suite dead
-    with no output, so the reap targets the images the apps run as — plus, by
-    COMMAND LINE rather than image, a leftover hosted Origenerator, which runs
-    on a plain python.exe of its own and once survived every reap to leave its
-    windows over a later session's Funestras.
-    """
     own = os.getpid()
     images = {
         222: r"C:\blah\genau\.venv\Scripts\pythonw.exe",
@@ -48,16 +41,6 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
 
 
 def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
-    """The last machine-wide kill in the suite, and the same shape as the reap
-    that took down the user's Funestras.
-
-    Off the hidden desktop this used to run `Get-Process pythonw,autohotkey64 |
-    where StartTime > -5min | Stop-Process -Force`, which is every satellite,
-    The Main Funestra, Genau, the dashboard, the audio companion and the AHK bridge of any
-    session started in the last five minutes — the user's included.  It existed
-    to support bare `pytest tests/integration/`, which is exactly the invocation
-    that is forbidden; the suite now refuses that run instead of sweeping.
-    """
     with patch.object(integration_support, "current_desktop_name", return_value="Default"), \
          patch.object(integration_support, "pids_with_window_on_current_desktop") as pids, \
          patch.object(integration_support, "kill_process_tree") as kill, \

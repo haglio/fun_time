@@ -142,14 +142,6 @@ def _event_line(message: str) -> str:
 
 @pytest.fixture
 def panel_factory(tmp_path: Path):
-    """Build a live LogPanelWidget over an event log already holding *messages*.
-
-    The copy tests read their result off ``QApplication.clipboard()`` — a
-    process-global whose isolation from the machine's real clipboard rests on
-    the offscreen platform.  The conftest sets that with ``setdefault`` and
-    invites overriding it to watch a test, so whatever the developer had
-    copied is state here and put back on teardown rather than silently lost.
-    """
     built: list[LogPanelWidget] = []
     users_clipboard = QApplication.clipboard().text()
 
@@ -318,10 +310,6 @@ class TestTheSavedViewState:
 
 
 def test_the_level_dial_fits_its_longest_name(panel_factory):
-    """It carried a flat 80px, which cut "WARNING" down to "WARN" -- and a width
-    guessed at from the text plus a constant for the arrow came up short too.
-    Qt's own hint, taken after the items are in, knows what this style's arrow
-    and frame actually cost."""
     panel = panel_factory(["Clip state"])
     dial = panel._verbosity
 

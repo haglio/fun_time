@@ -56,10 +56,6 @@ class TestLoadContent:
         assert result["web_providers"] == []
 
     def test_an_overlay_that_will_not_parse_says_which_file_it_is(self, tmp_path: Path):
-        """A typo in the real overlay stops the session before a window opens,
-        and the reader is left with "Expecting value: line 1 column 11" and no
-        file to go and look at — the two candidates being a checkout's committed
-        placeholder and a git-ignored file beside it."""
         local = tmp_path / "content.local.json"
         local.write_text('{"acts": [', encoding="utf-8")
 

@@ -1,10 +1,3 @@
-"""The spoken vocabulary and its wire format.
-
-These tests are about :mod:`fun_time.voice_commands` alone — the generated
-phrase grids and the command-file line format — and import it directly, not
-through :mod:`fun_time.voice_control`, whose vosk/sounddevice runtime is
-exactly the coupling the module was split out to prevent.
-"""
 from __future__ import annotations
 
 import pytest
@@ -202,8 +195,6 @@ class TestVoiceCommands:
         assert "un retract" not in VOICE_COMMANDS
 
     def test_osr2_off_is_the_switch_off(self):
-        """Off parks the device, as the HUD's switch does.  Spelled with the
-        letters vosk has, like "OSR2 resume", which is the way back."""
         for phrase in ("o s r two off", "oh es are two off"):
             assert VOICE_COMMANDS[phrase] == "robot_hand_park", phrase
             assert friendly_voice(phrase) == "OSR2 off"
@@ -217,14 +208,6 @@ class TestVoiceCommands:
             assert friendly_voice(phrase) == "OSR2 control on"
 
     def test_the_release_is_spelled_the_way_vosk_can_hear_it(self):
-        """vosk has none of "unpark" or "OSR2" in its lexicon, so a
-        phrase built from them could never be recognized.  It does have "un" (as
-        "un mute" already relies on) and it has the letters, in both renderings
-        the model produces for "oh-ess-arr-two" — so those are the recognizer
-        forms, and friendly_voice joins them back up for the reference.
-
-        None of them can collide with bare "resume" (leave OmniPause): the
-        grammar matches whole phrases, not prefixes."""
         for joined in ("unpark", "osr2", "o s r 2"):
             assert joined not in VOICE_COMMANDS
         assert friendly_voice("un park") == "unpark"

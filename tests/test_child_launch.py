@@ -1,39 +1,3 @@
-"""What every child a session launches has to say for itself.
-
-Two promises, both of them about what happens on the user's screen when the
-session is not the one the launch was written against, and both swept for
-below over every spawn in the tree.
-
-**Where its output goes.** ``launch.vbs`` runs the orchestrator through
-``cmd /c ... >> launcher.log``, so ``cmd`` owns that file for as long as the
-session lasts and Windows lets nobody else write it meanwhile.  A ``Popen`` that
-names no ``stdout``/``stderr`` does not send the child's output nowhere -- it
-hands the child *this process's* pair, which is that same handle.  Most children
-die with the session and give it back.  Some do not: Chrome opened for the
-Random Favs Browser, the broker tray (whose own docstring says it must outlive
-the run), an Origenerator kept across a crossing to the headset.  One of those
-goes on holding ``launcher.log`` for as long as its own window is open, which
-can be hours.
-
-Then the next launch redirects into the held file, and ``cmd`` fails on the
-redirect -- before it runs python at all.  Nothing starts.  ``orchestrator.log``
-gets no line, because logging is configured inside the interpreter that never
-ran; the single-instance mutex says nothing, for the same reason; and the
-launcher's own dialog, if it is seen at all, shows the tail of a log written by
-a session that ended long ago.  The click does nothing, and the app starts on a
-later click only because the stray has finally gone.
-
-**That it opens no console window.** A session ``launch.vbs`` started runs
-under the HUD interpreter and has a console of its own, which the launcher
-hides -- so a console child inherits somewhere invisible to put a console.  A
-session the crossing relay started runs under the WINDOWED interpreter and has
-no console at all, and Windows answers a console child of a console-less parent
-by giving it a console window, on screen.  Every VR session is one of those, and
-its teardown kills its children one at a time through ``taskkill``: a black
-window per kill, which is what quitting FunTimeVR flashed.  Which kind of
-session a launch lands in is not something the call site can know, so every
-child says for itself that it wants no console.
-"""
 from __future__ import annotations
 
 import ast

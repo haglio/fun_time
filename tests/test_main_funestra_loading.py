@@ -34,14 +34,6 @@ class TestProgressText:
 
 
 class TestGivingUpOnTheWait:
-    """The whole of `LoadingScreen.update` that is not painting.
-
-    A cold library scan runs to tens of seconds, and the close button during it
-    is the only way out: `main_funestra.app` catches `LoadingCanceled` and exits 0 without
-    ever opening a video.  The pump is owed on every update either way, or
-    Windows grays the window out as unresponsive halfway through.
-    """
-
     def test_the_close_button_ends_the_wait(self, monkeypatch):
         monkeypatch.setattr(pygame.event, "get", lambda: [_event(pygame.QUIT)])
 
@@ -56,8 +48,6 @@ class TestGivingUpOnTheWait:
         stop_if_asked()
 
     def test_it_pumps_the_queue_even_with_nothing_in_it(self, monkeypatch):
-        """The pump is the half that has nothing to do with quitting, and the
-        half Windows messages when it stops happening."""
         pumped = []
         monkeypatch.setattr(
             pygame.event, "get", lambda: pumped.append(1) or [])

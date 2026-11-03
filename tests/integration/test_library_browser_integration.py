@@ -1,12 +1,3 @@
-"""Real-window checks for the Main Funestra library browser.
-
-The browser's whole value is what the user *reads* off it — the handle names
-under the stills — and the unit suite cannot see that: it renders on Qt's
-offscreen platform, where ``QFontDatabase.families()`` is empty and every glyph
-comes out as tofu, the missing-character rectangle.  A grid of it passes every
-assertion a unit test can make about it.  So the "does it actually paint the
-titles" check lives here, on the native platform, where the fonts are real.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -54,8 +45,6 @@ SECTIONS = ("big_batch", "small_batch")
 
 
 def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
-    """One handle per section, each with a still already cached, so nothing is
-    extracted."""
     handles = []
     for index, title in enumerate(TITLES):
         video = tmp_path / f"v{index}.mp4"
@@ -70,14 +59,6 @@ def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
 
 
 def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
-    """A rendered tile carries both the still and legible text, not tofu.
-
-    Legibility is read off the font: on the native platform the families are
-    there and the title's glyphs are really in the face being drawn with, where
-    offscreen has no font at all and paints every character as tofu.  Section
-    headers are held to the same bar — the separator in one is a character too,
-    and a header nobody can read names no section.
-    """
     cache = tmp_path / "cache"
     cache.mkdir()
     handles = _handles(tmp_path, cache)
@@ -106,14 +87,6 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
 
 
 def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
-    """The mirror of the dashboard's check, and the opposite answer.
-
-    The dashboard is a program you leave running, so it carries WS_EX_APPWINDOW
-    and shows on the taskbar.  A browse is a window you open and dismiss, so it
-    carries WS_EX_TOOLWINDOW instead and shows nowhere — which is what stops it
-    turning up as an "open" mark against some unrelated app's icon.  Only the
-    real Qt windows platform gives winId() a genuine top-level HWND to read.
-    """
     cache = tmp_path / "cache"
     cache.mkdir()
     window = LibraryBrowserWindow(
@@ -121,7 +94,7 @@ def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
     )
     try:
         window.show()
-        ex_style = ctypes.windll.user32.GetWindowLongW(int(window.winId()), -20)  # GWL_EXSTYLE
+        ex_style = ctypes.windll.user32.GetWindowLongW(int(window.winId()), -20)
 
         assert ex_style & 0x00000080, "WS_EX_TOOLWINDOW should be set"
         assert not (ex_style & 0x00040000), "WS_EX_APPWINDOW should NOT be set"
@@ -130,16 +103,6 @@ def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
 
 
 def _double_click(window: LibraryBrowserWindow, row: int) -> None:
-    """Deliver a genuine double-click onto *row*'s tile.
-
-    The whole four-event sequence a mouse produces, sent to the viewport so it
-    runs through ``QAbstractItemView`` exactly as the real gesture does.  The
-    press and release are not decoration: a lone ``MouseButtonDblClick`` leaves
-    the view with no pressed index and it discards the event, on ours and on a
-    bare QListWidget alike.  ``QTest.mouseDClick`` is not used either — on this
-    hidden desktop it delivers nothing to the view at all, so a test written on
-    it would pass or fail on the harness rather than on the browser.
-    """
     point = QPointF(window.grid.visualItemRect(window.grid.item(row)).center())
     for kind in (
         QEvent.Type.MouseButtonPress,
@@ -154,17 +117,6 @@ def _double_click(window: LibraryBrowserWindow, row: int) -> None:
 
 
 def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
-    """The gesture, not the signal — and the whole way out of the process.
-
-    A unit test can only emit ``itemActivated`` by hand, which says the handler
-    is wired and nothing about whether the gesture ever gets there — and the
-    gesture was never the half that was broken.  The browse *ended* nowhere: Qt
-    does not count a Tool window towards the last-window quit, so a picked video
-    sat in the result file with the bridge still blocked on a process that had
-    nothing left to do, and from the outside a double-click looked like it did
-    nothing.  So this drives the click through a running event loop that has to
-    actually return.
-    """
     cache = tmp_path / "cache"
     cache.mkdir()
     handles = _handles(tmp_path, cache)
@@ -180,7 +132,7 @@ def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
 
     row = window.grid.rows.index(handles[0])
     QTimer.singleShot(0, lambda: _double_click(window, row))
-    QTimer.singleShot(4000, app.quit)  # watchdog: never hang the suite
+    QTimer.singleShot(4000, app.quit)
     app.exec()
 
     assert picked == [handles[0].video], "a double-click must play the video"
@@ -188,7 +140,6 @@ def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
 
 
 def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
-    """The same gesture on a folder tile walks into it rather than playing it."""
     cache = tmp_path / "cache"
     cache.mkdir()
     window = LibraryBrowserWindow(
@@ -207,7 +158,6 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
         window.close()
 
 
-# A title no real window carries, so the stand-in below is found by nothing else.
 STAND_IN_TITLE = "FUNTIMEMARK-MAIN-FUNESTRA"
 
 # A whole interpreter, Qt, and a walk of the library stand between the launch
@@ -222,32 +172,11 @@ def _until_no_browse_is_open() -> None:
 
 
 def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, cfg_factory):
-    """A real browse, launched the way the bridge launches it, ends up on top.
-
-    The browse opens over the Main Funestra's own rect, and it used to come up
-    UNDER it: Windows refuses ``SetForegroundWindow`` to a process that
-    neither owns the foreground nor took the last input, and the browse is a
-    child the bridge starts while the Funestra holds both — so Qt's own
-    ``activateWindow`` did nothing, silently.
-
-    What this loading screens is the opening path itself, which nothing covered before:
-    the production launch, a real child process, a real window, and that window
-    landing above one already sitting over the same rect.
-
-    It does NOT catch the bug above, and was checked against a build without
-    the fix to be sure of that: a hidden desktop has no foreground window,
-    which is one of the cases the rule allows, so the activation is granted
-    here either way.  Only a real display can show the refusal.
-    """
     config = load_config(cfg_factory())
     library = config.paths.main_funestra_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)
-    # The manifest the session's own writer produces, so the browse reads its
-    # library exactly as it does in a real session.  The interpreter is the
-    # only input a test must supply: the fixture config names a stub .exe, and
-    # this launch has to really run.
     manifest = write_windows_bridge_manifest(config)
     _until_no_browse_is_open()
 
@@ -257,8 +186,6 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     stand_in.show()
     QApplication.instance().processEvents()
     stand_in_hwnd = int(stand_in.winId())
-    # The shape the session is in when a browse starts: the Funestra runs in the
-    # topmost band and the bridge drops it out for the browse's duration.
     set_always_on_top(stand_in_hwnd, True)
     set_always_on_top(stand_in_hwnd, False)
 
@@ -286,19 +213,6 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
 def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     tmp_path: Path, cfg_factory,
 ):
-    """The lookup and the promotion the OmniPause fix rests on, for real.
-
-    A browse's own process owns no window — the interpreter a session launches
-    is a venv's ``python.exe``, which spawns the one that opens it — so the
-    first fix here looked the window up by the started pid, found nothing, and
-    left the browse buried under the Funestra exactly as before.  Only a real
-    launch has a real process tree to get that wrong against, which is why this
-    lives here.
-
-    The stand-in going topmost is what leaving OmniPause does to the Funestras:
-    ``HWND_TOPMOST`` inserts at the top of the band, over a browse that is not
-    in it.  Re-asserting the browse has to clear it again.
-    """
     config = load_config(cfg_factory())
     library = config.paths.main_funestra_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
@@ -315,8 +229,6 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     QApplication.instance().processEvents()
     stand_in_hwnd = int(stand_in.winId())
 
-    # The bridge's own runner shape: it holds the Popen while the browse is up,
-    # and that object is what the promotion is handed.
     started: list[subprocess.Popen] = []
 
     def runner(command, **kwargs):

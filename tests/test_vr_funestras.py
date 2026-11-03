@@ -1,10 +1,3 @@
-"""fun_time_vr.funestras off the headset: the manifest contract and the room's wiring.
-
-The scene, the eyes and the OpenXR frame loop need the real machine and stay
-with the VR integration run; these pin what runs the same everywhere — how the
-headset process is told about its session, what each Funestra is handed, and where each
-screen hangs.
-"""
 from __future__ import annotations
 
 import ast
@@ -205,17 +198,12 @@ def test_the_compositor_falls_back_to_off_when_the_section_does_not_say(tmp_path
 
 
 def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path):
-    """The Main Funestra asks mpv for a device only when the session named one,
-    so an unnamed device has to arrive as the empty string rather than absent."""
     path = tmp_path / "windows_bridge_launch.ini"
     path.write_text("[vr]\nlibrary_dirs=\n", encoding="utf-8")
 
     assert VrSettings.read(path).audio_device == ""
 
 
-# The collaborators a unit builds that need libmpv, a GL context, a socket, the
-# library or the state directory.  Faked wholesale: what is under test here is
-# which manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
     "HeadsetEngine", "VideoThread", "RenderTarget", "FrameTexture", "Funestra",
     "HeadsetVerbs", "FrameLook", "_TheLibrary", "FunscriptTCodeDriver", "Osr2Sender",
@@ -500,8 +488,6 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     assert channels.play_points == Path(commands.state_dir) / play_points_filename(funestra)
     assert channels.hud == Path(commands.funestra_file(funestra, "hud"))
     assert channels.dashboard_cmd == Path(commands.dashboard_cmd_file)
-    # The HUD paints onto a bitmap of its own, hanging under the frame, not
-    # into the video through mpv as the desktop satellite's does.
     assert handed["hud_surface"] is unit.hud
 
 
@@ -725,9 +711,6 @@ class TestWhatEveryVideoUnitOwes:
             unit.pump(threading.Event(), 0.0)
 
     def test_the_base_refuses_to_be_closed(self):
-        """The frame loop's `finally` calls this on every unit in its list, so
-        a subclass that forgot would raise inside the teardown and leave the
-        OpenXR session and the GL contexts unreleased."""
         unit = _VideoUnit.__new__(_VideoUnit)
 
         with pytest.raises(NotImplementedError):
@@ -1149,8 +1132,6 @@ class _FakeTexture:
 
 @pytest.fixture
 def loading_screen_graphics():
-    """The loading screen's texture and mesh, recorded rather than made — everything else
-    about it is files and Pillow, which run anywhere."""
     with patch("fun_time_vr.funestras.FrameTexture", _FakeTexture),             patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
         yield
 
@@ -1323,10 +1304,6 @@ class TestWhenTheRoomIsUp:
         assert _still_blank(**_room(main_hud_unit=False, main_hud_in_the_room=False)) == ()
 
     def test_a_sized_texture_is_not_a_frame(self):
-        """A video target is ready the moment mpv reports the video's
-        dimensions, a frame or more before it presents anything -- so the room
-        read as up almost as soon as the loop began, the loading screen came off in a
-        blink nobody saw, and the OSR2 was released onto black."""
         scene = _room()
         scene["main_unit"] = SimpleNamespace(screen_name="main", texture_on_the_screen=(
             SimpleNamespace(ready=True, has_frame=False)))

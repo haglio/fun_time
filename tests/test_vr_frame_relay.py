@@ -66,17 +66,10 @@ def test_the_main_frame_keeps_a_7k_videos_own_size():
 
 
 def test_there_is_no_size_to_paint_until_mpv_says_what_the_video_is():
-    """Between files mpv reports (0, 0), and a target sized from that would be
-    the teardown flicker the last frame is held through."""
     assert capped_size((0, 0), 2048) is None
 
 
 class TestTheStillAVideoThreadIsAskedFor:
-    """The projection check reads a frame to tell a fisheye recording from a 180 one.
-    It used to ask mpv for a screenshot from its own thread, which on an offscreen
-    Funestra is "No render context set" -- the render context belongs to the thread
-    that paints, and asking wedged the Funestra instead (2026-09-20)."""
-
     def test_nothing_is_there_until_one_is_asked_for(self):
         assert StillAsked().take() is None
 

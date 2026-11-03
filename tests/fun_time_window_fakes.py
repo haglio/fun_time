@@ -1,11 +1,3 @@
-"""The windows a session's children would own, stood in for off Windows.
-
-Both the :class:`fun_time.fun_time_windows.FunTimeWindows` tests and the dispatch
-loop's drive the same imaginary desktop: four children with known pids, the
-hosted Origenerator's own caption, and the browser window startup
-captured.  One home for it, so a test in either file that says ``PORTRAIT_HWND``
-means the same window a test in the other one does.
-"""
 from __future__ import annotations
 
 MAIN_FUNESTRA_HWND = 2001

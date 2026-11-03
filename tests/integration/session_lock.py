@@ -1,30 +1,3 @@
-"""A machine-wide single-instance lock for serializing integration runs.
-
-Multiple worktree agents share this repo and may launch the integration suite
-at the same time.  Every run launches the Funestras/AHK and reaps leftover app
-processes (``FunTimeIntegrationSession._reap_leftover_runtime_processes``) that
-force-kills *any* AutoHotkey64/pythonw it finds — including a concurrent
-run's freshly-spawned processes — and the AHK bridge runs under ``#SingleInstance
-Force`` so a second bridge launch evicts the first.  The result is flaky,
-non-deterministic failures (different tests each run) whenever two suites overlap.
-
-``SingleInstanceLock`` wraps a Windows *named mutex*: a kernel object keyed by
-name with machine-global scope (the ``Global\\`` prefix).  Because the name
-resolves to the same kernel object across every process on the machine, only one
-holder — across all agents/processes — can own it at a time; the rest block until
-it is free.  Crucially, if the owning process dies without releasing (crash,
-kill, power loss) the OS marks the mutex *abandoned*, and the next waiter's
-``WaitForSingleObject`` returns ``WAIT_ABANDONED`` and is granted ownership.  So a
-dead run can never deadlock the queue — no PID-liveness polling or heartbeat file
-is needed; the kernel provides recovery for free.
-
-Each kind of run waits in a lane of its own, and only the run at the front of
-each lane waits on the lock itself, where the front full run steps aside for the
-front short run until its patience is spent.  The places in the lanes and the
-flags between them are named mutexes for the lock's own reason: a run that dies
-leaves them abandoned, and the next run to ask is granted an abandoned mutex, so
-a dead run holds nobody back.
-"""
 from __future__ import annotations
 
 import _winapi
@@ -39,9 +12,6 @@ from typing import NamedTuple
 
 from app_support.win32_loader import load_dll
 
-# The one machine-wide name every integration run contends on.  ``Global\`` puts
-# it in the system-wide namespace so runs in different login sessions still
-# serialize against each other on the same machine.
 INTEGRATION_LOCK_NAME = r"Global\fun_time_integration_run"
 
 FULL_RUN_GIVES_WAY_S = 20 * 60
@@ -59,9 +29,7 @@ class Waiting(NamedTuple):
     seconds: float
     place: Place
 
-# WaitForSingleObject return codes (winbase.h).
 _WAIT_OBJECT_0 = 0x00000000
-# The previous owner died without releasing; the OS grants us ownership anyway.
 _WAIT_ABANDONED = 0x00000080
 _WAIT_FAILED = 0xFFFFFFFF
 _INFINITE = 0xFFFFFFFF
@@ -86,13 +54,10 @@ _kernel32.CreateSemaphoreW.argtypes = [wintypes.LPVOID, wintypes.LONG, wintypes.
 _kernel32.ReleaseSemaphore.restype = wintypes.BOOL
 _kernel32.ReleaseSemaphore.argtypes = [wintypes.HANDLE, wintypes.LONG, ctypes.POINTER(wintypes.LONG)]
 
-# The largest count a semaphore can hold (a LONG).
 _MOST_NUMBERS = 0x7FFFFFFF
 
 
 class SingleInstanceLock:
-    """A machine-wide mutual-exclusion lock backed by a Windows named mutex."""
-
     def __init__(self, name: str = INTEGRATION_LOCK_NAME) -> None:
         self._name = name
         self._handle: int | None = None
@@ -107,11 +72,6 @@ class SingleInstanceLock:
         return self._handle
 
     def acquire(self, timeout: float | None = None) -> bool:
-        """Block until the lock is held; return ``True`` once it is.
-
-        ``timeout`` is seconds to wait; ``None`` waits forever (queue behavior).
-        Returns ``False`` if the timeout elapses before the lock is acquired.
-        """
         handle = self._ensure_handle()
         if timeout is None:
             result = _winapi.WaitForMultipleObjects([handle], False, _INFINITE)
@@ -119,19 +79,15 @@ class SingleInstanceLock:
             result = _kernel32.WaitForSingleObject(handle, max(0, int(timeout * 1000)))
             if result == _WAIT_FAILED:
                 raise ctypes.WinError(ctypes.get_last_error())
-        # WAIT_ABANDONED means a prior holder crashed without releasing; the OS
-        # still hands us ownership, so it is a successful (recovering) acquire.
         self._held = result in (_WAIT_OBJECT_0, _WAIT_ABANDONED)
         return self._held
 
     def release(self) -> None:
-        """Relinquish ownership so a waiting caller can acquire the lock."""
         if self._held and self._handle is not None:
             _kernel32.ReleaseMutex(self._handle)
             self._held = False
 
     def close(self) -> None:
-        """Release (if held) and drop the OS handle."""
         self.release()
         if self._handle is not None:
             _kernel32.CloseHandle(self._handle)
@@ -154,16 +110,6 @@ def hold_integration_lock(
     full_run_gives_way_s: float = FULL_RUN_GIVES_WAY_S,
     notify: Callable[[Waiting], None] | None = None,
 ) -> Iterator[SingleInstanceLock]:
-    """Hold the machine-wide integration lock for the duration of the block.
-
-    Blocks until the lock is free — other runs queue here, in the order they
-    arrived, instead of clobbering — then releases it on exit even if the block
-    raises.  A *short* run goes ahead of full runs; a full run lets short runs
-    go first until they have held the lock for *full_run_gives_way_s* while it
-    was next in line, and from then on they wait for it.  While waiting, calls ``notify``
-    every *notify_every_s* so a queuing run can surface that it is waiting
-    rather than hanging silently.
-    """
     line = _Line(name)
     try:
         line.join(short=short)
@@ -226,14 +172,6 @@ class _Line:
 
 
 class _Lane:
-    """Runs of one kind, let out in the order they joined.
-
-    Windows promises the threads waiting on a mutex no order -- one suspended
-    while it waits, as a debugger suspends them at each of its events, goes to
-    the back -- so a run joining takes the next number, and comes to the front
-    once every run holding an earlier number has left the lane.
-    """
-
     def __init__(self, name: str) -> None:
         self.front = SingleInstanceLock(name)
         self._name = name
@@ -264,13 +202,6 @@ class _Lane:
 
 
 class _Numbers:
-    """0, 1, 2, ... to the runs joining a lane, from any process.
-
-    A named semaphore nobody waits on: releasing it adds one and says what the
-    count was.  It lasts while any run in the lane holds it, so the count starts
-    again at 0 only once the lane is empty.
-    """
-
     def __init__(self, name: str) -> None:
         self._name = name
         self._handle: int | None = None

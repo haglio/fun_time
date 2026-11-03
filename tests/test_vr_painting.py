@@ -46,9 +46,6 @@ class _AGpu:
 
 
 class _AnEngine:
-    """mpv as the paint thread sees it: whether a frame waits, how big, and a
-    render that draws it."""
-
     def __init__(self, *, dims=(1920, 1080), video="a.mp4") -> None:
         self.video_dims = dims
         self.has_frame_to_draw = True

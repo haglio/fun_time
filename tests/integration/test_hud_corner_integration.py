@@ -1,9 +1,3 @@
-"""A click in a corner of a real satellite's item asks the room for its HUD there.
-
-The mouse reaches the window the way a hand's does, as Windows messages to the
-satellite's own window: SDL turns them into pygame's events, and the Funestra
-under them sends the corner's ask down the dashboard channel the session reads.
-"""
 from __future__ import annotations
 
 import ctypes

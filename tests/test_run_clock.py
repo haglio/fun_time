@@ -101,9 +101,6 @@ def test_each_stretch_is_counted_at_its_own_speed():
 
 
 class _AMachineReadATickOut(_Machine):
-    """Windows counts each processor's busy time a clock tick at a time, so a reading
-    is a little ahead of the truth or a little behind it, never the same twice."""
-
     def __init__(self) -> None:
         super().__init__()
         self._readings = 0

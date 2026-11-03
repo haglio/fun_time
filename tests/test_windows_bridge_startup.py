@@ -555,10 +555,6 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
 
 
 def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp_path: Path):
-    """A loop is a range inside one video, held in the mpv process that just
-    died, so it is re-sent the way a satellite's lock is — waiting in the Main Funestra's
-    command file before the Main Funestra launches, over the video the resume put at the top
-    of the Main Funestra's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
@@ -674,10 +670,6 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
 
 
 def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path):
-    """A lock dies with the mpv process holding it, so it is queued back to the
-    side that had one — waiting in the command file before that satellite
-    launches, and drained on its first tick over the video the resume put at the
-    top of its playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(
@@ -1114,12 +1106,6 @@ def test_launch_main_funestra_hands_it_fun_times_icon(tmp_path: Path):
 
 
 class TestEveryFunestraWearsFunTimesTaskbarIdentity:
-    """One launch, one button.  Windows groups by AppUserModelID and takes the
-    icon from the pinned shortcut carrying the same one, so a Funestra that claims
-    its own puts a second application on the bar, and one that claims none lands
-    under whatever the shared interpreter's path is registered to — which was some
-    unrelated program's mark.  Fun Time tells each of them instead."""
-
     class _FakeProc:
         def __init__(self, pid: int = 1):
             self.pid = pid
@@ -1259,8 +1245,6 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
 
 
 def test_launch_main_funestra_sends_child_output_to_its_own_log(tmp_path: Path):
-    """the Main Funestra is the satellites' twin — the same mpv Funestra under the same windowed
-    ``pythonw`` — so it needs the same place to leave a traceback when it dies."""
     class FakeProc:
         pid = 43
 
@@ -1624,10 +1608,6 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
 
 
 def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
-    """A satellite runs under ``pythonw``, which has no console: with nothing
-    attached to its stdout/stderr an unhandled exception kills it leaving no
-    trace at all.  Both streams go to one per-Satellite log so a death leaves the
-    Python traceback and libmpv's own diagnostics on disk."""
     class FakeProc:
         pid = 51
 

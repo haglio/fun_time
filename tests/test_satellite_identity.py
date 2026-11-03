@@ -19,8 +19,6 @@ from tests.test_windows_bridge_startup import _launch
 
 
 def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
-    """Without one, pygame supplies its own logo and a satellite's Alt-Tab entry
-    reads as some unrelated program rather than part of this session."""
     rect = WindowRect(x=0, y=0, width=100, height=100)
 
     with patch("fun_time.windows_bridge_startup.launch_satellite",
@@ -37,8 +35,6 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
 
 
 def test_fun_times_icon_loads_as_a_window_icon():
-    """A satellite draws no pygame surface of its own, so a broken icon would go
-    unnoticed until the taskbar showed the wrong thing."""
     worn = []
 
     wear_the_icon(SimpleNamespace(display=SimpleNamespace(set_icon=worn.append),

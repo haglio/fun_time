@@ -1,12 +1,3 @@
-"""A library drive that lists its folders but never answers about a file.
-
-pCloud's drive spent nineteen hours in that state on 2026-09-20: it listed the
-VR folder in a millisecond and never came back from a question about one video
-in it, so every control in the headset died the moment a rebuild asked.  A test
-cannot wait hours to find that out, so here the question raises instead --
-and out of :class:`BaseException`, since the point is that the caller gets no
-answer it could have caught and worked around.
-"""
 from __future__ import annotations
 
 import os

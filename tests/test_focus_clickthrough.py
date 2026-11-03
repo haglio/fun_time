@@ -1,16 +1,3 @@
-"""Every Funestra here must ask SDL for the click that focuses its window.
-
-A Funestra is never the focused window — the sequencer places every one with
-SWP_NOACTIVATE — so the click that lands on a HUD button is also the click that
-focuses the window, and SDL drops that one unless
-``funestra.sdl_hints.deliver_the_focusing_click`` has run.  Without it every
-press on the map or the HUD has to be made twice.
-
-Read off the source rather than exercised: both shells need a real window and
-the libmpv DLL, so nothing here can run them.  The same guard lives in genau
-over Genau's window path, which is the other half of "every Funestra in this
-family behaves the same on the first click".
-"""
 from __future__ import annotations
 
 import ast
@@ -23,7 +10,6 @@ WINDOW_OPENERS = (REPO / "satellite" / "app.py", REPO / "main_funestra" / "app.p
 
 
 def _call_lines(source: Path) -> tuple[list[int], list[int]]:
-    """(lines calling before_the_window_exists, lines calling pygame.init)."""
     tree = ast.parse(source.read_text(encoding="utf-8"))
     hint: list[int] = []
     init: list[int] = []
@@ -41,8 +27,6 @@ def _call_lines(source: Path) -> tuple[list[int], list[int]]:
 
 @pytest.mark.parametrize("source", WINDOW_OPENERS, ids=lambda p: p.parent.name)
 def test_the_focusing_click_is_asked_for_before_the_window_exists(source: Path):
-    """SDL reads the hint when the click arrives, but the window must not have
-    been created first — so the call comes before ``pygame.init()``."""
     hint, init = _call_lines(source)
 
     assert hint, f"{source.parent.name}/app.py never calls before_the_window_exists"
