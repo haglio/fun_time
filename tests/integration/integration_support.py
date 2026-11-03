@@ -292,8 +292,8 @@ class FunTimeIntegrationSession:
 
 
     @property
-    def weird_dir(self) -> Path:
-        return self.config.paths.weird_dir
+    def trash_dir(self) -> Path:
+        return self.config.paths.trash_dir
 
     def read_main_funestra_status(self) -> MainFunestraStatus:
         """Parse the Main Funestra's published status file."""
@@ -857,13 +857,13 @@ def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
     state_dir = state_dir_of(tmp_path)
     integration_root = state_dir.parent
-    weird_dir = integration_root / "weird"
+    trash_dir = integration_root / "trash"
     library = integration_root / "videos"
     portrait_dir = library / "videos" / "portrait"
     landscape_dir = library / "videos" / "landscape"
     primary_dir = library / "videos" / "primary"
     metadata_root = library / "metadata"
-    for path in (state_dir, weird_dir, portrait_dir, landscape_dir, primary_dir):
+    for path in (state_dir, trash_dir, portrait_dir, landscape_dir, primary_dir):
         path.mkdir(parents=True, exist_ok=True)
 
     _link_primary_samples(real, primary_dir, metadata_root=metadata_root)
@@ -877,7 +877,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["paths"]["main_player_library_dirs"] = [str(primary_dir)]
     config["paths"]["portrait_dirs"] = [str(portrait_dir)]
     config["paths"]["landscape_dirs"] = [str(landscape_dir)]
-    config["paths"]["weird_dir"] = str(weird_dir)
+    config["paths"]["trash_dir"] = str(trash_dir)
     config["paths"]["state_dir"] = str(state_dir)
     config["paths"].pop("genau_dir", None)
     config["random_favs_browser"]["enabled"] = False

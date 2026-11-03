@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
 from funestra.flick_decode import load_flick_frames
-from funestra.flick_folder import flat_flicks_in, scan_flicks, weird_folder_for
+from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
@@ -96,7 +96,7 @@ class Genau:
             narrow=narrow,
             say_no_other_flicks=self._say_no_other_flicks,
             say=self._say,
-            condemned_to=lambda flick: weird_folder_for(flick, self._flicks_folder),
+            condemned_to=lambda flick: trash_folder_for(flick, self._flicks_folder),
             set_volume=self._the_apps_level_is_the_funestras,
             stop_event=stop_event,
             start_flick=start_flick,

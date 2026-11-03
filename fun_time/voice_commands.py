@@ -132,7 +132,7 @@ def build_voice_commands(
         "un park": "robot_hand_release",
         "o s r two resume": "robot_hand_release",
         "oh es are two resume": "robot_hand_release",
-        # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
+        # Satellite commands (portrait/landscape/both nav, lock, trash, cycle) are
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
 

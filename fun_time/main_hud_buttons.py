@@ -221,7 +221,7 @@ def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
                f"Flipped — this {flick.one} stays that way; press to put it back" if facts.flipped
                else f"Flip this {flick.one}, for one running opposite the OSR2 — it stays flipped",
                lit=facts.flipped, group_break=True),
-        Button("genau_weird_flick", TRASH_ICON, "Send to Trash — move it out", danger=True),
+        Button("genau_trash_flick", TRASH_ICON, "Send to Trash — move it out", danger=True),
         *browse_order_buttons("main", latest=facts.latest),
         *_inclusion_buttons(facts, remembered=False, things=flick.many),
     )

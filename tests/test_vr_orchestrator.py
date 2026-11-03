@@ -97,7 +97,7 @@ def config(tmp_path, monkeypatch):
     library = tmp_path / "library"
     vr_dir = library / "VR" / "finished"
     flat_dir = library / "2D"
-    for directory in (vr_dir, flat_dir, tmp_path / "weird"):
+    for directory in (vr_dir, flat_dir, tmp_path / "trash"):
         directory.mkdir(parents=True)
     ahk = tmp_path / "AutoHotkey64.exe"
     python = tmp_path / "python.exe"
@@ -113,7 +113,7 @@ def config(tmp_path, monkeypatch):
             "main_player_library_dirs": ["%(flat)s"],
             "portrait_dirs": ["%(flat)s"],
             "landscape_dirs": ["%(flat)s"],
-            "weird_dir": "%(weird)s",
+            "trash_dir": "%(trash)s",
             "state_dir": "%(state)s"
           },
           "layout": {
@@ -131,7 +131,7 @@ def config(tmp_path, monkeypatch):
             "ahk": str(ahk).replace("\\", "/"),
             "python": str(python).replace("\\", "/"),
             "flat": str(flat_dir).replace("\\", "/"),
-            "weird": str(tmp_path / "weird").replace("\\", "/"),
+            "trash": str(tmp_path / "trash").replace("\\", "/"),
             "state": str(tmp_path / "state").replace("\\", "/"),
             "vr": str(vr_dir).replace("\\", "/"),
         },
@@ -1006,7 +1006,7 @@ class TestGenausRoleInTheManifest:
 
     def test_genaus_flicks_folder_rides_whole(self, config):
         """The headset plays its VR folder and its 2D folder both, and keeps a
-        condemned flick's place in the weird pile beside it."""
+        condemned flick's place in the trash folder beside it."""
         vr = build_vr_manifest(config)["vr"]
 
         assert vr["flicks_folder"] == str(config.paths.flicks_dir)

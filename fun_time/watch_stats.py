@@ -5,7 +5,7 @@ signals; videos skipped early accumulate negative ones.  Evolver sums these
 with what the phone watched and stamps the playback weight on each video's
 sidecar (:func:`fun_time.media_metadata.watch_weight_of`), which is what the
 shuffled builds draw by — so loved videos surface more often and
-chronically-skipped ones fade, a continuous companion to mark-as-weird.
+chronically-skipped ones fade, a continuous companion to send-to-Trash.
 
 Stats live in one JSON file under the state dir, keyed by normalized video
 path: ``{"completions": int, "skips": int, "locks": int}``.
@@ -72,7 +72,7 @@ def passes_inclusion(weight: float, rng: random.Random) -> bool:
     """Whether a video of *weight* makes this playlist build at all.
 
     Neutral-or-loved videos always play; disliked ones (weight < 1) sit out
-    proportionally — the continuous version of mark-as-weird.
+    proportionally — the continuous version of send-to-Trash.
     """
     return weight >= 1.0 or rng.random() < weight
 
@@ -141,7 +141,7 @@ def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> N
         normalize_path_key(video_path), {"completions": 0, "skips": 0, "locks": 0}
     )
     entry[field] = entry.get(field, 0) + 1
-    # Videos moved away (marked weird, re-staged) must not leave orphan rows --
+    # Videos moved away (sent to Trash, re-staged) must not leave orphan rows --
     # and only a video that left a tree still there has moved away.  A row
     # whose whole tree is out of reach is kept: a volume not mounted when an
     # event lands is not a library of deleted videos, and pruning then took

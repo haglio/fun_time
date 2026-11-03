@@ -14,7 +14,7 @@ from .event_log import FAVORITE, MESSAGE
 from .filter_vocab import decode_filter_command
 from .fun_time_funestras import FunTimeFunestra
 from .lock import build_discard_plan, unfavorite
-from .media_actions import move_to_weird
+from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
 from .origenerator_switches import hosts
 from .osr2_commands import (
@@ -101,7 +101,7 @@ def _discard(
 ) -> tuple[BridgeState, list[WindowOp]]:
     locked = state.satellite(funestra).locked
     current_path = satellite_current(config, funestra)
-    # "Weird" judges the video the speaker saw.  When the satellite advanced
+    # "Trash" judges the video the speaker saw.  When the satellite advanced
     # while the phrase was being recognized, jump back to the condemned video
     # before trashing it, so the wrong (innocent) video is never the one dropped.
     condemned = target_path or current_path
@@ -132,7 +132,7 @@ def _discard(
     state = state.with_satellite(funestra, locked=False)
     lock_ops: list[WindowOp] = []
     if plan.condemns:
-        move_to_weird(config.weird_dir, Path(condemned))
+        move_to_trash(config.trash_dir, Path(condemned))
         state, lock_ops = lock_a_loop_left_with_one_video(funestra, state, config, condemned)
         forget_indexed_video(condemned)
     logger.info(plan.log_message)

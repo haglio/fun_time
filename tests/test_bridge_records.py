@@ -17,7 +17,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        weird_dir=tmp_path / "weird",
+        trash_dir=tmp_path / "trash",
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),

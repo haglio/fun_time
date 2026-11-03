@@ -90,7 +90,7 @@ Current focused integration coverage includes:
 - F-mode toggle
 - Genau enable/disable
 - Genau mode-file sync
-- portrait discard/weird flow
+- portrait discard/trash flow
 
 Important testing philosophy changes:
 

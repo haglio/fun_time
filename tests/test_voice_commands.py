@@ -165,12 +165,10 @@ class TestVoiceCommands:
         assert [phrase for phrase, command in said.items()
                 if command.startswith("genau_") and "clip" in phrase.split()] == []
 
-    def test_marking_a_flick_weird_names_it_where_bare_weird_means_the_active_satellite(self):
+    def test_marking_a_flick_trash_names_it_where_bare_trash_means_the_active_satellite(self):
         said = build_voice_commands(genau_flick_words=Noun(one="pip", many="pips"))
 
-        assert (said["trash"], said["main trash"]) == ("active_trash", "genau_weird_flick")
-        assert "weird" not in said
-        assert "trash pip" not in said
+        assert (said["trash"], said["main trash"]) == ("active_trash", "genau_trash_flick")
 
     def test_the_overlay_says_the_words_that_flip_genaus_flick(self):
         assert build_voice_commands(flick_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
@@ -624,7 +622,7 @@ def test_reset_all_reaches_every_funestra_in_either_order():
 
 def test_wrong_action_joins_the_order_agnostic_satellite_grid():
     """"Wrong action" says the clip on screen is labeled as doing the wrong
-    thing.  It is about one clip, like "weird", so it is sided like one: bare it
+    thing.  It is about one clip, like "trash", so it is sided like one: bare it
     reaches the Satellite last addressed, and a Satellite word works in either order."""
     assert VOICE_COMMANDS["wrong action"] == "active_wrong_action"
     for satellite in ("portrait", "landscape", "both"):

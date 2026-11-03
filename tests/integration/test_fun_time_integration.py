@@ -844,7 +844,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
         description="landscape sample's favorite mark to come off its record",
     )
     assert demoted_path.exists(), "A demoted favorite must stay where it is"
-    assert not any(p.name == demoted_path.name for p in s.weird_dir.iterdir())
+    assert not any(p.name == demoted_path.name for p in s.trash_dir.iterdir())
 
     s.wait_until(
         lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.messages()),
@@ -865,11 +865,11 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     )
 
 
-def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
+def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_trash(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     """Discarding a video that is not in the favorites is the full condemnation —
-    it leaves the playlist and the file moves into the weird dir."""
+    it leaves the playlist and the file moves into the trash dir."""
     status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
     isolated_integration_session.wait_until(
         lambda: bool(read_satellite_status(status_file).video),
@@ -878,7 +878,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     # Hold the video before reading which one it is.  These are a few seconds long,
     # so an unlocked satellite can advance between the read below and the discard,
     # and then the discard meets a *different* video — one still in the favorites, so
-    # it is unfavorited instead of condemned and the weird-dir wait times out on a
+    # it is unfavorited instead of condemned and the trash-dir wait times out on a
     # file that was never going there.  A lock is repeat-one, which closes that.
     isolated_integration_session.write_dashboard_command("portrait_lock_on")
     isolated_integration_session.wait_for_new_log("Locked portrait satellite")
@@ -898,8 +898,8 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
         description="portrait sample to be no favorite",
     )
     isolated_integration_session.wait_until(
-        lambda: any(p.name == trashed_path.name for p in isolated_integration_session.weird_dir.iterdir()),
-        description="portrait sample to be moved into the integration weird dir",
+        lambda: any(p.name == trashed_path.name for p in isolated_integration_session.trash_dir.iterdir()),
+        description="portrait sample to be moved into the integration trash folder",
     )
     isolated_integration_session.wait_until(
         lambda: any(

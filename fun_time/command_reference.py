@@ -292,7 +292,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(f"Previous Genau {_FLICK.one}", ("M",), ("genau_prev_flick",)),
             _Row(f"Next Genau {_FLICK.one}", (".",), ("genau_next_flick",)),
             _Row(f"Send the Genau {_FLICK.one} to Trash — skip it, and out of rotation", ("K",),
-                 ("genau_weird_flick",)),
+                 ("genau_trash_flick",)),
             _Row(
                 f"Lock / unlock the Genau {_FLICK.one} — locked (the default) it repeats; "
                 "unlocked Genau moves on every few seconds",

@@ -53,7 +53,7 @@ def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
     """A fabricated config that names an Origenerator checkout, as a real one
     does, unless told not to."""
     folders = {name: root / name for name in (
-        "primary", "portrait", "landscape", "vr", "weird", "state")}
+        "primary", "portrait", "landscape", "vr", "trash", "state")}
     for folder in folders.values():
         folder.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -62,7 +62,7 @@ def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
         "main_player_library_dirs": [str(folders["primary"])],
         "portrait_dirs": [str(folders["portrait"])],
         "landscape_dirs": [str(folders["landscape"])],
-        "weird_dir": str(folders["weird"]),
+        "trash_dir": str(folders["trash"]),
         "state_dir": str(folders["state"]),
     }
     if names_an_origenerator:

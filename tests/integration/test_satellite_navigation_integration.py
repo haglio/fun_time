@@ -147,7 +147,7 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        weird_dir=runtime / "weird",
+        trash_dir=runtime / "trash",
         state_dir=state_dir,
         main_sources=str(runtime / "primary"),
         portrait_sources=str(satellite.sources),

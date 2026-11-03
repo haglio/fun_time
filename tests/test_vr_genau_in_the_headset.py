@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from app_support.flick_folder import trash_folder_in
 from funestra.funestra import User
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
@@ -165,14 +166,14 @@ class TestTheDesktopsFlicksAreBrowsedToo:
 
         assert world.on_screen() == world.flat_dir / "scene one.mp4"
 
-    def test_weird_moves_a_2d_flick_to_its_own_place_in_the_pile(self, tmp_path):
+    def test_trash_moves_a_2d_flick_to_its_own_place_in_the_pile(self, tmp_path):
         world = self._both(tmp_path)
         world.send("NEXT")
 
-        world.send("WEIRD")
+        world.send("TRASH")
 
-        assert (tmp_path / "weird" / "2D" / "AI" / "scene one.mp4").is_file()
-        assert not (tmp_path / "weird" / "scene one.mp4").exists()
+        assert (trash_folder_in(tmp_path) / "2D" / "AI" / "scene one.mp4").is_file()
+        assert not (trash_folder_in(tmp_path) / "scene one.mp4").exists()
 
 
 class TestNarrowingToAShape:

@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 
 import numpy as np
+from app_support.flick_folder import trash_folder_in
 from funestra.funestra import User
 from funestra.main_hud import ModeHud
 from funestra.modes import MessageLevel
@@ -160,36 +161,36 @@ class TestTheFlickOnScreen:
         assert world.status()["learned"] == "1"
         assert "cruise" not in world.status()
 
-    def test_weird_moves_the_flick_to_the_pile_beside_the_folder(self, tmp_path):
+    def test_trash_moves_the_flick_to_the_pile_beside_the_folder(self, tmp_path):
         world = World(tmp_path)
 
-        world.send("WEIRD")
+        world.send("TRASH")
 
-        assert (tmp_path / "weird" / "2D" / "non_AI" / "alpha one.mp4").is_file()
+        assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
         assert world.genau.top_block() == ModeHud(video="beta two")
 
-    def test_weird_moves_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
+    def test_trash_moves_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
         condemning = _CondemningInTheBackground()
         world = World(tmp_path, start_thread=condemning)
         flick = world.flat_dir / "alpha one.mp4"
 
         with flick.open("rb"):
-            world.send("WEIRD")
+            world.send("TRASH")
             assert flick.is_file()
         for thread in condemning.threads:
             thread.join(5)
 
-        assert (tmp_path / "weird" / "2D" / "non_AI" / "alpha one.mp4").is_file()
+        assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
         assert not flick.exists()
 
-    def test_weird_gives_up_on_a_flick_that_stays_open_and_says_so(self, tmp_path, monkeypatch, caplog):
+    def test_trash_gives_up_on_a_flick_that_stays_open_and_says_so(self, tmp_path, monkeypatch, caplog):
         monkeypatch.setattr(genau_engine, "CONDEMN_PATIENCE_S", 0.5)
         condemning = _CondemningInTheBackground()
         world = World(tmp_path, start_thread=condemning)
         flick = world.flat_dir / "alpha one.mp4"
 
         with flick.open("rb"), caplog.at_level(logging.ERROR, logger="test.genau"):
-            world.send("WEIRD")
+            world.send("TRASH")
             for thread in condemning.threads:
                 thread.join(5)
 

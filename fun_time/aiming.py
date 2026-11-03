@@ -17,7 +17,7 @@ MAIN_EQUIVALENTS = {
     "fmode_on": "main_fmode_on",
     "fmode_off": "main_fmode_off",
     "reset": "main_reset",
-    "trash": "genau_weird_flick",
+    "trash": "genau_trash_flick",
     "latest": "main_latest",
     "shuffle": "main_shuffle",
     "hud_minimize": "main_hud_minimize",

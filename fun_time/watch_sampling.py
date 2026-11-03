@@ -26,7 +26,7 @@ SAMPLE_INTERVAL_S = 0.5
 
 # Commands that count as the user navigating away from a video — the signal
 # that classifies an early departure as a skip rather than a neutral advance.
-# The Main Funestra navigates with next/prev only; it has no lock/weird/cycle.
+# The Main Funestra navigates with next/prev only; it has no lock/trash/cycle.
 NAV_COMMANDS: dict[int, frozenset[str]] = {
     1: frozenset({"main_prev", "main_next"}),
     2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),

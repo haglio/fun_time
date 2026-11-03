@@ -151,7 +151,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "genau_lock",
     "genau_next_flick",
     "genau_prev_flick",
-    "genau_weird_flick",
+    "genau_trash_flick",
     "genaumacher_save",
     "help_reference",
     "help_reference_close",
