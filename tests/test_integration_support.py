@@ -917,7 +917,7 @@ def test_every_app_a_run_stands_in_for_is_python_that_parses():
 
 
 _WHAT_RUNS_THE_RUN = frozenset({
-    "commands.py", "coverage_map.py", "fix_session_notice.py", "fix_sessions.py",
+    "coverage_map.py", "fix_session_notice.py", "fix_sessions.py",
     "flake_gate_install.py", "hidden_desktop.py", "line_record.py", "main_verifier.py",
     "run_clock.py", "run_pulse.py", "session_lock.py"})
 _WALL_READINGS = frozenset({"monotonic", "time", "perf_counter"})
