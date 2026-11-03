@@ -31,7 +31,7 @@ from fun_time_vr.layout import (
 from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.projection import PROJECTIONS
 from fun_time_vr.render import SceneRenderer
-from fun_time_vr.room_launch import RoomLaunch
+from fun_time_vr.room import RoomLaunch
 from fun_time_vr.scheduling import ahead_of_background_work
 from fun_time_vr.wraps import immersive_wrap
 from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP

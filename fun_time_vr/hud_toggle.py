@@ -38,14 +38,14 @@ def _beside(button: Placement, edge: HudEdge, tip: np.ndarray) -> Placement:
 
 
 @dataclass(frozen=True)
-class Plate:
+class MeshWithTexture:
     mesh: Any
     texture: Any
 
 
 class HudToggle:
     def __init__(self, screen_name: str, *, post: Callable[[str], None],
-                 button: Plate, tip: Plate) -> None:
+                 button: MeshWithTexture, tip: MeshWithTexture) -> None:
         self._screen_name = screen_name
         self._post = post
         self._mesh, self._texture = button.mesh, button.texture

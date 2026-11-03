@@ -5,7 +5,7 @@ from collections.abc import Callable
 from funestra.hud_placement import HudEdge
 
 from .hud_sides import HudSides, side_screen_names
-from .hud_toggle import HudToggle, Plate, toggle_screen_name
+from .hud_toggle import HudToggle, MeshWithTexture, toggle_screen_name
 from .pointer import PressEvent
 from .room import Hanging
 from .scene import Placement
@@ -23,8 +23,8 @@ class HudButtons:
         self._made = (side_texture, toggle_texture, tip_texture, side_mesh, toggle_mesh, tip_mesh)
         self._sides = HudSides(screen_name, post=post, mesh=side_mesh, texture=side_texture)
         self._toggle = HudToggle(screen_name, post=post,
-                                 button=Plate(toggle_mesh, toggle_texture),
-                                 tip=Plate(tip_mesh, tip_texture))
+                                 button=MeshWithTexture(toggle_mesh, toggle_texture),
+                                 tip=MeshWithTexture(tip_mesh, tip_texture))
 
     def hang(self, outside, item: Placement, aspect: float, *, edge: HudEdge,
              with_sides: bool = True) -> None:

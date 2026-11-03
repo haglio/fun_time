@@ -200,7 +200,7 @@ class TestTheGatesOnTheRoomsAssembly:
         assert len(self._screen_names()) >= 7
 
     def test_the_eye_pass_names_no_kind_of_screen(self):
-        assert self._kinds_of_screen() & self._names_in(self._source(funestras.draw_eyes)) == set()
+        assert self._kinds_of_screen() & self._names_in(self._source(frame_loop.draw_eyes)) == set()
 
     def test_the_assembly_names_no_kind_of_screen_and_no_screen(self):
         named = self._names_in(self._source(under_test))

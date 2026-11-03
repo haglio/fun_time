@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import math
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from fun_time_vr.matrices import (
+    Fov,
     fov_to_projection_matrix,
     pitch_rotation_matrix,
     pose_to_view_matrix,
@@ -15,31 +15,27 @@ from fun_time_vr.matrices import (
 )
 
 
-def _fov(left, right, up, down):
-    return SimpleNamespace(angle_left=left, angle_right=right, angle_up=up, angle_down=down)
-
-
 class TestFovToProjectionMatrix:
     def test_symmetric_fov_shape(self):
         half = math.radians(45)
-        mat = fov_to_projection_matrix(_fov(-half, half, half, -half), 0.1, 100.0)
+        mat = fov_to_projection_matrix(Fov(-half, half, half, -half), 0.1, 100.0)
         assert mat.shape == (4, 4)
 
     def test_symmetric_fov_produces_symmetric_matrix(self):
         half = math.radians(45)
-        mat = fov_to_projection_matrix(_fov(-half, half, half, -half), 0.1, 100.0)
+        mat = fov_to_projection_matrix(Fov(-half, half, half, -half), 0.1, 100.0)
         assert mat[0, 2] == pytest.approx(0.0)
         assert mat[1, 2] == pytest.approx(0.0)
 
     def test_near_far_encoded_in_matrix(self):
         half = math.radians(45)
-        mat = fov_to_projection_matrix(_fov(-half, half, half, -half), 0.1, 100.0)
+        mat = fov_to_projection_matrix(Fov(-half, half, half, -half), 0.1, 100.0)
         assert mat[3, 2] == pytest.approx(-1.0)
         assert mat[2, 3] == pytest.approx(-2.0 * 100.0 * 0.1 / (100.0 - 0.1))
 
     def test_asymmetric_fov_shifts_center(self):
         mat = fov_to_projection_matrix(
-            _fov(math.radians(-50), math.radians(40), math.radians(45), math.radians(-45)), 0.1, 100.0
+            Fov(math.radians(-50), math.radians(40), math.radians(45), math.radians(-45)), 0.1, 100.0
         )
         assert mat[0, 2] != pytest.approx(0.0)
 

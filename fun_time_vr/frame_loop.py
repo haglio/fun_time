@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -15,16 +16,14 @@ from fun_time.session_handoff import (
     report_the_headset_held,
 )
 
-from . import vr_runtime
+from . import room, vr_runtime
 from .funestras import (
     Arranged,
     Arrangement,
     LoadingScreenUnit,
     TheRoom,
-    draw_eyes,
     orientation_of,
 )
-from .headset import Headset
 from .loading_screen import LOADING_SCREEN_CLEAR
 from .matrices import (
     fov_to_projection_matrix,
@@ -32,6 +31,8 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
+from .perf import FramePerf
+from .render import SceneRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,12 @@ HEADSET_HOLD_TIMEOUT_S = 180.0
 
 Clock = Callable[[], float]
 Sleep = Callable[[float], None]
+
+
+class Headset(NamedTuple):
+    session: Any
+    renderer: SceneRenderer
+    perf: FramePerf
 
 
 @dataclass(frozen=True)
@@ -68,6 +75,34 @@ def refresh_quad_layer(headset: Headset, index: int, unit, arranged: Arranged) -
     return QuadLayer(
         swapchain_index=index, position=position, orientation=orientation, size=size,
     )
+
+
+def draw_eyes(
+    headset: Headset,
+    arranged: Arranged,
+    pointing,
+    views,
+    *,
+    as_quads: set[str],
+) -> None:
+    session, renderer = headset.session, headset.renderer
+    scene_rotation = arranged.scene_rotation
+    wrap = room.wrapped(arranged.hangings)
+    flat = room.drawn(arranged.hangings, screens=arranged.screens, as_quads=as_quads)
+    for eye_index, view in enumerate(views):
+        session.bind_eye_framebuffer(eye_index)
+        renderer.begin_eye()
+        projection_matrix = fov_to_projection_matrix(view.fov, 0.05, 100.0)
+        view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
+        view_proj = projection_matrix @ view_matrix @ scene_rotation
+        view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
+        if wrap is not None:
+            inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
+            renderer.draw_immersive(wrap.wrap, wrap.frame.texture, inv32, eye_index)
+        for mesh, texture, blend in flat:
+            renderer.draw_screen(mesh, texture, view_proj32, blend=blend)
+        pointing.draw(renderer, view_proj32)
+        session.release_eye_framebuffer(eye_index)
 
 
 def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, views) -> None:

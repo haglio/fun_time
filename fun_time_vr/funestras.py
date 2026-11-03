@@ -75,7 +75,6 @@ from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
 from .genau_in_the_headset import GenauInTheHeadset
-from .headset import Headset
 from .headset_engine import HeadsetEngine
 from .headset_verbs import HeadsetVerbs
 from .headset_wear import HeadsetWear
@@ -127,9 +126,7 @@ from .loading_screen import (
 )
 from .main_hud import DEG_PER_PX, HUD_WIDTH_PX, hud_hangs_from
 from .matrices import (
-    fov_to_projection_matrix,
     pitch_rotation_matrix,
-    pose_to_view_matrix,
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
@@ -166,9 +163,7 @@ from .reference_panel import (
     reference_height,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh
-from .room import Hanging, Hangs
-from .room_launch import RoomLaunch
-from .room_parts import RoomKeeping, RoomUnits
+from .room import Hanging, Hangs, RoomKeeping, RoomLaunch, RoomUnits
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
@@ -1867,31 +1862,3 @@ def orientation_of(view) -> tuple[float, float, float, float]:
 def _position_of(view) -> tuple[float, float, float]:
     position = view.pose.position
     return (position.x, position.y, position.z)
-
-
-def draw_eyes(
-    headset: Headset,
-    arranged: Arranged,
-    pointing: _PointerDrawing,
-    views,
-    *,
-    as_quads: set[str],
-) -> None:
-    session, renderer = headset.session, headset.renderer
-    scene_rotation = arranged.scene_rotation
-    wrap = room.wrapped(arranged.hangings)
-    flat = room.drawn(arranged.hangings, screens=arranged.screens, as_quads=as_quads)
-    for eye_index, view in enumerate(views):
-        session.bind_eye_framebuffer(eye_index)
-        renderer.begin_eye()
-        projection_matrix = fov_to_projection_matrix(view.fov, 0.05, 100.0)
-        view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
-        view_proj = projection_matrix @ view_matrix @ scene_rotation
-        view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
-        if wrap is not None:
-            inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
-            renderer.draw_immersive(wrap.wrap, wrap.frame.texture, inv32, eye_index)
-        for mesh, texture, blend in flat:
-            renderer.draw_screen(mesh, texture, view_proj32, blend=blend)
-        pointing.draw(renderer, view_proj32)
-        session.release_eye_framebuffer(eye_index)
