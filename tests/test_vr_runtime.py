@@ -1,10 +1,3 @@
-"""fun_time_vr.vr_runtime — is VR ready, and can we bring it up ourselves?
-
-Adapted from genau's proven suite for the module this one was adapted from
-(``genau_vr.vr_runtime``); the differences under test are fun_time's own —
-``xr`` imported lazily inside ``probe`` (stubbed through ``sys.modules``, not
-a module attribute), and the FunTimeVR popup wording.
-"""
 from __future__ import annotations
 
 import subprocess
@@ -49,7 +42,7 @@ def _xr_exceptions():
         return _FALLBACK_EXCEPTIONS
 
 
-class _FALLBACK_EXCEPTIONS:  # one hierarchy, so raise and except meet the same classes
+class _FALLBACK_EXCEPTIONS:
     class RuntimeUnavailableError(Exception):
         pass
 
@@ -58,7 +51,6 @@ class _FALLBACK_EXCEPTIONS:  # one hierarchy, so raise and except meet the same 
 
 
 def _xr_stub(*, create_error=None, system_error=None) -> MagicMock:
-    """A stand-in for the ``xr`` module that fails where we tell it to."""
     stub = MagicMock()
     stub.exception = _xr_exceptions()
     if create_error is not None:
@@ -69,12 +61,10 @@ def _xr_stub(*, create_error=None, system_error=None) -> MagicMock:
 
 
 def _with_xr(stub):
-    """``probe`` imports xr lazily, so the stub goes in through sys.modules."""
     return patch.dict(sys.modules, {"xr": stub})
 
 
 def _pimax_tree(root, *, with_client: bool = True, with_quit_tool: bool = False):
-    """Lay out a Pimax install the way the real one sits on disk."""
     runtime_json = root / "Pimax" / "Runtime" / "PiOpenXR_64.json"
     runtime_json.parent.mkdir(parents=True)
     runtime_json.write_text("{}", encoding="utf-8")
@@ -166,9 +156,6 @@ def test_ensure_ready_starts_the_runtime_and_waits_for_the_headset(tmp_path):
 
 
 def test_ensure_ready_does_not_restart_a_runtime_that_is_already_up(tmp_path):
-    """Already running and still no headset means the headset is off, not the
-    client — restarting the client cannot power a headset on, and waiting out
-    the timeout would only delay saying so."""
     launcher = tmp_path / "PimaxClient.exe"
     with (
         patch("fun_time_vr.vr_runtime.probe", return_value=Probe(Readiness.NO_HEADSET)),
@@ -229,20 +216,13 @@ def test_explain_falls_back_to_the_raw_detail_for_an_unknown_failure():
 
 
 def test_explain_never_raises_on_a_readiness_it_has_no_wording_for():
-    """A crash inside the error path would put us back to failing silently."""
     assert explain(Probe(Readiness.READY, detail="ready"))
 
 
 def test_every_readiness_is_either_explained_or_deliberately_not():
-    """Wording is looked up by the item, so an item added without any is a
-    decision taken here rather than a fallback string nobody messages."""
     unexplained = {item for item in Readiness if item not in _EXPLANATIONS}
 
     assert unexplained == {Readiness.READY, Readiness.FAILED}
-# --- what ``probe()`` answers when VR does not ---------------------------------
-# ``probe()`` is what FunTimeVR asks before it launches anything, and its whole
-# job is to turn a failure into a ``Probe`` the popup can read.  These are the
-# ways it used to raise one instead.
 
 import builtins
 from contextlib import contextmanager
@@ -286,7 +266,6 @@ def _a_loader_that_will_not_load(exc):
     ids=["off_windows", "unusable_loader_dll"],
 )
 def test_a_loader_that_will_not_load_answers_rather_than_raises(exc):
-    """The popup reads a Probe; an exception here reached it as a stack trace."""
     with _a_loader_that_will_not_load(exc):
         result = probe()
 
@@ -295,13 +274,6 @@ def test_a_loader_that_will_not_load_answers_rather_than_raises(exc):
 
 
 def test_probe_survives_a_teardown_that_fails_under_it():
-    """Releasing the instance cannot replace the answer probe() decided on.
-
-    ``ensure_ready()`` polls ``probe()`` and every loader failure has to reach
-    the popup; an exception raised on the way out escapes past both.  A bare
-    ``MagicMock`` is loader enough here: this case reaches no ``except`` clause,
-    because the answer is settled before the teardown runs.
-    """
     stub = MagicMock()
     stub.destroy_instance.side_effect = RuntimeError("the runtime shut down mid-probe")
 
@@ -313,7 +285,6 @@ def test_probe_survives_a_teardown_that_fails_under_it():
 
 
 def test_a_teardown_that_failed_is_written_down(caplog):
-    """Swallowed and unrecorded, it would be the silent exit this app avoids."""
     stub = MagicMock()
     stub.destroy_instance.side_effect = RuntimeError("the runtime shut down mid-probe")
 
@@ -323,11 +294,7 @@ def test_a_teardown_that_failed_is_written_down(caplog):
     assert "the runtime shut down mid-probe" in caplog.text
 
 
-# --- Putting the runtime back down --------------------------------------
-
-
 def test_runtime_was_running_reads_the_display_server_not_the_client():
-    """The client comes and goes; pi_server is what holds the headset on."""
     with patch("fun_time_vr.vr_runtime.process_running", return_value=True) as running:
         assert runtime_was_running() is True
     running.assert_called_once_with("pi_server.exe")
@@ -364,8 +331,6 @@ def test_runtime_quit_tool_is_none_when_the_vendor_ships_no_such_tool(tmp_path):
 
 
 def test_stop_runtime_kills_the_client_then_quits_both_services(tmp_path):
-    """The client first -- it is the one thing that would restart the services --
-    then the two quits its own Exit runs, in that order."""
     runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
     tool = runtime_json.parent / "launcher.exe"
     with (
@@ -383,7 +348,6 @@ def test_stop_runtime_kills_the_client_then_quits_both_services(tmp_path):
 
 
 def test_stop_runtime_still_quits_the_services_when_the_client_is_gone(tmp_path):
-    """The services outlive the client, so its absence is not the stack's."""
     runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
     with (
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=client),
@@ -398,7 +362,6 @@ def test_stop_runtime_still_quits_the_services_when_the_client_is_gone(tmp_path)
 
 
 def test_stop_runtime_does_nothing_it_cannot_do(tmp_path):
-    """No registered runtime, no quit tool, nothing to kill -- and no raise."""
     with (
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=None),
         patch("fun_time_vr.vr_runtime.active_runtime_json", return_value=None),
@@ -510,20 +473,11 @@ def test_a_sound_device_moved_on_from_where_the_runtime_put_it_is_left_alone(tmp
 
 
 class TestShuttingDownCannotWaitForever:
-    """Nothing on this path may block without a deadline.  The session holds the
-    single-instance name until its process is gone, so a shutdown that never
-    finishes locks every later launch on the machine out of VR -- one sat on the
-    question below from 01:14 to past 03:00 on 2026-09-20, and every branch that
-    tried to enter VR after it was refused, with nothing left running."""
-
     def test_asking_what_is_running_starts_no_program(self):
         with patch("subprocess.Popen", side_effect=AssertionError("started a program")):
             assert process_running(Path(sys.executable).name) is True
 
     def test_a_quit_command_is_not_read_back(self):
-        """`capture_output` outlives the deadline: killing the command on time
-        still leaves the wait on its pipes, which anything it started and did
-        not take with it keeps open -- the deadline expires, the wait does not."""
         with patch("fun_time_vr.vr_runtime.subprocess.run") as ran:
             _run_quietly(["launcher.exe", "PiPlayService", "quit"])
         asked = ran.call_args.kwargs
@@ -541,7 +495,6 @@ def test_how_each_quit_command_ended_is_logged(caplog):
 
 
 def test_stop_runtime_survives_a_quit_command_that_will_not_run(tmp_path):
-    """It runs on the way out: a runtime that will not answer is not an error."""
     runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
     with (
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=client),
@@ -549,6 +502,6 @@ def test_stop_runtime_survives_a_quit_command_that_will_not_run(tmp_path):
         patch("fun_time_vr.vr_runtime.active_runtime_json", return_value=runtime_json),
         patch("fun_time_vr.vr_runtime.subprocess.run", side_effect=OSError("gone")) as run,
     ):
-        stop_runtime()  # no raise
+        stop_runtime()
     assert run.call_count == len(_QUIT_SERVICES)
 

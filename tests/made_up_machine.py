@@ -1,4 +1,3 @@
-"""A machine's processes, made up for a test, as a module's sweeps would find them."""
 from __future__ import annotations
 
 import importlib
@@ -19,8 +18,6 @@ def filetime(unix_seconds: float) -> int:
 
 @contextmanager
 def running(module: str, machine: list[tuple[int, str, str, float]]) -> Iterator[list[int]]:
-    """*module* sweeping a machine of (pid, image, command line, unix start) rows, read
-    afresh on every sweep; yields the pids it ends, in the order it ends them."""
     def table() -> list[ProcessEntry]:
         return [ProcessEntry(pid, 1, image) for pid, image, _line, _at in machine]
 

@@ -1,5 +1,3 @@
-"""The hotkey script runs headless — no tray icon, no tray menu — and owns the
-one chord that ends a session."""
 from __future__ import annotations
 
 import re
@@ -10,40 +8,16 @@ from tests.ahk_script import function_source, script_text, suspend_exempt_block
 
 
 def test_script_suppresses_the_tray_icon():
-    """AutoHotkey gives a persistent script a tray icon unless told otherwise.
-
-    The directive is the only thing between this process and an icon in the
-    notification area, so dropping the line silently puts it back.
-    """
     assert "#NoTrayIcon" in script_text()
 
 
 def test_script_builds_no_tray_menu():
-    """Nothing dresses an icon that is never shown.
-
-    A suppressed icon still accepts ``TraySetIcon``/``A_TrayMenu`` calls without
-    complaint, so the menu could sit here indefinitely as code that runs and
-    reaches no one.
-    """
     text = script_text()
     for call in ("TraySetIcon", "A_IconTip", "A_TrayMenu"):
         assert call not in text, f"{call} dresses a tray icon the script does not show"
 
 
 def test_ctrl_alt_q_ends_the_whole_session():
-    """The way out of a session, and the reason no Funestra has one of its own.
-
-    Every window a session opens comes down together, and this line is the whole
-    mechanism: the orchestrator waits for the session-end marker (or the script
-    going), so the chord marking the end is what releases ``_shutdown_children``.
-    Take the binding away and each Funestra is on its own again — which is the
-    failure the satellites' "no key here ends this Funestra" comment and genau's
-    ``quits_this_funestra`` are both written against.
-
-    The integration suite cannot stand in for this: ``quit_gracefully`` puts
-    ``exit`` in the AHK mailbox rather than pressing anything, so it exercises
-    the teardown and never the chord that is supposed to start it.
-    """
     assert "^!q::EndSession()" in script_text(), (
         "nothing binds Ctrl+Alt+Q to ending the session"
     )
@@ -53,22 +27,12 @@ def test_ctrl_alt_q_ends_the_whole_session():
 
 
 def test_the_way_out_survives_omnipause():
-    """OmniPause suspends the hotkeys wholesale, and a paused session still has
-    to be closable — so the quit is inside the exempt block, with Esc and the
-    sensation emergency.  Suspended, the chord would reach whatever window had
-    focus instead, and a session could be paused into having no way out."""
     assert "^!q::EndSession()" in suspend_exempt_block(), (
         "the quit is suspendable — OmniPause can trap a session"
     )
 
 
 def test_the_pause_leaves_exactly_three_keys_live():
-    """His ruling, 2026-09-28: "not hotkeys or voice commands, other than the
-    obvious exceptions we already have".  The spoken side of that is pinned as a
-    whole frozenset in test_command_reference; without this the keyboard side was
-    prose alone, and a fourth exempt key could go in unnoticed.  Esc resumes,
-    Ctrl+Alt+Q quits, Shift+Esc retracts the OSR2 from a session that may still have
-    it on him."""
     bound = {line.split("::", 1)[0]
              for line in suspend_exempt_block().splitlines() if "::" in line}
 
@@ -76,16 +40,12 @@ def test_the_pause_leaves_exactly_three_keys_live():
 
 
 def test_the_hotkeys_stay_live_whichever_window_has_the_keyboard():
-    """Origenerator's window included: typing into it inside a session is what
-    OmniPause is for, which suspends them all."""
     conditions = [line for line in script_text().splitlines() if line.startswith("#HotIf ")]
 
     assert conditions == []
 
 
 def test_it_is_told_which_orchestrator_launched_it():
-    """Both orchestrators pass their own process id third: after a crossing the
-    script outlives that process, and has to know when it is gone."""
     text = script_text()
 
     assert "if (A_Args.Length < 3)" in text
@@ -93,10 +53,6 @@ def test_it_is_told_which_orchestrator_launched_it():
 
 
 class TestTheSessionEndsButTheScriptStays:
-    """Esc over the closing screen is how a quit gets called off, and a script
-    that has exited hooks nothing -- so ending a session leaves it running,
-    with only Esc and the quit chord live, until the orchestrator stops it."""
-
     def test_end_session_on_the_mailbox_ends_the_session_without_exiting(self):
         body = function_source("ProcessAhkCommand")
         assert '(action = "end_session")' in body, "the mailbox has no end_session"
@@ -113,20 +69,15 @@ class TestTheSessionEndsButTheScriptStays:
         assert "EndingPhase" in guard
 
     def test_the_quit_chord_over_the_closing_screen_says_quit_in_the_flag(self):
-        """So a teardown can tell "end everything" from a cancel."""
         body = function_source("EndSession")
         guard = body[:body.index('RequestStartupCancel("quit")')]
 
         assert "EndingPhase" in guard
 
     def test_ending_the_session_starts_watching_for_nothing_left_to_serve(self):
-        """Over a crossing the orchestrator exits first and nothing stops this
-        script; left running, Esc and the quit chord would be dead everywhere."""
         assert "SetTimer(WatchEnding" in function_source("EndTheSession")
 
     def test_the_watch_waits_out_both_the_session_and_its_crossing(self):
-        """Over the closing screen the orchestrator is alive; over a crossing the
-        loading screen's file is fresh.  Only with neither is there nothing left."""
         body = function_source("WatchEnding")
         before_exiting = body[:body.index("ExitApp")]
 
@@ -134,25 +85,18 @@ class TestTheSessionEndsButTheScriptStays:
         assert "CrossingUnderWay()" in before_exiting
 
     def test_the_crossing_it_watches_is_the_one_the_sessions_keep(self):
-        """One file and one timeout, spelled in two languages."""
         text = script_text()
 
         assert f'"\\{CROSSING_PROGRESS_NAME}"' in text
         assert f"CROSSING_STALE_S := {LOADING_SCREEN_STALE_S:g}" in text
 
     def test_ending_the_session_clears_a_cancel_flag_from_before_it_ended(self):
-        """Nothing in a live session drops the flag, so one lying there when the
-        session ends is from before it was up, and would read as Esc calling
-        this end off."""
         body = function_source("EndTheSession")
 
         assert "FileDelete(STARTUP_CANCEL_FILE)" in body
         assert body.index("FileDelete(STARTUP_CANCEL_FILE)") < body.index("EndingPhase := true")
 
     def test_the_exit_that_stops_the_script_marks_only_a_live_session(self):
-        """The orchestrator stops the script after a cancelled launch and after
-        every teardown; a marker written then is found by the next session and
-        read as its own end."""
         body = function_source("ProcessAhkCommand")
         exit_branch = body[body.index('(action = "exit")'):]
         guard = exit_branch[:exit_branch.index("MarkSessionEnd(")]
@@ -162,17 +106,7 @@ class TestTheSessionEndsButTheScriptStays:
 
 
 class TestStartupPhase:
-    """The script goes up with the loading screen, ahead of every window the
-    session opens, because its hotkeys are the only keys in a launch that do not
-    care what holds the focus.  Until the session is there, though, it holds the
-    keys that drive one and turns the two that mean "stop" into a cancel."""
-
     def test_esc_calls_the_launch_off_before_it_pauses_a_session(self):
-        """The whole reason the script goes up this early.  Esc on the loading
-        screen is the one way to abort a launch, and the overlay's own binding
-        only works while the overlay holds the focus — which is exactly what a
-        launch cannot guarantee, since something else taking it mid-launch is
-        what left a launch uncancellable."""
         assert "Esc::PauseOrCancelStartup()" in suspend_exempt_block()
 
         body = function_source("PauseOrCancelStartup")
@@ -180,28 +114,14 @@ class TestStartupPhase:
         assert 'QueueCommand("omnipause_toggle")' in body
 
     def test_the_quit_chord_calls_it_off_too_rather_than_exiting(self):
-        """Exiting mid-launch would leave the orchestrator building a session it
-        has been told to end and only take that session down once it was fully
-        up — and it would take Esc's cancel with it, since a script that has
-        exited hooks nothing.
-
-        It says which key asked, because the two mean opposite things about who
-        takes the monitors back and the orchestrator cannot tell them apart any
-        other way: crossing over leaves a session-end marker of its own, so
-        reading THAT made every Esc look like a quit."""
         assert 'RequestStartupCancel("quit")' in function_source("EndSession")
 
     def test_the_flag_it_drops_is_the_one_the_orchestrator_watches(self):
-        """Two processes drop this flag — this script and the loading screen —
-        and the orchestrator's progress checkpoints watch for one name.  Nothing
-        else pins the AHK-side spelling to the Python-side constant."""
         assert f'"\\{CANCEL_FILENAME}"' in script_text(), (
             f"the script does not drop {CANCEL_FILENAME}, so its Esc cancels nothing"
         )
 
     def test_the_keys_that_drive_a_session_are_held_until_there_is_one(self):
-        """Queued at the loading screen they would go into a file no dispatch
-        loop is draining yet, to be acted on whenever one starts."""
         body = function_source("QueueCommand")
         held = body.index("if (StartupPhase)")
         assert held < body.index("AppendWithRetry"), (
@@ -214,10 +134,6 @@ class TestStartupPhase:
         assert "StartupPhase := false" in body
 
     def test_the_held_keys_pass_through_rather_than_being_swallowed(self):
-        """A gated hotkey still consumes its key; a suspended one does not.
-        During a launch the focus may well be on an app of the user's own — that
-        is the premise of the whole change — so what they type there has to reach
-        it rather than vanish into a script with nothing to do with it."""
         assert "\nSuspend true\n" in script_text(), (
             "the script does not start suspended, so it eats keys during a launch"
         )

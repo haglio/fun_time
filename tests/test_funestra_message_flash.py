@@ -12,8 +12,6 @@ from tests.fun_time_window_fakes import MAIN_FUNESTRA_PID
 
 
 def _runner(tmp_path: Path) -> DispatchLoopRunner:
-    """A real DispatchLoopRunner whose config's files all live under tmp_path,
-    the three Funestras' message channels among them."""
     path_fields = (
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
         "portrait_playlist_file", "landscape_cmd_file", "landscape_paused_file",
@@ -66,11 +64,8 @@ class TestReadFunestraNotice:
 
 
 class TestFlashFunestraNotices:
-    """The loop flashes each Funestra's message exactly once, over that
-    Funestra, in the color its kind names."""
-
     def _loop(self, tmp_path):
-        return _runner(tmp_path)  # built before any message exists: seq latch 0
+        return _runner(tmp_path)
 
     def test_flashes_once_then_stays_quiet(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
@@ -83,14 +78,10 @@ class TestFlashFunestraNotices:
             again = [r for r in caplog.records if "full video not available" in r.message]
 
         assert len(first) == 1
-        assert len(again) == 1  # the repeat tick adds nothing
+        assert len(again) == 1
         assert first[0].levelno == logging.WARNING
 
     def test_the_funestra_names_the_kind_and_this_satellite_picks_the_color(self, tmp_path, caplog):
-        """A Funestra has no palette.  It says a funscript jump is about a
-        funscript, and the level it lands at here is what makes it green — an
-        ordinary jump, which says nothing, lands white, and a jump with nowhere
-        to go is a warning."""
         loop = self._loop(tmp_path)
         with caplog.at_level(logging.DEBUG):
             _write(tmp_path / "main_player_notice.txt", 1, "favorite", "funscript jump")
@@ -116,9 +107,6 @@ class TestFlashFunestraNotices:
         assert any("money shot not available" in r.message for r in caplog.records)
 
     def test_a_satellites_message_flashes_over_that_satellite(self, tmp_path, caplog):
-        """Each Funestra has a channel of its own, so a satellite's "no
-        funscripting ahead" lands over the satellite that said it and the Main
-        Funestra's over the Main, each counted on its own sequence."""
         loop = self._loop(tmp_path)
         _write(tmp_path / "portrait_notice.txt", 1, "warning", "no funscripting ahead")
         _write(tmp_path / "landscape_notice.txt", 1, "favorite", "next funscripted")
@@ -134,10 +122,6 @@ class TestFlashFunestraNotices:
 
 
 def test_a_message_from_a_previous_session_does_not_flash_on_open(tmp_path):
-    """Opening Fun Time replayed whatever was last in the file, so a stale
-    'full video not available' appeared the instant it started.  The latch is
-    the real constructor's own: the runner is built AFTER the stale message
-    landed, exactly as a fresh session opens over last session's file."""
     _write(tmp_path / "main_player_notice.txt", 500, "warning", "stale from last time")
     _write(tmp_path / "portrait_notice.txt", 500, "warning", "stale on the side")
 

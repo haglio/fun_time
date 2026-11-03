@@ -48,7 +48,6 @@ class TestLoopController:
         assert lc.out_ms is None
 
     def test_unscripted_loop_uses_raw_bounds(self):
-        # No funscript (a plain video): the marked range is used as-is, no snapping.
         lc = LoopController(None)
 
         lc.on_record_down(2500)
@@ -59,17 +58,14 @@ class TestLoopController:
         assert lc.out_ms == 3500
 
     def test_release_before_start_floors_out_to_the_start(self):
-        # The record-down point is a hard floor for the out point too: an out
-        # before the start (the EOF-wrap race, since seeks are clamped) can't
-        # flip the loop — it collapses to the minimum loop at the start.
-        lc = LoopController(None)  # unscripted: exact, unsnapped bounds
+        lc = LoopController(None)
         lc.on_record_down(5000)
 
-        lc.on_record_up(2000)  # out landed 3s before the start
+        lc.on_record_up(2000)
 
         assert lc.state == LoopState.LOOPING
-        assert lc.in_ms == 5000  # start stays put, not dragged back to 2000
-        assert lc.out_ms == 5500  # floored to the start, widened to the min loop
+        assert lc.in_ms == 5000
+        assert lc.out_ms == 5500
 
     def test_record_up_in_normal_is_noop(self):
         lc = LoopController(_make_fs())
@@ -106,9 +102,6 @@ class TestLoopController:
         assert lc.state == LoopState.NORMAL
 
     def test_restore_lands_straight_in_a_running_loop(self):
-        """A loop that outlives the session it was marked in comes back whole,
-        without a mark-and-release: the controller a new video builds is fresh,
-        and the bounds it is handed are already the finished ones."""
         lc = LoopController(_make_fs())
 
         lc.restore(2000, 4000)
@@ -117,9 +110,6 @@ class TestLoopController:
         assert (lc.in_ms, lc.out_ms) == (2000, 4000)
 
     def test_restore_does_not_snap_the_bounds_it_is_given(self):
-        """They were snapped when the loop was made.  Snapping again would move
-        a loop every time it is resumed, and the funscript beside the video need
-        not even be the one that shaped it."""
         lc = LoopController(_make_fs())
 
         lc.restore(2500, 3500)

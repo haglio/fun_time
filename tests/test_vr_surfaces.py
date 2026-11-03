@@ -1,5 +1,3 @@
-"""The two surfaces a headset gives a Funestra: the HUD as a bitmap to hang
-beside the item, and a User's own frames to hang on the screen."""
 from __future__ import annotations
 
 import numpy as np
@@ -17,7 +15,7 @@ class TestTheHudBitmap:
     def test_it_holds_the_bitmap_the_way_gl_reads_it(self):
         bitmap = HudBitmap()
         bgra = np.zeros((2, 3, 4), dtype=np.uint8)
-        bgra[0, 0] = (10, 20, 30, 40)  # blue, green, red, alpha
+        bgra[0, 0] = (10, 20, 30, 40)
 
         bitmap.overlay(10, MARGIN, MARGIN, bgra)
 
@@ -45,9 +43,6 @@ class TestTheHudBitmap:
         assert HudBitmap().width is None
 
     def test_a_squeeze_on_the_hanging_screen_is_placed_where_the_hud_was_drawn(self):
-        """The Funestra places a press in its window's pixels, and the HUD
-        sits in that window wherever the overlay put it; a point in the
-        HUD's own pixels goes back with that offset on."""
         bitmap = HudBitmap()
         bitmap.overlay(10, 60, 373, np.zeros((1, 1, 4), dtype=np.uint8))
 

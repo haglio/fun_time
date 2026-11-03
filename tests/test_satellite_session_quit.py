@@ -32,16 +32,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SATELLITE = ROOT / "satellite" / "app.py"
 WINDOW_INPUT = ROOT / "main_funestra" / "input.py"
 
-# The event types the loop is allowed to answer.  QUIT is here because the loop
-# must *see* the close in order to hand it to the session — what it may not do is
-# stop on it.
 ALLOWED_EVENTS = {"QUIT", "MOUSEBUTTONDOWN", "MOUSEBUTTONUP", "MOUSEMOTION", "WINDOWLEAVE"}
 
 
 def test_the_ask_is_the_dashboards_own_quit_verb():
-    """What the Quit button posts and the dispatch loop turns into "exit" for
-    the bridge.  Rename it and a closed satellite asks for something nothing
-    answers, so the gesture goes quiet rather than wrong."""
     assert SESSION_QUIT == QUIT_BUTTON
 
 
@@ -77,7 +71,6 @@ def test_a_satellite_reads_its_window_through_that_loop():
 
 
 def test_the_loop_answers_no_keyboard_event():
-    """KEYDOWN or KEYUP here is the handler that was taken out, coming back."""
     assert not _pygame_event_names() & {"KEYDOWN", "KEYUP", "TEXTINPUT"}, (
         "main_funestra/input.py answers a key again — a key that ends one satellite "
         "leaves the session running around a gap nothing refills"
@@ -85,9 +78,6 @@ def test_the_loop_answers_no_keyboard_event():
 
 
 def test_nothing_else_has_crept_into_the_loop_either():
-    """Held to the events it is known to answer, so a new one is looked at rather
-    than assumed harmless — the Ctrl+Q handler this guards against was itself
-    once an obvious convenience."""
     assert _pygame_event_names() <= ALLOWED_EVENTS, (
         f"main_funestra/input.py answers {sorted(_pygame_event_names() - ALLOWED_EVENTS)}; "
         "if that is right, say why here and add it to ALLOWED_EVENTS"
@@ -95,9 +85,6 @@ def test_nothing_else_has_crept_into_the_loop_either():
 
 
 def test_the_close_is_handed_to_the_funestra_rather_than_answered():
-    """The loop must not end itself straight from a QUIT.  That is what closed
-    one Funestra at a time, and it is invisible standalone, where stopping is
-    exactly right -- the Funestra tells the two apart."""
     handed_on = any(
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)

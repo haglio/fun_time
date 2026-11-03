@@ -1,20 +1,3 @@
-"""The full dispatch-command id set, pinned byte-for-byte.
-
-Command ids are public surface: windows_bridge_hotkeys.ahk queues them, the
-Funestra HUDs in funestra post them (``portrait_minimize``,
-``portrait_play_video|<path>``), the Main Funestra's HUD posts more, and the in-app
-reference prints them.  The command-registry restructure (audit item 33) may
-move where an id is *defined*, but no id may change spelling — this snapshot
-is the gate.  It unions every id the three in-repo surfaces name (the spoken
-vocabulary, the AHK script, the reference) plus the handful only a Funestra HUD
-or console posts, and holds the result to one literal list.
-
-The act-filter ids (``filter_<scope>_<act>``) come from the content overlay,
-which differs per machine, so they are pinned by shape against
-:mod:`fun_time.filter_vocab` rather than by literal act names.  The numeric
-families (``robot_hand_amp_50``, ``main_funestra_speed_150``, ...) are pinned by regenerating
-them the way the vocabulary does.
-"""
 from __future__ import annotations
 
 import re
@@ -26,15 +9,6 @@ from fun_time.voice_commands import VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Commands no spoken phrase, hotkey or reference row names: posted straight off
-# a Funestra's own surface as a literal string in that Funestra's repo, or off the
-# dashboard's strip.  Each satellite's Kino / Origenerator pair is on its HUD, and
-# the strip's two buttons are the strip's own (the hosted Origenerator posts its
-# second one too, to be shown).  The three
-# minimize buttons live on the HUDs (funestra / the Main Funestra's HUD); the
-# padlock on that HUD locks whichever Funestra is on the main screen; the speed
-# pair is Genau's console's own ± marks beside its drive readout.  The two
-# scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "landscape_kino_activate",
     "landscape_minimize",
@@ -55,8 +29,6 @@ HUD_ONLY_COMMAND_IDS = (
     "robot_hand_speed_up",
 )
 
-# The argument-carrying forms, matched by prefix rather than listed whole: the
-# HUD thumbnail clicks and the Main Funestra's volume slider carry their payload after a "|".
 PREFIXED_COMMAND_FORMS = (
     "audio_set_volume|",
     "landscape_lock_video|",
@@ -65,8 +37,6 @@ PREFIXED_COMMAND_FORMS = (
     "portrait_play_video|",
 )
 
-# Every literal command id, sorted.  The overlay-derived filter ids and the
-# generated numeric families are asserted separately below.
 EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "active_action_loop",
     "active_cycle_action",
@@ -324,7 +294,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
 
 
 def _expected_numeric_ids() -> set[str]:
-    """The generated numeric families, rebuilt the way the vocabulary builds them."""
     ids = {
         f"robot_hand_{axis}_{value}"
         for axis in ("amp", "center", "speed")
@@ -340,7 +309,6 @@ def _expected_numeric_ids() -> set[str]:
 
 
 def _expected_filter_ids() -> set[str]:
-    """The act-filter ids, shaped from whatever overlay this machine carries."""
     return {
         set_command(scope, query)
         for scope in ("both", "portrait", "landscape")
@@ -373,7 +341,6 @@ def test_the_command_id_set_is_exactly_the_snapshot():
 
 
 def test_the_snapshot_is_sorted_and_duplicate_free():
-    """Sorted so a diff of this file reads as the id it adds or removes."""
     rest = EXPECTED_COMMAND_IDS[len(HUD_ONLY_COMMAND_IDS):]
     assert list(rest) == sorted(set(rest))
     assert list(HUD_ONLY_COMMAND_IDS) == sorted(set(HUD_ONLY_COMMAND_IDS))
@@ -381,9 +348,6 @@ def test_the_snapshot_is_sorted_and_duplicate_free():
 
 
 def test_the_prefixed_forms_keep_their_spellings():
-    """The payload-carrying prefixes are cross-repo surface too: the satellite
-    HUDs build ``<satellite>_play_video|<path>`` / ``<satellite>_lock_video|<path>`` and
-    The Main Funestra's slider builds ``audio_set_volume|<level>`` in their own repos."""
     assert PREFIXED_COMMAND_FORMS == (
         "audio_set_volume|",
         "landscape_lock_video|",

@@ -8,16 +8,12 @@ means the same window a test in the other one does.
 """
 from __future__ import annotations
 
-# HWNDs the window lookups resolve to: portrait, landscape and dashboard by pid;
-# The Main Funestra by pid (with an exact-title fallback); RFB from the hwnd
-# captured at startup.
 MAIN_FUNESTRA_HWND = 2001
 PORTRAIT_HWND = 3001
 LANDSCAPE_HWND = 4001
 DASHBOARD_HWND = 5001
 RFB_HWND = 7777
 
-# The hosted Origenerator's window, resolved by pid AND caption together.
 HOSTED_PID = 900
 HOSTED_HWND = 8001
 
@@ -33,9 +29,6 @@ PID_TO_HWND = {
     DASHBOARD_PID: DASHBOARD_HWND,
 }
 
-# The windows that are topmost in EVERY mode — the ones that own a rect and so
-# overlap nothing: every managed window but the hosted app's, which shares the
-# browser's rect.
 TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND}
 
 
@@ -44,17 +37,10 @@ def lookup_pid(pid):
 
 
 def lookup_title(title, exact=False):
-    """No window on this desktop resolves by caption alone: every child's is
-    found by its pid."""
     return 0
 
 
 def lookup_hosted(pid, title, *, include_hidden=False, caption="Origenerator"):
-    """The hosted app's window, which resolves by pid AND caption together.
-
-    Parked, so a caller that does not ask for hidden windows finds nothing —
-    which is the state the hosted app boots in and spends every mode switch
-    away from it in."""
     if pid != HOSTED_PID or not include_hidden:
         return 0
     accepted = title(caption) if callable(title) else title == caption
@@ -62,10 +48,6 @@ def lookup_hosted(pid, title, *, include_hidden=False, caption="Origenerator"):
 
 
 class FakeClock:
-    """A monotonic clock a test drives by hand, so the settle a mode switch
-    waits out can genuinely run out instead of being back-dated by reaching
-    into the deadline map."""
-
     def __init__(self) -> None:
         self.now = 1000.0
 

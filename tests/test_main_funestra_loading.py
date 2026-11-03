@@ -20,15 +20,10 @@ def _event(kind, **fields):
 
 
 class TestQuitRequested:
-    """A wait long enough to need a loading screen is long enough that closing
-    the window has to work during it."""
-
     def test_closing_the_window_quits(self):
         assert quit_requested([pygame.event.Event(pygame.QUIT)])
 
     def test_no_key_does_not_even_ctrl_q(self):
-        """The room's keyboard is Fun Time's, whose quit is Ctrl+Alt+Q, and
-        playback answers no key of its own either."""
         event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q, mod=pygame.KMOD_CTRL)
         assert not quit_requested([event])
 
@@ -58,7 +53,7 @@ class TestGivingUpOnTheWait:
             pygame.event, "get",
             lambda: [_event(pygame.KEYDOWN, key=pygame.K_j, mod=0)])
 
-        stop_if_asked()  # the control probe: it must not raise on anything else
+        stop_if_asked()
 
     def test_it_pumps_the_queue_even_with_nothing_in_it(self, monkeypatch):
         """The pump is the half that has nothing to do with quitting, and the

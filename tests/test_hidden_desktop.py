@@ -71,10 +71,6 @@ def _run_in_a_run_job(probe: str) -> None:
 
 
 def test_a_hidden_desktop_launch_is_muted_however_the_caller_leaves_the_environment():
-    """Off-screen hides a Funestra's window, not its sound, and a repro that
-    borrowed this launcher without the mute played the real library aloud
-    (2026-09-19).  So the launcher forces the switch on: passed nothing, passed
-    an empty environment, or even handed the switch turned off."""
     assert _child_environment(None)["FUN_TIME_MUTE_AUDIO"] == "1"
     assert _child_environment({})["FUN_TIME_MUTE_AUDIO"] == "1"
     assert _child_environment({"FUN_TIME_MUTE_AUDIO": "0"})["FUN_TIME_MUTE_AUDIO"] == "1"
@@ -88,12 +84,7 @@ def test_a_hidden_desktop_launch_keeps_the_environment_it_was_handed():
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
 def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environment(tmp_path):
-    """End to end: a child started through the launcher with no environment named
-    still finds the mute switch set, so nothing off-screen can be heard."""
     report = tmp_path / "mute.txt"
-    # Started outside tmp_path and waited out, not polled for its report: the
-    # report exists before it is written, and a directory a dying child still
-    # stands in cannot be removed -- which failed this test's teardown once.
     _run_in_a_run_job(f"import os, pathlib; pathlib.Path({str(report)!r})"
                       ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
 
@@ -204,9 +195,6 @@ def test_a_repeat_run_hands_the_integration_dir_to_the_flake_gate():
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
 def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tmp_path):
-    """This venv pins the app_support its Funestras run on, and the gate may be in
-    a newer one; the tests it repeats still run here, through --python.  Making
-    that install can take a download, which no other session should queue for."""
     events = []
     gate_python = tmp_path / "gate" / "Scripts" / "python.exe"
 
@@ -509,7 +497,7 @@ def test_the_queue_is_waited_out_before_pytest_is_started():
 
 
 class _StopTheRun(Exception):
-    """Ends the run at the point the child would have been launched."""
+    pass
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
@@ -522,8 +510,6 @@ def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_
 
 
 def test_a_run_starved_of_the_processor_is_never_ended_as_wedged():
-    """Its ceiling is counted in the seconds the run could run, and none pass
-    while normal-priority work holds every processor."""
     still_running = iter([True] * 50_000 + [False])
     keep_time_by(StarvedRun())
     try:
@@ -566,9 +552,6 @@ def test_the_runner_counts_the_runs_job_as_the_run_and_everything_else_as_other_
 
 
 def test_the_ceiling_leaves_a_green_suite_room_to_finish():
-    """Thirteen minutes is a green run here, and the gate's own job times out at
-    fifteen.  A ceiling anywhere near either would turn a slow machine into a
-    failed run, which is the opposite of what it is for."""
     assert hidden_desktop.RUN_CEILING_S >= 30 * 60
 
 
@@ -647,11 +630,6 @@ def _answer(event: _DEBUG_EVENT) -> None:
 
 @contextlib.contextmanager
 def _held_in_its_exit(pid: int, release: Path):
-    """Debug *pid*, let it go on to exit, and do not let the exit finish.
-
-    A debugged process's last thread waits inside the kernel for its debugger to
-    acknowledge the exit, after its exit code is recorded: the state a driver that
-    never completes an I/O leaves a process in, reproduced without the driver."""
     if not _kernel32.DebugActiveProcess(pid):
         raise ctypes.WinError(ctypes.get_last_error())
     event = _DEBUG_EVENT()
@@ -742,9 +720,6 @@ def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 job objects")
 def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
-    """The broker is a service, not a child: harem and the user's next Fun Time
-    launch keep talking to it after the run that started it is gone.  It is the
-    one process a run may leave."""
     pid_file = tmp_path / "broker_pid.txt"
     spawn_broker = (
         "import pathlib, subprocess;"

@@ -1,6 +1,3 @@
-"""Every command the reference and the recognizer can produce, dispatched in
-every pairing of the two Satellites' modes, and what each one sent on every channel.
-"""
 from __future__ import annotations
 
 import json
@@ -20,10 +17,6 @@ from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manif
 from fun_time_vr.orchestrator import build_vr_manifest
 from tests.made_up_genau import with_made_up_genau
 
-# The channels a dispatch writes to.  The paused flags and the broker mailbox
-# carry no vocabulary of their own — the headset and the broker read them
-# exactly as the desktop does — so they are drained here to be seen by the
-# sweep rather than checked verb by verb.
 _CHANNELS = (
     "main_funestra_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
     "origenerator_cmd_file", "broker_cmd_file", "main_funestra_paused_file",
@@ -33,9 +26,6 @@ _CHANNELS = (
 
 
 def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
-    """The bridge config a headset session runs on, built the way
-    ``fun_time_vr.orchestrator.run_vr_bridge`` builds it: the VR manifest
-    written out, read back, and handed to the dispatch loop's own builder."""
     config = app_at_hand(root, names_an_origenerator=names_an_origenerator)
     manifest = write_manifest_data(build_vr_manifest(config),
                                    config.paths.state_dir / "windows_bridge_launch.ini")
@@ -43,15 +33,12 @@ def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeC
 
 
 def desktop_manifest(root: Path) -> LaunchManifest:
-    """The manifest a session on the monitors runs on, as its orchestrator writes it."""
     config = app_at_hand(root)
     return LaunchManifest.read(write_windows_bridge_manifest(
         config, config.paths.state_dir / "windows_bridge_launch.ini"))
 
 
 def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
-    """A fabricated config that names an Origenerator checkout, as a real one
-    does, unless told not to."""
     folders = {name: root / name for name in (
         "primary", "portrait", "landscape", "vr", "trash", "state")}
     for folder in folders.values():
@@ -81,12 +68,6 @@ def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
 
 
 def every_command() -> list[str]:
-    """Every dispatch id the reference and the recognizer can produce.
-
-    The reference is held to the AHK script and to ``VOICE_COMMANDS`` by
-    ``tests/test_command_reference.py``, so walking it here walks every key and
-    every phrase without this module parsing either.
-    """
     commands = {
         command
         for section in build_reference_sections()
@@ -97,7 +78,6 @@ def every_command() -> list[str]:
 
 
 def drain(config: BridgeConfig) -> dict[str, list[str]]:
-    """What each channel was sent since the last drain, emptying them."""
     config.main_list_builds.settle()
     written: dict[str, list[str]] = {}
     for name in _CHANNELS:
@@ -116,16 +96,6 @@ def drain(config: BridgeConfig) -> dict[str, list[str]]:
 
 
 def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
-    """Dispatch every command in every pairing of the two Satellites' modes; report
-    what each sent.
-
-    Keyed ``"<main mode>/<satellites mode>/<command>"``, because several
-    controls route by mode and the padlock the headset's sweep was written for
-    was dead in one and fine in the other — a failure has to say which.  The
-    hosted app has always answered by the time a command is dispatched here, so
-    switching into its mode is a switch rather than a message that it is still
-    starting.
-    """
     drain(config)
     for status_file in (config.main_funestra_status_file,
                         *(config.satellite(funestra).status_file for funestra in FunTimeFunestra.SATELLITES)):

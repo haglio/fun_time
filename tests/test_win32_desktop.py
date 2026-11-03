@@ -1,4 +1,3 @@
-"""The off-screen check that silences a Funestra, and the three Funestras it silences."""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +23,6 @@ def test_the_name_comparison_ignores_case():
 
 
 def test_a_non_default_name_is_off_screen_when_the_input_desktop_cannot_be_named():
-    # OpenInputDesktop fails on a secure desktop; the interactive one is always "Default".
     assert _is_off_screen("FunTimeIntegration7", None) is True
     assert _is_off_screen("Default", None) is False
 

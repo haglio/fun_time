@@ -1,4 +1,3 @@
-"""The INI a session reads its own mode off."""
 from __future__ import annotations
 
 import ast
@@ -31,9 +30,7 @@ from tests.made_up_state import shifted_state
 
 
 def test_the_state_file_is_named_off_the_state_dir(tmp_path: Path):
-    """Four processes open this file by path, so they resolve it one way."""
     assert shared_state_path(tmp_path) == tmp_path / SHARED_STATE_FILENAME
-
 
 
 def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path: Path, monkeypatch):
@@ -56,15 +53,6 @@ def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path:
 
 
 def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
-    """The dispatch loop replaces its whole state with what this file reads back,
-    every tick.  So a field written by a command but missing from the INI is not
-    merely unsaved — it is undone a fraction of a second later, while the message
-    that acknowledged it is still on screen.  That is what "main latest" did: the
-    playlist was rebuilt newest-first and the flag was reset before any HUD drew it.
-
-    Hence the whole dataclass rather than a field at a time: every one of these is
-    session mode, and the next one added has to be carried too.
-    """
     state_file = tmp_path / "shared_state.ini"
     state = shifted_state(BridgeState())
 
@@ -94,8 +82,6 @@ class TestSharedState:
         assert read_shared_state(state_file) is None
 
     def test_active_funestra_roundtrips(self, tmp_path):
-        """active_funestra must persist: tick() reloads state from this file every
-        iteration, so a Satellite set by a nav command would be lost otherwise."""
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, BridgeState(active_funestra=3))
 
@@ -105,8 +91,6 @@ class TestSharedState:
         assert loaded.active_funestra == 3
 
     def test_active_funestra_defaults_to_the_primary_for_legacy_files(self, tmp_path):
-        """An INI written before active_funestra existed loads as the Main Funestra (1) —
-        the same floor a fresh session opens on."""
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nportrait_locked = 0\nlandscape_locked = 0\nmain_mode = video\n"
@@ -120,8 +104,6 @@ class TestSharedState:
         assert loaded.active_funestra == 1
 
     def test_roundtrip_preserves_the_sound_level(self, tmp_path):
-        """volume/muted must persist: tick() reloads state from this file every
-        iteration, so a spoken "quieter" would be undone before it was heard."""
         state_file = tmp_path / "shared_state.ini"
 
         write_shared_state(state_file, BridgeState(volume=30, muted=True))
@@ -145,8 +127,6 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).filter == "alpha"
 
     def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
-        """The HUD runs in its own process and reads its loop state from this
-        file, so a loop set by a command has to survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(loop="seed"),
                             landscape=SatelliteState(loop="action"))
@@ -158,8 +138,6 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
 
     def test_roundtrip_preserves_the_nav_map_anchor(self, tmp_path):
-        """The HUD orders a running loop's map from the video the loop started on,
-        which it reads from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(nav_map_anchor="C:/v/a.mp4"),
                             landscape=SatelliteState(nav_map_anchor="C:/v/b.mp4"))
@@ -171,8 +149,6 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).nav_map_anchor == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_widen_video(self, tmp_path):
-        """The HUD reads which video each Satellite's seed row is widened around from
-        this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(widen_video="C:/v/a.mp4"),
                             landscape=SatelliteState(widen_video="C:/v/b.mp4"))
@@ -184,8 +160,6 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).widen_video == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
-        """The HUD reads which video each Satellite's map is frozen on for keyboard
-        navigation from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(portrait=SatelliteState(nav_anchor="C:/v/a.mp4"),
                             landscape=SatelliteState(nav_anchor="C:/v/b.mp4"))
@@ -197,7 +171,6 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).nav_anchor == "C:/v/b.mp4"
 
     def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
-        # A state file written before loops were tracked must still load.
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nportrait_locked = 0\nlandscape_locked = 0\nmain_mode = video\n"
@@ -220,7 +193,6 @@ class TestSharedState:
         assert (loaded.main_plays_vr, loaded.main_plays_flat) == (True, True)
 
     def test_state_files_without_filter_keys_load_as_unfiltered(self, tmp_path):
-        # A state file written before filters existed must still load.
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
             "[state]\nportrait_locked = 0\nlandscape_locked = 0\nmain_mode = video\n"
@@ -236,15 +208,6 @@ class TestSharedState:
 
 
 def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
-    """One small INI, and importing its reader pulled in 28 of this package's
-    modules — the whole dispatcher among them, which is the repo's hottest and
-    most complex file, because `BridgeState` lived there and this module
-    imported it.
-
-    Startup reads this file before the dispatch loop exists, and the dashboard
-    and both satellite HUDs read it from their own processes; none of them wants
-    the command vocabulary.  A ceiling that can only come down.
-    """
     probe = (
         "import sys, fun_time.shared_state; "
         "print('fun_time.command_dispatch' in sys.modules); "
@@ -262,18 +225,6 @@ def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
 
 
 def test_the_round_trip_spells_no_field_of_the_record_by_hand():
-    """These names used to be written out four times over: as the record's
-    fields, as the keys the writer emits, as the keys the reader asks for, and
-    as the list a resume carries.  Nothing tied the four together, so a field
-    added to the record and forgotten in the writer was never saved at all, and
-    one forgotten in the reader came back at its default on every resume -- which
-    is how a HUD once described a session other than the one playing.  They are
-    derived from the record now, and this is what keeps them that way.
-
-    The one place today's spelling is written down is the table that rewrites
-    last session's keys into it, since that is what the derivation is being
-    pointed at; nothing else may name a field.
-    """
     spelled_out = sorted(
         {node.value for node in ast.walk(ast.parse(
             Path(shared_state.__file__).read_text(encoding="utf-8")))
@@ -288,15 +239,6 @@ def test_the_round_trip_spells_no_field_of_the_record_by_hand():
 
 
 def test_no_satellite_value_is_a_field_of_the_whole_state():
-    """A value one satellite carries belongs to :class:`SatelliteState`, reached
-    through :meth:`BridgeState.satellite` — never to a field of its own beside the
-    session's.  Held because the pair used to answer to three names at once:
-    ``which`` 2 and 3 in signatures, ``portrait_locked``/``landscape_locked`` in the record,
-    ``portrait``/``landscape`` everywhere a person could read it, and forty-one
-    conditionals in between whose only job was to translate.  Every one of those
-    was a place a 2 could be written where a 3 belonged.  The legacy spellings
-    survive as INI keys, which is a wire format and a different thing.
-    """
     stray = [f.name for f in fields(BridgeState)
              if f.name.startswith(("portrait_", "landscape_"))
              or f.name[-1:] in ("2", "3")]
@@ -308,9 +250,6 @@ def test_no_satellite_value_is_a_field_of_the_whole_state():
 
 
 class TestTheSideLens:
-    """BridgeState.Funestra / with_satellite — how a caller holding one satellite reaches
-    that satellite's state and nothing else."""
-
     def test_satellite_reads_the_state_of_that_satellite_alone(self):
         state = BridgeState(
             portrait=SatelliteState(
@@ -338,8 +277,6 @@ class TestTheSideLens:
         assert state.satellite(FunTimeFunestra.LANDSCAPE) == SatelliteState(filter="delta")
 
     def test_with_satellite_refuses_a_name_no_satellite_carries(self):
-        """Every caller names the value it sets, so a misspelling is a write that
-        goes nowhere at all unless the record refuses it."""
         with pytest.raises(TypeError):
             BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, lokced=True)
 
@@ -376,12 +313,6 @@ class TestTheSideLens:
 
 
 def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp_path: Path):
-    """The Main Funestra's main_player and hybrid modes became one mode, called video
-    until it was renamed kino, and the satellites' player mode followed it both
-    times.  A file saved under any of those words has to come back as the mode
-    they are now: an unrecognized one used to answer False to every question and
-    quietly park the Funestras, and now build_mode_switch_plan refuses it outright,
-    so a resumed session would not switch at all."""
     state_file = tmp_path / SHARED_STATE_FILENAME
     for saved_main, saved_satellite in (("main_player", "player"), ("hybrid", "player"),
                                         ("video", "video")):
@@ -401,10 +332,6 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
         assert read_shared_state(state_file).main_mode == mode
 
 
-# Every key the file carries, and the value a default session writes for it.
-# Derived from the dataclass since the round trip stopped spelling them by
-# hand — so this is where a field rename becomes a deliberate, visible act,
-# the way tests/test_manifest.py holds the launch manifest's inventory.
 _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
     "main_mode": "kino", "portrait_mode": "kino", "landscape_mode": "kino",
@@ -447,11 +374,6 @@ _EXPECTED_STATE_KEYS = {
 
 
 def test_the_file_carries_exactly_these_keys_spelled_exactly_this_way(tmp_path: Path):
-    """The dashboard and the resume both read this file by key name, so a
-    respelling is a session that comes back at its defaults with nothing said.
-    A key added, dropped or renamed must be added, dropped or renamed here in
-    the same commit.
-    """
     state_file = tmp_path / SHARED_STATE_FILENAME
     write_shared_state(state_file, BridgeState())
 

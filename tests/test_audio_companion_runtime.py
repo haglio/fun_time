@@ -55,8 +55,6 @@ def test_process_iteration_handles_udp_line_after_runtime_command(tmp_path: Path
 
 
 def test_process_iteration_applies_the_published_volume(tmp_path: Path):
-    """The bridge owns the sound level and publishes it to a file; the companion
-    polls it beside the pause flag so a restarted companion re-reads it."""
     sock = Mock()
     sock.recvfrom.side_effect = TimeoutError()
     controller = Mock()

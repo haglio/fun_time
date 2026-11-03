@@ -1,5 +1,3 @@
-"""What a satellite is launched with, held together by the round trip: a record
-spelled into argv and parsed straight back must be the record it started as."""
 from __future__ import annotations
 
 from dataclasses import MISSING, fields, replace
@@ -35,8 +33,6 @@ _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
 
 
 class TestTheRoundTrip:
-    """What a satellite is given, and what it reads, are the same list."""
-
     def test_every_channel_survives_being_spelled_out_and_parsed_back(self):
         parsed = build_parser().parse_args(_FILLED.to_argv())
 
@@ -48,7 +44,6 @@ class TestTheRoundTrip:
         assert WindowPlacement.from_args(parsed) == _PLACED
 
     def test_a_satellite_given_nothing_is_given_no_flags(self):
-        """Standalone: no session, no files, and a window at the defaults."""
         assert SatelliteChannels().to_argv() == []
 
         parsed = build_parser().parse_args([])
@@ -57,17 +52,12 @@ class TestTheRoundTrip:
         assert WindowPlacement.from_args(parsed) == WindowPlacement()
 
     def test_a_channel_left_out_is_left_out_of_the_command_line(self):
-        """A session that draws no lock HUD hands over neither the HUD nor
-        the file a click on it would post to."""
         argv = SatelliteChannels(playlist=Path("p.tsv")).to_argv()
 
         assert argv == ["--playlist", "p.tsv"]
 
 
 class TestNothingHasDrifted:
-    """Each table below is the one place its group is written down, so the
-    checks here are what stop a fourth declaration growing back."""
-
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
         assert tuple(field for field, _flag, _kind in CHANNELS) == tuple(
             field.name for field in fields(SatelliteChannels))
@@ -75,9 +65,6 @@ class TestNothingHasDrifted:
             field.name for field in fields(WindowPlacement))
 
     def test_every_flag_declared_here_is_one_the_satellite_accepts(self):
-        """The flags are written into a real process's command line, so a
-        spelling that only this module believes in is a Funestra that will not
-        start."""
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
 
@@ -87,23 +74,14 @@ class TestNothingHasDrifted:
         assert declared <= accepted, declared - accepted
 
     def test_the_satellite_accepts_nothing_a_record_cannot_carry(self):
-        """The other way round, which is the direction a new flag drifts: one
-        added to the parser alone is a value the launcher can never pass."""
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
         declared = {flag for _field, flag, _kind in CHANNELS if flag is not None}
         declared |= {flag for _field, flag in PLACEMENT}
-        # --help is argparse's own, and --no-audio is a policy rather than a
-        # channel or a placement: a satellite opens muted either way, and the
-        # flag is the permanent silence.
         assert accepted - declared - {"-h", "--no-audio"} == set()
 
 
 class TestReadOutOfTheManifest:
-    """The headset runs its satellites in its own process, so it is handed
-    these rather than an argv -- the same group, through the manifest's own
-    per-Satellite lookup."""
-
     def _commands(self) -> CommandFiles:
         spelled = {name: f"state/{name}" for name, field in CommandFiles.__dataclass_fields__.items()
                    if field.default is MISSING}
@@ -130,8 +108,6 @@ class TestReadOutOfTheManifest:
             assert getattr(portrait, field) != getattr(landscape, field), field
 
     def test_the_dashboard_s_command_file_is_the_session_s_one(self):
-        """Shared by every child rather than carried per Satellite: a click on any
-        lock HUD posts to the same place."""
         commands = self._commands()
 
         portrait = SatelliteChannels.from_manifest(commands, "portrait")
@@ -168,8 +144,6 @@ class TestReadOutOfTheManifest:
         assert portrait.osr2_readout != landscape.osr2_readout
 
     def test_the_play_points_are_named_by_a_rule_rather_than_a_key(self):
-        """The manifest does not carry one: where a Satellite left each video is
-        named from the state directory, which is why it is passed in."""
         channels = SatelliteChannels.from_manifest(
             self._commands(), "portrait", play_points=Path("state/points.json"))
 

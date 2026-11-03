@@ -47,17 +47,11 @@ from fun_time.child_launch import no_child_log, no_console_window, open_child_lo
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = (ROOT / "fun_time", ROOT / "satellite", ROOT / "fun_time_vr", ROOT / "main_funestra")
 
-# The one helper that supplies the pair by unpacking.  A call may instead name
-# stdout and stderr itself; anything else is the inherited default.
 _SUPPLIES_THE_PAIR = "no_child_log"
 
-# Every helper that carries CREATE_NO_WINDOW: this repo's two, and the shared
-# one they are built over.  A new helper belongs here the day it is written --
-# the sweep asks by name, because a kwargs helper that sets no creationflags
-# looks exactly like one that does.
 _SUPPRESSES_THE_CONSOLE = frozenset({
-    "no_console_window",          # a child that opens windows of its own
-    "hidden_subprocess_kwargs",   # a console tool, hidden altogether
+    "no_console_window",
+    "hidden_subprocess_kwargs",
     "origenerator_launch_kwargs",
 })
 
@@ -105,15 +99,12 @@ def _asks_for_no_console(call: ast.Call) -> bool:
         return True
     if _unpacks(call, _SUPPRESSES_THE_CONSOLE):
         return True
-    # Kwargs the caller built and handed down -- the promise is theirs to keep,
-    # and the call that built them is swept in its own right.
     return any(keyword.arg is None and isinstance(keyword.value, ast.Name)
                for keyword in call.keywords)
 
 
 @pytest.mark.repo_check
 def test_there_are_spawns_to_check():
-    """The sweeps below pass vacuously if the scan stops finding them."""
     assert len(_popen_calls()) >= 15
     assert len(_spawn_calls()) >= 20
 
@@ -157,8 +148,6 @@ def test_the_helper_sends_the_pair_to_devnull():
 
 
 def test_the_main_hud_helper_carries_the_flag_and_nothing_else():
-    """No ``startupinfo``: the hiding one would hide the child's own first
-    window, and a loading screen nobody can see covers nothing."""
     assert no_console_window() == {"creationflags": subprocess.CREATE_NO_WINDOW}
 
 
@@ -192,8 +181,6 @@ class TestOpenChildLog:
         assert "x" * 200 not in log_file.read_text(encoding="utf-8")
 
     def test_creates_the_state_directory(self, tmp_path: Path):
-        # A Funestra can be launched before anything has created state/, and the
-        # log has to exist before the child it is capturing starts.
         log_file = tmp_path / "state" / "portrait_satellite.log"
 
         with open_child_log(log_file, ["pythonw.exe"]):

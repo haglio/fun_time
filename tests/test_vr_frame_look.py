@@ -23,9 +23,6 @@ def _run_now(*, target, args=(), name=None) -> None:
 
 
 class _Engine:
-    """A video thread's surface: a still is asked for and turns up on a later look,
-    painted by the thread that owns the GL context."""
-
     def __init__(self, frames, *, duration_ms: float = 60_000.0) -> None:
         self.frames = list(frames)
         self.duration_ms = duration_ms
@@ -59,15 +56,12 @@ def test_one_look_alone_is_not_believed():
 
 
 def test_a_frame_filling_the_frame_takes_a_third_look_to_believe():
-    """A studio's opening title fills the frame of a fisheye recording too, and
-    lasts a few seconds; the circle under it shows up once it has gone."""
     looks = [_bgra(FULL), _bgra(FULL), _bgra(CIRCLE), _bgra(CIRCLE)]
 
     assert _looked(_Engine(looks)) == [(VIDEO, FISHEYE_CIRCLE)]
 
 
 def test_a_look_that_shows_nothing_is_passed_over():
-    """Black between scenes, and no frame at all while the file is still opening."""
     looks = [_bgra(BLACK), None, _bgra(CIRCLE), _bgra(BLACK), _bgra(CIRCLE)]
 
     assert _looked(_Engine(looks)) == [(VIDEO, FISHEYE_CIRCLE)]
@@ -104,7 +98,7 @@ def test_opening_another_video_ends_the_look_at_the_last_one():
 
     def grab_then_move_on():
         frame = grab()
-        if len(engine.frames) == 4:  # the first look at the first video, just taken
+        if len(engine.frames) == 4:
             look.look_at(other, lambda video, shape: said.append((video, shape)))
         return frame
 
@@ -142,8 +136,6 @@ def test_a_video_that_never_shows_its_shape_is_given_up_on():
 
 
 def test_a_look_stopped_while_it_looks_says_nothing_of_the_video_it_was_on():
-    """Stopped by the session closing, or by a video opening that needs no look:
-    the frame on screen is that video's from then on."""
     said: list[tuple[Path, str]] = []
     engine = _Engine([_bgra(CIRCLE), _bgra(CIRCLE)])
     look = FrameLook(engine, start_thread=_run_now, sleep=lambda _seconds: look.stop_looking())

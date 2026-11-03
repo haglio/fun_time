@@ -1,4 +1,3 @@
-"""Unit tests: an integration run's waits are counted in the seconds it could have run."""
 from __future__ import annotations
 
 import ctypes
@@ -23,8 +22,6 @@ from tests.integration.run_clock import (
 
 
 class _Machine:
-    """Sixteen processors, and the busy seconds each kind of work has used on them."""
-
     def __init__(self) -> None:
         self.at = 1000.0
         self.others = 0.0
@@ -260,4 +257,4 @@ def test_the_on_time_clock_reads_this_processes_threads_and_their_states_from_wi
     kernel32.GetCurrentThread.restype = wt.HANDLE
 
     assert threading.get_native_id() in run_clock._thread_ids_of(os.getpid())
-    assert run_clock._scheduler_state(kernel32.GetCurrentThread()) == 2  # Running
+    assert run_clock._scheduler_state(kernel32.GetCurrentThread()) == 2
