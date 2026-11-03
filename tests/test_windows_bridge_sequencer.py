@@ -415,7 +415,7 @@ class TestRunStartupSequence:
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
 
-        with _sequencer_stubs(wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 0)}, move_window={"side_effect": lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))}, set_always_on_top={"side_effect": lambda h, v, **_kw: topmost_calls.append((h, v))}):
+        with _sequencer_stubs(wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 0)}, move_window={"side_effect": lambda hwnd, rect, **_kw: move_calls.append((hwnd, *rect))}, set_always_on_top={"side_effect": lambda h, v, **_kw: topmost_calls.append((h, v))}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         moved_hwnds = {c[0] for c in move_calls}
@@ -741,8 +741,8 @@ class TestLoadingScreenStartup:
         move_calls: list[tuple] = []
         move_activates: list[bool] = []
 
-        def track_move(hwnd, x, y, w, h, **kw):
-            move_calls.append((hwnd, x, y, w, h))
+        def track_move(hwnd, rect, **kw):
+            move_calls.append((hwnd, *rect))
             move_activates.append(kw.get("activate", True))
 
         with _sequencer_stubs(wait_for_window_by_title={"side_effect": lambda title, **kw: title_to_hwnd.get(title, 88888)}, move_window={"side_effect": track_move}):
@@ -1015,10 +1015,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
             rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
 
-        mock_move.assert_called_once_with(
-            55555, browser_rect.x, browser_rect.y, browser_rect.width, browser_rect.height,
-            activate=True,
-        )
+        mock_move.assert_called_once_with(55555, browser_rect, activate=True)
         assert rfb_hwnd == 55555
 
     def test_launches_the_urls_the_manifest_already_resolved(self):

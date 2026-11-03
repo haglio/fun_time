@@ -12,6 +12,7 @@ from pathlib import Path
 
 from app_support.win32_loader import load_dll, win_functype
 
+from fun_time.dashboard_layout import Rect
 from fun_time.win32_process import list_child_pids
 
 logger = logging.getLogger(__name__)
@@ -251,13 +252,13 @@ class _CallsPerWindow:
 _ONE_CALL_AT_A_TIME = _CallsPerWindow()
 
 
-def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
+def move_window(hwnd: int, rect: Rect, *, activate: bool = True) -> None:
     _without_hanging(
         _user32.ShowWindow, hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE,
         what=f"ShowWindow({hwnd})",
     )
     _without_hanging(
-        _user32.SetWindowPos, hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE,
+        _user32.SetWindowPos, hwnd, 0, *rect, SWP_NOZORDER | SWP_NOACTIVATE,
         what=f"SetWindowPos({hwnd})",
     )
 

@@ -506,7 +506,7 @@ def _run_startup_phases(
 
 def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
     if hwnd:
-        move_window(hwnd, rect.x, rect.y, rect.width, rect.height, activate=activate)
+        move_window(hwnd, rect, activate=activate)
         logger.info("Positioned %s (hwnd=%d) at %d,%d %dx%d",
                      label, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
@@ -588,8 +588,7 @@ def _maybe_launch_random_favs_browser(
         return 0
 
     rect = plan.random_favs_browser
-    move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height,
-                activate=not env.integration)
+    move_window(new_hwnd, rect, activate=not env.integration)
 
 
     logger.info("Random Favs Browser positioned")
