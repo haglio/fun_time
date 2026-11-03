@@ -30,6 +30,7 @@ from fun_time import load_config, windows_bridge_dispatch_loop
 from fun_time.aiming import resolve_active_funestra_command
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
+from fun_time.config import VoiceControlConfig
 from fun_time.content import load_web_providers
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
@@ -997,7 +998,10 @@ class TestDispatchLoopRunner:
 
     def test_voice_off_mutes_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
-        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "vc_cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         runner.voice.controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("voice_off", encoding="utf-8")
@@ -1008,7 +1012,10 @@ class TestDispatchLoopRunner:
 
     def test_voice_toggle_unmutes_when_muted(self, tmp_path):
         runner = make_runner(tmp_path)
-        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "vc_cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc.mute()
         runner.voice.controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1020,7 +1027,10 @@ class TestDispatchLoopRunner:
 
     def test_voice_toggle_mutes_when_not_muted(self, tmp_path):
         runner = make_runner(tmp_path)
-        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "vc_cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         runner.voice.controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("voice_toggle", encoding="utf-8")
@@ -1032,7 +1042,9 @@ class TestDispatchLoopRunner:
     def test_the_mic_being_turned_off_is_kept_in_the_apps_state(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.voice.controller = VoiceController(
-            cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+            cmd_file=tmp_path / "vc_cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         (tmp_path / "dashboard_cmd.txt").write_text("voice_off", encoding="utf-8")
 
         runner.tick()
@@ -1041,7 +1053,10 @@ class TestDispatchLoopRunner:
 
     def test_turning_it_back_on_is_written_down_too(self, tmp_path):
         runner = make_runner(tmp_path)
-        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "vc_cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc.mute()
         runner.voice.controller = vc
         (tmp_path / "dashboard_cmd.txt").write_text("voice_toggle", encoding="utf-8")
@@ -1068,7 +1083,11 @@ class TestDispatchLoopRunner:
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
         vc_cmd = tmp_path / "vc_cmd.txt"
-        vc = VoiceController(cmd_file=vc_cmd, model_path="unused", clock=lambda: 0.0)
+        vc = VoiceController(
+            cmd_file=vc_cmd,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            clock=lambda: 0.0,
+        )
         runner.voice.controller = vc
         runner.state = replace(runner.state, omni_paused=True)
 
@@ -1082,7 +1101,10 @@ class TestDispatchLoopRunner:
     def test_leaving_omnipause_unsuspends_the_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
         vc_cmd = tmp_path / "vc_cmd.txt"
-        vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
+        vc = VoiceController(
+            cmd_file=vc_cmd,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc.suspend()
         runner.voice.controller = vc
         runner.state = replace(runner.state, omni_paused=False)
@@ -1096,7 +1118,10 @@ class TestDispatchLoopRunner:
     def test_enter_carries_out_the_command_voice_was_not_sure_of(self, tmp_path):
         runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        runner.voice.controller = VoiceController(cmd_file=cmd_file, model_path="unused")
+        runner.voice.controller = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         runner.voice.controller.handle_heard(Heard(
             Recognition(unconfirmed_phrase="landscape next"),
             spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
@@ -1116,7 +1141,9 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path)
         if listening:
             runner.voice.controller = VoiceController(
-                cmd_file=tmp_path / "dashboard_cmd.txt", model_path="unused")
+                cmd_file=tmp_path / "dashboard_cmd.txt",
+                settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            )
         (tmp_path / "dashboard_cmd.txt").write_text("voice_accept", encoding="utf-8")
         flashed = []
 
@@ -1838,7 +1865,7 @@ class TestBrowseLibrary:
                    return_value=None) as mock_browse:
             runner._handle_browse_library()
 
-        assert mock_browse.call_args.kwargs["playing"] == "C:/videos/big_batch/beta.mp4"
+        assert mock_browse.call_args.args[2].playing == "C:/videos/big_batch/beta.mp4"
 
     def test_leaving_omnipause_puts_an_open_browse_back_on_top(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2051,7 +2078,7 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
-        assert mock_browse.call_args.kwargs["over"] is None
+        assert mock_browse.call_args.args[2].over is None
 
     def test_a_second_browse_while_one_is_open_is_dropped(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2145,8 +2172,11 @@ class TestWhatAPausedRoomCarriesOut:
     ):
         runner = make_runner(tmp_path)
         now = [5.0]
-        vc = VoiceController(cmd_file=tmp_path / "dashboard_cmd.txt", model_path="unused",
-                             clock=lambda: now[0])
+        vc = VoiceController(
+            cmd_file=tmp_path / "dashboard_cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            clock=lambda: now[0],
+        )
         runner.voice.controller = vc
         runner.tick()
         now[0] = 10.0
@@ -2257,8 +2287,11 @@ class TestWithTheHeadsetOff:
         runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
-        runner.voice.controller = VoiceController(cmd_file=vc_cmd, model_path="unused",
-                                                  clock=lambda: 0.0)
+        runner.voice.controller = VoiceController(
+            cmd_file=vc_cmd,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            clock=lambda: 0.0,
+        )
 
         runner._handle_command(HEADSET_OFF)
         runner.voice.controller._write_spoken("landscape next", spoken_at=1.0)

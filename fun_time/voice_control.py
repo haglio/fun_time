@@ -15,6 +15,7 @@ from voice_core.listener import CommandListener, ListenerEvents, ListenerSetting
 from voice_core.listening import Heard
 
 from fun_time.aiming import message_source
+from fun_time.config import VoiceControlConfig
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -144,28 +145,33 @@ class _NotSureOf:
     spoken_at: float
 
 
+@dataclass(frozen=True)
+class HostedVoice:
+    vocabulary: HostedVocabulary = NO_HOSTED_VOCABULARY
+    cmd_file: Path | str | None = None
+    said_at_suffix: str = ""
+
+
+NO_HOSTED_VOICE = HostedVoice()
+
+
 class VoiceController:
     def __init__(
         self,
         *,
         cmd_file: Path | str,
-        model_path: str,
-        confidence_threshold: float = 0.7,
-        device_name: str | None = None,
-        sample_rate: int = 16000,
-        confirm_commands: bool = True,
+        settings: VoiceControlConfig,
         verifying_listener: Callable[[bytes, str], str] | None = None,
-        hosted: HostedVocabulary = NO_HOSTED_VOCABULARY,
-        hosted_cmd_file: Path | str | None = None,
-        hosted_said_at_suffix: str = "",
+        hosted: HostedVoice = NO_HOSTED_VOICE,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.cmd_file = Path(cmd_file)
-        self.commands = (build_voice_commands(origenerator_phrases=hosted.phrases)
-                         if hosted.phrases else VOICE_COMMANDS)
-        self.hosted = hosted
-        self._hosted_cmd_file = hosted_cmd_file
-        self._hosted_said_at_suffix = hosted_said_at_suffix
+        hosted_vocabulary = hosted.vocabulary
+        self.commands = (build_voice_commands(origenerator_phrases=hosted_vocabulary.phrases)
+                         if hosted_vocabulary.phrases else VOICE_COMMANDS)
+        self.hosted = hosted_vocabulary
+        self._hosted_cmd_file = hosted.cmd_file
+        self._hosted_said_at_suffix = hosted.said_at_suffix
         self._request_satellite: str | None = None
         self.hosted_satellites: Callable[[], frozenset[str]] = frozenset
         self._muted = threading.Event()
@@ -177,14 +183,14 @@ class VoiceController:
         self.done_starting = threading.Event()
         self.active_funestra: Callable[[], int | None] = lambda: None
         self.listener_settings = ListenerSettings(
-            model_name=model_path,
-            device_name=device_name,
-            sample_rate=sample_rate,
+            model_name=settings.model_path,
+            device_name=settings.device_name,
+            sample_rate=settings.sample_rate,
             caption_misses=True,
             miss_dir=self.cmd_file.parent / "voice_misses",
-            speech_hint=hosted.speech_hint,
+            speech_hint=hosted_vocabulary.speech_hint,
         )
-        takes_requests = bool(hosted.openers)
+        takes_requests = bool(hosted_vocabulary.openers)
         self.listener_events = ListenerEvents(
             heard=self.handle_heard,
             partial=self._say_it_is_being_worked_on,
@@ -194,8 +200,8 @@ class VoiceController:
             speech=self.handle_speech if takes_requests else None,
             wants_words=self.wants_words if takes_requests else None,
         )
-        rules = command_rules(self.commands, confidence_threshold=confidence_threshold,
-                              confirm_commands=confirm_commands)
+        rules = command_rules(self.commands, confidence_threshold=settings.confidence_threshold,
+                              confirm_commands=settings.confirm_commands)
         self.engines = engines_for(rules, self.listener_events, clock=clock,
                                    verifying_listener=verifying_listener)
         self._listener = CommandListener(rules, self.listener_settings, self.listener_events,

@@ -11,11 +11,17 @@ from voice_core.listening import Heard
 from voice_core.speech import HearsSpeech
 
 from fun_time import voice_control
+from fun_time.config import VoiceControlConfig
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.hosted_contract import HostedVocabulary
 from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
-from fun_time.voice_control import WHILE_NOT_WEARING_HEADSET, VoiceController, command_rules
+from fun_time.voice_control import (
+    WHILE_NOT_WEARING_HEADSET,
+    HostedVoice,
+    VoiceController,
+    command_rules,
+)
 
 SPOKEN = 2000
 
@@ -32,8 +38,11 @@ HELD_FROM = 0.0
 
 
 def _controller(tmp_path: Path) -> VoiceController:
-    return VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                           clock=lambda: HELD_FROM)
+    return VoiceController(
+        cmd_file=tmp_path / "cmd.txt",
+        settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        clock=lambda: HELD_FROM,
+    )
 
 
 MISSES = [
@@ -101,13 +110,19 @@ class TestCommandRules:
 
 
 def test_the_listener_is_handed_a_reader_for_the_phrases_said_in_german(tmp_path):
-    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+    vc = VoiceController(
+        cmd_file=tmp_path / "cmd.txt",
+        settings=VoiceControlConfig(enabled=True, model_path="unused"),
+    )
 
     assert set(vc.engines.verifying_listener_in) == {"de"}
 
 
 def test_the_listener_is_handed_a_speech_detector_so_a_loud_app_cannot_hold_words_open(tmp_path):
-    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+    vc = VoiceController(
+        cmd_file=tmp_path / "cmd.txt",
+        settings=VoiceControlConfig(enabled=True, model_path="unused"),
+    )
 
     assert isinstance(vc.engines.hears_speech, HearsSpeech)
 
@@ -157,8 +172,11 @@ class TestHandleHeard:
 
     def test_a_command_said_during_omnipause_is_ignored_though_heard_after_it(self, tmp_path):
         now = [10.0]
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                             clock=lambda: now[0])
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            clock=lambda: now[0],
+        )
         vc.suspend()
         now[0] = 20.0
         vc.unsuspend()
@@ -384,7 +402,10 @@ class TestAcceptingWhatItWasNotSureOf:
 
 class TestTheListenerItRuns:
     def test_misses_are_kept_beside_the_state_only_while_the_app_is_listened_to(self, tmp_path):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
 
         assert vc.listener_settings.miss_dir == tmp_path / "voice_misses"
         assert vc.listener_events.keeps_misses() is True
@@ -395,8 +416,10 @@ class TestTheListenerItRuns:
         assert vc.listener_events.keeps_misses() is False
 
     def test_it_listens_on_the_configured_model_microphone_and_rate(self, tmp_path):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="a-model",
-                             device_name="Desk Cam", sample_rate=8000)
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="a-model", device_name="Desk Cam", sample_rate=8000),
+        )
 
         settings = vc.listener_settings
 
@@ -405,12 +428,18 @@ class TestTheListenerItRuns:
         assert settings.caption_misses is True
 
     def test_what_the_listener_hears_is_handled_here(self, tmp_path):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
 
         assert vc.listener_events.heard == vc.handle_heard
 
     def test_audio_coming_back_after_a_stall_is_plain_news(self, tmp_path, monkeypatch):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
@@ -421,7 +450,10 @@ class TestTheListenerItRuns:
 
     def test_the_first_words_of_an_utterance_say_the_app_is_working_on_them(
             self, tmp_path, monkeypatch):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
@@ -431,7 +463,10 @@ class TestTheListenerItRuns:
         assert seen == [voice_control.WORKING_ON_IT]
 
     def test_it_says_so_once_per_utterance_however_the_words_grow(self, tmp_path, monkeypatch):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
@@ -442,7 +477,10 @@ class TestTheListenerItRuns:
         assert seen == [voice_control.WORKING_ON_IT]
 
     def test_the_next_utterance_is_said_to_be_worked_on_again(self, tmp_path, monkeypatch):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
@@ -454,7 +492,10 @@ class TestTheListenerItRuns:
 
     @pytest.mark.parametrize("quieted", ["mute", "suspend"])
     def test_an_app_not_being_listened_to_is_told_nothing(self, tmp_path, monkeypatch, quieted):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         getattr(vc, quieted)()
         seen = []
         monkeypatch.setattr(voice_control, "flash_message",
@@ -465,7 +506,10 @@ class TestTheListenerItRuns:
         assert seen == []
 
     def test_it_is_done_starting_once_the_listener_is_listening(self, tmp_path):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         before = vc.done_starting.is_set()
 
         vc.listener_events.listening()
@@ -474,7 +518,10 @@ class TestTheListenerItRuns:
 
     def test_it_is_done_starting_once_a_listener_that_could_not_start_has_given_up(
             self, tmp_path, monkeypatch):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         monkeypatch.setattr(vc._listener, "run", lambda: (_ for _ in ()).throw(OSError("no mic")))
 
         vc.run()
@@ -483,7 +530,10 @@ class TestTheListenerItRuns:
 
     def test_a_listener_that_dies_is_logged_and_does_not_take_the_thread_down(
             self, tmp_path, monkeypatch, caplog):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         monkeypatch.setattr(vc._listener, "run", lambda: (_ for _ in ()).throw(OSError("no mic")))
 
         with caplog.at_level(logging.ERROR, logger="fun_time.voice_control"):
@@ -492,7 +542,10 @@ class TestTheListenerItRuns:
         assert "Voice control thread crashed" in caplog.text
 
     def test_stopping_stops_the_listener(self, tmp_path, monkeypatch):
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         stopped = []
         monkeypatch.setattr(vc._listener, "stop", lambda: stopped.append(True))
 
@@ -502,10 +555,16 @@ class TestTheListenerItRuns:
 
     def test_the_verifying_listener_is_handed_over_whichever_way_commands_are_settled(self, tmp_path):
         reader = object()
-        confirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                                    confirm_commands=True, verifying_listener=reader)
-        unconfirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                                      confirm_commands=False, verifying_listener=reader)
+        confirmed = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused", confirm_commands=True),
+            verifying_listener=reader,
+        )
+        unconfirmed = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused", confirm_commands=False),
+            verifying_listener=reader,
+        )
 
         assert confirmed.engines.verifying_listener is reader
         assert unconfirmed.engines.verifying_listener is reader
@@ -514,13 +573,19 @@ class TestTheListenerItRuns:
 class TestWriteCommand:
     def test_writing_stamps_the_utterance_start(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
-        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc._write_spoken("landscape next", spoken_at=1234.5)
         assert cmd_file.read_text(encoding="utf-8") == "landscape_next @1234.500\tlandscape next\n"
 
     def test_writing_appends_multiple(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
-        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc._write_spoken("landscape next", spoken_at=1.0)
         vc._write_spoken("pause", spoken_at=2.0)
         lines = cmd_file.read_text(encoding="utf-8").strip().splitlines()
@@ -528,14 +593,20 @@ class TestWriteCommand:
 
     def test_mute_prevents_writing(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
-        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc.mute()
         vc._write_spoken("landscape next", spoken_at=1.0)
         assert not cmd_file.exists()
 
     def test_unmute_restores_writing(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
-        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         vc.mute()
         vc.unmute()
         vc._write_spoken("landscape next", spoken_at=1.0)
@@ -543,7 +614,10 @@ class TestWriteCommand:
 
     def test_is_muted_property(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
-        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
+        vc = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
         assert not vc.is_muted
         vc.mute()
         assert vc.is_muted
@@ -616,8 +690,11 @@ class TestWriteCommand:
 
 
 def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_satellite(tmp_path):
-    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                         hosted=HostedVocabulary(frozenset({"fabricated order"})))
+    vc = VoiceController(
+        cmd_file=tmp_path / "cmd.txt",
+        settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        hosted=HostedVoice(vocabulary=HostedVocabulary(frozenset({"fabricated order"}))),
+    )
 
     vc.handle_heard(_heard(Recognition(phrase="landscape fabricated order")))
 
@@ -632,11 +709,12 @@ _THE_HOSTED_APP = HostedVocabulary(frozenset({"request", "gamma shelf"}), frozen
 class TestWhatIsSaidToASatelliteShowingOrigenerator:
     def _controller(self, tmp_path: Path, *, hosting=("portrait", "landscape"),
                     said_at_suffix="") -> VoiceController:
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
-                             hosted=_THE_HOSTED_APP,
-                             hosted_cmd_file=tmp_path / "origenerator_cmd.txt",
-                             hosted_said_at_suffix=said_at_suffix,
-                             clock=lambda: HELD_FROM)
+        vc = VoiceController(
+            cmd_file=tmp_path / "cmd.txt",
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            hosted=HostedVoice(vocabulary=_THE_HOSTED_APP, cmd_file=tmp_path / "origenerator_cmd.txt", said_at_suffix=said_at_suffix),
+            clock=lambda: HELD_FROM,
+        )
         vc.hosted_satellites = lambda: frozenset(hosting)
         return vc
 
@@ -792,6 +870,9 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
 
 def test_a_session_whose_hosted_app_opens_no_requests_takes_nothing_down(tmp_path):
-    vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+    vc = VoiceController(
+        cmd_file=tmp_path / "cmd.txt",
+        settings=VoiceControlConfig(enabled=True, model_path="unused"),
+    )
 
     assert (vc.listener_events.speech, vc.engines.take_down) == (None, None)

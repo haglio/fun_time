@@ -7,6 +7,7 @@ from pathlib import Path
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
+from fun_time.config import VoiceControlConfig
 from fun_time.event_log import (
     FAVORITE,
     MESSAGE,
@@ -216,8 +217,10 @@ class TestWordsFlashedWithNoLogLine:
         written = EventLogHandler(path)
         voice_log.addHandler(written)
         try:
-            VoiceController(cmd_file=tmp_path / "dashboard_cmd.txt",
-                            model_path="unused").handle_heard(Heard(
+            VoiceController(
+                cmd_file=tmp_path / "dashboard_cmd.txt",
+                settings=VoiceControlConfig(enabled=True, model_path="unused"),
+            ).handle_heard(Heard(
                 Recognition(unrecognized_text="put the kettle on"),
                 spoken_at=1.0, peak=2000, audio=b"", candidates={}, words_formed=True))
             deadline = time.monotonic() + 5.0
