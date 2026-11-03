@@ -72,7 +72,7 @@ from .dash_panel import (
     with_the_osr2_part,
 )
 from .frame_look import FrameLook
-from .gallery_panel import GalleryPanel, core_hangs_while
+from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
 from .genau_in_the_headset import GenauInTheHeadset
@@ -1271,7 +1271,7 @@ class _GalleryUnit:
 
     def pump(self, stop: threading.Event, now: float) -> None:
         state = read_shared_state(self._shared_state_file)
-        wanted = state is not None and core_hangs_while(state)
+        wanted = state is not None and state.origenerator_ready
         events = list(self._presses.drain())
         self.showing = wanted
         if not wanted:
