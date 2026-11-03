@@ -24,7 +24,7 @@ _FLOWED_MS = 1_500
 
 
 @dataclass(frozen=True)
-class SatelliteLine:
+class FunestraFiles:
     status_file: Path
     cmd_file: Path
 
@@ -41,15 +41,14 @@ class DeviceArbiter:
     def __init__(
         self,
         *,
-        main_funestra_status_file: Path,
-        main_funestra_cmd_file: Path,
+        main_funestra: FunestraFiles,
         genau_cmd_file: Path,
         device_on: Callable[[], bool],
-        satellites: Mapping[FunTimeFunestra, SatelliteLine] = MappingProxyType({}),
+        satellites: Mapping[FunTimeFunestra, FunestraFiles] = MappingProxyType({}),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.main_funestra_status_file = main_funestra_status_file
-        self.main_funestra_cmd_file = main_funestra_cmd_file
+        self.main_funestra_status_file = main_funestra.status_file
+        self.main_funestra_cmd_file = main_funestra.cmd_file
         self.genau_cmd_file = genau_cmd_file
         self._device_on = device_on
         self._satellites = dict(satellites)
