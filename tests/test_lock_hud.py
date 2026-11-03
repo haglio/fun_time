@@ -51,9 +51,8 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def _hud(funestra: str = "portrait", *, index, active: bool = False, **satellite_fields):
-    return build_hud(SatelliteInputs(funestra, **satellite_fields), index=index,
-                     active=active)
+def _hud(funestra: str = "portrait", *, index, **satellite_fields):
+    return build_hud(SatelliteInputs(funestra, **satellite_fields), index=index)
 
 
 def test_hud_gathers_action_and_seed_siblings_and_labels_the_lock():
@@ -707,8 +706,8 @@ def test_a_satellites_hud_indexes_its_own_satellite_and_carries_the_lock(tmp_pat
 
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=current, locked=True,
-                   filter_query="beta gamma"), metadata_root, "")
-    landscape = build_satellite_hud(SatelliteInputs("landscape"), metadata_root, "")
+                   filter_query="beta gamma"), metadata_root)
+    landscape = build_satellite_hud(SatelliteInputs("landscape"), metadata_root)
 
     assert portrait.funestra == "portrait"
     assert portrait.locked is True
@@ -721,21 +720,6 @@ def test_a_satellites_hud_indexes_its_own_satellite_and_carries_the_lock(tmp_pat
     assert landscape.filter_query == ""
 
 
-def test_only_the_active_funestras_hud_is_marked_active(tmp_path: Path):
-    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    current = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
-    sources = str(media_root / "portrait")
-
-    def actives(active_funestra: str) -> tuple[bool, ...]:
-        return tuple(build_satellite_hud(
-            SatelliteInputs(funestra, sources=sources, current=current),
-            metadata_root, active_funestra).active for funestra in ("portrait", "landscape"))
-
-    assert actives("portrait") == (True, False)
-    assert actives("landscape") == (False, True)
-    assert actives("main") == (False, False)
-
-
 def test_a_satellites_hud_says_f_mode_only_when_that_satellite_is_in_it(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
@@ -743,9 +727,9 @@ def test_a_satellites_hud_says_f_mode_only_when_that_satellite_is_in_it(tmp_path
 
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=current, favorites_filter=True),
-        metadata_root, "")
+        metadata_root)
     landscape = build_satellite_hud(
-        SatelliteInputs("landscape", sources=sources, current=current), metadata_root, "")
+        SatelliteInputs("landscape", sources=sources, current=current), metadata_root)
 
     assert "F-Mode" in portrait.title
     assert "F-Mode" not in landscape.title
@@ -760,7 +744,7 @@ def test_a_satellites_hud_carries_the_loop_kind(tmp_path: Path):
 
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed"),
-        metadata_root, "")
+        metadata_root)
 
     assert portrait.active_loop == "seed"
     assert portrait.seed_siblings
@@ -774,7 +758,7 @@ def test_a_satellites_hud_carries_the_nav_anchor(tmp_path: Path):
 
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, nav_anchor=a),
-        metadata_root, "")
+        metadata_root)
 
     assert portrait.current == a
     assert portrait.playing == b
@@ -792,7 +776,7 @@ def test_a_satellites_hud_keeps_a_widened_seed_loop_wide_across_the_loose_family
 
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_video=a),
-        metadata_root, "")
+        metadata_root)
 
     assert portrait.active_loop == "seed"
     assert portrait.current == a

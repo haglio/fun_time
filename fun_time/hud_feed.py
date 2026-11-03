@@ -122,6 +122,10 @@ class HudFeed:
                 has_osr2=funestra is with_the_osr2,
                 has_funscript=status.has_funscript,
                 mode=SatellitesMode.KINO if self.config.origenerator_enabled else None,
+                active=state.active_funestra == funestra,
+                origenerator_ready=state.origenerator_ready,
+                in_vr=self.config.vr_main_funestra,
+                crowned=state.crowned == name,
             )
 
         told = self._osr2_told
@@ -140,9 +144,6 @@ class HudFeed:
             forget_what_a_satellite_was_told_of_the_osr2(told, funestra)
             self.publisher.publish(funestra.label, build_satellite_hud(
                 satellite(funestra), self.config.regen_metadata_root,
-                FunTimeFunestra.label_of(state.active_funestra),
-                origenerator_ready=state.origenerator_ready,
-                in_vr=self.config.vr_main_funestra, crowned=state.crowned,
             ), device(funestra))
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
