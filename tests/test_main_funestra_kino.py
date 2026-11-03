@@ -11,7 +11,7 @@ from funestra.testing import FakeEngine
 
 from main_funestra.cli import build_parser, kino_on
 from main_funestra.clip_nav import ClipNav
-from main_funestra.kino import Kino
+from main_funestra.kino import Kino, KinoLibrary
 from main_funestra.library import LibraryEntry
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 
@@ -65,10 +65,12 @@ class World:
         self.memory = ModeMemory(tmp_path / "main_player_mode.txt")
         self.messages = FakeMessages()
         self.resolved: list[list[PlaylistItem]] = [[PlaylistItem(self.second), PlaylistItem(self.first)]]
-        self.kino = Kino(
-            self.playback, source=self.source, clip_nav=ClipNav.build([self.first, self.second], meta),
-            messages=self.messages, memory=self.memory, remembered=remembered or RememberedMode(),
+        library = KinoLibrary(
+            source=self.source, clip_nav=ClipNav.build([self.first, self.second], meta),
             resolve_playlist=lambda: self.resolved[-1])
+        self.kino = Kino(
+            self.playback, library=library, messages=self.messages, memory=self.memory,
+            remembered=remembered or RememberedMode())
 
 
 def test_kino_is_a_thing_a_funestra_runs(tmp_path):
@@ -113,9 +115,10 @@ class TestItsVerbs:
         world.source.version_index = {world.first: family, upscale: family}
         world = World(tmp_path)
         world.source.version_index = {world.first: family, upscale: family}
-        kino = Kino(world.playback, source=world.source, clip_nav=ClipNav.build([world.first], None),
-                    messages=world.messages, memory=world.memory, remembered=RememberedMode(),
-                    resolve_playlist=list)
+        library = KinoLibrary(
+            source=world.source, clip_nav=ClipNav.build([world.first], None), resolve_playlist=list)
+        kino = Kino(world.playback, library=library, messages=world.messages,
+                    memory=world.memory, remembered=RememberedMode())
 
         assert kino.apply_command("CYCLE_VERSION") is True
 
@@ -221,7 +224,7 @@ class TestKinoOnTheLibrary:
 
         made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)
 
-        assert made.keywords["clip_nav"].compilation_playlist(world.first) == [world.first, world.second]
+        assert made.keywords["library"].clip_nav.compilation_playlist(world.first) == [world.first, world.second]
 
     def test_it_reads_and_tells_through_the_files_the_main_funestra_was_given(self, tmp_path):
         world = World(tmp_path)
@@ -230,8 +233,8 @@ class TestKinoOnTheLibrary:
         made = kino_on(self._args(tmp_path), source=world.source, memory=world.memory)
         made.keywords["messages"].say("a notice", level=MessageLevel.NORMAL)
 
-        assert made.keywords["source"] is world.source
+        assert made.keywords["library"].source is world.source
         assert made.keywords["memory"] is world.memory
         assert made.keywords["remembered"] == world.memory.read()
-        assert made.keywords["resolve_playlist"]() == [PlaylistItem(world.second)]
+        assert made.keywords["library"].resolve_playlist() == [PlaylistItem(world.second)]
         assert "message=a notice" in (tmp_path / "notice.json").read_text(encoding="utf-8")
