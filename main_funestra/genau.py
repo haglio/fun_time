@@ -6,6 +6,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from app_support.threading_utils import start_daemon_thread
 from funestra.flick_decode import load_flick_frames
@@ -38,36 +39,56 @@ logger = logging.getLogger(__name__)
 ROBOT_HAND = "robot hand"
 
 
+@dataclass(frozen=True)
+class GenauFlicks:
+    folder: Path
+    start_flick: Path | None = None
+    latest: bool = False
+    f_mode: bool = False
+    orientations: Included = BOTH
+    metadata_root: Path | None = None
+    narrow: Narrow | None = None
+
+
+@dataclass(frozen=True)
+class GenauOutputs:
+    notifier: Any
+    tcode_sink: Any
+    messages: MessageWriter | None = None
+
+
+@dataclass(frozen=True)
+class GenauSeams:
+    stop_event: threading.Event | None = None
+    decode: Callable[[Path], list] = load_flick_frames
+    start_thread: Any = start_daemon_thread
+    clock: Callable[[], float] = time.monotonic
+    log: logging.Logger = logger
+
+
+STANDARD_SEAMS = GenauSeams()
+
+
 class Genau:
     def __init__(
         self,
+        flicks: GenauFlicks,
         *,
-        flicks_folder: Path,
         settings: GenauSettings,
         channels: GenauChannels,
-        notifier,
-        tcode_sink,
-        messages: MessageWriter | None = None,
-        start_flick: Path | None = None,
-        latest: bool = False,
-        f_mode: bool = False,
-        orientations: Included = BOTH,
-        metadata_root: Path | None = None,
-        narrow: Narrow | None = None,
-        stop_event: threading.Event | None = None,
-        decode: Callable[[Path], list] = load_flick_frames,
-        start_thread=start_daemon_thread,
-        clock: Callable[[], float] = time.monotonic,
-        log: logging.Logger = logger,
+        outputs: GenauOutputs,
+        seams: GenauSeams = STANDARD_SEAMS,
     ) -> None:
-        self._flicks_folder = Path(flicks_folder)
+        clock = seams.clock
+        notifier = outputs.notifier
+        self._flicks_folder = Path(flicks.folder)
         self._settings = settings
-        self._recent = latest
-        self._f_mode = f_mode
-        self._orientations = orientations
-        self._metadata_root = metadata_root
+        self._recent = flicks.latest
+        self._f_mode = flicks.f_mode
+        self._orientations = flicks.orientations
+        self._metadata_root = flicks.metadata_root
         self._notifier = notifier
-        self._messages = messages
+        self._messages = outputs.messages
         self._frame = None
         self._flick: Path | None = None
         self._loading: str | None = None
@@ -79,21 +100,22 @@ class Genau:
         self._engine = build_genau_engine(
             settings,
             channels,
-            FlickLibrary(kept or turned or browsed, start_flick, metadata_root),
+            FlickLibrary(kept or turned or browsed, flicks.start_flick, flicks.metadata_root),
             GenauHost(
                 notifier=notifier,
-                tcode_sink=tcode_sink,
+                tcode_sink=outputs.tcode_sink,
                 blit_frame=self._take_frame,
                 set_loading_text=self._set_loading,
                 rescan=self._rescan,
-                narrow=narrow,
+                narrow=flicks.narrow,
                 say_no_other_flicks=self._say_no_other_flicks,
                 say=self._say,
                 condemned_to=lambda flick: trash_folder_for(flick, self._flicks_folder),
                 set_volume=self._the_apps_level_is_the_funestras,
             ),
-            EngineSeams(stop_event=stop_event, decode=decode, start_thread=start_thread,
-                        clock=clock, log=log),
+            EngineSeams(stop_event=seams.stop_event, decode=seams.decode,
+                        start_thread=seams.start_thread,
+                        clock=clock, log=seams.log),
         )
         if not kept:
             self._engine.narrow(self._scan)

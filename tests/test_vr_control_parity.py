@@ -39,7 +39,7 @@ from fun_time_vr.headset_verbs import HeadsetVerbs
 from main_funestra import controls as main_funestra_controls
 from main_funestra import genau_verbs as genaus_verbs_on_the_main_funestra
 from main_funestra.clip_nav import ClipNav
-from main_funestra.genau import GenauChannels
+from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauSeams
 from main_funestra.kino import Kino
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from tests.dispatch_sweep import every_command, headset_config, sweep
@@ -136,12 +136,13 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
     (flat / "made up flick.mp4").write_bytes(b"flick")
     state = tmp_path / "genau"
     return GenauInTheHeadset(
-        flicks_folder=flicks, settings=GenauSettings(shuffle_on_load=False),
+        GenauFlicks(folder=flicks), settings=GenauSettings(shuffle_on_load=False),
         channels=GenauChannels(command=state / "genau_cmd.txt", paused=state / "genau_paused.txt",
                                status=state / "genau_status.txt", drive=state / "genau_drive.txt"),
-        notifier=FakeNotifier(), tcode_sink=FakeSink(),
-        decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
-        start_thread=_every_thread_but_the_beats_reader_at_once)
+        outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink()),
+        seams=GenauSeams(
+            decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
+            start_thread=_every_thread_but_the_beats_reader_at_once))
 
 
 def _every_thread_but_the_beats_reader_at_once(*, target, args=(), name=""):

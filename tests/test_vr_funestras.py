@@ -416,28 +416,28 @@ class TestGenauOnTheMainFunestra:
         built = self._users(tmp_path, flicks_folder=tmp_path)
 
         assert set(built.users) == {MainMode.KINO, MainMode.GENAU}
-        handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
+        genau_call = built.fakes["GenauInTheHeadset"].call_args
+        handed, flicks = genau_call.kwargs, genau_call.args[0]
         commands = built.manifest.commands
-        assert handed["flicks_folder"] == tmp_path
+        assert flicks.folder == tmp_path
         assert handed["channels"] == GenauChannels(
             command=Path(commands.genau_cmd_file), paused=Path(commands.genau_paused_file),
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file))
-        assert handed["stop_event"] is built.stop
-        assert handed["metadata_root"] == Path(built.manifest.regen.metadata_root)
+        assert handed["seams"].stop_event is built.stop
+        assert flicks.metadata_root == Path(built.manifest.regen.metadata_root)
 
     def test_it_opens_in_the_order_the_last_session_left_it_browsing(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path, resumed=BridgeState(genau_latest=True))
 
         assert built.read_state.call_args.args == (
             shared_state_path(Path(built.manifest.commands.state_dir)),)
-        assert built.fakes["GenauInTheHeadset"].call_args.kwargs["latest"] is True
+        assert built.fakes["GenauInTheHeadset"].call_args.args[0].latest is True
 
     def test_it_opens_in_the_f_mode_it_was_left_in_over_the_rooms_favorites(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path,
                             resumed=BridgeState(genau_favorites_filter=True))
 
-        handed = built.fakes["GenauInTheHeadset"].call_args.kwargs
-        assert handed["f_mode"] is True
+        assert built.fakes["GenauInTheHeadset"].call_args.args[0].f_mode is True
 
     def test_its_robot_hand_reaches_the_osr2_through_the_brokers_slot(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)
@@ -449,7 +449,7 @@ class TestGenauOnTheMainFunestra:
 
         assert built.fakes["MessageWriter"].call_args.args == (
             Path(built.manifest.commands.main_funestra_notice_file),)
-        assert (built.fakes["GenauInTheHeadset"].call_args.kwargs["messages"]
+        assert (built.fakes["GenauInTheHeadset"].call_args.kwargs["outputs"].messages
                 is built.fakes["MessageWriter"].return_value)
 
 
@@ -1357,7 +1357,7 @@ def _keyword_given(source_of, call: str, keyword: str) -> str:
 
 
 def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records():
-    assert _keyword_given(funestras._users, "GenauInTheHeadset", "metadata_root") == (
+    assert _keyword_given(funestras._users, "GenauFlicks", "metadata_root") == (
         "_metadata_root(manifest)")
 
 

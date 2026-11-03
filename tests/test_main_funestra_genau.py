@@ -20,7 +20,13 @@ from fun_time.content import Noun
 from fun_time.genau_config import GenauSettings
 from fun_time.inclusion_pairs import BOTH
 from fun_time.media_metadata import mark_favorite, metadata_path_for
-from main_funestra.genau import Genau, GenauChannels
+from main_funestra.genau import (
+    Genau,
+    GenauChannels,
+    GenauFlicks,
+    GenauOutputs,
+    GenauSeams,
+)
 from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 from tests.genau_fakes import FakeNotifier, FakeSink
 
@@ -106,21 +112,24 @@ class World:
         self.messages = FakeMessages()
         self.clock = Clock()
         self.genau = Genau(
-            flicks_folder=self.flicks_folder,
+            GenauFlicks(
+                folder=self.flicks_folder,
+                start_flick=setup.start_flick,
+                latest=setup.latest,
+                f_mode=setup.f_mode,
+                orientations=setup.orientations,
+                metadata_root=self.metadata_root,
+            ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
-            notifier=self.notifier,
-            messages=self.messages,
-            tcode_sink=self.sink,
-            start_flick=setup.start_flick,
-            latest=setup.latest,
-            f_mode=setup.f_mode,
-            orientations=setup.orientations,
-            metadata_root=self.metadata_root,
-            decode=lambda _path: _frames(),
-            start_thread=setup.start_thread,
-            clock=self.clock,
-            log=logging.getLogger("test.genau"),
+            outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
+                                 messages=self.messages),
+            seams=GenauSeams(
+                decode=lambda _path: _frames(),
+                start_thread=setup.start_thread,
+                clock=self.clock,
+                log=logging.getLogger("test.genau"),
+            ),
         )
 
     def send(self, line: str) -> None:
