@@ -22,6 +22,7 @@ from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import (
     EngineSeams,
     FlickLibrary,
+    GenauChannels,
     GenauHost,
     Narrow,
     build_genau_engine,
@@ -35,14 +36,6 @@ from .genau_verbs import apply_command as answer_genaus_verb
 logger = logging.getLogger(__name__)
 
 ROBOT_HAND = "robot hand"
-
-
-@dataclass(frozen=True)
-class GenauChannels:
-    command: Path
-    paused: Path
-    status: Path
-    drive: Path
 
 
 class Genau:
