@@ -81,7 +81,7 @@ def validate_config(config) -> None:
 
 
 def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: RaisedLoadingScreen) -> SessionOver:
-    from .windows_bridge_orchestrator import run_session  # noqa: PLC0415
+    from .windows_bridge_orchestrator import HotkeyScriptLaunch, run_session  # noqa: PLC0415
 
     manifest_path = write_windows_bridge_manifest(
         config, dashboard_enabled=env.dashboard_enabled)
@@ -91,10 +91,11 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: 
 
     ended = run_session(
         manifest_path=manifest_path,
-        ahk_exe=str(config.paths.ahk_exe),
-        hotkey_script=str(hotkey_script),
+        hotkeys=HotkeyScriptLaunch(
+            ahk_exe=str(config.paths.ahk_exe),
+            script=str(hotkey_script),
+            project_dir=config.project_dir),
         state_dir=config.paths.state_dir,
-        project_dir=config.project_dir,
         loading_screen=loading_screen,
         env=env,
     )
