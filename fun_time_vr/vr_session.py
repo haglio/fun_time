@@ -17,22 +17,13 @@ from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
 
-from .controller_bindings import (
-    ACTION_TYPES,
-    AIM,
-    BACK,
-    CONTROLLER_BINDINGS,
-    FORWARD,
-    HAND_PATHS,
-    STICK_CLICK,
-    STICK_X,
-    STICK_Y,
-    TRIGGER,
-)
+from .controller_bindings import ACTION_TYPES, AIM, CONTROLLER_BINDINGS, HAND_PATHS
+from .controller_reading import ControllerActions, no_hands
 from .gl_contexts import SharedContexts, hidden_gl_window
-from .pointer import LEFT, RIGHT, HandInput
-from .retiring import RetiredSwapchain, advance_retirements
-from .view_tracking import views_are_renderable, views_are_tracked
+from .pointer import HandInput
+from .retiring import QuadSwapchains
+from .session_states import SessionStates
+from .view_tracking import TrackedViews, layers_to_submit
 from .vr_runtime import APP_NAME
 
 if TYPE_CHECKING:
@@ -49,23 +40,22 @@ class SwapchainInfo:
     images: list[int] = field(default_factory=list)
 
 
-_LOCATED = xr.SpaceLocationFlags.ORIENTATION_VALID_BIT | xr.SpaceLocationFlags.POSITION_VALID_BIT
-_NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
-
-
-class VRSession:
+class VRSession(SessionStates):
     def __init__(self, *, app_name: str = APP_NAME) -> None:
-        self.running = True
         self._window = None
         self._instance = None
         self._session = None
         self._space = None
-        self._session_state = xr.SessionState.UNKNOWN
-        self.views_tracked = False
-        self._session_begun = False
+        super().__init__(begin=self._begin_session, end=self._end_session)
+        views = TrackedViews()
+        self._views = views
+        self._views_to_draw = views.to_draw
         self.swapchains: list[SwapchainInfo] = []
-        self.quad_swapchains: dict[int, SwapchainInfo] = {}
-        self._retiring: list[RetiredSwapchain] = []
+        quads = QuadSwapchains(make=self._make_swapchain, destroy=xr.destroy_swapchain)
+        self._quads = quads
+        self._ensure_quad = quads.ensure
+        self._quads_frame_ended = quads.frame_ended
+        self._close_quads = quads.close
         self._period_logged = False
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
@@ -73,9 +63,8 @@ class VRSession:
         self._actions: dict[str, xr.Action] = {}
         self._hand_paths: dict[str, xr.Path] = {}
         self._aim_spaces: dict[str, xr.Space] = {}
-        self._actions_attached = False
-        self.hands: dict[str, HandInput] = _NO_HANDS
-        self._views_located = True
+        self._controllers: ControllerActions | None = None
+        self.hands: dict[str, HandInput] = no_hands()
 
         self._init_glfw(app_name)
         try:
@@ -199,7 +188,9 @@ class VRSession:
                 self._session,
                 xr.SessionActionSetsAttachInfo(action_sets=[self._action_set]),
             )
-            self._actions_attached = True
+            self._controllers = ControllerActions(
+                self._session, self._action_set, self._actions,
+                tuple(self._hand_paths.items()), self._aim_spaces)
             logger.info("Controllers bound: either hand points, squeezes, sizes and skips")
         except Exception:
             logger.warning(
@@ -207,58 +198,8 @@ class VRSession:
             )
 
     def sync_controller(self, display_time: int) -> None:
-        if not self._actions_attached:
-            return
-        try:
-            xr.sync_actions(
-                self._session,
-                xr.ActionsSyncInfo(
-                    active_action_sets=[
-                        xr.ActiveActionSet(action_set=self._action_set, subaction_path=0),
-                    ],
-                ),
-            )
-            self.hands = {
-                hand: self._hand_input(hand, path, display_time)
-                for hand, path in self._hand_paths.items()
-            }
-        except xr.ResultException:
-            self.hands = _NO_HANDS
-
-    def _float(self, name: str, path: xr.Path) -> float:
-        state = xr.get_action_state_float(
-            self._session,
-            xr.ActionStateGetInfo(action=self._actions[name], subaction_path=path),
-        )
-        return state.current_state if state.is_active else 0.0
-
-    def _pressed(self, name: str, path: xr.Path) -> bool:
-        state = xr.get_action_state_boolean(
-            self._session,
-            xr.ActionStateGetInfo(action=self._actions[name], subaction_path=path),
-        )
-        return bool(state.is_active and state.current_state)
-
-    def _hand_input(self, hand: str, path: xr.Path, display_time: int) -> HandInput:
-        aim = None
-        pose = xr.get_action_state_pose(
-            self._session,
-            xr.ActionStateGetInfo(action=self._actions[AIM], subaction_path=path),
-        )
-        if pose.is_active:
-            location = xr.locate_space(self._aim_spaces[hand], self._space, display_time)
-            if location.location_flags & _LOCATED == _LOCATED:
-                position, orientation = location.pose.position, location.pose.orientation
-                aim = (
-                    (position.x, position.y, position.z),
-                    (orientation.x, orientation.y, orientation.z, orientation.w),
-                )
-        return HandInput(
-            aim=aim, trigger=self._float(TRIGGER, path),
-            stick_x=self._float(STICK_X, path), stick_y=self._float(STICK_Y, path),
-            stick_pressed=self._pressed(STICK_CLICK, path),
-            forward=self._pressed(FORWARD, path), back=self._pressed(BACK, path),
-        )
+        if self._controllers is not None:
+            self.hands = self._controllers.read(display_time, self._space)
 
     def _make_local_space(self):
         return xr.create_reference_space(
@@ -305,13 +246,8 @@ class VRSession:
             self.swapchains.append(info)
 
     def ensure_quad_swapchain(self, index: int, width: int, height: int) -> None:
-        existing = self.quad_swapchains.get(index)
-        if existing is not None and (existing.width, existing.height) == (width, height):
-            return
-        if existing is not None:
-            self._retiring.append(RetiredSwapchain(existing.handle))
-        self.quad_swapchains[index] = self._make_swapchain(width, height)
-        logger.info("Quad swapchain %d: %dx%d", index, width, height)
+        if self._ensure_quad(index, width, height):
+            logger.info("Quad swapchain %d: %dx%d", index, width, height)
 
 
     def window_close_requested(self) -> bool:
@@ -337,32 +273,26 @@ class VRSession:
                     ctypes.byref(buf),
                     ctypes.POINTER(xr.EventDataSessionStateChanged),
                 ).contents
-                self._session_state = xr.SessionState(event.state)
-                logger.info("Session state -> %s", self._session_state.name)
-                if self._session_state == xr.SessionState.READY:
-                    xr.begin_session(
-                        self._session,
-                        xr.SessionBeginInfo(
-                            primary_view_configuration_type=xr.ViewConfigurationType.PRIMARY_STEREO,
-                        ),
-                    )
-                    self._session_begun = True
-                elif self._session_state == xr.SessionState.STOPPING:
-                    xr.end_session(self._session)
-                    self._session_begun = False
-                elif self._session_state in (
-                    xr.SessionState.LOSS_PENDING,
-                    xr.SessionState.EXITING,
-                ):
-                    self.running = False
+                self.heard(xr.SessionState(event.state))
+
+    def _begin_session(self) -> None:
+        xr.begin_session(
+            self._session,
+            xr.SessionBeginInfo(
+                primary_view_configuration_type=xr.ViewConfigurationType.PRIMARY_STEREO,
+            ),
+        )
+
+    def _end_session(self) -> None:
+        xr.end_session(self._session)
 
     @property
     def session_ready(self) -> bool:
-        return self._session_begun
+        return self.begun
 
     @property
-    def focused(self) -> bool:
-        return self._session_state == xr.SessionState.FOCUSED
+    def views_tracked(self) -> bool:
+        return self._views.tracked
 
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         frame_state = xr.wait_frame(self._session, xr.FrameWaitInfo())
@@ -374,9 +304,7 @@ class VRSession:
                 "Display period %.2f ms (%.1f Hz)", period_ms, 1000.0 / period_ms
             )
 
-        should_render = bool(frame_state.should_render) and self._session_state in (
-            xr.SessionState.VISIBLE, xr.SessionState.FOCUSED,
-        )
+        should_render = bool(frame_state.should_render) and self.draws_frames
 
         views: list[xr.View] = []
         if should_render:
@@ -388,26 +316,10 @@ class VRSession:
                     space=self._space,
                 ),
             )
-            if views_are_renderable(view_state.view_state_flags):
-                views = list(views_raw)
-            self.views_tracked = bool(views) and views_are_tracked(
-                view_state.view_state_flags)
+            views = self._views_to_draw(view_state.view_state_flags, views_raw)
             should_render = bool(views)
-            self._note_view_locatability(bool(views))
 
         return should_render, frame_state.predicted_display_time, views
-
-    def _note_view_locatability(self, located: bool) -> None:
-        if located == self._views_located:
-            return
-        self._views_located = located
-        if located:
-            logger.info("Views located again; drawing to the headset once more")
-        else:
-            logger.warning(
-                "The runtime cannot locate the views — submitting no layers, so the "
-                "headset is showing its own environment until tracking returns"
-            )
 
     def _bind_swapchain_framebuffer(self, info: SwapchainInfo) -> None:
         image_index = xr.acquire_swapchain_image(info.handle, xr.SwapchainImageAcquireInfo())
@@ -428,13 +340,13 @@ class VRSession:
         xr.release_swapchain_image(self.swapchains[eye_index].handle, xr.SwapchainImageReleaseInfo())
 
     def bind_quad_framebuffer(self, index: int) -> None:
-        self._bind_swapchain_framebuffer(self.quad_swapchains[index])
+        self._bind_swapchain_framebuffer(self._quads[index])
 
     def release_quad_framebuffer(self, index: int) -> None:
         GL.glFlush()
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         xr.release_swapchain_image(
-            self.quad_swapchains[index].handle, xr.SwapchainImageReleaseInfo()
+            self._quads[index].handle, xr.SwapchainImageReleaseInfo()
         )
 
     def frame_end(
@@ -469,12 +381,12 @@ class VRSession:
                 space=self._space,
                 eye_visibility=xr.EyeVisibility.BOTH,
                 sub_image=xr.SwapchainSubImage(
-                    swapchain=self.quad_swapchains[quad.swapchain_index].handle,
+                    swapchain=self._quads[quad.swapchain_index].handle,
                     image_rect=xr.Rect2Di(
                         offset=xr.Offset2Di(0, 0),
                         extent=xr.Extent2Di(
-                            self.quad_swapchains[quad.swapchain_index].width,
-                            self.quad_swapchains[quad.swapchain_index].height,
+                            self._quads[quad.swapchain_index].width,
+                            self._quads[quad.swapchain_index].height,
                         ),
                     ),
                     image_array_index=0,
@@ -487,46 +399,29 @@ class VRSession:
             )
             for quad in (quads or [])
         ]
-        layers = []
-        if views and project:
-            layers.append(
-                ctypes.cast(
-                    ctypes.pointer(projection_layer),
-                    ctypes.POINTER(xr.CompositionLayerBaseHeader),
-                )
-            )
-        if views:
-            layers.extend(
-                ctypes.cast(
-                    ctypes.pointer(struct), ctypes.POINTER(xr.CompositionLayerBaseHeader)
-                )
-                for struct in quad_structs
-            )
         xr.end_frame(
             self._session,
             xr.FrameEndInfo(
                 display_time=display_time,
                 environment_blend_mode=xr.EnvironmentBlendMode.OPAQUE,
-                layers=layers,
+                layers=[
+                    ctypes.cast(ctypes.pointer(layer), ctypes.POINTER(xr.CompositionLayerBaseHeader))
+                    for layer in layers_to_submit(
+                        views, project=project, projection=projection_layer, quads=quad_structs)
+                ],
             ),
         )
-        self._retiring, done_waiting = advance_retirements(self._retiring)
-        for handle in done_waiting:
-            xr.destroy_swapchain(handle)
+        self._quads_frame_ended()
 
 
     def close(self) -> None:
         if self._session is not None:
-            if self._session_state in (xr.SessionState.READY, xr.SessionState.SYNCHRONIZED,
-                                        xr.SessionState.VISIBLE, xr.SessionState.FOCUSED):
+            if self.can_be_asked_to_end:
                 with contextlib.suppress(xr.ResultException):
                     xr.request_exit_session(self._session)
             for info in self.swapchains:
                 xr.destroy_swapchain(info.handle)
-            for info in self.quad_swapchains.values():
-                xr.destroy_swapchain(info.handle)
-            for retired in self._retiring:
-                xr.destroy_swapchain(retired.handle)
+            self._close_quads()
             for space in self._aim_spaces.values():
                 xr.destroy_space(space)
             if self._space is not None:
