@@ -60,7 +60,6 @@ from fun_time.dashboard_app import (
     ReferenceDialog,
     RfbModeSelectorWidget,
     apply_dashboard_window_geometry,
-    bar_state_of,
     build_dashboard_scene,
     build_dashboard_window,
     lighten_color,
@@ -110,7 +109,7 @@ from tests.sleeps import sleeps_in
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
     kwargs.setdefault("icons", IconCache())
-    state = bar_state_of(snapshot, kwargs.pop("reference_open", False))
+    state = BarState.of(snapshot, kwargs.pop("reference_open", False))
     return build_dashboard_scene(layout, state, **kwargs)
 
 

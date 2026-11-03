@@ -16,6 +16,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
     VR_RESET,
 )
+from fun_time.dashboard_bridge import DashboardSnapshot
 from fun_time.dashboard_layout import DashboardBarLayout, Rect
 
 Color = tuple[int, int, int]
@@ -44,6 +45,20 @@ class BarState:
     reference_open: bool = False
     nothing_to_reset: bool = False
     headset_ready: bool = True
+
+    @classmethod
+    def of(cls, snapshot: DashboardSnapshot | None, reference_open: bool = False) -> BarState:
+        if snapshot is None:
+            return cls(reference_open=reference_open)
+        return cls(
+            omni_paused=snapshot.omni_paused,
+            voice_active=snapshot.voice_active,
+            f_mode=snapshot.f_mode,
+            in_vr=snapshot.in_vr,
+            reference_open=reference_open,
+            nothing_to_reset=snapshot.nothing_to_reset,
+            headset_ready=snapshot.headset_ready,
+        )
 
 
 def bar_controls(layout: DashboardBarLayout, state: BarState) -> tuple[BarControl, ...]:
