@@ -50,7 +50,7 @@ from .headset_power import the_headset_is_ready
 from .hosted_contract import said_at_suffix_of
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
-from .library_browser import browse_library
+from .library_browser import BrowseOpening, browse_library
 from .lock import a_lock_holds
 from .lock_follower import LockFollower, what_the_main_funestra_holds
 from .loopback_inbox import PRESS_PORT_FILENAME, post_to_inbox
@@ -402,10 +402,12 @@ class DispatchLoopRunner:
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
-                over=window_rect(funestra_hwnd) if funestra_hwnd else None,
-                playing=(read_genau_status(self.config.genau_status_file).flick if genau
-                         else read_main_funestra_status(self.config.main_funestra_status_file).video),
-                flicks=genau,
+                BrowseOpening(
+                    over=window_rect(funestra_hwnd) if funestra_hwnd else None,
+                    playing=(read_genau_status(self.config.genau_status_file).flick if genau
+                             else read_main_funestra_status(self.config.main_funestra_status_file).video),
+                    flicks=genau,
+                ),
                 runner=self._run_browser,
             )
             if selected and genau:

@@ -44,6 +44,7 @@ from fun_time.fun_time_windows import (
 )
 from fun_time.funestra_handover import LET_GO_TIMEOUT_S, keep_aside
 from fun_time.hud_transport import HudPublisher
+from fun_time.library_browser import BrowseOpening
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -1818,8 +1819,9 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         mock_browse.assert_called_once_with(
-            tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
-            playing="", flicks=False, runner=runner._run_browser,
+            tmp_path / "launch.ini", r"C:\python.exe",
+            BrowseOpening(over=(0, 400, 1080, 1520), playing="", flicks=False),
+            runner=runner._run_browser,
         )
 
     def test_browses_from_the_folder_the_main_funestra_is_playing_in(self, tmp_path):
@@ -1916,8 +1918,10 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         mock_browse.assert_called_once_with(
-            tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
-            playing="C:/library/genau/flicks/Scene One.mp4", flicks=True, runner=runner._run_browser,
+            tmp_path / "launch.ini", r"C:\python.exe",
+            BrowseOpening(over=(0, 400, 1080, 1520), playing="C:/library/genau/flicks/Scene One.mp4",
+                          flicks=True),
+            runner=runner._run_browser,
         )
 
     def test_a_video_picked_in_genau_mode_goes_to_genau_not_the_main_funestra(self, tmp_path):

@@ -30,6 +30,8 @@ from fun_time.library_browser import (
     NON_LETTER_HEADING,
     SIDEBAR_WIDTH,
     TOP_LEVEL_NAME,
+    BrowseCallbacks,
+    BrowseOpening,
     IndexLine,
     LibraryBrowserWindow,
     alphabetical_index,
@@ -121,8 +123,14 @@ def _until(condition, *, within_s: float = 10.0) -> None:
 def browser(tmp_path):
     opened: list[LibraryBrowserWindow] = []
 
-    def build(handles, **kwargs):
-        window = LibraryBrowserWindow(handles, **kwargs)
+    def build(handles, *, thumbnail_cache, on_pick, on_close=None, on_dismiss=None,
+              playing=None, activate_on_click=False, top_level_name=TOP_LEVEL_NAME):
+        window = LibraryBrowserWindow(
+            handles, thumbnail_cache=thumbnail_cache,
+            callbacks=BrowseCallbacks(on_pick=on_pick, on_close=on_close, on_dismiss=on_dismiss),
+            activate_on_click=activate_on_click, top_level_name=top_level_name)
+        if playing is not None:
+            window.open_on(playing)
         opened.append(window)
         return window
 
@@ -960,7 +968,8 @@ def test_browsing_runs_the_browser_and_plays_what_was_picked(tmp_path: Path):
         commands.append(command)
         pick_file_for(manifest).write_text(r"C:\videos\beta.mp4", encoding="utf-8")
 
-    picked = browse_library(manifest, r"C:\python.exe", over=(10, 20, 300, 400), runner=fake_run)
+    picked = browse_library(manifest, r"C:\python.exe", BrowseOpening(over=(10, 20, 300, 400)),
+                            runner=fake_run)
 
     assert picked == r"C:\videos\beta.mp4"
     assert commands == [[
@@ -976,7 +985,7 @@ def test_the_browser_is_told_what_the_session_has_up(tmp_path: Path):
     commands: list[list[str]] = []
 
     browse_library(
-        manifest, r"C:\python.exe", playing=r"C:\videos\beta.mp4",
+        manifest, r"C:\python.exe", BrowseOpening(playing=r"C:\videos\beta.mp4"),
         runner=lambda command, **_k: commands.append(command),
     )
 
@@ -988,9 +997,9 @@ def test_a_browse_of_genaus_flicks_says_so_to_the_browser(tmp_path: Path):
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
 
-    browse_library(manifest, r"C:\python.exe", flicks=True,
+    browse_library(manifest, r"C:\python.exe", BrowseOpening(flicks=True),
                    runner=lambda command, **_k: commands.append(command))
-    browse_library(manifest, r"C:\python.exe",
+    browse_library(manifest, r"C:\python.exe", BrowseOpening(),
                    runner=lambda command, **_k: commands.append(command))
 
     assert ["--genau" in command for command in commands] == [True, False]
@@ -1003,7 +1012,7 @@ def test_a_browse_runs_on_the_checkouts_the_session_runs(tmp_path: Path):
     manifest.write_text(f"[runtime]\nsibling_checkouts = {checkout}\n", encoding="utf-8")
     launched: list[dict] = []
 
-    browse_library(manifest, r"C:\python.exe",
+    browse_library(manifest, r"C:\python.exe", BrowseOpening(),
                    runner=lambda _command, **kwargs: launched.append(kwargs))
 
     assert launched[0]["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
@@ -1034,7 +1043,7 @@ def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
 
-    browse_library(manifest, r"C:\python.exe", runner=lambda c, **_k: commands.append(c))
+    browse_library(manifest, r"C:\python.exe", BrowseOpening(), runner=lambda c, **_k: commands.append(c))
 
     assert "--playing" not in commands[0]
 
@@ -1043,7 +1052,7 @@ def test_an_abandoned_browse_picks_nothing(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
 
-    assert browse_library(manifest, r"C:\python.exe", runner=lambda _c, **_k: None) is None
+    assert browse_library(manifest, r"C:\python.exe", BrowseOpening(), runner=lambda _c, **_k: None) is None
 
 
 def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
@@ -1051,7 +1060,7 @@ def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
     manifest.write_text("", encoding="utf-8")
     pick_file_for(manifest).write_text(r"C:\videos\alpha.mp4", encoding="utf-8")
 
-    assert browse_library(manifest, r"C:\python.exe", runner=lambda _c, **_k: None) is None
+    assert browse_library(manifest, r"C:\python.exe", BrowseOpening(), runner=lambda _c, **_k: None) is None
 
 
 def test_closing_the_browse_tells_the_process_it_is_over(browser, tmp_path: Path):
