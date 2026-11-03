@@ -58,30 +58,46 @@ class OmniPauseFlowResult:
     log_message: str
 
 
+@dataclass(frozen=True)
+class PausedFiles:
+    portrait: str | Path
+    landscape: str | Path
+    genau: str | Path
+    audio: str | Path
+    main_funestra: str | Path
+    origenerator: str | Path | None = None
+
+    @classmethod
+    def of(cls, config: BridgeConfig) -> PausedFiles:
+        return cls(
+            portrait=config.portrait_paused_file,
+            landscape=config.landscape_paused_file,
+            genau=config.genau_paused_file,
+            audio=config.audio_paused_file,
+            main_funestra=config.main_funestra_paused_file,
+            origenerator=config.origenerator_paused_file,
+        )
+
+
 def apply_enter_omnipause(
     *,
     omni_paused: bool,
     main_mode: str,
-    portrait_paused_file: str | Path,
-    landscape_paused_file: str | Path,
-    genau_paused_file: str | Path,
-    audio_paused_file: str | Path,
-    main_funestra_paused_file: str | Path,
+    paused: PausedFiles,
     broker_cmd_file: str | Path | None = None,
-    origenerator_paused_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
         main_mode=main_mode,
     )
-    write_flag_file(genau_paused_file, True)
-    write_flag_file(audio_paused_file, True)
-    write_flag_file(main_funestra_paused_file, True)
-    write_flag_file(portrait_paused_file, True)
-    write_flag_file(landscape_paused_file, True)
-    if origenerator_paused_file is not None:
-        write_flag_file(origenerator_paused_file, True)
+    write_flag_file(paused.genau, True)
+    write_flag_file(paused.audio, True)
+    write_flag_file(paused.main_funestra, True)
+    write_flag_file(paused.portrait, True)
+    write_flag_file(paused.landscape, True)
+    if paused.origenerator is not None:
+        write_flag_file(paused.origenerator, True)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
     return OmniPauseFlowResult(
@@ -94,13 +110,8 @@ def apply_leave_omnipause(
     *,
     omni_paused: bool,
     main_mode: str,
-    portrait_paused_file: str | Path,
-    landscape_paused_file: str | Path,
-    genau_paused_file: str | Path,
-    audio_paused_file: str | Path,
-    main_funestra_paused_file: str | Path,
+    paused: PausedFiles,
     broker_cmd_file: str | Path | None = None,
-    origenerator_paused_file: str | Path | None = None,
     osr2_control: str = OSR2_DRIVING,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
@@ -109,16 +120,16 @@ def apply_leave_omnipause(
         main_mode=main_mode,
         osr2_control=osr2_control,
     )
-    write_flag_file(genau_paused_file, False)
-    write_flag_file(audio_paused_file, False)
+    write_flag_file(paused.genau, False)
+    write_flag_file(paused.audio, False)
     if plan.resume_main_funestra_playback:
-        write_flag_file(main_funestra_paused_file, False)
+        write_flag_file(paused.main_funestra, False)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
-    write_flag_file(portrait_paused_file, False)
-    write_flag_file(landscape_paused_file, False)
-    if origenerator_paused_file is not None:
-        write_flag_file(origenerator_paused_file, False)
+    write_flag_file(paused.portrait, False)
+    write_flag_file(paused.landscape, False)
+    if paused.origenerator is not None:
+        write_flag_file(paused.origenerator, False)
     return OmniPauseFlowResult(
         next_omni_paused=plan.next_omni_paused,
         log_message=plan.log_message,
@@ -144,13 +155,8 @@ def _dispatch_enter_omnipause(
     result = apply_enter_omnipause(
         omni_paused=state.omni_paused,
         main_mode=state.main_mode,
-        portrait_paused_file=config.portrait_paused_file,
-        landscape_paused_file=config.landscape_paused_file,
-        genau_paused_file=config.genau_paused_file,
-        audio_paused_file=config.audio_paused_file,
-        main_funestra_paused_file=config.main_funestra_paused_file,
+        paused=PausedFiles.of(config),
         broker_cmd_file=config.broker_cmd_file,
-        origenerator_paused_file=config.origenerator_paused_file,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="disable_all_topmost"), WindowOp(op="suspend_hotkeys")]
@@ -165,13 +171,8 @@ def _dispatch_leave_omnipause(
     result = apply_leave_omnipause(
         omni_paused=state.omni_paused,
         main_mode=state.main_mode,
-        portrait_paused_file=config.portrait_paused_file,
-        landscape_paused_file=config.landscape_paused_file,
-        genau_paused_file=config.genau_paused_file,
-        audio_paused_file=config.audio_paused_file,
-        main_funestra_paused_file=config.main_funestra_paused_file,
+        paused=PausedFiles.of(config),
         broker_cmd_file=config.broker_cmd_file,
-        origenerator_paused_file=config.origenerator_paused_file,
         osr2_control=state.osr2_control,
     )
     state = replace(state, omni_paused=result.next_omni_paused)

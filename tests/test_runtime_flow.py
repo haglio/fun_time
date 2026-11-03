@@ -14,7 +14,7 @@ from fun_time.main_list import MainList, MainListSettings
 from fun_time.main_list_builds import BUILDS_HERE, MainListBuild
 from fun_time.media_metadata import metadata_path_for
 from fun_time.modes import SatelliteBuild
-from fun_time.omnipause import apply_enter_omnipause, apply_leave_omnipause
+from fun_time.omnipause import PausedFiles, apply_enter_omnipause, apply_leave_omnipause
 from fun_time.runtime_flow import (
     FMODE_FUNESTRAS,
     SatelliteFmodeInputs,
@@ -70,6 +70,14 @@ def flow_files(tmp_path: Path) -> dict[str, Path]:
         "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
         "broker_cmd_file": tmp_path / "broker_cmd.txt",
     }
+
+
+def _paused(files) -> PausedFiles:
+    return PausedFiles(
+        portrait=files["portrait_paused_file"], landscape=files["landscape_paused_file"],
+        genau=files["genau_paused_file"], audio=files["audio_paused_file"],
+        main_funestra=files["main_funestra_paused_file"],
+    )
 
 
 def _mode_switch(files, *, current, target, omni_paused=False):
@@ -507,11 +515,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     result = apply_enter_omnipause(
         omni_paused=False,
         main_mode=MainMode.GENAU,
-        portrait_paused_file=flow_files["portrait_paused_file"],
-        landscape_paused_file=flow_files["landscape_paused_file"],
-        genau_paused_file=flow_files["genau_paused_file"],
-        audio_paused_file=flow_files["audio_paused_file"],
-        main_funestra_paused_file=flow_files["main_funestra_paused_file"],
+        paused=_paused(flow_files),
         broker_cmd_file=flow_files["broker_cmd_file"],
     )
 
@@ -529,11 +533,7 @@ def test_with_no_broker_omnipause_still_freezes_the_app(flow_files):
     apply_enter_omnipause(
         omni_paused=False,
         main_mode=MainMode.GENAU,
-        portrait_paused_file=flow_files["portrait_paused_file"],
-        landscape_paused_file=flow_files["landscape_paused_file"],
-        genau_paused_file=flow_files["genau_paused_file"],
-        audio_paused_file=flow_files["audio_paused_file"],
-        main_funestra_paused_file=flow_files["main_funestra_paused_file"],
+        paused=_paused(flow_files),
     )
 
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
@@ -546,11 +546,7 @@ def _leave_omnipause(files, *, main_mode, broker=True,
         omni_paused=True,
         main_mode=main_mode,
         osr2_control=osr2_control,
-        portrait_paused_file=files["portrait_paused_file"],
-        landscape_paused_file=files["landscape_paused_file"],
-        genau_paused_file=files["genau_paused_file"],
-        audio_paused_file=files["audio_paused_file"],
-        main_funestra_paused_file=files["main_funestra_paused_file"],
+        paused=_paused(files),
         broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
 
