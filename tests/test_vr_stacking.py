@@ -54,22 +54,6 @@ def test_a_pane_taken_hold_of_leaves_one_it_covers_completely_in_front():
         "landscape", "main", "portrait"]
 
 
-def test_a_pane_docked_under_another_comes_forward_with_it_and_not_the_other_way():
-    stacking = Stacking()
-    panes = [Pane((_screen("main", width_deg=72.0),)),
-             Pane((_screen("landscape", -38.0, elevation_deg=-30.0),)),
-             Pane((_screen("panel", elevation_deg=-30.0, width_deg=40.0),), docked_to="main")]
-
-    stacking.take("landscape")
-    stacking.take("main")
-    main_taken = _names(stacking.arrange(panes))
-    stacking.take("landscape")
-    stacking.take("panel")
-
-    assert main_taken == ["landscape", "main", "panel"]
-    assert _names(stacking.arrange(panes)) == ["main", "landscape", "panel"]
-
-
 def test_two_panes_hanging_in_the_very_same_place_stand_as_they_were_taken():
     stacking = Stacking()
     panes = [Pane((_screen("landscape", -38.0),)), Pane((_screen("portrait", -38.0),))]

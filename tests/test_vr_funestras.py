@@ -133,6 +133,7 @@ from fun_time_vr.pointer import (
     Hover,
     PressEvent,
     Ray,
+    Screen,
 )
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
@@ -143,7 +144,7 @@ from fun_time_vr.projection import (
     RECTILINEAR_SBS,
 )
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
-from fun_time_vr.room import RoomLaunch
+from fun_time_vr.room import Hanging, RoomLaunch
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
@@ -1056,7 +1057,37 @@ class TestTheConsoleUnderTheSlot:
         assert hanging.screen.name == MAIN_HUD
         assert hanging.screen.pressable
         assert not hanging.screen.movable
-        assert hanging.docked_to == MAIN
+
+    def _stood_in_the_room(self, p, stacking: Stacking) -> list[str]:
+        self._placed(p.unit)
+        hangings = [Hanging(Screen(MAIN, SPOTS[MAIN], 16 / 9)),
+                    Hanging(Screen(LANDSCAPE, SPOTS[LANDSCAPE], 16 / 9)),
+                    Hanging(Screen(DASH, SPOTS[MAIN_HUD], _THE_DASHS_SHAPE)),
+                    *p.unit.hangings()]
+        return [screen.name for screen in room.arranged(stacking, hangings)]
+
+    def test_a_funestra_nobody_has_taken_hold_of_stands_in_front_of_the_main_hud_as_of_the_main(self):
+        names = self._stood_in_the_room(self._unit(), Stacking())
+
+        assert names.index(MAIN) < names.index(MAIN_HUD) < names.index(LANDSCAPE)
+
+    def test_a_press_on_the_main_hud_brings_the_main_funestra_forward_with_it(self):
+        stacking = Stacking()
+        stacking.take(LANDSCAPE)
+        stacking.take(MAIN_HUD)
+
+        names = self._stood_in_the_room(self._unit(), stacking)
+
+        assert names.index(LANDSCAPE) < names.index(MAIN) < names.index(MAIN_HUD)
+
+    def test_while_the_main_funestra_wraps_the_viewer_the_main_hud_stands_with_the_dashboard_it_hangs_from(self):
+        stacking = Stacking()
+        stacking.take(LANDSCAPE)
+        stacking.take(DASH)
+
+        names = self._stood_in_the_room(self._unit(wrapped=True), stacking)
+
+        assert names.index(LANDSCAPE) < names.index(DASH) < names.index(MAIN_HUD)
 
     def test_before_the_main_funestra_has_drawn_it_there_is_nothing_to_hang(self):
         p = self._unit()
@@ -2128,8 +2159,8 @@ class TestTheMainFunestraUnderThePointer:
     def test_the_main_funestra_is_listed_under_the_screens_that_overlap_it(self):
         screens = self._the_room_around_the_slot()
 
-        assert [screen.name for screen in screens] == [MAIN, LANDSCAPE, MAIN_HUD]
-        main_hud_unit = screens[-1]
+        assert [screen.name for screen in screens] == [MAIN, MAIN_HUD, LANDSCAPE]
+        main_hud_unit = screens[1]
         assert (main_hud_unit.pressable, main_hud_unit.movable, main_hud_unit.resizable) == (True, False, False)
 
     def test_a_satellite_is_a_frame_and_the_main_hud_is_not(self):
@@ -2243,6 +2274,7 @@ class TestEveryHangingScreenIsDrawn:
         main_unit.screen = SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN])
         main_hud_unit = _like(_MainHudUnit, _hanging(MAIN_HUD, 1.2))
         main_hud_unit._buttons, main_hud_unit._shown = _buttons_not_hanging_names(MAIN), True
+        main_hud_unit._main_unit = main_unit
         dash = _like(_DashUnit, _hanging(DASH, 2.5))
         reference = _like(_ReferenceUnit, _hanging(REFERENCE, 1.7))
         reference.showing = showing
@@ -2290,7 +2322,7 @@ class TestEveryHangingScreenIsDrawn:
 
         drawn = self._draw(projection=FLAT, stacking=stacking).screens
 
-        assert drawn.index(MAIN) < drawn.index(DASH) < drawn.index(MAIN_HUD)
+        assert drawn.index(DASH) < drawn.index(MAIN) < drawn.index(MAIN_HUD)
 
     def test_a_video_wrapped_round_the_viewer_is_drawn_first_however_it_was_taken(self):
         stacking = Stacking()
@@ -2346,6 +2378,7 @@ def _a_main_hud(*, ready=True):
         texture=SimpleNamespace(ready=ready, aspect=1.2),
         screen=SimpleNamespace(placement=SPOTS[MAIN_HUD]),
         _buttons=_buttons_not_hanging_names(MAIN), _shown=True,
+        _main_unit=_a_main_funestra(),
     ))
 
 

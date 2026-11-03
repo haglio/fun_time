@@ -16,7 +16,6 @@ class Hanging:
     blend: bool = False
     wrap: object | None = None
     forward_with: str = ""
-    docked_to: str | None = None
     in_front: bool = False
 
 
@@ -62,9 +61,7 @@ def _panes(hangings: Sequence[Hanging]) -> list[Pane]:
         if one.in_front:
             continue
         together.setdefault(one.forward_with or one.screen.name, []).append(one)
-    return [Pane(tuple(one.screen for one in group),
-                 docked_to=next((one.docked_to for one in group if one.docked_to), None))
-            for group in together.values()]
+    return [Pane(tuple(one.screen for one in group)) for group in together.values()]
 
 
 def arranged(stacking: Stacking, hangings: Sequence[Hanging]) -> list[Screen]:
