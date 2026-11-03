@@ -4,14 +4,14 @@ from dataclasses import replace
 from pathlib import Path
 
 from funestra.file_channel import publish_whole
-from funestra.hud_placement import HudCorner, HudEdge
 from funestra.satellite_hud import HudCell, HudModel, hud_text
 
 from .folder_listings import FolderListings
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, SatelliteHud, hud_thumbnails, locate_cell
 from .origenerator_switches import ORIGENERATOR_MODE
 from .osr2_section import DeviceBlock
-from .satellite_buttons import funestra_rows, mode_row
+from .satellite_buttons import HudState, funestra_rows, mode_row
+from .shared_state import SatelliteState
 from .thumbnail_cache import cached_thumbnail
 
 ORIGENERATOR_MODE_LABEL = "Origenerator mode"
@@ -68,15 +68,7 @@ def hud_model(hud: SatelliteHud, cache_dir: Path,
         title=hud.title,
         active=hud.active,
         is_favorite=hud.is_favorite,
-        rows=funestra_rows(hud.funestra, locked=hud.locked,
-                         favorites_filter=hud.favorites_filter, latest=hud.latest,
-                         mode=hud.mode,
-                         origenerator_ready=hud.origenerator_ready,
-                         nothing_to_reset=hud.nothing_to_reset,
-                         has_other_versions=hud.has_other_versions,
-                         longer_than_a_step=hud.longer_than_a_step,
-                         in_vr=hud.in_vr, crowned=hud.crowned,
-                         has_osr2=hud.has_osr2, has_funscript=hud.has_funscript),
+        rows=funestra_rows(hud.funestra, HudState.of(hud)),
         filter_query=hud.filter_query,
         camera_words=camera_words,
         seed_count=hud.seed_count,
@@ -90,19 +82,19 @@ def hud_model(hud: SatelliteHud, cache_dir: Path,
     )
 
 
-def hosted_model(funestra: str, hosted: HudModel | None, *, active: bool,
-                 origenerator_ready: bool, in_vr: bool, crowned: bool = False,
-                 device: DeviceBlock | None = None,
-                 hud_corner: HudCorner = HudCorner.UPPER_LEFT,
-                 hud_edge: HudEdge = HudEdge.LOWER,
-                 hud_minimized: bool = False) -> HudModel:
+def worn(model: HudModel, device: DeviceBlock | None) -> HudModel:
+    return model if device is None else device.worn_by(model)
+
+
+def hosted_model(funestra: str, hosted: HudModel | None, held: SatelliteState,
+                 state: HudState, *, active: bool) -> HudModel:
     hud = hosted or HudModel(funestra=funestra, title=ORIGENERATOR_MODE_LABEL)
     row = mode_row(funestra, mode=ORIGENERATOR_MODE,
-                   origenerator_ready=origenerator_ready, in_vr=in_vr, crowned=crowned)
-    model = replace(hud, funestra=funestra, active=active, hud_corner=hud_corner,
-                    hud_edge=hud_edge, hud_minimized=hud_minimized,
-                    rows=(row, *hud.rows))
-    return model if device is None else device.worn_by(model)
+                   origenerator_ready=state.origenerator_ready, in_vr=state.in_vr,
+                   crowned=state.crowned)
+    return replace(hud, funestra=funestra, active=active, hud_corner=held.hud_corner,
+                   hud_edge=held.hud_edge, hud_minimized=held.hud_minimized,
+                   rows=(row, *hud.rows))
 
 
 class HudPublisher:
@@ -116,8 +108,7 @@ class HudPublisher:
     def publish(self, funestra: str, hud: SatelliteHud,
                 device: DeviceBlock | None = None) -> bool:
         model = hud_model(hud, self._cache_dir, self._camera_words)
-        return self.publish_text(
-            funestra, hud_text(model if device is None else device.worn_by(model)))
+        return self.publish_text(funestra, hud_text(worn(model, device)))
 
     def publish_text(self, name: str, text: str) -> bool:
         path = self._files.get(name)
