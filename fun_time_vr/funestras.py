@@ -1875,11 +1875,7 @@ def draw_eyes(
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
-        projection_matrix = fov_to_projection_matrix(
-            view.fov.angle_left, view.fov.angle_right,
-            view.fov.angle_up, view.fov.angle_down,
-            0.05, 100.0,
-        )
+        projection_matrix = fov_to_projection_matrix(view.fov, 0.05, 100.0)
         view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
         view_proj = projection_matrix @ view_matrix @ scene_rotation
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
