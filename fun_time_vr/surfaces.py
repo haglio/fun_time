@@ -55,7 +55,7 @@ class LatestFrame:
         self._lock = threading.Lock()
         self._flick_frame: FlickFrame | None = None
 
-    def show(self, flick_frame: FlickFrame, _window: tuple[int, int]) -> None:
+    def show(self, flick_frame: FlickFrame, _viewport: tuple[int, int]) -> None:
         with self._lock:
             self._flick_frame = flick_frame
 

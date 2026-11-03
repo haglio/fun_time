@@ -24,6 +24,18 @@
       "ruled": "2026-10-28, his words"
     },
     {
+      "id": "viewport",
+      "thing": "the area on screen where a Funestra shows what it plays, and the HUD is placed",
+      "screen": null,
+      "his_word": "viewport (2026-11-02)",
+      "code_today": [
+        "viewport"
+      ],
+      "code_word": "viewport",
+      "status": "ruled",
+      "ruled": "2026-11-02, his words, for Scripture, Origenerator and Funestra"
+    },
+    {
       "id": "volume_control",
       "thing": "the speaker and slider at the end of a HUD's row",
       "screen": null,

@@ -178,7 +178,7 @@ class _TheHeadsetsMainFunestra:
         Funestra says on its log which lines nothing on it answered."""
         self._command_file.write_text(line + "\n", encoding="utf-8")
         with _the_funestras_refusals() as refused:
-            self.funestra.tick(window=WINDOW)
+            self.funestra.tick(viewport=WINDOW)
         return not refused
 
 

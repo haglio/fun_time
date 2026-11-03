@@ -709,8 +709,8 @@ class TestASqueezeOnAHangingHud:
         unit.hud.overlay(10, 8, 300, np.zeros((100, 200, 4), dtype=np.uint8))
         unit.target = SimpleNamespace(width=640, height=480)
         unit.funestra = SimpleNamespace(
-            press=lambda x, y, window: presses.append(("press", x, y, window)),
-            motion=lambda x, y, held, window: presses.append(("motion", x, y, held)),
+            press=lambda x, y, viewport: presses.append(("press", x, y, viewport)),
+            motion=lambda x, y, held, viewport: presses.append(("motion", x, y, held)),
             release=lambda: presses.append(("release",)))
         return unit, presses
 
@@ -1180,8 +1180,8 @@ class TestASatellitesButtonsInTheHeadset:
         unit = _a_satellite_unit(tmp_path, PORTRAIT, {})
         unit.funestra = SimpleNamespace(hud_edge=HudEdge.LEFT, hud_minimized=minimized,
                                         outside_buttons=OutsideButtons(PORTRAIT, minimized=minimized),
-                                        tick=lambda window: None,
-                                        motion=lambda x, y, held, window: None)
+                                        tick=lambda viewport: None,
+                                        motion=lambda x, y, held, viewport: None)
         unit.video = SimpleNamespace(show_newest=lambda _target: False)
         unit.target = SimpleNamespace(ready=True, aspect=16 / 9, width=640, height=480)
         unit.hud_texture = _FakeMainHudTexture()
