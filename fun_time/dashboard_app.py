@@ -62,7 +62,7 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_bridge import DashboardSnapshot
-from fun_time.dashboard_controls import BarControl, bar_controls, icon_side
+from fun_time.dashboard_controls import BarControl, BarState, bar_controls, icon_side
 from fun_time.dashboard_layout import (
     PAD,
     RFB_MODE_SELECTOR_HEIGHT,
@@ -225,26 +225,30 @@ _ACTION_TOOLTIPS: dict[str, str] = {
 OMNIPAUSE_RESUME_TOOLTIP = "Play everything"
 
 
+def bar_state_of(snapshot: DashboardSnapshot | None, reference_open: bool = False) -> BarState:
+    if snapshot is None:
+        return BarState(reference_open=reference_open)
+    return BarState(
+        omni_paused=snapshot.omni_paused,
+        voice_active=snapshot.voice_active,
+        f_mode=snapshot.f_mode,
+        in_vr=snapshot.in_vr,
+        reference_open=reference_open,
+        nothing_to_reset=snapshot.nothing_to_reset,
+        headset_ready=snapshot.headset_ready,
+    )
+
+
 def build_dashboard_scene(
     layout: DashboardBarLayout,
-    snapshot: DashboardSnapshot | None = None,
+    state: BarState,
     *,
     icons: IconCache,
     pressed_actions: frozenset[str] = frozenset(),
-    reference_open: bool = False,
     shown_as: Preview | None = None,
 ) -> DashboardScene:
-    omni_paused = snapshot is not None and snapshot.omni_paused
-    controls = bar_controls(
-        layout,
-        omni_paused=omni_paused,
-        voice_active=snapshot is not None and snapshot.voice_active,
-        f_mode=snapshot is not None and snapshot.f_mode,
-        in_vr=snapshot is not None and snapshot.in_vr,
-        reference_open=reference_open,
-        nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
-        headset_ready=snapshot is None or snapshot.headset_ready,
-    )
+    omni_paused = state.omni_paused
+    controls = bar_controls(layout, state)
 
     def _rect(control: BarControl) -> DashboardRectItem:
         if control.lit is None:
@@ -680,10 +684,9 @@ class DashboardWindow(QMainWindow):
     def _bar_scene(self, pressed_actions: frozenset[str]) -> DashboardScene:
         return build_dashboard_scene(
             self._bar_layout,
-            self._last_snapshot,
+            bar_state_of(self._last_snapshot, self._reference.is_open),
             icons=self._icons,
             pressed_actions=pressed_actions,
-            reference_open=self._reference.is_open,
             shown_as=self._shown_as,
         )
 
