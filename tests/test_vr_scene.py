@@ -10,6 +10,7 @@ from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
     RADIUS_M,
+    Footprint,
     Placement,
     attached_below,
     attached_to,
@@ -175,21 +176,21 @@ class TestAttachedBelow:
     _FRAME = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
     def test_it_is_centered_under_the_screen_at_the_width_it_is_given(self):
-        hud = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+        hud = attached_below(self._FRAME, aspect=9 / 16, shape=Footprint(20.0, 2.0))
 
         assert hud.azimuth_deg == self._FRAME.azimuth_deg
         assert hud.width_deg == 20.0
 
     def test_its_top_edge_meets_the_screens_lower_edge(self):
-        hud = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+        hud = attached_below(self._FRAME, aspect=9 / 16, shape=Footprint(20.0, 2.0))
         frame = surface_vertices(self._FRAME, aspect=9 / 16)
         strip = surface_vertices(hud, aspect=2.0)
 
         assert strip[:, 1].max() == pytest.approx(frame[:, 1].min(), abs=1e-6)
 
     def test_a_gap_holds_it_off_the_edge_by_that_arc(self):
-        flush = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
-        spaced = attached_below(self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0,
+        flush = attached_below(self._FRAME, aspect=9 / 16, shape=Footprint(20.0, 2.0))
+        spaced = attached_below(self._FRAME, aspect=9 / 16, shape=Footprint(20.0, 2.0),
                                 gap_deg=1.0)
         flush_top = surface_vertices(flush, aspect=2.0)[:, 1].max()
         spaced_top = surface_vertices(spaced, aspect=2.0)[:, 1].max()
@@ -201,12 +202,11 @@ class TestAttachedAgainstASide:
     _FRAME = Placement(azimuth_deg=0.0, elevation_deg=10.0, width_deg=28.0)
 
     def _hanging(self, edge, **extra):
-        return attached_to(edge, self._FRAME, aspect=9 / 16, width_deg=20.0,
-                           hanging_aspect=2.0, **extra)
+        return attached_to(edge, self._FRAME, aspect=9 / 16, shape=Footprint(20.0, 2.0), **extra)
 
     def test_the_lower_satellite_is_where_it_hung_before(self):
         assert self._hanging(HudEdge.LOWER) == attached_below(
-            self._FRAME, aspect=9 / 16, width_deg=20.0, hanging_aspect=2.0)
+            self._FRAME, aspect=9 / 16, shape=Footprint(20.0, 2.0))
 
     def test_against_the_upper_satellite_its_lower_edge_meets_the_screens_top(self):
         hanging = self._hanging(HudEdge.UPPER)

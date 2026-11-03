@@ -13,7 +13,7 @@ from fun_time_vr.hud_toggle import (
 )
 from fun_time_vr.pointer import PRESS, RELEASE, PressEvent
 from fun_time_vr.satellite_hud import HUD_GAP_DEG
-from fun_time_vr.scene import Placement, attached_to
+from fun_time_vr.scene import Footprint, Placement, attached_to
 
 ITEM = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 ASPECT = 16 / 9
@@ -56,7 +56,7 @@ class TestWhereItHangs:
         button = _hung(toggle, edge)
 
         assert button.screen.placement == attached_to(
-            edge, ITEM, aspect=ASPECT, width_deg=BUTTON_DEG, hanging_aspect=1.0,
+            edge, ITEM, aspect=ASPECT, shape=Footprint(BUTTON_DEG, 1.0),
             gap_deg=HUD_GAP_DEG)
 
     def test_the_minus_and_the_plus_hang_on_one_spot(self):
@@ -71,8 +71,8 @@ class TestWhereItHangs:
     def test_the_hud_hangs_past_it_by_the_same_gap(self, edge):
         toggle, _posted = _toggle()
         button = _hung(toggle, edge).screen.placement
-        hud = attached_to(edge, ITEM, aspect=ASPECT, width_deg=20.0,
-                          hanging_aspect=1.0, gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
+        hud = attached_to(edge, ITEM, aspect=ASPECT, shape=Footprint(20.0, 1.0),
+                          gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG)
 
         outward = 1 if edge is HudEdge.RIGHT else -1
         button_far = button.azimuth_deg + outward * button.width_deg / 2

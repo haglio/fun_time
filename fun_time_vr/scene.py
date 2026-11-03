@@ -103,17 +103,20 @@ def quad_layer_placement(
     return position, orientation, (width, width / aspect)
 
 
+@dataclass(frozen=True)
+class Footprint:
+    width_deg: float
+    aspect: float
+
+
 def attached_below(
     placement: Placement,
     *,
     aspect: float,
-    width_deg: float,
-    hanging_aspect: float,
+    shape: Footprint,
     gap_deg: float = 0.0,
-    radius: float = RADIUS_M,
 ) -> Placement:
-    return attached_to(HudEdge.LOWER, placement, aspect=aspect, width_deg=width_deg,
-                       hanging_aspect=hanging_aspect, gap_deg=gap_deg, radius=radius)
+    return attached_to(HudEdge.LOWER, placement, aspect=aspect, shape=shape, gap_deg=gap_deg)
 
 
 def attached_to(
@@ -121,18 +124,17 @@ def attached_to(
     placement: Placement,
     *,
     aspect: float,
-    width_deg: float,
-    hanging_aspect: float,
+    shape: Footprint,
     gap_deg: float = 0.0,
-    radius: float = RADIUS_M,
 ) -> Placement:
+    width_deg, radius = shape.width_deg, RADIUS_M
     if edge in (HudEdge.LEFT, HudEdge.RIGHT):
         step = placement.width_deg / 2 + gap_deg + width_deg / 2
         azimuth = placement.azimuth_deg + (step if edge is HudEdge.RIGHT else -step)
         return Placement(azimuth, placement.elevation_deg, width_deg)
     reach = (half_width(placement.width_deg, radius) / aspect
              + radius * math.radians(gap_deg)
-             + half_width(width_deg, radius) / hanging_aspect)
+             + half_width(width_deg, radius) / shape.aspect)
     center = center_height(placement, radius) + (reach if edge is HudEdge.UPPER else -reach)
     return Placement(placement.azimuth_deg, elevation_at(center, radius), width_deg)
 
