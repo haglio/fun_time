@@ -4,7 +4,7 @@ import contextlib
 import os
 import threading
 from collections.abc import Iterable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -22,6 +22,15 @@ def _now() -> datetime:
     return datetime.now().astimezone()
 
 
+@dataclass(frozen=True)
+class RunAsk:
+    checkout: str
+    branch: str
+    session: str
+    what: list[str]
+    short: bool
+
+
 class Visit:
     def __init__(self, folder: Path, run: RunRecord, seen_every_s: float):
         self._folder = folder
@@ -34,13 +43,13 @@ class Visit:
         self._being_seen.start()
 
     @classmethod
-    def join(cls, runs: Path, *, checkout: str, branch: str, session: str, what: list[str], short: bool,
-             now: datetime | None = None, seen_every_s: float = SEEN_EVERY_S) -> Visit:
+    def join(cls, runs: Path, ask: RunAsk, *, now: datetime | None = None,
+             seen_every_s: float = SEEN_EVERY_S) -> Visit:
         joined = (now or _now()).replace(microsecond=0)
         runs.mkdir(parents=True, exist_ok=True)
         forget_what_was_kept_before(runs.glob("*.json"), joined - KEPT_FOR)
-        return cls(runs, RunRecord(checkout=checkout, branch=branch, what=what, short=short, pid=os.getpid(),
-                                   joined=joined, session=session, process_started=process_started(os.getpid()),
+        return cls(runs, RunRecord(checkout=ask.checkout, branch=ask.branch, what=ask.what, short=ask.short,
+                                   pid=os.getpid(), joined=joined, session=ask.session, process_started=process_started(os.getpid()),
                                    seen=joined), seen_every_s)
 
     def got_the_machine(self, now: datetime | None = None) -> None:

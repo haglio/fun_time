@@ -1,5 +1,6 @@
 import os
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
@@ -20,6 +21,8 @@ from app_support.win32 import process_started
 
 from tests.integration.line_record import (
     RUN_RECORD_ENV,
+    SEEN_EVERY_S,
+    RunAsk,
     Visit,
     require_a_run_that_holds_the_machine,
 )
@@ -27,10 +30,12 @@ from tests.integration.line_record import (
 JOINED = datetime(2026, 10, 11, 13, 0).astimezone()
 
 
-def _join(folder, **changes) -> Visit:
-    asked = {"checkout": "crown-colors", "branch": "claude/crown-colors", "session": "5e55-10n",
-             "what": ["-k", "test_crown"], "short": True, "now": JOINED}
-    return Visit.join(folder, **{**asked, **changes})
+ASKED = RunAsk(checkout="crown-colors", branch="claude/crown-colors", session="5e55-10n",
+               what=["-k", "test_crown"], short=True)
+
+
+def _join(folder, ask: RunAsk = ASKED, seen_every_s: float = SEEN_EVERY_S) -> Visit:
+    return Visit.join(folder, ask, now=JOINED, seen_every_s=seen_every_s)
 
 
 def test_a_run_writes_down_when_it_joined_the_line_got_the_machine_and_how_it_ended(tmp_path):
@@ -101,7 +106,7 @@ def test_joining_the_line_forgets_runs_older_than_two_weeks(tmp_path):
         path.write_text("{}", encoding="utf-8")
         os.utime(path, ((JOINED - age).timestamp(), (JOINED - age).timestamp()))
 
-    _join(tmp_path, session="", what=[], short=False).leave()
+    _join(tmp_path, replace(ASKED, session="", what=[], short=False)).leave()
 
     assert not old.exists()
     assert recent.exists()
@@ -115,7 +120,7 @@ def test_joining_the_line_forgets_runs_older_than_two_weeks(tmp_path):
                  "checkout": VERIFYING_MAIN}),
 ])
 def test_line_reads_the_kind_of_run_this_satellite_writes(tmp_path, expected, changes):
-    visit = _join(tmp_path, **changes)
+    visit = _join(tmp_path, replace(ASKED, **changes))
     visit.leave()
 
     assert kind_of(read_run(visit.path)) == expected
