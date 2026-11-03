@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from shared_ui.notice_shape import NOTICE_TOP_MARGIN
+from shared_ui.message_shape import MESSAGE_TOP_MARGIN
 
 from fun_time.event_log import FAVORITE, MESSAGE
 from fun_time_vr.funestras import MAIN_VIDEO_CAP_PX, SATELLITE_VIDEO_CAP_PX
@@ -105,7 +105,7 @@ class TestWhereItSits:
         desktop sits its message; it was once twice as far down."""
         _x, y = message_placement_in_a_frame(_flashed(), 1920, 1000)
 
-        assert y == NOTICE_TOP_MARGIN
+        assert y == MESSAGE_TOP_MARGIN
 
     def test_it_never_starts_off_the_left_of_a_narrow_frame(self):
         flashed = _flashed("landscape shuffle", max_width=4000, size=64)
