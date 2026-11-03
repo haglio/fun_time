@@ -732,7 +732,7 @@ class TestRunPythonOrchestratedBridge:
             )
 
         slideshow_on.assert_called_once_with(55555)
-        assert mock_runner.call_args.kwargs["rfb_slideshow"] is slideshow_on.return_value
+        assert mock_runner.call_args.args[2].rfb_slideshow is slideshow_on.return_value
 
     def test_a_session_without_a_browser_window_has_no_slideshow(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
@@ -756,7 +756,7 @@ class TestRunPythonOrchestratedBridge:
             )
 
         slideshow_on.assert_not_called()
-        assert mock_runner.call_args.kwargs["rfb_slideshow"] is None
+        assert mock_runner.call_args.args[2].rfb_slideshow is None
 
     def _the_watch_a_session_hands_its_loop(self, cfg, tmp_path, *, rfb_hwnd=0):
         manifest_path = write_windows_bridge_manifest(
@@ -777,7 +777,7 @@ class TestRunPythonOrchestratedBridge:
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
-        return mock_runner.call_args.kwargs["press_and_caret_watch"]
+        return mock_runner.call_args.args[2].press_and_caret_watch
 
     def test_a_session_with_its_own_browser_window_watches_for_clicks_into_text_fields(
             self, cfg_factory, tmp_path):
@@ -1090,7 +1090,7 @@ class TestLoadingScreenLifecycle:
 
         resolve.assert_called_once_with(
             LaunchManifest.read(manifest_path).random_favs_browser.shortcut_path)
-        assert runner.call_args.kwargs["rfb_shortcut"] == shortcut
+        assert runner.call_args.args[2].rfb_shortcut == shortcut
 
     @pytest.mark.parametrize("already_open", [True, False])
     def test_the_dispatch_loop_is_told_whether_the_hosted_app_was_already_open(
@@ -1119,7 +1119,7 @@ class TestLoadingScreenLifecycle:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        assert runner.call_args.kwargs["origenerator_already_open"] is already_open
+        assert runner.call_args.args[2].origenerator_already_open is already_open
 
     @pytest.mark.parametrize("slideshow_on", [(FunTimeFunestra.PORTRAIT,), ()])
     def test_the_dispatch_loop_is_told_which_satellite_the_hosted_apps_slideshow_is_on(
@@ -1148,7 +1148,7 @@ class TestLoadingScreenLifecycle:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        assert runner.call_args.kwargs["origenerator_slideshow_on"] == slideshow_on
+        assert runner.call_args.args[2].origenerator_slideshow_on == slideshow_on
 
 
 class TestKeepingTheHostedApp:
@@ -3430,5 +3430,5 @@ def test_the_desktop_rooms_loop_is_handed_the_secondary_monitor_to_arrange(
             env=SessionEnvironment(integration=True, show_overlays=False),
         )
 
-    rects = runner.call_args.kwargs["secondary_rects"](majority=Crown.MAIN)
+    rects = runner.call_args.args[3].secondary_rects(majority=Crown.MAIN)
     assert (rects.portrait.height, rects.main.height) == (940, 2500)

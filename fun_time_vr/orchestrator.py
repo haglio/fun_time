@@ -25,6 +25,7 @@ from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
+from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.event_log import open_event_log
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
@@ -627,14 +628,15 @@ def _open_the_room(
     manifest, state_dir, progress = launch.manifest, launch.state_dir, launch.progress
     hosted = launched.hosted
     dispatch_runner = DispatchLoopRunner(
-        config=launch.bridge_config,
-        dashboard_cmd_file=launch.dashboard_cmd_file,
-        shared_state_file=shared_state_path(state_dir),
-        ahk_cmd_file=launch.ahk_cmd_file,
-        windows=FunTimeWindows(pids=ChildPids()),
-        dashboard_enabled=True,
-        hud_publisher=hud_publisher,
-        origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else (),
+        launch.bridge_config,
+        SessionFiles(
+            dashboard_cmd=launch.dashboard_cmd_file,
+            shared_state=shared_state_path(state_dir),
+            ahk_cmd=launch.ahk_cmd_file),
+        SessionStart(
+            windows=FunTimeWindows(pids=ChildPids()),
+            origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else ()),
+        Publishing(dashboard_enabled=True, hud_publisher=hud_publisher),
     )
     voice_controller, voice_thread = start_voice_control(
         launch.prepared_voice, dispatch_runner=dispatch_runner)
