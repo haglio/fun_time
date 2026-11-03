@@ -2799,6 +2799,24 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30\n"
 
 
+def test_a_number_of_seconds_for_the_flick_reaches_genau_as_seconds_not_as_an_axis_level(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU)
+
+    dispatch_command("genau_flick_seconds_12", state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "FLICK_SECONDS 12\n"
+
+
+def test_a_level_that_is_not_a_whole_number_reaches_genau_as_nothing(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU)
+
+    dispatch_command("robot_hand_amp_loud", state, config)
+
+    assert not config.genau_cmd_file.exists()
+
+
 def test_robot_hand_numeric_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
