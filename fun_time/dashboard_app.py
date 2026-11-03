@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import contextlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -613,10 +614,8 @@ class DashboardWindow(QMainWindow):
 
     def closeEvent(self, event: object) -> None:
         mark_session_end(self._state_dir, "the dashboard window was closed")
-        try:
+        with contextlib.suppress(OSError):
             self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
-        except OSError:
-            pass
         self._stop_background_work()
         event.accept()
 
@@ -731,10 +730,8 @@ def source_checkout() -> Path:
 
 def record_source_checkout(state_dir: Path) -> Path:
     destination = Path(state_dir) / SOURCE_CHECKOUT_FILENAME
-    try:
+    with contextlib.suppress(OSError):
         destination.write_text(f"{source_checkout()}\n", encoding="utf-8")
-    except OSError:
-        pass
     return destination
 
 

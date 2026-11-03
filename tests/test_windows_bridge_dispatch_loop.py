@@ -109,31 +109,31 @@ def _neutralise_topmost_reads():
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
-    settings = dict(
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        portrait_paused_file=tmp_path / "portrait_paused.txt",
-        portrait_status_file=tmp_path / "portrait_status.txt",
-        portrait_playlist_file=tmp_path / "portrait_playlist.tsv",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
-        landscape_paused_file=tmp_path / "landscape_paused.txt",
-        landscape_status_file=tmp_path / "landscape_status.txt",
-        landscape_playlist_file=tmp_path / "landscape_playlist.tsv",
-        trash_dir=tmp_path / "trash",
-        state_dir=tmp_path,
-        main_sources="",
-        portrait_sources="",
-        landscape_sources="",
-        broker_mode_file=tmp_path / "rh_mode.txt",
-        genau_cmd_file=tmp_path / "rh_cmd.txt",
-        genau_paused_file=tmp_path / "rh_paused.txt",
-        genau_status_file=tmp_path / "genau_status.txt",
-        audio_paused_file=tmp_path / "audio_paused.txt",
-        audio_volume_file=tmp_path / "audio_volume.txt",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
-        main_funestra_status_file=tmp_path / "main_player_status.txt",
-        dashboard_state_file=tmp_path / "dashboard_state.ini",
-    )
+    settings = {
+        "portrait_cmd_file": tmp_path / "portrait_cmd.txt",
+        "portrait_paused_file": tmp_path / "portrait_paused.txt",
+        "portrait_status_file": tmp_path / "portrait_status.txt",
+        "portrait_playlist_file": tmp_path / "portrait_playlist.tsv",
+        "landscape_cmd_file": tmp_path / "landscape_cmd.txt",
+        "landscape_paused_file": tmp_path / "landscape_paused.txt",
+        "landscape_status_file": tmp_path / "landscape_status.txt",
+        "landscape_playlist_file": tmp_path / "landscape_playlist.tsv",
+        "trash_dir": tmp_path / "trash",
+        "state_dir": tmp_path,
+        "main_sources": "",
+        "portrait_sources": "",
+        "landscape_sources": "",
+        "broker_mode_file": tmp_path / "rh_mode.txt",
+        "genau_cmd_file": tmp_path / "rh_cmd.txt",
+        "genau_paused_file": tmp_path / "rh_paused.txt",
+        "genau_status_file": tmp_path / "genau_status.txt",
+        "audio_paused_file": tmp_path / "audio_paused.txt",
+        "audio_volume_file": tmp_path / "audio_volume.txt",
+        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
+        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
+        "main_funestra_status_file": tmp_path / "main_player_status.txt",
+        "dashboard_state_file": tmp_path / "dashboard_state.ini",
+    }
     settings.update(overrides)
     return BridgeConfig(**settings)
 
@@ -163,7 +163,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         hwnds_by_window=kwargs.pop("hwnds_by_window", None),
         **({"clock": kwargs.pop("clock")} if "clock" in kwargs else {}),
     )
-    settings = dict(dashboard_enabled=False)
+    settings = {"dashboard_enabled": False}
     settings.update(kwargs)
     runner = DispatchLoopRunner(
         config=config or make_config(tmp_path),
@@ -261,17 +261,13 @@ def _presses_until(recv_sock, expected: str, *, timeout: float = 10.0) -> list[s
     received: list[str] = []
 
     def _arrived() -> bool:
-        try:
+        with contextlib.suppress(OSError):
             received.append(recv_sock.recvfrom(256)[0].decode("utf-8"))
-        except OSError:
-            pass
         return expected in received
 
     recv_sock.settimeout(0.02)
-    try:
+    with contextlib.suppress(TimeoutError):
         wait_until(_arrived, timeout=timeout, interval=0)
-    except TimeoutError:
-        pass
     return received
 
 
@@ -1494,7 +1490,7 @@ class TestOpenRfbTab:
             }),
         ]
 
-    @pytest.mark.parametrize("window_alive, line", [
+    @pytest.mark.parametrize(("window_alive", "line"), [
         (True, "Opened 2 RFB tab(s)"),
         (False, "2 RFB tab(s) skipped: no Random Favs Browser window to open into"),
     ])
@@ -2532,7 +2528,7 @@ class TestIdempotentVoiceCommands:
             (tmp_path / "dashboard_cmd.txt").write_text("genaumacher_save", encoding="utf-8")
             runner.tick()
             wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
-        assert all(not getattr(r, "source", "") == "main" or "Genaumacher" not in r.message
+        assert all(getattr(r, "source", "") != "main" or "Genaumacher" not in r.message
                    for r in caplog.records)
 
 

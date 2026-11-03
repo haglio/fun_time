@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 from ctypes import POINTER, Structure, byref, c_uint, c_ushort, c_void_p, wstring_at
 from ctypes.wintypes import DWORD, LPCWSTR
@@ -94,10 +95,8 @@ class _IPolicyConfig(IUnknown):
 
 
 def _com_on_this_thread() -> None:
-    try:
+    with contextlib.suppress(OSError):
         comtypes.CoInitialize()
-    except OSError:
-        pass
 
 
 def _id_of(device) -> str:

@@ -355,7 +355,7 @@ def test_a_command_still_running_when_its_seconds_are_spent_is_ended_and_named_w
     monkeypatch.setattr(subprocess, "Popen", lambda _argv, **_popen: SimpleNamespace(
         communicate=communicate, returncode=None, kill=lambda: ended.append("killed")))
 
-    with pytest.raises(subprocess.TimeoutExpired, match="after 60.0 seconds"):
+    with pytest.raises(subprocess.TimeoutExpired, match=r"after 60\.0 seconds"):
         run_within(["ffmpeg"], 60.0)
     assert ended == ["killed"]
 

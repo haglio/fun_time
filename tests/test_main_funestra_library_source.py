@@ -82,7 +82,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     meta = tmp_path / "videos" / "metadata"
     original = lib / "example" / "2_orig" / "Scene-One-abc.mkv"
     upscale = lib / "example" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
-    for video, size in ((original, 100), (upscale, 900)):
+    for video, _size in ((original, 100), (upscale, 900)):
         video.parent.mkdir(parents=True, exist_ok=True)
         video.write_bytes(b"x")
         satellite = (meta / video.relative_to(lib)).with_suffix(".json")

@@ -569,7 +569,7 @@ def write_launch_shortcut(
     write_shortcut(str(destination), Shortcut(
         # wscript rather than the .vbs itself: a shortcut's target has to be an
         # executable for arguments to reach the script.
-        target=str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wscript.exe"),
+        target=str(Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32" / "wscript.exe"),
         arguments=subprocess.list2cmdline(arguments),
         working_directory=str(primary),
         icon=str(primary / (VR_ICON_NAME if vr else DESKTOP_ICON_NAME)),

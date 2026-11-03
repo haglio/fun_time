@@ -11,8 +11,8 @@ from fun_time.main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_
 
 
 def _payload(**overrides) -> MainHudModel:
-    base = dict(main_mode=MainMode.KINO, active=False, osr2_mode=Osr2Mode.CONTROLLED,
-                main_funestra=MainFunestraStatus(), genau=GenauStatus())
+    base = {"main_mode": MainMode.KINO, "active": False, "osr2_mode": Osr2Mode.CONTROLLED,
+                "main_funestra": MainFunestraStatus(), "genau": GenauStatus()}
     base.update(overrides)
     return main_hud_model(MainFunestraInputs(**base))
 
@@ -164,7 +164,7 @@ def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():
 
 
 def test_the_shapes_reported_are_the_shapes_of_whoever_is_showing():
-    both = dict(plays_vr=True, plays_flat=True, genau_plays_vr=False, genau_plays_flat=True)
+    both = {"plays_vr": True, "plays_flat": True, "genau_plays_vr": False, "genau_plays_flat": True}
 
     assert _button(_payload(main_mode=MainMode.KINO, **both), "main_projection_flat").lit is True
     assert _button(_payload(main_mode=MainMode.GENAU, **both), "main_projection_both").lit is False
@@ -179,8 +179,8 @@ def test_the_hud_title_names_each_pair_left_on_one_satellite_in_the_order_they_s
 
 
 def test_the_hud_title_in_genau_mode_names_genaus_own_narrowing():
-    narrowed = dict(plays_vr=True, plays_flat=False, length_mode=LengthMode.CLIPS,
-                    genau_plays_vr=False, genau_plays_flat=True)
+    narrowed = {"plays_vr": True, "plays_flat": False, "length_mode": LengthMode.CLIPS,
+                    "genau_plays_vr": False, "genau_plays_flat": True}
 
     assert _payload(main_mode=MainMode.GENAU, **narrowed).filters == ("2D",)
 

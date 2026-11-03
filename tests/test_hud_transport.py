@@ -14,11 +14,11 @@ from tests.drive_fakes import folders_listed
 
 
 def _hud(**overrides) -> SatelliteHud:
-    base = dict(
-        funestra="portrait", locked=True, title="Locked",
-        current="C:/v/cur.mp4", seed_siblings=["C:/v/s1.mp4"], action_siblings=["C:/v/a1.mp4"],
-        current_action="alpha", action_labels=("gamma",),
-    )
+    base = {
+        "funestra": "portrait", "locked": True, "title": "Locked",
+        "current": "C:/v/cur.mp4", "seed_siblings": ["C:/v/s1.mp4"], "action_siblings": ["C:/v/a1.mp4"],
+        "current_action": "alpha", "action_labels": ("gamma",),
+    }
     base.update(overrides)
     return SatelliteHud(**base)
 

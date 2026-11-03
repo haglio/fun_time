@@ -105,35 +105,34 @@ def config(tmp_path, monkeypatch):
     config_path = tmp_path / "fun_time_config.json"
     config_path.write_text(
         """
-        {
-          "paths": {
-            "ahk_exe": "%(ahk)s",
-            "python_exe": "%(python)s",
-            "main_player_library_dirs": ["%(flat)s"],
-            "portrait_dirs": ["%(flat)s"],
-            "landscape_dirs": ["%(flat)s"],
-            "trash_dir": "%(trash)s",
-            "state_dir": "%(state)s"
-          },
-          "layout": {
+        {{
+          "paths": {{
+            "ahk_exe": "{ahk}",
+            "python_exe": "{python}",
+            "main_player_library_dirs": ["{flat}"],
+            "portrait_dirs": ["{flat}"],
+            "landscape_dirs": ["{flat}"],
+            "trash_dir": "{trash}",
+            "state_dir": "{state}"
+          }},
+          "layout": {{
             "primary_monitor": 1, "secondary_monitor": 2,
             "main_top_ratio": 0.7, "landscape_width_ratio": 0.6
-          },
-          "audio_companion": {"host": "127.0.0.1", "port": 50556},
-          "vr": {
-            "library_dirs": ["%(vr)s"],
+          }},
+          "audio_companion": {{"host": "127.0.0.1", "port": 50556}},
+          "vr": {{
+            "library_dirs": ["{vr}"],
             "audio_device": "Example Headset"
-          }
-        }
-        """
-        % {
-            "ahk": str(ahk).replace("\\", "/"),
-            "python": str(python).replace("\\", "/"),
-            "flat": str(flat_dir).replace("\\", "/"),
-            "trash": str(tmp_path / "trash").replace("\\", "/"),
-            "state": str(tmp_path / "state").replace("\\", "/"),
-            "vr": str(vr_dir).replace("\\", "/"),
-        },
+          }}
+        }}
+        """.format(
+            ahk=str(ahk).replace("\\", "/"),
+            python=str(python).replace("\\", "/"),
+            flat=str(flat_dir).replace("\\", "/"),
+            trash=str(tmp_path / "trash").replace("\\", "/"),
+            state=str(tmp_path / "state").replace("\\", "/"),
+            vr=str(vr_dir).replace("\\", "/"),
+        ),
         encoding="utf-8",
     )
     point_the_shared_settings_at(monkeypatch, made_up_genau(tmp_path))
@@ -1395,23 +1394,23 @@ class TestTheHotkeyScriptsArguments:
 
 
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
-    stand_ins = dict(
-        open_event_log=MagicMock(),
-        add_dispatch_file_handler=MagicMock(),
-        write_broker_command=MagicMock(),
-        ensure_broker=MagicMock(),
-        reap_orphaned_satellites=MagicMock(),
-        stock_the_playlists=MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
-        launch_audio_companion=MagicMock(return_value=MagicMock(pid=101)),
-        launch_vr_funestras=MagicMock(return_value=MagicMock(pid=202)),
-        process_started=MagicMock(return_value=7),
-        _wait_for_funestra=MagicMock(return_value=True),
-        _wait_for_the_room=MagicMock(),
-        start_hud_priming=MagicMock(return_value=(None, threading.Event())),
-        stop_hotkey_script=MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
-        kill_recorded_child=MagicMock(side_effect=lambda child: torn_down.append(child.pid)),
-        _release_vr_runtime=MagicMock(side_effect=lambda *_a, **_k: torn_down.append("runtime")),
-    )
+    stand_ins = {
+        "open_event_log": MagicMock(),
+        "add_dispatch_file_handler": MagicMock(),
+        "write_broker_command": MagicMock(),
+        "ensure_broker": MagicMock(),
+        "reap_orphaned_satellites": MagicMock(),
+        "stock_the_playlists": MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
+        "launch_audio_companion": MagicMock(return_value=MagicMock(pid=101)),
+        "launch_vr_funestras": MagicMock(return_value=MagicMock(pid=202)),
+        "process_started": MagicMock(return_value=7),
+        "_wait_for_funestra": MagicMock(return_value=True),
+        "_wait_for_the_room": MagicMock(),
+        "start_hud_priming": MagicMock(return_value=(None, threading.Event())),
+        "stop_hotkey_script": MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
+        "kill_recorded_child": MagicMock(side_effect=lambda child: torn_down.append(child.pid)),
+        "_release_vr_runtime": MagicMock(side_effect=lambda *_a, **_k: torn_down.append("runtime")),
+    }
     stand_ins.update(overrides)
     return patch.multiple(orchestrator, **stand_ins)
 
@@ -1429,14 +1428,14 @@ def _end_a_vr_session(
 
     funestras = MagicMock(pid=202)
     funestras.poll.return_value = None
-    stand_ins = dict(
-        launch_vr_funestras=MagicMock(return_value=funestras),
-        wait_for_loading_screen_painted=MagicMock(return_value=True),
-        DispatchLoopRunner=MagicMock(),
-        start_voice_control=MagicMock(return_value=(None, None)),
-        _wait_for_session_end=MagicMock(side_effect=ended_by),
-        _closing_screen=closing_screen,
-    )
+    stand_ins = {
+        "launch_vr_funestras": MagicMock(return_value=funestras),
+        "wait_for_loading_screen_painted": MagicMock(return_value=True),
+        "DispatchLoopRunner": MagicMock(),
+        "start_voice_control": MagicMock(return_value=(None, None)),
+        "_wait_for_session_end": MagicMock(side_effect=ended_by),
+        "_closing_screen": closing_screen,
+    }
     stand_ins.update(overrides)
     with _launch_stand_ins(orchestrator, [], **stand_ins), \
          patch.object(orchestrator.vr_runtime, "runtime_was_running",

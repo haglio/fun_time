@@ -431,7 +431,7 @@ with hold_integration_lock(name={name!r}, short={short!r}, notify_every_s=0.05,
 """
 
 
-@pytest.mark.parametrize("dies, waits", [("short", "full"), ("full", "short"), ("full", "full")])
+@pytest.mark.parametrize(("dies", "waits"), [("short", "full"), ("full", "short"), ("full", "full")])
 def test_a_run_that_dies_waiting_holds_no_other_run_back(tmp_path, dies, waits):
     name = _unique_name()
     blocker = _held_by_the_test(name)

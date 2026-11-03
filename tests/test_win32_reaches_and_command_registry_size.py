@@ -69,11 +69,9 @@ def _win32_reaches(tree) -> int:
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "ctypes":
             reaches += sum(1 for a in node.names if a.name in _WIN32_BINDING_NAMES)
-        elif isinstance(node, ast.Call) and names_the_surface(node.func):
+        elif (isinstance(node, ast.Call) and names_the_surface(node.func)) or (isinstance(node, ast.Attribute) and node.attr in _WIN32_BINDING_NAMES
+              and isinstance(node.value, ast.Name) and node.value.id in ctypes_names):
             reaches += 1
-        elif isinstance(node, ast.Attribute) and node.attr in _WIN32_BINDING_NAMES:
-            if isinstance(node.value, ast.Name) and node.value.id in ctypes_names:
-                reaches += 1
     return reaches
 
 

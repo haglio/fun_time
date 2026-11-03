@@ -248,15 +248,15 @@ def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_l
 
 
 def _seed_startup_states(tmp_path: Path, **overrides):
-    kwargs = dict(
-        genau_paused_file=tmp_path / "genau_paused.txt",
-        audio_paused_file=tmp_path / "audio_paused.txt",
-        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
-        audio_volume_file=tmp_path / "audio_volume.txt",
-        genau_cmd_file=tmp_path / "genau_cmd.txt",
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-        satellite_cmd_files=(tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"),
-    )
+    kwargs = {
+        "genau_paused_file": tmp_path / "genau_paused.txt",
+        "audio_paused_file": tmp_path / "audio_paused.txt",
+        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
+        "audio_volume_file": tmp_path / "audio_volume.txt",
+        "genau_cmd_file": tmp_path / "genau_cmd.txt",
+        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
+        "satellite_cmd_files": (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"),
+    }
     kwargs.update(overrides)
     return seed_startup_states(
         kwargs.pop("genau_paused_file"), kwargs.pop("audio_paused_file"),
@@ -382,29 +382,29 @@ def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tm
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
     state_dir = tmp_path / "state"
-    return dict(
-        config_path="fun_time_config.json",
-        broker_cmd_file=state_dir / "broker_cmd.txt",
-        broker_state_dir=state_dir,
-        random_favs_browser_manifest_file=tmp_path / "browser_manifest.txt",
-        genau_paused_file=tmp_path / "genau_paused.txt",
-        genau_cmd_file=tmp_path / "genau_cmd.txt",
-        audio_paused_file=tmp_path / "audio_paused.txt",
-        main_funestra_paused_file=tmp_path / "main_player_paused.txt",
-        audio_volume_file=tmp_path / "audio_volume.txt",
-        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
-        satellite_python_exe="fun_time_python.exe",
-        satellite_module="satellite",
-        portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+    return {
+        "config_path": "fun_time_config.json",
+        "broker_cmd_file": state_dir / "broker_cmd.txt",
+        "broker_state_dir": state_dir,
+        "random_favs_browser_manifest_file": tmp_path / "browser_manifest.txt",
+        "genau_paused_file": tmp_path / "genau_paused.txt",
+        "genau_cmd_file": tmp_path / "genau_cmd.txt",
+        "audio_paused_file": tmp_path / "audio_paused.txt",
+        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
+        "audio_volume_file": tmp_path / "audio_volume.txt",
+        "main_funestra_cmd_file": state_dir / "main_player_cmd.txt",
+        "satellite_python_exe": "fun_time_python.exe",
+        "satellite_module": "satellite",
+        "portrait": _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
                        WindowRect(x=2560, y=0, width=1440, height=2500)),
-        landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+        "landscape": _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
                         WindowRect(x=1664, y=0, width=896, height=1392)),
-        main_funestra_status_file=state_dir / "main_player_status.txt",
-        main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
-        state_dir=state_dir,
-        result_file=tmp_path / "core_session.ini",
-        regen_metadata_root=tmp_path / "metadata",
-    )
+        "main_funestra_status_file": state_dir / "main_player_status.txt",
+        "main_sources": f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
+        "state_dir": state_dir,
+        "result_file": tmp_path / "core_session.ini",
+        "regen_metadata_root": tmp_path / "metadata",
+    }
 
 
 def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
@@ -490,15 +490,22 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
 
-    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+    with (
+        patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"),
+        patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+    ),
+        patch("fun_time.windows_bridge_startup.seed_startup_states"),
+        patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
-    ), patch(
+    ),
+        patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
-    ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
-            start_core_session(**kwargs)
+    ) as build,
+        patch("fun_time.windows_bridge_startup.launch_core_apps"),
+        caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"),
+    ):
+        start_core_session(**kwargs)
 
     build.assert_not_called()
     for name, (first, second) in left_on.items():
@@ -730,15 +737,22 @@ def test_start_core_session_never_reopens_a_main_list_another_app_left(
     left_browsing_vr_only = BridgeState(main_plays_vr=True, main_plays_flat=False)
     write_shared_state(shared_state_path(state_dir), left_browsing_vr_only)
 
-    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+    with (
+        patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"),
+        patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+    ),
+        patch("fun_time.windows_bridge_startup.seed_startup_states"),
+        patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
-    ), patch(
+    ),
+        patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
-    ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        with caplog.at_level("INFO", logger="fun_time"):
-            start_core_session(**kwargs)
+    ) as build,
+        patch("fun_time.windows_bridge_startup.launch_core_apps"),
+        caplog.at_level("INFO", logger="fun_time"),
+    ):
+        start_core_session(**kwargs)
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
@@ -764,13 +778,19 @@ def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
     main_funestra_playlist.write_text(f"{vr_video}\n{watching}\n", encoding="utf-8")
     (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
 
-    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+    with (
+        patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"),
+        patch(
         "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+    ),
+        patch("fun_time.windows_bridge_startup.seed_startup_states"),
+        patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        with caplog.at_level("INFO", logger="fun_time"):
-            start_core_session(**kwargs)
+    ),
+        patch("fun_time.windows_bridge_startup.launch_core_apps"),
+        caplog.at_level("INFO", logger="fun_time"),
+    ):
+        start_core_session(**kwargs)
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert rebuilt[0].split("\t")[0] == watching
@@ -864,11 +884,11 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
 
 
-GENAUS_FILES = dict(
-    genau_command_file="a-state-dir/genau_cmd.txt",
-    genau_paused_file="a-state-dir/genau_paused.txt",
-    genau_status_file="a-state-dir/genau_status.txt",
-)
+GENAUS_FILES = {
+    "genau_command_file": "a-state-dir/genau_cmd.txt",
+    "genau_paused_file": "a-state-dir/genau_paused.txt",
+    "genau_status_file": "a-state-dir/genau_status.txt",
+}
 
 
 def _a_main_funestra_launch(**overrides) -> dict:

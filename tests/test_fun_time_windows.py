@@ -38,8 +38,8 @@ from tests.fun_time_window_fakes import (
 
 
 def make_windows(**overrides) -> FunTimeWindows:
-    pids = dict(main_funestra=MAIN_FUNESTRA_PID, portrait=PORTRAIT_PID,
-                landscape=LANDSCAPE_PID, dashboard=DASHBOARD_PID)
+    pids = {"main_funestra": MAIN_FUNESTRA_PID, "portrait": PORTRAIT_PID,
+                "landscape": LANDSCAPE_PID, "dashboard": DASHBOARD_PID}
     pids.update(overrides.pop("pids", {}))
     return FunTimeWindows(pids=ChildPids(**pids), **overrides)
 

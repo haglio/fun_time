@@ -49,7 +49,7 @@ def _recorded_library(tmp_path, records: dict[str, dict | None]) -> tuple[MainLi
 class TestFMode:
     def test_it_keeps_the_hand_scripted_video_and_drops_the_bulk_scripted_one(self, tmp_path):
         root = tmp_path / "videos" / "videos" / "primary"
-        hand, bulk, plain = _videos(root, "a.mp4", "b.mp4", "c.mp4")
+        hand, bulk, _plain = _videos(root, "a.mp4", "b.mp4", "c.mp4")
         scripts = tmp_path / "videos" / "scripts" / "scripts" / "primary"
         scripts.mkdir(parents=True)
         for video in (hand, bulk):

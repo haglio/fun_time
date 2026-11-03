@@ -317,7 +317,7 @@ def test_a_run_whose_tests_could_not_be_started_still_writes_down_that_it_ended(
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
-@pytest.mark.parametrize("args, short", [
+@pytest.mark.parametrize(("args", "short"), [
     (["-k", "test_x"], True), (["-ktest_x"], True), (["tests/integration/test_x.py"], True),
     (["--repeat-changed"], True), ([], False), (["-x", "--maxfail", "1"], False),
     (["--deselect", "tests/integration/test_x.py::test_y"], False)])
@@ -668,10 +668,12 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
 
 
 def test_main_hands_its_own_args_to_the_run_and_exits_on_its_verdict():
-    with patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
-         patch.object(sys, "argv", ["hidden_desktop", "-k", "main_funestra"]):
-        with pytest.raises(SystemExit) as exit_info:
-            main()
+    with (
+        patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run,
+        patch.object(sys, "argv", ["hidden_desktop", "-k", "main_funestra"]),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        main()
 
     assert exit_info.value.code == 0
     run.assert_called_once_with(["-k", "main_funestra"])

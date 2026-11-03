@@ -33,11 +33,11 @@ from fun_time.windows_bridge_startup import (
 _A_PLAN = WindowLayoutPlan(
     portrait=WindowRect(0, 0, 10, 10), landscape=WindowRect(0, 0, 10, 10),
     dashboard=WindowRect(0, 0, 10, 10), random_favs_browser=WindowRect(1, 2, 30, 40))
-_A_DESKTOP_SESSION = dict(
-    layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
-    dashboard_cmd_file="d",
-    funestras={satellite: HandedFunestra("playlist", "cmd", "status", "hud")
-               for satellite in ("portrait", "landscape")})
+_A_DESKTOP_SESSION = {
+    "layout_plan": _A_PLAN, "command_file": "c", "paused_file": "p", "status_file": "s",
+    "dashboard_cmd_file": "d",
+    "funestras": {satellite: HandedFunestra("playlist", "cmd", "status", "hud")
+               for satellite in ("portrait", "landscape")}}
 
 
 def _a_copy_from_before_the_pair(checkout: Path) -> list[str]:
@@ -184,8 +184,8 @@ class TestTellingAKeptAppWhereItsWindowGoes:
     def test_a_headset_session_asks_for_the_frame(self, cfg_factory, tmp_path):
         config, said = self._adopt(cfg_factory, tmp_path, in_a_headset=True)
 
-        assert said == [f"{HAND_OVER}|{config.origenerator_frames_file}"
-                        f"|{config.origenerator_input_file}"]
+        assert said == [(f"{HAND_OVER}|{config.origenerator_frames_file}"
+                        f"|{config.origenerator_input_file}")]
 
     def test_a_headset_session_starts_with_no_frame_and_no_presses(
             self, cfg_factory, tmp_path):

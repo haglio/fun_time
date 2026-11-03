@@ -56,9 +56,11 @@ def test_a_root_that_will_not_go_is_named_and_the_others_still_do(tmp_path: Path
     held = _a_session_root(tmp_path, "held")
     goes = _a_session_root(tmp_path, "goes")
 
-    with (held / "integration_runtime" / "state" / "main_funestra.log").open("a"):
-        with pytest.raises(RootsLeftBehind, match="held"):
-            clear_run_roots(budget_s=0)
+    with (
+        (held / "integration_runtime" / "state" / "main_funestra.log").open("a"),
+        pytest.raises(RootsLeftBehind, match="held"),
+    ):
+        clear_run_roots(budget_s=0)
 
     assert not goes.exists()
 

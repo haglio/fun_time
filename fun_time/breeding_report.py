@@ -125,9 +125,9 @@ def render_breeding_report(rows: list[BreedingRow], *, top: int) -> str:
         key=lambda row: (row.weight, -row.skips, row.path),
     )
     lines = [
-        f"Breeding leaderboard - {len(rows)} clips tracked "
+        (f"Breeding leaderboard - {len(rows)} clips tracked "
         f"({len(rising)} rising, {len(fading)} fading) | "
-        "C=completions  L=locks  S=skips  O=orientation (P/L)",
+        "C=completions  L=locks  S=skips  O=orientation (P/L)"),
         "",
     ]
     if rising:

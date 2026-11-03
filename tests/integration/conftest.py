@@ -105,32 +105,32 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(autouse=True)
 def _never_inherit_the_integration_flag():
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
 def _never_mutate_a_real_window():
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
 def _never_start_a_real_loading_screen():
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
 def _never_switch_a_real_browsers_tabs():
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
 def _never_listen_to_his_desktop():
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)
 def _no_thread_outlives_its_test():
-    yield
+    return
 
 
 @pytest.fixture(scope="session", autouse=True)

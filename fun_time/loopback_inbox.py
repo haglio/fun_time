@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import queue
 import socket
 import threading
@@ -41,10 +42,8 @@ class LoopbackInbox:
 
     def stop(self) -> None:
         self._stopping.set()
-        try:
+        with contextlib.suppress(OSError):
             self._sock.close()
-        except OSError:
-            pass
 
     def _listen(self) -> None:
         while self.listening:

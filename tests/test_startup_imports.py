@@ -65,8 +65,8 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
 def test_the_launch_loads_nothing_the_loading_screen_does_not_need():
     result = subprocess.run(
         [sys.executable, "-c",
-         "import fun_time.orchestrator, sys;"
-         f"print([m for m in {_NOT_BEFORE_THE_LOADING_SCREEN!r} if m in sys.modules])"],
+         ("import fun_time.orchestrator, sys;"
+         f"print([m for m in {_NOT_BEFORE_THE_LOADING_SCREEN!r} if m in sys.modules])")],
         cwd=PROJECT_DIR, capture_output=True, text=True, check=False,
     )
 

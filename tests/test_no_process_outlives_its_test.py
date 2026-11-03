@@ -42,16 +42,20 @@ _LEAVES_ONE_RUNNING_UNTIL_TOLD_TO_END = (
 
 
 def test_a_process_started_inside_and_never_ended_is_named():
-    with contextlib.ExitStack() as afterwards:
-        with pytest.raises(ProcessesLeftRunning, match="never-told-to-end"):
-            with no_process_outlives_this(within_s=0.05):
-                afterwards.enter_context(an_interpreter_asleep("never-told-to-end"))
+    with (
+        contextlib.ExitStack() as afterwards,
+        pytest.raises(ProcessesLeftRunning, match="never-told-to-end"),
+        no_process_outlives_this(within_s=0.05),
+    ):
+        afterwards.enter_context(an_interpreter_asleep("never-told-to-end"))
 
 
 def test_a_process_whose_parent_has_ended_is_still_named():
-    with pytest.raises(ProcessesLeftRunning, match="outlived-its-parent") as raised:
-        with no_process_outlives_this(within_s=0.05):
-            subprocess.run([THE_INTERPRETER_NOT_A_VENVS_LAUNCHER, "-c", _STARTS_ONE_AND_ENDS], check=True)
+    with (
+        pytest.raises(ProcessesLeftRunning, match="outlived-its-parent") as raised,
+        no_process_outlives_this(within_s=0.05),
+    ):
+        subprocess.run([THE_INTERPRETER_NOT_A_VENVS_LAUNCHER, "-c", _STARTS_ONE_AND_ENDS], check=True)
 
     assert all_gone_within(raised.value.processes, 10.0)
 
@@ -66,9 +70,12 @@ def test_a_process_that_ends_a_moment_later_is_waited_for_until_it_has():
 
 
 def test_a_process_already_running_before_it_began_is_left_alone():
-    with no_process_outlives_this(), an_interpreter_asleep():
-        with no_process_outlives_this(within_s=0.05):
-            pass
+    with (
+        no_process_outlives_this(),
+        an_interpreter_asleep(),
+        no_process_outlives_this(within_s=0.05),
+    ):
+        pass
 
 
 def test_what_a_process_leaves_running_ends_with_it():
@@ -87,6 +94,8 @@ def test_every_test_runs_inside_it(request):
 
 
 def test_an_integration_test_is_left_to_the_job_its_runner_holds():
-    with contextlib.ExitStack() as afterwards:
-        with the_guard_for(Path(__file__).parent / "integration" / "test_a_session.py"):
-            afterwards.enter_context(an_interpreter_asleep())
+    with (
+        contextlib.ExitStack() as afterwards,
+        the_guard_for(Path(__file__).parent / "integration" / "test_a_session.py"),
+    ):
+        afterwards.enter_context(an_interpreter_asleep())

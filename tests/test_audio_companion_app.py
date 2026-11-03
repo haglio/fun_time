@@ -29,7 +29,7 @@ class TestFindAudio:
 
 
 class TestTheFlagFilesThisProcessReads:
-    @pytest.mark.parametrize("text, expected", [
+    @pytest.mark.parametrize(("text", "expected"), [
         ("1", True), ("0", False), ("", False), ("true", False),
         (" 1 \n", True), ("\ufeff1", True),
     ])
@@ -57,7 +57,7 @@ class TestTheFlagFilesThisProcessReads:
         assert given["read_mode_active"] is given["read_paused_state"]
         return given["read_paused_state"]
 
-    @pytest.mark.parametrize("text, expected", [
+    @pytest.mark.parametrize(("text", "expected"), [
         ("1", True), ("0", False), ("", False), ("true", False),
         (" 1 \n", True), ("\ufeff1", True),
     ])
@@ -184,7 +184,7 @@ class TestAudioPlaybackController:
         assert music.play_starts[-1] == pytest.approx(3.0)
 
     def test_manual_pause_holds_even_while_visible_and_a_resume_lifts_it(self, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
+        controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
         controller.set_manual_paused(True)
@@ -194,7 +194,7 @@ class TestAudioPlaybackController:
         assert music.events[-1] == "unpause"
 
     def test_repeating_the_same_manual_pause_touches_nothing(self, tmp_path, monkeypatch, caplog):
-        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
+        controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
         controller.set_manual_paused(True)
         before = list(music.events)
@@ -206,7 +206,7 @@ class TestAudioPlaybackController:
         assert not caplog.records
 
     def test_switch_clip_none_stops_and_clears_flags(self, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
+        controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
         controller.switch_clip(None)
@@ -218,7 +218,7 @@ class TestAudioPlaybackController:
         assert controller.play_start_position == 0.0
 
     def test_nothing_plays_while_the_mode_file_says_genau_is_inactive(self, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
+        controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
         controller.mode_active = False
 
         controller.switch_clip(clip)
@@ -226,7 +226,7 @@ class TestAudioPlaybackController:
         assert "play" not in music.events
 
     def test_a_clip_line_finds_loads_and_plays_the_named_audio(self, tmp_path, monkeypatch):
-        controller, music, clock, _clip = self._running(tmp_path, monkeypatch)
+        controller, music, _clock, _clip = self._running(tmp_path, monkeypatch)
         named = tmp_path / "Named.mp3"
         named.write_bytes(b"named")
 
@@ -236,7 +236,7 @@ class TestAudioPlaybackController:
         assert music.busy
 
     def test_a_clip_line_with_no_audio_falls_silent_and_says_so(self, tmp_path, monkeypatch, caplog):
-        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
+        controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
         with caplog.at_level(logging.WARNING, logger="test.audio"):

@@ -218,7 +218,7 @@ include = ["fun_time*", "main_funestra*", "satellite*", "fun_time_vr*"]
 # of the test that stopped, which turns a stalled required check into a
 # one-line diagnosis.
 # app_support.gates holds all three halves of it.
-addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin -p app_support.gates.pytest_plugin -p app_support.coverage_gate --cov --cov-report="
+addopts = "-p tests.process_setup -p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin -p app_support.gates.pytest_plugin -p app_support.coverage_gate --cov --cov-report="
 testpaths = ["tests"]
 markers = [
     "real_startup_waits: this test is about a startup wait, so it gets the real window lookup and the real timeouts instead of the conftest stubs.",

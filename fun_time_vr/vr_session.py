@@ -3,6 +3,7 @@
 # all-zero FOV).
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 from dataclasses import dataclass, field
@@ -517,10 +518,8 @@ class VRSession:
         if self._session is not None:
             if self._session_state in (xr.SessionState.READY, xr.SessionState.SYNCHRONIZED,
                                         xr.SessionState.VISIBLE, xr.SessionState.FOCUSED):
-                try:
+                with contextlib.suppress(xr.ResultException):
                     xr.request_exit_session(self._session)
-                except xr.ResultException:
-                    pass
             for info in self.swapchains:
                 xr.destroy_swapchain(info.handle)
             for info in self.quad_swapchains.values():

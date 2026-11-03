@@ -211,7 +211,7 @@ class TestHandleHeard:
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
 
-    @pytest.mark.parametrize("recognition, logged, shown, source", [
+    @pytest.mark.parametrize(("recognition", "logged", "shown", "source"), [
         (Recognition(refused_phrase="skip"),
          "not sure enough of a command (1 word) (press Enter to accept)",
          "not sure enough of: skip (press Enter to accept)", "system"),
@@ -241,7 +241,7 @@ class TestHandleHeard:
                  record.spoken_at)
                 for record in caplog.records] == [(logged, logging.WARNING, source, False, 1.0)]
 
-    @pytest.mark.parametrize("heard, source", [
+    @pytest.mark.parametrize(("heard", "source"), [
         ("portrait full length please", "portrait"),
         ("landscape full length please", "landscape"),
         ("main full length please", "main"),
@@ -365,7 +365,7 @@ class TestAcceptingWhatItWasNotSureOf:
         assert vc.accept_what_it_was_not_sure_of() is False
         assert not (tmp_path / "cmd.txt").exists()
 
-    @pytest.mark.parametrize("quieted, undone", [("mute", "unmute"), ("suspend", "unsuspend")])
+    @pytest.mark.parametrize(("quieted", "undone"), [("mute", "unmute"), ("suspend", "unsuspend")])
     def test_what_it_was_not_sure_of_while_nobody_was_told_is_not_there_to_accept(
         self, vc, tmp_path, quieted, undone,
     ):
@@ -670,7 +670,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         assert words == "LANDSCAPE_SAY:No feet."
         assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
 
-    @pytest.mark.parametrize("phrase, command", [("stop", "relief_omnipause"), ("quit", "quit")])
+    @pytest.mark.parametrize(("phrase", "command"), [("stop", "relief_omnipause"), ("quit", "quit")])
     def test_what_a_paused_app_still_hears_is_still_a_command_while_one_is_open(
             self, tmp_path, phrase, command):
         vc = self._controller(tmp_path)

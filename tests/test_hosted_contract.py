@@ -31,7 +31,7 @@ def test_a_flag_the_checkout_does_not_declare_is_left_off_with_its_value(tmp_pat
         "--fun-time", "--x", "1"]
 
 
-@pytest.mark.parametrize("group, flag", [
+@pytest.mark.parametrize(("group", "flag"), [
     ("region_flags", "--portrait-x"),
     ("player_flags", "--landscape-playlist"),
     ("headset_flags", "--frames-file"),

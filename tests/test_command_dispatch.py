@@ -112,7 +112,7 @@ def _playlist(config: BridgeConfig, funestra: FunTimeFunestra) -> list[str]:
 
 
 def _make_state(**overrides) -> BridgeState:
-    defaults = dict(main_mode=MainMode.KINO, omni_paused=False)
+    defaults = {"main_mode": MainMode.KINO, "omni_paused": False}
     defaults.update(overrides)
     return BridgeState(**defaults)
 
@@ -309,7 +309,7 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     with patch("fun_time.lock.mark_favorite"), patch(
         "fun_time.lock.load_web_providers", return_value=providers
     ):
-        new_state, ops = dispatch_command("landscape_lock", state, config)
+        _new_state, ops = dispatch_command("landscape_lock", state, config)
 
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
@@ -322,7 +322,7 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with patch("fun_time.lock.mark_favorite"):
-        new_state, ops = dispatch_command("portrait_lock", state, config)
+        new_state, _ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
@@ -334,7 +334,7 @@ def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     state = _make_state(portrait=SatelliteState(locked=True))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
-    new_state, ops = dispatch_command("portrait_lock", state, config)
+    new_state, _ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["LOCK_OFF", "NEXT"]
@@ -346,7 +346,7 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
 
     _set_current(config, 3, "C:\\clips\\landscape.mp4")
     with patch("fun_time.lock.mark_favorite"):
-        new_state, ops = dispatch_command("landscape_lock", state, config)
+        new_state, _ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).locked is True
     assert _cmds(config, 3) == ["LOCK_ON"]
@@ -436,7 +436,7 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
         patch("fun_time.satellite_commands.unfavorite"),
         patch("fun_time.satellite_commands.move_to_trash"),
     ):
-        new_state, ops = dispatch_command("portrait_trash", state, config)
+        new_state, _ops = dispatch_command("portrait_trash", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["LOCK_OFF", "TRASH"]
@@ -462,7 +462,7 @@ def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
 
-    new_state, ops = dispatch_command("portrait_prev", state, config)
+    new_state, _ops = dispatch_command("portrait_prev", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["LOCK_OFF", "PREV"]
@@ -639,7 +639,7 @@ def test_locking_the_primary_makes_it_the_satellite_a_bare_command_reaches(
     assert state.active_funestra == 1
 
 
-@pytest.mark.parametrize("command, verb", [
+@pytest.mark.parametrize(("command", "verb"), [
     ("projection_cycle", "CYCLE_PROJECTION"),
     ("projection_cycle_back", "CYCLE_PROJECTION_BACK"),
     ("projection_wider", "WIDEN_PROJECTION"),
@@ -935,7 +935,7 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
 
-    new_state, ops = dispatch_command("landscape_prev", state, config)
+    new_state, _ops = dispatch_command("landscape_prev", state, config)
 
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["LOCK_OFF", "PREV"]
@@ -2099,7 +2099,7 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
 
 
 def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {})
+    config, _paths = _make_grouped_config(tmp_path, {})
     media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"
     landscape_dir.mkdir(parents=True, exist_ok=True)
@@ -2574,7 +2574,7 @@ def test_genau_next_flick_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("genau_next_flick", state, config)
+    _new_state, _ops = dispatch_command("genau_next_flick", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
@@ -2590,7 +2590,7 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
     assert ops == []
 
 
-@pytest.mark.parametrize("command, verb", [
+@pytest.mark.parametrize(("command", "verb"), [
     ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
     ("robot_hand_learned_on", "LEARNED_ON"),
     ("robot_hand_learned_off", "LEARNED_OFF"),
@@ -2619,7 +2619,7 @@ class TestOsr2ControlState:
     def test_a_park_sends_the_device_home(self, tmp_path: Path):
         config = _make_config(tmp_path)
 
-        after, ops = dispatch_command("robot_hand_park", _make_state(), config)
+        _after, ops = dispatch_command("robot_hand_park", _make_state(), config)
 
         assert config.broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
         assert not config.genau_cmd_file.exists()
@@ -2697,7 +2697,7 @@ def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
         ("genau_flip_ends", "FLIP_ENDS"),
     ):
         config = _make_config(tmp_path / command)
-        new_state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
+        _new_state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
 
         assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
         assert ops == []
@@ -2785,7 +2785,7 @@ def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("robot_hand_center_80", state, config)
+    _new_state, _ops = dispatch_command("robot_hand_center_80", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "CENTER 80\n"
 
@@ -2794,7 +2794,7 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("robot_hand_speed_30", state, config)
+    _new_state, _ops = dispatch_command("robot_hand_speed_30", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30\n"
 
@@ -2826,7 +2826,7 @@ def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
-    new_state, ops = dispatch_command("enter_omnipause", state, config)
+    _new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert any(op.op == "disable_all_topmost" for op in ops)
 
@@ -2863,7 +2863,7 @@ def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
-    new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    _new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "disable_all_topmost" for op in ops)
 
@@ -2872,7 +2872,7 @@ def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
-    new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    _new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "restore_all_topmost" for op in ops)
 
@@ -2917,7 +2917,7 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("enter_omnipause", state, config)
+    _new_state, ops = dispatch_command("enter_omnipause", state, config)
 
     assert not any(op.op == "hide_window" and op.key == "genau" for op in ops)
 
@@ -2926,7 +2926,7 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    _new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert not any(op.op == "hide_window" and op.key == "genau" for op in ops)
 
@@ -2949,7 +2949,7 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, main_mode=main_mode)
 
-    new_state, ops = dispatch_command("omnipause_toggle", state, config)
+    _new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "activate_window" and op.key == "main_funestra" for op in ops)
 
@@ -3051,7 +3051,7 @@ def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_
         ("main_funestra_record_tap", "RECORD_TAP"),
         ("main_funestra_loop_cancel", "LOOP_CANCEL"),
     ]:
-        new_state, ops = dispatch_command(command, state, config)
+        _new_state, ops = dispatch_command(command, state, config)
         assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == expected + "\n"
         assert ops == []
         config.main_funestra_cmd_file.unlink()
@@ -3061,7 +3061,7 @@ def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
-    new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
+    _new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
     assert ops == []
@@ -3071,7 +3071,7 @@ def test_main_funestra_record_commands_are_ignored_in_genau_mode(tmp_path: Path)
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
+    _new_state, ops = dispatch_command("main_funestra_record_tap", state, config)
 
     assert not config.main_funestra_cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
@@ -3112,7 +3112,7 @@ def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(tmp_path: 
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
-        new_state, ops = dispatch_command("portrait_say_experiments", _make_state(), config)
+        _new_state, ops = dispatch_command("portrait_say_experiments", _make_state(), config)
 
     assert ops == [WindowOp(op=Op.IGNORED, key="in Kino mode")]
     assert not any("portrait_say_experiments" in record.message for record in caplog.records)
@@ -3134,7 +3134,7 @@ def test_genaumacher_save_is_ignored_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
-    new_state, ops = dispatch_command("genaumacher_save", state, config)
+    _new_state, ops = dispatch_command("genaumacher_save", state, config)
 
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
@@ -3214,7 +3214,7 @@ def test_a_video_marked_trash_stops_being_drawn_on_the_map(tmp_path: Path):
 
 
 def test_marking_videos_trash_until_one_is_left_turns_the_loop_into_a_lock(tmp_path: Path):
-    config, a, b = _loop_config(tmp_path, axis="seed")
+    config, a, _b = _loop_config(tmp_path, axis="seed")
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
@@ -3709,11 +3709,11 @@ def _recording(config: BridgeConfig) -> tuple[BridgeConfig, _BuildsRecorded]:
 
 
 @pytest.mark.parametrize(("command", "state", "asked"), [
-    ("main_latest", BridgeState(), dict(latest=True, start_at_top=True)),
-    ("main_shuffle", BridgeState(main_latest=True), dict(latest=False, start_at_top=True)),
-    ("main_projection_vr", BridgeState(), dict(start_at_top=False)),
-    ("main_reset", BridgeState(main_latest=True), dict(latest=False, start_at_top=True)),
-    ("main_fmode_on", BridgeState(), dict(scripted_filter=True)),
+    ("main_latest", BridgeState(), {"latest": True, "start_at_top": True}),
+    ("main_shuffle", BridgeState(main_latest=True), {"latest": False, "start_at_top": True}),
+    ("main_projection_vr", BridgeState(), {"start_at_top": False}),
+    ("main_reset", BridgeState(main_latest=True), {"latest": False, "start_at_top": True}),
+    ("main_fmode_on", BridgeState(), {"scripted_filter": True}),
 ])
 def test_every_main_list_rebuild_is_handed_to_the_sessions_builder(tmp_path, command, state, asked):
     config, builds = _recording(replace(_make_config(tmp_path), vr_library_dirs=str(tmp_path / "vr")))
@@ -4268,7 +4268,7 @@ class TestEachSatellitesOwnMode:
 
     def test_a_press_on_the_satellite_still_in_kino_mode_stays_with_its_funestra(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("landscape_next",
+        _state, _ = dispatch_command("landscape_next",
                                     _in_origenerator_mode(FunTimeFunestra.PORTRAIT), config)
         assert _origenerator_cmds(config) == []
         assert _cmds(config, FunTimeFunestra.LANDSCAPE) == ["NEXT"]
@@ -4480,7 +4480,7 @@ class TestOrigeneratorTransport:
 
     def test_funestra_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("portrait_next", BridgeState(), config)
+        _state, _ = dispatch_command("portrait_next", BridgeState(), config)
         assert _origenerator_cmds(config) == []
         assert _cmds(config, 2) == ["NEXT"]
 

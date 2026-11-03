@@ -90,7 +90,8 @@ class DashboardBarLayout:
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
     height = PAD * 2 + BUTTON
-    mid = lambda size: PAD + (BUTTON - size) // 2
+    def mid(size):
+        return PAD + (BUTTON - size) // 2
 
     x = PAD
     app_icon = Rect(x, mid(APP_ICON), APP_ICON, APP_ICON)

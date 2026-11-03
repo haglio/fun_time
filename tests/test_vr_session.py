@@ -134,7 +134,7 @@ def test_each_hand_reads_both_axes_of_its_stick_and_both_skip_buttons(monkeypatc
 
 
 class TestControllerBindings:
-    @pytest.mark.parametrize("action, axis", [(STICK_X, "/x"), (STICK_Y, "/y")])
+    @pytest.mark.parametrize(("action", "axis"), [(STICK_X, "/x"), (STICK_Y, "/y")])
     def test_every_profile_with_a_stick_reads_both_its_axes_on_either_hand(self, action, axis):
         sticks = [bindings[action] for bindings in CONTROLLER_BINDINGS.values()
                   if STICK_Y in bindings]

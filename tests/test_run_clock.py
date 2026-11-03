@@ -141,8 +141,8 @@ def test_a_reading_far_out_holds_the_clock_back_a_second_at_most():
 def test_the_machines_busy_time_is_read_from_windows():
     machine_before = machine_busy_seconds()
 
-    subprocess.run([sys._base_executable, "-c", "import time\nt = time.process_time()\n"
-                    "while time.process_time() - t < 0.3: pass"],
+    subprocess.run([sys._base_executable, "-c", ("import time\nt = time.process_time()\n"
+                    "while time.process_time() - t < 0.3: pass")],
                    creationflags=subprocess.CREATE_NO_WINDOW, check=True, timeout=120)
 
     assert machine_busy_seconds() - machine_before >= 0.25

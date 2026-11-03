@@ -18,9 +18,11 @@ def _waiting_on(release: threading.Event, name: str, *, then_s: float = 0.0) -> 
 def test_a_thread_started_inside_and_never_told_to_end_is_named():
     release = threading.Event()
     try:
-        with pytest.raises(ThreadsLeftRunning, match="never-told-to-end"):
-            with no_thread_outlives_this(within_s=0.05):
-                left = _waiting_on(release, "never-told-to-end")
+        with (
+            pytest.raises(ThreadsLeftRunning, match="never-told-to-end"),
+            no_thread_outlives_this(within_s=0.05),
+        ):
+            left = _waiting_on(release, "never-told-to-end")
     finally:
         release.set()
         left.join()

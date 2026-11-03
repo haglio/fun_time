@@ -218,7 +218,7 @@ def test_the_bars_reset_all_resets_every_funestra():
     assert (RESET_ALL, layout.reset_all_button) in scene.actions
     assert expand_group_command(RESET_ALL) == ["main_reset", "portrait_reset", "landscape_reset"]
     assert any(item.rect == layout.reset_all_button for item in scene.images)
-    assert dict((rect, text) for rect, text in scene.hover_texts)[
+    assert dict(scene.hover_texts)[
         layout.reset_all_button].startswith("Reset")
 
 
