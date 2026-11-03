@@ -275,13 +275,9 @@ def _assert_a_paused_satellite_holds_still(pipeline: _Pipeline) -> None:
 
 
 def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
-    temp_root = build_integration_temp_root()
-    config_path = build_integration_config(temp_root)
-    config = load_config(config_path)
-
-    manifest_data = build_vr_manifest(config)
+    config = load_config(build_integration_config(build_integration_temp_root()))
     manifest_path = write_manifest_data(
-        manifest_data, config.paths.state_dir / "windows_bridge_launch.ini"
+        build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
 
     manifest = LaunchManifest.read(manifest_path)
