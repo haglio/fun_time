@@ -45,6 +45,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_manifest_data,
 )
+from fun_time.origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, RfbMode
 from fun_time.osr2_section import osr2_readout_path
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
@@ -52,7 +53,12 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
-from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
+from fun_time.shared_state import (
+    BridgeState,
+    SatelliteState,
+    shared_state_path,
+    write_shared_state,
+)
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
 from fun_time_vr.dash_panel import (
@@ -3160,6 +3166,24 @@ class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
 
     def test_it_is_the_one_screen_that_takes_a_right_click(self):
         assert self._hanging().right_clicks
+
+
+class TestCoreHangsInTheRoomWhenTheModeSelectorsAskForIt:
+    @pytest.mark.parametrize(("rfb_mode", "portrait_mode", "shows"), [
+        (RfbMode.ORIGENERATOR, KINO_MODE, True),
+        (RfbMode.RFB, ORIGENERATOR_MODE, True),
+        (RfbMode.RFB, KINO_MODE, False),
+    ])
+    def test_it_shows_while_origenerator_holds_the_browsers_place_or_a_satellite(
+            self, tmp_path, rfb_mode, portrait_mode, shows):
+        state_file = shared_state_path(tmp_path)
+        write_shared_state(state_file, BridgeState(
+            rfb_mode=rfb_mode, portrait=SatelliteState(mode=portrait_mode)))
+        unit = _GalleryUnit(remembered={}, state_dir=tmp_path, shared_state_file=state_file)
+
+        unit.pump(threading.Event(), now=0.0)
+
+        assert unit.showing is shows
 
 
 class TestPuttingTheRoomBack:

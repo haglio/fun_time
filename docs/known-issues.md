@@ -37,12 +37,10 @@
     Origenerator mode runs in the headset: the shows are the Satellite Funestras'
     own playlists (`fun_time.funestra_handover`), and the headset's satellites are
     Funestras. `fun_time.hosted_origenerator` brings the app up for either shape
-    of session and sees it out of either teardown. What a headset has nowhere to
-    show is the app's own window, which shares the Random Favs Browser's rect:
-    it boots parked and nothing in a VR session restores it, so the gallery and
-    its tabs are reachable only from a desktop session -- which is also why the
-    headset's dashboard carries no Random Favs Browser / Origenerator strip: there
-    is no browser in the headset and no window of the app's to put in its place.
+    of session and sees it out of either teardown. The app's own window hangs on a
+    screen of its own in the headset while Origenerator holds the Random Favs
+    Browser's place or either satellite. There is no browser in the headset, and
+    the headset's dashboard carries no Random Favs Browser / Origenerator strip.
     A session hosting none is still a config naming none.
   - The only place a control may be left dead in the headset is
     `tests/test_vr_control_parity.py`'s own list of what the hosted Origenerator
