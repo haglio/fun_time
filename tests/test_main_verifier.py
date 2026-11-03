@@ -6,6 +6,7 @@ import sqlite3
 import sys
 import tomllib
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -56,16 +57,28 @@ WHOLE_RUN = Path("whole-run.txt")
 REPO_PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
+@dataclass(frozen=True)
+class BenchScript:
+    broken_from: str | None = None
+    tests: tuple = ("tests/integration/test_x.py::test_y",)
+    flaky: bool = False
+    stale_map: bool = False
+    restart_asked: bool = False
+    reruns_failing: dict | None = None
+    incidents: tuple = ()
+    sessions: dict | None = None
+    pull_requests: dict | None = None
+
+
 class FakeBench:
-    def __init__(self, head, commits, broken_from=None, tests=("tests/integration/test_x.py::test_y",),
-                 flaky=False, stale_map=False, restart_asked=False, reruns_failing=None, incidents=(),
-                 sessions=None, pull_requests=None):
-        self.head_commit, self.commits, self.broken_from = head, commits, broken_from
-        self.tests, self.flaky, self.stale_map = list(tests), flaky, stale_map
-        self.restart_asked = restart_asked
-        self.reruns_failing = {commit: list(fails) for commit, fails in (reruns_failing or {}).items()}
-        self.earlier, self.sessions = list(incidents), dict(sessions or {})
-        self.pull_requests = dict(pull_requests or {})
+    def __init__(self, head, commits, script=None):
+        script = script or BenchScript()
+        self.head_commit, self.commits, self.broken_from = head, commits, script.broken_from
+        self.tests, self.flaky, self.stale_map = list(script.tests), script.flaky, script.stale_map
+        self.restart_asked = script.restart_asked
+        self.reruns_failing = {commit: list(fails) for commit, fails in (script.reruns_failing or {}).items()}
+        self.earlier, self.sessions = list(script.incidents), dict(script.sessions or {})
+        self.pull_requests = dict(script.pull_requests or {})
         self.released, self.recorded, self.taken_back, self.measured = [], [], [], []
         self.fixing, self.events, self.shipped_again, self.stopped = [], [], [], []
 
@@ -148,7 +161,7 @@ def test_a_head_that_passes_is_released_to_production(tmp_path):
 
 
 def test_a_head_that_breaks_takes_the_change_back_and_starts_a_session_to_fix_it(tmp_path):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3")
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3"))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "broke main"
@@ -168,7 +181,7 @@ def test_a_fix_session_that_could_not_start_is_recorded_with_why(tmp_path):
         def start_fix_session(self, fix):
             raise main_verifier.CommandFailed("the Claude command line is not signed in")
 
-    bench = UnsignedBench("c3", ["a1", "b2", "c3"], broken_from="c3")
+    bench = UnsignedBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3"))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
 
@@ -177,7 +190,7 @@ def test_a_fix_session_that_could_not_start_is_recorded_with_why(tmp_path):
 
 
 def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_moves(tmp_path):
-    bench = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3", flaky=True)
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3", flaky=True))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "flaky"
@@ -188,7 +201,7 @@ def test_a_failure_that_passes_when_rerun_is_recorded_as_flaky_and_main_still_mo
 
 
 def test_a_run_that_fails_without_naming_a_test_waits_for_main_to_move_and_is_recorded(tmp_path):
-    bench = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3", tests=())
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3", tests=()))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "broken run"
@@ -416,7 +429,7 @@ def stop_after_two_naps():
 
 
 def test_main_is_checked_and_the_outcome_logged_each_time_the_runner_wakes(tmp_path, caplog):
-    bench = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3")
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3"))
     ledger = a_ledger(tmp_path, verified="a1")
     naps, nap = stop_after_two_naps()
     with caplog.at_level("INFO"), pytest.raises(KeyboardInterrupt):
@@ -426,10 +439,10 @@ def test_main_is_checked_and_the_outcome_logged_each_time_the_runner_wakes(tmp_p
     assert [record.getMessage() for record in caplog.records] == ["main at c3: broke main", "main at c3: wait"]
 
 
-@pytest.mark.parametrize("how_it_passed", [{}, {"broken_from": "c3", "flaky": True}], ids=["passed", "flaky"])
+@pytest.mark.parametrize("how_it_passed", [BenchScript(), BenchScript(broken_from="c3", flaky=True)], ids=["passed", "flaky"])
 def test_the_runner_ends_once_a_head_passes_so_that_it_starts_again_running_the_code_it_passed(
         tmp_path, how_it_passed):
-    bench = FakeBench("c3", ["a1", "b2", "c3"], **how_it_passed)
+    bench = FakeBench("c3", ["a1", "b2", "c3"], how_it_passed)
 
     main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=never_naps)
 
@@ -437,7 +450,7 @@ def test_the_runner_ends_once_a_head_passes_so_that_it_starts_again_running_the_
 
 
 def test_the_runner_ends_without_checking_main_once_it_is_asked_to_restart(tmp_path):
-    bench = FakeBench("c3", ["a1", "b2", "c3"], restart_asked=True)
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(restart_asked=True))
 
     main_verifier.keep_verifying(a_ledger(tmp_path, verified="a1"), bench, nap=never_naps)
 
@@ -481,7 +494,7 @@ def test_a_change_from_before_the_failing_test_existed_is_never_blamed_for_it(tm
                 return main_verifier.RunResult(main_verifier.NOT_AT_THAT_COMMIT, [], WHOLE_RUN)
             return super().run(commit, tests)
 
-    bench = NewTestBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="d4")
+    bench = NewTestBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="d4"))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
 
@@ -495,7 +508,7 @@ def test_failures_that_cannot_be_run_again_by_name_take_nothing_back(tmp_path):
                 return main_verifier.RunResult(pytest.ExitCode.USAGE_ERROR, [], WHOLE_RUN)
             return super().run(commit, tests)
 
-    bench = MisreadBench("c3", ["a1", "b2", "c3"], broken_from="c3")
+    bench = MisreadBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3"))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "broken run"
@@ -512,7 +525,7 @@ def test_a_rerun_that_could_not_start_where_main_last_passed_is_no_pass_and_take
                 return main_verifier.RunResult(pytest.ExitCode.USAGE_ERROR, [], Path("a1-run.txt"))
             return super().run(commit, tests)
 
-    bench = CannotStartBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="b2")
+    bench = CannotStartBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="b2"))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "could not judge"
@@ -525,7 +538,7 @@ def test_a_rerun_that_could_not_start_where_main_last_passed_is_no_pass_and_take
 
 
 def test_tests_that_now_fail_where_main_last_passed_take_nothing_back_and_get_a_session_to_find_the_cause(tmp_path):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="a1")
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="a1"))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "broken outside main"
@@ -542,8 +555,7 @@ def test_tests_that_now_fail_where_main_last_passed_take_nothing_back_and_get_a_
 def test_no_second_session_starts_for_tests_broken_outside_main_while_one_is_still_finding_the_cause(tmp_path):
     earlier = {"kind": "broken outside main", "commit": "d4", "tests": ["tests/integration/test_x.py::test_y"],
                "fix_session": "1a2b3c4d"}
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="a1", incidents=[earlier],
-                      sessions={"1a2b3c4d": "working"})
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="a1", incidents=[earlier], sessions={"1a2b3c4d": "working"}))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broken outside main"
 
@@ -553,7 +565,7 @@ def test_no_second_session_starts_for_tests_broken_outside_main_while_one_is_sti
 
 def test_a_change_is_taken_back_once_the_failing_tests_fail_every_run_with_it_and_pass_every_run_without_it(
         tmp_path):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3")
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3"))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
 
@@ -563,7 +575,7 @@ def test_a_change_is_taken_back_once_the_failing_tests_fail_every_run_with_it_an
 
 def test_the_runs_that_confirm_a_change_take_turns_with_and_without_it_so_an_outside_cause_cannot_line_up_with_it(
         tmp_path):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3")
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3"))
 
     main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench)
 
@@ -573,7 +585,7 @@ def test_the_runs_that_confirm_a_change_take_turns_with_and_without_it_so_an_out
 
 def test_the_first_change_main_has_not_passed_since_is_pinned_on_its_own_runs_when_no_commit_passed_before_it(
         tmp_path):
-    bench = FakeBench("c3", ["a1", "b2", "c3"], broken_from="a1")
+    bench = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="a1"))
 
     assert main_verifier.cycle(a_ledger(tmp_path), bench) == "broke main"
 
@@ -585,7 +597,7 @@ def test_the_first_change_main_has_not_passed_since_is_pinned_on_its_own_runs_wh
                          ids=["passing once with the change", "failing once without it"])
 def test_tests_that_do_not_fail_every_run_with_the_change_and_pass_every_run_without_it_take_nothing_back(
         tmp_path, reruns_failing):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing=reruns_failing)
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3", reruns_failing=reruns_failing))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "unreliable check"
@@ -606,8 +618,7 @@ UNRELIABLE = {"kind": "unreliable check", "commit": "b2", "tests": ["tests/integ
 
 @pytest.mark.parametrize("its_state", ["working", "blocked", "failed"])
 def test_no_second_session_starts_for_unreliable_tests_while_one_is_still_fixing_them(tmp_path, its_state):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]},
-                      incidents=[UNRELIABLE], sessions={"1a2b3c4d": its_state})
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3", reruns_failing={"c3": [True, False]}, incidents=[UNRELIABLE], sessions={"1a2b3c4d": its_state}))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
@@ -616,8 +627,7 @@ def test_no_second_session_starts_for_unreliable_tests_while_one_is_still_fixing
 
 
 def test_a_new_session_starts_for_unreliable_tests_once_the_last_one_on_them_has_finished(tmp_path):
-    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3", reruns_failing={"c3": [True, False]},
-                      incidents=[UNRELIABLE], sessions={"1a2b3c4d": "done"})
+    bench = FakeBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3", reruns_failing={"c3": [True, False]}, incidents=[UNRELIABLE], sessions={"1a2b3c4d": "done"}))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
@@ -631,8 +641,7 @@ TAKEN_BACK = {"kind": "broke main", "commit": "c3", "tests": ["tests/integration
 
 def test_tests_that_had_a_change_taken_back_and_fail_again_without_it_ship_it_again_and_get_a_session_to_fix_them(
         tmp_path):
-    bench = FakeBench("d4", ["a1", "c3", "d4"], broken_from="c3", incidents=[TAKEN_BACK],
-                      pull_requests={"c3": 41, "d4": 77})
+    bench = FakeBench("d4", ["a1", "c3", "d4"], BenchScript(broken_from="c3", incidents=[TAKEN_BACK], pull_requests={"c3": 41, "d4": 77}))
     ledger = a_ledger(tmp_path, verified="a1")
 
     assert main_verifier.cycle(ledger, bench) == "unreliable check"
@@ -660,8 +669,7 @@ SHIPPED_AGAIN = {"kind": "unreliable check", "commit": "d4", "tests": ["tests/in
 ], ids=["shipped again already", "taken back before main last passed", "failing other tests too"])
 def test_a_taken_back_change_is_shipped_again_only_when_its_tests_alone_fail_on_a_main_that_just_took_it_out(
         tmp_path, earlier, pull_requests, tests):
-    bench = FakeBench("d4", ["a1", "c3", "d4"], broken_from="c3", tests=tests, incidents=earlier,
-                      pull_requests=pull_requests)
+    bench = FakeBench("d4", ["a1", "c3", "d4"], BenchScript(broken_from="c3", tests=tests, incidents=earlier, pull_requests=pull_requests))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "broke main"
 
@@ -674,8 +682,7 @@ def test_a_change_that_could_not_be_shipped_again_leaves_the_session_fixing_it_r
         def ship_again(self, pull_request, take_back, tests):
             return None
 
-    bench = NoPullRequestBench("d4", ["a1", "c3", "d4"], broken_from="c3", incidents=[TAKEN_BACK],
-                               pull_requests={"c3": 41, "d4": 77})
+    bench = NoPullRequestBench("d4", ["a1", "c3", "d4"], BenchScript(broken_from="c3", incidents=[TAKEN_BACK], pull_requests={"c3": 41, "d4": 77}))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
@@ -688,8 +695,7 @@ def test_a_session_fixing_a_change_shipped_again_that_could_not_be_stopped_is_re
         def stop_fix_session(self, session):
             raise main_verifier.CommandFailed("claude.exe stop 1a2b3c4d: no such session")
 
-    bench = UnstoppableBench("d4", ["a1", "c3", "d4"], broken_from="c3", incidents=[TAKEN_BACK],
-                             pull_requests={"c3": 41, "d4": 77})
+    bench = UnstoppableBench("d4", ["a1", "c3", "d4"], BenchScript(broken_from="c3", incidents=[TAKEN_BACK], pull_requests={"c3": 41, "d4": 77}))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
@@ -702,8 +708,7 @@ def test_unreliable_tests_whose_fixing_cannot_be_looked_up_are_recorded_with_why
         def fix_session_states(self):
             raise main_verifier.CommandFailed("claude agents did not answer with a list of sessions: ")
 
-    bench = NoSessionsBench("e5", ["a1", "b2", "c3", "d4", "e5"], broken_from="c3",
-                            reruns_failing={"c3": [True, False]})
+    bench = NoSessionsBench("e5", ["a1", "b2", "c3", "d4", "e5"], BenchScript(broken_from="c3", reruns_failing={"c3": [True, False]}))
 
     assert main_verifier.cycle(a_ledger(tmp_path, verified="a1"), bench) == "unreliable check"
 
@@ -817,8 +822,8 @@ def test_a_process_file_the_map_could_not_open_is_let_go_while_the_warning_is_ke
 
 
 def test_a_head_that_passes_is_measured_for_coverage_once_the_map_is_out_of_date(tmp_path):
-    fresh, stale = FakeBench("c3", ["a1", "b2", "c3"]), FakeBench("c3", ["a1", "b2", "c3"], stale_map=True)
-    broken = FakeBench("c3", ["a1", "b2", "c3"], broken_from="c3", stale_map=True)
+    fresh, stale = FakeBench("c3", ["a1", "b2", "c3"]), FakeBench("c3", ["a1", "b2", "c3"], BenchScript(stale_map=True))
+    broken = FakeBench("c3", ["a1", "b2", "c3"], BenchScript(broken_from="c3", stale_map=True))
 
     for bench in (fresh, stale, broken):
         main_verifier.cycle(a_ledger(tmp_path / str(id(bench)), verified="a1"), bench)
