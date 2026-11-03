@@ -16,7 +16,7 @@ from shared_ui.orientation import ORIENTATIONS
 from fun_time.win32_desktop import on_hidden_desktop
 
 from .clip_nav import ClipNav
-from .kino import Kino
+from .kino import Kino, KinoLibrary
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
@@ -148,10 +148,12 @@ def resolve_playlist(
 
 
 def kino_on(args, *, source: LibrarySource | None, memory: ModeMemory) -> Callable[[object], Kino]:
-    return partial(
-        Kino, source=source,
+    library = KinoLibrary(
+        source=source,
         clip_nav=ClipNav.build(
             [entry.video for entry in source.entries] if source is not None else [],
             source.metadata_root if source is not None else None),
-        messages=MessageWriter(args.notice_file), memory=memory, remembered=memory.read(),
         resolve_playlist=partial(resolve_playlist, args, source=source))
+    return partial(
+        Kino, library=library, messages=MessageWriter(args.notice_file), memory=memory,
+        remembered=memory.read())

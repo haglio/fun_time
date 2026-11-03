@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from funestra.main_hud import ModeHud
 
@@ -13,16 +16,23 @@ from .status import status_fields
 from .versions import Versions
 
 
+@dataclass(frozen=True)
+class KinoLibrary:
+    source: Any
+    clip_nav: Any
+    resolve_playlist: Callable[[], list]
+
+
 class Kino:
-    def __init__(self, playback, *, source, clip_nav, messages, memory, remembered,
-                 resolve_playlist) -> None:
+    def __init__(self, playback, *, library: KinoLibrary, messages, memory, remembered) -> None:
+        source, resolve_playlist = library.source, library.resolve_playlist
         self._playback = playback
         self._memory = memory
         self._loops = LoopMachine(
             playback, seek_to=playback.seek_to,
             take_the_device_over=playback.take_the_device_over, mark=playback.set_mark)
         entries = source.entries if source is not None else []
-        self._jumps = ClipJumps(clip_nav, playback, {e.video: e.funscript for e in entries}, messages)
+        self._jumps = ClipJumps(library.clip_nav, playback, {e.video: e.funscript for e in entries}, messages)
         self._jumps.resume(remembered.compilation,
                            Path(remembered.video) if remembered.video else None)
         self._modes = Modes(

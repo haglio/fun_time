@@ -40,7 +40,7 @@ from main_funestra import controls as main_funestra_controls
 from main_funestra import genau_verbs as genaus_verbs_on_the_main_funestra
 from main_funestra.clip_nav import ClipNav
 from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauSeams
-from main_funestra.kino import Kino
+from main_funestra.kino import Kino, KinoLibrary
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.genau_fakes import FakeNotifier, FakeSink
@@ -110,9 +110,10 @@ class _TheHeadsetsMainFunestra:
             self.engine, channels=channels, playlist=read_playlist(channels.playlist),
             locked=True, sound_is_the_rooms=True,
             users={MainMode.KINO: partial(
-                Kino, source=None, clip_nav=ClipNav.build([], None),
+                Kino, library=KinoLibrary(
+                    source=None, clip_nav=ClipNav.build([], None), resolve_playlist=list),
                 messages=MessageWriter(None), memory=ModeMemory(None),
-                remembered=RememberedMode(), resolve_playlist=list),
+                remembered=RememberedMode()),
                 MainMode.GENAU: lambda _playback: _genau_in_the_headset(tmp_path)},
             window_verbs=self._apply_the_headsets_verb,
         )
