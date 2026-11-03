@@ -114,6 +114,7 @@ from .windows_bridge_dispatch_loop import (
 )
 from .windows_bridge_sequencer import (
     StartupResult,
+    StartupWindows,
     apply_startup_window_state,
     apply_topmost_bands,
     release_the_funestras,
@@ -481,11 +482,12 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
         SATELLITE_LANDSCAPE_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
     hwnds_by_window = apply_startup_window_state(
-        rfb_hwnd=result.rfb_hwnd,
-        portrait_hwnd=portrait_hwnd,
-        landscape_hwnd=landscape_hwnd,
-        main_funestra_hwnd=main_funestra_hwnd,
-        dashboard_hwnd=dash_hwnd,
+        StartupWindows(
+            rfb_hwnd=result.rfb_hwnd,
+            portrait_hwnd=portrait_hwnd,
+            landscape_hwnd=landscape_hwnd,
+            main_funestra_hwnd=main_funestra_hwnd,
+            dashboard_hwnd=dash_hwnd),
         beneath=overlay_hwnd,
         rfb_mode=rfb_mode,
     )

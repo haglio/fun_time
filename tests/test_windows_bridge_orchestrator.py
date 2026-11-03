@@ -153,8 +153,8 @@ class TestFixPostLoadingWindows:
         ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
             _fix_post_loading_windows(result)
 
-        assert apply.call_args.kwargs["portrait_hwnd"] == 111
-        assert apply.call_args.kwargs["landscape_hwnd"] == 222
+        assert apply.call_args.args[0].portrait_hwnd == 111
+        assert apply.call_args.args[0].landscape_hwnd == 222
 
     def test_a_buried_satellite_is_re_promoted_until_frontmost(self):
         result = _fake_startup_result()

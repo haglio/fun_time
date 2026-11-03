@@ -16,7 +16,7 @@ from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
-from fun_time.windows_bridge_startup import launch_satellite
+from fun_time.windows_bridge_startup import ChildProgram, launch_satellite
 from satellite.contract import SatelliteChannels, WindowPlacement
 
 from .integration_support import (
@@ -102,8 +102,7 @@ class LoneSatellite:
                  hud: bool = False) -> Iterator[LoneSatellite]:
         write_playlist_file(self.playlist, [str(item) for item in items])
         pid = launch_satellite(
-            python_exe=str(the_runs_own_pythonw()),
-            satellite_module="satellite",
+            ChildProgram(str(the_runs_own_pythonw()), "satellite", this_checkouts_siblings()),
             channels=SatelliteChannels(
                 playlist=self.playlist,
                 command=self.cmd,
@@ -116,7 +115,6 @@ class LoneSatellite:
                                       title="Portrait AI Funestra"),
             role="Portrait",
             log_file=self.log,
-            sibling_checkouts=this_checkouts_siblings(),
         )
         self.process = identify_child(pid)
         try:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import mmap
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +27,7 @@ from fun_time.standalone_origenerator import OpenOrigenerator
 from fun_time.window_layout import WindowLayoutPlan, WindowRect, screen_layout
 from fun_time.windows_bridge_startup import (
     HandedFunestra,
+    OrigeneratorSession,
     launch_origenerator,
     origenerator_session_args,
 )
@@ -33,15 +35,15 @@ from fun_time.windows_bridge_startup import (
 _A_PLAN = WindowLayoutPlan(
     portrait=WindowRect(0, 0, 10, 10), landscape=WindowRect(0, 0, 10, 10),
     dashboard=WindowRect(0, 0, 10, 10), random_favs_browser=WindowRect(1, 2, 30, 40))
-_A_DESKTOP_SESSION = {
-    "layout_plan": _A_PLAN, "command_file": "c", "paused_file": "p", "status_file": "s",
-    "dashboard_cmd_file": "d",
-    "funestras": {satellite: HandedFunestra("playlist", "cmd", "status", "hud")
-               for satellite in ("portrait", "landscape")}}
+_A_DESKTOP_SESSION = OrigeneratorSession(
+    layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
+    dashboard_cmd_file="d",
+    funestras={satellite: HandedFunestra("playlist", "cmd", "status", "hud")
+               for satellite in ("portrait", "landscape")})
 
 
 def _a_copy_from_before_the_pair(checkout: Path) -> list[str]:
-    flags = [word for word in origenerator_session_args(**_A_DESKTOP_SESSION)
+    flags = [word for word in origenerator_session_args(_A_DESKTOP_SESSION)
              if word.startswith("--")]
     (checkout / CONTRACT_FILE).write_text(json.dumps(
         {"required_flags": flags, "region_flags": {}, "player_flags": {}}), encoding="utf-8")
@@ -71,7 +73,7 @@ class TestWhereTheAppsOwnWindowGoes:
 
         with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors):
             expected = screen_layout(config.layout, rfb_mode_selector=True).plan.random_favs_browser
-        assert captured["layout_plan"].random_favs_browser == expected
+        assert captured["session"].layout_plan.random_favs_browser == expected
 
     def test_a_session_hosting_none_never_asks_the_monitors_anything(
             self, cfg_factory, tmp_path):
@@ -101,14 +103,14 @@ class TestHandingTheWindowToTheHeadset:
     def test_a_headset_session_names_both_files(self, cfg_factory, tmp_path):
         config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=True)
 
-        assert captured["frames_file"] == str(config.origenerator_frames_file)
-        assert captured["input_file"] == str(config.origenerator_input_file)
+        assert captured["session"].frames_file == str(config.origenerator_frames_file)
+        assert captured["session"].input_file == str(config.origenerator_input_file)
 
     def test_a_session_on_the_monitors_names_neither(self, cfg_factory, tmp_path):
         _config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=False)
 
-        assert captured["frames_file"] is None
-        assert captured["input_file"] is None
+        assert captured["session"].frames_file is None
+        assert captured["session"].input_file is None
 
     def test_the_real_launch_carries_the_pair_through(self, cfg_factory, tmp_path):
         started = {}
@@ -119,11 +121,12 @@ class TestHandingTheWindowToTheHeadset:
         with patch("fun_time.windows_bridge_startup.subprocess.Popen",
                    side_effect=lambda cmd, **kw: started.update(cmd=cmd) or _Started()):
             launch_origenerator(
-                python_exe="py.exe", origenerator_dir=tmp_path, layout_plan=_A_PLAN,
-                command_file="c", paused_file="p", status_file="s",
-                dashboard_cmd_file="d", funestras={},
-                frames_file="st/origenerator_frame.bin",
-                input_file="st/origenerator_input.txt",
+                python_exe="py.exe", origenerator_dir=tmp_path,
+                session=OrigeneratorSession(
+                    layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
+                    dashboard_cmd_file="d", funestras={},
+                    frames_file="st/origenerator_frame.bin",
+                    input_file="st/origenerator_input.txt"),
             )
 
         assert "--frames-file" in started["cmd"]
@@ -139,20 +142,21 @@ class TestHandingTheWindowToTheHeadset:
         with patch("fun_time.windows_bridge_startup.subprocess.Popen",
                    side_effect=lambda cmd, **kw: started.update(cmd=cmd) or _Started()):
             launch_origenerator(
-                python_exe="py.exe", origenerator_dir=tmp_path, **_A_DESKTOP_SESSION,
-                frames_file="st/origenerator_frame.bin",
-                input_file="st/origenerator_input.txt",
+                python_exe="py.exe", origenerator_dir=tmp_path,
+                session=replace(_A_DESKTOP_SESSION,
+                                frames_file="st/origenerator_frame.bin",
+                                input_file="st/origenerator_input.txt"),
             )
 
         assert [word for word in started["cmd"] if word.startswith("--")] == flags
 
     def test_the_flags_are_the_ones_the_app_declares(self, cfg_factory, tmp_path):
-        argv = origenerator_session_args(
+        argv = origenerator_session_args(OrigeneratorSession(
             layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
             dashboard_cmd_file="d", funestras={},
             frames_file="st/origenerator_frame.bin",
             input_file="st/origenerator_input.txt",
-        )
+        ))
 
         assert argv[argv.index("--frames-file") + 1] == "st/origenerator_frame.bin"
         assert argv[argv.index("--input-file") + 1] == "st/origenerator_input.txt"

@@ -15,14 +15,13 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import process_started
 from funestra import broker
 from funestra.file_channel import append_command
-from funestra.modes import MainMode
 from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.genau_verbs import orientation_words
 from satellite.contract import SatelliteChannels, WindowPlacement
 
 from . import preview_marker
-from .audio_volume import MAX_VOLUME, publish_audio_level
+from .audio_volume import publish_audio_level
 from .broker_control import write_broker_command
 from .checkout_overrides import is_a_worktree, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
@@ -35,8 +34,9 @@ from .funestra_status import read_main_funestra_status
 from .hosted_contract import the_args_it_declares
 from .inclusion_pairs import BOTH, Included
 from .main_list import MainList, MainListSettings
+from .manifest import CommandFiles, LaunchManifest
 from .max_intensity import publish_max_intensity
-from .mode_plan import STARTUP_MAIN_MODE, show_verb
+from .mode_plan import show_verb
 from .modes import SatelliteBuild, build_satellite_playlists
 from .process_identity import NAMER
 from .process_sweep import processes_matching
@@ -55,8 +55,9 @@ from .session_resume import (
     resume_shared_state,
     resume_what_lives_in_a_funestra,
 )
-from .shared_state import shared_state_path
+from .shared_state import BridgeState, shared_state_path
 from .win32_process import unix_seconds
+from .window_layout import WindowLayoutPlan, WindowRect
 
 logger = logging.getLogger(__name__)
 
@@ -156,40 +157,30 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     write_manifest(Path(output_path), profile_directory, urls)
 
 
-def seed_startup_states(
-    genau_paused_file: str | Path,
-    audio_paused_file: str | Path,
-    main_funestra_paused_file: str | Path,
-    audio_volume_file: str | Path,
-    genau_cmd_file: str | Path,
-    *,
-    main_funestra_cmd_file: str | Path,
-    volume: int = MAX_VOLUME,
-    muted: bool = False,
-    max_intensity: int = FULL_INTENSITY,
-    satellite_cmd_files: tuple[str | Path, ...],
-    main_list: MainListSettings | None = None,
-    mode: MainMode = STARTUP_MAIN_MODE,
-) -> None:
-    Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
-    Path(genau_cmd_file).write_text("PAUSE\n", encoding="utf-8")
-    append_command(Path(main_funestra_cmd_file), show_verb(mode))
-    for path in (genau_paused_file, audio_paused_file, main_funestra_paused_file):
+def seed_startup_states(commands: CommandFiles, carried: BridgeState) -> None:
+    genau_cmd_file = Path(commands.genau_cmd_file)
+    main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
+    genau_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+    genau_cmd_file.write_text("PAUSE\n", encoding="utf-8")
+    append_command(main_funestra_cmd_file, show_verb(carried.main_mode))
+    for path in (commands.genau_paused_file, commands.audio_paused_file,
+                 commands.main_funestra_paused_file):
         write_flag_file(path, True)
     publish_audio_level(
-        main_funestra_cmd_file=Path(main_funestra_cmd_file),
-        genau_cmd_file=Path(genau_cmd_file),
-        audio_volume_file=Path(audio_volume_file),
-        volume=volume,
-        muted=muted,
+        main_funestra_cmd_file=main_funestra_cmd_file,
+        genau_cmd_file=genau_cmd_file,
+        audio_volume_file=Path(commands.audio_volume_file),
+        volume=carried.volume,
+        muted=carried.muted,
     )
-    for label in (main_list or MainListSettings()).labels:
-        append_command(Path(main_funestra_cmd_file), label)
-    if max_intensity < FULL_INTENSITY:
+    for label in MainListSettings.of(carried).labels:
+        append_command(main_funestra_cmd_file, label)
+    if carried.max_intensity < FULL_INTENSITY:
         publish_max_intensity(
             (Path(command_file) for command_file in
-             (genau_cmd_file, main_funestra_cmd_file, *satellite_cmd_files)),
-            max_intensity=max_intensity)
+             (genau_cmd_file, main_funestra_cmd_file,
+              commands.portrait_cmd_file, commands.landscape_cmd_file)),
+            max_intensity=carried.max_intensity)
 
 
 def reset_satellite_paused_states(
@@ -201,40 +192,30 @@ def reset_satellite_paused_states(
         path.write_text("0", encoding="utf-8")
 
 
+def the_broker_launcher(commands: CommandFiles) -> Path | None:
+    raw = commands.broker_tray_launcher.strip()
+    return Path(raw) if raw else None
+
+
 def start_core_session(
+    m: LaunchManifest,
     *,
-    config_path: str | Path,
-    broker_cmd_file: str | Path,
-    broker_tray_launcher: Path | None = None,
-    broker_state_dir: str | Path | None = None,
-    random_favs_browser_manifest_file: str | Path,
-    genau_paused_file: str | Path,
-    genau_cmd_file: str | Path | None = None,
-    audio_paused_file: str | Path,
-    main_funestra_paused_file: str | Path,
-    audio_volume_file: str | Path,
-    main_funestra_cmd_file: str | Path,
-    satellite_python_exe: str | Path,
-    satellite_module: str,
     portrait: SatelliteLaunch,
     landscape: SatelliteLaunch,
-    main_funestra_status_file: str | Path,
-    main_sources: str,
     state_dir: str | Path,
     result_file: str | Path,
-    dashboard_cmd_file: str | Path | None = None,
-    regen_metadata_root: Path | None = None,
-    sibling_checkouts: str | None = None,
 ) -> str:
+    commands = m.commands
+    regen_metadata_root = Path(m.regen.metadata_root.strip()) if m.regen.metadata_root.strip() else None
     portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
     landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
     reap_orphaned_satellites(
-        satellite_module, [portrait.channels.status, landscape.channels.status],
+        m.modules.satellite_module, [portrait.channels.status, landscape.channels.status],
     )
-    write_broker_command(broker_cmd_file, osr2_hold.PARK)
-    ensure_broker(broker_state_dir, broker_tray_launcher)
+    write_broker_command(commands.broker_cmd_file, osr2_hold.PARK)
+    ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
     state_path = Path(state_dir)
-    main_funestra_status = read_main_funestra_status(Path(main_funestra_status_file))
+    main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
     portrait_status = read_satellite_status(Path(portrait.channels.status))
     landscape_status = read_satellite_status(Path(landscape.channels.status))
     for launch in (portrait, landscape):
@@ -247,22 +228,17 @@ def start_core_session(
     carried = resume_shared_state(
         shared_state_path(state_path), resumed=resumed,
         last_reported=reports_published_in(
-            state_path, main_status_file=Path(main_funestra_status_file),
+            state_path, main_status_file=Path(commands.main_funestra_status_file),
             satellite_status_files={launch.funestra: Path(launch.channels.status)
                                     for launch in (portrait, landscape)}))
-    main_list = MainList(sources=main_sources, state_dir=state_path,
+    main_list = MainList(sources=m.media.main_funestra_library_sources, state_dir=state_path,
                          metadata_root=regen_metadata_root)
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
                                  on_screen=main_funestra_status.video)
-    seed_startup_states(
-        genau_paused_file, audio_paused_file, main_funestra_paused_file, audio_volume_file,
-        genau_cmd_file, main_funestra_cmd_file=main_funestra_cmd_file,
-        volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
-        satellite_cmd_files=(portrait.channels.command, landscape.channels.command),
-        main_list=MainListSettings.of(carried), mode=carried.main_mode,
-    )
+    seed_startup_states(commands, carried)
     reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)
-    prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
+    prepare_random_favs_browser_manifest(
+        m.runtime.config_path, m.random_favs_browser.manifest_file)
     if not resumed:
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=portrait.sources),
@@ -279,22 +255,14 @@ def start_core_session(
         (Path(portrait.channels.command), carried.satellite(FunTimeFunestra.PORTRAIT).locked),
         (Path(landscape.channels.command), carried.satellite(FunTimeFunestra.LANDSCAPE).locked),
     ])
-    resume_main_loop(Path(main_funestra_cmd_file), carried, main_list.file)
+    resume_main_loop(Path(commands.main_funestra_cmd_file), carried, main_list.file)
     resume_what_lives_in_a_funestra(
-        carried, main_funestra_cmd_file=Path(main_funestra_cmd_file),
+        carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
         satellite_cmd_files={launch.funestra: Path(launch.channels.command)
                              for launch in (portrait, landscape)},
-        genau_cmd_file=Path(genau_cmd_file),
+        genau_cmd_file=Path(commands.genau_cmd_file),
     )
-    launch_core_apps(
-        python_exe=satellite_python_exe,
-        satellite_module=satellite_module,
-        portrait=portrait,
-        landscape=landscape,
-        result_file=result_file,
-        dashboard_cmd_file=dashboard_cmd_file,
-        sibling_checkouts=sibling_checkouts,
-    )
+    launch_core_apps(m, portrait, landscape, result_file)
     return carried.main_mode
 
 
@@ -314,42 +282,66 @@ class HandedFunestra:
     hud_file: str | Path
 
 
+@dataclass(frozen=True)
+class OrigeneratorSession:
+    layout_plan: WindowLayoutPlan
+    command_file: str | Path
+    paused_file: str | Path
+    status_file: str | Path
+    dashboard_cmd_file: str | Path
+    funestras: Mapping[str, HandedFunestra]
+    frames_file: str | Path | None = None
+    input_file: str | Path | None = None
+
+
+@dataclass(frozen=True)
+class ChildProgram:
+    python_exe: str | Path
+    module: str
+    sibling_checkouts: str | None = None
+
+    def popen_kwargs(self) -> dict:
+        return {**sibling_checkouts_kwargs(self.sibling_checkouts), **hidden_subprocess_kwargs()}
+
+
+def child_program(m: LaunchManifest, module: str) -> ChildProgram:
+    return ChildProgram(m.executables.python_exe, module, m.runtime.sibling_checkouts)
+
+
+@dataclass(frozen=True)
+class GenauStart:
+    start_flick: str = ""
+    latest: bool = False
+    f_mode: bool = False
+    orientations: Included = BOTH
+
+
 def _rect_args(prefix: str, rect) -> list[str]:
     return [word
             for field in ("x", "y", "width", "height")
             for word in (f"--{prefix}{field}", str(getattr(rect, field)))]
 
 
-def origenerator_session_args(
-    *,
-    layout_plan,
-    command_file: str | Path,
-    paused_file: str | Path,
-    status_file: str | Path,
-    dashboard_cmd_file: str | Path,
-    funestras: Mapping[str, HandedFunestra],
-    frames_file: str | Path | None = None,
-    input_file: str | Path | None = None,
-) -> list[str]:
-    args = ["--fun-time", *_rect_args("", layout_plan.random_favs_browser)]
-    args.extend(_rect_args("portrait-", layout_plan.portrait))
-    args.extend(_rect_args("landscape-", layout_plan.landscape))
-    for satellite, funestra in funestras.items():
+def origenerator_session_args(session: OrigeneratorSession) -> list[str]:
+    args = ["--fun-time", *_rect_args("", session.layout_plan.random_favs_browser)]
+    args.extend(_rect_args("portrait-", session.layout_plan.portrait))
+    args.extend(_rect_args("landscape-", session.layout_plan.landscape))
+    for satellite, funestra in session.funestras.items():
         args.extend([
             f"--{satellite}-playlist", str(funestra.playlist_file),
             f"--{satellite}-cmd-file", str(funestra.cmd_file),
             f"--{satellite}-status-file", str(funestra.status_file),
             f"--{satellite}-hud-file", str(funestra.hud_file),
         ])
-    if frames_file is not None and input_file is not None:
-        args.extend(["--frames-file", str(frames_file),
-                     "--input-file", str(input_file)])
+    if session.frames_file is not None and session.input_file is not None:
+        args.extend(["--frames-file", str(session.frames_file),
+                     "--input-file", str(session.input_file)])
     args.extend(taskbar_identity_args())
     args.extend([
-        "--command-file", str(command_file),
-        "--paused-file", str(paused_file),
-        "--status-file", str(status_file),
-        "--dashboard-cmd-file", str(dashboard_cmd_file),
+        "--command-file", str(session.command_file),
+        "--paused-file", str(session.paused_file),
+        "--status-file", str(session.status_file),
+        "--dashboard-cmd-file", str(session.dashboard_cmd_file),
     ])
     return args
 
@@ -358,9 +350,10 @@ ORIGENERATOR_MODULE = "origenerator"
 
 
 def origenerator_launch_command(
-        *, python_exe: str | Path, origenerator_dir: str | Path, **contract) -> list[str]:
+        *, python_exe: str | Path, origenerator_dir: str | Path,
+        session: OrigeneratorSession) -> list[str]:
     return [NAMER.named_exe(python_exe, "Origenerator"), "-m", ORIGENERATOR_MODULE,
-            *the_args_it_declares(origenerator_dir, origenerator_session_args(**contract))]
+            *the_args_it_declares(origenerator_dir, origenerator_session_args(session))]
 
 
 def origenerator_interpreter(origenerator_dir: str | Path) -> Path:
@@ -388,23 +381,11 @@ def launch_origenerator(
     *,
     python_exe: str | Path,
     origenerator_dir: str | Path,
-    layout_plan,
-    command_file: str | Path,
-    paused_file: str | Path,
-    status_file: str | Path,
-    dashboard_cmd_file: str | Path,
-    funestras: Mapping[str, HandedFunestra],
-    frames_file: str | Path | None = None,
-    input_file: str | Path | None = None,
+    session: OrigeneratorSession,
     sibling_checkouts: str | None = None,
 ) -> int:
     cmd = origenerator_launch_command(
-        python_exe=python_exe, origenerator_dir=origenerator_dir,
-        layout_plan=layout_plan, command_file=command_file,
-        paused_file=paused_file, status_file=status_file,
-        dashboard_cmd_file=dashboard_cmd_file, funestras=funestras,
-        frames_file=frames_file, input_file=input_file,
-    )
+        python_exe=python_exe, origenerator_dir=origenerator_dir, session=session)
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=origenerator_dir, sibling_checkouts=sibling_checkouts)
     proc = subprocess.Popen(cmd, **no_child_log(), **kwargs)
@@ -412,189 +393,120 @@ def launch_origenerator(
 
 
 def launch_main_funestra(
+    m: LaunchManifest,
     *,
-    python_exe: str | Path,
-    main_funestra_module: str,
-    config_path: str | Path,
-    playlist_file: str | Path,
-    command_file: str | Path,
-    paused_file: str | Path,
-    status_file: str | Path,
-    console_file: str | Path,
-    drive_file: str | Path,
-    dashboard_cmd_file: str | Path,
-    log_file: str | Path,
     state_dir: str | Path,
-    main_funestra_x: int,
-    main_funestra_y: int,
-    main_funestra_width: int,
-    main_funestra_height: int,
-    genau_command_file: str | Path,
-    genau_paused_file: str | Path,
-    genau_status_file: str | Path,
-    flicks_dir: str | Path | None = None,
-    metadata_dir: str | Path | None = None,
-    genau_start_flick: str = "",
-    genau_latest: bool = False,
-    genau_f_mode: bool = False,
-    genau_orientations: Included = BOTH,
-    notice_file: str | Path | None = None,
-    osr2_port: str | None = None,
-    sibling_checkouts: str | None = None,
+    log_file: str | Path,
+    rect: WindowRect,
+    genau: GenauStart,
 ) -> int:
+    commands = m.commands
     cmd = [
-        NAMER.named_exe(python_exe, "MainFunestra"),
+        NAMER.named_exe(m.executables.python_exe, "MainFunestra"),
         "-m",
-        main_funestra_module,
+        m.modules.main_funestra_module,
         "--config",
-        str(config_path),
+        str(m.runtime.config_path),
         "--playlist",
-        str(playlist_file),
+        str(commands.main_funestra_playlist_file),
         "--command-file",
-        str(command_file),
+        str(commands.main_funestra_cmd_file),
         "--paused-file",
-        str(paused_file),
+        str(commands.main_funestra_paused_file),
         "--status-file",
-        str(status_file),
+        str(commands.main_funestra_status_file),
         "--state-dir",
         str(state_dir),
         "--console-file",
-        str(console_file),
+        str(commands.main_funestra_console_file),
         "--drive-file",
-        str(drive_file),
+        str(commands.genau_drive_file),
         "--dashboard-cmd-file",
-        str(dashboard_cmd_file),
+        str(commands.dashboard_cmd_file),
         "--x",
-        str(main_funestra_x),
+        str(rect.x),
         "--y",
-        str(main_funestra_y),
+        str(rect.y),
         "--width",
-        str(main_funestra_width),
+        str(rect.width),
         "--height",
-        str(main_funestra_height),
+        str(rect.height),
         "--icon",
         _the_session_icon(),
         *taskbar_identity_args(),
         "--genau-command-file",
-        str(genau_command_file),
+        str(commands.genau_cmd_file),
         "--genau-paused-file",
-        str(genau_paused_file),
+        str(commands.genau_paused_file),
         "--genau-status-file",
-        str(genau_status_file),
+        str(commands.genau_status_file),
     ]
-    if flicks_dir:
-        cmd += ["--flicks-dir", str(flicks_dir)]
-    if genau_start_flick:
-        cmd += ["--genau-start-flick", genau_start_flick]
-    if genau_latest:
+    if m.media.genau_flicks:
+        cmd += ["--flicks-dir", str(m.media.genau_flicks)]
+    if genau.start_flick:
+        cmd += ["--genau-start-flick", genau.start_flick]
+    if genau.latest:
         cmd.append("--genau-latest")
-    if genau_f_mode:
+    if genau.f_mode:
         cmd.append("--genau-f-mode")
-    if genau_orientations != BOTH:
-        cmd += ["--genau-orientations", *orientation_words(genau_orientations)]
-    if notice_file:
-        cmd += ["--notice-file", str(notice_file)]
-    if osr2_port:
-        cmd += ["--osr2-port", osr2_port]
-    if metadata_dir:
-        cmd += ["--metadata-dir", str(metadata_dir)]
-    return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=sibling_checkouts)
+    if genau.orientations != BOTH:
+        cmd += ["--genau-orientations", *orientation_words(genau.orientations)]
+    if commands.main_funestra_notice_file:
+        cmd += ["--notice-file", str(commands.main_funestra_notice_file)]
+    if commands.osr2_slot_port:
+        cmd += ["--osr2-port", commands.osr2_slot_port]
+    if m.regen.metadata_root.strip():
+        cmd += ["--metadata-dir", m.regen.metadata_root.strip()]
+    return _start_a_funestra(cmd, log_file=log_file,
+                             sibling_checkouts=m.runtime.sibling_checkouts)
 
 
-def launch_audio_companion(
-    *,
-    python_exe: str | Path,
-    audio_module: str,
-    config_path: str | Path,
-    audio_folder: str | Path,
-    audio_device: str | None = None,
-    sibling_checkouts: str | None = None,
-) -> subprocess.Popen:
+def launch_audio_companion(m: LaunchManifest, *, audio_device: str | None = None) -> subprocess.Popen:
+    program = child_program(m, m.modules.audio_module)
     cmd = [
-        NAMER.named_exe(str(python_exe), "AudioCompanion"),
+        NAMER.named_exe(str(program.python_exe), "AudioCompanion"),
         "-m",
-        audio_module,
+        program.module,
         "--config",
-        str(config_path),
+        str(m.runtime.config_path),
         "--audio-folder",
-        str(audio_folder),
+        str(m.media.genau_audio),
     ]
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
-    return subprocess.Popen(cmd, **no_child_log(), **sibling_checkouts_kwargs(sibling_checkouts),
-                            **hidden_subprocess_kwargs())
+    return subprocess.Popen(cmd, **no_child_log(), **program.popen_kwargs())
+
+
+def _launch_the_dashboard(
+    m: LaunchManifest, plan: WindowLayoutPlan, manifest_path: str | Path,
+    log_file: str | Path | None,
+) -> int:
+    cmd = [
+        NAMER.named_exe(m.executables.python_exe, "Dashboard"),
+        "-m",
+        m.modules.dashboard_module,
+        str(manifest_path),
+        *_rect_args("", plan.dashboard),
+        *_rect_args("rfb-", plan.random_favs_browser),
+    ]
+    kwargs = child_program(m, m.modules.dashboard_module).popen_kwargs()
+    if log_file is None:
+        return subprocess.Popen(cmd, **no_child_log(), **kwargs).pid
+    with open_child_log(log_file, cmd) as log:
+        return subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, **kwargs).pid
 
 
 def launch_ui_companions(
+    m: LaunchManifest,
     *,
-    python_exe: str | Path,
-    dashboard_module: str,
-    dashboard_enabled: bool,
-    windows_bridge_manifest_path: str | Path,
-    dashboard_x: int,
-    dashboard_y: int,
-    dashboard_width: int,
-    dashboard_height: int,
-    rfb_x: int,
-    rfb_y: int,
-    rfb_width: int,
-    rfb_height: int,
-    dashboard_log_file: str | Path | None = None,
-    audio_module: str,
-    config_path: str | Path,
-    audio_folder: str | Path,
+    plan: WindowLayoutPlan,
+    manifest_path: str | Path,
+    dashboard_log_file: str | Path | None,
     result_file: str | Path,
-    sibling_checkouts: str | None = None,
 ) -> None:
-    python_exe = str(python_exe)
-    windows_bridge_manifest_path = str(windows_bridge_manifest_path)
-    config_path = str(config_path)
-    audio_folder = str(audio_folder)
-
-    dashboard_pid = 0
-    if dashboard_enabled:
-        dashboard_cmd = [
-            NAMER.named_exe(python_exe, "Dashboard"),
-            "-m",
-            dashboard_module,
-            windows_bridge_manifest_path,
-            "--x",
-            str(dashboard_x),
-            "--y",
-            str(dashboard_y),
-            "--width",
-            str(dashboard_width),
-            "--height",
-            str(dashboard_height),
-            "--rfb-x",
-            str(rfb_x),
-            "--rfb-y",
-            str(rfb_y),
-            "--rfb-width",
-            str(rfb_width),
-            "--rfb-height",
-            str(rfb_height),
-        ]
-        if dashboard_log_file is not None:
-            with open_child_log(dashboard_log_file, dashboard_cmd) as log:
-                dashboard_proc = subprocess.Popen(
-                    dashboard_cmd, stdout=log, stderr=subprocess.STDOUT,
-                    **sibling_checkouts_kwargs(sibling_checkouts),
-                    **hidden_subprocess_kwargs(),
-                )
-        else:
-            dashboard_proc = subprocess.Popen(
-                dashboard_cmd, **no_child_log(),
-                **sibling_checkouts_kwargs(sibling_checkouts),
-                **hidden_subprocess_kwargs())
-        dashboard_pid = dashboard_proc.pid
-
-    audio_proc = launch_audio_companion(
-        python_exe=python_exe, audio_module=audio_module,
-        config_path=config_path, audio_folder=audio_folder,
-        sibling_checkouts=sibling_checkouts,
-    )
-
+    dashboard_pid = (_launch_the_dashboard(m, plan, manifest_path, dashboard_log_file)
+                     if m.dashboard_enabled else 0)
+    audio_proc = launch_audio_companion(m)
     _write_result_file(
         result_file,
         {
@@ -605,23 +517,19 @@ def launch_ui_companions(
 
 
 def launch_core_apps(
-    *,
-    python_exe: str | Path,
-    satellite_module: str,
+    m: LaunchManifest,
     portrait: SatelliteLaunch,
     landscape: SatelliteLaunch,
     result_file: str | Path,
-    dashboard_cmd_file: str | Path | None = None,
-    sibling_checkouts: str | None = None,
 ) -> None:
     portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
     landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
+    program = child_program(m, m.modules.satellite_module)
 
     def _launch(launch: SatelliteLaunch, title: str, role: str, *, tiles: bool) -> int:
         return launch_satellite(
-            python_exe=python_exe,
-            satellite_module=satellite_module,
-            channels=replace(launch.channels, dashboard_cmd=dashboard_cmd_file),
+            program,
+            channels=replace(launch.channels, dashboard_cmd=m.commands.dashboard_cmd_file),
             placement=WindowPlacement(
                 x=launch.rect.x, y=launch.rect.y,
                 width=launch.rect.width, height=launch.rect.height,
@@ -631,7 +539,6 @@ def launch_core_apps(
                 tiles=tiles),
             role=role,
             log_file=launch.log_file,
-            sibling_checkouts=sibling_checkouts,
         )
 
     portrait_pid = _launch(portrait, SATELLITE_PORTRAIT_TITLE, "Portrait", tiles=True)
@@ -662,16 +569,14 @@ def _build_satellite_launch_command(
 
 
 def launch_satellite(
+    program: ChildProgram,
     *,
-    python_exe: str | Path,
-    satellite_module: str,
     channels: SatelliteChannels,
     placement: WindowPlacement,
     role: str,
     log_file: str | Path,
-    sibling_checkouts: str | None = None,
 ) -> int:
     cmd = _build_satellite_launch_command(
-        NAMER.named_exe(python_exe, role), satellite_module,
+        NAMER.named_exe(program.python_exe, role), program.module,
         channels=channels, placement=placement)
-    return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=sibling_checkouts)
+    return _start_a_funestra(cmd, log_file=log_file, sibling_checkouts=program.sibling_checkouts)

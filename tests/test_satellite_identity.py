@@ -15,6 +15,7 @@ from fun_time.windows_bridge_startup import (
     launch_core_apps,
 )
 from main_funestra.window import wear_the_icon
+from tests.dispatch_sweep import desktop_manifest
 from tests.test_windows_bridge_startup import _launch
 
 
@@ -24,10 +25,10 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.launch_satellite",
                side_effect=[202, 303]) as launched:
         launch_core_apps(
-            python_exe="python.exe", satellite_module="satellite",
-            portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
-            landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
-            result_file=tmp_path / "core_apps.ini",
+            desktop_manifest(tmp_path / "app"),
+            _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
+            _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
+            tmp_path / "core_apps.ini",
         )
 
     assert [call.kwargs["placement"].icon for call in launched.call_args_list] == [

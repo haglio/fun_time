@@ -47,7 +47,10 @@ from fun_time.shared_state import (
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
+    ChildProgram,
+    GenauStart,
     HandedFunestra,
+    OrigeneratorSession,
     _build_satellite_launch_command,
     ensure_broker,
     launch_audio_companion,
@@ -64,6 +67,7 @@ from fun_time.windows_bridge_startup import (
     taskbar_identity_args,
 )
 from satellite.contract import SatelliteChannels, WindowPlacement
+from tests.dispatch_sweep import desktop_manifest
 from tests.made_up_machine import running
 
 
@@ -247,22 +251,23 @@ def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_l
     ]
 
 
-def _seed_startup_states(tmp_path: Path, **overrides):
-    kwargs = {
-        "genau_paused_file": tmp_path / "genau_paused.txt",
-        "audio_paused_file": tmp_path / "audio_paused.txt",
-        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
-        "audio_volume_file": tmp_path / "audio_volume.txt",
-        "genau_cmd_file": tmp_path / "genau_cmd.txt",
-        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
-        "satellite_cmd_files": (tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"),
-    }
-    kwargs.update(overrides)
-    return seed_startup_states(
-        kwargs.pop("genau_paused_file"), kwargs.pop("audio_paused_file"),
-        kwargs.pop("main_funestra_paused_file"), kwargs.pop("audio_volume_file"),
-        kwargs.pop("genau_cmd_file"), **kwargs,
+def _seed_startup_states(tmp_path: Path, *, genau_cmd_file=None, audio_volume_file=None,
+                         mode=None, **left_as):
+    commands = replace(
+        desktop_manifest(tmp_path / "app").commands,
+        genau_paused_file=str(tmp_path / "genau_paused.txt"),
+        audio_paused_file=str(tmp_path / "audio_paused.txt"),
+        main_funestra_paused_file=str(tmp_path / "main_player_paused.txt"),
+        audio_volume_file=str(audio_volume_file or tmp_path / "audio_volume.txt"),
+        genau_cmd_file=str(genau_cmd_file or tmp_path / "genau_cmd.txt"),
+        main_funestra_cmd_file=str(tmp_path / "main_player_cmd.txt"),
+        portrait_cmd_file=str(tmp_path / "portrait_cmd.txt"),
+        landscape_cmd_file=str(tmp_path / "landscape_cmd.txt"),
     )
+    carried = replace(BridgeState(), **left_as)
+    if mode is not None:
+        carried = replace(carried, main_mode=MainMode(mode))
+    seed_startup_states(commands, carried)
 
 
 def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
@@ -373,8 +378,8 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
 
 
 def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tmp_path: Path):
-    _seed_startup_states(tmp_path, main_list=MainListSettings(scripted_filter=True,
-                                                               length=LengthMode.CLIPS))
+    _seed_startup_states(tmp_path, main_scripted_filter=True,
+                         main_length_mode=LengthMode.CLIPS)
 
     assert _main_funestra_verbs(tmp_path) == [
         "SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
@@ -407,6 +412,47 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
     }
 
 
+def _a_session_manifest(tmp_path: Path, **sections):
+    manifest = desktop_manifest(tmp_path / "app")
+    return replace(manifest, **{name: replace(getattr(manifest, name), **fields)
+                                for name, fields in sections.items()})
+
+
+def _manifest_from(kwargs: dict):
+    m = desktop_manifest(kwargs["state_dir"].parent / "app")
+    channels = {name: kwargs[name].channels for name in ("portrait", "landscape")}
+    return replace(
+        m,
+        runtime=replace(m.runtime, config_path=kwargs["config_path"]),
+        executables=replace(m.executables, python_exe=kwargs["satellite_python_exe"]),
+        modules=replace(m.modules, satellite_module=kwargs["satellite_module"]),
+        media=replace(m.media, main_funestra_library_sources=kwargs["main_sources"]),
+        random_favs_browser=replace(
+            m.random_favs_browser,
+            manifest_file=str(kwargs["random_favs_browser_manifest_file"])),
+        regen=replace(m.regen, metadata_root=str(kwargs["regen_metadata_root"])),
+        commands=replace(
+            m.commands,
+            broker_cmd_file=str(kwargs["broker_cmd_file"]),
+            broker_state_dir=str(kwargs["broker_state_dir"]),
+            genau_paused_file=str(kwargs["genau_paused_file"]),
+            genau_cmd_file=str(kwargs["genau_cmd_file"]),
+            audio_paused_file=str(kwargs["audio_paused_file"]),
+            main_funestra_paused_file=str(kwargs["main_funestra_paused_file"]),
+            audio_volume_file=str(kwargs["audio_volume_file"]),
+            main_funestra_cmd_file=str(kwargs["main_funestra_cmd_file"]),
+            main_funestra_status_file=str(kwargs["main_funestra_status_file"]),
+            portrait_cmd_file=str(channels["portrait"].command),
+            landscape_cmd_file=str(channels["landscape"].command)),
+    )
+
+
+def _start_core_session(kwargs: dict) -> str:
+    return start_core_session(
+        _manifest_from(kwargs), portrait=kwargs["portrait"], landscape=kwargs["landscape"],
+        state_dir=kwargs["state_dir"], result_file=kwargs["result_file"])
+
+
 def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
@@ -421,29 +467,20 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as prepare, patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     reap.assert_called_once_with(
         "satellite",
         [state_dir / "portrait_status.txt", state_dir / "landscape_status.txt"],
     )
-    ensure.assert_called_once_with(state_dir, None)
-    seed.assert_called_once_with(
-        tmp_path / "genau_paused.txt",
-        tmp_path / "audio_paused.txt",
-        tmp_path / "main_player_paused.txt",
-        tmp_path / "audio_volume.txt",
-        tmp_path / "genau_cmd.txt",
-        main_funestra_cmd_file=state_dir / "main_player_cmd.txt",
-        volume=MAX_VOLUME,
-        muted=False,
-        max_intensity=FULL_INTENSITY,
-        satellite_cmd_files=(kwargs["portrait"].channels.command,
-                             kwargs["landscape"].channels.command),
-        main_list=MainListSettings.of(read_shared_state(shared_state_path(state_dir))),
-        mode="kino",
-    )
-    prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
+    ensure.assert_called_once_with(str(state_dir), None)
+    commands, carried = seed.call_args.args
+    assert commands == _manifest_from(kwargs).commands
+    assert (carried.volume, carried.muted, carried.max_intensity, carried.main_mode) == (
+        MAX_VOLUME, False, FULL_INTENSITY, "kino")
+    assert MainListSettings.of(carried) == MainListSettings.of(
+        read_shared_state(shared_state_path(state_dir)))
+    prepare.assert_called_once_with("fun_time_config.json", str(tmp_path / "browser_manifest.txt"))
     build.assert_called_once_with(
         portrait=SatelliteBuild(sources=kwargs["portrait"].sources),
         landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
@@ -451,14 +488,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         metadata_root=tmp_path / "metadata",
     )
     launch.assert_called_once_with(
-        python_exe="fun_time_python.exe",
-        satellite_module="satellite",
-        portrait=kwargs["portrait"],
-        landscape=kwargs["landscape"],
-        result_file=result_file,
-        dashboard_cmd_file=None,
-        sibling_checkouts=None,
-    )
+        _manifest_from(kwargs), kwargs["portrait"], kwargs["landscape"], result_file)
 
 
 def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
@@ -505,7 +535,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"),
     ):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     build.assert_not_called()
     for name, (first, second) in left_on.items():
@@ -542,7 +572,7 @@ def _run_start_core_session(kwargs: dict) -> str:
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        return start_core_session(**kwargs)
+        return _start_core_session(kwargs)
 
 
 def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
@@ -752,7 +782,7 @@ def test_start_core_session_never_reopens_a_main_list_another_app_left(
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time"),
     ):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
@@ -790,7 +820,7 @@ def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time"),
     ):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert rebuilt[0].split("\t")[0] == watching
@@ -818,7 +848,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     queued = Path(kwargs["main_funestra_cmd_file"]).read_text(encoding="utf-8")
     assert "SET_LOOP 1000 4000" in queued
@@ -839,7 +869,7 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     assert portrait_paused.read_text(encoding="utf-8") == "0"
     assert landscape_paused.read_text(encoding="utf-8") == "0"
@@ -862,7 +892,7 @@ def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_play
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"), patch(
         "fun_time.windows_bridge_startup.resume_playlists", return_value=True
     ):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     assert kwargs["portrait"].channels.paused.read_text(encoding="utf-8") == "0"
     assert kwargs["landscape"].channels.paused.read_text(encoding="utf-8") == "0"
@@ -879,7 +909,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
-        start_core_session(**kwargs)
+        _start_core_session(kwargs)
 
     assert broker_cmd_file.read_text(encoding="utf-8").split() == [osr2_hold.PARK]
 
@@ -891,17 +921,51 @@ GENAUS_FILES = {
 }
 
 
-def _a_main_funestra_launch(**overrides) -> dict:
+_MANIFEST_FIELDS_OF_A_MAIN_FUNESTRA = {
+    "python_exe": ("executables", "python_exe"),
+    "main_funestra_module": ("modules", "main_funestra_module"),
+    "config_path": ("runtime", "config_path"),
+    "sibling_checkouts": ("runtime", "sibling_checkouts"),
+    "playlist_file": ("commands", "main_funestra_playlist_file"),
+    "command_file": ("commands", "main_funestra_cmd_file"),
+    "paused_file": ("commands", "main_funestra_paused_file"),
+    "status_file": ("commands", "main_funestra_status_file"),
+    "console_file": ("commands", "main_funestra_console_file"),
+    "dashboard_cmd_file": ("commands", "dashboard_cmd_file"),
+    "notice_file": ("commands", "main_funestra_notice_file"),
+    "osr2_port": ("commands", "osr2_slot_port"),
+    "genau_command_file": ("commands", "genau_cmd_file"),
+    "genau_paused_file": ("commands", "genau_paused_file"),
+    "genau_status_file": ("commands", "genau_status_file"),
+    "flicks_dir": ("media", "genau_flicks"),
+    "metadata_dir": ("regen", "metadata_root"),
+}
+_GENAU_STARTS = {"genau_start_flick": "start_flick", "genau_latest": "latest",
+                 "genau_f_mode": "f_mode", "genau_orientations": "orientations"}
+
+
+def _a_main_funestra_launch(tmp_path: Path, **overrides) -> dict:
     launch = dict(
         python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
         playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
         status_file="status", console_file="console.json",
-        drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-        state_dir="a-state-dir",
+        dashboard_cmd_file="dash_cmd.txt", notice_file="", osr2_port="", flicks_dir="",
+        metadata_dir="", sibling_checkouts="", state_dir="a-state-dir",
         main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES)
+        log_file=tmp_path / "main_funestra.log", **GENAUS_FILES)
     launch.update(overrides)
-    return launch
+    manifest = desktop_manifest(tmp_path / "app")
+    sections = {}
+    for name, (section, field) in _MANIFEST_FIELDS_OF_A_MAIN_FUNESTRA.items():
+        sections.setdefault(section, {})[field] = launch[name]
+    return dict(
+        m=replace(manifest, **{section: replace(getattr(manifest, section), **fields)
+                               for section, fields in sections.items()}),
+        state_dir=launch["state_dir"], log_file=launch["log_file"],
+        rect=WindowRect(launch["main_funestra_x"], launch["main_funestra_y"],
+                        launch["main_funestra_width"], launch["main_funestra_height"]),
+        genau=GenauStart(**{field: launch[name] for name, field in _GENAU_STARTS.items()
+                            if name in launch}))
 
 
 def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
@@ -911,7 +975,7 @@ def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(**_a_main_funestra_launch(log_file=tmp_path / "main_funestra.log", **overrides))
+        launch_main_funestra(**_a_main_funestra_launch(tmp_path, **overrides))
     return popen.call_args.args[0]
 
 
@@ -981,7 +1045,7 @@ def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quot
     with patch.object(NAMER, "named_exe", side_effect=lambda exe, _role: str(exe)), \
          patch("fun_time.windows_bridge_startup.subprocess.Popen", side_effect=started_and_kept):
         pid = launch_main_funestra(**_a_main_funestra_launch(
-            python_exe=sys.executable, main_funestra_module="a_main_funestra_that_dies_importing",
+            tmp_path, python_exe=sys.executable, main_funestra_module="a_main_funestra_that_dies_importing",
             log_file=log, sibling_checkouts=str(checkout)))
     started[0].wait(timeout=60)
 
@@ -1000,15 +1064,24 @@ def test_launch_main_funestra_is_told_the_state_dir_it_remembers_in(tmp_path: Pa
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES,
-        )
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
+            python_exe="python.exe",
+            main_funestra_module="main_funestra",
+            config_path="cfg.json",
+            playlist_file="pl.tsv",
+            command_file="cmd",
+            paused_file="paused",
+            status_file="status",
+            console_file="console.json",
+            dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
+            main_funestra_x=0,
+            main_funestra_y=0,
+            main_funestra_width=100,
+            main_funestra_height=100,
+        ))
 
     command = popen.call_args.args[0]
     assert command[command.index("--state-dir") + 1] == str(tmp_path)
@@ -1022,16 +1095,25 @@ def test_launch_main_funestra_forwards_metadata_dir_when_given(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-            **GENAUS_FILES,
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
+            python_exe="python.exe",
+            main_funestra_module="main_funestra",
+            config_path="cfg.json",
+            playlist_file="pl.tsv",
+            command_file="cmd",
+            paused_file="paused",
+            status_file="status",
+            console_file="console.json",
+            dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
+            main_funestra_x=0,
+            main_funestra_y=0,
+            main_funestra_width=100,
+            main_funestra_height=100,
             metadata_dir="C:/videos/metadata",
-        )
+        ))
 
     command = popen.call_args.args[0]
     assert "--metadata-dir" in command
@@ -1046,15 +1128,24 @@ def test_launch_main_funestra_omits_metadata_dir_when_absent(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES,
-        )
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
+            python_exe="python.exe",
+            main_funestra_module="main_funestra",
+            config_path="cfg.json",
+            playlist_file="pl.tsv",
+            command_file="cmd",
+            paused_file="paused",
+            status_file="status",
+            console_file="console.json",
+            dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
+            main_funestra_x=0,
+            main_funestra_y=0,
+            main_funestra_width=100,
+            main_funestra_height=100,
+        ))
 
     assert "--metadata-dir" not in popen.call_args.args[0]
 
@@ -1067,16 +1158,25 @@ def test_launch_main_funestra_forwards_flicks_dir_when_given(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-            **GENAUS_FILES,
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
+            python_exe="python.exe",
+            main_funestra_module="main_funestra",
+            config_path="cfg.json",
+            playlist_file="pl.tsv",
+            command_file="cmd",
+            paused_file="paused",
+            status_file="status",
+            console_file="console.json",
+            dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
+            main_funestra_x=0,
+            main_funestra_y=0,
+            main_funestra_width=100,
+            main_funestra_height=100,
             flicks_dir="C:/videos/genau/flicks",
-        )
+        ))
 
     command = popen.call_args.args[0]
     assert command[command.index("--flicks-dir") + 1] == "C:/videos/genau/flicks"
@@ -1090,15 +1190,24 @@ def test_launch_main_funestra_omits_flicks_dir_when_absent(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES,
-        )
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
+            python_exe="python.exe",
+            main_funestra_module="main_funestra",
+            config_path="cfg.json",
+            playlist_file="pl.tsv",
+            command_file="cmd",
+            paused_file="paused",
+            status_file="status",
+            console_file="console.json",
+            dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
+            main_funestra_x=0,
+            main_funestra_y=0,
+            main_funestra_width=100,
+            main_funestra_height=100,
+        ))
 
     assert "--flicks-dir" not in popen.call_args.args[0]
 
@@ -1111,15 +1220,24 @@ def test_launch_main_funestra_hands_it_fun_times_icon(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES,
-        )
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
+            python_exe="python.exe",
+            main_funestra_module="main_funestra",
+            config_path="cfg.json",
+            playlist_file="pl.tsv",
+            command_file="cmd",
+            paused_file="paused",
+            status_file="status",
+            console_file="console.json",
+            dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
+            main_funestra_x=0,
+            main_funestra_y=0,
+            main_funestra_width=100,
+            main_funestra_height=100,
+        ))
 
     command = popen.call_args.args[0]
     assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
@@ -1155,15 +1273,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
 
     def test_main_funestra_is_told_who_it_belongs_to(self, tmp_path: Path):
         command = self._launched(
-            launch_main_funestra,
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES,
-        )
+            launch_main_funestra, **_a_main_funestra_launch(tmp_path, state_dir=tmp_path))
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
@@ -1176,15 +1286,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         monkeypatch.setattr(preview_marker, "preview_of", lambda checkout: Preview(feature=None))
         monkeypatch.setattr(preview_marker, "INKED_ICON_FOLDER", tmp_path / "inked")
         command = self._launched(
-            launch_main_funestra,
-            python_exe="python.exe", main_funestra_module="main_funestra", config_path="cfg.json",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", console_file="console.json",
-            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-            main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
-        **GENAUS_FILES,
-        )
+            launch_main_funestra, **_a_main_funestra_launch(tmp_path, state_dir=tmp_path))
 
         assert self._identity(command) == f"{APP_USER_MODEL_ID}.Preview"
         assert Path(command[command.index("--icon") + 1]).parent == tmp_path / "inked"
@@ -1200,10 +1302,10 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         with patch("fun_time.windows_bridge_startup.launch_satellite",
                    side_effect=[202, 303]) as launched:
             launch_core_apps(
-                python_exe="python.exe", satellite_module="satellite",
-                portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
-                landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
-                result_file=tmp_path / "core_apps.ini",
+                _a_session_manifest(tmp_path),
+                _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
+                _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
+                tmp_path / "core_apps.ini",
             )
 
         icons = [call.kwargs["placement"].icon for call in launched.call_args_list]
@@ -1220,8 +1322,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
 
     @staticmethod
     def _main_funestra(tmp_path: Path, **overrides):
-        return _a_main_funestra_launch(log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-                                     **overrides)
+        return _a_main_funestra_launch(tmp_path, state_dir=tmp_path, **overrides)
 
     @staticmethod
     def _path(popen) -> list[str]:
@@ -1272,7 +1373,8 @@ def test_launch_main_funestra_sends_child_output_to_its_own_log(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        launch_main_funestra(
+        launch_main_funestra(**_a_main_funestra_launch(
+            tmp_path,
             python_exe="pythonw.exe",
             main_funestra_module="main_funestra",
             config_path="cfg.json",
@@ -1281,13 +1383,14 @@ def test_launch_main_funestra_sends_child_output_to_its_own_log(tmp_path: Path):
             paused_file="state/main_player_paused.txt",
             status_file="state/main_player_status.txt",
             console_file="state/main_player_console.json",
-            drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
             log_file=log_file,
             state_dir=tmp_path,
-            main_funestra_x=100, main_funestra_y=200, main_funestra_width=300, main_funestra_height=400,
-        **GENAUS_FILES,
-        )
+            main_funestra_x=100,
+            main_funestra_y=200,
+            main_funestra_width=300,
+            main_funestra_height=400,
+        ))
 
     stream = popen.call_args.kwargs["stdout"]
     assert popen.call_args.kwargs["stderr"] is stream
@@ -1304,7 +1407,8 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(43)) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
-        pid = launch_main_funestra(
+        launch = _a_main_funestra_launch(
+            tmp_path,
             python_exe="python.exe",
             main_funestra_module="main_funestra",
             config_path="cfg.json",
@@ -1313,16 +1417,16 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
             paused_file="state/main_player_paused.txt",
             status_file="state/main_player_status.txt",
             console_file="state/main_player_console.json",
-            drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
             osr2_port="50599",
-            log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
+            log_file=tmp_path / "main_funestra.log",
+            state_dir=tmp_path,
             main_funestra_x=100,
             main_funestra_y=200,
             main_funestra_width=300,
             main_funestra_height=400,
-        **GENAUS_FILES,
         )
+        pid = launch_main_funestra(**launch)
 
     assert pid == 43
     assert popen.call_args.kwargs["creationflags"] == 1
@@ -1345,7 +1449,7 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "--console-file",
         "state/main_player_console.json",
         "--drive-file",
-        "state/genau_drive.txt",
+        launch["m"].commands.genau_drive_file,
         "--dashboard-cmd-file",
         "state/dashboard_cmd.txt",
         "--x",
@@ -1384,19 +1488,29 @@ _AUDIO_COMMAND = [
     "python.exe", "-m", "fun_time.audio_companion_app",
     "--config", "cfg.json", "--audio-folder", "audio",
 ]
-def _call_launch_ui_companions(result_file, *, dashboard_enabled, **over):
+_A_UI_PLAN = WindowLayoutPlan(
+    portrait=WindowRect(0, 0, 1, 1), landscape=WindowRect(0, 0, 1, 1),
+    dashboard=WindowRect(10, 20, 30, 40), random_favs_browser=WindowRect(5, 44, 31, 96))
+
+
+def _a_companions_manifest(tmp_path: Path, *, dashboard_enabled: bool = True,
+                           python_exe="python.exe", sibling_checkouts="", **sections):
+    manifest = _a_session_manifest(
+        tmp_path, executables=dict(python_exe=str(python_exe)),
+        modules=dict(dashboard_module="fun_time.dashboard_app",
+                     audio_module="fun_time.audio_companion_app"),
+        runtime=dict(config_path="cfg.json", sibling_checkouts=sibling_checkouts),
+        media=dict(genau_audio="audio"), **sections)
+    return replace(manifest, dashboard_enabled=dashboard_enabled)
+
+
+def _call_launch_ui_companions(tmp_path, result_file, *, dashboard_enabled, **over):
     launch_ui_companions(
-        python_exe="python.exe",
-        dashboard_module="fun_time.dashboard_app",
-        dashboard_enabled=dashboard_enabled,
-        windows_bridge_manifest_path="windows_bridge_launch.ini",
-        dashboard_x=10, dashboard_y=20, dashboard_width=30, dashboard_height=40,
-        rfb_x=5, rfb_y=44, rfb_width=31, rfb_height=96,
-        audio_module="fun_time.audio_companion_app",
-        config_path="cfg.json",
-        audio_folder="audio",
+        _a_companions_manifest(tmp_path, dashboard_enabled=dashboard_enabled, **over),
+        plan=_A_UI_PLAN,
+        manifest_path="windows_bridge_launch.ini",
+        dashboard_log_file=None,
         result_file=result_file,
-        **over,
     )
 
 
@@ -1416,7 +1530,7 @@ def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
     ) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
-        _call_launch_ui_companions(result_file, dashboard_enabled=True)
+        _call_launch_ui_companions(tmp_path, result_file, dashboard_enabled=True)
 
     assert popen.call_count == 2
     assert popen.call_args_list[0].args[0] == _DASHBOARD_COMMAND
@@ -1439,7 +1553,7 @@ def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_p
     ) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
-        _call_launch_ui_companions(result_file, dashboard_enabled=True,
+        _call_launch_ui_companions(tmp_path, result_file, dashboard_enabled=True,
                                    sibling_checkouts=str(checkout))
 
     for call in popen.call_args_list:
@@ -1455,7 +1569,7 @@ def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
     ) as popen, patch(
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
-        _call_launch_ui_companions(result_file, dashboard_enabled=False)
+        _call_launch_ui_companions(tmp_path, result_file, dashboard_enabled=False)
 
     assert popen.call_count == 1
     assert popen.call_args_list[0].args[0] == _AUDIO_COMMAND
@@ -1477,29 +1591,28 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         "fun_time.windows_bridge_startup.launch_satellite", side_effect=[202, 303]
     ) as launch_satellite_mock:
         launch_core_apps(
-            python_exe="fun_time_python.exe",
-            satellite_module="satellite",
-            portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
-                           state_dir, portrait_rect),
-            landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
-                            state_dir, landscape_rect),
-            result_file=result_file,
+            _a_session_manifest(tmp_path, executables=dict(python_exe="fun_time_python.exe"),
+                                modules=dict(satellite_module="satellite")),
+            _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
+                    state_dir, portrait_rect),
+            _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
+                    state_dir, landscape_rect),
+            result_file,
         )
 
     assert launch_satellite_mock.call_count == 2
     portrait_kwargs = launch_satellite_mock.call_args_list[0].kwargs
     landscape_kwargs = launch_satellite_mock.call_args_list[1].kwargs
+    for call in launch_satellite_mock.call_args_list:
+        assert call.args[0].python_exe == "fun_time_python.exe"
+        assert call.args[0].module == "satellite"
 
-    assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
-    assert portrait_kwargs["satellite_module"] == "satellite"
     assert portrait_kwargs["placement"].title == "Portrait AI Funestra"
     assert portrait_kwargs["channels"].playlist == portrait_playlist
     assert portrait_kwargs["channels"].command == state_dir / "portrait_cmd.txt"
     assert portrait_kwargs["channels"].paused == state_dir / "portrait_paused.txt"
     assert portrait_kwargs["channels"].status == state_dir / "portrait_status.txt"
 
-    assert landscape_kwargs["python_exe"] == "fun_time_python.exe"
-    assert landscape_kwargs["satellite_module"] == "satellite"
     assert landscape_kwargs["placement"].title == "Landscape AI Funestra"
     assert landscape_kwargs["channels"].playlist == landscape_playlist
     assert landscape_kwargs["channels"].command == state_dir / "landscape_cmd.txt"
@@ -1611,8 +1724,7 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
     ):
         pid = launch_satellite(
-            python_exe="python.exe",
-            satellite_module="satellite",
+            ChildProgram("python.exe", "satellite"),
             channels=_a_satellite_channels(),
             placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
                                       title="Portrait AI Funestra"),
@@ -1636,8 +1748,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
         "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
     ):
         launch_satellite(
-            python_exe="pythonw.exe",
-            satellite_module="satellite",
+            ChildProgram("pythonw.exe", "satellite"),
             channels=_a_satellite_channels(),
             placement=WindowPlacement(title="Portrait AI Funestra"),
             role="Portrait",
@@ -1686,15 +1797,11 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_ui_companions(
-                python_exe=self._interpreter(tmp_path),
-                dashboard_module="fun_time.dashboard_app",
-                dashboard_enabled=False,
-                windows_bridge_manifest_path=tmp_path / "manifest.ini",
-                dashboard_x=0, dashboard_y=0, dashboard_width=1, dashboard_height=1,
-                rfb_x=0, rfb_y=0, rfb_width=1, rfb_height=1,
-                audio_module="fun_time.audio_companion_app",
-                config_path=tmp_path / "config.json",
-                audio_folder=tmp_path / "audio",
+                _a_companions_manifest(tmp_path, dashboard_enabled=False,
+                                       python_exe=self._interpreter(tmp_path)),
+                plan=_A_UI_PLAN,
+                manifest_path=tmp_path / "manifest.ini",
+                dashboard_log_file=None,
                 result_file=tmp_path / "result.ini",
             )
 
@@ -1708,15 +1815,11 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_ui_companions(
-                python_exe=self._interpreter(tmp_path),
-                dashboard_module="fun_time.dashboard_app",
-                dashboard_enabled=True,
-                windows_bridge_manifest_path=tmp_path / "manifest.ini",
-                dashboard_x=0, dashboard_y=0, dashboard_width=1, dashboard_height=1,
-                rfb_x=0, rfb_y=0, rfb_width=1, rfb_height=1,
-                audio_module="fun_time.audio_companion_app",
-                config_path=tmp_path / "config.json",
-                audio_folder=tmp_path / "audio",
+                _a_companions_manifest(tmp_path, dashboard_enabled=True,
+                                       python_exe=self._interpreter(tmp_path)),
+                plan=_A_UI_PLAN,
+                manifest_path=tmp_path / "manifest.ini",
+                dashboard_log_file=None,
                 result_file=tmp_path / "result.ini",
             )
 
@@ -1731,8 +1834,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
             ):
                 launch_satellite(
-                    python_exe=self._interpreter(tmp_path),
-                    satellite_module="satellite",
+                    ChildProgram(self._interpreter(tmp_path), "satellite"),
                     channels=_a_satellite_channels(),
                     placement=WindowPlacement(title=title),
                     role=role,
@@ -1748,7 +1850,8 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
             "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
-            launch_main_funestra(
+            launch_main_funestra(**_a_main_funestra_launch(
+                tmp_path,
                 python_exe=self._interpreter(tmp_path),
                 main_funestra_module="main_funestra",
                 config_path=tmp_path / "genau.json",
@@ -1757,12 +1860,14 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 paused_file="paused.txt",
                 status_file="status.txt",
                 console_file="console.json",
-                drive_file="drive.txt",
                 dashboard_cmd_file="dash.txt",
-                log_file=tmp_path / "main_funestra.log", state_dir=tmp_path,
-                main_funestra_x=0, main_funestra_y=0, main_funestra_width=1, main_funestra_height=1,
-            **GENAUS_FILES,
-            )
+                log_file=tmp_path / "main_funestra.log",
+                state_dir=tmp_path,
+                main_funestra_x=0,
+                main_funestra_y=0,
+                main_funestra_width=1,
+                main_funestra_height=1,
+            ))
         assert self._launched_exe(popen) == "FunTime-MainFunestra.exe"
 
     def test_the_hosted_origenerator(self, tmp_path: Path):
@@ -1781,12 +1886,13 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             launch_origenerator(
                 python_exe=self._interpreter(tmp_path),
                 origenerator_dir=tmp_path / "origenerator",
-                layout_plan=plan,
-                command_file="state/origenerator_cmd.txt",
-                paused_file="state/origenerator_paused.txt",
-                status_file="state/origenerator_status.txt",
-                dashboard_cmd_file="state/dashboard_cmd.txt",
-                funestras=_handed_funestras(),
+                session=OrigeneratorSession(
+                    layout_plan=plan,
+                    command_file="state/origenerator_cmd.txt",
+                    paused_file="state/origenerator_paused.txt",
+                    status_file="state/origenerator_status.txt",
+                    dashboard_cmd_file="state/dashboard_cmd.txt",
+                    funestras=_handed_funestras()),
             )
 
         assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
@@ -1825,12 +1931,13 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
         pid = launch_origenerator(
             python_exe="C:/py/python.exe",
             origenerator_dir=tmp_path / "origenerator",
-            layout_plan=plan,
-            command_file="state/origenerator_cmd.txt",
-            paused_file="state/origenerator_paused.txt",
-            status_file="state/origenerator_status.txt",
-            dashboard_cmd_file="state/dashboard_cmd.txt",
-            funestras=_handed_funestras(),
+            session=OrigeneratorSession(
+                layout_plan=plan,
+                command_file="state/origenerator_cmd.txt",
+                paused_file="state/origenerator_paused.txt",
+                status_file="state/origenerator_status.txt",
+                dashboard_cmd_file="state/dashboard_cmd.txt",
+                funestras=_handed_funestras()),
         )
 
     assert pid == 77
@@ -1876,10 +1983,11 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
         launch_origenerator(
             python_exe="C:/py/python.exe",
             origenerator_dir=worktree,
-            layout_plan=plan,
-            command_file="c.txt", paused_file="p.txt",
-            status_file="s.txt", dashboard_cmd_file="d.txt",
-            funestras=_handed_funestras(),
+            session=OrigeneratorSession(
+                layout_plan=plan,
+                command_file="c.txt", paused_file="p.txt",
+                status_file="s.txt", dashboard_cmd_file="d.txt",
+                funestras=_handed_funestras()),
         )
 
     env = popen.call_args.kwargs["env"]
@@ -1905,21 +2013,24 @@ def test_a_hosted_worktree_is_run_from_the_primary_checkouts_install(tmp_path: P
 
 
 class TestLaunchingTheAudioCompanionOnItsOwn:
-    def _launch(self, **over):
+    def _launch(self, tmp_path: Path, *, audio_device=None, sibling_checkouts=""):
+        manifest = _a_session_manifest(
+            tmp_path,
+            executables=dict(python_exe="C:/example/python.exe"),
+            modules=dict(audio_module="fun_time.audio_companion_app"),
+            runtime=dict(config_path="C:/example/fun_time_config.json",
+                         sibling_checkouts=sibling_checkouts),
+            media=dict(genau_audio="C:/example/audio"))
         with patch(
             "fun_time.windows_bridge_startup.subprocess.Popen", return_value=_FakeProc(33),
         ) as popen, patch(
             "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={"creationflags": 1}
         ):
-            proc = launch_audio_companion(
-                python_exe="C:/example/python.exe", audio_module="fun_time.audio_companion_app",
-                config_path="C:/example/fun_time_config.json", audio_folder="C:/example/audio",
-                **over,
-            )
+            proc = launch_audio_companion(manifest, audio_device=audio_device)
         return proc, popen.call_args.args[0], popen.call_args.kwargs
 
-    def test_the_command_is_the_one_the_desktop_session_uses(self):
-        proc, argv, kwargs = self._launch()
+    def test_the_command_is_the_one_the_desktop_session_uses(self, tmp_path: Path):
+        proc, argv, kwargs = self._launch(tmp_path)
 
         assert proc.pid == 33
         assert argv[1:] == [
@@ -1929,13 +2040,13 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         ]
         assert kwargs == {"creationflags": 1, **no_child_log()}
 
-    def test_a_named_output_rides_as_the_audio_device(self):
-        _proc, argv, _kwargs = self._launch(audio_device="Pimax")
+    def test_a_named_output_rides_as_the_audio_device(self, tmp_path: Path):
+        _proc, argv, _kwargs = self._launch(tmp_path, audio_device="Pimax")
 
         assert argv[-2:] == ["--audio-device", "Pimax"]
 
-    def test_no_named_output_leaves_the_command_alone(self):
-        _proc, argv, _kwargs = self._launch(audio_device=None)
+    def test_no_named_output_leaves_the_command_alone(self, tmp_path: Path):
+        _proc, argv, _kwargs = self._launch(tmp_path, audio_device=None)
 
         assert "--audio-device" not in argv
 
@@ -1943,7 +2054,7 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         checkout = tmp_path / "funestra"
         checkout.mkdir()
 
-        _proc, _argv, kwargs = self._launch(sibling_checkouts=str(checkout))
+        _proc, _argv, kwargs = self._launch(tmp_path, sibling_checkouts=str(checkout))
 
         assert kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
@@ -1953,12 +2064,12 @@ def test_only_the_portrait_funestra_is_launched_to_tile(tmp_path):
     with patch("fun_time.windows_bridge_startup.launch_satellite",
                side_effect=[202, 303]) as launch:
         launch_core_apps(
-            python_exe="fun_time_python.exe", satellite_module="satellite",
-            portrait=_launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
-                           WindowRect(x=2560, y=0, width=1440, height=2500)),
-            landscape=_launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
-                            WindowRect(x=1664, y=0, width=896, height=1392)),
-            result_file=tmp_path / "core_apps.ini",
+            _a_session_manifest(tmp_path),
+            _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+                    WindowRect(x=2560, y=0, width=1440, height=2500)),
+            _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+                    WindowRect(x=1664, y=0, width=896, height=1392)),
+            tmp_path / "core_apps.ini",
         )
 
     assert [call.kwargs["placement"].tiles for call in launch.call_args_list] == [True, False]

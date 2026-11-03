@@ -74,7 +74,7 @@ _A_PLAN = WindowLayoutPlan(portrait=_A_RECT, landscape=_A_RECT, dashboard=_A_REC
 def _the_launches(manifest: LaunchManifest) -> dict[str, list[str]]:
     return {
         where: sorted(word for word in origenerator_session_args(
-            **the_session_it_is_handed(manifest, _A_PLAN, in_a_headset=in_a_headset))
+            the_session_it_is_handed(manifest, _A_PLAN, in_a_headset=in_a_headset))
             if word.startswith("--"))
         for where, in_a_headset in (("on the monitors", False), ("in a headset", True))
     }

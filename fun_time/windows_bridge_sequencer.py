@@ -56,6 +56,7 @@ from .windows_bridge_random_favs_browser import (
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
+    GenauStart,
     launch_main_funestra,
     launch_ui_companions,
     start_core_session,
@@ -95,21 +96,22 @@ def _build_unique_result_path(state_dir: Path, prefix: str) -> Path:
     return state_dir / f"{prefix}_{int(time.monotonic() * 1000)}.ini"
 
 
-def _startup_hwnds_by_window(
-    *,
-    portrait_hwnd: int,
-    landscape_hwnd: int,
-    main_funestra_hwnd: int,
-    dashboard_hwnd: int = 0,
-    rfb_hwnd: int = 0,
-) -> dict[str, int]:
-    return {
-        "portrait": portrait_hwnd,
-        "landscape": landscape_hwnd,
-        "main_funestra": main_funestra_hwnd,
-        "dashboard": dashboard_hwnd,
-        "rfb": rfb_hwnd,
-    }
+@dataclass(frozen=True)
+class StartupWindows:
+    portrait_hwnd: int
+    landscape_hwnd: int
+    main_funestra_hwnd: int
+    dashboard_hwnd: int = 0
+    rfb_hwnd: int = 0
+
+    def by_name(self) -> dict[str, int]:
+        return {
+            "portrait": self.portrait_hwnd,
+            "landscape": self.landscape_hwnd,
+            "main_funestra": self.main_funestra_hwnd,
+            "dashboard": self.dashboard_hwnd,
+            "rfb": self.rfb_hwnd,
+        }
 
 
 def apply_topmost_bands(hwnds_by_window: dict[str, int], *, beneath: int = 0,
@@ -121,22 +123,12 @@ def apply_topmost_bands(hwnds_by_window: dict[str, int], *, beneath: int = 0,
 
 
 def apply_startup_window_state(
+    windows: StartupWindows,
     *,
-    portrait_hwnd: int,
-    landscape_hwnd: int,
-    main_funestra_hwnd: int,
-    dashboard_hwnd: int = 0,
-    rfb_hwnd: int = 0,
     beneath: int = 0,
     rfb_mode: RfbMode = RfbMode.RFB,
 ) -> dict[str, int]:
-    hwnds_by_window = _startup_hwnds_by_window(
-        portrait_hwnd=portrait_hwnd,
-        landscape_hwnd=landscape_hwnd,
-        main_funestra_hwnd=main_funestra_hwnd,
-        dashboard_hwnd=dashboard_hwnd,
-        rfb_hwnd=rfb_hwnd,
-    )
+    hwnds_by_window = windows.by_name()
     apply_topmost_bands(hwnds_by_window, beneath=beneath, rfb_mode=rfb_mode)
     return hwnds_by_window
 
@@ -146,6 +138,7 @@ class _LaunchedChildren:
     pids: list[int] = field(default_factory=list)
     funestras: list[LaunchedFunestra] = field(default_factory=list)
     rfb_hwnd: int = 0
+    dashboard_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
     origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
@@ -179,18 +172,21 @@ def run_startup_sequence(
     launched = _LaunchedChildren()
     try:
         return _run_startup_phases(
-            manifest_path=manifest_path,
-            state_dir=state_dir,
-            progress=progress,
-            hide_windows=hide_windows,
-            launched=launched,
-            env=env,
-        )
+            _StartupRequest(Path(manifest_path), Path(state_dir), hide_windows, env),
+            progress, launched)
     except (StartupCancelled, FunestraDied) as stopped:
         stopped.launched_pids = launched.pids
         stopped.rfb_hwnd = launched.rfb_hwnd
         stopped.origenerator_taken_over = launched.origenerator_taken_over
         raise
+
+
+@dataclass(frozen=True)
+class _StartupRequest:
+    manifest_path: Path
+    state_dir: Path
+    hide_windows: bool
+    env: SessionEnvironment
 
 
 @dataclass(frozen=True)
@@ -215,12 +211,9 @@ def _launch_the_satellites(
     *,
     plan: WindowLayoutPlan,
     state_dir: Path,
-    sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> tuple[str, int, int]:
     core_result_file = _build_unique_result_path(state_dir, "core_session")
-    broker_launcher_raw = m.commands.broker_tray_launcher.strip()
-    regen_metadata_raw = m.regen.metadata_root.strip()
 
     def _launch(funestra: FunTimeFunestra, satellite: str, sources: str, playlist: str, rect):
         return SatelliteLaunch(
@@ -242,28 +235,11 @@ def _launch_the_satellites(
     portrait_logs = logs_as_they_stand(portrait_launch.log_file)
     landscape_logs = logs_as_they_stand(landscape_launch.log_file)
     main_mode = start_core_session(
-        config_path=m.runtime.config_path,
-        broker_cmd_file=m.commands.broker_cmd_file,
-        broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
-        broker_state_dir=m.commands.broker_state_dir or None,
-        random_favs_browser_manifest_file=m.random_favs_browser.manifest_file,
-        genau_paused_file=m.commands.genau_paused_file,
-        genau_cmd_file=m.commands.genau_cmd_file,
-        audio_paused_file=m.commands.audio_paused_file,
-        main_funestra_paused_file=m.commands.main_funestra_paused_file,
-        audio_volume_file=m.commands.audio_volume_file,
-        main_funestra_cmd_file=m.commands.main_funestra_cmd_file,
-        satellite_python_exe=m.executables.python_exe,
-        satellite_module=m.modules.satellite_module,
+        m,
         portrait=portrait_launch,
         landscape=landscape_launch,
-        main_funestra_status_file=m.commands.main_funestra_status_file,
-        dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        main_sources=m.media.main_funestra_library_sources,
         state_dir=state_dir,
         result_file=str(core_result_file),
-        regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
-        sibling_checkouts=sibling_checkouts,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -285,10 +261,8 @@ def _launch_the_main_funestra(
     *,
     layout: ScreenLayout,
     state_dir: Path,
-    sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> tuple[int, Path]:
-    regen_metadata_raw = m.regen.metadata_root.strip()
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
@@ -299,34 +273,16 @@ def _launch_the_main_funestra(
     main_funestra_log = state_dir / "main_funestra.log"
     main_funestra_logs = logs_as_they_stand(main_funestra_log)
     main_funestra_pid = launch_main_funestra(
-        python_exe=m.executables.python_exe,
-        main_funestra_module=m.modules.main_funestra_module,
-        config_path=m.runtime.config_path,
-        playlist_file=m.commands.main_funestra_playlist_file,
-        command_file=m.commands.main_funestra_cmd_file,
-        paused_file=m.commands.main_funestra_paused_file,
-        status_file=m.commands.main_funestra_status_file,
-        console_file=m.commands.main_funestra_console_file,
-        drive_file=m.commands.genau_drive_file,
-        dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        osr2_port=m.commands.osr2_slot_port,
-        log_file=main_funestra_log,
+        m,
         state_dir=state_dir,
-        main_funestra_x=main_media_rect.x,
-        main_funestra_y=main_media_rect.y,
-        main_funestra_width=main_media_rect.width,
-        main_funestra_height=main_media_rect.height,
-        genau_command_file=m.commands.genau_cmd_file,
-        genau_paused_file=m.commands.genau_paused_file,
-        genau_status_file=m.commands.genau_status_file,
-        flicks_dir=m.media.genau_flicks,
-        metadata_dir=regen_metadata_raw or None,
-        genau_start_flick=genau_flick,
-        genau_latest=state.genau_latest,
-        genau_f_mode=state.genau_favorites_filter,
-        genau_orientations=(state.genau_plays_portrait, state.genau_plays_landscape),
-        notice_file=m.commands.main_funestra_notice_file,
-        sibling_checkouts=sibling_checkouts,
+        log_file=main_funestra_log,
+        rect=main_media_rect,
+        genau=GenauStart(
+            start_flick=genau_flick,
+            latest=state.genau_latest,
+            f_mode=state.genau_favorites_filter,
+            orientations=(state.genau_plays_portrait, state.genau_plays_landscape),
+        ),
     )
     launched.pids.append(main_funestra_pid)
     launched.funestras.append(LaunchedFunestra("the Main Funestra", main_funestra_pid, main_funestra_logs))
@@ -351,15 +307,12 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    sibling_checkouts = m.runtime.sibling_checkouts
     origenerator_pid = _launch_the_hosted_origenerator(
-        m, plan=layout.plan, sibling_checkouts=sibling_checkouts, launched=launched)
+        m, plan=layout.plan, sibling_checkouts=m.runtime.sibling_checkouts, launched=launched)
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
-        m, plan=layout.plan, state_dir=state_dir, sibling_checkouts=sibling_checkouts,
-        launched=launched)
+        m, plan=layout.plan, state_dir=state_dir, launched=launched)
     main_funestra_pid, main_funestra_status_file = _launch_the_main_funestra(
-        m, layout=layout, state_dir=state_dir, sibling_checkouts=sibling_checkouts,
-        launched=launched)
+        m, layout=layout, state_dir=state_dir, launched=launched)
 
     return _CoreSession(
         main_mode=main_mode,
@@ -384,11 +337,11 @@ def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) ->
     _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=activate)
     logger.info("Core windows positioned")
 
-    hwnds_by_window = apply_startup_window_state(
+    hwnds_by_window = apply_startup_window_state(StartupWindows(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-    )
+    ))
     logger.info("Startup window state applied")
     return hwnds_by_window
 
@@ -404,27 +357,15 @@ def _launch_the_companions(
     time.sleep(_COMPANION_LAUNCH_DELAY_S)
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
-        python_exe=m.executables.python_exe,
-        dashboard_module=m.modules.dashboard_module,
-        dashboard_enabled=m.dashboard_enabled,
+        m,
+        plan=plan,
+        manifest_path=manifest_path,
         dashboard_log_file=state_dir / "dashboard.log",
-        windows_bridge_manifest_path=str(manifest_path),
-        dashboard_x=plan.dashboard.x,
-        dashboard_y=plan.dashboard.y,
-        dashboard_width=plan.dashboard.width,
-        dashboard_height=plan.dashboard.height,
-        rfb_x=plan.random_favs_browser.x,
-        rfb_y=plan.random_favs_browser.y,
-        rfb_width=plan.random_favs_browser.width,
-        rfb_height=plan.random_favs_browser.height,
-        audio_module=m.modules.audio_module,
-        config_path=m.runtime.config_path,
-        audio_folder=m.media.genau_audio,
         result_file=str(ui_result_file),
-        sibling_checkouts=m.runtime.sibling_checkouts,
     )
     ui_pids = _read_result_pids(ui_result_file)
     launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])
+    launched.dashboard_pid = ui_pids["dashboard_pid"]
     return ui_pids
 
 
@@ -472,13 +413,13 @@ def _place_the_windows_under_the_loading_screen(
         if dashboard_pid
         else 0
     )
-    hwnds_by_window = _startup_hwnds_by_window(
+    hwnds_by_window = StartupWindows(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         dashboard_hwnd=dash_hwnd,
-    )
+    ).by_name()
     logger.info("Startup windows resolved (bands deferred past the overlay)")
     return hwnds_by_window
 
@@ -488,38 +429,32 @@ def _settle_the_app_under_the_loading_screen(
     *,
     core: _CoreSession,
     plan: WindowLayoutPlan,
-    rfb_hwnd: int,
-    dashboard_pid: int,
+    launched: _LaunchedChildren,
     progress: ProgressReporter,
-    funestras: list[LaunchedFunestra],
 ) -> dict[str, int]:
     progress.advance("funestras")
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_app_to_be_drawing(
         m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
-        funestras=funestras)
+        funestras=launched.funestras)
 
     progress.advance("windows")
     return _place_the_windows_under_the_loading_screen(
         plan=plan,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        rfb_hwnd=rfb_hwnd,
-        dashboard_pid=dashboard_pid,
+        rfb_hwnd=launched.rfb_hwnd,
+        dashboard_pid=launched.dashboard_pid,
     )
 
 
 def _run_startup_phases(
-    *,
-    manifest_path: str | Path,
-    state_dir: str | Path,
+    request: _StartupRequest,
     progress: ProgressReporter,
-    hide_windows: bool,
     launched: _LaunchedChildren,
-    env: SessionEnvironment,
 ) -> StartupResult:
-    manifest_path = Path(manifest_path)
-    state_dir = Path(state_dir)
+    manifest_path, state_dir = request.manifest_path, request.state_dir
+    hide_windows, env = request.hide_windows, request.env
     state_dir.mkdir(parents=True, exist_ok=True)
     m = LaunchManifest.read(manifest_path)
     layout = _plan_the_layout(m)
@@ -546,9 +481,7 @@ def _run_startup_phases(
 
     if hide_windows:
         hwnds_by_window = _settle_the_app_under_the_loading_screen(
-            m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
-            dashboard_pid=ui_pids["dashboard_pid"], progress=progress,
-            funestras=launched.funestras)
+            m, core=core, plan=plan, launched=launched, progress=progress)
 
     raise_if_a_funestra_died(launched.funestras)
 
