@@ -300,24 +300,26 @@ def wait_for_the_session_to_let_go(
     return True
 
 
+@dataclass(frozen=True)
+class SessionLaunch:
+    python_exe: str | Path
+    project_dir: str | Path
+    state_dir: str | Path
+    config_path: str | Path
+
+
 def start_the_session(
-    target: HandoffTarget,
-    *,
-    python_exe: str | Path,
-    project_dir: str | Path,
-    state_dir: str | Path,
-    config_path: str | Path,
-    cancelable: bool = True,
+    target: HandoffTarget, launch: SessionLaunch, *, cancelable: bool = True,
 ) -> subprocess.Popen:
-    (Path(state_dir) / target.ready_marker).unlink(missing_ok=True)
-    named = NAMER.named_exe(python_exe, "Orchestrator")
-    command = [named, "-m", target.module, "--config", str(config_path)]
+    (Path(launch.state_dir) / target.ready_marker).unlink(missing_ok=True)
+    named = NAMER.named_exe(launch.python_exe, "Orchestrator")
+    command = [named, "-m", target.module, "--config", str(launch.config_path)]
     if not cancelable:
         command.append("--no-cancel")
-    with open_child_log(Path(state_dir) / target.launcher_log, command) as log:
+    with open_child_log(Path(launch.state_dir) / target.launcher_log, command) as log:
         logger.info("Starting %s: %s", target.app_name, subprocess.list2cmdline(command))
         return subprocess.Popen(
-            command, cwd=str(project_dir), stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            command, cwd=str(launch.project_dir), stdin=subprocess.DEVNULL, stdout=log, stderr=log,
             **hidden_subprocess_kwargs(),
         )
 
@@ -408,10 +410,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
         say_the_crossing_is_cancelled(state_dir)
     session = start_the_session(
         target,
-        python_exe=config.paths.python_exe,
-        project_dir=config.project_dir,
-        state_dir=state_dir,
-        config_path=config.config_path,
+        SessionLaunch(config.paths.python_exe, config.project_dir, state_dir, config.config_path),
         cancelable=cancelable,
     )
     reason = wait_for_the_session_to_come_up(target, session, state_dir=state_dir)
