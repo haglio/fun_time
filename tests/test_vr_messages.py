@@ -24,11 +24,14 @@ from fun_time.voice_control import VoiceController
 from fun_time_vr.messages import MAIN, MessageBoard, screen_for
 
 
-def _write(path: Path, message: str, level: int = MESSAGE, source: str = SOURCE_SYSTEM,
-           *, flashes: bool = True, spoken_at: float | None = None) -> None:
+def _event(message: str, level: int = MESSAGE, source: str = SOURCE_SYSTEM,
+           *, flashes: bool = True, spoken_at: float | None = None) -> EventRecord:
+    return EventRecord(1.0, level, source, message, flashes, spoken_at)
+
+
+def _write(path: Path, record: EventRecord) -> None:
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(event_line(EventRecord(1.0, level, source, message, flashes,
-                                            spoken_at)) + "\n")
+        handle.write(event_line(record) + "\n")
 
 
 class _Unlogged:
@@ -75,7 +78,7 @@ class TestWhatItPicksUp:
     def test_an_announcement_written_after_it_started_flashes(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "landscape next")
+        _write(path, _event("landscape next"))
 
         board.pump(None, now=1.0)
 
@@ -83,7 +86,7 @@ class TestWhatItPicksUp:
 
     def test_the_backlog_it_opened_on_is_not_news(self, tmp_path):
         path = _log(tmp_path)
-        _write(path, "an older command")
+        _write(path, _event("an older command"))
 
         board = MessageBoard(path)
         board.pump(None, now=1.0)
@@ -93,8 +96,8 @@ class TestWhatItPicksUp:
     def test_the_diagnostic_chatter_under_a_message_is_not_shown(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "Voice command: landscape_next", level=logging.INFO)
-        _write(path, "No video that way", level=logging.WARNING)
+        _write(path, _event("Voice command: landscape_next", level=logging.INFO))
+        _write(path, _event("No video that way", level=logging.WARNING))
 
         board.pump(None, now=1.0)
 
@@ -103,7 +106,7 @@ class TestWhatItPicksUp:
     def test_the_level_rides_along_for_the_color(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "clip locked", level=FAVORITE)
+        _write(path, _event("clip locked", level=FAVORITE))
 
         board.pump(None, now=1.0)
 
@@ -114,7 +117,7 @@ class TestTheBannerOverEachFunestra:
     def test_a_line_flashes_over_the_funestra_it_names(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "portrait next", source=SOURCE_PORTRAIT)
+        _write(path, _event("portrait next", source=SOURCE_PORTRAIT))
 
         board.pump(None, now=1.0)
 
@@ -125,8 +128,8 @@ class TestTheBannerOverEachFunestra:
     def test_the_newest_line_wins_its_screen(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "portrait next", source=SOURCE_PORTRAIT)
-        _write(path, "portrait lock", source=SOURCE_PORTRAIT)
+        _write(path, _event("portrait next", source=SOURCE_PORTRAIT))
+        _write(path, _event("portrait lock", source=SOURCE_PORTRAIT))
 
         board.pump(None, now=1.0)
 
@@ -135,8 +138,8 @@ class TestTheBannerOverEachFunestra:
     def test_each_screen_flashes_its_own(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "portrait next", source=SOURCE_PORTRAIT)
-        _write(path, "skip", source=SOURCE_MAIN)
+        _write(path, _event("portrait next", source=SOURCE_PORTRAIT))
+        _write(path, _event("skip", source=SOURCE_MAIN))
 
         board.pump(None, now=1.0)
 
@@ -148,7 +151,7 @@ class TestWhatItDrops:
     def test_a_banner_fades_after_its_seconds(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path, message_seconds=2.0)
-        _write(path, "skip", source=SOURCE_MAIN)
+        _write(path, _event("skip", source=SOURCE_MAIN))
         board.pump(None, now=100.0)
 
         board.pump(None, now=101.9)
@@ -178,7 +181,7 @@ class TestWordsFlashedWithNoLogLine:
     def test_the_line_logged_in_their_place_is_listed_and_not_flashed(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path)
-        _write(path, "unrecognized voice command (2 words)", level=logging.WARNING, flashes=False)
+        _write(path, _event("unrecognized voice command (2 words)", level=logging.WARNING, flashes=False))
 
         board.pump(None, now=1.0)
 
@@ -191,8 +194,7 @@ class TestWordsFlashedWithNoLogLine:
         board = MessageBoard(path, unlogged=_Unlogged(EventRecord(
             2.0, logging.WARNING, SOURCE_SYSTEM, "unrecognized voice command: alpha beta",
             spoken_at=2.0)))
-        _write(path, "unrecognized voice command (2 words)", level=logging.WARNING,
-               flashes=False, spoken_at=2.0)
+        _write(path, _event("unrecognized voice command (2 words)", level=logging.WARNING, flashes=False, spoken_at=2.0))
 
         board.pump(None, now=1.0)
 
@@ -235,7 +237,7 @@ class TestWordsFlashedWithNoLogLine:
     def test_a_banner_is_timed_from_when_the_board_saw_it(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path, message_seconds=5.0)
-        _write(path, "landscape next")
+        _write(path, _event("landscape next"))
 
         board.pump(None, now=9_999.0)
 

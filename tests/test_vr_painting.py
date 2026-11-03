@@ -81,8 +81,8 @@ def _frames(relay=None, still=None) -> FrameHandover:
     return FrameHandover("main-video", 1024, relay or FrameRelay(), still or StillAsked())
 
 
-def _a_painting(engine=None, *, gpu=None, relay=None, still=None, perf=None, clock=None):
-    return Painting(engine or _AnEngine(), _frames(relay, still), gpu=gpu or _AGpu(),
+def _a_painting(engine=None, *, gpu=None, frames=None, perf=None, clock=None):
+    return Painting(engine or _AnEngine(), frames or _frames(), gpu=gpu or _AGpu(),
                     perf=perf, clock=clock or _AClock())
 
 
@@ -105,7 +105,7 @@ class TestPaintingAFrame:
 
     def test_a_drawn_frame_is_relayed_once_the_gpu_has_reached_its_mark(self):
         relay = FrameRelay()
-        painting = _a_painting(_AnEngine(video="b.mp4"), relay=relay)
+        painting = _a_painting(_AnEngine(video="b.mp4"), frames=_frames(relay=relay))
         targets = _targets()
 
         painting.paint(targets, None)
@@ -118,7 +118,7 @@ class TestPaintingAFrame:
 
     def test_a_frame_the_gpu_has_not_finished_waits_and_is_not_relayed(self):
         gpu, relay = _AGpu(reaches_marks=False), FrameRelay()
-        painting = _a_painting(gpu=gpu, relay=relay)
+        painting = _a_painting(gpu=gpu, frames=_frames(relay=relay))
         targets = _targets()
 
         painting.paint(targets, None)
@@ -129,7 +129,7 @@ class TestPaintingAFrame:
 
     def test_a_still_asked_for_is_left_after_the_next_painted_frame(self):
         engine, still = _AnEngine(), StillAsked()
-        painting = _a_painting(engine, still=still)
+        painting = _a_painting(engine, frames=_frames(still=still))
         targets, small = _targets(), _ATarget(9)
         small.ensure(512, 256)
 
@@ -155,7 +155,7 @@ class TestPaintingAFrame:
 
     def test_a_frame_that_mpv_says_is_not_one_to_show_is_not_relayed(self):
         engine, relay = _AnEngine(video=None), FrameRelay()
-        painting = _a_painting(engine, relay=relay)
+        painting = _a_painting(engine, frames=_frames(relay=relay))
         targets = _targets()
 
         painting.paint(targets, None)
@@ -191,7 +191,7 @@ class TestAGpuThatIsSlow:
 
     def test_a_frame_the_gpu_never_finishes_is_shown_anyway(self, caplog):
         clock, relay = _AClock(), FrameRelay()
-        painting = _a_painting(gpu=_AGpu(reaches_marks=False), relay=relay, clock=clock)
+        painting = _a_painting(gpu=_AGpu(reaches_marks=False), frames=_frames(relay=relay), clock=clock)
         targets = _targets()
         painting.paint(targets, None)
         painting.paint(targets, None)
