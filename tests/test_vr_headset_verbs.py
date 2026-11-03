@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from funestra.playback import Playback
+from funestra.playback_setup import PlaybackSetup
 from funestra.testing import FakeEngine
 
 from fun_time.event_log import MESSAGE, SOURCE_MAIN
@@ -59,7 +60,7 @@ def headset(tmp_path):
     for video in (one, two, three):
         video.write_bytes(b"")
     engine = FakeEngine(duration_ms=HOUR_MS)
-    playback = Playback([one, two, three], engine=engine, locked=True)
+    playback = Playback([one, two, three], engine=engine, setup=PlaybackSetup(locked=True))
     verbs = HeadsetVerbs(playback, metadata_root=metadata, vr_dirs=(vr_dir,))
     return SimpleNamespace(verbs=verbs, playback=playback, engine=engine, metadata=metadata,
                            files=(one, two, three))
@@ -181,7 +182,7 @@ class TestProjectionCycling:
         vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
         vr_dir.mkdir(parents=True)
         one, two = vr_dir / "scene one.mp4", vr_dir / "scene two.mp4"
-        playback = Playback([one, two], engine=FakeEngine(), locked=True)
+        playback = Playback([one, two], engine=FakeEngine(), setup=PlaybackSetup(locked=True))
         verbs = HeadsetVerbs(playback, metadata_root=metadata, vr_dirs=(vr_dir,))
 
         verbs.apply("CYCLE_PROJECTION")
@@ -389,7 +390,8 @@ class TestLayoutReset:
 class TestTilt:
     def _opened_at(self, tmp_path, tilt_deg):
         feature = tmp_path / "feature.mp4"
-        return HeadsetVerbs(Playback([feature], engine=FakeEngine(), locked=True),
+        return HeadsetVerbs(Playback([feature], engine=FakeEngine(),
+                                     setup=PlaybackSetup(locked=True)),
                             metadata_root=None, vr_dirs=(), tilt_deg=tilt_deg)
 
     def test_the_room_opens_at_the_tilt_the_last_session_was_left_at(self, tmp_path):
@@ -510,7 +512,7 @@ class TestScenes:
         sidecar.parent.mkdir(parents=True)
         sidecar.write_text(json.dumps({"scenes": [{"start": 90}]}), encoding="utf-8")
         engine = FakeEngine(duration_ms=HOUR_MS)
-        verbs = HeadsetVerbs(Playback([video], engine=engine, locked=True),
+        verbs = HeadsetVerbs(Playback([video], engine=engine, setup=PlaybackSetup(locked=True)),
                              metadata_root=metadata, vr_dirs=(vr_dir,))
 
         verbs.apply("NEXT_SCENE")

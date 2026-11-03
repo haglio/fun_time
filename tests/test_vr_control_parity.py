@@ -13,6 +13,7 @@ from funestra.flick_folder import flat_flicks_in
 from funestra.funestra import Channels, Funestra
 from funestra.funestra_controls import FunestraControls
 from funestra.funestra_controls import apply_command as apply_satellite_command
+from funestra.funestra_setup import FunestraSetup
 from funestra.funestra_verbs import SHOW
 from funestra.funscript_jumps import FunscriptJumps
 from funestra.genau_controls import VERBS as GENAU_VERBS
@@ -106,8 +107,8 @@ class _TheHeadsetsMainFunestra:
         channels.playlist.write_text(f"{first}\t{script}\n{second}\t\n", encoding="utf-8")
         self._command_file = channels.command
         self.engine = FakeEngine(duration_ms=3_600_000.0)
-        self.funestra = Funestra(
-            self.engine, channels=channels, playlist=read_playlist(channels.playlist),
+        self.funestra = Funestra(self.engine, FunestraSetup(
+            channels=channels, playlist=read_playlist(channels.playlist),
             locked=True, sound_is_the_rooms=True,
             users={MainMode.KINO: partial(
                 Kino, library=KinoLibrary(
@@ -116,7 +117,7 @@ class _TheHeadsetsMainFunestra:
                 remembered=RememberedMode()),
                 MainMode.GENAU: lambda _playback: _genau_in_the_headset(tmp_path)},
             window_verbs=self._apply_the_headsets_verb,
-        )
+        ))
         self.verbs = HeadsetVerbs(self.funestra.playback, metadata_root=tmp_path / "metadata",
                                   vr_dirs=())
 

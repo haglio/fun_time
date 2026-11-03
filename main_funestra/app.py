@@ -9,6 +9,7 @@ from app_support.osr2_slot import Osr2Sender
 from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
+from funestra.funestra_setup import FunestraSetup
 from funestra.genau_notifier import GenauNotifier
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
@@ -122,10 +123,10 @@ def _run(args) -> int:
     scripted = sum(1 for item in items if item.funscript is not None)
     logger.info("Found %d item(s), %d with funscripts", len(items), scripted)
 
-    funestra = Funestra.on_window(
-        wid, channels=MainChannels.from_args(args), playlist=items,
+    funestra = Funestra.on_window(wid, FunestraSetup(
+        channels=MainChannels.from_args(args), playlist=items,
         audible=not audio_muted(args), tiles=True, locked=True, sound_is_the_rooms=True,
         users=_users(args, kino=kino_on(args, source=source, memory=memory)),
-    )
+    ))
     run_the_window(pygame, funestra, Input(funestra).deal)
     return 0

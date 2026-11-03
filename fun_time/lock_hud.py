@@ -5,7 +5,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL, hud_title, looping_label
+from funestra.hud_title import (
+    LATEST_LABEL,
+    SHUFFLE_LABEL,
+    HudTitleFacts,
+    hud_title,
+    looping_label,
+)
 from funestra.modes import SatellitesMode
 
 from fun_time.media_metadata import (
@@ -23,13 +29,13 @@ from fun_time.thumbnail_cache import thumbnail_for
 def _title(
     locked: bool, loop_axis: str, latest: bool, filter_query: str, favorites_filter: bool
 ) -> str:
-    return hud_title(
+    return hud_title(HudTitleFacts(
         playing_set=looping_label(loop_axis) if loop_axis else "",
         locked=locked,
         order=LATEST_LABEL if latest else SHUFFLE_LABEL,
         f_mode=favorites_filter,
         filters=(filter_query,),
-    )
+    ))
 
 
 @dataclass(frozen=True)

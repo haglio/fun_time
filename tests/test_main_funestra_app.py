@@ -36,7 +36,7 @@ def _keywords(call: ast.Call) -> dict[str, str]:
 
 class TestWhatTheFunestraIsHanded:
     def test_the_main_funestra_opens_holding_its_item_with_the_rooms_sound_and_tiling(self):
-        given = _keywords(_call(_function("_run"), "Funestra.on_window"))
+        given = _keywords(_call(_function("_run"), "FunestraSetup"))
 
         assert given["locked"] == "True"
         assert given["sound_is_the_rooms"] == "True"
@@ -44,12 +44,12 @@ class TestWhatTheFunestraIsHanded:
         assert given["audible"] == "not audio_muted(args)"
 
     def test_the_files_fun_time_named_are_read_whole_off_the_command_line(self):
-        given = _keywords(_call(_function("_run"), "Funestra.on_window"))
+        given = _keywords(_call(_function("_run"), "FunestraSetup"))
 
         assert given["channels"] == "MainChannels.from_args(args)"
 
     def test_kino_runs_on_it_with_the_library_and_the_memory(self):
-        given = _keywords(_call(_function("_run"), "Funestra.on_window"))
+        given = _keywords(_call(_function("_run"), "FunestraSetup"))
 
         assert given["users"] == "_users(args, kino=kino_on(args, source=source, memory=memory))"
 

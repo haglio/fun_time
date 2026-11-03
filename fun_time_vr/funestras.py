@@ -20,6 +20,7 @@ from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 from funestra.funestra import Funestra
+from funestra.funestra_setup import FunestraSetup
 from funestra.funestra_verbs import play_file
 from funestra.genau_notifier import GenauNotifier
 from funestra.messages import MessageWriter
@@ -457,8 +458,7 @@ class _MainUnit(_VideoUnit):
         self.verbs: HeadsetVerbs | None = None
         self.projection = ProjectionControls(verbs=lambda: self.verbs,
                                              showing=lambda: self.owns_the_slot)
-        self.funestra = Funestra(
-            self.engine,
+        self.funestra = Funestra(self.engine, FunestraSetup(
             channels=MainChannels.from_manifest(commands),
             playlist=library.playlist(),
             tcode=FunscriptTCodeDriver(_osr2_slot(commands, MAIN)),
@@ -467,7 +467,7 @@ class _MainUnit(_VideoUnit):
                          kino=library.kino()),
             hud_surface=self.hud, users_frames=self.users_frames,
             window_verbs=self._apply_the_headsets_verb, host_controls=self.projection,
-        )
+        ))
         self.verbs = HeadsetVerbs(
             self.funestra.playback, metadata_root=_metadata_root(manifest),
             vr_dirs=tuple(vr.library_dirs), tilt_deg=remembered.tilt_deg)
@@ -659,15 +659,14 @@ class _SatelliteUnit(_VideoUnit):
         self._dashboard_cmd_file = channels.dashboard_cmd
         self._audio_device = vr.audio_device.strip()
         self.hud = HudBitmap()
-        self.funestra = Funestra(
-            self.engine, channels=channels, playlist=read_playlist(channels.playlist),
+        self.funestra = Funestra(self.engine, FunestraSetup(
+            channels=channels, playlist=read_playlist(channels.playlist),
             tcode=FunscriptTCodeDriver(_osr2_slot(commands, funestra)),
             hud_surface=self.hud,
-        )
+        ))
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
-        self._hud_version = -1
-        self._hud_shown = False
+        self._hud_version, self._hud_shown = -1, False
         self._buttons = HudButtons(funestra, post=self._post, texture=FrameTexture,
                                    mesh=lambda: _HangingScreen(self.screen.placement))
         self._presses = _Presses(funestra, hud_screen_name(funestra), *hud_button_names(funestra))

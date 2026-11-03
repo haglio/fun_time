@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from funestra.playback import Playback
+from funestra.playback_setup import PlaybackSetup
 from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
 
@@ -27,7 +28,7 @@ def _families(*families: list[Path]) -> dict[Path, list[PlaylistItem]]:
 
 def _playing(playlist: list[Path], version_index) -> tuple[Versions, Playback, FakeEngine]:
     engine = FakeEngine()
-    playback = Playback(playlist, engine=engine, locked=True)
+    playback = Playback(playlist, engine=engine, setup=PlaybackSetup(locked=True))
     return Versions(playback, version_index), playback, engine
 
 
