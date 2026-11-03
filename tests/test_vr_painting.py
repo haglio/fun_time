@@ -7,66 +7,7 @@ from fun_time_vr.frame_relay import SLOTS, FrameHandover, FrameRelay, StillAsked
 from fun_time_vr.headset_engine import HeadsetEngine
 from fun_time_vr.paint_watch import FLUSH_AFTER_S, GIVE_UP_AFTER_S, NO_FRAME_AFTER_S
 from fun_time_vr.painting import Painting, Showing
-
-
-class _AMark:
-    def __init__(self, gpu) -> None:
-        self._gpu = gpu
-        self.set_times = 0
-
-    def set(self) -> None:
-        self.set_times += 1
-
-    @property
-    def reached(self) -> bool:
-        return self._gpu.reaches_marks
-
-    def close(self) -> None:
-        self._gpu.closed_marks += 1
-
-
-class _AGpu:
-    def __init__(self, *, reaches_marks: bool = True) -> None:
-        self.reaches_marks = reaches_marks
-        self.flushes = 0
-        self.copied: list[tuple] = []
-        self.closed_marks = 0
-
-    def mark(self) -> _AMark:
-        return _AMark(self)
-
-    def flush(self) -> None:
-        self.flushes += 1
-
-    def copy(self, frame, target) -> None:
-        self.copied.append((frame.texture, target.texture))
-
-    def read_pixels(self, target):
-        return ("pixels", target.width, target.height)
-
-
-class _AnEngine:
-    def __init__(self, *, dims=(1920, 1080), video="a.mp4") -> None:
-        self.video_dims = dims
-        self.has_frame_to_draw = True
-        self.position_ms = 0.0
-        self.rendered: list[tuple] = []
-        self._video = video
-
-    def render(self, fbo, width, height, *, flip_y=False):
-        self.rendered.append((fbo, width, height, flip_y))
-        return self._video
-
-
-class _ATarget:
-    def __init__(self, number: int) -> None:
-        self.fbo, self.texture = 10 + number, 20 + number
-        self.width = self.height = 0
-        self.painted = False
-        self.video = None
-
-    def ensure(self, width: int, height: int) -> None:
-        self.width, self.height = width, height
+from tests.paint_fakes import AGpu, AnEngine, ATarget
 
 
 class _AClock:
@@ -82,17 +23,17 @@ def _frames(relay=None, still=None) -> FrameHandover:
 
 
 def _a_painting(engine=None, *, gpu=None, frames=None, perf=None, clock=None):
-    return Painting(engine or _AnEngine(), frames or _frames(), gpu=gpu or _AGpu(),
+    return Painting(engine or AnEngine(), frames or _frames(), gpu=gpu or AGpu(),
                     perf=perf, clock=clock or _AClock())
 
 
 def _targets():
-    return [_ATarget(n) for n in range(SLOTS)]
+    return [ATarget(n) for n in range(SLOTS)]
 
 
 class TestPaintingAFrame:
     def test_a_frame_is_drawn_into_a_free_slot_at_the_capped_size(self):
-        engine, gpu = _AnEngine(dims=(3840, 2160)), _AGpu()
+        engine, gpu = AnEngine(dims=(3840, 2160)), AGpu()
         painting = _a_painting(engine, gpu=gpu)
         targets = _targets()
 
@@ -105,7 +46,7 @@ class TestPaintingAFrame:
 
     def test_a_drawn_frame_is_relayed_once_the_gpu_has_reached_its_mark(self):
         relay = FrameRelay()
-        painting = _a_painting(_AnEngine(video="b.mp4"), frames=_frames(relay=relay))
+        painting = _a_painting(AnEngine(video="b.mp4"), frames=_frames(relay=relay))
         targets = _targets()
 
         painting.paint(targets, None)
@@ -117,7 +58,7 @@ class TestPaintingAFrame:
             0, 20, 1024, 576, "b.mp4")
 
     def test_a_frame_the_gpu_has_not_finished_waits_and_is_not_relayed(self):
-        gpu, relay = _AGpu(reaches_marks=False), FrameRelay()
+        gpu, relay = AGpu(reaches_marks=False), FrameRelay()
         painting = _a_painting(gpu=gpu, frames=_frames(relay=relay))
         targets = _targets()
 
@@ -128,9 +69,9 @@ class TestPaintingAFrame:
         assert relay.take() is None
 
     def test_a_still_asked_for_is_left_after_the_next_painted_frame(self):
-        engine, still = _AnEngine(), StillAsked()
+        engine, still = AnEngine(), StillAsked()
         painting = _a_painting(engine, frames=_frames(still=still))
-        targets, small = _targets(), _ATarget(9)
+        targets, small = _targets(), ATarget(9)
         small.ensure(512, 256)
 
         still.ask()
@@ -141,20 +82,20 @@ class TestPaintingAFrame:
         assert (19, 512, 256, False) in engine.rendered
 
     def test_an_engine_with_nothing_to_draw_lets_the_thread_rest(self):
-        engine = _AnEngine()
+        engine = AnEngine()
         engine.has_frame_to_draw = False
 
         assert _a_painting(engine).paint(_targets(), None) is True
         assert engine.rendered == []
 
     def test_a_frame_with_no_size_yet_is_not_drawn(self):
-        engine = _AnEngine(dims=(0, 0))
+        engine = AnEngine(dims=(0, 0))
 
         assert _a_painting(engine).paint(_targets(), None) is True
         assert engine.rendered == []
 
     def test_a_frame_that_mpv_says_is_not_one_to_show_is_not_relayed(self):
-        engine, relay = _AnEngine(video=None), FrameRelay()
+        engine, relay = AnEngine(video=None), FrameRelay()
         painting = _a_painting(engine, frames=_frames(relay=relay))
         targets = _targets()
 
@@ -175,7 +116,7 @@ class TestPaintingAFrame:
 
 class TestAGpuThatIsSlow:
     def test_a_frame_waited_on_for_a_second_is_flushed_and_said_once(self, caplog):
-        clock, gpu = _AClock(), _AGpu(reaches_marks=False)
+        clock, gpu = _AClock(), AGpu(reaches_marks=False)
         painting = _a_painting(gpu=gpu, clock=clock)
         targets = _targets()
         painting.paint(targets, None)
@@ -191,7 +132,7 @@ class TestAGpuThatIsSlow:
 
     def test_a_frame_the_gpu_never_finishes_is_shown_anyway(self, caplog):
         clock, relay = _AClock(), FrameRelay()
-        painting = _a_painting(gpu=_AGpu(reaches_marks=False), frames=_frames(relay=relay), clock=clock)
+        painting = _a_painting(gpu=AGpu(reaches_marks=False), frames=_frames(relay=relay), clock=clock)
         targets = _targets()
         painting.paint(targets, None)
         painting.paint(targets, None)
@@ -207,7 +148,7 @@ class TestAGpuThatIsSlow:
 
 class TestAVideoThatStopsDrawing:
     def test_one_that_plays_on_without_a_frame_for_six_seconds_is_said_once(self, caplog):
-        clock, engine = _AClock(), _AnEngine()
+        clock, engine = _AClock(), AnEngine()
         engine.has_frame_to_draw = False
         painting = _a_painting(engine, clock=clock)
 
@@ -221,7 +162,7 @@ class TestAVideoThatStopsDrawing:
             "The main-video video has drawn nothing for 6s while it played on"]
 
     def test_one_that_is_paused_is_not_blamed(self, caplog):
-        clock, engine = _AClock(), _AnEngine()
+        clock, engine = _AClock(), AnEngine()
         engine.has_frame_to_draw = False
         painting = _a_painting(engine, clock=clock)
 
@@ -235,12 +176,12 @@ class TestAVideoThatStopsDrawing:
 
 class TestShowingTheNewestFrame:
     def test_nothing_relayed_shows_nothing(self):
-        assert Showing(_frames(), gpu=_AGpu()).show_newest(_ATarget(5)) is False
+        assert Showing(_frames(), gpu=AGpu()).show_newest(ATarget(5)) is False
 
     def test_a_relayed_frame_is_copied_into_the_screens_texture_at_its_own_size(self):
-        gpu, relay = _AGpu(), FrameRelay()
+        gpu, relay = AGpu(), FrameRelay()
         relay.painted(1, texture=21, width=640, height=360, video="c.mp4")
-        target = _ATarget(5)
+        target = ATarget(5)
 
         shown = Showing(_frames(relay), gpu=gpu).show_newest(target)
 
@@ -249,30 +190,30 @@ class TestShowingTheNewestFrame:
         assert (target.width, target.height, target.video, target.painted) == (640, 360, "c.mp4", True)
 
     def test_a_target_is_marked_painted_only_where_a_frame_lands_in_it(self):
-        target = _ATarget(5)
+        target = ATarget(5)
         target.ensure(640, 360)
 
-        Showing(_frames(), gpu=_AGpu()).show_newest(target)
+        Showing(_frames(), gpu=AGpu()).show_newest(target)
 
         assert target.painted is False
 
     def test_the_relay_hears_the_copy_is_done_only_once_the_gpu_has_finished_it(self):
-        gpu, relay = _AGpu(reaches_marks=False), FrameRelay()
+        gpu, relay = AGpu(reaches_marks=False), FrameRelay()
         relay.painted(1, texture=21, width=640, height=360, video="c.mp4")
         showing = Showing(_frames(relay), gpu=gpu)
-        showing.show_newest(_ATarget(5))
+        showing.show_newest(ATarget(5))
         relay.painted(2, texture=22, width=640, height=360, video="c.mp4")
 
-        assert showing.show_newest(_ATarget(5)) is False
+        assert showing.show_newest(ATarget(5)) is False
         gpu.reaches_marks = True
-        assert showing.show_newest(_ATarget(5)) is True
+        assert showing.show_newest(ATarget(5)) is True
         assert gpu.copied[-1] == (22, 25)
 
     def test_closing_lets_go_of_the_copys_mark(self):
-        gpu, relay = _AGpu(), FrameRelay()
+        gpu, relay = AGpu(), FrameRelay()
         relay.painted(1, texture=21, width=640, height=360, video="c.mp4")
         showing = Showing(_frames(relay), gpu=gpu)
-        showing.show_newest(_ATarget(5))
+        showing.show_newest(ATarget(5))
 
         showing.close()
         showing.close()

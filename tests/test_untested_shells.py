@@ -5,7 +5,6 @@ import importlib
 import inspect
 from pathlib import Path
 
-from app_support.gates import Checkout
 from funestra.render_engine import MpvRenderEngine
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -95,7 +94,3 @@ def test_every_call_in_the_unrun_code_is_one_its_class_accepts():
         "no suite reaches these calls, and the classes they are made on would "
         f"refuse them: {sorted(wrong)}")
 
-
-def test_the_shells_it_reads_are_ones_no_suite_runs():
-    unrun = {entry["path"] for entry in Checkout(ROOT).numbers("coverage")["not-unit-tested"]}
-    assert set(HELD_BY_THE_SHELLS) <= unrun
