@@ -1,17 +1,5 @@
-"""Lazy-load landing pages for Random Favs Browser tabs.
-
-A tab first lands on a tiny local page that holds its real destination, shows
-the video you might want to recreate, and navigates on the first reload (Ctrl+R)
-or click.  The RFB opens ten favorites at once and the lock hotkey opens one
-mid-session; both go through here rather than loading a heavy generate page
-straight away.
-
-The destination cannot ride on Chrome's command line.  A provider regenerate URL
-carries a whole prompt set in its ``#ft=`` fragment — up to ~4 KB — and ten of
-those overflow the 32,767-character ceiling ``CreateProcess`` puts on a command
-line, which fails the launch outright (``WinError 206``).  So the destination is
-baked into a generated page per tab and Chrome is handed short ``file://`` URIs.
-"""
+# The destination cannot ride on Chrome's command line: ten URLs of up to 4 KB overflow
+# CreateProcess's 32,767 characters (WinError 206).
 from __future__ import annotations
 
 import hashlib

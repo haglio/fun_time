@@ -1,13 +1,3 @@
-"""Smart library layer for the Main Funestra: version grouping and quality
-dedup — all pure logic, no pygame or I/O.
-
-Many files in the wild are the same content at different quality or upscale
-(``...-1080p_60fps.mp4``, ``...-old_iris2.mp4``, ``..._topaz.mp4``). This
-module folds those variants into a single *version group* keyed on the name —
-an upscale is almost always the original's name plus an appended tag — picks
-the largest file as the canonical one, and folds Fun Time's playlist to one
-item per group.
-"""
 from __future__ import annotations
 
 import re

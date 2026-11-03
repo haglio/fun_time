@@ -307,8 +307,6 @@ def _pointer_at(event: object) -> tuple[int, int]:
 
 
 class DashboardWidget(QWidget):
-    """Custom widget that paints a DashboardScene using QPainter."""
-
     action_triggered = pyqtSignal(str)
 
     def __init__(self, scene: DashboardScene, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
@@ -426,18 +424,7 @@ class ReferenceDialog(QDialog):
         self._find_bar.open_find([self._browser])
 
     def sync_topmost(self, omni_paused: bool) -> None:
-        """Follow the same OmniPause band policy as every other Fun Time window.
-
-        This popup floats over the Funestras via WindowStaysOnTopHint, but it is
-        not one of the bridge's MANAGED_WINDOWS — it comes and goes with the ``?``
-        button — so the orchestrator's disable_all_topmost never reached it and
-        it stayed stranded above a freed desktop for the whole pause.  It is its
-        own top-level window, so the dashboard's band does not carry it either;
-        it corrects its own, the same way DashboardWindow._sync_own_topmost does.
-
-        winId() is read fresh rather than cached: Qt may recreate the native
-        window across a hide/show, and every toggle hides and shows this one.
-        """
+        # winId() is read fresh: Qt may recreate the native window across a hide/show.
         keep_in_topmost_band(int(self.winId()), topmost=not omni_paused)
 
 
@@ -503,13 +490,8 @@ class ReferencePopup:
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
-    """Post a dashboard button (or voice-toggle) action for the dispatch loop.
-
-    Retries past the loop's ~20 Hz rename-drain of the same file and DROPS
-    rather than raising: unhandled, that error leaves a click slot and PyQt6
-    aborts the window — the "power button closed the Dash instead of quitting
-    Fun Time" bug.  Three cases in `tests/test_dashboard_app.py` hold it.
-    """
+    # PyQt6 aborts the window on an exception left unhandled in a click slot, so this drops rather
+    # than raises.
     append_command(path, action_id)
 
 
@@ -529,8 +511,6 @@ def apply_dashboard_window_geometry(
 
 
 class DashboardWindow(QMainWindow):
-    """Main dashboard window — PyQt6 equivalent of the old build_dashboard_window()."""
-
     _press_received = pyqtSignal()
 
     def __init__(
@@ -676,12 +656,6 @@ class DashboardWindow(QMainWindow):
             self._flash_going_out.start(ceil(waiting * 1000))
 
     def _sync_own_topmost(self, omni_paused: bool) -> None:
-        """Keep the dashboard's own topmost band in step with OmniPause.
-
-        The orchestrator tries to drop it, but its lookup for this Qt window
-        (whose pid differs from the launcher's) intermittently fails, so the
-        panel corrects its own band from its reliable handle.
-        """
         keep_in_topmost_band(self._dash_hwnd, topmost=not omni_paused)
 
     @property

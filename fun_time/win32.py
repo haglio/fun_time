@@ -1,15 +1,3 @@
-"""Win32 window operations for the Python orchestrator.
-
-Wraps the ctypes calls the startup sequencer needs to manage the session's
-windows: find or wait for one by pid or title, move it, set its topmost band,
-activate it, minimize and restore it, read its rect, and walk the z-order.
-Every cross-process call goes through :func:`_without_hanging`, for the reason
-that function's docstring records.
-
-The two subsystems this file used to also hold are next door:
-:mod:`fun_time.win32_process` asks about processes rather than windows, and
-:mod:`fun_time.win32_taskbar` carries the AppUserModelID work.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -139,14 +127,8 @@ def window_title(hwnd: int) -> str:
 
 
 def find_windows_by_class(substring: str) -> set[int]:
-    """Every visible, titled window whose class name contains *substring*.
-
-    The class is how one application's windows are told from another's when
-    nothing else will do: a browser window carries the page's title, and the
-    process that launched it handed its URL to a Chrome already running, so
-    neither title nor pid finds it.  Titled and visible leaves out the internal
-    surfaces.
-    """
+    # A browser window carries the page's title and its launcher handed the URL to a running Chrome,
+    # so only the window class finds it.
     return _every_window(
         lambda hwnd: bool(_user32.IsWindowVisible(hwnd))
         and _user32.GetWindowTextLengthW(hwnd) > 0
@@ -167,20 +149,8 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
 def find_window_for_process(
     pid: int, title: str | Callable[[str], bool] | None = None, *, include_hidden: bool = False
 ) -> int:
-    """*pid*'s — or its direct children's — window titled exactly *title*, or 0.
-
-    Pid AND title, because a process can own several titled windows and a
-    title alone can land on another process's window (a standalone
-    Origenerator carries the hosted one's caption).  The children matter because a
-    recorded pid can be a launcher's: a venv's ``Scripts\\python.exe`` spawns
-    the interpreter that actually owns the windows as a child and exits the
-    lookup empty-handed.  One generation is the launcher pattern; nothing
-    spawns windows two shims deep.
-
-    Hidden windows count only for a caller that asks — the hosted app's main
-    window boots parked — because a process's own internals carry captions
-    too (Qt's ``_q_titlebar``, Windows' ``Default IME``).
-    """
+    # On Windows a venv's Scripts\python.exe spawns the interpreter that owns the windows as a child, so a
+    # recorded pid can be a launcher's.
     if not pid:
         return 0
     pids = {pid, *list_child_pids(pid)}
@@ -307,15 +277,8 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
 
 
 def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
-    """Set or clear the always-on-top flag for a window.
-
-    *under* is a topmost window a promotion lands directly beneath instead of at
-    the top of the band, so the window is never over it.  Windows makes the
-    window topmost there only if another topmost window sits below *under*.
-
-    Through :func:`_without_hanging`: this is the call a stalled Funestra froze the
-    whole session on, because it waits for that Funestra's own thread.
-    """
+    # Windows' SetWindowPos waits for the target's own thread, which is why this goes through
+    # _without_hanging.
     if not on_top:
         insert_after = HWND_NOTOPMOST
     elif under:
@@ -359,15 +322,6 @@ _FRAME_GHOST_PX = 12
 
 
 def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    """Whether two (x, y, w, h) rectangles share VISIBLE interior area.
-
-    A shared edge (touching but not crossing) is not overlap — the portrait
-    satellite's lower edge meets the Main Funestra's top edge, and that abutment must not
-    read as coverage.  Nor is an intersection thinner than a window's
-    invisible resize frame (see ``_FRAME_GHOST_PX``): those slivers had the
-    startup log warning that a maximized Chrome on one monitor "covered" the
-    Funestra on the next monitor over.
-    """
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
     overlap_w = min(ax + aw, bx + bw) - max(ax, bx)
@@ -378,16 +332,6 @@ def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -
 def windows_obscuring(
     target_hwnd: int, stack: list[StackedWindow]
 ) -> list[StackedWindow]:
-    """Windows in *stack* (ordered front-to-back) that loading screen *target_hwnd*.
-
-    A window covers the target when it sits ABOVE it in the z-order and its
-    rect overlaps the target's.  Returns [] when the target is frontmost over
-    its own rect, or is absent from the stack.
-
-    This is what ``is_window_topmost`` cannot tell you: a window may carry the
-    topmost flag yet still be buried under another overlapping window that was
-    promoted after it.  Only the real stacking order answers "is the Main Funestra visible."
-    """
     idx = next((i for i, w in enumerate(stack) if w.hwnd == target_hwnd), None)
     if idx is None:
         return []
@@ -520,12 +464,7 @@ def hide_own_window(hwnd: int) -> None:
 
 
 def set_taskbar_window_styles(hwnd: int) -> None:
-    """Give one a taskbar button, and a title bar with minimize and close.
-
-    Read-modify-write on both style words, then a frame-changed
-    ``SetWindowPos``, without which Windows has the styles but has not redrawn
-    the frame from them.
-    """
+    # Windows has the styles but has not redrawn the frame until a frame-changed SetWindowPos.
     style = _user32.GetWindowLongW(hwnd, GWL_STYLE)
     _user32.SetWindowLongW(
         hwnd, GWL_STYLE, (style | WS_SYSMENU | WS_MINIMIZEBOX) & ~WS_MAXIMIZEBOX)

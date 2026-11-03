@@ -1,15 +1,3 @@
-"""Which sibling checkouts THIS session runs, said by the checkout itself.
-
-``paths.sibling_checkouts`` and ``paths.origenerator_dir`` answer a per-SESSION
-question that could only be said in the machine's one ``fun_time_config.json``,
-which every session reads: a pin written there for one agent's branch reached
-every other session, and nothing took it back out.  A file in the checkout's own
-state dir answers it per session instead.
-
-Here rather than in :mod:`fun_time.branch_session` because the orchestrator
-applies these at launch, and importing that module brings the whole branch
-machinery -- git worktree parsing, PowerShell, a CLI -- with it.
-"""
 from __future__ import annotations
 
 import os

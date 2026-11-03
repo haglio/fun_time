@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-# ---------------------------------------------------------------------------
-# PyQt6 window
-# ---------------------------------------------------------------------------
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QLabel
 from shared_ui.colors import BG_SECONDARY

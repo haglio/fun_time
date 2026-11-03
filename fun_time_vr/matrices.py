@@ -1,10 +1,3 @@
-"""View/projection math for the OpenXR frame loop — pure numpy, GLSL-free.
-
-Adapted from GenauVR's proven bring-up (genau_vr.projection): the same
-row-major layout, uploaded with transpose=GL_TRUE.  The dead 360°-UV helpers
-that repo carries were deliberately left out; the real UV mapping lives in
-this app's shaders.
-"""
 from __future__ import annotations
 
 import math
@@ -20,7 +13,6 @@ def fov_to_projection_matrix(
     near: float,
     far: float,
 ) -> np.ndarray:
-    """Build an OpenGL projection matrix from OpenXR FOV angles (radians)."""
     tan_l = math.tan(angle_left)
     tan_r = math.tan(angle_right)
     tan_u = math.tan(angle_up)
@@ -82,11 +74,6 @@ def pose_to_view_matrix(
     position: tuple[float, float, float],
     orientation: tuple[float, float, float, float],
 ) -> np.ndarray:
-    """The view matrix (inverse pose) for an OpenXR pose.
-
-    Callers pass position (0,0,0) for the rotation-only view the video sphere
-    needs — a head that translates must not parallax a projected sphere.
-    """
     rot = quat_to_rotation_matrix(*orientation)
     pos = np.array(position, dtype=np.float32)
 

@@ -75,12 +75,6 @@ def lock_on_what_was_meant(funestra: FunTimeFunestra, config: BridgeConfig, aime
 
 
 def cancel_lock(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig) -> BridgeState:
-    """Release a repeat-one lock so the Satellite auto-advances again.
-
-    A locked satellite is holding one video (``LOCK`` → mpv ``loop_file``); the
-    ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the Satellite
-    was not locked.
-    """
     if state.satellite(funestra).locked:
         send_satellite(config, funestra, LOCK_OFF)
     return state.with_satellite(funestra, locked=False)

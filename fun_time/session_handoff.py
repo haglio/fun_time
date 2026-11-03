@@ -353,7 +353,6 @@ def last_lines_of(path: Path, count: int = 15) -> str:
 
 
 def report_a_failed_crossing(reason: str, log_file: Path) -> None:
-    """Say the other session never came up; Qt loads only for this."""
     from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
     message = f"{reason}\n\nSee the full log at:\n{log_file}"

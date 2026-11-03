@@ -379,9 +379,7 @@ def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
 
 def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """A HUD thumbnail click: "<satellite>_play_video|<path>" switches straight to
-    that video.  The path rides after the "|" ("|" is illegal in a Windows path,
-    so it is an unambiguous delimiter)."""
+    # "|" is illegal in a Windows path, so it is an unambiguous delimiter.
     if "_play_video|" not in command:
         return None
     head, _, path = command.partition("|")

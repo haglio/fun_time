@@ -40,8 +40,6 @@ QUIT_TIMEOUT_S = 15.0
 _UNKNOWN_FAILURE = "VR could not be started."
 
 class Readiness(Enum):
-    """How far the OpenXR stack got before it stopped answering."""
-
     READY = "ready"
     NO_RUNTIME = "no_runtime"
     NO_HEADSET = "no_headset"
@@ -63,14 +61,11 @@ _EXPLANATIONS = {
 
 @dataclass(frozen=True)
 class Probe:
-    """What a single look at the OpenXR stack found."""
-
     readiness: Readiness
     detail: str = ""
 
 
 def probe() -> Probe:
-    """Ask OpenXR for a head-mounted display, without opening a window."""
     try:
         import xr  # noqa: PLC0415  (the loader DLL should load only on VR paths)
     except Exception as exc:
@@ -114,7 +109,6 @@ def _release_instance(xr: object, instance: object) -> None:
 
 
 def active_runtime_json() -> Path | None:
-    """Where Windows says the current OpenXR runtime is registered."""
     try:
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _OPENXR_KEY) as key:
             value, _ = winreg.QueryValueEx(key, "ActiveRuntime")
@@ -133,7 +127,6 @@ def launcher_for_runtime(runtime_json: Path) -> Path | None:
 
 
 def runtime_launcher() -> Path | None:
-    """The executable that brings up whichever OpenXR runtime is active."""
     runtime_json = active_runtime_json()
     if runtime_json is None:
         return None
@@ -151,7 +144,6 @@ def runtime_was_running() -> bool:
 
 
 def runtime_quit_tool() -> Path | None:
-    """The vendor tool that quits whichever OpenXR runtime is active."""
     runtime_json = active_runtime_json()
     if runtime_json is None:
         return None

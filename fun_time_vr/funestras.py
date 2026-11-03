@@ -1,15 +1,4 @@
-"""The headset's room, off the headset: the session's three Funestras and
-everything else that hangs there, each saying what it hangs, pumping its own
-file channels and answering the pointer; :class:`TheRoom` is the one list they
-are read off and :class:`Arrangement` the controllers' hold on them, frame by
-frame.  The process around them is :mod:`fun_time_vr.app`.
-
-``_pump_channels`` owns every file channel, since file I/O under a sync client
-can stall for arbitrary milliseconds: the satellites' Funestras and the room's
-panels on one worker, the Main Funestra on a worker of its own at Genau's
-rate; each video paints on a thread and GL context of its own
-(:mod:`fun_time_vr.video_thread`), since a video change costs mpv whole frames.
-"""
+# A video change costs mpv whole frames, so each video paints on a thread and GL context of its own.
 from __future__ import annotations
 
 import configparser
@@ -316,10 +305,8 @@ class _VideoUnit:
         return max(1, self.target.width), max(1, self.target.height)
 
     def route_audio(self) -> None:
-        """Give the Funestra its sound on the first frame the headset is WORN:
-        routed earlier, a parked endpoint takes the stream without consuming it
-        and mpv's audio clock never ticks, freezing the Funestra on frame 1.
-        When it wedges anyway, :mod:`fun_time_vr.playback_watch` messages."""
+        # Routed earlier, a parked endpoint takes the stream without consuming it and mpv's audio
+        # clock never ticks, freezing the Funestra on frame 1.
         if self._audio_routed:
             return
         self._audio_routed = True
@@ -595,9 +582,8 @@ class _MainUnit(_VideoUnit):
                    level=logging.ERROR)
 
     def _reopen(self) -> None:
-        """Load the video again and seek back to where it was -- the way out
-        of a wedged pipeline, since mpv builds a whole new one, its audio
-        output included."""
+        # mpv builds a whole new pipeline on a load, its audio output included, which is the way out
+        # of a wedge.
         playback = self.funestra.playback
         position_ms = playback.position_ms
         logger.warning("Reopening the Main Funestra at %.0fms", position_ms)
@@ -1563,10 +1549,7 @@ class _PumpFaults:
 
 def _pump_channels(units: list, stop: threading.Event, perf: FramePerf,
                    hz: float = PUMP_HZ) -> None:
-    """The file-channel worker: every unit's flags, drains, status writes and
-    repaints — file I/O that can stall under a sync client, so never the frame
-    loop's thread.  Two threads on one mpv is its design; see funestra.mpv_gate.
-    Guarded per unit: the OSR2 is driven from here (:class:`_PumpFaults`)."""
+    # Two threads on one mpv is the design of funestra.mpv_gate.
     period = 1.0 / hz
     faults = _PumpFaults()
     while not stop.is_set():

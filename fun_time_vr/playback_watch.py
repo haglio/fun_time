@@ -1,9 +1,5 @@
-"""Whether the Main Funestra has stopped advancing while it should be playing.
-
-It is the one mpv here that keeps an audio track, and mpv's clock follows audio:
-an output device that stops draining freezes its VIDEO on the frame it held.
-Every other Funestra here runs with audio off instead (see route_audio).
-"""
+# mpv's clock follows audio: an output device that stops draining freezes its video on the frame it
+# held.
 from __future__ import annotations
 
 STALL_SECONDS = 6.0

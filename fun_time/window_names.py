@@ -4,10 +4,6 @@ from shared_ui.preview import Preview, window_title
 
 from .origenerator_switches import RfbMode
 
-# Windows with their own screen rect — always topmost; order among them is
-# irrelevant because they never overlap.  The log stream is a child widget of the
-# dashboard window, not a window of its own, so it rides the dashboard's band.
-# Kino and Genau both run on the Main Funestra's one window.
 FIXED_TOPMOST_WINDOWS: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_funestra")
 
 ORIGENERATOR_WINDOW = "origenerator"

@@ -124,9 +124,6 @@ APP_PHASES: tuple[Phase, ...] = (
 
 STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)
 
-# The teardown as the closing screen sees it.  NOT seconds: a part ends when
-# Windows says it has, so the bar walks the steps.  No weightless phase ends
-# this one -- the orchestrator writes DONE once the last child is gone.
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
     Phase("controls", "Closing...", 1.0),
     Phase("browser", "Closing browser...", 1.0),

@@ -86,26 +86,6 @@ def primary_checkout() -> Path:
 
 
 def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]]:
-    """Every raw config value the loader resolves against its own checkout,
-    paired with what it resolved to in the primary.
-
-    ``config._resolve_path`` anchors a relative value on ``config.PROJECT_DIR``,
-    whichever checkout imported the package -- so the same config file read from
-    a worktree names files *inside that worktree*.  The live config leans on that
-    for the broker's launcher (a directory above the primary, which from a
-    worktree is nothing) and the Chrome shortcut, untracked and so in no worktree.
-
-    ``broker_state_dir`` is pinned for a different reason: it defaults to
-    ``state_dir``, which is the one value this rewrite goes on to move.  The
-    broker is the machine's one broker, configured against the primary for good,
-    so a branch session whose broker files followed that move would read an empty
-    directory -- the HUD's broker light red and its OSR2 light "off" while
-    the device is plainly running.
-
-    Every value comes from *real*, the config as production loaded it.
-    ``state_dir`` is listed so this is the complete set, its being overridden
-    afterwards an exception on purpose rather than an omission.
-    """
     paths, browser, regen = real.paths, real.random_favs_browser, real.regen
     return {
         "paths": {
@@ -494,13 +474,6 @@ def current_branch(worktree: Path) -> str:
 
 
 def shortcut_name(worktree: Path, branch: str, *, vr: bool = False) -> str:
-    """What the generated launcher for *worktree* is called in Explorer.
-
-    The branch name, because that is what an agent tells him it made — a
-    worktree's directory name is a slug he has never seen.  Slashes and the
-    other characters Windows reserves become dashes, a worktree on no branch at
-    all falls back to its directory, and a *vr* one says so.
-    """
     stem = as_a_filename(branch_label(worktree, branch))
     return f"{SHORTCUT_PREFIX}{stem}{SHORTCUT_VR_INFIX if vr else ''}{SHORTCUT_SUFFIX}"
 

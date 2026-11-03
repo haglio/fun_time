@@ -71,13 +71,6 @@ def find_audio(audio_folder: Path, stem: str) -> Path | None:
 
 @dataclass
 class AudioPlaybackController:
-    """The one clip the companion is playing, and where it had got to.
-
-    The sound is handed in, not reached for: driving the ``pygame.mixer.music``
-    global meant this could not be built without the audio subsystem in
-    whatever state the process had left it.
-    """
-
     audio_folder: Path
     logger: logging.Logger
     music: Any

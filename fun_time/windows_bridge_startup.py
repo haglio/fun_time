@@ -145,11 +145,6 @@ def ensure_broker(
 
 
 def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: str | Path) -> None:
-    """Pick this session's favorites and record the tabs Chrome should open.
-
-    Lazy loading puts a local landing page in front of each favorite, so ten
-    heavy generate pages do not all load at startup.
-    """
     config = load_config(config_path)
     profile_directory, targets = build_manifest(config, load_web_providers())
     urls = (
@@ -447,18 +442,6 @@ def launch_main_funestra(
     osr2_port: str | None = None,
     sibling_checkouts: str | None = None,
 ) -> int:
-    """Launch the Main Funestra subprocess, returning its PID.
-
-    Kino and Genau both run on its window, so the launch names Genau's own files
-    beside the Funestra's: the channel Fun Time's verbs for the hand and the flick
-    arrive on, the flag that pauses its flick, the status it publishes, and the
-    flick and order it was left browsing.
-
-    Its stdout and stderr go to *log_file* for the same reason a satellite's do:
-    the Main Funestra is the same mpv-backed Funestra under the same windowed
-    ``pythonw``, which gives an unhandled exception nowhere to print its
-    traceback.
-    """
     cmd = [
         NAMER.named_exe(python_exe, "MainFunestra"),
         "-m",
@@ -688,19 +671,6 @@ def launch_satellite(
     log_file: str | Path,
     sibling_checkouts: str | None = None,
 ) -> int:
-    """Launch a native Satellite Funestra subprocess, returning its PID.
-
-    A sibling of :func:`launch_main_funestra`: our own mpv-backed process, opened
-    where *placement* says and driven through *channels*.
-
-    *role* names this Funestra in the task list, where the two are otherwise the
-    same anonymous interpreter as each other and as everything else -- it is the
-    caption's counterpart for the process the window belongs to.
-
-    Its stdout and stderr go to *log_file*: a satellite runs windowed under
-    ``pythonw`` and would otherwise die from an unhandled exception with the
-    traceback written to a handle that goes nowhere.
-    """
     cmd = _build_satellite_launch_command(
         NAMER.named_exe(python_exe, role), satellite_module,
         channels=channels, placement=placement)

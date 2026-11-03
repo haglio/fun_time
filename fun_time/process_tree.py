@@ -57,14 +57,8 @@ class _Held(NamedTuple):
 
 
 def kill_process_tree(pid: int, *, windows=_Windows) -> list[int]:
-    """Kill *pid* and all it starts, even while it goes; the pids that outlived the wait.
-
-    Unconditional.  A bare PID is evidence of nothing — Windows hands freed PIDs
-    straight back out — so the caller must first establish that *pid* is theirs
-    to kill: kill_recorded_child() checks the recorded creation time, and the
-    integration reap checks the image name of a window it found on its own
-    desktop.
-    """
+    # Windows hands freed PIDs straight back out, so the caller first establishes that pid is theirs
+    # to kill.
     if not pid:
         return []
     held: dict[int, _Held] = {}

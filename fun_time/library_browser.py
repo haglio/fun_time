@@ -1,22 +1,3 @@
-"""Fun Time's own browser for the Main Funestra library.
-
-The Windows file dialog this replaces browsed the library the way it sits on
-disk — stage folders nested several deep, the same video filed under three of
-them — so finding a video meant remembering how far it had got through the
-pipeline.  This browses :mod:`fun_time.library_handles` instead: one tile per
-video, whatever renditions it exists as, alphabetical, with a still off each.
-
-The folder being shown is put up twice, side by Satellite.  The grid of tiles is the
-half you walk, ordered the way the library ranks itself — biggest source folder
-first, cuts after the videos they came out of — which is the order to browse
-in and the wrong one to *find* in.  So the left sidebar is the other order: the
-letters A to Z, each opening onto its names when clicked.
-
-It runs as its own process (``python -m fun_time.library_browser``) because the
-bridge that opens it has no Qt event loop, exactly as the native dialog did.
-The pick leaves through the result file named on the command line; nothing
-written means the browse was abandoned.
-"""
 from __future__ import annotations
 
 import argparse
@@ -113,7 +94,7 @@ class BrowseList(QListWidget):
         self._go_up = go_up
         self.setFont(make_font(FONT_UI, SIZE_BODY))
 
-    def keyPressEvent(self, event) -> None:  # Qt override
+    def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Backspace:
             self._go_up()
             return
@@ -274,7 +255,7 @@ class _ThumbnailExtraction(threading.Thread):
 
 
 class _MarkAfterTheLetterInItsInk(QStyledItemDelegate):
-    def initStyleOption(self, option, index) -> None:  # Qt override
+    def initStyleOption(self, option, index) -> None:
         super().initStyleOption(option, index)
         option.decorationPosition = QStyleOptionViewItem.Position.Right
         option.state |= QStyle.StateFlag.State_Enabled
@@ -322,17 +303,8 @@ class FolderIndex(BrowseList):
         )
 
     def _hold_to_the_sidebars_width(self) -> None:
-        """Hand every line a width Qt will stretch, rather than lay the list out to.
-
-        A list view sizes its rows to the widest size hint it was given, and a
-        library title runs several times the width of this one: left alone the
-        rows grow the list sideways and hang a horizontal scrollbar under an
-        index meant to be read straight down, with every name cut off at the
-        edge rather than elided.  A hint narrower than the viewport is stretched
-        to fill it instead, so the names elide at the sidebar's own edge however
-        much of it the vertical scrollbar takes.  The height is asked for first,
-        because that one is the delegate's to decide.
-        """
+        # A Qt list view sizes its rows to the widest size hint, and stretches one narrower than the
+        # viewport, so names elide at the sidebar's edge.
         for row in range(self.count()):
             self.item(row).setSizeHint(QSize(1, self.sizeHintForRow(row)))
 
@@ -358,7 +330,7 @@ class FolderIndex(BrowseList):
     def _heading_above(self, row: int) -> int:
         return next(r for r in range(row, -1, -1) if self.lines[r].is_heading)
 
-    def mousePressEvent(self, event) -> None:  # Qt override
+    def mousePressEvent(self, event) -> None:
         item = self.itemAt(event.position().toPoint())
         row = self.row(item) if item is not None else -1
         if not (0 <= row < len(self.lines)) or not self.lines[row].is_heading:
@@ -504,15 +476,9 @@ class LibraryBrowserWindow(QWidget):
         if self._path:
             self.open_folder(self._path[:-1])
 
-    def closeEvent(self, event) -> None:  # Qt override
-        """Tell the process the browse is over — closing this window cannot.
-
-        Qt quits an app when its last window closes, but a Tool window is not
-        counted as one (it is chrome for another window, by Qt's reckoning).  The
-        browser has only Tool windows, so nothing would ever end its event loop:
-        the picked video would sit in the result file with the bridge still
-        blocked on a process that had nothing left to do.
-        """
+    def closeEvent(self, event) -> None:
+        # Qt does not count a Tool window when it quits on the last window closed, so closing this
+        # cannot end the event loop.
         super().closeEvent(event)
         self.grid.stop_thumbnail_extraction()
         if self._on_close is not None:
@@ -589,15 +555,8 @@ def dismiss_button(on_click: Callable[[], None]) -> QToolButton:
 
 
 def fitted_icon(still: str | Path) -> QIcon:
-    """*still* grown to meet a tile's edge, with its proportions untouched.
-
-    Qt would otherwise draw the icon at exactly the icon size, stretching a
-    thumbnail that is not the tile's shape — and a library holds both tall videos
-    and wide ones, so one of the two axes always has room to spare.  Scaling here
-    rather than leaving it to the view also grows a still that is *smaller* than
-    the tile: the cache caps its longest edge below the tile's, so an unscaled
-    one sits in a corner of the space it was given.
-    """
+    # Qt would draw the icon at exactly the icon size, stretching a thumbnail that is not the tile's
+    # shape.
     return QIcon(_fitted(still, ICON_WIDTH, ICON_HEIGHT))
 
 
@@ -667,12 +626,6 @@ def browse_library(
     flicks: bool = False,
     runner: Callable[..., object] = subprocess.run,
 ) -> str | None:
-    """Browse the library and return the video picked, or None if none was.
-
-    Blocks for the length of the browse, as the file dialog before it did — the
-    caller is a dispatch-loop thread, and the browser is a window of its own
-    because the bridge process has no Qt event loop to host one in.
-    """
     pick_file = pick_file_for(manifest_path)
     pick_file.unlink(missing_ok=True)
 

@@ -1,17 +1,6 @@
-"""GL rendering for the VR scene: video targets, screens, and immersive wraps.
-
-Two ways a Funestra reaches the eye.  Windowed surfaces (a flat 2D primary, the
-two satellites) are flat screens from :mod:`fun_time_vr.scene`, textured with
-the Funestra's rendered frame.  An immersive projection wraps the whole view: a
-full-screen pass reconstructs each pixel's world ray and maps it into the video
-by the :class:`fun_time_vr.wraps.Wrap` that projection carries.
-
-Color is passthrough by design: mpv renders sRGB-encoded pixels into plain RGBA8
-targets, these shaders sample them undecoded, and GL_FRAMEBUFFER_SRGB stays off
--- so the bytes reach the sRGB swapchain exactly as mpv wrote them.  (GenauVR
-sampled through an sRGB texture without re-encoding, which darkened everything
-and forced its brightness=1.4 hack; this pipeline needs none.)
-"""
+# Color is passthrough: mpv renders sRGB-encoded pixels into RGBA8 targets, these shaders sample
+# them undecoded and GL_FRAMEBUFFER_SRGB stays off, so the bytes reach the sRGB swapchain as mpv
+# wrote them.
 from __future__ import annotations
 
 import ctypes
@@ -289,9 +278,6 @@ class SceneRenderer:
         self._fullscreen_vao = GL.glGenVertexArrays(1)
 
     def begin_eye(self, clear: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)) -> None:
-        """Reset the state the mpv render contexts may have left.  *clear* is
-        what the eye is wiped to: black for the scene, whose screens hang in a
-        void, and its own ground for a loading screen, which fills the field of view."""
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glDisable(GL.GL_BLEND)
         GL.glDisable(GL.GL_SCISSOR_TEST)

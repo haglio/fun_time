@@ -69,11 +69,9 @@ def launch_random_favs_browser(
 
 
 def build_open_rfb_tab_command(*, urls: list[str], shortcut: Shortcut) -> str:
-    """ONE Chrome command opening every URL as a tab in the RFB profile."""
     return shortcut.command_line(*urls)
 
 
 def open_rfb_tab(*, urls: list[str], shortcut: Shortcut) -> None:
-    """Open one or more URLs as tabs in the RFB Chrome window, in one launch."""
     cmd = build_open_rfb_tab_command(urls=urls, shortcut=shortcut)
     subprocess.Popen(cmd, cwd=shortcut.work_dir, **no_child_log(), **no_console_window())

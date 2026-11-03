@@ -48,16 +48,6 @@ def favorite_entries(metadata_root: Path | None) -> list[FavEntry]:
 
 
 def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProvider, ...]) -> TabTarget:
-    """Resolve the page a favorite should open, and the video it shows meanwhile.
-
-    The label stays short (a regenerate URL runs to kilobytes of encoded
-    payload).  Both the RFB's startup tabs and the lock hotkey resolve their
-    tabs through here, so they can never drift apart.
-
-    The video is the video's pre-upscale original: a thumbnail has no use for
-    hundreds of megabytes of HEVC when a couple of megabytes of H.264 says the
-    same thing, and every Chrome can decode the latter.
-    """
     regen_url = regen_url_for_video(
         entry.local_path,
         metadata_root=regen.metadata_root,

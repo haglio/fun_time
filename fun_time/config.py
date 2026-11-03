@@ -102,14 +102,8 @@ class VoiceControlConfig:
 
 @dataclass(frozen=True)
 class VrConfig:
-    """What FunTimeVR needs beyond the desktop session's own config.
-
-    ``library_dirs`` joins the main rotation alongside ``main_player_library_dirs``;
-    ``audio_device`` routes the Main Funestra's sound to the headset by substring
-    match.  ``compositor_layers`` hands flat screens to the runtime
-    as quad layers — off by default because the bundled "Pimax OpenXR 0.1.0"
-    accepts them in xrEndFrame and then never composites them.
-    """
+    # compositor_layers is off by default: the bundled Pimax OpenXR 0.1.0 accepts quad layers in
+    # xrEndFrame and then never composites them.
 
     library_dirs: tuple[Path, ...] = ()
     audio_device: str | None = None
@@ -307,14 +301,6 @@ def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -
 def _load_random_favs_browser_config(
     browser_raw: dict[str, Any] | None, project_dir: Path
 ) -> RandomFavsBrowserConfig:
-    """The browser section, with a missing profile name disabling the feature.
-
-    The shortcut and the profile used to default to one machine's own, so a
-    section that said ``enabled`` and nothing else launched Chrome into
-    somebody's profile by guess.  A profile nobody named is nobody's to guess,
-    so the feature stays off; a shortcut nobody named is a file the launch
-    validation refuses by name.  Neither placeholder names anyone.
-    """
     default_user_data_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
     browser_values = browser_raw or {}
     shortcut = browser_values.get("shortcut_path")

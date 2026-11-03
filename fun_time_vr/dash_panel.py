@@ -1,10 +1,3 @@
-"""The dashboard, hanging in the headset: the control bar, the log, the OSR2 part.
-
-The desktop's is a Qt window a VR session never launches, so this paints the
-same thing with Pillow -- the bar's own geometry, the family's own icons and
-metrics, the same action names and the same window labels, off dashboard_layout,
-shared_ui and event_log rather than drawn to match.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass, replace

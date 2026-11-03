@@ -23,14 +23,7 @@ def quit_requested(events) -> bool:
 
 
 def stop_if_asked() -> None:
-    """Pump the window's event queue, and raise if the user gave up.
-
-    Two jobs in one line each, both owed every update: pumping is what keeps
-    Windows from graying the window out as unresponsive during a long scan, and
-    noticing the close button is what lets the scan be abandoned at all --
-    `main_funestra.app` catches `LoadingCanceled` and exits 0 without ever opening a
-    video.
-    """
+    # Pumping keeps Windows from graying the window out as unresponsive during a long scan.
     if quit_requested(pygame.event.get()):
         raise LoadingCanceled
 

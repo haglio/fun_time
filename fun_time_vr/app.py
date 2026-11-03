@@ -1,13 +1,5 @@
-"""The headset process: the session's three Funestras composited into one
-OpenXR scene.
-
-The desktop session runs the Main Funestra and the two satellites as processes
-owning windows; an OpenXR runtime gives the headset to one rendering process, so
-every Funestra here is a surface of this one.  What hangs in the room and how the
-controllers move it is :mod:`fun_time_vr.funestras`, and what each frame shows
-is :mod:`fun_time_vr.frame_loop`, both tested off the headset; this is the shell
-around them, which needs one: the OpenXR session and the GL it draws with.
-"""
+# An OpenXR runtime gives the headset to one rendering process, so every Funestra here is a surface
+# of this one.
 from __future__ import annotations
 
 import argparse

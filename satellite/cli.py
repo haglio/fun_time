@@ -1,10 +1,3 @@
-"""Argument parsing and playlist resolution for a Satellite Funestra — no pygame.
-
-Kept apart from the run loop so what fun_time hands each satellite
-(:mod:`satellite.contract`) is importable and testable without an SDL display,
-exactly as the Main Funestra's own CLI is.  A satellite is always given an
-explicit ``--playlist``, so there is no library discovery here.
-"""
 from __future__ import annotations
 
 import argparse

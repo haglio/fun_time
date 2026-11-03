@@ -69,15 +69,7 @@ class FunTimeWindows:
         self.rfb_hwnd = rfb_hwnd
         self._hwnds_by_window: dict[str, int] = dict(hwnds_by_window or {})
         self.clock = clock
-        # Windows of the Main Funestra waiting out MAIN_BLANK_SETTLE_S before they are
-        # minimized, by window -> the time they are due.
         self._pending_hides: dict[str, float] = {}
-        # Windows a Funestra's own minimize button parked, kept apart from the two
-        # other things that minimize around here: the mode switch parks the idle
-        # Main Funestra (undone by the switch that brings it back) and
-        # omniminimize parks Fun Time (undone by omnirestore).  These are undone
-        # by Fun Time resuming — a Funestra parked from its own HUD took that HUD
-        # down with it and has no button left to press.
         self._parked_hwnds: list[int] = []
         self._minimized_hwnds: list[int] = []
 
@@ -107,9 +99,6 @@ class FunTimeWindows:
         return hwnd
 
     def _dashboard_hwnd(self) -> int:
-        """Find the Dashboard window, falling back to its caption — the venv
-        launcher's pid differs from the interpreter that owns the Qt window the
-        same way it does for the SDL Funestras above."""
         hwnd = find_window_by_pid(self.pids.dashboard) if self.pids.dashboard else 0
         if not hwnd:
             hwnd = find_window_by_title(
@@ -134,13 +123,8 @@ class FunTimeWindows:
             activate_window(hwnd)
 
     def hide_after_settle(self, window_name: str) -> None:
-        """Park the window a mode switch is leaving — after a beat.
-
-        Minimizing is what FREEZES a window's Alt-Tab thumbnail: Windows stops
-        compositing a minimized window, so whatever it last drew is what the
-        thumbnail keeps showing until it is restored, and a window told to step
-        aside needs a frame or two to present what it will be remembered by.
-        """
+        # Minimizing freezes a window's Alt-Tab thumbnail, since Windows stops compositing it, so
+        # the window gets a frame or two first.
         self._pending_hides[window_name] = self.clock() + MAIN_BLANK_SETTLE_S
 
     def flush_pending_hides(self) -> None:
@@ -165,14 +149,6 @@ class FunTimeWindows:
             self._parked_hwnds.append(hwnd)
 
     def restore_parked(self) -> None:
-        """Bring back every window a minimize button parked — leaving OmniPause.
-
-        Each returns to the rect and size it had, which is its place: Windows keeps
-        a minimized window's restored placement, and nothing moved it meanwhile.
-        The topmost bands are re-applied right after by the ``restore_all_topmost``
-        op that follows this one, so a window comes back into the same band it
-        left as well as the same place.
-        """
         for hwnd in self._parked_hwnds:
             restore_window(hwnd, activate=False)
         self._parked_hwnds = []

@@ -1,15 +1,3 @@
-"""Voice command vocabulary and command-file line format for Fun Time.
-
-The spoken-phrase → dispatch-command mapping, deliberately free of any speech
-recognition runtime (vosk / sounddevice).  Lightweight consumers — the
-dashboard's hotkey/voice reference and tests — import it without loading native
-audio libraries.  :mod:`fun_time.voice_control` re-exports ``VOICE_COMMANDS``
-and layers the Vosk grammar and recognizer on top.
-
-Also here is the one-line wire format every writer of the dashboard command file
-shares, since the voice controller writes it and the dispatch loop reads it and
-neither may import the other.
-"""
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping
@@ -380,7 +368,6 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
 
 
 def friendly_voice(phrase: str) -> str:
-    """Rewrite a recognizer phrase's vosk sound-alikes to the friendly names."""
     for raw, nice in _VOICE_DISPLAY_ALIASES:
         phrase = phrase.replace(raw, nice)
     return phrase

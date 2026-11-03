@@ -1,16 +1,5 @@
-"""The one stream every Fun Time component's log lines land in.
-
-Each line is a JSON object carrying the level, the message, and the *source* —
-which of the four managed windows the line is about.  The log panel tails the
-stream, filters it by source and verbosity, and shows the result beside the
-dashboard; an agent debugging a session reads the same file.
-
-Records are appended one JSON line at a time, reopening the file per write.
-Several processes log into one session (orchestrator, dispatch loop, dashboard),
-and an open-append-close write is what lets them share the file without one
-holding a Windows lock against the others — the same trick the AHK bridge log
-has always used.
-"""
+# Several processes log here, and an open-append-close write holds no Windows lock against the
+# others.
 from __future__ import annotations
 
 import json
