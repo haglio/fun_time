@@ -15,7 +15,6 @@ from fun_time_vr.frame_loop import (
     HEADSET_HOLD_TIMEOUT_S,
     TEARDOWN_LOADING_SCREEN_TIMEOUT_S,
     FrameLoop,
-    Headset,
     QuadLayer,
     closing_screen_over_the_teardown,
     hold_the_headset,
@@ -25,6 +24,7 @@ from fun_time_vr.frame_loop import (
     tear_down,
 )
 from fun_time_vr.funestras import Arranged
+from fun_time_vr.headset import Headset
 from fun_time_vr.loading_screen import LOADING_SCREEN_CLEAR
 
 

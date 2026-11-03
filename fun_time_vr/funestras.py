@@ -69,6 +69,7 @@ from .gallery_panel import GalleryPanel
 from .gallery_panel import hover_line as gallery_hover_line
 from .gallery_panel import scroll_line as gallery_scroll_line
 from .genau_in_the_headset import GenauInTheHeadset
+from .headset import Headset
 from .headset_engine import HeadsetEngine
 from .headset_verbs import HeadsetVerbs
 from .headset_wear import HeadsetWear
@@ -1859,18 +1860,17 @@ def _position_of(view) -> tuple[float, float, float]:
 
 
 def draw_eyes(
-    session,
-    renderer: SceneRenderer,
-    hangings: Sequence[Hanging],
+    headset: Headset,
+    arranged: Arranged,
     pointing: _PointerDrawing,
     views,
-    scene_rotation: np.ndarray,
     *,
-    screens: Sequence[Screen],
     as_quads: set[str],
 ) -> None:
-    wrap = room.wrapped(hangings)
-    flat = room.drawn(hangings, screens=screens, as_quads=as_quads)
+    session, renderer = headset.session, headset.renderer
+    scene_rotation = arranged.scene_rotation
+    wrap = room.wrapped(arranged.hangings)
+    flat = room.drawn(arranged.hangings, screens=arranged.screens, as_quads=as_quads)
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
