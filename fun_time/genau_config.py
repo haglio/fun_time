@@ -1,4 +1,3 @@
-"""The genau section of Fun Time's config: the numbers Genau's engine is tuned with."""
 from __future__ import annotations
 
 import json
@@ -25,7 +24,6 @@ class GenauSettings:
     sync_strength: float = 0.35
     flick_cache_size: int = 2
     shuffle_on_load: bool = True
-    # Where the OSR2 broker publishes its beat for Genau to follow.
     udp_host: str = "127.0.0.1"
     udp_port: int = ports.GENAU_UDP
 
@@ -58,7 +56,6 @@ class GenauSettings:
 
     @classmethod
     def from_manifest(cls, section) -> GenauSettings:
-        """The inverse of :meth:`manifest_fields`, over a section that may predate these keys."""
         defaults = cls()
         return cls(
             beats_per_loop=float(section.get("beats_per_loop", defaults.beats_per_loop)),

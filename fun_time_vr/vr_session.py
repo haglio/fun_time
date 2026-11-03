@@ -66,7 +66,7 @@ class VRSession:
         self._session = None
         self._space = None
         self._session_state = xr.SessionState.UNKNOWN
-        self.views_tracked = False  # per frame_begin: does this pose follow him
+        self.views_tracked = False
         self._session_begun = False
         self.swapchains: list[SwapchainInfo] = []
         self.quad_swapchains: dict[int, SwapchainInfo] = {}
@@ -89,24 +89,17 @@ class VRSession:
             self._create_swapchains()
             self._fbo = GL.glGenFramebuffers(1)
         except Exception:
-            # The bring-up loop retries while the runtime's graphics side warms
-            # up, so a failed attempt tears down exactly what it got made.
             try:
                 self.close()
             except Exception:
                 logger.debug("Teardown after a failed bring-up also failed", exc_info=True)
             raise
 
-    # ------------------------------------------------------------------
-    # Initialization
-    # ------------------------------------------------------------------
 
     def shared_contexts(self) -> SharedContexts:
         return SharedContexts(self._window)
 
     def _init_glfw(self, app_name: str) -> None:
-        """The window owning the GL context the scene is drawn in -- and nothing
-        else: docs/entering-vr.md."""
         if not glfw.init():
             raise RuntimeError("Failed to initialize GLFW")
         try:
@@ -138,7 +131,6 @@ class VRSession:
             self._instance, system_id, xr.ViewConfigurationType.PRIMARY_STEREO,
         )
 
-        # The loader requires this call before create_session.
         xr.get_opengl_graphics_requirements_khr(self._instance, system_id)
 
 
@@ -220,7 +212,6 @@ class VRSession:
             )
 
     def sync_controller(self, display_time: int) -> None:
-        """Each hand's aim, trigger, stick and skip buttons, at rest when absent."""
         if not self._actions_attached:
             return
         try:
@@ -237,7 +228,7 @@ class VRSession:
                 for hand, path in self._hand_paths.items()
             }
         except xr.ResultException:
-            self.hands = _NO_HANDS  # a sleeping controller is not a dead frame loop
+            self.hands = _NO_HANDS
 
     def _float(self, name: str, path: xr.Path) -> float:
         state = xr.get_action_state_float(
@@ -319,13 +310,6 @@ class VRSession:
             self.swapchains.append(info)
 
     def ensure_quad_swapchain(self, index: int, width: int, height: int) -> None:
-        """Have quad swapchain *index* exist at exactly *width* x *height*.
-
-        Sized to the video texture and recreated when the video's size changes
-        (rare), so submission always uses the full image rect — no sub-rect,
-        whose origin convention differs per graphics API.  The replaced chain
-        is retired, not destroyed: frames in flight may still composite it.
-        """
         existing = self.quad_swapchains.get(index)
         if existing is not None and (existing.width, existing.height) == (width, height):
             return
@@ -334,9 +318,6 @@ class VRSession:
         self.quad_swapchains[index] = self._make_swapchain(width, height)
         logger.info("Quad swapchain %d: %dx%d", index, width, height)
 
-    # ------------------------------------------------------------------
-    # Frame loop
-    # ------------------------------------------------------------------
 
     def window_close_requested(self) -> bool:
         return bool(glfw.window_should_close(self._window))
@@ -349,10 +330,6 @@ class VRSession:
                 break
 
             if buf.type == xr.StructureType.EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
-                # The runtime re-zeroed its spaces (its own recenter, wherever
-                # its UI offers one).  Recreate ours so the new origin takes
-                # effect; poses already fetched this frame keep the old one,
-                # which is exactly the one frame of continuity a recenter wants.
                 old_space = self._space
                 self._space = self._make_local_space()
                 if old_space is not None:
@@ -390,12 +367,6 @@ class VRSession:
 
     @property
     def focused(self) -> bool:
-        """Whether the headset is worn with this app in the foreground.
-
-        FOCUSED is the one state that proves a human is at the lenses;
-        VISIBLE also holds while the headset sits on a stand presenting to
-        nobody — with its audio endpoint parked (see route_audio's caller).
-        """
         return self._session_state == xr.SessionState.FOCUSED
 
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
@@ -479,15 +450,6 @@ class VRSession:
         project: bool = True,
         quads: list[QuadLayer] | None = None,
     ) -> None:
-        """Submit this frame's layers: the projection layer (when *project*), then
-        each :class:`QuadLayer` over it in painter's order.
-
-        The runtime composites every layer at the true head pose each refresh, so
-        a quad holds steady in the world even on a frame the app took too long to
-        update -- how an overlay stays smooth over a struggling game.
-        """
-        # Built and kept in locals so every struct the layer pointers reference
-        # stays alive until end_frame returns.
         projection_views = [
             xr.CompositionLayerProjectionView(
                 pose=view.pose,
@@ -557,9 +519,6 @@ class VRSession:
         for handle in done_waiting:
             xr.destroy_swapchain(handle)
 
-    # ------------------------------------------------------------------
-    # Cleanup
-    # ------------------------------------------------------------------
 
     def close(self) -> None:
         if self._session is not None:

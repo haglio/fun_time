@@ -8,17 +8,9 @@ from .origenerator_switches import RfbMode
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    """What the bar and the strip under the log draw, written every tick and
-    read back by the panel."""
-
     omni_paused: bool = False
     voice_active: bool = True
-    # Fun Time's F-mode: every Funestra narrowed at once.  Each Funestra carries its
-    # own switch on its own HUD, so the bar's one lights only when all three are
-    # on — which is the only state a single button can honestly claim.
     f_mode: bool = False
-    # Whether this session is the headset's.  The bar's last control is the way
-    # across to the other one, and which way that is depends on where you are.
     in_vr: bool = False
     nothing_to_reset: bool = False
     headset_ready: bool = True
@@ -47,8 +39,6 @@ def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> 
     )
 
 
-# utf-16 is what the writer emits; the other two are what a reader has always
-# also accepted, and older sessions' files are still read back.
 SNAPSHOT_ENCODINGS = ("utf-8-sig", "utf-16", "utf-8")
 
 
@@ -69,7 +59,6 @@ def decode_snapshot(raw: bytes) -> str:
 
 
 def _read_existing_snapshot(path: Path) -> str:
-    """What is on disk, or "" — this Satellite never fails over a read."""
     try:
         return decode_snapshot(path.read_bytes())
     except (OSError, UnicodeDecodeError):

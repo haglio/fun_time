@@ -1,5 +1,3 @@
-"""Everything the headset's room hangs in front of him, said by the things that
-hang it there, so the frame loop never names a kind of screen."""
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
@@ -12,13 +10,13 @@ from .stacking import Pane, Stacking
 @dataclass(frozen=True)
 class Hanging:
     screen: Screen
-    mesh: object | None = None  # the quad it is drawn on; None while it is round the viewer
+    mesh: object | None = None
     frame: object | None = None
-    blend: bool = False  # painted over whatever it covers
-    wrap: object | None = None  # the projection it is drawn round the viewer in, instead
-    forward_with: str = ""  # comes forward with that screen; "" → on its own
-    docked_to: str | None = None  # forward when that screen is, without being part of it
-    in_front: bool = False  # over the arrangement, never inside it
+    blend: bool = False
+    wrap: object | None = None
+    forward_with: str = ""
+    docked_to: str | None = None
+    in_front: bool = False
 
 
 def what_hangs(room: Sequence) -> list[Hanging]:
@@ -47,8 +45,6 @@ def wrapped(hangings: Sequence[Hanging]) -> Hanging | None:
 
 def drawn(hangings: Sequence[Hanging], *, screens: Sequence[Screen],
           as_quads: set[str]) -> list[tuple[object, object, bool]]:
-    """In the order *screens* stand, less those the compositor took as quads and
-    the one round the viewer, which is drawn on its own."""
     frames = {one.screen.name: one for one in hangings}
     return [(one.mesh.mesh, one.frame.texture, one.blend)
             for one in (frames[screen.name] for screen in screens
@@ -58,9 +54,7 @@ def drawn(hangings: Sequence[Hanging], *, screens: Sequence[Screen],
 
 @dataclass(frozen=True)
 class Hangs:
-    """Where one screen hangs: what a drag on it moves, and the spot that lands in."""
-
-    moves: tuple[object, ...]  # each carries the .placement a drag writes
+    moves: tuple[object, ...]
     kept_as: Callable[[], str] | None = None
 
     @property

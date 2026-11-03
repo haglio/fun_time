@@ -1,5 +1,3 @@
-"""What the log panel shows, before anything draws it; the widget that draws it
-is :mod:`fun_time.log_panel`."""
 from __future__ import annotations
 
 import configparser
@@ -14,8 +12,6 @@ from fun_time.event_log import (
     EventRecord,
 )
 
-# How many lines the panel keeps.  A long session logs more than anyone will
-# scroll back through, and an unbounded list is an unbounded widget.
 MAX_RECORDS = 2000
 
 UI_STATE_FILENAME = "log_panel_state.ini"
@@ -23,8 +19,6 @@ UI_STATE_FILENAME = "log_panel_state.ini"
 
 @dataclass(frozen=True)
 class LogFilter:
-    """What the panel is currently showing: a verbosity floor and a source set."""
-
     verbosity: int
     sources: frozenset[str]
 
@@ -37,7 +31,6 @@ def visible_records(records: list[EventRecord], log_filter: LogFilter) -> list[E
 
 
 def append_records(buffer: list[EventRecord], new: list[EventRecord]) -> list[EventRecord]:
-    """Append *new* to *buffer*, dropping the oldest lines past the cap."""
     combined = buffer + new
     return combined[-MAX_RECORDS:]
 
@@ -67,14 +60,6 @@ def copy_button_position(
     button_size: int,
     margin: int,
 ) -> tuple[int, int]:
-    """Where the hover copy button sits for the row whose top is at *row_top*.
-
-    Right-aligned in the viewport (which excludes the scrollbar) and pinned to the
-    row's top rather than its middle, so a message long enough to wrap over three
-    rows still puts the button where the line begins.  The row under the cursor is
-    routinely half-scrolled past an edge, so the button is clamped to stay wholly
-    inside the viewport instead of being drawn where it cannot be clicked.
-    """
     last_y = viewport_height - button_size - margin
     return (
         viewport_width - button_size - margin,
@@ -96,10 +81,6 @@ def ui_state_path(state_dir: str | Path) -> Path:
 
 
 def load_ui_state(path: str | Path) -> LogPanelState:
-    """Read the panel's saved verbosity and source set, defaulting on any fault.
-
-    A malformed state file must not stop the session's logs from being visible.
-    """
     parser = configparser.ConfigParser()
     try:
         if not parser.read(str(path), encoding="utf-8"):

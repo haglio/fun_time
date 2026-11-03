@@ -37,9 +37,6 @@ def what_origenerator_held(left_in: BridgeState, *,
 
 
 class OrigeneratorOpening:
-    """Fun Time opening in Origenerator mode: what the hosted app held when the
-    last session closed is owed to it again, once it has answered."""
-
     def __init__(self, config: BridgeConfig, left_in: BridgeState, *,
                  already_open: bool, slideshow_on: tuple[FunTimeFunestra, ...]) -> None:
         self._config = config

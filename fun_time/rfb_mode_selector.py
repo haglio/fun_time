@@ -1,5 +1,3 @@
-"""The mode selector under the Dashboard's log: the Random Favs Browser or Origenerator, drawn by the painter a Satellite Funestra's HUD draws
-its Kino / Origenerator pair with."""
 from __future__ import annotations
 
 from collections.abc import Callable

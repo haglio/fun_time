@@ -1,14 +1,3 @@
-"""Build provider regenerate URLs from a video's metadata sidecar.
-
-The gallery page an AI video came from is usually gone, so Fun Time points at
-the provider's generate page instead, with the original prompts/settings packed
-into the URL fragment (``#ft=<json>``). A userscript on the provider site reads
-the fragment, fills the form, and raises a floating note with the settings it
-could not set. Videos made from a source image target the image page
-(``/create``); text-to-video targets the video page (``/video``).
-
-Both the lock hotkey and the Random Favs Browser open their tabs this way.
-"""
 from __future__ import annotations
 
 import json
@@ -18,7 +7,6 @@ from urllib.parse import quote
 from .content import WebProvider, provider_that_made
 from .media_metadata import recorded_for
 
-# (label, metadata key) in display order for the floating note / auto-fill.
 _IMAGE_SETTINGS = [
     ("Model", "model"),
     ("Resolution", "resolution"),
@@ -45,7 +33,6 @@ def _settings_pairs(block: dict, keys: list[tuple[str, str]]) -> list[list[str]]
 
 
 def build_payload(metadata: dict) -> dict:
-    """Build the ``#ft`` payload the userscript consumes."""
     video = metadata.get("video") or {}
     source = metadata.get("source_image") or None
     if source:

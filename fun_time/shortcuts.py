@@ -13,7 +13,6 @@ logger = logging.getLogger("windows_bridge")
 
 @dataclass(frozen=True)
 class Shortcut:
-    """What a .lnk says: what it runs, from where, with what."""
     target: str = ""
     work_dir: str = ""
     arguments: str = ""
@@ -28,13 +27,10 @@ class Shortcut:
 
 
 def read_shortcuts(folder: Path, *, pattern: str) -> dict[Path, Shortcut]:
-    """Every shortcut in *folder* matching *pattern*, by path."""
     return {path: resolve_shortcut(str(path)) for path in folder.glob(pattern)}
 
 
 def resolve_shortcut(shortcut_path: str) -> Shortcut:
-    """One shortcut, or an empty one where it cannot be read, which the caller
-    reads as "nothing to launch"."""
     try:
         found = win32.read_shortcut(shortcut_path)
     except OSError:

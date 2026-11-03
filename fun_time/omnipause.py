@@ -22,19 +22,12 @@ class OmniPausePlan:
     action: str
     next_omni_paused: bool
     resume_main_funestra_playback: bool
-    # Where this leaves the OSR2: parked home on an enter; on a leave, back on
-    # the script feed, or still where a park or retract is holding it.
     broker_command: str
     log_message: str
 
 
 def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
                         osr2_control: str = OSR2_DRIVING) -> OmniPausePlan:
-    """Decide what one omnipause action means.
-
-    ``toggle`` resolves against the current state; ``enter`` and ``leave`` are
-    that decision already made.
-    """
     if action == "toggle":
         action = "leave" if omni_paused else "enter"
 
@@ -51,8 +44,6 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
         return OmniPausePlan(
             action="leave",
             next_omni_paused=False,
-            # The Main Funestra owns the display in kino mode, so leaving omnipause
-            # resumes its playback there (in genau mode Genau owns the display).
             resume_main_funestra_playback=kino_shows(main_mode),
             broker_command=HOLD_VERB.get(osr2_control, osr2_hold.RESUME),
             log_message="OmniPause: leaving",
@@ -79,7 +70,6 @@ def apply_enter_omnipause(
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
 ) -> OmniPauseFlowResult:
-    """Freeze the whole session, and send the OSR2 home."""
     plan = build_omnipause_plan(
         "enter",
         omni_paused=omni_paused,
@@ -88,15 +78,9 @@ def apply_enter_omnipause(
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
     write_flag_file(main_funestra_paused_file, True)
-    # The satellites obey their paused flag file each tick, so freezing playback
-    # is a single flag write per Satellite.  A paused native satellite simply cannot
-    # auto-advance (its advance() returns early while paused), so OmniPause is a
-    # settled state: one write holds it, with nothing to police afterwards.
     write_flag_file(portrait_paused_file, True)
     write_flag_file(landscape_paused_file, True)
     if origenerator_paused_file is not None:
-        # The hosted Origenerator obeys the same flag idiom: its shows stop
-        # their dwell clocks and playing videos until Fun Time resumes.
         write_flag_file(origenerator_paused_file, True)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
@@ -131,9 +115,6 @@ def apply_leave_omnipause(
         write_flag_file(main_funestra_paused_file, False)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
-    # Unfreeze both satellites; a locked one holds its video (its lock is
-    # independent of the pause flag), an unlocked one resumes auto-advancing --
-    # whichever of the session and the hosted app is handing it what to play.
     write_flag_file(portrait_paused_file, False)
     write_flag_file(landscape_paused_file, False)
     if origenerator_paused_file is not None:
@@ -147,7 +128,6 @@ def apply_leave_omnipause(
 def _dispatch_omnipause_toggle(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Esc: whichever of enter and leave the current state calls for."""
     plan = build_omnipause_plan(
         "toggle",
         omni_paused=state.omni_paused,
@@ -195,11 +175,6 @@ def _dispatch_leave_omnipause(
         osr2_control=state.osr2_control,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
-    # Un-minimize first, then re-band, then focus: leaving OmniPause is Fun Time
-    # coming back, so a Funestra put away with its own minimize button comes back
-    # with it — it has no HUD left to ask with, its HUD having gone down with the
-    # window.  Before the bands, so the re-stack and the activate below land on
-    # windows that are actually on screen.
     ops = [WindowOp(op="restore_parked"), WindowOp(op="restore_all_topmost"),
            WindowOp(op="unsuspend_hotkeys")]
     ops.extend(_main_focus_ops())
@@ -209,8 +184,6 @@ def _dispatch_leave_omnipause(
 
 
 def _main_focus_ops() -> list[WindowOp]:
-    """Re-activate the Main Funestra's one window (omnipause leave): Kino and Genau
-    both run on the Main Funestra's window, whichever of them has it."""
     return [WindowOp(op="activate_window", key="main_funestra")]
 
 

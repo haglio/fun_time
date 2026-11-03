@@ -1,9 +1,3 @@
-"""The buttons Fun Time puts on the Main Funestra's HUD, row by row, declared in
-:class:`funestra.hud_button.Button` off what Fun Time knows and what the
-Main Funestra published about its video.  Each button's command is a dashboard
-command verbatim: a press goes onto the command file, and the dispatcher
-routes it to the Funestra the mode says owns it.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -50,10 +44,6 @@ from .osr2_section import osr2_button
 
 @dataclass(frozen=True)
 class MainFunestraFacts:
-    """What the HUD's buttons are lit and named from: Fun Time's own state
-    of the Main Funestra, then what the Main Funestra published about its video,
-    each defaulting to "cannot" until the Funestra says otherwise."""
-
     main_mode: MainMode = MainMode.KINO
     locked: bool = True
     f_mode: bool = False
@@ -70,8 +60,6 @@ class MainFunestraFacts:
     has_other_versions: bool = False
     longer_than_a_step: bool = False
     jump_to: str = ""
-    # Whether the Funestra is already at every default, which leaves its reset
-    # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
     flipped: bool = False
     crowned: bool = True
@@ -96,8 +84,6 @@ MODE_BUTTONS = (
 
 
 def main_hud_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
-    """The mode row (with minimize outside the headset, and the file controls riding
-    it), the transport, and the pace of what it steps."""
     return (
         (
             *(

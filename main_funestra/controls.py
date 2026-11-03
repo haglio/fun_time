@@ -1,10 +1,3 @@
-"""The verbs Kino answers off the Main Funestra's command file, declared once.
-
-The Funestra asks Kino about every line first and answers the rest itself, so
-what is here is only what Kino knows and the Funestra does not: the loop
-gestures, the other versions the library knows, Fun Time's own filter, the
-compilation jumps, and the playlist Kino reads back through its library.
-"""
 from __future__ import annotations
 
 from collections.abc import Callable

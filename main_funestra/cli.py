@@ -103,16 +103,12 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
 
 
 def audio_muted(args) -> bool:
-    """Silent by ``--no-audio``, the ``FUN_TIME_MUTE_AUDIO`` contract, or being
-    off-screen -- so a hidden-desktop run is inaudible however it was launched."""
     return (bool(args.no_audio)
             or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
             or on_hidden_desktop())
 
 
 def _state_path(args, name: str) -> Path:
-    """A file in the Main Funestra's state dir; beside its config when none is
-    configured, and in the working directory when there is no config either."""
     if args.state_dir:
         base = Path(args.state_dir)
     elif args.config is not None:
@@ -123,8 +119,6 @@ def _state_path(args, name: str) -> Path:
 
 
 def mode_memory(args) -> ModeMemory:
-    """Where the Main Funestra writes down the compilation it is in, so the next
-    session can re-enter it."""
     return ModeMemory(_state_path(args, "main_player_mode.txt"))
 
 
@@ -140,12 +134,6 @@ def library_source(
     *,
     on_progress: Callable[[str], None] | None = None,
 ) -> LibrarySource | None:
-    """Build the :class:`LibrarySource`, or None when no ``--videos-dir`` is known.
-
-    Built under Fun Time too, which passes the list it plays as ``--playlist``
-    but whose versions and compilations this source knows.  *on_progress* goes
-    straight through to the build, where the wait is.
-    """
     if args.videos_dir is None:
         return None
     return build_library_source(
@@ -158,13 +146,6 @@ def library_source(
 def resolve_playlist(
     args, *, source: LibrarySource | None = None,
 ) -> list[PlaylistItem]:
-    """The playlist Fun Time passed, collapsed to one entry per version group.
-
-    Fun Time lists every version of every video; a library *source*, when
-    present, folds those into one item each (matching the set "cycle version"
-    walks).  Without a source — no library dirs — the file is returned verbatim,
-    since the Main Funestra then has no grouping to apply.
-    """
     items = read_playlist(Path(args.playlist))
     if source is not None:
         items = collapse_playlist_versions(items, source.version_index)

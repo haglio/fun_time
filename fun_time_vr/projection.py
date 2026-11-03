@@ -1,12 +1,3 @@
-"""Which shape a video is watched on, and how FunTimeVR remembers the answer.
-
-A 2D video hangs on a big flat screen; a VR video wraps the view in one of the
-projections its producer mastered it in (equirect 180 side-by-side the default,
-fisheye variants the exceptions).  A wrong guess is fixed once -- the P key, the
-spoken "projection", a controller's stick -- and the choice is written into the
-video's Evolver sidecar under a ``"vr"`` block of its own, read-merge-write, so
-neither side clobbers the other's fields.
-"""
 from __future__ import annotations
 
 import json
@@ -45,10 +36,6 @@ PROJECTIONS: tuple[str, ...] = (
 )
 NAMED_PROJECTIONS: tuple[str, ...] = (*PROJECTIONS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS)
 
-# Which projection each of the tokens that name one stands for, read in the
-# order they are listed there.  The tokens themselves live beside the predicate
-# that only asks whether a name carries one, so a mastering cannot be known to
-# the filter and unknown to the renderer.
 _HINT_PROJECTIONS: dict[str, str] = {
     "mkx200": MKX200_SBS,
     "fisheye": FISHEYE_190_SBS,
@@ -75,13 +62,6 @@ def _positive_number(value: object) -> float | None:
 
 
 def default_projection(video_path: str, vr_dirs: Sequence[Path | str]) -> str:
-    """The projection a video opens in before anyone has chosen one.
-
-    A filename that names its own projection is believed wherever the file
-    lives; otherwise anything under a configured VR library dir is the library
-    convention (180 SBS equirect), and everything else is an ordinary flat
-    video.
-    """
     name = Path(video_path).name.lower()
     for token, projection in _FILENAME_HINTS:
         if token in name:

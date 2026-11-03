@@ -6,5 +6,4 @@ the session (docs/entering-vr.md).
 """
 from __future__ import annotations
 
-# Must match the value stamped on the pinned taskbar shortcut.
 APP_USER_MODEL_ID = "FunTime.App"

@@ -1,10 +1,3 @@
-"""The loading screen from the orchestrator's side: raised, then taken down.
-
-Raised before the launch's own work -- the taskbar pin, the Funestras' engine, the
-session machinery's import -- which he watched a bare desktop through.  What is
-imported here is paid for before the loading screen is up, so there is a test that
-nothing else is (``test_the_launch_loads_nothing_the_loading_screen_does_not_need``).
-"""
 from __future__ import annotations
 
 import logging
@@ -39,8 +32,6 @@ from .session_handoff import (
 )
 from .win32 import find_window_for_process, wait_for_window
 
-# A child of the orchestrator's own logger: the loading screen is up before the session
-# has handlers of its own, and the launch's log is where its timing is read back.
 logger = logging.getLogger("fun_time.orchestrator.loading_screen")
 
 WINDOW_WAIT_S = 5.0
@@ -50,9 +41,7 @@ EXIT_WAIT_S = 3.0
 
 @dataclass(frozen=True)
 class RaisedLoadingScreen:
-    """The loading screen, or the absence of one on the path without a curtain."""
-
-    process: subprocess.Popen | None  # None where a run wants no loading screen at all
+    process: subprocess.Popen | None
     progress: ProgressReporter
     progress_file: Path
     cancel_file: Path
@@ -62,8 +51,6 @@ class RaisedLoadingScreen:
         return find_window_for_process(self.process.pid, WINDOW_TITLE)
 
     def take_it_down(self) -> None:
-        """DONE, then hold until the screen is off the monitors: a loading screen left
-        standing outlives the launch by its whole staleness guard."""
         self.progress.finish()
         if self.process is not None:
             try:
@@ -83,8 +70,6 @@ def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_che
     turns_back_to = VR if returning and esc_cancels else None
     progress_file = state_dir / PROGRESS_FILENAME
     cancel_file = state_dir / CANCEL_FILENAME
-    # Clear a cancel flag left over from a previous session so it can't abort
-    # this one before the user has touched anything.
     if turns_back_to is None:
         cancel_file.unlink(missing_ok=True)
     if not show_overlays:
@@ -113,6 +98,5 @@ def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_che
     else:
         logger.warning("The loading screen's window was not up after %.0fs; the launch "
                        "goes on while it comes up", wait_s)
-    # Handed over here, not at the reveal, which it would sit on top of.
     drop_transition_screen(state_dir)
     return loading_screen

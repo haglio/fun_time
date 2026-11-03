@@ -1,10 +1,3 @@
-"""Fun Time's process entry point: arguments, config, and the single instance.
-
-The lowest of four layers, each of which knows only the one below it — this one
-validates and hands off; :mod:`fun_time.windows_bridge_orchestrator` runs a
-session's lifecycle; :mod:`fun_time.windows_bridge_sequencer` runs its startup
-phases in order; :mod:`fun_time.windows_bridge_startup` launches the children.
-"""
 from __future__ import annotations
 
 import argparse
@@ -87,9 +80,7 @@ def validate_config(config) -> None:
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
 
 
-
 def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: RaisedLoadingScreen) -> SessionOver:
-    # Seconds of import on a cold machine: it loads under the loading screen, not ahead of it.
     from .windows_bridge_orchestrator import run_session  # noqa: PLC0415
 
     manifest_path = write_windows_bridge_manifest(
@@ -112,12 +103,6 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: 
 
 
 def stamp_shortcut_aumid() -> None:
-    """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
-
-    The name has to be "Fun Time" whole: a retired "Fun Time VR.lnk" may still
-    sit in the pin folder, and stamping it would keep it looking live.  Logged
-    rather than fatal -- the app still launches, without the open indicator.
-    """
     _log = logging.getLogger(__name__)
     for pin, refusal in stamp_pinned_shortcuts(APP_USER_MODEL_ID, ["Fun Time"]).items():
         if refusal is None:
@@ -130,23 +115,10 @@ STARTUP_MARKER_NAME = "launcher.ready"
 
 
 def startup_marker_path(config, marker_name: str = STARTUP_MARKER_NAME) -> Path:
-    """Where the launcher looks to decide whether the launch succeeded.
-
-    Each launcher watches its own marker (``launch.vbs`` this default,
-    ``launch_vr.vbs`` FunTimeVR's), so one app's leftover can never vouch for
-    the other's launch.
-    """
     return config.paths.state_dir / marker_name
 
 
 def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> None:
-    """Tell ``launch.vbs`` that startup reached a resolved state.
-
-    The launcher runs the orchestrator hidden, so this marker is the only thing
-    that tells a good launch from a silent crash, and every failure it exists to
-    surface happens before the marker is written.  Writing it must never take
-    the launch down with it, so a failure here is only logged.
-    """
     marker = startup_marker_path(config, marker_name)
     try:
         marker.parent.mkdir(parents=True, exist_ok=True)
@@ -175,14 +147,12 @@ def main(argv: list[str] | None = None) -> int:
     _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
-        # The user got a message of our own; keep the launcher from adding a
-        # second, misleading "failed to start" dialog on top of it.
         signal_startup_resolved(config)
         show_already_running_message("Another copy of Fun Time is already running.")
         return 1
 
     logger.info("Loaded config from %s", config.config_path)
-    keep_the_transition_screen(state_dir)  # a crossing at either end
+    keep_the_transition_screen(state_dir)
     ensure_runtime_files(config)
     clear_handoff_request(state_dir)
     validate_config(config)
@@ -191,17 +161,12 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
-    # Before anything else logs, and before the dashboard launches the panel
-    # that tails it: this session's event log starts empty and starts collecting.
     open_event_log(state_dir)
-    # Everything below happens under the loading screen, and says so on it as it runs.
     loading_screen = open_the_loading_screen(
         state_dir, show_overlays=env.show_overlays,
         sibling_checkouts=config.paths.sibling_checkouts_path, cancelable=not args.no_cancel,
     )
     try:
-        # The pin lives in %APPDATA%, outside every checkout: a session on some
-        # other config would be relabelling a shortcut that launches neither.
         if config.config_path == DEFAULT_CONFIG_PATH:
             stamp_shortcut_aumid()
         describe_the_session_on_the_taskbar(PROJECT_DIR)
@@ -211,24 +176,18 @@ def main(argv: list[str] | None = None) -> int:
             signal_startup_resolved(config)
             return 1
 
-        # Config validated and we are committing to launch the stack: past here any
-        # crash is logged through the excepthook installed above, so the launcher's
-        # silent-failure watch has done its job.
         signal_startup_resolved(config)
-        # Leave the launcher a named interpreter to start the NEXT session through.
-        # Every child below is named as it is launched; this one process cannot be,
-        # because it is the one doing the naming -- see prepare_orchestrator_launcher.
         prepare_orchestrator_launcher()
         wake_the_headset(state_dir, integration=env.integration)
         ended = run_windows_bridge(config, logger, env, loading_screen)
     except BaseException:
-        loading_screen.take_it_down()  # else it stands out its staleness guard over the wreck
+        loading_screen.take_it_down()
         put_the_headset_to_sleep(state_dir, crossing=False)
         raise
     put_the_headset_to_sleep(state_dir, crossing=pending_handoff(state_dir) is not None)
     if ended.why:
         show_funestra_died_alert(ended.why)
-    hand_over_if_asked(config, logger)  # last: the relay waits on the mutex above
+    hand_over_if_asked(config, logger)
     return ended.exit_code
 
 

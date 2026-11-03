@@ -1,8 +1,3 @@
-"""The values a satellite is launched with, named once -- adding a file is one
-field and one row.  The spellings are a launcher contract: the flags go into a
-real command line and the manifest keys are read under ``optionxform = str``.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,9 +7,6 @@ from funestra.funestra import Channels
 
 from fun_time.osr2_section import osr2_readout_path
 
-#: field, the flag it is given by -- none for what no satellite is given: the main
-#: Main Funestra's HUD, and the broker's old T-Code inlet -- and the manifest's kind of
-#: file, ``None`` where it has none.
 CHANNELS = (
     ("playlist", "--playlist", "playlist"),
     ("command", "--command-file", "cmd"),
@@ -60,12 +52,8 @@ def _argv(record, table) -> list[str]:
 
 @dataclass(frozen=True)
 class SatelliteChannels(Channels):
-    """The files a Funestra is driven through, as a satellite is launched with them."""
-
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
-        # Spelled out rather than read off CHANNELS: the dead-code gate asks
-        # that every declared option be read where it can see it.
         return cls(
             playlist=args.playlist,
             command=args.command_file,
@@ -101,9 +89,6 @@ class SatelliteChannels(Channels):
 
 @dataclass(frozen=True)
 class WindowPlacement:
-    """Where a satellite's window opens, what it is called, whose it is, the icon
-    it wears, and whether it tiles a portrait item across it."""
-
     x: int | None = None
     y: int | None = None
     width: int = 1200

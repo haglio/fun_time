@@ -1,7 +1,3 @@
-"""The verbs that move a Main Funestra's A/B loop, spelled once for its three
-readers: each Main Funestra's registry, and the orchestrator that hands a loop back
-to a reopened session.  ``SET_LOOP`` carries a finished range, ``<in_ms> <out_ms>``.
-"""
 from __future__ import annotations
 
 __all__ = [

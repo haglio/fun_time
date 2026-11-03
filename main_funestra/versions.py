@@ -1,11 +1,3 @@
-"""The other versions of the video on screen, as the library knows them.
-
-The library groups a video with its other qualities (a 540p copy, an upscale);
-the Funestra puts whichever one is asked for up in the video's own place
-(:meth:`funestra.playback.Playback.step_version`).  What Kino adds is which
-files those are, read off the library's index, and whether the one showing is
-the one the playlist named.
-"""
 from __future__ import annotations
 
 from pathlib import Path

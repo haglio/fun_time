@@ -1,15 +1,3 @@
-"""The playlist moves a clip's sidecar makes possible.
-
-:mod:`main_funestra.clip_nav` reads the ``clip`` metadata Evolver records and answers
-questions about one video; this drives the Funestra's playlist from those
-answers, which is what Fun Time's "compilation" / "full video" / "clip jump"
-actually do.
-
-Playing a compilation replaces the whole playlist, so it is a place you can be
-*stuck* -- unlike the other two, which move to one video and leave the playlist
-alone.  That is the state the HUD reports, so it lives here, with whatever
-puts you in it.
-"""
 from __future__ import annotations
 
 import logging

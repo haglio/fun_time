@@ -115,17 +115,10 @@ def _compile_program(vert_src: str, frag_src: str) -> int:
 
 
 class RenderTarget:
-    """A Funestra's frame as a texture, with the FBO that fills it.
-
-    Plain RGBA8 (not sRGB) on purpose — see the module docstring's color note.
-    Reallocated whenever the video's size changes, so the texture always holds
-    the source aspect and the screens never letterbox.
-    """
-
     def __init__(self) -> None:
         self.width = 0
         self.height = 0
-        self.painted = False  # ``ready`` is only sized; this is drawn-into
+        self.painted = False
         self.video: str | None = None
         self.texture = int(GL.glGenTextures(1))
         self.fbo = int(GL.glGenFramebuffers(1))
@@ -140,7 +133,7 @@ class RenderTarget:
         if width <= 0 or height <= 0 or (width, height) == (self.width, self.height):
             return
         self.width, self.height = width, height
-        self.painted = False  # a freshly sized texture holds nothing yet
+        self.painted = False
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
         GL.glTexImage2D(
             GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0,
@@ -158,7 +151,7 @@ class RenderTarget:
 
     @property
     def ready(self) -> bool:
-        return self.width > 0  # allocated: hangable, not yet a frame
+        return self.width > 0
 
     @property
     def has_frame(self) -> bool:
@@ -174,9 +167,6 @@ class RenderTarget:
 
 
 class FrameTexture:
-    """Pixels handed over (a Genau frame, the HUD) as a
-    texture: RGB or RGBA rows, top row first, uploaded the way up GL reads them."""
-
     def __init__(self) -> None:
         self.width = 0
         self.height = 0
@@ -212,7 +202,7 @@ class FrameTexture:
     def ready(self) -> bool:
         return self.width > 0
 
-    has_frame = ready  # sized only by upload: the same question here
+    has_frame = ready
 
     @property
     def aspect(self) -> float:
@@ -223,14 +213,6 @@ class FrameTexture:
 
 
 class ScreenMesh:
-    """One screen's triangle strip in a static VBO.
-
-    The strip changes only when the video's aspect does (a few times a
-    session), so it is uploaded then — not rebuilt and re-uploaded on every
-    draw of every eye of every frame, which is what a shared dynamic buffer
-    was costing.
-    """
-
     def __init__(self) -> None:
         self._vao = GL.glGenVertexArrays(1)
         self._vbo = GL.glGenBuffers(1)
@@ -318,8 +300,6 @@ class SceneRenderer:
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
     def draw_immersive(self, wrap: Wrap, texture: int, inv_view_proj: np.ndarray, eye: int) -> None:
-        """*inv_view_proj* must already be float32 (converted once per eye by
-        the caller, not per draw)."""
         GL.glUseProgram(self._immersive_program)
         GL.glUniform1i(self._imm_eye, eye)
         GL.glUniform1i(self._imm_mode, wrap.mode)
@@ -338,8 +318,6 @@ class SceneRenderer:
     def draw_screen(
         self, mesh: ScreenMesh, texture: int, view_proj: np.ndarray, *, blend: bool = False,
     ) -> None:
-        """*view_proj* must already be float32, like :meth:`draw_immersive`'s;
-        *blend* composites by alpha, for the panel floating over the scene."""
         GL.glUseProgram(self._quad_program)
         GL.glUniform1i(self._quad_tex, 0)
         GL.glUniformMatrix4fv(self._quad_view_proj, 1, GL.GL_TRUE, view_proj)
@@ -356,7 +334,6 @@ class SceneRenderer:
     def draw_solid(
         self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
     ) -> None:
-        """A strip in one flat color, blended over the scene: the pointer's chrome."""
         self._solid.draw(mesh, view_proj, color)
 
     def draw_shaded(
@@ -365,14 +342,6 @@ class SceneRenderer:
         self._shaded.draw(mesh, view_proj, color)
 
     def copy_texture(self, texture: int) -> None:
-        """Fill the bound framebuffer's viewport with *texture*, byte-for-byte.
-
-        How a video texture reaches a compositor-layer swapchain image: a
-        plain sampling draw rather than glBlitFramebuffer, because a blit
-        into an sRGB attachment leaves encode-on-write to the driver's
-        discretion while this path keeps the passthrough contract (module
-        docstring) that the projection path uses.
-        """
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glDisable(GL.GL_BLEND)
         GL.glDisable(GL.GL_SCISSOR_TEST)

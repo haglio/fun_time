@@ -48,10 +48,6 @@ _IDLE_LOOK_S = 0.1
 
 
 class HeadsetBrowse:
-    """The browser window, served to the headset -- built without its library,
-    which used to leave its presses piled up unread until the read finished;
-    the library arrives later instead, through :meth:`take_the_library`."""
-
     def __init__(
         self, *, thumbnail_cache: Path, frames: FrameWriter, say: Callable[[str], None],
         flicks: Callable[[], Sequence[LibraryHandle]] = tuple,
@@ -122,7 +118,7 @@ class HeadsetBrowse:
             self.window = self._browse_flicks_afresh()
             self._open(int(token), flick)
         elif self.window is None:
-            return  # nothing to aim at yet; the headset draws its own reading panel
+            return
         elif kind in (PRESS, DRAG, HOVER):
             x, y = (int(part) for part in rest.split())
             self._pointer = QPoint(x, y)
@@ -197,9 +193,6 @@ def serve_once(
 
 
 def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[LibraryHandle]:
-    """Everything the browse can show, read off the disks it lives on -- on a
-    worker, while the window it will fill is already being served; *kept* is
-    :mod:`fun_time_vr.library_listing_cache`, and *afresh* its own argument."""
     try:
         return handles_by_shape(
             config.sources, config.vr_sources, config.metadata_root,
@@ -219,7 +212,6 @@ def read_the_flicks(config) -> list[LibraryHandle]:
 
 
 def _listing_key(sources: str) -> str:
-    """Which folders a listing was of, as a filename -- so no shelf answers another's browse."""
     return hashlib.sha256(sources.encode("utf-8")).hexdigest()[:12]
 
 
@@ -255,7 +247,6 @@ def main(argv: list[str] | None = None) -> int:
         landed: list[Sequence[LibraryHandle]] = []
         start_daemon_thread(
             target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
-        # Once the browse is up: what the drive holds now, kept for the next one.
         start_daemon_thread(
             target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
         ticks = 0

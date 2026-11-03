@@ -7,12 +7,7 @@ FULL_FRAME = "full_frame"
 
 LIT_ABOVE = 16
 MOSTLY = 0.8
-# A fisheye's circle touches its eye's square, so the part of the square just
-# past the circle is black; a studio's mark, where there is one, sits further
-# out in the corner.
 _JUST_PAST_THE_CIRCLE = (1.05, 1.25)
-# The ring a fisheye's frame still reaches whatever its circle's exact size, and
-# a dim scene fading toward its edges does not.
 _JUST_INSIDE_THE_CIRCLE = (0.80, 0.93)
 
 

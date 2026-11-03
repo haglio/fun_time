@@ -1,9 +1,3 @@
-"""The hosted Origenerator, brought up the same way by either shape of session.
-
-Its shows are the Satellite Funestras' own playlists (:mod:`fun_time.funestra_handover`),
-and the headset's satellites are Funestras, so a VR session hosts it as a desktop
-session does.
-"""
 from __future__ import annotations
 
 import contextlib
@@ -38,7 +32,6 @@ from .windows_bridge_startup import (
 
 logger = logging.getLogger(__name__)
 
-# Said by a session adopting a kept app, which was started for the one it left.
 HAND_OVER = "HAND_OVER"
 TAKE_BACK = "TAKE_BACK"
 
@@ -59,7 +52,7 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
     if kept is None or process_started(kept.pid) != kept.created_at:
-        return None  # gone since, or that pid is somebody else's now
+        return None
     write_flag_file(m.commands.origenerator_paused_file, False)
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
     logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
@@ -124,7 +117,6 @@ def bring_up_the_hosted_app(
     sibling_checkouts: str,
     in_a_headset: bool = False,
 ) -> HostedApp | None:
-    """Adopt, take over, or launch the app the manifest names, or None."""
     origenerator_dir = m.runtime.origenerator_dir.strip()
     if not origenerator_dir:
         return None
@@ -141,7 +133,6 @@ def bring_up_the_hosted_app(
         append_command(Path(m.commands.origenerator_cmd_file), crossing)
         logger.info("Told the adopted app which session this is: %s", crossing)
         return kept
-    # Both read on the app's first tick, and a session never opens paused.
     write_flag_file(m.commands.origenerator_paused_file, False)
     origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
     origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
@@ -167,8 +158,6 @@ def bring_up_the_hosted_app(
     origenerator_pid = launch_origenerator(
         python_exe=_its_interpreter(m, origenerator_dir),
         origenerator_dir=origenerator_dir,
-        # It imports funestra too (the shows' HUD is the Funestras'
-        # shared one), so a named checkout reaches it like everyone else.
         sibling_checkouts=sibling_checkouts,
         **session,
     )

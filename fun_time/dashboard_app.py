@@ -90,11 +90,8 @@ from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 logger = logging.getLogger(__name__)
 
 COLOR_BG = BG_PRIMARY
-# The family's own resting button ground -- the one Origenerator's toolbar
-# buttons sit on, so these read as the same raised object that app's do.
 COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
-# A hue of its own, deliberately not the family icon's ink.
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -109,15 +106,9 @@ def lighten_color(color: QColor, amount: int = 50) -> QColor:
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
-    # The session's state directory -- the manifest's own, and where every
-    # file the dashboard reads or writes lives.  Named once here: derived
-    # at each use from two different fields, one of which could fall back
-    # relative, half the file IPC once went to the working directory.
     state_dir: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
-    # Whether the session hosts an Origenerator, which is what puts the strip
-    # under the log that says what holds the Random Favs Browser's place.
     rfb_mode_selector: bool = False
 
 
@@ -181,7 +172,6 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         layout=layout,
         manifest_path=manifest_path,
         state_dir=state_dir,
-        # The manifest writes both absolute; a bare name lands in the state dir.
         dashboard_state_file=state_dir / parser.get(
             "commands", "dashboard_state_file", fallback="dashboard_state.ini"),
         dashboard_cmd_file=state_dir / parser.get(
@@ -191,15 +181,11 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
 
 
 class IconCache:
-    """The pixmaps one bar is painted from, kept for as long as that bar: every
-    render asks for the same handful, twice a second."""
-
     def __init__(self) -> None:
         self._icons: dict[tuple[str, int], QPixmap] = {}
         self._family_icons: dict[tuple[str, int, int], QPixmap] = {}
 
     def icon(self, path: Path, height: int) -> QPixmap:
-        """An .ico scaled to a square of *height* pixels."""
         key = (str(path), height)
         if key not in self._icons:
             pm = QPixmap(str(path))
@@ -213,14 +199,6 @@ class IconCache:
         return self._icons[key]
 
     def family_icon(self, name: str, rect, color: QColor | None = None) -> QPixmap:
-        """One of the family's icons, drawn square for the control it sits in.
-
-        From shared_ui, not typed as a font character: typed, each icon came out
-        at whatever weight its face gave it.  Square, because a icon drawn to a
-        wide panel's aspect stops being round; the widget centers it.
-
-        *color* is the bar's ink unless the icon owns one — F-mode's is magenta.
-        """
         ink = color or COLOR_TEXT
         key = (name, rect.width, rect.height, ink.rgba())
         if key not in self._family_icons:
@@ -228,14 +206,10 @@ class IconCache:
         return self._family_icons[key]
 
 
-# The reference popup's name, on its window chrome and on the ? button's tooltip
-# — one constant so the two can't drift, and so tests can find the real window.
 REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 
 _BUTTON_RADIUS = BUTTON_RADIUS_HUD
 
-# Every control in the bar names itself on hover.  Omnipause names the act the
-# press takes rather than the state it is in, as its icon does.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
@@ -259,8 +233,6 @@ def build_dashboard_scene(
     reference_open: bool = False,
     shown_as: Preview | None = None,
 ) -> DashboardScene:
-    """The control bar: the app's icon, the session's four, then the three that
-    reach past it.  Nothing here stands for one Funestra."""
     omni_paused = snapshot is not None and snapshot.omni_paused
     controls = bar_controls(
         layout,
@@ -274,8 +246,6 @@ def build_dashboard_scene(
     )
 
     def _rect(control: BarControl) -> DashboardRectItem:
-        """Lighter while it is being pressed -- a control already wearing a
-        state color lightens THAT, so a pressed mic stays blue."""
         if control.lit is None:
             fill, outline = COLOR_PANEL, TEXT_MUTED
             pressed = BG_BUTTON_ACTIVE
@@ -294,8 +264,6 @@ def build_dashboard_scene(
     _font_app.setBold(True)
     _font_app.setItalic(True)
 
-    # Only the app's own name is set in type now; every control wears a drawn
-    # icon, so the bar carries one weight across it.
     texts = (
         DashboardTextItem(preview_marker.APP_TITLE, layout.app_title,
                           color=QColor(*preview_marker.wordmark_ink(shown_as)), font=_font_app),
@@ -346,7 +314,6 @@ class DashboardWidget(QWidget):
     def __init__(self, scene: DashboardScene, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
         super().__init__(parent)
         self._tooltip = tooltip
-        # Which control the pointer is over, so it can be drawn one step lighter.
         self._hovered: Rect | None = None
         self.setMouseTracking(True)
         self.set_scene(scene)
@@ -363,8 +330,6 @@ class DashboardWidget(QWidget):
         p.fillRect(self.rect(), QBrush(COLOR_BG))
 
         for item in scene.rects:
-            # Rounded, on a subtle edge: the shape Origenerator's toolbar buttons
-            # have.  Square-cornered they read as panels rather than buttons.
             p.setPen(QPen(item.outline, 1))
             p.setBrush(QBrush(hovered(item.fill) if item.rect == self._hovered
                               else item.fill))
@@ -381,7 +346,6 @@ class DashboardWidget(QWidget):
                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, item.text)
 
         for item in scene.images:
-            # Center the square pixmap within the (possibly wider) rect
             px_x = item.rect.x + (item.rect.width - item.pixmap.width()) // 2
             px_y = item.rect.y + (item.rect.height - item.pixmap.height()) // 2
             p.drawPixmap(px_x, px_y, item.pixmap)
@@ -402,18 +366,12 @@ class DashboardWidget(QWidget):
         self._set_hovered(None)
 
     def _set_hovered(self, rect: Rect | None) -> None:
-        """Remember which control the pointer is on, repainting when it moves.
-        Only on a change: a repaint per pixel crossed is a repaint for nothing.
-        """
         if rect != self._hovered:
             self._hovered = rect
             self.update()
 
 
 class RfbModeSelectorWidget(PressableDrawing):
-    """The mode selector under the log, hovered and pressed the way a Satellite
-    Funestra's HUD is (:mod:`fun_time.rfb_mode_selector`)."""
-
     action_triggered = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
@@ -440,13 +398,6 @@ class RfbModeSelectorWidget(PressableDrawing):
 
 
 class ReferenceDialog(QDialog):
-    """Modeless popup listing every hotkey and voice command.
-
-    Carries no in-window heading — its content title lives on the window chrome
-    ("Hotkeys & Voice Commands Reference") — and is sized/placed by the caller to fill the
-    Random Favs Browser's rect.
-    """
-
     typing_invited = pyqtSignal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -491,13 +442,6 @@ class ReferenceDialog(QDialog):
 
 
 class ReferencePopup:
-    """The reference window's whole life: opened, dismissed, placed, banded.
-
-    Lazily built, so a session that never asks for it never pays for rendering
-    the reference HTML; and kept once built, so a second open lands where the
-    user left it.
-    """
-
     def __init__(self, parent: QWidget, rfb_rect: Rect | None, *,
                  on_change: Callable[[], None],
                  on_typing_invited: Callable[[], None]) -> None:
@@ -512,18 +456,12 @@ class ReferencePopup:
         return self.dialog is not None and self.dialog.isVisible()
 
     def toggle(self, omni_paused: bool) -> None:
-        """Open it, or dismiss it if it is already showing.
-
-        Drives both the ``?`` button and the "help"/"reference"/… phrases: one
-        trigger both ways.
-        """
         if self.is_open:
             self.dialog.close()
         else:
             self.open(omni_paused)
 
     def open(self, omni_paused: bool) -> None:
-        """Show it, or re-focus it if it is already open."""
         if self.dialog is None:
             self.dialog = ReferenceDialog(self._parent)
             self.dialog.finished.connect(lambda _result: self._on_change())
@@ -539,28 +477,15 @@ class ReferencePopup:
         self._on_change()
 
     def close(self) -> None:
-        """Dismiss it if it is open (the "close …" phrases)."""
         if self.dialog is not None:
             self.dialog.close()
 
     def sync_topmost(self, omni_paused: bool) -> None:
-        """Keep its band in step with OmniPause, open or not.
-
-        It is a separate top-level window, so it rides neither the panel's band
-        nor the orchestrator's drop.  Run while hidden too, so a re-open lands
-        in the right band.
-        """
         if self.dialog is None:
             return
         self.dialog.sync_topmost(omni_paused)
 
     def _fit_to(self, rect: Rect) -> None:
-        """Size it so its whole FRAME — title bar included — fills *rect*.
-
-        Frame margins are known only once the window is realized, so: place it
-        at the rect, show it, measure, then inset the client to fill the frame.
-        Sizing the client area instead left the chrome overhanging the top.
-        """
         dialog = self.dialog
         assert dialog is not None
         dialog.setGeometry(rect.x, rect.y, rect.width, rect.height)
@@ -620,10 +545,8 @@ class DashboardWindow(QMainWindow):
         self._app_config = app_config
         self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
-        # The reference popup opens over the Random Favs Browser's screen rect.
         self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar,
                                          on_typing_invited=self._pause_for_typing)
-        # Read once; the message feed below is seeded from this same answer.
         self._reveal = LoadingReveal(app_config.state_dir)
 
         self._flash = PressFlash()
@@ -672,11 +595,6 @@ class DashboardWindow(QMainWindow):
                 launch_geometry.width, launch_geometry.height,
             )
 
-        # What the title bar's two surviving controls route to: close through
-        # closeEvent (quits everything), minimize through changeEvent
-        # (omniminimize).  winId() realizes the native handle WITHOUT showing
-        # the window, so while the loading screen is up this one stays fully hidden and
-        # LoadingReveal shows it once the loading screen goes.
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
         preview_marker.dress_the_window(_hwnd)
@@ -686,7 +604,6 @@ class DashboardWindow(QMainWindow):
         self._state_dir = app_config.state_dir
         self._ahk_cmd_file = app_config.state_dir / "ahk_cmd.txt"
 
-        # Connected first: the channel's listener emits as soon as it exists.
         self._press_received.connect(self._handle_press_event)
         self._press_channel = LoopbackInbox(
             app_config.state_dir / PRESS_PORT_FILENAME, listener_name="press-listener",
@@ -715,7 +632,6 @@ class DashboardWindow(QMainWindow):
         write_dashboard_command(self._app_config.dashboard_cmd_file, action)
 
     def closeEvent(self, event: object) -> None:
-        # Closing this window ends the WHOLE session; a stray Alt+F4 lands here.
         mark_session_end(self._state_dir, "the dashboard window was closed")
         try:
             self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
@@ -725,12 +641,6 @@ class DashboardWindow(QMainWindow):
         event.accept()
 
     def _stop_background_work(self) -> None:
-        """Wind down the press channel, the timers and the log strip's tail.
-
-        In production the process is about to be killed anyway; this matters
-        where several dashboards are built and closed inside one longer-lived
-        process, and a leaked poller would read on past its window.
-        """
         self._press_channel.stop()
         for timer in self.findChildren(QTimer):
             timer.stop()
@@ -739,13 +649,6 @@ class DashboardWindow(QMainWindow):
         self._messages.shutdown()
 
     def changeEvent(self, event: object) -> None:
-        """Mirror the dashboard's own minimize/restore onto every managed window.
-
-        The dashboard cannot reach the other processes' windows directly, so it
-        writes a command for the dispatch loop, which owns those handles.  This
-        is what makes clicking the taskbar icon (which restores the dashboard)
-        bring every window back.
-        """
         if event.type() == QEvent.Type.WindowStateChange:
             now_minimized = self.isMinimized()
             was_minimized = bool(event.oldState() & Qt.WindowState.WindowMinimized)
@@ -754,18 +657,16 @@ class DashboardWindow(QMainWindow):
         super().changeEvent(event)
 
     def _maybe_route_omniminimize(self, *, now_minimized: bool, was_minimized: bool) -> None:
-        """Write the omniminimize command on the not-minimized -> minimized edge only."""
         if self._reveal.routing_suppressed:
-            return  # startup minimize (loading overlay) — not a user gesture
+            return
         if now_minimized and not was_minimized:
             self._post_command(OMNIMINIMIZE)
 
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
-        """Write the omnirestore command on the minimized -> not-minimized edge only."""
         if not (was_minimized and not now_minimized):
             return
         if self._reveal.took_the_first_restore():
-            return  # startup's own minimize came back; routing is live from here
+            return
         self._post_command(OMNIRESTORE)
 
     def _show_presses(self) -> None:
@@ -785,7 +686,6 @@ class DashboardWindow(QMainWindow):
 
     @property
     def _omni_paused(self) -> bool:
-        """Whether the last snapshot we rendered had OmniPause holding."""
         return self._last_snapshot is not None and self._last_snapshot.omni_paused
 
     def _do_render(
@@ -796,15 +696,10 @@ class DashboardWindow(QMainWindow):
         self._last_snapshot = snapshot
         if self._mode_selector is not None:
             self._mode_selector.show_state(snapshot or DashboardSnapshot())
-        # The log strip is a child widget and rides this window's band; the
-        # reference popup is its own top-level window, so it is banded too.
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
         self._reference.sync_topmost(omni_paused)
         scene = self._bar_scene(pressed_actions)
-        # While minimized, re-asserting geometry would restore the window and
-        # fight the omniminimize — leave it minimized until the user restores it.
-        # While deferred for loading it is hidden; don't touch it until reveal.
         if not self.isMinimized() and not self._reveal.deferred:
             apply_dashboard_window_geometry(self, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
@@ -837,13 +732,6 @@ class DashboardWindow(QMainWindow):
         self._apply_presses(self._press_channel.take_all())
 
     def _apply_presses(self, actions: list[str]) -> None:
-        """Flash each of *actions*, and route the two the popup answers to.
-
-        Voice arrives here as a press (the ? button drives _on_action directly):
-        "help"/… toggles the popup, "close help"/… only dismisses it.  A burst
-        is one render, not one render each, so the two are decided across the
-        whole batch before either is acted on.
-        """
         for action in actions:
             self._flash.press(action)
         if HELP_REFERENCE_CLOSE in actions:
@@ -860,26 +748,19 @@ class DashboardWindow(QMainWindow):
         )
 
 
-# Which checkout this process actually imported, written beside the session's
-# other state.  A branch session runs from a worktree by setting the working
-# directory, and nothing anywhere said whether that had taken -- so a change that
-# was in the code and not on the screen left no way to tell the two apart, and
-# the guessing that follows costs a review round every time.
 SOURCE_CHECKOUT_FILENAME = "dashboard_source.txt"
 
 
 def source_checkout() -> Path:
-    """The checkout this module was imported from."""
     return Path(__file__).resolve().parent.parent
 
 
 def record_source_checkout(state_dir: Path) -> Path:
-    """Write :func:`source_checkout` where the session's state lives."""
     destination = Path(state_dir) / SOURCE_CHECKOUT_FILENAME
     try:
         destination.write_text(f"{source_checkout()}\n", encoding="utf-8")
     except OSError:
-        pass  # A dashboard that cannot leave a note still runs.
+        pass
     return destination
 
 
@@ -905,7 +786,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Path to the Windows bridge launch manifest",
     )
     add_rect_arguments(parser)
-    # The Random Favs Browser's rect — the reference popup opens over it.
     add_rect_arguments(parser, prefix="rfb_")
     return parser.parse_args(argv)
 
@@ -927,15 +807,11 @@ def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = parse_args(argv)
 
-    # Set AppUserModelID before any window creation so the taskbar can group
-    # this process's windows with the pinned "Fun Time" shortcut.
 
     claim_taskbar_identity(preview_marker.session_identity(preview_marker.shown_as()),
                            set_app_user_model_id)
 
     with application([]) as app:
-        # The family's chrome, on the application: a tooltip is a top-level popup,
-        # and only a sheet set here reaches it.
         dress_application(app)
 
         app_config = load_dashboard_app_config(Path(args.manifest_path))

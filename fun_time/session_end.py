@@ -1,8 +1,3 @@
-"""The note saying what asked a session to end: whatever asks writes one before
-sending the exit, and the orchestrator reads and removes it.  Without it, an end
-nobody asked for reads exactly like one the user asked for
-(``tests/test_session_end_reason.py``).
-"""
 from __future__ import annotations
 
 import logging
@@ -26,6 +21,6 @@ def mark_session_end(state_dir: str | Path, reason: str) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(reason, encoding="utf-8")
-    except OSError:  # a session comes down whether or not it can leave a note
+    except OSError:
         logger.warning("Could not write %s", path, exc_info=True)
 

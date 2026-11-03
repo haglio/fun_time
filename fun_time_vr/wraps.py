@@ -1,4 +1,3 @@
-"""How a projection wraps the viewer, and the shader that draws the wrap."""
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -21,9 +20,6 @@ MIN_FOV_DEG = 40.0
 _MAX_FOV_DEG = {_EQUIRECT_MODE: 180.0, _FISHEYE_MODE: 240.0, _RECTILINEAR_MODE: 170.0}
 MIN_HEIGHT, MAX_HEIGHT = 0.5, 2.0
 
-# How a fisheye's radius grows with its off-axis angle: most lenses are
-# equidistant, but one marketed as low-distortion at a wide field of view
-# typically is not.
 _CURVE_EQUIDISTANT, _CURVE_STEREOGRAPHIC, _CURVE_EQUISOLID = 0, 1, 2
 
 
@@ -35,7 +31,6 @@ class Wrap:
     height: float = 1.0
 
 
-# FLAT is absent because a flat video draws as a screen, not an immersive wrap.
 _WRAPS = {
     EQUIRECT_180_SBS: Wrap(_EQUIRECT_MODE, 180.0),
     FISHEYE_180_SBS: Wrap(_FISHEYE_MODE, 180.0),
@@ -118,7 +113,6 @@ def angle_limits(projection: str) -> tuple[float, float] | None:
 def immersive_wrap(
     projection: str, *, fov_deg: float | None = None, height: float | None = None,
 ) -> Wrap | None:
-    """How *projection* wraps the viewer, or None when it draws as a screen."""
     wrap = _WRAPS.get(projection)
     limits = angle_limits(projection)
     if limits is None:

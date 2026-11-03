@@ -1,5 +1,3 @@
-"""Saving a Genaumacher session — the one place the dispatcher's world shells out
-to a sibling repo, running genaumacher's own venv for the video the Main Funestra is showing."""
 from __future__ import annotations
 
 import functools
@@ -37,20 +35,11 @@ def _genaumacher_python() -> str:
 
 
 def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
-    """The Main Funestra's current video path and playback time (seconds).
-
-    The Main Funestra owns the Main Funestra in kino mode and
-    publishes both in its status file; the path is empty when nothing is playing.
-    """
     status = read_main_funestra_status(config.main_funestra_status_file)
     return status.video, status.position_ms / 1000
 
 
 def save_clip_session(config: BridgeConfig) -> str:
-    """Save a Genaumacher session for the Main Funestra's current video.
-
-    Returns a short user-visible message on success, or empty string on failure.
-    """
     video_path, playback_time = _current_main_media(config)
     if not video_path:
         logger.warning("genaumacher_save: no video playing on the Main Funestra")
@@ -77,15 +66,11 @@ def save_clip_session(config: BridgeConfig) -> str:
         logger.error("genaumacher_save failed: %s", result.stderr.strip())
         return ""
     except (OSError, subprocess.SubprocessError) as exc:
-        # Only the OS and the subprocess machinery fail on genaumacher's behalf
-        # (TimeoutExpired included); a TypeError in our own argument building
-        # surfaces instead of reading as "genaumacher failed".
         logger.error("genaumacher_save error: %s", exc)
         return ""
 
 
 def save_and_say(config: BridgeConfig) -> None:
-    """Run the save and flash its message -- from the genaumacher-save thread."""
     message = save_clip_session(config)
     if message:
         flash_message(logger, message, source=SOURCE_MAIN)

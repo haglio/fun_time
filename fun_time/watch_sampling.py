@@ -1,10 +1,3 @@
-"""Watch tracking: which video each Funestra is on, and what a departure meant.
-
-Every Funestra's current video is sampled twice a second and fed to the trackers,
-which classify playback into completions and skips for the stats file.  The two
-satellites also feed a history of what each had on screen, so a spoken command can be
-back-dated to the video on screen when the speaker started talking.
-"""
 from __future__ import annotations
 
 from collections.abc import Collection
@@ -17,16 +10,8 @@ from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
 from .watch_stats import WatchTracker, record_watch_event
 
-# Twice a second: the cadence for sampling every Funestra's current video (both
-# satellites and the Main Funestra feed).  A satellite video switch is only ever
-# bracketed by two samples, so this also bounds how far a back-dated command can
-# misplace a switch (the history halves it again by dating the switch to the
-# bracket's midpoint).  Skipped under OmniPause, where playback is frozen.
 SAMPLE_INTERVAL_S = 0.5
 
-# Commands that count as the user navigating away from a video — the signal
-# that classifies an early departure as a skip rather than a neutral advance.
-# The Main Funestra navigates with next/prev only; it has no lock/trash/cycle.
 NAV_COMMANDS: dict[int, frozenset[str]] = {
     1: frozenset({"main_prev", "main_next"}),
     2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
@@ -37,8 +22,6 @@ DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3}
 
 
 class WatchSampler:
-    """The trackers, the histories, and the files they are fed from."""
-
     def __init__(
         self,
         *,
@@ -56,14 +39,6 @@ class WatchSampler:
         self._last_sample = 0.0
 
     def sample_due(self, *, now: float, paused: bool, hosted: Collection[int] = ()) -> None:
-        """Sample every Funestra, if the cadence says it is time.
-
-        The clock advances whether or not Fun Time is paused, so resuming does
-        not fire an off-cadence sample the moment the pause lifts.  The
-        satellites *hosted* book nothing: in their Origenerator mode they play
-        the hosted app's items, which are no library videos to book a watch
-        against.
-        """
         if now - self._last_sample < SAMPLE_INTERVAL_S:
             return
         self._last_sample = now

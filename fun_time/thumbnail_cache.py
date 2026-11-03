@@ -1,10 +1,3 @@
-"""Disk-cached still frames for videos, for the lock-status HUD.
-
-Videos are raw ``.mp4`` files with no sidecar images, so a representative
-frame is extracted once with OpenCV and cached to disk. The cache filename
-folds in the source file's modification time, so a replaced video at the same
-path yields a fresh thumbnail instead of a stale one.
-"""
 from __future__ import annotations
 
 import hashlib
@@ -18,23 +11,14 @@ from PIL import Image
 
 from .folder_listings import FolderListings
 
-# Default longest-edge size (px) for a HUD sibling thumbnail.
 DEFAULT_MAX_SIZE = 160
 
-# Where the cache lives, under the session's state dir.  One cache for every
-# still in the session — the satellites' HUD maps and the library browser's
-# tiles — so a video decoded for one is already warm for the other.
 THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 
 
 def thumbnail_path(
     video_path: str | Path, cache_dir: str | Path, listings: FolderListings | None = None
 ) -> Path:
-    """Deterministic cache location for *video_path*'s thumbnail.
-
-    The name folds in the path and the date its folder lists, so the same video
-    maps to the same file until it is modified, then to a new one.
-    """
     spelled = os.path.abspath(video_path)
     dated = listings or FolderListings()
     digest = hashlib.sha1(f"{spelled}|{int(dated.modified(spelled))}".encode()).hexdigest()[:16]
@@ -44,10 +28,6 @@ def thumbnail_path(
 def cached_thumbnail(
     video_path: str | Path, cache_dir: str | Path, listings: FolderListings | None = None
 ) -> Path | None:
-    """The cached thumbnail for *video_path* if it already exists, else None —
-    never extracting one.  The HUD paints with this so its refresh never blocks
-    on a cv2 frame grab (seconds, for HEVC); the background prewarm does the
-    extracting, and the next refresh picks the file up."""
     dest = thumbnail_path(video_path, cache_dir, listings)
     return dest if dest.is_file() else None
 
@@ -56,7 +36,6 @@ _FIFTHS = 5
 
 
 def _read_representative_frame(video_path: str | Path):
-    """A frame ~20% into the video (skipping fade-ins), or the first readable one."""
     capture = cv2.VideoCapture(str(video_path))
     try:
         if not capture.isOpened():
@@ -78,11 +57,6 @@ def thumbnail_for(
     video_path: str | Path, cache_dir: str | Path, max_size: int = DEFAULT_MAX_SIZE,
     listings: FolderListings | None = None,
 ) -> Path | None:
-    """Path to *video_path*'s cached thumbnail, extracting it on first use.
-
-    Returns ``None`` when the video cannot be opened or has no readable frame.
-    A previously cached thumbnail is reused without touching the video.
-    """
     dest = thumbnail_path(video_path, cache_dir, listings)
     if dest.is_file():
         return dest
@@ -103,15 +77,6 @@ def prewarm_thumbnails(
     sleep_fn: Callable[[float], None] = time.sleep,
     pause_s: float = 0.05,
 ) -> None:
-    """Extract and cache *videos*' thumbnails, so a first use never blocks on a
-    frame grab.  Idempotent — an already cached thumbnail is skipped.  Sleeps
-    briefly between videos so decoding a big HEVC library never starves the
-    session's own work (that starvation was showing up as multi-second blinks);
-    run it off the main thread.
-
-    The caller chooses which videos: a satellite warms every video in its
-    library, the library browser one per handle off its cheapest rendition.
-    """
     for video in videos:
         thumbnailer(video, cache_dir)
         sleep_fn(pause_s)

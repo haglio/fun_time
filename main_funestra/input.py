@@ -1,11 +1,3 @@
-"""What arrives in a Funestra's viewport, and what it is taken to mean.
-
-SDL hands the frame a queue of events; the Funestra answers the mouse and the
-viewport being closed, and a key reaches nothing: Fun Time's hotkeys are the
-keyboard for all of Fun Time.  Nothing is decided here beyond WHICH event is
-which, and the viewport size travels with the frame rather than being read off
-the viewport, so everything in one frame is answered against one viewport.
-"""
 from __future__ import annotations
 
 import pygame

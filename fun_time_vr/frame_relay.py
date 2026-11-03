@@ -7,9 +7,6 @@ SLOTS = 3
 
 
 class StillAsked:
-    """A one-frame copy asked for by another thread, painted by the one that
-    owns the GL context -- see :meth:`VideoThread._paint_a_still`."""
-
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._wanted = False

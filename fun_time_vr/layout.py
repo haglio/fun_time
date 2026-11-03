@@ -1,4 +1,3 @@
-"""Where the controllers left each movable screen, and the reach a drag is held to."""
 from __future__ import annotations
 
 import json
@@ -21,7 +20,7 @@ _TILT_FIELD = "tilt_deg"
 MAIN = "main"
 PORTRAIT = "portrait"
 LANDSCAPE = "landscape"
-MAIN_HUD = "panel"  # the name the headset layout file already saves its place under
+MAIN_HUD = "panel"
 DASH = "dash"
 REFERENCE = "reference"
 LIBRARY = "library"
@@ -128,7 +127,6 @@ def rearranged(placements: Mapping[str, Placement], *, grow: float,
             if placement != placements[name]}
 
 
-# The word the main screen was known by before "main".
 _LAST_SESSIONS_MAIN = "primary"
 
 

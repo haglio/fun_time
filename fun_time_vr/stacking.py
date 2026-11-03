@@ -1,4 +1,3 @@
-"""Which screen hangs in front of which."""
 from __future__ import annotations
 
 import itertools

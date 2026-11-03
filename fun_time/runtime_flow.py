@@ -44,16 +44,11 @@ class ModeSwitchFlowResult:
     log_message: str
 
 
-# F-mode can be set on any of the three, each with its own flag, because it means
-# a different narrowing on each: the satellites drop to the favorites, the Main
-# Funestra to the videos a person hand-wrote a funscript for.
 FMODE_FUNESTRAS = (FunTimeFunestra.MAIN, FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
 
 
 @dataclass(frozen=True)
 class FModeFlowResult:
-    """Which Funestras were put into (or out of) F-mode, and what to say about it."""
-
     funestras: tuple[FunTimeFunestra, ...]
     enabled: bool
     log_message: str
@@ -67,13 +62,6 @@ def apply_mode_switch(
     main_funestra_paused_file: str | Path,
     main_funestra_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
-    """Switch the Main Funestra between kino and genau mode, sending the Main Funestra
-    what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
-
-    Queued, never written whole: the file is a queue shared with every other
-    writer, and replacing it here erased whatever it had appended since the
-    last drain.
-    """
     plan = build_mode_switch_plan(
         current_mode=current_mode,
         target_mode=target_mode,
@@ -100,11 +88,6 @@ def rebuild_main_list(
     builds: MainListBuilds = BUILDS_HERE,
     says: str = "",
 ) -> None:
-    """``start_at_top`` is the reorder's, and means here what it means for a
-    satellite: the Main Funestra keeps the video on screen across a reload whenever the new list
-    still holds it — which a reorder's always does — so a newest-first rebuild
-    would otherwise apply only after it, and the new arrivals never come up.
-    """
     builds.build(MainListBuild(
         main_list=main_list, settings=settings,
         main_funestra_cmd_file=Path(main_funestra_cmd_file),
@@ -123,11 +106,6 @@ def apply_satellite_fmode(
     filter_query: str = "",
     regen_metadata_root: Path | None = None,
 ) -> None:
-    """Rebuild one satellite's playlist under *enabled* and tell it to re-read.
-
-    F-mode narrows a satellite to the favorites.  The Satellite's own filter and
-    order ride along, so narrowing to favorites does not quietly undo either.
-    """
     build_one_satellite_playlist(
         sources=sources,
         name=PLAYLIST_PORTRAIT if funestra == FunTimeFunestra.PORTRAIT else PLAYLIST_LANDSCAPE,
@@ -142,8 +120,6 @@ def apply_satellite_fmode(
 
 @dataclass(frozen=True)
 class SatelliteFmodeInputs:
-    """One satellite's F-mode rebuild inputs: its channel and narrowing."""
-
     sources: str
     cmd_file: str | Path
     recent: bool = False
@@ -163,13 +139,6 @@ def apply_fmode(
     satellites: Mapping[FunTimeFunestra, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
 ) -> FModeFlowResult:
-    """Put each of *Funestras* into F-mode, or take it out, and rebuild just those.
-
-    A Funestra not named is not touched at all — its playlist file is left exactly
-    as it is, so setting one Satellite's F-mode cannot reshuffle the other's queue out
-    from under it.  That is the whole reason the rebuild is per Funestra rather
-    than one build of all three.
-    """
     named = tuple(funestra for funestra in FMODE_FUNESTRAS if funestra in funestras)
     if FunTimeFunestra.MAIN in named:
         rebuild_main_list(
@@ -208,12 +177,6 @@ def satellite_browse_paths(
     sources: str,
     regen_metadata_root: Path | None = None,
 ) -> list[str]:
-    """The paths a satellite's default browse holds under *query* and the current
-    ordering — one video per group, filter-honoring, Latest/Shuffle-aware.
-
-    This is the list a filter rebuild loads into the satellite, and equally the
-    target "no loop" reshapes the queue back to when a group loop ends.
-    """
     return build_satellite_playlist_paths(
         sources, favorites_filter,
         filter_query=query, recent=recent, metadata_root=regen_metadata_root,
@@ -239,22 +202,6 @@ def apply_satellite_filter(
     start_at_top: bool = False,
     regen_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
-    """Rebuild and reload one satellite under *query*.
-
-    Ordering follows the caller's ``recent``/``favorites_filter`` just like a full rebuild,
-    so the filtered playlist still honors Latest vs Shuffle and F-mode.  A
-    non-empty query that matches nothing leaves the current playlist in place
-    rather than blanking the satellite; ``query == ""`` clears the filter.  The
-    playlist file it writes is the one the satellite plays, so a RELOAD_PLAYLIST
-    verb makes the Funestra pick it up.
-
-    That reload keeps the video on screen playing while it survives the new list, and
-    carries on from where it sits — which is right for a filter, and wrong for a
-    caller whose whole point is a fresh start.  Reordering newest-first is exactly
-    that: the new order would otherwise only apply *after* the video playing, and the
-    newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
-    to the head of the list it just wrote.
-    """
     label = FunTimeFunestra(funestra).label
     name = PLAYLIST_PORTRAIT if funestra == FunTimeFunestra.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
@@ -287,17 +234,6 @@ def apply_satellite_switch(
     origenerator_cmd_file: str | Path | None,
     channel: SatelliteChannel,
 ) -> SatelliteSwitchFlowResult:
-    """Switch one Satellite Funestra between its own videos and the hosted
-    app's slideshows.
-
-    Like the Main Funestra's switch, nothing is torn down, and nothing pauses.
-    Entering keeps the Funestra's own list aside for the way back, lets go of
-    the session's hold on it -- what holds is the app's to say now -- and asks
-    the app for a slideshow on it, so the mode opens playing rather than empty: the
-    app picks the set, the whole library of that Satellite's shape, shuffled.
-    Leaving tells it to let go; the Funestra comes home once it has (see
-    :mod:`fun_time.funestra_handover`).
-    """
     satellite = funestra.label.capitalize()
     if current_mode == target_mode:
         return SatelliteSwitchFlowResult(

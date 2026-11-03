@@ -7,7 +7,7 @@ from typing import NamedTuple
 import numpy as np
 
 HEAD_LENGTH_M = 0.07
-HEAD_UNDERSIDE_M = -0.016  # the plane between the two parts: the head above it, the handle below
+HEAD_UNDERSIDE_M = -0.016
 HANDLE_LENGTH_M = 0.095
 HANDLE_RAKE_DEG = 25.0
 
@@ -44,7 +44,7 @@ def _outward_normals(part: np.ndarray) -> np.ndarray:
 
 _PARTS = tuple((part, _outward_normals(part)) for part in (_HANDLE, _HEAD))
 
-_LIGHT = np.array([0.3, 1.0, 0.5]) / np.linalg.norm([0.3, 1.0, 0.5])  # overhead, over his shoulder
+_LIGHT = np.array([0.3, 1.0, 0.5]) / np.linalg.norm([0.3, 1.0, 0.5])
 AMBIENT_SHADE = 0.45
 
 
@@ -59,14 +59,14 @@ def _shade(normal: np.ndarray) -> float:
 
 def controller_faces(origin: np.ndarray, rotation: np.ndarray) -> list[Face]:
     rotation = np.asarray(rotation)
-    eye = -(np.asarray(origin) @ rotation)  # in the controller's own frame
+    eye = -(np.asarray(origin) @ rotation)
     nearer_part_last = _PARTS if eye[1] >= HEAD_UNDERSIDE_M else _PARTS[::-1]
     faces = []
     for part, normals in nearer_part_last:
         corners = part @ rotation.T + origin
         for face, normal in zip(_FACES, normals @ rotation.T, strict=True):
             quad = corners[list(face)]
-            if np.dot(normal, quad[0]) < 0.0:  # turned toward the eye at the scene's center
+            if np.dot(normal, quad[0]) < 0.0:
                 faces.append(Face(quad, _shade(normal)))
     return faces
 
@@ -76,7 +76,7 @@ def controllers_strip(poses: Sequence[tuple[np.ndarray, np.ndarray]]) -> np.ndar
     for origin, rotation in sorted(poses, key=lambda pose: np.linalg.norm(pose[0]), reverse=True):
         for face in controller_faces(origin, rotation):
             a, b, c, d = ((*corner, face.shade, 0.0) for corner in face.corners)
-            if rows:  # repeated vertices: the triangles joining two faces have no area
+            if rows:
                 rows += [rows[-1], a]
             rows += [a, b, d, c]
     return np.array(rows, dtype=np.float32).reshape(-1, 5)

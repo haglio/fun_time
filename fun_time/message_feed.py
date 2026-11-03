@@ -1,11 +1,3 @@
-"""What drives the messages flashed over a Funestra: a second tail of the event log, faster than
-the panel's 500ms refresh so a "Clip saved" lands promptly, drawn over the
-window it concerns — from the same layout functions startup and the crown place
-that window with.
-
-The overlay is a widget, so it arrives as something to call and every rule here
-runs headless.
-"""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -22,7 +14,6 @@ from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monito
 
 
 def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> FunestraRects:
-    """Where each message-bearing window sits, in real screen coordinates."""
     seats = secondary_monitor_rects(screens.secondary_monitor, screens.config, majority=majority)
     return FunestraRects(
         main=seats.main,
@@ -33,7 +24,6 @@ def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> F
 
 
 def _screens(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | None:
-    """None on a headless run, where messages simply do not flash."""
     try:
         return screen_layout(layout, rfb_mode_selector=rfb_mode_selector)
     except (ValueError, OSError):
@@ -41,12 +31,6 @@ def _screens(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | No
 
 
 class MessageFeed:
-    """One session's messages: where they go, when they may go, how far read.
-
-    Two directories, because the two files are in two.  *held* waits for the
-    LOADING SCREEN, which the panel's own reveal precedes.
-    """
-
     def __init__(
         self,
         *,
@@ -71,7 +55,6 @@ class MessageFeed:
 
     @property
     def offset(self) -> int:
-        """How far into the event log this tail has read."""
         return self._offset
 
     @property
@@ -85,13 +68,11 @@ class MessageFeed:
         return Crown.PORTRAIT if state is None else state.majority
 
     def poll(self) -> None:
-        """Flash every announcement written since the last poll."""
         if self.overlay is None or self._screens is None:
             return
         if self._held:
             if loading_screen_is_up(self._loading_screen_dir):
                 return
-            # Latched, so the steady state costs no file check at all.
             self._held = False
         records, self._offset = read_events(
             self._event_log_dir / EVENT_LOG_FILENAME, self._offset)
@@ -107,7 +88,6 @@ class MessageFeed:
             self.overlay.flash(record, message_target_rect(record.source, rects))
 
     def shutdown(self) -> None:
-        """Put the overlay down; nothing flashes after this."""
         if self._unlogged is not None:
             self._unlogged.stop()
         if self.overlay is not None:

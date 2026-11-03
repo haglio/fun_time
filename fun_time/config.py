@@ -40,22 +40,9 @@ class PathsConfig:
     genau_dir: Path
     genau_audio_dir: Path
     state_dir: Path
-    # Where the machine's one OSR2 broker keeps its own channel: the heartbeat and
-    # serial-activity stamps it writes, and the command, mode and permission files
-    # it reads.  Those files are the *broker's*, not the session's — ``../broker``
-    # resolves them from its own config, which names one directory for good — so a
-    # session that moves its ``state_dir`` has to keep pointing here.  Absent from
-    # the config it simply is ``state_dir``, which is true of every session but a
-    # branch one (see :mod:`fun_time.branch_session`), and of an integration run,
-    # whose broker is a temp-dir one of its own.
     broker_state_dir: Path
-    # Checkouts of the family's shared code that every program of the session
-    # imports ahead of what this repo's venv installs.  Empty in ordinary use.
     sibling_checkouts: tuple[Path, ...] = ()
     broker_tray_launcher: Path | None = None
-    # The Origenerator checkout the session hosts (see
-    # fun_time.origenerator_switches), and the python that runs it.  Absent,
-    # nothing in Fun Time offers Origenerator at all.
     origenerator_dir: Path | None = None
     origenerator_python_exe: Path | None = None
 
@@ -68,7 +55,6 @@ class PathsConfig:
 
     @property
     def sibling_checkouts_path(self) -> str:
-        """Those checkouts as one PYTHONPATH value, which is how a child is told."""
         return os.pathsep.join(str(path) for path in self.sibling_checkouts)
 
 
@@ -132,9 +118,6 @@ class VrConfig:
 
 @dataclass(frozen=True)
 class SatelliteFiles:
-    """One satellite's own files, under the session's state dir — the last of
-    them where the hosted Origenerator publishes that Satellite's HUD."""
-
     cmd_file: Path
     paused_file: Path
     status_file: Path
@@ -154,39 +137,21 @@ class ProjectConfig:
     random_favs_browser: RandomFavsBrowserConfig
     voice_control: VoiceControlConfig
     regen: RegenConfig
-    # The one port this session serves on, and the last fixed one it claims.
-    # Named here so a second session can be given one of its own; the default is
-    # what the userscript's @updateURL is pinned to.
     loopback_port: int = LOOPBACK_PORT
     osr2_slot_port: int = ports.OSR2_SLOT
-    # FunTimeVR's additions; the desktop session never reads them.
     vr: VrConfig = VrConfig()
-    # Config key ``instance_id``; read through the property below.
     instance_id_override: str | None = None
 
     @property
     def instance_id(self) -> str:
-        """Which running session this one *is*, for the single-instance mutex.
-
-        Defaults to the config path, so every config is its own instance — which
-        is what lets integration runs, each on a unique temp config, take mutexes
-        without colliding.  A config may instead name another session's identity,
-        and then whichever starts second is refused with the "already running"
-        message: that is how a branch session replaces the live one rather than
-        fighting it for the AHK shell, the monitors and the fixed ports.
-        """
         return self.instance_id_override or str(self.config_path)
 
-    # --- The broker's channel.  Every one of these is a file ../broker opens by
-    # its own config, so they follow the broker's state dir rather than ours.
     @property
     def broker_mode_file(self) -> Path:
-        """The broker's "Genau has the OSR2" flag — written by it, read by us."""
         return self.paths.broker_state_dir / state_files.BROKER_MODE
 
     @property
     def broker_cmd_file(self) -> Path:
-        """The one verb the broker consumes per tick (park, retract, resume)."""
         return self.paths.broker_state_dir / state_files.BROKER_CMD
 
     @property
@@ -199,8 +164,6 @@ class ProjectConfig:
 
     @property
     def genau_status_file(self) -> Path:
-        """Where Genau publishes what the hand is doing, named on its launch:
-        left to Genau it followed whichever command file it was handed."""
         return self.paths.state_dir / state_files.GENAU_STATUS
 
     @property
@@ -223,8 +186,6 @@ class ProjectConfig:
     def main_funestra_playlist_file(self) -> Path:
         return self.paths.state_dir / "main_player_playlist.tsv"
 
-    # --- The hosted Origenerator's channel (see fun_time.origenerator_switches):
-    # verbs in, the OmniPause flag over it, and which Funestras it holds back.
     @property
     def origenerator_cmd_file(self) -> Path:
         return self.paths.state_dir / "origenerator_cmd.txt"
@@ -258,8 +219,6 @@ class ProjectConfig:
         return self.paths.state_dir / "random_favs_browser_urls.txt"
 
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteFiles:
-        """The four channel files and the HUD one satellite reads — here with the
-        session's other file names, not where the manifest is serialized."""
         label = FunTimeFunestra(funestra).label
         return SatelliteFiles(
             cmd_file=self.paths.state_dir / f"{label}_cmd.txt",
@@ -271,7 +230,6 @@ class ProjectConfig:
             origenerator_hud_file=self.paths.state_dir / f"origenerator_{label}_hud.json",
         )
 
-    # What the dashboard publishes about itself, and its buttons coming back.
     @property
     def dashboard_state_file(self) -> Path:
         return self.paths.state_dir / "dashboard_state.ini"
@@ -409,16 +367,6 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
 
 
 def _raise_for_missing_config(path: Path) -> None:
-    """Fail a missing config clearly, seeding the default one from the example.
-
-    A missing *default* ``fun_time_config.json`` is usually a fresh/public
-    checkout or an overlay that got swept away, so a starter copy is written
-    from the committed ``fun_time_config.example.json`` for the user to fill in.
-    Startup still stops — the example's paths are placeholders that must never be
-    mistaken for a real library — but with a message naming the exact file to
-    edit, not an opaque ``FileNotFoundError`` deep in startup.  Any other
-    explicitly-named path is simply reported as missing, without regeneration.
-    """
     if path == DEFAULT_CONFIG_PATH and EXAMPLE_CONFIG_PATH.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(EXAMPLE_CONFIG_PATH, path)
@@ -434,15 +382,6 @@ def _raise_for_missing_config(path: Path) -> None:
 
 
 def load_config(config_path: str | Path | None = None, *, project_dir: Path | None = None) -> ProjectConfig:
-    """Load a config, resolving its relative paths against *project_dir*.
-
-    *project_dir* defaults to :data:`PROJECT_DIR`, the checkout that imported
-    this package, which is what every session wants: a config's relative values
-    describe the checkout it belongs to.  It is a parameter so that code holding
-    *two* checkouts at once can say which — the branch-verification launcher
-    reads the live config while running from the Main Funestra, and must resolve it
-    the way the live session does rather than the way its caller happens to sit.
-    """
     project_dir = project_dir or PROJECT_DIR
     path = _resolve_config_path(config_path, project_dir)
     if not path.exists():

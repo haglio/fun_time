@@ -1,23 +1,3 @@
-"""Canonical reference of Fun Time hotkeys and voice commands.
-
-This module is the single presentation surface for "what can I press and what
-can I say."  The factual mappings live in two authoritative sources:
-
-* ``windows_bridge_hotkeys.ahk`` — physical key -> dispatch command
-* :data:`fun_time.voice_control.VOICE_COMMANDS` — spoken phrase -> dispatch command
-
-Here we attach a human-readable description and key label to each dispatch
-command and group the rows into sections.  Voice phrases are *derived* from
-``VOICE_COMMANDS`` so the spoken column can never drift out of sync.  A test
-(``tests/test_command_reference.py``) parses the AHK script and cross-checks
-``VOICE_COMMANDS`` to guarantee every real trigger is represented here.
-
-The satellites get ONE section: every satellite action answers to the same
-phrase four ways over — bare, or with "portrait", "landscape" or "both" before
-or after it — so the grid is authored once, with a key column per side, a note
-carrying the scoping rule, and the Say column showing the action alone (see
-:func:`_collapse_scopes`).
-"""
 from __future__ import annotations
 
 import html
@@ -50,13 +30,9 @@ from fun_time.voice_commands import (
 
 @dataclass(frozen=True)
 class CommandRef:
-    """One reference row: an action and every way to trigger it."""
-
     description: str
     voice: tuple[str, ...]
     commands: tuple[str, ...]
-    # ``hotkeys`` split across the section's key columns — one entry per column,
-    # so a two-sided section can show the portrait key beside the landscape one.
     key_columns: tuple[tuple[str, ...], ...] = ()
 
 
@@ -65,39 +41,28 @@ class ReferenceSection:
     title: str
     rows: tuple[CommandRef, ...]
     key_headers: tuple[str, ...] = ("Key",)
-    # Optional line under the section title, explaining something that would
-    # otherwise have to be repeated on every row.
     note: str = ""
 
 
 @dataclass(frozen=True)
 class _Row:
-    """Authored row data; voice phrases are derived from ``commands``."""
-
     description: str
     hotkeys: tuple[str, ...] = ()
     commands: tuple[str, ...] = ()
     literal_voice: tuple[str, ...] = ()
-    # When set, the Say column shows exactly these phrases instead of the ones
-    # derived from ``commands``.
     voice_display: tuple[str, ...] | None = None
-    # Keys for a second key column, in a section that declares two.
     hotkeys_alt: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class _Section:
-    """Authored section data."""
-
     title: str
     rows: tuple[_Row, ...]
     key_headers: tuple[str, ...] = ("Key",)
     note: str = ""
-    # Collapse the scope words out of the Say column (see :func:`_collapse_scopes`).
     merge_scopes: bool = False
 
 
-#: The four ways to address a satellite action.
 _SCOPES = ("portrait", "landscape", "both", "active")
 
 _SPOKEN_COMMANDS = frozenset(VOICE_COMMANDS.values())
@@ -105,13 +70,6 @@ _FLICK = genau_flick_noun()
 
 
 def _sided(*actions: str) -> tuple[str, ...]:
-    """Every scope's dispatch id for *actions*: ``"prev"`` -> all four ``_prev``.
-
-    Authoring the shared grid by the action alone is what keeps the scopes from
-    drifting apart again — a row cannot name one and forget another.  Ids no
-    phrase reaches (a key-only toggle, say) are not generated, and belong in the
-    row explicitly.
-    """
     return tuple(
         command
         for action in actions
@@ -120,8 +78,6 @@ def _sided(*actions: str) -> tuple[str, ...]:
     )
 
 
-# Authored reference, grouped by the part of the dashboard each row drives.
-# ``commands`` are dispatch ids — voice phrases are looked up from them.
 _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Global",
@@ -140,7 +96,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("vr_reset",),
             ),
             _Row("Omnipause / resume", ("Esc",), ("omnipause_toggle", "pause", "play")),
-            # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),
             _Row(
                 "Relief Omnipause — Omnipause and retract together: everything "
@@ -149,8 +104,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("Shift+Esc",),
                 ("relief_omnipause",),
             ),
-            # The modes are rows, not a section of their own: each is one key
-            # and one phrase, like everything else here that reshapes Fun Time.
             _Row(
                 f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot Hand "
                 "driving the OSR2",
@@ -192,11 +145,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("kino_activate",),
             ),
-            # The hosted app's own vocabulary, said to one of its sides.  The
-            # session owns Fun Time's microphone, so these are heard here and
-            # posted there as the words themselves; one row, because they are
-            # one idea — say the side, then what you would have said to
-            # Origenerator.
             _Row(
                 "Speak to a hosted Origenerator show — the Satellite, then its own "
                 "words: a shelf to play (\"landscape experiments\", "
@@ -225,9 +173,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("all_reset",),
             ),
-            # The Main Funestra's sound, in whichever mode owns it — the Main Funestra's
-            # video in kino mode, Genau's flick audio in genau.  Its volume steps
-            # sit with the Main Funestra's other playback controls.
             _Row("Mute / unmute the Main Funestra", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
             _Row("Accept the last command voice was not sure enough of", ("Enter",),
@@ -247,11 +192,6 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Set amplitude", (), (), ("min amp", "max amp", "amp 0–100")),
             _Row("Center up / down", ("O", "U"), ("robot_hand_center_up", "robot_hand_center_down")),
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
-            # Neither the keys nor the words name an engine, so in kino mode they
-            # follow the OSR2's driver — a held hand has no motion to nudge, so
-            # under a park or retract they reach the video; the HUD's own ±
-            # marks, which sit on one readout or the other, stay with the engine
-            # they sit on.
             _Row(
                 "Speed up / down — the motion's rate, or the video's playback "
                 "rate while a funscript is driving the OSR2 (the script scales "
@@ -305,8 +245,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("genau_flip_ends",),
             ),
-            # The same two commands the Main Funestra's section carries: one sound level reaches
-            # both sinks, and which is audible is which mode owns the display.
             _Row(f"Volume down / up, in tenths — the {_FLICK.one} music", (),
                  ("audio_volume_down", "audio_volume_up")),
             _Row(
@@ -365,9 +303,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("PgUp", "PgDn", "Shift+Z"),
                 ("tilt_up", "tilt_down", "tilt_reset"),
             ),
-            # Named for the playback, so it reaches the video whoever holds the
-            # OSR2 — the way to nudge the rate through a Robot Hand stretch in
-            # kino mode, where the bare "speed up" goes to the motion instead.
             _Row(
                 "Nudge the video's playback rate up / down — both satellites take "
                 "the rate it lands on",
@@ -500,8 +435,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 _sided("trash"),
                 hotkeys_alt=("W",),
             ),
-            # portrait_lock / landscape_lock are the keys' own toggle, which no
-            # phrase reaches — so _sided cannot find them, and they are named here.
             _Row(
                 "Lock / unlock",
                 ("Down",),
@@ -526,8 +459,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 hotkeys_alt=("Shift+A", "Shift+D"),
             ),
             _Row(
-                # Both key columns run up then down, so the two sides' keycaps
-                # line up with each other rather than reading as WASD.
                 "Navigate the map — move a selection down the column of other "
                 "acts, switching to that video",
                 ("Shift+Up", "Shift+Down"),
@@ -561,7 +492,6 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("More seeds — widen to same-scene near-matches", (), _sided("more_seeds")),
             _Row("Loop the subject's actions — repeat that group", (), _sided("action_loop")),
             _Row("Loop the act's other seeds — repeat that family", (), _sided("seed_loop")),
-            # The loop cycle is the keys' own command, like the lock toggle above.
             _Row(
                 "Step the loop on — lock, then seeds, then actions, then off",
                 ("Home",),
@@ -575,8 +505,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 set_commands_for_scope("both")
                 + set_commands_for_scope("portrait")
                 + set_commands_for_scope("landscape"),
-                # The acts under their real names, not the sound-alikes the
-                # recognizer's grammar is built from (see filter_vocab).
                 voice_display=display_forms(),
             ),
             _Row("Filter to the current video's action", (), _sided("lock_action")),
@@ -610,36 +538,16 @@ _SECTIONS: tuple[_Section, ...] = (
 )
 
 
-#: The words that aim a satellite phrase at a scope.  "active" is not among them:
-#: it is the scope you get by saying none of these.
 _SCOPE_WORDS = frozenset(("portrait", "landscape", "both"))
 
 
 def _collapse_scopes(phrase: str) -> str:
-    """Strip the scope word out of *phrase*, leaving the action alone.
-
-    Every satellite action answers to the same phrase eight ways — bare, or with
-    any of three scope words, each in either order — so a row that listed them
-    all would print its own action eight times over.  The section's note carries
-    the rule instead, and dropping the scope word folds every reading onto one:
-    "portrait next", "next both" and "next" all become "next".
-    """
     return " ".join(word for word in phrase.split() if word not in _SCOPE_WORDS)
 
 
 def _voice_for(
     commands: tuple[str, ...], *, fold: Callable[[str], str] | None = None
 ) -> tuple[str, ...]:
-    """Spoken phrases for *commands*, listed in command order.
-
-    Phrases follow the order their commands appear in the row — so the Say
-    column tracks the label (e.g. on before off, up before down) — with each
-    command's own synonyms sorted among themselves.  Sound-alike phrases are
-    shown under their friendly mode name (see :func:`friendly_voice`).
-
-    *fold* rewrites each phrase before any of that, so what is sorted and
-    deduplicated is what the reader will actually see.
-    """
     by_command: dict[str, set[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
         if cmd in commands:
@@ -657,7 +565,6 @@ def _voice_for(
 
 
 def _display_voice(row: _Row, *, merge_scopes: bool) -> tuple[str, ...]:
-    """The Say column for *row* — derived from its commands unless aliased."""
     if row.voice_display is not None:
         return row.voice_display
     fold = _collapse_scopes if merge_scopes else None
@@ -669,7 +576,6 @@ def _a_key_column_per_satellite(key_headers: tuple[str, ...]) -> bool:
 
 
 def build_reference_sections() -> tuple[ReferenceSection, ...]:
-    """Build the display reference, deriving voice phrases from VOICE_COMMANDS."""
     sections: list[ReferenceSection] = []
     for section in _SECTIONS:
         two_column = _a_key_column_per_satellite(section.key_headers)
@@ -730,8 +636,6 @@ def render_reference_html() -> str:
     Uses only inline style attributes (no ``<style>`` block) so the markup
     works with Qt's limited rich-text engine.
     """
-    # No heading or subtitle — the popup's title lives on the window chrome
-    # ("Hotkeys & Voice Commands Reference"), so it opens straight into the first section.
     parts: list[str] = [
         f'<body style="background:{_BG};color:{_TEXT};'
         f'font-family:\'{FONT_UI}\';font-size:{SIZE_BODY}pt">',
@@ -747,8 +651,6 @@ def render_reference_html() -> str:
                 f'<div style="color:{_MUTED};margin:0 0 {GAP_SMALL}px 0">'
                 f"{html.escape(section.note)}</div>"
             )
-        # A two-sided section spends its width on a key column per side, so the
-        # remaining columns give some back.
         two_column = _a_key_column_per_satellite(section.key_headers)
         key_width = "15%" if two_column else "22%"
         say_width = "32%" if two_column else "34%"

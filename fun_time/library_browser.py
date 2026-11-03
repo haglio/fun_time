@@ -90,52 +90,30 @@ TOP_LEVEL_NAME = "Library"
 FLICKS_TOP_LEVEL_NAME = "Genau"
 GENAU_FLAG = "--genau"
 
-# Tile size. Wide enough for a 16:9 still at the thumbnail cache's own longest
-# edge, tall enough to carry two lines of title under it — library titles run
-# long ("Jane Doe - Scene One"), and a name cut to one line is unrecognizable.
 TILE_WIDTH = 200
 TILE_HEIGHT = 168
 ICON_WIDTH = 176
 ICON_HEIGHT = 99
 
-# How wide the alphabetical sidebar stands.  About a tile's width: enough for
-# most of a library title before it elides, and little enough that the grid
-# beside it still lays out several tiles across at the size a browse opens at.
 SIDEBAR_WIDTH = 220
 
-# What names with no letter to file under are headed by.  A library holds titles
-# that open on a digit or a bracket, and each of those under a heading of its own
-# first character would be an index with more headings in it than names.
 NON_LETTER_HEADING = "#"
 
-# What the tile that goes back up is called, at the two places it can appear.
 UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
 
-# The hairline between a folder tile's four thumbnails, so they read as four
-# thumbnails rather than one.
 MONTAGE_GAP = HAIRLINE
 
-# How often the grid picks up thumbnails the background extractor has finished.
 THUMBNAIL_POLL_MS = 150
 
 
 class BrowseList(QListWidget):
-    """A list in the browse — either of them, and Backspace goes back up from both.
-
-    The key belongs to the browse rather than to one of its views: whichever
-    half has the focus, it is the way out of a folder in every other file
-    browser, and a sidebar that swallowed it would be a place the gesture
-    silently stopped working.
-    """
-
     def __init__(self, go_up: Callable[[], None]) -> None:
         super().__init__(None)
         self._go_up = go_up
         self.setFont(make_font(FONT_UI, SIZE_BODY))
 
     def keyPressEvent(self, event) -> None:  # Qt override
-        """Backspace goes back up, the way it does in every other file browser."""
         if event.key() == Qt.Key.Key_Backspace:
             self._go_up()
             return
@@ -143,14 +121,6 @@ class BrowseList(QListWidget):
 
 
 class LibraryGrid(BrowseList):
-    """The tiles: one per folder or video in the folder being shown, thumbnailed.
-
-    Ordered as :func:`fun_time.library_handles.build_library_handles` ranked the
-    library, which is what makes this the half you browse — the bulk of the
-    library first, a folder's cuts after its whole videos.  Finding a title you
-    already know the name of is the sidebar's job instead.
-    """
-
     def __init__(
         self,
         *,
@@ -176,9 +146,6 @@ class LibraryGrid(BrowseList):
             + picked_item_rules("QListWidget")
         )
 
-        # One entry per widget row: the handle a video tile plays, the SubFolder
-        # a folder tile opens, or None for the tile that goes back up — rows and
-        # handles do not line up once the grid is walkable.
         self.rows: list[LibraryHandle | SubFolder | None] = []
         # One signal covers both gestures: Qt emits itemActivated for Enter
         # AND at the end of a double-click, so nothing here needs to know
@@ -190,7 +157,6 @@ class LibraryGrid(BrowseList):
         self._collect_timer.timeout.connect(self._collect_thumbnails)
 
     def show_folder(self, folder: Folder) -> None:
-        """Lay out *folder* — its sub-folder tiles, or the videos it holds."""
         self.clear()
         self.rows = []
         listings = FolderListings()
@@ -200,18 +166,10 @@ class LibraryGrid(BrowseList):
             self._add_row(self._folder_item(child, listings), child)
         for handle in folder.handles:
             self._add_row(self._tile_item(handle, listings), handle)
-        # The selection starts on the first thing you would open, not on the way
-        # back — arrowing off the top of a folder is not what a browse is for.
         self.setCurrentRow(min(1 if folder.parent is not None else 0, self.count() - 1))
         self.start_thumbnail_extraction(listings)
 
     def reveal(self, row: int) -> None:
-        """Put the selection on *row* and scroll it up out of wherever it was.
-
-        Centered rather than merely made visible: a jump out of the sidebar
-        lands on a name the user cannot see yet, and one that arrives clinging
-        to the lower edge of the grid reads as not having moved.
-        """
         item = self.item(row)
         if item is None:
             return
@@ -226,7 +184,6 @@ class LibraryGrid(BrowseList):
         return self._thumbnailed_item(handle.title, handle.preview, listings)
 
     def _folder_item(self, child: SubFolder, listings: FolderListings) -> QListWidgetItem:
-        """A folder tile: its name, how much is in it, and thumbnails from inside."""
         item = QListWidgetItem(f"{child.name}  ({child.count})")
         item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
         item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
@@ -241,7 +198,6 @@ class LibraryGrid(BrowseList):
         return item
 
     def _up_item(self, parent: tuple[str, ...]) -> QListWidgetItem:
-        """The way back — first tile, so it is where the eye and the arrows start."""
         item = QListWidgetItem(UP_LABEL if parent else UP_TO_LIBRARY)
         item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -297,9 +253,6 @@ class LibraryGrid(BrowseList):
 
 
 class _ThumbnailExtraction(threading.Thread):
-    """One folder's missing thumbnails, off the event loop: a cold cache is hundreds
-    of HEVC decodes, and the browse must never wait on them."""
-
     def __init__(self, pending: Sequence[tuple[int, Sequence[str]]], thumbnail_cache: Path) -> None:
         super().__init__(daemon=True, name="library-thumbnails")
         self._pending = pending
@@ -328,14 +281,6 @@ class _MarkAfterTheLetterInItsInk(QStyledItemDelegate):
 
 
 class FolderIndex(BrowseList):
-    """The folder's letters, A to Z, each opening onto its names when clicked.
-
-    Choosing a name moves the grid to it, and so does clicking a letter.  The
-    grid moves this back only when a browse opens (:meth:`reveal`): an index
-    that re-scrolled on every change of the grid's selection would slide out
-    from under the walk that caused it.
-    """
-
     def __init__(
         self,
         *,
@@ -357,16 +302,12 @@ class FolderIndex(BrowseList):
             + picked_item_rules("QListWidget")
         )
 
-        # One line per widget row: a letter, or a name and the grid row it opens.
         self.lines: list[IndexLine] = []
         self._open_heading: int | None = None
         self.currentItemChanged.connect(self._reveal)
         self.itemActivated.connect(self._activate)
 
     def show_rows(self, rows: Sequence[object]) -> None:
-        """List *rows* — the grid's, in its order — alphabetically under headings."""
-        # Cleared before the widget is, so the currentItemChanged that clearing
-        # fires cannot be answered against a mapping for the folder just left.
         self.lines = []
         self.clear()
         for line in alphabetical_index(rows):
@@ -402,8 +343,6 @@ class FolderIndex(BrowseList):
         return item
 
     def _name_item(self, name: str) -> QListWidgetItem:
-        # Named again as its own tooltip: the sidebar is a fixed width and
-        # library titles run past it, so the elided ones are still readable.
         item = QListWidgetItem(name)
         item.setToolTip(name)
         return item
@@ -420,7 +359,6 @@ class FolderIndex(BrowseList):
         return next(r for r in range(row, -1, -1) if self.lines[r].is_heading)
 
     def mousePressEvent(self, event) -> None:  # Qt override
-        # A disabled row gets no click signal, so a heading answers one here.
         item = self.itemAt(event.position().toPoint())
         row = self.row(item) if item is not None else -1
         if not (0 <= row < len(self.lines)) or not self.lines[row].is_heading:
@@ -433,7 +371,7 @@ class FolderIndex(BrowseList):
             return
         self._open_only(row)
         self.setCurrentRow(row + 1)
-        self._reveal(self.item(row + 1))  # silent when it is already current
+        self._reveal(self.item(row + 1))
 
     def _open_only(self, heading_row: int | None) -> None:
         self._open_heading = heading_row
@@ -474,23 +412,6 @@ class FolderIndex(BrowseList):
 
 
 class LibraryBrowserWindow(QWidget):
-    """A folder shown two ways at once: tiles you walk, and its names A to Z.
-
-    The folders are the library's own divisions, never the pipeline's — see
-    :mod:`fun_time.library_tree`.  Opening the last one hands over every video
-    under it at once, so no processing stage is ever a step.
-
-    Picking is deliberately the only way out that reports anything: *on_pick*
-    is called with the handle's canonical video, and closing the window without
-    picking says nothing, which is what abandoning a browse means.
-
-    Escape is deliberately NOT bound.  It belongs to OmniPause, whose AHK hotkey
-    is suspend-exempt on purpose (it is the way *out* of a pause), so the press
-    never reaches this window however it is handled here; the window's own close
-    button is what abandons a browse.  Every other key does reach it, because
-    the bridge suspends the hotkeys for the browse's duration.
-    """
-
     def __init__(
         self,
         handles: Sequence[LibraryHandle],
@@ -552,9 +473,6 @@ class LibraryBrowserWindow(QWidget):
         self.setPalette(palette)
 
         self.open_on(playing)
-        # The grid takes the focus, though the sidebar is first in the layout and
-        # would otherwise have it: the arrows and the type-ahead are the way the
-        # browse is driven, and both belong on the tiles.
         self.grid.setFocus()
 
     def open_on(self, video: str | None) -> None:
@@ -569,7 +487,6 @@ class LibraryBrowserWindow(QWidget):
             self.index.reveal(row)
 
     def open_folder(self, path: Sequence[str]) -> None:
-        """Show *path* in both halves: its folder tiles, or the videos it holds."""
         folder = folder_at(self._handles, path)
         self._path = folder.path
         self.header.set_path([self._top_level_name, *folder.path])
@@ -584,7 +501,6 @@ class LibraryBrowserWindow(QWidget):
         self.open_folder(self._path[:depth])
 
     def go_up(self) -> None:
-        """Leave the folder being shown for the one that holds it."""
         if self._path:
             self.open_folder(self._path[:-1])
 
@@ -603,7 +519,6 @@ class LibraryBrowserWindow(QWidget):
             self._on_close()
 
     def _activate(self, row: int) -> None:
-        """Open a folder, go back up, or play a video — whatever the row is."""
         what = self.grid.rows[row]
         if what is None:
             self.go_up()
@@ -616,38 +531,24 @@ class LibraryBrowserWindow(QWidget):
 
 @dataclass(frozen=True)
 class IndexLine:
-    """One line of the sidebar: a letter heading, or a name that opens a grid row."""
-
     label: str
     row: int | None = None
 
     @property
     def is_heading(self) -> bool:
-        """Whether this line names a group rather than something in one."""
         return self.row is None
 
 
 def name_of(what: LibraryHandle | SubFolder | None) -> str:
-    """What a row is called — a video's title, or a folder's name."""
     return what.display_name if what is not None else ""
 
 
 def initial_letter(name: str) -> str:
-    """The heading *name* files under: its first letter, or ``#`` for the rest."""
     first = name.strip()[:1].upper()
     return first if first.isalpha() else NON_LETTER_HEADING
 
 
 def alphabetical_index(rows: Sequence[object]) -> list[IndexLine]:
-    """*rows* listed A to Z, each letter's names beneath a heading of that letter.
-
-    Rows carry their grid position with them rather than being re-counted, since
-    the two orders disagree by design — that disagreement is the whole reason
-    the sidebar exists.  Sorting is case-insensitive first and exact second,
-    exactly as :func:`fun_time.library_handles.build_library_handles` ranks
-    within a folder, so a folder already alphabetical comes up in the order it
-    is in.  The way back is left out: it is not something the folder holds.
-    """
     named = sorted(
         ((name_of(what), row) for row, what in enumerate(rows) if what is not None),
         key=lambda named_row: (named_row[0].casefold(), named_row[0]),
@@ -709,13 +610,6 @@ def _fitted(still: str | Path, width: int, height: int) -> QPixmap:
 
 
 def montage_icon(thumbnails: Sequence[str | Path]) -> QIcon:
-    """*thumbnails* laid out two by two across one tile, each keeping its shape.
-
-    A folder of hundreds said almost nothing when it was drawn with a single
-    still, so it is drawn with four of its videos instead.  One still gets the
-    whole tile — there is nothing to quarter it around — and a folder that holds
-    two or three leaves the spare cells empty rather than repeating itself.
-    """
     if len(thumbnails) == 1:
         return fitted_icon(thumbnails[0])
     cell_width = (ICON_WIDTH - MONTAGE_GAP) // 2
@@ -739,7 +633,6 @@ def montage_icon(thumbnails: Sequence[str | Path]) -> QIcon:
 
 
 def previews_of(what: LibraryHandle | SubFolder | None) -> tuple[str, ...]:
-    """The videos a row is thumbnailed with — one for a video, up to four for a folder."""
     return what.previews if what is not None else ()
 
 
@@ -747,11 +640,6 @@ def rows_needing_stills(
     rows: Sequence[object], thumbnail_cache: str | Path,
     listings: FolderListings | None = None,
 ) -> list[int]:
-    """Which rows still need a still extracted — the cache misses, in order.
-
-    The go-back row has no thumbnail and is skipped; a folder row counts as a
-    miss while any of its four is missing, so its tile completes.
-    """
     dated = listings or FolderListings()
     return [
         row
@@ -767,7 +655,6 @@ PICK_FILENAME = "library_browser_pick.txt"
 
 
 def pick_file_for(manifest_path: str | Path) -> Path:
-    """Where a browse leaves the video it picked, beside the session's state."""
     return Path(manifest_path).parent / PICK_FILENAME
 
 
@@ -787,8 +674,6 @@ def browse_library(
     because the bridge process has no Qt event loop to host one in.
     """
     pick_file = pick_file_for(manifest_path)
-    # Last browse's pick would otherwise stand in for this one's, and an
-    # abandoned browse would jump the session to a video nobody chose.
     pick_file.unlink(missing_ok=True)
 
     command = [
@@ -814,8 +699,6 @@ def browse_library(
 
 @dataclass(frozen=True)
 class BrowserConfig:
-    """Where the browser reads the library, its families, and its thumbnails from."""
-
     sources: str
     vr_sources: str
     metadata_root: Path | None
@@ -834,11 +717,6 @@ def _read_manifest(manifest_path: str | Path) -> configparser.ConfigParser:
 
 
 def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
-    """Read the browser's inputs out of the bridge's launch manifest.
-
-    The same manifest every other child process reads, so the browser can never
-    disagree with the session about which folders are the main library.
-    """
     parser = _read_manifest(manifest_path)
     metadata_root = parser.get("regen", "metadata_root", fallback="")
     return BrowserConfig(
@@ -875,16 +753,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    # Claim Fun Time's identity before any window exists, so the browse is never
-    # mistaken for an unrelated app's window (see the Tool flag above).
     try:
         set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
     except OSError:
-        pass  # Non-fatal — taskbar identity just falls back to the default
+        pass
 
     with application([]) as app:
-        # The family's chrome, on the application: a tooltip is a top-level popup,
-        # and only a sheet set here reaches it.
         dress_application(app)
 
         config = (load_flick_browser_config if args.genau else load_browser_config)(args.manifest_path)

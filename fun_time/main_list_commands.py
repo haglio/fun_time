@@ -40,33 +40,12 @@ logger = logging.getLogger(__name__)
 MAIN_RESET = "main_reset"
 
 
-# The same two orders as Genau answers to, keyed by ``recent``.  Every other
-# Funestra is handed a rewritten playlist file; Genau owns its own sequence and
-# rescans its videos folder for itself, so its order crosses as a verb.
 _GENAU_ORDER_CMD: dict[bool, str] = {True: "LATEST", False: "SHUFFLE"}
 
 
 def _dispatch_main_reorder(
     recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Reload the Main Funestra in a fresh order — Latest (newest-first) or Shuffle.
-
-    To whichever Funestra owns the Main Funestra's screen, the split the lock makes (see
-    ``MAIN_LOCK_COMMANDS``) and for the same reason: a browse order is about what
-    you are looking at.  Sent to the Main Funestra regardless, "main latest" said in
-    genau mode rewrote a playlist for a Funestra neither on screen nor playing.  Both
-    branches rescan as they go, which is most of what "latest" is for.
-
-    The Main Funestra's playlist is ours to write, so that branch rewrites the file
-    and hands it the same RELOAD_PLAYLIST an F-mode change gets, from the top of
-    the new order -- a reorder filters nothing out, so it would otherwise carry on
-    from where it sits and the arrivals would never come up.  Genau owns its own
-    sequence, so it is told the order and rescans its videos folder itself.
-
-    Each Funestra's order is remembered under its own flag, since ``main_latest``
-    describes the playlist file we built and a Genau reorder recorded there would
-    light "Latest" over a playlist nobody reordered.
-    """
     kino = kino_shows(state.main_mode)
     if kino:
         state = replace(state, main_latest=recent,
@@ -75,7 +54,6 @@ def _dispatch_main_reorder(
     else:
         state = replace(state, genau_latest=recent)
         append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
-    # The order's own word alone, and self-reported — see _dispatch_reorder.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: the Main Funestra (%s)", label, "kino" if kino else "genau")
     return state, [WindowOp(op="message", key=label, source=SOURCE_MAIN)]
@@ -170,8 +148,6 @@ _INCLUSIONS_IN_GENAU: dict[InclusionPair, _Inclusions] = {
 def _dispatch_inclusion(
     pair: InclusionPair, wanted: Included, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Asking for what is already playing changes nothing: a rebuild
-    reshuffles, and this must not become a second way to reshuffle."""
     on_the_main_funestra = kino_shows(state.main_mode)
     inclusions = (_INCLUSIONS_ON_THE_MAIN_FUNESTRA if on_the_main_funestra
                   else _INCLUSIONS_IN_GENAU).get(pair)
@@ -227,7 +203,6 @@ _MAIN_FUNESTRA_RESET_VERBS = (
 def _dispatch_main_reset(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Put the Main Funestra back to its defaults, as a satellite's reset does."""
     status = read_main_funestra_status(config.main_funestra_status_file)
     if main_funestra_at_defaults(state, config, status):
         logger.info("Reset Main Funestra: already at its defaults")
@@ -258,8 +233,6 @@ def _main_reset(state: BridgeState, config: BridgeConfig,
     return _dispatch_main_reset(state, config)
 
 
-# The Main Funestra's two browse orderings: Latest reloads newest-first, Shuffle
-# reshuffles.  Both reach whichever Funestra holds the Main Funestra's screen.
 _MAIN_REORDER_COMMANDS = {"main_latest": True, "main_shuffle": False}
 
 

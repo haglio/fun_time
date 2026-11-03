@@ -1,4 +1,3 @@
-"""Whether this process is off-screen, so a Funestra the user cannot see is one he cannot hear."""
 from __future__ import annotations
 
 import ctypes
@@ -41,14 +40,12 @@ def _name_of(handle: int | None) -> str | None:
 
 
 def current_desktop_name() -> str | None:
-    """This thread's desktop; its handle is the system's, so it is read, never closed."""
     if not WIN32_AVAILABLE:
         return None
     return _name_of(_user32.GetThreadDesktop(_kernel32.GetCurrentThreadId()))
 
 
 def input_desktop_name() -> str | None:
-    """The desktop the user's input goes to; None when it is a secure one we cannot open."""
     if not WIN32_AVAILABLE:
         return None
     handle = _user32.OpenInputDesktop(0, False, _DESKTOP_READOBJECTS)

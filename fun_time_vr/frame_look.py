@@ -9,17 +9,12 @@ from app_support.threading_utils import start_daemon_thread
 
 from .frame_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
 
-# The library's fisheye recordings open on up to half a minute of black, which
-# says nothing; three minutes of looks outlasts that with room to spare.
 BETWEEN_LOOKS_S = 2.0
 LOOKS = 90
 _LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
 
 
 class FrameLook:
-    """What a VR video's own frame shows, off :class:`VideoThread`'s own
-    still -- see its ``_paint_a_still`` for why nowhere else can ask."""
-
     def __init__(self, video, *, start_thread=start_daemon_thread,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         self._video = video
@@ -53,5 +48,5 @@ class FrameLook:
         if self._video.duration_ms <= 0:
             return None
         frame = self._video.take_a_still()
-        self._video.ask_for_a_still()  # for the look after this one
+        self._video.ask_for_a_still()
         return None if frame is None else shape_of(frame[..., :3].max(axis=2))

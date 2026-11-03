@@ -1,7 +1,3 @@
-"""The hotkeys and voice reference, hanging in the headset: the desktop's is an
-HTML popup and a Funestra process has no browser, so the same sections
-(:func:`fun_time.command_reference.build_reference_sections`) are painted one at
-a time, with two controls that walk them."""
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -47,7 +43,6 @@ _TITLE_PX = in_pixels(SIZE_HEADING)
 _ROW_PX = in_pixels(SIZE_SMALL)
 _ROW_H = 17
 _HEAD_H = BUTTON_SIZE + _PAD
-# The desktop table's three columns: press, say, and what it does.
 _KEY_X, _SAY_X, _WHAT_X = _PAD, 210, 400
 
 
@@ -61,17 +56,17 @@ class ReferenceState:
     page: int = 0
 
 
-def page_of(state: ReferenceState) -> int:  # held inside the list, however far
+def page_of(state: ReferenceState) -> int:
     total = len(sections())
     return state.page % total if total else 0
 
 
-def reference_height() -> int:  # the longest section's, so walking never resizes
+def reference_height() -> int:
     longest = max((len(section.rows) for section in sections()), default=0)
     return _HEAD_H + _ROW_H * (longest + 2) + _PAD
 
 
-def reference_actions() -> dict[str, Rect]:  # the two, at the top right
+def reference_actions() -> dict[str, Rect]:
     y = _PAD
     right = REFERENCE_WIDTH_PX - _PAD - BUTTON_SIZE
     return {
@@ -81,7 +76,6 @@ def reference_actions() -> dict[str, Rect]:  # the two, at the top right
 
 
 def paint_reference(state: ReferenceState) -> Image.Image:
-    """One section: its title, the heads, a row per command."""
     height = reference_height()
     panel = Image.new("RGBA", (REFERENCE_WIDTH_PX, height), (*BG_PRIMARY, 240))
     draw = ImageDraw.Draw(panel)
@@ -125,8 +119,7 @@ def paint_reference(state: ReferenceState) -> Image.Image:
     return panel
 
 
-class ReferencePointer:  # the two controls walk it; the rest is a page
-
+class ReferencePointer:
     def __init__(self, state: ReferenceState | None = None) -> None:
         self.state = state or ReferenceState()
 
@@ -139,7 +132,7 @@ class ReferencePointer:  # the two controls walk it; the rest is a page
                 return action
         return None
 
-    def showing(self, open_: bool) -> None:  # a fresh open starts at the front
+    def showing(self, open_: bool) -> None:
         if open_ and not self.state.open:
             self.state = ReferenceState(open=True, page=0)
         else:

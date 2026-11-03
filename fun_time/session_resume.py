@@ -1,5 +1,3 @@
-"""Bring a reopened session back to the video each Funestra was on, and the state
-that shaped its playlists: ``docs/resuming-a-session.md``."""
 from __future__ import annotations
 
 import logging
@@ -43,9 +41,6 @@ FLICK_SECONDS = "FLICK_SECONDS"
 CYCLE_SHAPE = "CYCLE_SHAPE"
 LEARNED_ON = "LEARNED_ON"
 
-# What a reopened session does NOT come back believing; everything else does.
-# Which four of those it keeps without a file of their own, and what re-asserts
-# each, is docs/resuming-a-session.md.
 NOT_RESUMED = frozenset({
     "omni_paused",
     "active_funestra",
@@ -74,8 +69,6 @@ def _resumed_satellite(satellite: SatelliteState, *, playlist_resumed: bool) -> 
 
 
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
-    """Whether the Funestra handed *playlist_file* will load *video*, every Funestra
-    starting at the top.  Asked before the Main Funestra's loop is handed back."""
     entries = read_playlist(playlist_file)
     return bool(entries) and normalize_path_key(str(entries[0].path)) == normalize_path_key(video)
 
@@ -87,11 +80,6 @@ def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
 
 
 def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
-    """Rotate each playlist file onto the video its Funestra last had on screen.
-
-    *resumptions* pairs a playlist file with the video named in that Funestra's
-    status file; the answer is whether there was a session to come back to.
-    """
     for playlist_file, _ in resumptions:
         take_back_the_list(playlist_file)
     rotated: list[tuple[Path, PlaylistEntries]] = []
@@ -119,7 +107,6 @@ def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file:
 
 
 def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
-    """Queue LOCK_ON on the command file of each satellite that was locked."""
     for command_file, locked in locks:
         if locked:
             append_command(Path(command_file), LOCK_ON)
@@ -177,7 +164,6 @@ def resume_what_lives_in_a_funestra(
     satellite_cmd_files: Mapping[FunTimeFunestra, Path],
     genau_cmd_file: Path,
 ) -> None:
-    """What any reopen re-sends because it lives in a Funestra: ``docs/resuming-a-session.md``."""
     resume_rates([
         (main_funestra_cmd_file, carried.main_speed),
         *((command_file, carried.satellite(funestra).speed)
@@ -190,12 +176,6 @@ def resume_what_lives_in_a_funestra(
 
 def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
                      playlist_file: Path) -> None:
-    """Queue SET_LOOP for the loop *carried* was left running.
-
-    Only when *playlist_file* really does lead with the video that loop was cut
-    from: a rebuild, or a video deleted since, leaves another video leading, and
-    those bounds would then mark out a stretch of a video nobody chose.
-    """
     if carried.main_loop_out_ms <= carried.main_loop_in_ms:
         return
     if playlist_opens_on(playlist_file, carried.main_loop_video):
@@ -203,9 +183,6 @@ def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
                        f"{SET_LOOP} {carried.main_loop_in_ms} {carried.main_loop_out_ms}")
 
 
-# What a resumed session's OSR2 control can come back as.  Anything else --
-# control off, from before the four buttons became one switch -- comes back
-# parked, the switch's off.
 _OSR2_CONTROLS = (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED)
 
 
@@ -224,10 +201,6 @@ def _the_mic_was_left_off(state_dir: Path) -> bool:
 
 def resume_shared_state(state_file: Path, *, resumed: bool,
                         last_reported: FunestraReports = NOTHING_REPORTED) -> BridgeState:
-    """Seed *state_file* with the state a resumed session comes back in.
-
-    Pass *resumed* as :func:`resume_playlists` reported it.
-    """
     migrate_shared_state(state_file)
     previous = read_shared_state(state_file)
     if previous is not None:

@@ -1,5 +1,3 @@
-"""The records the command dispatcher trades in — :class:`BridgeConfig` in,
-:class:`WindowOp` out — below the dispatcher and its handler modules."""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -50,23 +48,11 @@ class BridgeConfig:
     main_funestra_paused_file: Path
     main_funestra_status_file: Path
     dashboard_state_file: Path
-    # Where this session answers whether it is in OmniPause -- baked into the
-    # landing page a lock opens, which polls it.
     loopback_port: int = LOOPBACK_PORT
-    # Where each Funestra publishes its one-shot messages (a jump with nowhere to go).
     main_funestra_notice_file: Path | None = None
     portrait_notice_file: Path | None = None
     landscape_notice_file: Path | None = None
-    # Which Main Funestra this session launched.  The main_player file quartet is the
-    # MAIN FUNESTRA's channel, not the Main Funestra's: in a desktop session the reader is the Main Funestra,
-    # and in a VR session it is fun_time_vr's in-process role, which speaks the
-    # same contract plus the two verbs that need a projection and a heading.
-    # Set by whichever orchestrator built this config, since that is the only
-    # thing that knows.
     vr_main_funestra: bool = False
-    # Which of ``main_sources`` hold the VR masters, pipe-joined like the
-    # sources themselves.  Empty in a desktop session, whose rotation has none —
-    # and that emptiness is what leaves the shape filter off its HUD.
     vr_library_dirs: str = ""
     genau_vr_flicks: str = ""
     # Our own interpreter — what the library browser is launched with, since the
@@ -74,26 +60,14 @@ class BridgeConfig:
     python_exe: str = ""
     broker_cmd_file: Path | None = None
     broker_tray_launcher: Path | None = None
-    # The hosted Origenerator's channel (see fun_time.origenerator_switches).  Enabled
-    # only when the config names an origenerator checkout; without one nothing
-    # offers Origenerator and its commands report a dead end.
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_said_at_suffix: str = ""
     origenerator_paused_file: Path | None = None
     origenerator_lock_phrases: frozenset[str] = frozenset()
-    # Where the hosted app publishes which Funestras it holds.  Read every tick
-    # until it appears: the file existing is how a session learns the app has
-    # finished booting, which is when Origenerator is first offered.
     origenerator_status_file: Path | None = None
-    # Where the hosted app publishes the HUD for each Funestra it holds.
     portrait_origenerator_hud_file: Path | None = None
     landscape_origenerator_hud_file: Path | None = None
-    # Where the broker keeps the rest of its channel.  Unset it falls back to
-    # ``state_dir``, which is what the two are for every session that runs from
-    # the primary checkout; a branch session moves ``state_dir`` into its worktree
-    # and this stays on the Main Funestra, because the broker is still the machine's one
-    # broker.  See :attr:`fun_time.config.PathsConfig.broker_state_dir`.
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None
@@ -102,7 +76,6 @@ class BridgeConfig:
     main_list_builds: MainListBuilds = BUILDS_HERE
 
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
-        """Satellite *Funestra*'s file quartet and sources."""
         if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT:
             return SatelliteChannel(
                 cmd_file=self.portrait_cmd_file,
@@ -134,17 +107,14 @@ class BridgeConfig:
 
     @property
     def broker_state(self) -> Path:
-        """The directory the broker's files live in, defaulted to our own."""
         return self.broker_state_dir or self.state_dir
 
     @property
     def genau_drive_file(self) -> Path:
-        """Genau's live Amp, Speed and Center bars, as it publishes them for the drive readout."""
         return self.state_dir / state_files.GENAU_DRIVE
 
     @property
     def regen(self) -> RegenConfig:
-        """The four Provider settings, in the shape the regenerate code expects."""
         return RegenConfig(
             generate_video_url=self.regen_generate_video_url,
             generate_image_url=self.regen_generate_image_url,
@@ -155,10 +125,6 @@ class BridgeConfig:
 
 @dataclass(frozen=True)
 class SatelliteChannel:
-    """One satellite's channel, by value: the file quartet it is driven and
-    read through, its browse sources, and where the hosted app publishes the
-    HUD for it."""
-
     cmd_file: Path
     paused_file: Path
     status_file: Path
@@ -169,10 +135,6 @@ class SatelliteChannel:
 
 
 class Op(StrEnum):
-    """The dispatcher's whole output vocabulary — the closed set of window work
-    a :class:`WindowOp` can ask the dispatch loop for (StrEnum: items compare
-    equal to the plain strings producers and tests have always used)."""
-
     MESSAGE = "message"
     SHOW_WINDOW = "show_window"
     HIDE_WINDOW = "hide_window"
@@ -197,13 +159,8 @@ class Op(StrEnum):
 @dataclass(frozen=True)
 class WindowOp:
     op: str
-    # The op's one payload: a window's name, an RFB URL, or a message's message.
     key: str = ""
-    # Which window a ``message`` op is about, so the log panel can filter it.
     source: str = SOURCE_SYSTEM
-    # The log level a ``message`` op is logged at — NOTICE (white) for a normal
-    # confirmation, FAVORITE (green) for one about the favorites or a funscript,
-    # WARNING (yellow) for a dead end, ERROR (red) for a failure.
     level: int = MESSAGE
 
 

@@ -1,6 +1,3 @@
-"""How a session starts a child: where its output goes, and that it gets no
-console window.  Neither may be left to what this process inherited, and both
-are swept for over every spawn in the tree (``tests/test_child_launch.py``)."""
 from __future__ import annotations
 
 import os
@@ -11,15 +8,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import IO
 
-# A child's crash log is near-empty in normal use (a line per video), so a
-# megabyte spans days of sessions — matching the cap the app's own logs use.
 CHILD_LOG_MAX_BYTES = 1_000_000
 
 _LAUNCH_MARK = "===== "
 
 
 def no_child_log() -> dict:
-    # For a child that keeps a log of its own, or has no output worth keeping.
     return {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 
@@ -50,7 +44,7 @@ def open_child_log(
         path.parent.mkdir(parents=True, exist_ok=True)
         _roll_oversize_log(path, max_bytes)
         handle = path.open("ab")
-    except OSError:  # locked or full: raising killed the relay mid-crossing
+    except OSError:
         return open(os.devnull, "ab")  # noqa: SIM115 - the caller owns the handle
     flashed = f"{_LAUNCH_MARK}{time.strftime('%Y-%m-%d %H:%M:%S')} launch: {' '.join(str(a) for a in argv)}\n"
     handle.write(flashed.encode("utf-8", errors="replace"))

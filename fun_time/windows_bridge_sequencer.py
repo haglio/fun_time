@@ -1,10 +1,3 @@
-"""A session's startup phases, in the order they have to happen in.
-
-The children, then the windows, then the browser, then the companions, then the
-reveal — each a function of its own, called from :func:`_run_startup_phases`,
-which is the one place that says what comes after what.  The launching itself
-belongs to :mod:`fun_time.windows_bridge_startup`; this module owns the order.
-"""
 from __future__ import annotations
 
 import configparser
@@ -70,15 +63,8 @@ from .windows_bridge_startup import (
 
 logger = logging.getLogger(__name__)
 
-# How long startup waits for a launched app to put its window on screen.  A poll
-# returns the moment the window appears — a satellite's takes about half a second
-# — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
 
-# How long startup waits for the Main Funestra to finish loading.  Its ceiling is
-# the overlay's own patience: the two waits in this phase run back to back under
-# a single progress write, and the overlay tears itself down when that file has
-# gone ``loading_screen.STALE_TIMEOUT_S`` without changing.  A test pins the sum.
 MAIN_FUNESTRA_LOAD_TIMEOUT_S = 40.0
 
 
@@ -89,20 +75,12 @@ class StartupResult:
     landscape_pid: int
     dashboard_pid: int
     audio_pid: int
-    # The hosted Origenerator's process, or 0 for a session with none configured.
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
     origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
-    # Which Funestra the Main Funestra was revealed on — last session's, resumed.
-    # Carried out because the orchestrator starts the Funestras once the loading screen
-    # is gone, and starts the mode's.
-    # The satellites have no such line: every session is BUILT with them in Kino mode.
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
-    # HWNDs resolved while every window was still visible; the dispatch
-    # loop's role cache is seeded from this (hidden windows cannot be
-    # re-resolved by pid/title lookups).
     hwnds_by_window: dict[str, int] = field(default_factory=dict)
 
 
@@ -125,12 +103,6 @@ def _startup_hwnds_by_window(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
 ) -> dict[str, int]:
-    """The managed windows by window, as resolved at startup.
-
-    The hosted app's three are not among them: it is still booting when Fun Time
-    opens, so none of them exists yet, and ``FunTimeWindows.hwnd`` resolves each
-    fresh the first time the dispatch loop asks for one.
-    """
     return {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
@@ -142,16 +114,6 @@ def _startup_hwnds_by_window(
 
 def apply_topmost_bands(hwnds_by_window: dict[str, int], *, beneath: int = 0,
                         rfb_mode: RfbMode = RfbMode.RFB) -> None:
-    """Give each managed window its topmost flag from the shared ``role_topmost``
-    policy — the same policy omnipause and mode switches honor, so they can
-    never disagree.
-
-    Walked in ``MANAGED_WINDOWS`` order rather than the mapping's, because
-    ``HWND_TOPMOST`` inserts at the *top* of the band.
-
-    *beneath* is the loading overlay, when this runs under it: each promotion
-    lands directly under it, which keeps the same order one slot lower.
-    """
     for window_name in MANAGED_WINDOWS:
         hwnd = hwnds_by_window.get(window_name, 0)
         if hwnd:
@@ -168,12 +130,6 @@ def apply_startup_window_state(
     beneath: int = 0,
     rfb_mode: RfbMode = RfbMode.RFB,
 ) -> dict[str, int]:
-    """Set the full window state the session opens with: the bands.
-
-    *beneath* is the loading overlay when this runs under one, and keeps the
-    loading screen on top across the walk (:func:`apply_topmost_bands`).  Zero without a
-    loading screen: the integration path, and the re-band after the loading screen has gone.
-    """
     hwnds_by_window = _startup_hwnds_by_window(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -187,13 +143,6 @@ def apply_startup_window_state(
 
 @dataclass
 class _LaunchedChildren:
-    """What the startup sequence has spawned so far.
-
-    Accumulated as each child launches so that if a checkpoint cancels
-    (``StartupCancelled``), the orchestrator can be handed exactly what to
-    tear down — no more, no less.
-    """
-
     pids: list[int] = field(default_factory=list)
     funestras: list[LaunchedFunestra] = field(default_factory=list)
     rfb_hwnd: int = 0
@@ -211,19 +160,6 @@ class _LaunchedChildren:
 
 
 def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
-    """Start the Funestras the session's mode puts to work.
-
-    Startup holds every one of them so nothing plays into a session that is still
-    being built; this releases exactly the ones the mode shows — Genau (with
-    its audio) in both, Kino's video in kino mode alone — so nothing plays out
-    of sight or drives the OSR2 unasked.
-
-    Called by the sequencer on the path with no loading screen, and by the orchestrator on
-    the path with one — there, only once the loading screen has actually left the screen.
-    That is the whole reason it is a function of its own: released with the
-    phases, playback starts while the loading screen is still hiding it, and the first
-    seconds of the video are spent under it.
-    """
     write_flag_file(m.commands.main_funestra_paused_file, not kino_shows(main_mode))
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
         write_flag_file(flag_file, False)
@@ -237,17 +173,6 @@ def run_startup_sequence(
     hide_windows: bool = False,
     env: SessionEnvironment = ORDINARY_SESSION,
 ) -> StartupResult:
-    """Run the full startup sequence, returning all PIDs and the layout plan.
-
-    When *hide_windows* is True, the satellite windows launch under the loading
-    overlay and all positioning is deferred to the end so everything appears at
-    once.  The window handles are returned in ``StartupResult.hwnds_by_window``.
-
-    Each ``progress.advance`` is a cancellation checkpoint: if the loading
-    screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
-    and this re-raises it tagged with everything launched so far, so the caller
-    can tear the half-built session down.
-    """
     if progress is None:
         progress = NullProgress()
 
@@ -268,11 +193,8 @@ def run_startup_sequence(
         raise
 
 
-
 @dataclass(frozen=True)
 class _CoreSession:
-    """The children phase 1 leaves, and the Main Funestra's mode it resumed into."""
-
     main_mode: MainMode
     portrait_pid: int
     landscape_pid: int
@@ -281,14 +203,10 @@ class _CoreSession:
     origenerator_taken_over: bool
     origenerator_already_open: bool
     origenerator_slideshow_on: tuple[FunTimeFunestra, ...]
-    # The Main Funestra's status file, dropped once phase 1 has spent last session's copy —
-    # phase 4 holds the overlay on the new one appearing.
     main_funestra_status_file: Path
 
 
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
-    """Every window's rect, from the monitors and the manifest's layout section,
-    made before the first child so each Funestra opens where it plays."""
     return screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator)
 
 
@@ -300,16 +218,9 @@ def _launch_the_satellites(
     sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> tuple[str, int, int]:
-    """The core session: both Satellite Funestras, and the mode it resumed into.
-
-    Returns the mode last session was closed in — the core session has just
-    seeded every cross-process flag for it, and what is left is the half only
-    this Satellite can do: band the windows, and reveal on the right Funestra.
-    """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
     regen_metadata_raw = m.regen.metadata_root.strip()
-    # Each satellite's whole launch bundle, built once where the manifest is read.
 
     def _launch(funestra: FunTimeFunestra, satellite: str, sources: str, playlist: str, rect):
         return SatelliteLaunch(
@@ -377,12 +288,6 @@ def _launch_the_main_funestra(
     sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> tuple[int, Path]:
-    """The Main Funestra, which Kino and Genau both run on, and its status file.
-
-    That file is how startup learns the Main Funestra has finished loading, so it is dropped
-    here — after ``start_core_session`` has read last session's copy to resume
-    The Main Funestra onto the video it names, and before the Main Funestra could write a new one.
-    """
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Launched as early as possible so it can initialise pygame, scan media and
     # decode first frames while the rest of startup continues.  The Main Funestra's
@@ -391,16 +296,8 @@ def _launch_the_main_funestra(
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
-    # Genau's resume, read before this session's Genau writes over its status
-    # file: the flick it was left showing, and whether it was browsing Latest off
-    # the state the core session just resumed.
     genau_flick = read_genau_status(Path(m.commands.genau_status_file)).flick
     state = read_shared_state(shared_state_path(state_dir)) or BridgeState()
-    # The Main Funestra's status file is how startup learns the Main Funestra has finished loading, and it
-    # can only say that once last session's copy is gone.  start_core_session
-    # read that one already, to resume the Main Funestra onto the video it names, so this is
-    # the first moment it is spent — and the last before the Main Funestra could write a new
-    # one.  See _wait_for_main_funestra_loaded.
     main_funestra_status_file = Path(m.commands.main_funestra_status_file)
     main_funestra_status_file.unlink(missing_ok=True)
     main_funestra_log = state_dir / "main_funestra.log"
@@ -447,8 +344,6 @@ def _launch_the_hosted_origenerator(
     sibling_checkouts: str,
     launched: _LaunchedChildren,
 ) -> int:
-    """The hosted app, first of the children and waited on by none, or 0 for a
-    session the config names no checkout for."""
     app = bring_up_the_hosted_app(m, plan=plan, sibling_checkouts=sibling_checkouts)
     return 0 if app is None else launched.hosts(app)
 
@@ -467,9 +362,6 @@ def _launch_core_media(
     scan, first frames — runs under the rest of startup, the hosted app's on
     past the reveal.
     """
-    # Read before the first launch that needs it: every child below takes the
-    # named checkouts, the satellites and the hosted app included, because they
-    # all import funestra.
     sibling_checkouts = m.runtime.sibling_checkouts
     origenerator_pid = _launch_the_hosted_origenerator(
         m, plan=layout.plan, sibling_checkouts=sibling_checkouts, launched=launched)
@@ -493,18 +385,10 @@ def _launch_core_media(
     )
 
 
-# What the two UI companions wait out before they are launched.  Unexplained
-# since the sequencer replaced the AHK startup, and taking it out was tried on
-# the hidden desktop rather than argued about: the suite passed three times with
-# it, and the one run without it left the hosted app's window restored from a
-# mode switch but never in the topmost band (test_origenerator_mode_integration).
-# Twelve runs of that test ALONE, six per arm, pass either way, so whatever
-# leans on this needs a whole room going up at once.  Kept, unproven.
 _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
 def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) -> dict[str, int]:
-    """Phase 2, on the path with no loading screen: place and band every window at once."""
     activate = not env.integration
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=activate)
@@ -528,7 +412,6 @@ def _launch_the_companions(
     manifest_path: Path,
     launched: _LaunchedChildren,
 ) -> dict[str, int]:
-    """Phase 3: the dashboard and the audio companion, the run's last children."""
     time.sleep(_COMPANION_LAUNCH_DELAY_S)
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
@@ -541,7 +424,6 @@ def _launch_the_companions(
         dashboard_y=plan.dashboard.y,
         dashboard_width=plan.dashboard.width,
         dashboard_height=plan.dashboard.height,
-        # The reference popup opens over the RFB's rect, so the dashboard needs it.
         rfb_x=plan.random_favs_browser.x,
         rfb_y=plan.random_favs_browser.y,
         rfb_width=plan.random_favs_browser.width,
@@ -602,14 +484,6 @@ def _place_the_windows_under_the_loading_screen(
     rfb_hwnd: int,
     dashboard_pid: int,
 ) -> dict[str, int]:
-    """Place every window where the plan says.
-
-    Nothing here can show over the overlay: the Funestras are still out of the
-    topmost band, and no move or show lifts a window above the band it is not
-    in.  ``_fix_post_loading_windows`` bands them, under the overlay.  This is
-    still the last moment the dashboard is resolvable, and it is hidden
-    (SW_HIDE) under the overlay, so its lookup must include hidden windows.
-    """
     _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
     _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
     logger.info("Core windows positioned (deferred reveal)")
@@ -643,12 +517,7 @@ def _settle_the_app_under_the_loading_screen(
     progress: ProgressReporter,
     funestras: list[LaunchedFunestra],
 ) -> dict[str, int]:
-    """Phase 4, on the path with a loading screen: everything at once, unseen."""
-    # Named for the wait it is: until the Funestras open their own windows there
-    # is nothing here to position.
     progress.advance("funestras")
-    # The satellites launched playing and own their playlists, so there is
-    # nothing to start here — only resolve and position each under the overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_app_to_be_drawing(
         m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
@@ -680,30 +549,25 @@ def _run_startup_phases(
     layout = _plan_the_layout(m)
     plan = layout.plan
 
-    # --- Phase 1: Launch core media stack ---
     progress.advance("services")
     core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
 
     raise_if_a_funestra_died(launched.funestras)
 
-    # --- Phase 2: Position windows (layout computed up front) ---
     hwnds_by_window: dict[str, int] = {}
     if not hide_windows:
         hwnds_by_window = _position_windows_now(plan, env=env)
 
-    # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
     rfb_hwnd = _maybe_launch_random_favs_browser(m.random_favs_browser, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
 
-    # --- Phase 3: Launch UI companions ---
     progress.advance("companions")
     ui_pids = _launch_the_companions(
         m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
 
     raise_if_a_funestra_died(launched.funestras)
 
-    # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
         hwnds_by_window = _settle_the_app_under_the_loading_screen(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
@@ -712,10 +576,6 @@ def _run_startup_phases(
 
     raise_if_a_funestra_died(launched.funestras)
 
-    # A session with nothing to hide under starts playing as soon as it is
-    # built.  One with a loading screen does NOT: the orchestrator calls this once the
-    # loading screen is off, since a Funestra released under it loses its first seconds of
-    # video (and Genau's audio) before anyone can see or hear them.
     if not hide_windows:
         release_the_funestras(m, core.main_mode)
 
@@ -736,7 +596,6 @@ def _run_startup_phases(
 
 
 def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
-    """Move an already-resolved window to *rect* (a no-op warning if unresolved)."""
     if hwnd:
         move_window(hwnd, rect.x, rect.y, rect.width, rect.height, activate=activate)
         logger.info("Positioned %s (hwnd=%d) at %d,%d %dx%d",
@@ -746,18 +605,6 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 
 
 def _resolve_satellite_hwnds() -> tuple[int, int]:
-    """The portrait and landscape native-satellite windows, as (portrait, landscape).
-
-    Each Satellite is resolved by its DISTINCT window caption ("Portrait AI Funestra" vs
-    "Landscape AI Funestra"), so the lookup can never assign one Satellite's window to the
-    other — a shared caption could, and that was the portrait/landscape visual swap.
-
-    Deliberately NOT by pid.  The pid we launch with is the venv's
-    ``Scripts\\pythonw.exe``, a launcher that spawns the base interpreter as a
-    child, and the child is what owns the window — so a pid poll here can only
-    ever run out its timeout.  Two of them (plus the Main Funestra's) were 25 seconds of a
-    28-second loading screen.
-    """
     return (
         wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
@@ -792,9 +639,6 @@ def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
     files = [Path(path) for path in status_files if path]
     if not files:
         return True
-    # Counted rather than clocked: this runs while Fun Time is starting, and a
-    # poll loop that asks a monotonic clock is a loop that never ends where the
-    # clock is stubbed.
     for _ in range(max(1, int(timeout_s / _PLAY_POLL_S))):
         if progress.cancelled:
             raise StartupCancelled()
@@ -812,24 +656,6 @@ def _wait_for_main_funestra_loaded(
     *,
     funestras: list[LaunchedFunestra] = (),
 ) -> bool:
-    """Wait until the Main Funestra has a video on screen, returning whether it got there.
-
-    The Main Funestra's caption is NOT this signal.  The Main Funestra opens its window before reading its
-    library and paints its own loading screen into it while it does — so the
-    window exists within half a second of launch, however long the library walk
-    then runs.  Waiting on the caption alone brings the overlay down over that
-    loading screen, which is the one place it must never be seen: standalone Main Funestra
-    owns its wait, and inside Fun Time, Fun Time owns it.
-
-    The Main Funestra's status file is the signal, because the Main Funestra writes it only from its playback
-    loop.  The stale one is dropped at launch, so a file naming a video is this
-    session's the Main Funestra saying it is up.  Reading the *video* rather than merely the
-    file's existence also survives a read that catches the first write half-done.
-
-    Also a cancellation checkpoint, for the same reason ``advance`` is one — but
-    checked per poll rather than once, because this is the one stretch of startup
-    that can run for tens of seconds, and the overlay covering it offers Esc.
-    """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if progress.cancelled:
@@ -847,8 +673,6 @@ def _maybe_launch_random_favs_browser(
     *,
     env: SessionEnvironment,
 ) -> int:
-    """Launch the Random Favs Browser if enabled and position it, returning its
-    window handle (0 if not launched) for OmniPause's topmost band."""
     if not settings.enabled:
         return 0
 
@@ -874,13 +698,10 @@ def _maybe_launch_random_favs_browser(
         logger.warning("Random Favs Browser skipped: no new Chrome window appeared")
         return 0
 
-    # Position the browser window
     rect = plan.random_favs_browser
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height,
                 activate=not env.integration)
 
-    # The RFB's static topmost flag is applied by Phase 4's
-    # apply_startup_window_state; nothing window-related to do here.
 
     logger.info("Random Favs Browser positioned")
     return new_hwnd

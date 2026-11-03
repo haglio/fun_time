@@ -68,21 +68,6 @@
       ]
     },
     {
-      "id": "scrubber",
-      "thing": "the bar under what plays showing where it is",
-      "screen": null,
-      "his_word": "scrubber (2026-10-08, 2026-10-17)",
-      "code_today": [
-        "scrubber"
-      ],
-      "code_word": "scrubber",
-      "status": "ruled",
-      "ruled": "2026-10-08 and Origenerator's glossary",
-      "retired": [
-        "video timeline"
-      ]
-    },
-    {
       "id": "osr2_visualizer",
       "thing": "the drawing of the OSR2's motion on a HUD, with Center, Amp and Speed around it",
       "screen": null,
@@ -565,15 +550,10 @@
       "screen": null,
       "his_word": null,
       "code_today": [
-        "badge",
         "banner",
-        "dock",
         "pane",
-        "scrim",
         "sheet",
-        "shelf",
-        "splash",
-        "toolbar"
+        "shelf"
       ],
       "code_word": null,
       "status": "kept"

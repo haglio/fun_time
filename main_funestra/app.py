@@ -1,13 +1,3 @@
-"""Fun Time's Main Funestra, with Kino and Genau running on it.
-
-A shell: it opens the window, reads the library while the loading screen says
-so, and hands the window to a Funestra that plays the list and draws the
-console, with Kino in the same process answering what only the library side
-knows and Genau scrubbing its flicks to the OSR2 -- Fun Time says which of the
-two has the window.  What is tested here is the window and the wiring
-(tests/test_main_funestra_app.py); the Funestra, Kino and Genau are tested on
-their own.
-"""
 from __future__ import annotations
 
 import logging

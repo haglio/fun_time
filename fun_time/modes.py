@@ -34,11 +34,6 @@ def is_supported_video_path(path: str) -> bool:
 
 
 def source_roots(source_spec: str) -> list[Path]:
-    """The dirs (and single files) a pipe-joined source spec names, in order.
-
-    The one reader of the spec's shape, so a caller that needs only to know
-    WHERE a library is does not have to walk every file in it to find out.
-    """
     return [Path(part.strip()) for part in source_spec.split("|") if part.strip()]
 
 
@@ -60,8 +55,6 @@ def videos_in(roots: Iterable[Path]) -> list[str]:
 
 
 def _videos_under(root: Path) -> Iterator[str]:
-    """Every video below *root*, off the folder listings alone -- see
-    :mod:`fun_time.folder_listings` for why no video is asked about itself."""
     try:
         with os.scandir(root) as listing:
             entries = list(listing)
@@ -106,7 +99,6 @@ def build_generated_marker_path(video_path: str, metadata_root: Path | None = No
 
 
 def matching_funscript(video_path: str, metadata_root: Path | None = None) -> str | None:
-    """The funscript mirrored beside *video_path*, or None when there is none."""
     mirrored = build_mirrored_funscript_path(video_path, metadata_root)
     return mirrored if mirrored and Path(mirrored).exists() else None
 
@@ -116,7 +108,6 @@ def has_matching_funscript(video_path: str, metadata_root: Path | None = None) -
 
 
 def has_handcrafted_funscript(video_path: str, metadata_root: Path | None = None) -> bool:
-    """Whether a person wrote *video_path*'s funscript."""
     if not has_matching_funscript(video_path, metadata_root):
         return False
     marker = build_generated_marker_path(video_path, metadata_root)
@@ -155,13 +146,11 @@ def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list
 def sort_paths_by_recency(
     paths: list[str], listings: FolderListings | None = None
 ) -> list[str]:
-    """Order paths most-recently-modified first; unlisted files sort last."""
     dates = listings or FolderListings()
     return sorted(paths, key=dates.modified, reverse=True)
 
 
 def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = None) -> list[str]:
-    """Order a playlist: newest-first when ``recent`` else shuffled."""
     if recent:
         return sort_paths_by_recency(paths)
     return shuffle_paths(paths, rng=rng)
@@ -169,19 +158,12 @@ def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = N
 
 @dataclass(frozen=True)
 class VideoShapes:
-    """Which shapes of video the Main Funestra's browse may reach, and where the
-    VR masters live.  No VR dirs is every session outside the headset, which
-    narrows nothing whatever shapes the headset's flags were left on.
-    """
-
     vr_dirs: str = ""
     plays_vr: bool = True
     plays_flat: bool = True
 
     @property
     def offered(self) -> bool:
-        """Whether this session has both shapes to choose between — which is what
-        puts the pair of buttons on the HUD."""
         return bool(source_roots(self.vr_dirs))
 
     @property
@@ -199,15 +181,6 @@ def _collapse_axis(
     index: GroupIndex,
     by_seed_family: bool,
 ) -> tuple[Callable[[str], str | None], Callable[[str], list[str]]]:
-    """The (group-of-path, items-of-group) accessors for a collapse axis.
-
-    Unfiltered browsing collapses **action groups** — one video per subject — so
-    the playlist shows variety and "cycle action" explores a subject's other
-    acts.  A filtered view has already pinned the act, so it collapses **seed
-    families** instead — one video per parameter set — and the
-    same-params-different-seed siblings are reached through "cycle seed" rather than
-    repeating back-to-back in the playlist.
-    """
     if by_seed_family:
         def seed_family_of(path: str) -> str | None:
             seed_key = index.entry(path).seed_key
@@ -226,8 +199,6 @@ def _collapse_groups(
     items_of: Callable[[str], list[str]],
     pick: Callable[[list[str]], str],
 ) -> list[str]:
-    """One item per group, in first-seen order; *pick* chooses each group's
-    representative from its items.  Ungrouped paths pass through."""
     picks: list[str] = []
     seen_groups: set[str] = set()
     for path in paths:
@@ -249,14 +220,6 @@ def _collapse_and_weigh(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Shuffle *paths* by the weights stamped on their sidecars, one item per group.
-
-    Chronically-skipped videos sit the build out proportionally to their
-    weight; each group contributes a single item, drawn weighted so preferred
-    videos surface more.  The final order is a weighted shuffle: loved videos
-    land early, and with nothing stamped every step degenerates to a uniform
-    shuffle.  See :func:`_collapse_axis` for which axis groups.
-    """
     randomizer = rng or random.Random()
     index = build_group_index(paths, metadata_root)
     survivors = [path for path in paths if passes_inclusion(index.weight_of(path), randomizer)]
@@ -278,13 +241,6 @@ def _collapse_recent(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Newest-first, one item per group — the Latest review order.
-
-    New arrivals stay the focus: each group is represented by its most recent
-    item and sits at that item's position, so the freshest video of a group
-    surfaces once, near the top.  Watch weighting is deliberately not applied —
-    a chronically-skipped video still appears; recency alone ranks.
-    """
     dates = FolderListings()
     ordered = sort_paths_by_recency(paths, dates)
     index = build_group_index(ordered, metadata_root)
@@ -302,8 +258,6 @@ def satellite_narrowing(
 ) -> list[str]:
     if favorites_filter:
         files = keep_favorites(files, metadata_root)
-    # An act filter narrows to videos whose recorded act matches; it needs the
-    # metadata root to reach each sidecar, so without it the filter is a no-op.
     if filter_query and metadata_root is not None:
         files = [path for path in files if path_matches_query(path, metadata_root, filter_query)]
     return files
@@ -321,11 +275,6 @@ def build_satellite_playlist_paths(
     files = satellite_narrowing(collect_video_files(source_spec), favorites_filter,
                                 filter_query=filter_query, metadata_root=metadata_root)
     filtered = bool(filter_query) and metadata_root is not None
-    # With a metadata root, both orders collapse to one item per group: Latest
-    # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
-    # filtered view collapses seed families (one per param-set) rather than
-    # action groups.  Without one there is nothing to group by, so just order
-    # the raw files.
     if metadata_root is None:
         return order_paths(files, recent=recent, rng=rng)
     if recent:
@@ -339,13 +288,6 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
 
 def rotated_onto[T](entries: list[T], last_video: str, *,
                     path_of: Callable[[T], object] = lambda item: item.path) -> list[T]:
-    """*entries* rotated so *last_video* leads them.
-
-    Unchanged when that video is not among them — it was deleted since, or the
-    Funestra published no status at all; the queue comes back from its top rather
-    than being thrown away.  A Funestra handed a list it is not playing opens at
-    the top, which is what makes this a way back to the video it left.
-    """
     key = normalize_path_key(last_video)
     for position, item in enumerate(entries):
         if normalize_path_key(str(path_of(item))) == key:
@@ -359,7 +301,6 @@ def write_playlist_file(path: Path, video_paths: list[str], *,
 
 
 def scripted_item(video_path: str, metadata_root: Path | None = None) -> PlaylistItem:
-    """*video_path* paired with the funscript mirrored beside it, when it has one."""
     funscript = matching_funscript(video_path, metadata_root)
     return PlaylistItem(Path(video_path), Path(funscript) if funscript else None)
 
@@ -375,7 +316,6 @@ def build_one_satellite_playlist(
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
-    """Build and write the playlist file a single satellite plays from."""
     paths = build_satellite_playlist_paths(
         sources, favorites_filter, filter_query=filter_query, recent=recent, rng=rng,
         metadata_root=metadata_root,
@@ -386,10 +326,6 @@ def build_one_satellite_playlist(
 
 @dataclass(frozen=True)
 class SatelliteBuild:
-    """One satellite's playlist-build inputs: what it browses, and how it is
-    narrowed — its own filter, F-mode and ordering, since every one of the
-    three is a sided command and the two satellites can be in different states."""
-
     sources: str
     favorites_filter: bool = False
     recent: bool = False
@@ -404,9 +340,6 @@ def build_satellite_playlists(
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
-    """Build and write both satellite playlists, each honoring its own
-    :class:`SatelliteBuild` (action-group collapse and watch weighting apply
-    when *metadata_root* is given)."""
     build_one_satellite_playlist(
         sources=portrait.sources, name=PLAYLIST_PORTRAIT,
         state_dir=state_dir, favorites_filter=portrait.favorites_filter, recent=portrait.recent,

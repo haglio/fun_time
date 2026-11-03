@@ -50,9 +50,6 @@ def majority_now(state: BridgeState, main_funestra_status_file: Path, genau_stat
 
 
 class Seating:
-    """Where the Main and Portrait Funestras sit on the secondary monitor: by
-    the crown, else by the shape of what the Main Funestra shows."""
-
     def __init__(self, rects: Callable[..., SecondaryMonitorRects] | None, *,
                  main_funestra_status_file: Path, genau_status_file: Path) -> None:
         self._rects = rects

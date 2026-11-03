@@ -1,4 +1,3 @@
-"""Crossing between Fun Time and FunTimeVR: ``docs/entering-vr.md``."""
 from __future__ import annotations
 
 import argparse
@@ -38,23 +37,18 @@ from fun_time.single_instance import (
     let_the_session_go,
 )
 
-# No sibling checkouts put on sys.path here: the dispatch loop imports THIS, and
-# the session started below applies its own.  Named, not __name__: `-m` runs this.
 logger = logging.getLogger("fun_time.session_handoff")
 
 HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
-# What the monitors read while Fun Time changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
-LOADING_SCREEN_STALE_S = 20.0  # how long a crossing may stop saying so before its loading screen is gone
+LOADING_SCREEN_STALE_S = 20.0
 KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 
-HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
+HEADSET_HOLD_NAME = "vr_headset_hold.flag"
 HEADSET_HELD_NAME = "vr_headset_held.flag"
 _STOP_RUNTIME = "stop_runtime"
 
-# The first expires only on a session wedged holding the mutex; the second is
-# what both launchers allow a session to report in.
 RELEASE_TIMEOUT_S = 60.0
 STARTUP_TIMEOUT_S = 45.0
 
@@ -63,8 +57,6 @@ _POLL_S = 0.25
 
 @dataclass(frozen=True)
 class HandoffTarget:
-    """One side of the crossing: which session to start, and how it reports in."""
-
     key: str
     app_name: str
     module: str
@@ -96,7 +88,6 @@ TARGETS: dict[str, HandoffTarget] = {target.key: target for target in (DESKTOP, 
 
 
 def this_session(*, vr_main_funestra: bool) -> HandoffTarget:
-    """Which of the two a session is, by where its Main Funestra lives."""
     return VR if vr_main_funestra else DESKTOP
 
 
@@ -116,7 +107,6 @@ class Handoff:
 def request_handoff(
     state_dir: str | Path, target: HandoffTarget, *, cancelable: bool = True,
 ) -> None:
-    """Leave word that this session is crossing, not quitting."""
     path = handoff_request_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     words = [target.key] if cancelable else [target.key, _NO_CANCEL]
@@ -128,13 +118,11 @@ def clear_handoff_request(state_dir: str | Path) -> None:
 
 
 def pending_handoff(state_dir: str | Path) -> HandoffTarget | None:
-    """The crossing this session is ending for, WITHOUT taking it."""
     handoff = _read_request(state_dir, take=False)
     return handoff.target if handoff is not None else None
 
 
 def take_handoff_request(state_dir: str | Path) -> Handoff | None:
-    """The crossing asked for, taken off the disk as it is read."""
     return _read_request(state_dir, take=True)
 
 
@@ -156,7 +144,6 @@ def _read_request(state_dir: str | Path, *, take: bool) -> Handoff | None:
 
 
 def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
-    """Hold the loading screen in the headset past this session; *stop_runtime* rides along."""
     (Path(state_dir) / HEADSET_HELD_NAME).unlink(missing_ok=True)
     (Path(state_dir) / HEADSET_HOLD_NAME).write_text(
         _STOP_RUNTIME if stop_runtime else "", encoding="utf-8",
@@ -176,7 +163,6 @@ def headset_hold_stops_the_runtime(state_dir: str | Path) -> bool:
 
 
 def report_the_headset_held(state_dir: str | Path) -> None:
-    """The Funestra's answer: every channel let go of, only the loading screen left."""
     (Path(state_dir) / HEADSET_HELD_NAME).write_text("", encoding="utf-8")
 
 
@@ -185,7 +171,6 @@ def headset_is_held(state_dir: str | Path) -> bool:
 
 
 def release_the_headset(state_dir: str | Path) -> None:
-    """Let a held Funestra go: Fun Time it covered for is on screen."""
     for name in (HEADSET_HOLD_NAME, HEADSET_HELD_NAME):
         (Path(state_dir) / name).unlink(missing_ok=True)
 
@@ -198,14 +183,12 @@ class KeptOrigenerator(NamedTuple):
 
 def keep_the_origenerator(state_dir: str | Path, *, pid: int, created_at: int,
                           taken_over: bool = False) -> None:
-    """Record the hosted app a crossing leaves running."""
     (Path(state_dir) / KEPT_ORIGENERATOR_NAME).write_text(
         f"{pid} {created_at} {int(taken_over)}\n", encoding="utf-8",
     )
 
 
 def kept_origenerator(state_dir: str | Path) -> KeptOrigenerator | None:
-    """The hosted app a crossing left running, or None."""
     try:
         pid, created_at, taken_over = (
             Path(state_dir) / KEPT_ORIGENERATOR_NAME
@@ -224,7 +207,6 @@ def crossing_progress_path(state_dir: str | Path) -> Path:
 
 
 def raise_transition_screen(state_dir: str | Path, target: HandoffTarget) -> Path:
-    """Say Fun Time is changing over to *target*."""
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"1/2|{target.crossing_message}|{target.crossing_hint}\n", encoding="utf-8")
@@ -233,7 +215,7 @@ def raise_transition_screen(state_dir: str | Path, target: HandoffTarget) -> Pat
 
 def returning_from_a_crossing(state_dir: str | Path) -> bool:
     path = crossing_progress_path(state_dir)
-    try:  # a loading screen file left over made every LATER startup read as a return
+    try:
         return time.time() - path.stat().st_mtime < LOADING_SCREEN_STALE_S
     except OSError:
         return False
@@ -255,7 +237,6 @@ def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
 def launch_transition_screen(
     state_dir: str | Path, target: HandoffTarget, *, sibling_checkouts: str,
 ) -> subprocess.Popen:
-    """Raise the monitors' transition screen and leave it standing."""
     return _launch_transition_screen(
         raise_transition_screen(state_dir, target), sibling_checkouts=sibling_checkouts,
     )
@@ -276,15 +257,12 @@ def _launch_transition_screen(progress_file: Path, *, sibling_checkouts: str) ->
 
 
 def drop_transition_screen(state_dir: str | Path) -> None:
-    """Take the transition screen down; a no-op where none is up."""
     path = crossing_progress_path(state_dir)
     if path.exists():
         path.write_text("DONE\n", encoding="utf-8")
 
 
 def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget | None:
-    """Spawn the relay when the session ended by crossing over; None otherwise.
-    An orchestrator's last act, the relay's first being to wait for its mutex."""
     handoff = take_handoff_request(config.paths.state_dir)
     if handoff is None:
         return None
@@ -296,7 +274,6 @@ def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget 
     ]
     if not handoff.cancelable:
         command.append("--no-cancel")
-    # Its own log: dying on import is the one failure it cannot report itself.
     with open_child_log(config.paths.state_dir / "session_handoff.log", command) as log:
         subprocess.Popen(
             command, cwd=str(config.project_dir),
@@ -315,7 +292,6 @@ def a_session_is_playing(mutex: str) -> bool:
 def wait_for_the_session_to_let_go(
     mutex: str, *, timeout_s: float = RELEASE_TIMEOUT_S, poll_s: float = _POLL_S,
 ) -> bool:
-    """Block until no session holds *mutex*; False when the wait ran out."""
     deadline = time.monotonic() + timeout_s
     while a_session_is_playing(mutex):
         if time.monotonic() >= deadline:
@@ -333,10 +309,7 @@ def start_the_session(
     config_path: str | Path,
     cancelable: bool = True,
 ) -> subprocess.Popen:
-    """Launch *target*'s orchestrator as its own ``.vbs`` does."""
     (Path(state_dir) / target.ready_marker).unlink(missing_ok=True)
-    # Named as launch.vbs names it: a session entered by voice is as findable
-    # in the task list as one entered by clicking.
     named = NAMER.named_exe(python_exe, "Orchestrator")
     command = [named, "-m", target.module, "--config", str(config_path)]
     if not cancelable:
@@ -357,7 +330,6 @@ def wait_for_the_session_to_come_up(
     timeout_s: float = STARTUP_TIMEOUT_S,
     poll_s: float = _POLL_S,
 ) -> str:
-    """Empty once *target* has published its startup marker, else why not."""
     marker = Path(state_dir) / target.ready_marker
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -370,7 +342,6 @@ def wait_for_the_session_to_come_up(
 
 
 def last_lines_of(path: Path, count: int = 15) -> str:
-    """The tail of a log, for a dialog that would otherwise send you to open it."""
     try:
         body = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -398,8 +369,6 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
 def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
     drop_transition_screen(state_dir)
     release_the_headset(state_dir)
-    # Late: the dispatch loop's orchestrator imports this module, so a
-    # top-level import here is a cycle.
     from fun_time.windows_bridge_orchestrator import (  # noqa: PLC0415
         let_go_of_a_kept_origenerator,
     )
@@ -408,7 +377,6 @@ def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
 
 
 def _give_up(reason: str, log_file: Path, config) -> int:
-    """Report a crossing that did not happen, and uncover what was waiting."""
     _uncover_what_was_waiting(config.paths.state_dir, config.origenerator_cmd_file)
     report_a_failed_crossing(reason, log_file)
     return 1
@@ -416,7 +384,7 @@ def _give_up(reason: str, log_file: Path, config) -> int:
 
 def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     state_dir = config.paths.state_dir
-    keep_the_transition_screen(state_dir)  # the middle of the three
+    keep_the_transition_screen(state_dir)
     log_file = state_dir / target.launcher_log
     if not wait_for_the_session_to_let_go(
         mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)
@@ -479,9 +447,6 @@ if __name__ == "__main__":
 
 def request_a_crossing(target: HandoffTarget, state_dir: str | Path, *,
                        vr_main_funestra: bool) -> str:
-    """Ask for the crossing to *target*, leaving word of where to go next
-    (docs/entering-vr.md); or the reason it is refused: this session already is
-    *target*, or is already crossing."""
     if target is this_session(vr_main_funestra=vr_main_funestra):
         return f"Already running {target.app_name}"
     if session_end_asked(state_dir):

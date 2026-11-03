@@ -1,6 +1,3 @@
-"""What Fun Time does with what the family's listener hears: a spoken phrase
-becomes a line in the dashboard command file, where the dispatch loop picks it
-up as it would an AHK hotkey.  Hearing itself is voice_core's."""
 from __future__ import annotations
 
 import logging
@@ -63,10 +60,6 @@ def _how_many(words: str) -> str:
     return f"{count} word{'' if count == 1 else 's'}"
 
 
-
-# The Funestra words a speaker can put in any command, and which window a message
-# about that Funestra flashes over.  "both" is deliberately absent: it addresses
-# two Funestras, and a message flashes over one.
 _SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
@@ -75,22 +68,12 @@ _SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
 
 
 def _source_for_heard_text(text: str) -> str:
-    """The Funestra an unrecognized utterance at least named, if it named one.
-
-    A phrase the grammar rejected can still say who it was for — "landscape full
-    length please" is landscape's problem — so the report flashes over that
-    Funestra rather than where a satellite's mis-hearing reads as the Main
-    Funestra's.  Whole words only: "portrait" has to be the word spoken and not a
-    fragment of a longer one, and the first Funestra word wins.
-    """
     for word in text.lower().split():
         source = _SPOKEN_FUNESTRA_SOURCES.get(word)
         if source is not None:
             return source
     return SOURCE_SYSTEM
 
-# The three keys a pause leaves live (#SuspendExempt in windows_bridge_hotkeys.ahk),
-# spoken, and the headset's four.  What a paused room hears is his call: CLAUDE.md.
 SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({
     "play", "quit", "relief_omnipause",
     "enter_vr", "exit_vr", "recenter_view", "vr_reset",
@@ -142,12 +125,6 @@ def _said_in(phrase: str) -> str | None:
 
 def command_rules(commands: Mapping[str, str], *, confidence_threshold: float,
                   confirm_commands: bool) -> CommandRules:
-    """How the listener is to hear Fun Time's phrases.
-
-    With *confirm_commands* a command acts only once the verifying listener has read
-    it too; without, whatever the first listener settles acts at once and the verifying
-    listener only settles what the first could not.  Relief is the sensation emergency:
-    it acts on the first listener's word either way."""
     relief = frozenset(phrase for phrase, command in commands.items()
                        if command == "relief_omnipause")
     return CommandRules(
@@ -167,8 +144,6 @@ class _NotSureOf:
 
 
 class VoiceController:
-    """Listens for voice commands and writes them to the dashboard command file."""
-
     def __init__(
         self,
         *,
@@ -287,28 +262,20 @@ class VoiceController:
 
     @property
     def is_muted(self) -> bool:
-        """Return True if voice commands are being suppressed."""
         return self._muted.is_set()
 
     def _is_listening(self) -> bool:
-        """Whether spoken input is currently acted on — not muted, not suspended.
-
-        A muted or omnipaused room's talk is discarded, so it is not captioned
-        either.
-        """
         return not self._muted.is_set() and self._holds.now is None
 
     def _listened_to_when(self, spoken_at: float) -> bool:
         return not self._muted.is_set() and self._holds.when(spoken_at) is None
 
     def mute(self) -> None:
-        """Suppress command output (voice still listens but discards)."""
         self._muted.set()
         with self._not_sure_of_lock:
             self._not_sure_of = None
 
     def unmute(self) -> None:
-        """Resume command output."""
         self._muted.clear()
 
     def suspend(self, hold: VoiceHold = DURING_OMNIPAUSE) -> None:
@@ -318,13 +285,6 @@ class VoiceController:
         self._holds.change(None, at=self._clock())
 
     def _write_spoken(self, phrase: str, *, spoken_at: float) -> bool:
-        """Append the phrase's command to the dashboard command file; return whether it was.
-
-        No-op (returns False) when muted, and for everything the hold it was said
-        under does not hear.  The line carries *spoken_at*, so
-        the dispatcher acts on the video that was on screen when the user started
-        talking rather than whatever replaced it during recognition.
-        """
         command = self.commands[phrase]
         if self._muted.is_set():
             return False
@@ -398,11 +358,9 @@ class VoiceController:
         flash_message(logger, "Voice control: audio from the microphone resumed", source=SOURCE_SYSTEM)
 
     def stop(self) -> None:
-        """Signal the run loop to stop."""
         self._listener.stop()
 
     def run(self) -> None:
-        """Blocking listen loop — call from a daemon thread."""
         try:
             self._listener.run()
             logger.info("Voice control stopped")
@@ -413,9 +371,6 @@ class VoiceController:
 
 
 class AppVoice:
-    """Fun Time's hold on voice control: muted on command, suspended while the
-    room is paused or the headset is off, the doubted phrase accepted on Enter."""
-
     def __init__(self) -> None:
         self.controller: VoiceController | None = None
         self.headset_off = False

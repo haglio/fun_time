@@ -57,12 +57,6 @@ _VERBS_THE_MAIN_FUNESTRA_ANSWERS = frozenset({
 })
 
 
-# The Main Funestra's lock: repeat what is on screen, or let it move on — the Main Funestra's
-# video into the next playlist entry, Genau's flick into the next flick after its
-# interval.  Both Funestras answer these three verbs and both open locked (the
-# routing is :func:`_main_lock`'s).  The toggle is the key and the button; the
-# absolute pair is what the spoken forms send, since a speaker asks for the
-# state they want.
 MAIN_LOCK_COMMANDS = {
     "main_lock": TOGGLE_LOCK,
     "main_lock_on": LOCK_ON,
@@ -96,17 +90,12 @@ def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, conf
 
 def _forward_to_main_funestra(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The Main Funestra owns the Main Funestra in kino mode; in genau mode the paused Main Funestra
-    still navigates in the background, and its SEEK commands apply to a live
-    local clock, so rapid nudges stack naturally."""
     append_command(config.main_funestra_cmd_file, verb)
     return state, []
 
 
 def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Loop recording, versions and length only make sense while the Main Funestra owns the
-    Main Funestra — kino mode, not genau."""
     if not kino_shows(state.main_mode):
         return ignored(state, IN_GENAU_MODE)
     append_command(config.main_funestra_cmd_file, verb)
@@ -154,10 +143,6 @@ def _lock_kino_on_the_main_funestra(verb: str, state: BridgeState, config: Bridg
 
 def _save_video(state: BridgeState, _config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Ask the loop for a genaumacher save — asked for, not run: genaumacher boots a
-    sibling repo's interpreter (up to its 10 s timeout) and this runs on the
-    20 Hz tick, so the loop saves on a worker thread and flashes the result
-    when it lands — the one message that trails its keypress."""
     if state.main_mode == MAIN_GENAU_MODE:
         return ignored(state, IN_GENAU_MODE)
     return state, [WindowOp(op="save_clip")]
@@ -165,7 +150,6 @@ def _save_video(state: BridgeState, _config: BridgeConfig,
 
 _MAIN_TRANSPORT = {"main_prev": PREV, "main_next": NEXT}
 
-# Said of the headset's picture: its projection, where it hangs, and which scene.
 _VR_MAIN_FUNESTRA_VERBS = {
     "projection_cycle": "CYCLE_PROJECTION",
     "projection_cycle_back": "CYCLE_PROJECTION_BACK",

@@ -11,22 +11,12 @@ from .shared_state import BridgeState
 _VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
 
 
-# ``audio_set_volume|<0-100>`` — an absolute level, which is what a slider asks
-# for where every other audio command asks for a step or a state.  The Main Funestra's volume
-# control is the one that sends it.
 SET_VOLUME_COMMAND = "audio_set_volume"
 
 
 def _dispatch_set_volume(
     argument: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Set the sound level outright, lifting any mute.
-
-    The level crosses a text channel from another process, so it is not trusted:
-    out of range is clamped and unparseable is ignored, rather than raising into
-    the dispatch loop over a dragged slider.  It lifts a mute for the reason a
-    step does — reaching for the volume is asking to hear something.
-    """
     try:
         level = int(argument)
     except ValueError:
@@ -35,8 +25,6 @@ def _dispatch_set_volume(
     return _dispatch_audio(replace(state, volume=volume, muted=False), config)
 
 
-# Mute and unmute each assert a state rather than toggling one, so a phrase
-# misheard twice cannot leave the sound the opposite of what was asked for.
 _MUTE_COMMANDS = {"audio_mute": True, "audio_unmute": False}
 
 
@@ -54,8 +42,6 @@ def _step_volume(state: BridgeState, step: int) -> BridgeState:
 def _dispatch_audio(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Publish *state*'s sound level to both of the Main Funestra's audio sinks,
-    and say on screen what it now is."""
     publish_audio_level(
         main_funestra_cmd_file=config.main_funestra_cmd_file,
         genau_cmd_file=config.genau_cmd_file,

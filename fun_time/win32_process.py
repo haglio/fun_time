@@ -18,39 +18,37 @@ _ntdll = load_dll("ntdll")
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
 _kernel32.OpenProcess.argtypes = [
-    ctypes.wintypes.DWORD,  # dwDesiredAccess
-    ctypes.wintypes.BOOL,   # bInheritHandle
-    ctypes.wintypes.DWORD,  # dwProcessId
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.BOOL,
+    ctypes.wintypes.DWORD,
 ]
 _kernel32.OpenProcess.restype = ctypes.wintypes.HANDLE
 _kernel32.QueryFullProcessImageNameW.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hProcess
-    ctypes.wintypes.DWORD,                   # dwFlags
-    ctypes.wintypes.LPWSTR,                  # lpExeName
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpdwSize (in/out)
+    ctypes.wintypes.HANDLE,
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.LPWSTR,
+    ctypes.POINTER(ctypes.wintypes.DWORD),
 ]
 _kernel32.QueryFullProcessImageNameW.restype = ctypes.wintypes.BOOL
 _kernel32.GetExitCodeProcess.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hProcess
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpExitCode
+    ctypes.wintypes.HANDLE,
+    ctypes.POINTER(ctypes.wintypes.DWORD),
 ]
 _kernel32.GetExitCodeProcess.restype = ctypes.wintypes.BOOL
 _kernel32.GetProcessTimes.argtypes = [
-    ctypes.wintypes.HANDLE,                     # hProcess
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpCreationTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpExitTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpKernelTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpUserTime
+    ctypes.wintypes.HANDLE,
+    ctypes.POINTER(ctypes.wintypes.FILETIME),
+    ctypes.POINTER(ctypes.wintypes.FILETIME),
+    ctypes.POINTER(ctypes.wintypes.FILETIME),
+    ctypes.POINTER(ctypes.wintypes.FILETIME),
 ]
 _kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
 _kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
 
-# Undeclared it answered as a c_int, and its failure never equalled the
-# INVALID_HANDLE_VALUE the guard compares against.
 _kernel32.CreateToolhelp32Snapshot.argtypes = [
-    ctypes.wintypes.DWORD,  # dwFlags
-    ctypes.wintypes.DWORD,  # th32ProcessID
+    ctypes.wintypes.DWORD,
+    ctypes.wintypes.DWORD,
 ]
 _kernel32.CreateToolhelp32Snapshot.restype = ctypes.wintypes.HANDLE
 
@@ -78,16 +76,10 @@ _kernel32.Process32NextW.restype = ctypes.wintypes.BOOL
 _TH32CS_SNAPPROCESS = 0x2
 _INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
 
-# GetExitCodeProcess reports this while the process is still running.
 _STILL_ACTIVE = 259
 
 
 def get_process_image_name(pid: int) -> str | None:
-    """Return the full executable path of the process *pid*.
-
-    Returns None when the process no longer exists (or cannot be opened),
-    which callers use to detect that a recorded PID is stale.
-    """
     handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not handle:
         return None
@@ -139,12 +131,6 @@ def is_process_alive(pid: int) -> bool:
 
 
 def list_child_pids(parent_pid: int) -> list[int]:
-    """The pids whose recorded parent is *parent_pid*.
-
-    A recorded child pid is not always the pid that owns the windows: a venv's
-    ``Scripts`` launcher spawns the real interpreter as a child and keeps the
-    recorded pid for itself.  This is the one hop that recovers the family.
-    """
     return [pid for pid, parent in process_parents() if parent == parent_pid]
 
 
@@ -163,7 +149,6 @@ class ProcessEntry(NamedTuple):
 
 
 def process_table() -> list[ProcessEntry]:
-    """Every running process, from one Toolhelp snapshot."""
     snapshot = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
     if snapshot == _INVALID_HANDLE_VALUE:
         return []

@@ -1,4 +1,3 @@
-"""The paint thread's decisions, and the showing of what it painted, off the GPU."""
 from __future__ import annotations
 
 import logging
@@ -52,7 +51,6 @@ class Painting:
         self._drawn: tuple[int, int, int, int, str] | None = None
 
     def paint(self, targets: list, still) -> bool:
-        """One pass; whether there was nothing to do but wait."""
         if self._drawn is not None:
             if not self._finish.finished(self._mark, now=self._clock()):
                 return True
@@ -105,8 +103,6 @@ class Painting:
 
 
 class Showing:
-    """One copy in flight at a time, on the frame loop's thread."""
-
     def __init__(self, frames: FrameHandover, *, gpu,
                  clock: Callable[[], float] = time.monotonic) -> None:
         self._frames = frames

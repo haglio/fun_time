@@ -1,9 +1,3 @@
-"""The glanceable flash of a message (:func:`fun_time.event_log.message`), at the
-top-center of the window it is about: a Main Funestra one over the Main Funestra/Genau
-display, a portrait/landscape one over that satellite.
-
-Which window and where on it are :mod:`fun_time.message_placement`'s.
-"""
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
@@ -26,19 +20,10 @@ from fun_time.event_log import EventRecord
 from fun_time.log_panel import level_color
 from fun_time.message_placement import top_center_position
 
-# How long a flashed message lingers before fading out.
 MESSAGE_LINGER_MS = 2200
 
 
 class MessageOverlay(QLabel):
-    """A frameless, click-through message that flashes a message over a Funestra.
-
-    It never takes focus -- this suite is acutely focus-sensitive -- so it is
-    shown with ``WA_ShowWithoutActivating`` and the ``Tool`` window type, and
-    input falls through it (``WA_TransparentForMouseEvents``) so it cannot
-    intercept a click meant for the Funestra under it.
-    """
-
     def __init__(self) -> None:
         super().__init__(None)
         self.setWindowFlags(
@@ -56,7 +41,6 @@ class MessageOverlay(QLabel):
         self._hide_timer.timeout.connect(self.hide)
 
     def flash(self, record: EventRecord, target: Rect) -> None:
-        """Show *record*'s message over *target* for a moment, then hide."""
         self.setText(record.message)
         self.setStyleSheet(
             f"background-color: {BG_SECONDARY.name()};"

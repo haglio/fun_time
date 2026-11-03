@@ -50,7 +50,6 @@ _NAMED_BY = {"portrait_": FunTimeFunestra.PORTRAIT, "landscape_": FunTimeFunestr
 
 
 def command_funestra(command: str) -> FunTimeFunestra | None:
-    """The Funestra a command addresses, or None if it addresses no Funestra."""
     return next((funestra for prefix, funestra in _NAMED_BY.items()
                  if command.startswith(prefix)), None)
 

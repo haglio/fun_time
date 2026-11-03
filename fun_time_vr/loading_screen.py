@@ -1,9 +1,3 @@
-"""The loading screen Fun Time VR hangs in the headset while the session is changing.
-
-A headset has no monitors for the desktop's overlay windows, so this loading screen is a
-surface the headset draws over its own scene, on the desktop's channel
-(:mod:`fun_time.overlay_progress`) -- only the phase lists differ.
-"""
 from __future__ import annotations
 
 import logging
@@ -38,37 +32,34 @@ from fun_time.session_handoff import DESKTOP, crossing_progress_path, headset_ho
 
 logger = logging.getLogger(__name__)
 
-# Shorter than the desktop's: no browser and no windows.
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
     Phase("funestras", "Waiting for Funestras...", 9.0),
     ACTIVATING_ORIGENERATOR,
     STARTING_VOICE_COMMANDS,
-    Phase("finalizing", "Finalizing...", 0.0),  # weightless: the bar reads full
+    Phase("finalizing", "Finalizing...", 0.0),
 )
 
-# The Funestra's phase is last because it is killed last: it wears the loading screen.
 VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
-    Phase("controls", "Closing...", 1.0),  # the loading screen opens on this wording
+    Phase("controls", "Closing...", 1.0),
     Phase("companions", "Closing companions...", 1.0),
     Phase("funestras", "Closing Funestras...", 1.0),
 )
 
-# What each waits on, and why they differ: docs/entering-vr.md.
 STARTUP_STALE_TIMEOUT_S = 120.0
 SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
 CLOSING_STATUS = VR_SHUTDOWN_PHASES[0].message
-HELD_STATUS = DESKTOP.crossing_message  # exempt from staleness: see the doc
-WEARER_STATUS = "Waiting for you to put the headset on..."  # not on the Funestras
+HELD_STATUS = DESKTOP.crossing_message
+WEARER_STATUS = "Waiting for you to put the headset on..."
 
 _STARTUP = "startup"
 _SHUTDOWN = "shutdown"
 
 
 @dataclass(frozen=True)
-class LoadingScreen:  # what the loading screen says now; *closing* is teardown's
+class LoadingScreen:
     status: str
     fraction: float
     hint: str = ""
@@ -83,10 +74,6 @@ def _line_on(path: Path) -> Progress | None:
 
 
 class LoadingScreenWatcher:
-    """What the loading screen should show, read off the orchestrator's progress files
-    and polled from the Funestra's worker, never its frame loop.  None means show
-    the scene: no end running, DONE, or a file gone stale."""
-
     def __init__(
         self, state_dir: str | Path, *, clock: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -105,14 +92,11 @@ class LoadingScreenWatcher:
         self._gave_up: set[str] = set()
 
     def closing_now(self) -> None:
-        """Raise the closing screen with no orchestrator to ask for it."""
         self._closing_locally = True
 
     def read(self) -> LoadingScreen | None:
-        """This tick's loading screen, or None to show the scene."""
         if headset_hold_asked(self.state_dir):
             return self._screen_for_the_line(1.0, *self._held_line(), closing=True)
-        # Teardown outranks startup, whatever its file still says.
         shutdown = self._read_end(
             self.shutdown_file, key=_SHUTDOWN,
             stale_timeout_s=SHUTDOWN_STALE_TIMEOUT_S, opening=CLOSING_STATUS,
@@ -130,7 +114,7 @@ class LoadingScreenWatcher:
     def _screen_for_the_line(
         self, fraction: float, message: str, hint: str, *, closing: bool,
     ) -> LoadingScreen:
-        if self._cancelling or (hint and self._cancel_asked()):  # no second way out
+        if self._cancelling or (hint and self._cancel_asked()):
             return LoadingScreen(status=CANCELING, fraction=fraction, closing=closing)
         return LoadingScreen(status=message, fraction=fraction, hint=hint, closing=closing)
 
@@ -144,14 +128,13 @@ class LoadingScreenWatcher:
     def _read_end(
         self, path: Path, *, key: str, stale_timeout_s: float, opening: str
     ) -> tuple[float, str, str] | None:
-        """``(fraction, message, hint)``, or None when that end is not running."""
         if key in self._gave_up:
             return None
         try:
             text = path.read_text(encoding="utf-8")
             moved_at = path.stat().st_mtime
         except OSError:
-            return None  # no file: that end of the session is not running
+            return None
         progress = parse_progress(text)
         if progress.done:
             return None
@@ -161,7 +144,7 @@ class LoadingScreenWatcher:
             self._gave_up.add(key)
             return None
         held = self._held.get(key)
-        if progress.malformed:  # a torn write is not a step
+        if progress.malformed:
             return held if held is not None else (0.0, opening, "")
         fraction = progress.step / progress.total if progress.total > 0 else 0.0
         message = progress.message or (held[1] if held is not None else opening)
@@ -169,15 +152,11 @@ class LoadingScreenWatcher:
         return self._held[key]
 
     def _cancel_asked(self) -> bool:
-        """Latched: the flag is dropped at the END of the teardown it starts."""
         if not self._cancelling:
             self._cancelling = what_the_flag_asks(self.cancel_file) == CANCEL_WORD
         return self._cancelling
 
     def _went_stale(self, key: str, said: tuple[str, float], stale_timeout_s: float) -> bool:
-        """Whether the file has said the same thing, at the same time, for too
-        long: two steps written inside one filesystem timestamp tick share an
-        mtime, and a step slow to finish moves only its time."""
         now = self._clock()
         seen = self._seen.get(key)
         if seen is None or seen[0] != said:
@@ -186,19 +165,12 @@ class LoadingScreenWatcher:
         return now - seen[1] > stale_timeout_s
 
 
-# The Funestra's answer to "is the room on screen?", which a desktop orchestrator
-# sees for itself.  The grace caps it -- an empty satellite playlist never gets a
-# texture -- and the dwell is the loading screen's own time on screen (docs/entering-vr.md).
 SCENE_READY_FILENAME = "vr_scene_ready.flag"
 SCENE_READY_GRACE_S = 25.0
 LOADING_SCREEN_DWELL_S = 2.0
 
 
 class LoadingScreenDwell:
-    """How long the loading screen has been continuously there, for whichever "there"
-    the caller feeds it: drawn to the headset at all, which the reveal waits
-    out, or drawn to a WORN one, which is where its heading latches."""
-
     def __init__(
         self,
         *,
@@ -209,7 +181,7 @@ class LoadingScreenDwell:
         self._clock = clock
         self._first: float | None = None
 
-    def note(self, shown: bool) -> None:  # a blank frame restarts an unfinished dwell
+    def note(self, shown: bool) -> None:
         if shown:
             if self._first is None:
                 self._first = self._clock()
@@ -226,10 +198,6 @@ def scene_ready_file(state_dir: str | Path) -> Path:
 
 
 class SceneReady:
-    """Watches the room fill in under the loading screen, and says once when it has.
-    Without it the reveal lands on the Funestra's first STATUS write: a role
-    having PICKED a video, a second before the frames land."""
-
     def __init__(
         self,
         marker_file: Path,
@@ -244,9 +212,6 @@ class SceneReady:
         self._reported = False
 
     def note(self, *, blank: Sequence[str], read: bool) -> None:
-        """One frame's answer -- which screens have no frame, and whether the
-        loading screen has had its dwell on screen -- written once: on the first frame
-        with neither left to wait for, or on the grace running out."""
         if self._reported:
             return
         now = self._clock()
@@ -279,9 +244,6 @@ def wait_for_loading_screen_painted(
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> bool:
-    """Block until the Funestra reports the closing screen painted in the headset.
-    Two ways out besides the flag, both the desktop's: the Funestra is gone, so no
-    flag is coming; or waiting costs more than the flicker would."""
     deadline = clock() + timeout_s
     while clock() < deadline:
         if ready_file.exists():
@@ -294,24 +256,18 @@ def wait_for_loading_screen_painted(
     return False
 
 
-# --- Painting -------------------------------------------------------------
+LOADING_SCREEN_SIZE_PX = (512, 320)
 
-LOADING_SCREEN_SIZE_PX = (512, 320)  # held: a changed size rescales the whole loading screen
-
-LOADING_SCREEN_WIDTH_DEG = 40.0  # wider than the HUD's 24: that is glanced at
+LOADING_SCREEN_WIDTH_DEG = 40.0
 
 
 class LoadingScreenAnchor:
-    """Where the loading screen hangs: one heading, so it holds still as the head turns.
-    Latched on the first frame drawn it was the runtime's guessed pose, and the
-    panel sat where he was not looking; it follows him until *settled*."""
-
     def __init__(self) -> None:
         self._yaw: float | None = None
 
     def heading(self, yaw: float, *, settled: bool = True) -> float:
         if not settled:
-            return yaw  # still finding him; hang it wherever he is looking now
+            return yaw
         if self._yaw is None:
             self._yaw = yaw
         return self._yaw
@@ -325,19 +281,13 @@ class LoadingScreenAnchor:
 
 _WORDMARK = "Fun Time VR"
 
-# The desktop panel's lines a step of the family's type larger, for a surface
-# read at arm's length in the headset; its name is the family's largest already.
 HEADSET = Metrics(icon=96, wordmark_px=in_pixels(SIZE_HEADING), status_px=in_pixels(SIZE_BODY),
                   hint_px=in_pixels(SIZE_SMALL), gaps=(GAP_DIALOG,) * 4)
 
-# The eye is cleared to the panel's own ground before the panel is drawn, as
-# ``glClearColor``'s floats, straight through: nothing enables
-# GL_FRAMEBUFFER_SRGB, so decoding would light it.
 LOADING_SCREEN_CLEAR = (*(channel / 255.0 for channel in LOADING_GROUND), 1.0)
 
 
 def paint_loading_screen(loading_screen: LoadingScreen, *, size: tuple[int, int] = LOADING_SCREEN_SIZE_PX) -> Image.Image:
-    """The family's loading panel, centered on a filled ground of its own tone."""
     panel = render(LoadingPanel(
         wordmark=_WORDMARK,
         status=loading_screen.status,

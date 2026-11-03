@@ -1,14 +1,3 @@
-"""Topmost band policy for the managed Fun Time windows.
-
-Startup, omnipause and mode switches all read this ONE policy, so they can
-never disagree about a window's topmost band, which is the drift that leaves
-the Main Funestra stranded on top after entering omnipause.
-
-The satellite, dashboard and Main Funestra windows each own a screen rect and
-never overlap, so they are unconditionally topmost.  One pair SHARES a rect and
-stacks against each other: the Random Favs Browser under the hosted
-Origenerator's window (``restack_rfb_mode``).
-"""
 from __future__ import annotations
 
 from shared_ui.preview import Preview, window_title
@@ -21,17 +10,10 @@ from .origenerator_switches import RfbMode
 # Kino and Genau both run on the Main Funestra's one window.
 FIXED_TOPMOST_WINDOWS: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_funestra")
 
-# The hosted Origenerator's one window.  Its shows play on the Satellite
-# Funestras, not in windows of its own (fun_time.funestra_handover).
 ORIGENERATOR_WINDOW = "origenerator"
 
-# The browser and the hosted app's window share the RFB's rect.  While the
-# hosted window holds it the browser leaves the band, so no promotion, however
-# late it lands, can stack the browser back over it.
 RFB_MODE_WINDOWS: tuple[str, ...] = ("rfb", ORIGENERATOR_WINDOW)
 
-# The caption that window wears, resolved together with the app's PID: by
-# title alone a standalone Origenerator of his would match.
 ORIGENERATOR_TITLE = "Origenerator"
 _A_PREVIEWS_CAPTION = window_title(ORIGENERATOR_TITLE, Preview(feature=None))
 
@@ -39,22 +21,15 @@ _A_PREVIEWS_CAPTION = window_title(ORIGENERATOR_TITLE, Preview(feature=None))
 def is_origenerators_caption(caption: str) -> bool:
     return caption == ORIGENERATOR_TITLE or caption.startswith(_A_PREVIEWS_CAPTION)
 
-# Every window the bridge manages, in promotion order.
 MANAGED_WINDOWS: tuple[str, ...] = FIXED_TOPMOST_WINDOWS + RFB_MODE_WINDOWS
 
 
 def window_is_topmost(window_name: str, rfb_mode: RfbMode = RfbMode.RFB) -> bool:
-    """Whether *window_name*'s window belongs in the TOPMOST band: every window with a
-    rect of its own, and of the pair sharing the browser's rect only the one
-    holding it -- promoting the covered one only puts it briefly ABOVE its
-    window over it, since HWND_TOPMOST inserts at the top of the band."""
     if window_name not in RFB_MODE_WINDOWS:
         return True
     return (window_name == ORIGENERATOR_WINDOW) == (rfb_mode is RfbMode.ORIGENERATOR)
 
 
 def visible_windows(rfb_mode: RfbMode = RfbMode.RFB) -> list[str]:
-    """Every managed window_name whose window is kept on screen: the browser counts
-    while the hosted window covers it, since it is covered, not parked."""
     held = RFB_MODE_WINDOWS if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",)
     return [*FIXED_TOPMOST_WINDOWS, *held]

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 FLOWS = ("output", "input")  # Windows' EDataFlow, numbered in this order
-ROLES = ("console", "multimedia", "communications")  # its ERole, likewise
+ROLES = ("console", "multimedia", "communications")
 
 
 @dataclass(frozen=True)
@@ -97,7 +97,7 @@ def _com_on_this_thread() -> None:
     try:
         comtypes.CoInitialize()
     except OSError:
-        pass  # already started on this thread, in the other apartment
+        pass
 
 
 def _id_of(device) -> str:

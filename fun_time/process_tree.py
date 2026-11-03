@@ -1,4 +1,3 @@
-"""Ending a process with everything it started, including what it starts while it goes."""
 from __future__ import annotations
 
 import ctypes

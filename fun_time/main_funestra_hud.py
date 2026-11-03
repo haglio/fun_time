@@ -1,7 +1,3 @@
-"""What the Main Funestra's HUD shows about Fun Time, and the file it reaches on: a
-:class:`~funestra.main_hud_painter.ConsoleModel` carrying the buttons Fun Time
-declares (:mod:`fun_time.console_buttons`), published as text and parsed back
-by ``funestra.main_hud_painter``."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,26 +17,12 @@ MAIN_FUNESTRA_HUD_FILENAME = "main_player_console.json"
 
 def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: bool,
                trouble: Osr2Trouble | None = None) -> Osr2State:
-    """Which of the OSR2 states has the device, for the HUD to badge.
-
-    Only a Main Funestra that is *on screen* can be driving: ``funscript_driving`` is read
-    off the Main Funestra's status file, which describes the video the Main Funestra is parked on whether or
-    not it is playing, and in genau mode the Main Funestra is paused off screen with the last
-    scripted video it showed still in that file.  Asked without the mode it said
-    "funscript" all through a genau-mode session, which is the HUD's word for
-    "something other than the Robot Hand has the device" — so every ± mark and
-    draggable band on the drive readout went dead.
-    """
     return Osr2State.of(osr2_mode, funscript_driving=funscript_driving and kino_shows(main_mode),
                         trouble=trouble)
 
 
 @dataclass(frozen=True)
 class MainFunestraInputs:
-    """Everything the Main Funestra's HUD is built from — the satellites'
-    :class:`~fun_time.lock_hud.SatelliteInputs` for the Main Funestra.  The lock and
-    the browse order are one flag each, resolved to whichever Funestra is on it."""
-
     main_mode: MainMode
     main_funestra: MainFunestraStatus
     genau: GenauStatus
@@ -71,8 +53,6 @@ class MainFunestraInputs:
 
 
 def main_hud_model(inputs: MainFunestraInputs) -> MainHudModel:
-    """The HUD as the Main Funestra parses it: Fun Time around the
-    drive readout, and the buttons declared from it."""
     main_funestra, genau = inputs.main_funestra, inputs.genau
     video = kino_shows(inputs.main_mode)
     facts = MainFunestraFacts(

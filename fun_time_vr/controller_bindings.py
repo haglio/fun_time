@@ -1,4 +1,3 @@
-"""What the session binds on each controller the family meets, and the actions it reads."""
 from __future__ import annotations
 
 import xr

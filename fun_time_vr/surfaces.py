@@ -1,5 +1,3 @@
-"""The two surfaces a headset gives a Funestra: the HUD as a bitmap to hang
-beside the item, and a User's own frames to hang on the screen."""
 from __future__ import annotations
 
 import threading

@@ -41,7 +41,6 @@ class Win32Rect(ctypes.Structure):
     ]
 
 
-# Constants
 SW_RESTORE = 9
 SW_SHOWNOACTIVATE = 4
 SWP_NOACTIVATE = 0x0010
@@ -66,19 +65,19 @@ ICON_SMALL, ICON_BIG = 0, 1
 WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
 LWA_ALPHA = 0x00000002
-GW_HWNDNEXT = 2  # next window DOWN the z-order (GetWindow relationship)
+GW_HWNDNEXT = 2
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
 # Without this, ctypes defaults to c_int (32-bit) for Python ints, which
 # corrupts the sentinel HWND_TOPMOST/HWND_NOTOPMOST values on 64-bit.
 _user32.SetWindowPos.argtypes = [
-    ctypes.wintypes.HWND,   # hWnd
-    ctypes.wintypes.HWND,   # hWndInsertAfter
-    ctypes.c_int,           # X
-    ctypes.c_int,           # Y
-    ctypes.c_int,           # cx
-    ctypes.c_int,           # cy
-    ctypes.wintypes.UINT,   # uFlags
+    ctypes.wintypes.HWND,
+    ctypes.wintypes.HWND,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.wintypes.UINT,
 ]
 _user32.SetWindowPos.restype = ctypes.wintypes.BOOL
 
@@ -93,36 +92,26 @@ WM_CLOSE = 0x0010
 
 
 def close_window(hwnd: int) -> None:
-    """Close a window gracefully by posting WM_CLOSE."""
     if not hwnd:
         return
     _user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
 
 
 def _first_window(match: Callable[[int], bool]) -> int:
-    """The first top-level window *match* accepts, or 0 if none does.
-
-    ``EnumWindows`` stops when its callback returns False, so every lookup that
-    wants ONE window carried the same prototype, ``nonlocal`` and inverted
-    return.  Three did; this holds them, and each keeps only its predicate —
-    including how it reads a title, which the two do differently on purpose.
-    """
     found: int = 0
 
     def callback(hwnd: int, _lparam: int) -> bool:
         nonlocal found
         if not match(hwnd):
-            return True  # keep enumerating
+            return True
         found = hwnd
-        return False  # stop enumeration
+        return False
 
     _user32.EnumWindows(WNDENUMPROC(callback), 0)
     return found
 
 
 def _every_window(match: Callable[[int], bool]) -> set[int]:
-    """Every top-level window *match* accepts — :func:`_first_window`'s other
-    half, whose callback never stops the walk."""
     found: set[int] = set()
 
     def callback(hwnd: int, _lparam: int) -> bool:
@@ -135,7 +124,6 @@ def _every_window(match: Callable[[int], bool]) -> set[int]:
 
 
 def window_class(hwnd: int) -> str:
-    """*hwnd*'s window class — what an application's own windows share."""
     name = ctypes.create_unicode_buffer(256)
     _user32.GetClassNameW(hwnd, name, 256)
     return name.value
@@ -166,23 +154,11 @@ def find_windows_by_class(substring: str) -> set[int]:
 
 
 def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
-    """Find a top-level window belonging to *pid*. Returns 0 if not found.
-
-    Matches AHK's ``DetectHiddenWindows False`` behavior: only considers
-    windows that are visible (``IsWindowVisible``) and have a non-empty title.
-    This avoids grabbing internal surfaces like Direct3D rendering windows.
-
-    Set *include_hidden* to also match windows with WS_VISIBLE cleared — needed
-    for the dashboard, which is hidden (SW_HIDE) under the loading overlay when
-    the startup sequencer resolves its handle.  The non-empty-title filter still
-    applies, so this does not match untitled internal surfaces.
-    """
     def matches(hwnd: int) -> bool:
         if window_process(hwnd) != pid:
             return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
-        # Non-empty title only (skip internal/unnamed windows)
         return _user32.GetWindowTextLengthW(hwnd) > 0
 
     return _first_window(matches)
@@ -227,12 +203,6 @@ def find_window_for_process(
 def wait_for_window_by_title(
     title: str, timeout_s: float = 5.0, *, exact: bool = False, include_hidden: bool = False
 ) -> int:
-    """Poll for a visible window whose title contains (or equals) *title*.
-
-    Useful when the PID-based lookup fails (e.g. venv launcher PID differs
-    from the interpreter PID that owns the window).  *include_hidden* is
-    forwarded to :func:`find_window_by_title` for SW_HIDE'd windows.
-    """
     return wait_for_window(
         lambda: find_window_by_title(title, exact=exact, include_hidden=include_hidden),
         timeout_s,
@@ -248,11 +218,6 @@ def wait_for_window(find: Callable[[], int], timeout_s: float) -> int:
     return 0
 
 
-# How long one of those calls is given before the session stops waiting on that
-# window.  A window whose owner is pumping answers in microseconds, so this is
-# only ever spent on one that has stopped — and it is spent once per call, so a
-# whole startup pass over the session's windows cannot cost more than a few
-# seconds.
 STALLED_WINDOW_TIMEOUT_S = 1.5
 
 
@@ -267,28 +232,6 @@ def _owned_by_this_process(hwnd: int) -> bool:
 
 
 def _without_hanging(call, hwnd, *args, what: str) -> bool:
-    """Make a cross-process window call, and give up on a window that has stopped
-    answering.  True if the call returned, False if that window has stalled.
-
-    ``SetWindowPos`` and ``ShowWindow`` do not merely set state: each SENDS
-    messages to the thread that owns the window and waits for it to handle them,
-    with no timeout and no flag on our side that changes that — so a Funestra
-    whose own loop has stalled blocks the caller forever.  One did, and took the
-    session with it; ``TestAWindowThatHasStoppedAnswering`` tells that story and
-    holds every rule below.
-
-    So the call is made on that window's own thread of calls and waited on for
-    STALLED_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
-    changes — including the ORDER the caller makes these calls in, which is what
-    stacks Genau's HUD above the Main Funestra's video and which posting the requests
-    (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
-    named in the log, and the call it gave up on, with every later one, is still
-    carried out in turn once that window takes messages again.
-
-    Our OWN windows are called straight, and must be: the send would go to this
-    process's UI thread, which is the very thread waiting here.  See
-    ``show_own_window`` and the section below it.
-    """
     if _owned_by_this_process(hwnd):
         call(hwnd, *args)
         return True
@@ -339,11 +282,6 @@ _ONE_CALL_AT_A_TIME = _CallsPerWindow()
 
 
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:
-    """Restore and reposition a window (WinRestore + WinMove equivalent).
-
-    When *activate* is False the window is shown without stealing focus
-    (uses SW_SHOWNOACTIVATE instead of SW_RESTORE).
-    """
     _without_hanging(
         _user32.ShowWindow, hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE,
         what=f"ShowWindow({hwnd})",
@@ -362,12 +300,6 @@ def place_window(hwnd: int, x: int, y: int, w: int, h: int) -> None:
 
 
 def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
-    """Where *hwnd* sits, as (x, y, width, height), or None if it is gone.
-
-    Read so a second window can be stood exactly on a first — the library
-    browser fills the Main Funestra's rect, since that is where the video it
-    picks will play.
-    """
     rect = Win32Rect()
     if not _user32.GetWindowRect(hwnd, ctypes.byref(rect)):
         return None
@@ -401,31 +333,21 @@ def _stack_after(hwnd: int, insert_after, *, what: str) -> None:
 
 
 def is_window_topmost(hwnd: int) -> bool:
-    """Check whether a window has the WS_EX_TOPMOST extended style."""
     ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
     return bool(ex_style & WS_EX_TOPMOST)
 
 
 def keep_in_topmost_band(hwnd: int, *, topmost: bool) -> None:
-    """Put *hwnd* in or out of the topmost band — only if it is not already.
-
-    Drift correction, not assertion: three windows in this session correct their
-    own band on a timer, because the orchestrator's pass over them is not
-    reliable.  Running SetWindowPos unconditionally would fight whoever else
-    re-asserts the flag and flicker in the steady state.
-    """
     if is_window_topmost(hwnd) != topmost:
         set_always_on_top(hwnd, topmost)
 
 
 @dataclass(frozen=True)
 class StackedWindow:
-    """A visible top-level window, as seen while walking the z-order."""
-
     hwnd: int
     title: str
     topmost: bool
-    rect: tuple[int, int, int, int]  # x, y, width, height (screen coords)
+    rect: tuple[int, int, int, int]
 
 
 # Framed windows carry an INVISIBLE resize border (~7-8px per edge on Windows
@@ -478,14 +400,6 @@ def describe_windows(windows: list[StackedWindow]) -> str:
 
 
 def iter_zorder() -> list[StackedWindow]:
-    """Every visible, titled, non-minimized top-level window, front-to-back.
-
-    Walks ``GetTopWindow`` + ``GW_HWNDNEXT`` — the real stacking order — rather
-    than ``EnumWindows`` (whose order is unspecified).  Untitled and minimized
-    windows are skipped: they never visibly cover another window, and the title
-    filter drops the sea of internal/system surfaces so the result stays legible
-    in a log line.
-    """
     out: list[StackedWindow] = []
     hwnd = _user32.GetTopWindow(0)
     while hwnd:
@@ -507,7 +421,6 @@ def iter_zorder() -> list[StackedWindow]:
 
 
 def activate_window(hwnd: int) -> None:
-    """Bring a window to the foreground."""
     _user32.SetForegroundWindow(hwnd)
 
 
@@ -540,21 +453,14 @@ def window_under_cursor() -> int:
 # c_int and truncates the handle, and the process-id out-param pointer must be a
 # real pointer (same reasoning as the SetWindowPos/OpenProcess declarations).
 _user32.GetWindowThreadProcessId.argtypes = [
-    ctypes.wintypes.HWND,                   # hWnd
-    ctypes.POINTER(ctypes.wintypes.DWORD),  # lpdwProcessId (out)
+    ctypes.wintypes.HWND,
+    ctypes.POINTER(ctypes.wintypes.DWORD),
 ]
 _user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
 
 
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
-    """The first visible window whose title contains — with *exact*, equals —
-    *title*, or 0.
-
-    Four of this session's windows are called "Fun Time" and "Fun Time
-    <something>", so the panel needs *exact*.  *include_hidden* also matches a
-    window with WS_VISIBLE cleared, which the dashboard is under the loading screen.
-    """
-    buf = ctypes.create_unicode_buffer(256)  # one for the whole walk
+    buf = ctypes.create_unicode_buffer(256)
 
     def matches(hwnd: int) -> bool:
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
@@ -570,16 +476,6 @@ SW_SHOWMINNOACTIVE = 7
 
 
 def minimize_window(hwnd: int, *, activate: bool = True) -> None:
-    """Minimize a window to the taskbar.
-
-    When *activate* is False, uses SW_SHOWMINNOACTIVE to minimize
-    without activating the next window in z-order — prevents focus
-    stealing when minimizing multiple windows in sequence.
-
-    Through :func:`_without_hanging` for the reason set_always_on_top is: a
-    Funestra that has stopped pumping would otherwise freeze whoever parked it —
-    the mode switch, omniminimize, or that Funestra's own HUD button.
-    """
     _without_hanging(
         _user32.ShowWindow, hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE,
         what=f"minimize_window({hwnd})",
@@ -587,7 +483,6 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
 
 
 def draw_nothing_at_all(hwnd: int) -> None:
-    """On the taskbar while painting no pixels and taking no clicks."""
     ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
     _user32.SetWindowLongW(
         hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
@@ -595,7 +490,6 @@ def draw_nothing_at_all(hwnd: int) -> None:
 
 
 def set_window_icon(hwnd: int, icon_path: str | Path) -> None:
-    """Give a window the icon Alt+Tab draws -- WM_SETICON, GLFW's losing."""
     try:
         for which, side in ((ICON_SMALL, 16), (ICON_BIG, 32)):
             handle = _user32.LoadImageW(
@@ -607,40 +501,21 @@ def set_window_icon(hwnd: int, icon_path: str | Path) -> None:
 
 
 def hide_window(hwnd: int) -> None:
-    """Take a window off the screen; minimizing leaves it an Alt+Tab away."""
     _without_hanging(_user32.ShowWindow, hwnd, SW_HIDE, what=f"hide_window({hwnd})")
 
 
 def restore_window(hwnd: int, *, activate: bool = True) -> None:
-    """Restore (un-minimize) a window to its previous size and position.
-
-    When *activate* is False, uses SW_SHOWNOACTIVATE so restoring several
-    windows in sequence never yanks focus from one to the next.
-
-    Through :func:`_without_hanging`, so one Funestra that has stopped answering
-    cannot hold up the mode switch, the omnipause resume, or the rest of the
-    windows coming back with it.
-    """
     _without_hanging(
         _user32.ShowWindow, hwnd, SW_RESTORE if activate else SW_SHOWNOACTIVATE,
         what=f"restore_window({hwnd})",
     )
 
 
-# --- A window this process owns ---
-#
-# The only calls here that deliberately skip _without_hanging, for the reason
-# its docstring gives.  Each takes a handle this process created; nothing else
-# may be passed to one.
-
-
 def show_own_window(hwnd: int) -> None:
-    """Show one of this process's own windows."""
     _user32.ShowWindow(hwnd, SW_SHOW)
 
 
 def hide_own_window(hwnd: int) -> None:
-    """Hide one, so it renders nothing at all — no flash, no animation."""
     _user32.ShowWindow(hwnd, SW_HIDE)
 
 
@@ -675,13 +550,10 @@ _user32.CreateWindowExW.restype = ctypes.wintypes.HWND
 
 
 def create_hidden_topmost_window() -> int:
-    """A topmost window that is never shown and never takes the focus, alive as
-    long as the thread that made it."""
     return int(_user32.CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", None,
         WS_POPUP, 0, 0, 0, 0, None, None, None, None) or 0)
 
 
 def is_window_minimized(hwnd: int) -> bool:
-    """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))

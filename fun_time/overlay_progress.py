@@ -1,15 +1,3 @@
-"""What the covers read, and what an orchestrator writes for them.
-
-Both ends of a session put a loading screen up — ``loading_screen`` while the windows
-arrive, ``closing_screen`` while they go, and :mod:`fun_time_vr.loading_screen` for both
-ends in the headset — and each watches a progress file in the state dir for how
-far the orchestrator has got.  This module is that channel: the file names, the
-phases, and the writer on the orchestrator's side.
-
-Esc reaches an orchestrator two ways — a loading screen's binding, which needs the focus,
-and the hotkey script's hook, which does not — so a loading screen follows the FLAG, not
-a keypress, and stays up reading "Canceling..." until the teardown finishes.
-"""
 from __future__ import annotations
 
 import contextlib
@@ -26,9 +14,6 @@ from app_support.threading_utils import start_daemon_thread
 PROGRESS_FILENAME = "startup_progress.txt"
 SHUTDOWN_PROGRESS_FILENAME = "shutdown_progress.txt"
 
-# A loading screen whose line offers Esc drops this flag beside its progress file when the
-# key lands on it; the orchestrator's progress reporter watches for it and raises
-# StartupCancelled at the next phase boundary so startup unwinds.
 CANCEL_FILENAME = "startup_cancel.flag"
 CANCEL_WORD = "cancel"
 QUIT_WORD = "quit"
@@ -40,18 +25,11 @@ CANCEL_EXITING_VR = "Press Esc to cancel exiting VR"
 CANCEL_CLOSING_FUN_TIME = "Press Esc to cancel closing Fun Time"
 CANCEL_CLOSING_FUN_TIME_VR = "Press Esc to cancel closing Fun Time VR"
 
-# The closing screen drops this flag beside its own progress file once it is
-# painted over every monitor.  Teardown waits for it before killing anything:
-# a loading screen that is not up yet hides nothing.
 SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 
 
 @dataclass(frozen=True)
 class Progress:
-    """One line of the progress file, parsed.  *malformed* separates "nothing
-    written yet" from "wrote something we could not read": without it both
-    arrive as step 0 of 1, which reads as a genuine first phase."""
-
     step: int = 0
     total: int = 1
     message: str = ""
@@ -61,7 +39,6 @@ class Progress:
 
 
 def parse_progress(text: str) -> Progress:
-    """One line of the progress file the orchestrator writes."""
     text = text.strip()
     if text == "DONE":
         return Progress(done=True)
@@ -74,8 +51,6 @@ def parse_progress(text: str) -> Progress:
 
 
 def cancel_file_for(progress_file: str | Path) -> Path:
-    """The cancel flag pairing with *progress_file*, its sibling in the state
-    dir.  Every end derives it this way, so none has to be told."""
     return Path(progress_file).with_name(CANCEL_FILENAME)
 
 
@@ -88,8 +63,6 @@ def what_the_flag_asks(cancel_file: Path) -> str:
 
 
 def ready_file_for(progress_file: str | Path) -> Path:
-    """The ready flag pairing with a shutdown *progress_file*, derived the way
-    the cancel flag is."""
     return Path(progress_file).with_name(SHUTDOWN_READY_FILENAME)
 
 
@@ -102,12 +75,6 @@ def progress_file_argument(module: str) -> Path:
 
 
 class StartupCancelled(Exception):
-    """Raised out of a progress checkpoint when the user cancels startup.
-
-    Carries what had been launched when it unwound, so the orchestrator can tear
-    those children down; the sequencer fills these in as it re-raises.
-    """
-
     def __init__(self, launched_pids: list[int] | None = None, rfb_hwnd: int = 0) -> None:
         super().__init__("Startup cancelled by user")
         self.launched_pids: list[int] = launched_pids if launched_pids is not None else []
@@ -116,20 +83,10 @@ class StartupCancelled(Exception):
 
 
 def loading_screen_is_up(state_dir: Path) -> bool:
-    """Whether the startup loading screen is still on the screen.
-
-    The file exists for the duration of startup, so its presence answers this.
-    Distinct from :func:`startup_still_building`, which goes False one phase
-    earlier: a window that must be IN PLACE when the loading screen lifts asks that one,
-    anything seen THROUGH the loading screen asks this one."""
     return (Path(state_dir) / PROGRESS_FILENAME).exists()
 
 
 def startup_still_building(state_dir: Path) -> bool:
-    """True while startup is still assembling Fun Time, so a companion window of
-    the session's own must stay out of the loading screen's way.  Goes False one phase
-    EARLY, at the final weightless phase with the loading screen still up: a companion
-    that waited for the lift would arrive late on a finished room."""
     path = Path(state_dir) / PROGRESS_FILENAME
     try:
         progress = parse_progress(path.read_text(encoding="utf-8"))
@@ -141,21 +98,11 @@ def startup_still_building(state_dir: Path) -> bool:
 
 @dataclass(frozen=True)
 class Phase:
-    """One reported step: what to call it, and how much of the bar it spans;
-    what a weight measures is each sequence's own business."""
-
     key: str
     message: str
     weight: float
 
 
-# Startup as the loading screen sees it, in order.  The bar advances by TIME
-# rather than step count: an equal share per step parked it at 83% through the
-# one phase that waits on other processes.  The last is weightless so the bar
-# reads full while Fun Time is settled under the loading screen.
-#
-# First, the launch's own work, before there is a room to report on.  The screen
-# opens on this one's words: anything else reads as a flicker on its first poll.
 LAUNCH_PHASES: tuple[Phase, ...] = (
     Phase("starting", "Starting...", 0.3),
     Phase("engine", "Checking the video engine...", 1.0),
@@ -164,7 +111,6 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
 ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", 0.5)
 STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", 0.5)
 
-# Fun Time as it is built, that wait among the steps rather than after the last.
 APP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
@@ -182,8 +128,6 @@ STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)
 # Windows says it has, so the bar walks the steps.  No weightless phase ends
 # this one -- the orchestrator writes DONE once the last child is gone.
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
-    # The screen opens on this one, so its wording is the screen's own opening
-    # status — anything else would read as a flicker on the first poll.
     Phase("controls", "Closing...", 1.0),
     Phase("browser", "Closing browser...", 1.0),
     Phase("funestras", "Closing Funestras...", 1.0),
@@ -202,11 +146,6 @@ class ProgressReporter(Protocol):
 
 
 class PhaseProgress:
-    """Writes progress updates to a file for a loading screen to read.  Each ``advance``
-    names the phase entered, and with a cancel file is a checkpoint too: a
-    dropped flag aborts the phase before it runs.  Startup alone passes one, and
-    ``announce`` is that line without the checkpoint."""
-
     def __init__(
         self,
         progress_file: Path,
@@ -234,8 +173,6 @@ class PhaseProgress:
 
     def announce(self, phase: str) -> None:
         entered = self._phase_index(phase)
-        # Hundredths of a unit: the loading screen reads two integers.  The position is
-        # work ALREADY done, so only a weightless final phase reaches the total.
         done = round(sum(p.weight for p in self._phases[:entered]) * 100)
         total = round(sum(p.weight for p in self._phases) * 100)
         line = f"{done}/{total}|{self._phases[entered].message}"
@@ -260,7 +197,7 @@ class PhaseProgress:
             stop()
 
 
-class NullProgress:  # silent no-op reporter, for integration mode
+class NullProgress:
     cancelled = False
 
     def advance(self, phase: str) -> None:
@@ -276,22 +213,19 @@ class NullProgress:  # silent no-op reporter, for integration mode
         return contextlib.nullcontext()
 
 
-LOADING_SCREEN_HEARTBEAT_S = 1.0  # how often the work under a loading screen says it is still going
+LOADING_SCREEN_HEARTBEAT_S = 1.0
 
 
 def keep_the_loading_screen_up(progress_file: Path, *, name: str) -> Callable[[], None]:
-    """Say the work under a loading screen is still going, once a second, until it is
-    stopped.  The loading screen takes ITSELF down when this stops -- its one way out
-    that needs nobody else alive -- and slow work outlasts that timeout."""
     stopped = threading.Event()
 
     def beat() -> None:
         while True:
-            try:  # not past DONE: a file the loading screen never tidied is no work going on
+            try:
                 if not parse_progress(progress_file.read_text(encoding="utf-8")).done:
                     os.utime(progress_file, None)
             except OSError:
-                pass  # no work going on
+                pass
             if stopped.wait(LOADING_SCREEN_HEARTBEAT_S):
                 return
 

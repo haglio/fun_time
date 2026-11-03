@@ -1,4 +1,3 @@
-"""The hosted Origenerator's own window, on a screen in the room."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -46,7 +45,6 @@ def scroll_from_stick(axis: float, elapsed_s: float) -> float:
 
 
 class GalleryPanel:
-
     def __init__(self, state_dir: Path) -> None:
         self._input = Path(state_dir) / INPUT_FILENAME
         self._frames = FrameReader(Path(state_dir) / FRAME_FILENAME)
@@ -98,7 +96,6 @@ class GalleryPanel:
         append_command(self._input, line)
 
     def press(self, event: PressEvent) -> None:
-        # Dropped where no frame has arrived to place it on.
         if self._size is None:
             return
         self.send(event_line(event, self._size))
