@@ -3,9 +3,8 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from .chrome_tab_node import UiaNode
 from .chrome_tabs import AccessibleNode
-
-PAGE_WINDOW_CLASS_PART = "RenderWidgetHost"
 
 _this_thread = threading.local()
 
@@ -35,32 +34,5 @@ class _Automation:
         # Not FindAll, which switched on Chrome 154's accessibility for every open page.
         self.walker: Any = self.client.RawViewWalker
 
-    def window(self, hwnd: int) -> _Node:
-        return _Node(self, self.client.ElementFromHandleBuildCache(hwnd, self.read_with_each_node))
-
-
-class _Node:
-    def __init__(self, automation: _Automation, element: Any) -> None:
-        uia = automation.uia
-        control_type = element.CachedControlType
-        self.is_tab = control_type == uia.UIA_TabItemControlTypeId
-        self.is_page = (control_type == uia.UIA_DocumentControlTypeId
-                        or PAGE_WINDOW_CLASS_PART in (element.CachedClassName or ""))
-        self.is_active = self.is_tab and element.GetCurrentPropertyValue(
-            uia.UIA_SelectionItemIsSelectedPropertyId) is True
-        self._automation = automation
-        self._element = element
-
-    def children(self) -> list[_Node]:
-        automation = self._automation
-        found = []
-        child = automation.walker.GetFirstChildElementBuildCache(self._element, automation.read_with_each_node)
-        while child:
-            found.append(_Node(automation, child))
-            child = automation.walker.GetNextSiblingElementBuildCache(child, automation.read_with_each_node)
-        return found
-
-    def switch_to(self) -> None:
-        uia = self._automation.uia
-        self._element.GetCurrentPattern(uia.UIA_LegacyIAccessiblePatternId).QueryInterface(
-            uia.IUIAutomationLegacyIAccessiblePattern).DoDefaultAction()
+    def window(self, hwnd: int) -> UiaNode:
+        return UiaNode.of(self, self.client.ElementFromHandleBuildCache(hwnd, self.read_with_each_node))
