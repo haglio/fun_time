@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.modes import VideoShapes
-from fun_time.vr_videos import is_vr_video, keep_shapes
+from fun_time.vr_videos import VR_FILENAME_TOKENS, is_vr_video, keep_shapes
 
 
 class TestIsVrVideo:
@@ -19,6 +19,14 @@ class TestIsVrVideo:
 
     def test_a_sibling_dir_whose_name_merely_starts_the_same_is_outside(self, tmp_path: Path):
         assert not is_vr_video(tmp_path / "vr_old" / "scene.mp4", [tmp_path / "vr"])
+
+
+class TestFilenameTokens:
+    def test_fisheye_is_read_before_the_180_tokens_a_fisheye_master_also_carries(self):
+        fisheye = VR_FILENAME_TOKENS.index("fisheye")
+
+        assert fisheye < VR_FILENAME_TOKENS.index("_180")
+        assert fisheye < VR_FILENAME_TOKENS.index("180_")
 
 
 class TestKeepShapes:

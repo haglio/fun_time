@@ -92,6 +92,18 @@ class TestSamplingCadence:
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
+    def test_resuming_from_a_pause_does_not_sample_off_cadence(self, tmp_path):
+        sampler = make_sampler(tmp_path)
+        video = _make_video(tmp_path, "alpha.mp4")
+
+        _publish(tmp_path / "portrait_status.txt", video, fraction=0.9)
+        sampler.sample_due(now=100.0, paused=False)
+        sampler.sample_due(now=100.6, paused=True)
+        _publish(tmp_path / "portrait_status.txt", tmp_path / "beta.mp4", fraction=0.0)
+        sampler.sample_due(now=100.7, paused=False)
+
+        assert load_watch_stats(tmp_path / "watch_stats.json") == {}
+
 
 class TestTheMainFunestra:
     def _sample(self, sampler, at: float) -> None:
