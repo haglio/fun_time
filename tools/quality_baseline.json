@@ -248,7 +248,7 @@
   "reach_chains": {
     "fun_time/audio_companion_app.py": 20,
     "fun_time/audio_companion_runtime.py": 6,
-    "fun_time/chrome_accessibility.py": 13,
+    "fun_time/chrome_accessibility.py": 5,
     "fun_time/chrome_tabs.py": 8,
     "fun_time/config.py": 28,
     "fun_time/dashboard_app.py": 66,
@@ -316,7 +316,7 @@
     "fun_time_vr/surfaces.py": 1,
     "fun_time_vr/thumbs.py": 1,
     "fun_time_vr/video_thread.py": 16,
-    "fun_time_vr/vr_session.py": 9,
+    "fun_time_vr/vr_session.py": 7,
     "main_funestra/clip_jumps.py": 26,
     "main_funestra/clip_nav.py": 10,
     "main_funestra/genau.py": 24,
