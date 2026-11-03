@@ -27,7 +27,7 @@ def test_the_real_loading_screen_is_on_screen_for_the_whole_teardown(tmp_path: P
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
-    with _closing_screen(state_dir, enabled=True, sibling_checkouts=this_checkouts_siblings(),
+    with _closing_screen(state_dir, sibling_checkouts=this_checkouts_siblings(),
                          now=run_clock.now) as progress:
         assert find_window_by_title(WINDOW_TITLE, exact=True), (
             "the loading screen was not on screen when teardown was let go"
@@ -46,7 +46,7 @@ def test_the_real_loading_screen_stays_up_while_a_part_takes_longer_than_its_gua
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
-    with _closing_screen(state_dir, enabled=True, sibling_checkouts=this_checkouts_siblings(),
+    with _closing_screen(state_dir, sibling_checkouts=this_checkouts_siblings(),
                          now=run_clock.now) as progress:
         progress.advance("funestras")
         with progress.loading_screen_kept_up():
