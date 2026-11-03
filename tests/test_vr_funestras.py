@@ -2357,12 +2357,12 @@ def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
     with patch("fun_time_vr.funestras.FrameTexture"):
         dash = _DashUnit(
             _slot(wrapped=wrapped),
+            SimpleNamespace(dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                            dashboard_state_file=tmp_path / "dashboard_state.ini",
+                            state_dir=tmp_path),
             remembered=remembered or {},
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             messages=MessageBoard(tmp_path / "event_log.jsonl"),
-            dashboard_state_file=tmp_path / "dashboard_state.ini",
             reference_flag=tmp_path / REFERENCE_OPEN_FILENAME,
-            state_dir=tmp_path,
         )
     if texture is not None:
         dash.texture = texture
@@ -2553,17 +2553,22 @@ class _FakeLibraryHost:
 
 def _a_library(tmp_path, host, remembered=None, metadata_root=None, genau_has_the_slot=False):
     with patch("fun_time_vr.funestras.FrameTexture"):
+        manifest = SimpleNamespace(
+            commands=SimpleNamespace(
+                main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+                main_funestra_status_file=tmp_path / "main_player_status.txt",
+                genau_cmd_file=tmp_path / "genau_cmd.txt",
+                genau_status_file=tmp_path / "genau_status.txt",
+                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            ),
+            regen=SimpleNamespace(metadata_root="" if metadata_root is None else str(metadata_root)),
+        )
         return _LibraryUnit(
+            manifest,
             remembered=remembered or {},
             flag=tmp_path / LIBRARY_OPEN_FILENAME,
             host=host,
-            main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-            main_funestra_status_file=tmp_path / "main_player_status.txt",
-            genau_cmd_file=tmp_path / "genau_cmd.txt",
-            genau_status_file=tmp_path / "genau_status.txt",
             genau_has_the_slot=lambda: genau_has_the_slot,
-            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-            metadata_root=metadata_root,
         )
 
 

@@ -869,20 +869,19 @@ class _DashUnit:
         MAIN_HUD: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=_DASH_WIDTH_DEG),
     }
 
-    def __init__(self, main_unit: _MainUnit, *,
-                 remembered: Mapping[str, Placement], dashboard_cmd_file: Path,
-                 messages: MessageBoard, dashboard_state_file: Path,
-                 reference_flag: Path, state_dir: Path) -> None:
+    def __init__(self, main_unit: _MainUnit, commands, *,
+                 remembered: Mapping[str, Placement], messages: MessageBoard,
+                 reference_flag: Path) -> None:
         self._main_unit = main_unit
         self._messages = messages
-        self._state_file = dashboard_state_file
+        self._state_file = Path(commands.dashboard_state_file)
         self._reference_flag = reference_flag
         self._floating = _at_the_dashs_own_width(remembered.get(DASH, self.SPOTS[DASH]))
         self._wrapped = _at_the_dashs_own_width(remembered.get(MAIN_HUD, self.SPOTS[MAIN_HUD]))
         self._pointer = DashPointer(
-            post=lambda command: append_command(dashboard_cmd_file, command))
+            post=lambda command: append_command(Path(commands.dashboard_cmd_file), command))
         self._shown_as = preview_marker.shown_as()
-        self._osr2 = Osr2PartReader(state_dir)
+        self._osr2 = Osr2PartReader(Path(commands.state_dir))
         self._presses = _Presses(DASH)
         self._lock = threading.Lock()
         self._bar_and_log = None
@@ -1046,21 +1045,20 @@ class _LibraryUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
 
     def __init__(
-        self, *, remembered: Mapping[str, Placement], flag: Path, host,
-        main_funestra_cmd_file: Path, main_funestra_status_file: Path,
-        genau_cmd_file: Path, genau_status_file: Path, genau_has_the_slot: Callable[[], bool],
-        dashboard_cmd_file: Path, metadata_root: Path | None,
+        self, manifest: LaunchManifest, *, remembered: Mapping[str, Placement], flag: Path, host,
+        genau_has_the_slot: Callable[[], bool],
     ) -> None:
+        commands = manifest.commands
         self._flag = flag
         self._host = host
-        self._main_funestra_cmd_file = main_funestra_cmd_file
-        self._metadata_root = metadata_root
-        self._main_funestra_status_file = main_funestra_status_file
-        self._genau_cmd_file = genau_cmd_file
-        self._genau_status_file = genau_status_file
+        self._main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
+        self._metadata_root = _metadata_root(manifest)
+        self._main_funestra_status_file = Path(commands.main_funestra_status_file)
+        self._genau_cmd_file = Path(commands.genau_cmd_file)
+        self._genau_status_file = Path(commands.genau_status_file)
         self._genau_has_the_slot = genau_has_the_slot
         self._browsing_flicks = False
-        self._dashboard_cmd_file = dashboard_cmd_file
+        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
         self._shown = ShownWhileAsked()
         self._presses = _Presses(LIBRARY)
         self._lock = threading.Lock()
@@ -1711,25 +1709,18 @@ def hang_the_room(
     reference_flag = state_dir / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
         main_unit,
+        commands,
         remembered=remembered.placements,
-        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         messages=messages,
-        dashboard_state_file=Path(commands.dashboard_state_file),
         reference_flag=reference_flag,
-        state_dir=Path(commands.state_dir),
     )
     main_hud_unit = _MainHudUnit(main_unit, dash)
     library = _LibraryUnit(
+        manifest,
         remembered=remembered.placements,
         flag=state_dir / LIBRARY_OPEN_FILENAME,
         host=LibraryHost(manifest_path=manifest_path, state_dir=state_dir),
-        main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        main_funestra_status_file=Path(commands.main_funestra_status_file),
-        genau_cmd_file=Path(commands.genau_cmd_file),
-        genau_status_file=Path(commands.genau_status_file),
         genau_has_the_slot=lambda: not main_unit.owns_the_slot,
-        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        metadata_root=_metadata_root(manifest),
     )
     return TheRoom(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
