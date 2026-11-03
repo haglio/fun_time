@@ -36,12 +36,12 @@ def _show_error_popup(message: str) -> None:
     # Qt loads only for this: a headset session draws through OpenXR.
     from shared_ui.alert import show_alert  # noqa: PLC0415
 
-    show_alert("FunTimeVR", message,
+    show_alert(vr_runtime.APP_NAME, message,
                icon=preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="The FunTimeVR headset process (one OpenXR scene, three Funestras)")
+    parser = argparse.ArgumentParser(description="The Fun Time VR headset process (one OpenXR scene, three Funestras)")
     parser.add_argument("--manifest", type=Path, required=True,
                         help="The windows bridge manifest INI the orchestrator wrote")
     return parser

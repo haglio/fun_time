@@ -614,7 +614,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--vr",
         action="store_true",
-        help="Aim at the headset: FunTimeVR's orchestrator instead of the desktop one, "
+        help="Aim at the headset: Fun Time VR's orchestrator instead of the desktop one, "
              "and a launcher named for it. Applies to --shortcut and to running a session.",
     )
     return ap

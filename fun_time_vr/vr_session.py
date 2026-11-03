@@ -33,6 +33,7 @@ from .gl_contexts import SharedContexts, hidden_gl_window
 from .pointer import LEFT, RIGHT, HandInput
 from .retiring import RetiredSwapchain, advance_retirements
 from .view_tracking import views_are_renderable, views_are_tracked
+from .vr_runtime import APP_NAME
 
 if TYPE_CHECKING:
     from .frame_loop import QuadLayer
@@ -53,7 +54,7 @@ _NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
 
 
 class VRSession:
-    def __init__(self, *, app_name: str = "FunTimeVR") -> None:
+    def __init__(self, *, app_name: str = APP_NAME) -> None:
         self.running = True
         self._window = None
         self._instance = None
@@ -149,7 +150,7 @@ class VRSession:
                 self._instance,
                 xr.ActionSetCreateInfo(
                     action_set_name="fun_time_vr",
-                    localized_action_set_name="FunTimeVR Controls",
+                    localized_action_set_name="Fun Time VR Controls",
                     priority=0,
                 ),
             )

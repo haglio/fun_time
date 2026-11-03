@@ -140,7 +140,7 @@ def test_a_crossing_to_the_headset_names_itself(tmp_path):
 
     reason = (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
     assert "crossing" in reason
-    assert "FunTimeVR" in reason
+    assert "Fun Time VR" in reason
 
 
 def test_a_marker_from_a_session_that_was_cut_off_is_not_worn_by_the_next(

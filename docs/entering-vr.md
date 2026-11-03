@@ -1,6 +1,6 @@
 # Entering VR
 
-Fun Time and FunTimeVR are one session in two shapes. Both read the same config
+Fun Time and Fun Time VR are one session in two shapes. Both read the same config
 and the same state dir, run the same dispatch loop, voice control and AHK
 bridge, and drive the same OSR2 broker; the difference is that a VR session
 hosts every visual role inside one headset process instead of the Main Funestra, Genau and
@@ -118,7 +118,7 @@ starts, and everything the two sessions share is already on disk.
 
 A crossing tears one session down and builds another, and the covers each
 session raises go with it — so the monitors went bare between them, and the
-first thing "enter VR" showed was the desktop closing and FunTimeVR starting up
+first thing "enter VR" showed was the desktop closing and Fun Time VR starting up
 in the space it left.
 
 The transition screen is what spans that stretch. It is raised by the session that
@@ -126,11 +126,11 @@ is LEAVING and taken down by the one that ARRIVES, which is the one thing the
 closing screen cannot do:
 
 - **Entering VR.** The desktop's teardown raises it instead of its closing
-  screen, saying "Entering VR...", and leaves it standing. FunTimeVR's own
+  screen, saying "Entering VR...", and leaves it standing. Fun Time VR's own
   loading screen comes up in the headset meanwhile, so both devices are covered
   at once. The loading screen comes down when the VR session reveals — the headset is
   showing content by then, which is the moment it was waiting for.
-- **Leaving VR.** FunTimeVR's teardown loading screen hangs in the headset, so the
+- **Leaving VR.** Fun Time VR's teardown loading screen hangs in the headset, so the
   monitors get a transition screen of their own, saying "Returning to Fun Time...".
   The arriving desktop session hands over to its own loading screen the moment
   that is painted, rather than at its reveal, where a transition screen would spend

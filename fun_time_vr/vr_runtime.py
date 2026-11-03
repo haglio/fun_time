@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 SOUND_DEVICES_BEFORE_NAME = "vr_sound_devices_before.json"
 
-APP_NAME = "FunTimeVR"
+APP_NAME = "Fun Time VR"
 
 STARTUP_TIMEOUT_S = 45.0
 POLL_S = 1.0
@@ -49,12 +49,12 @@ class Readiness(Enum):
 _EXPLANATIONS = {
     Readiness.NO_HEADSET: (
         "No VR headset is answering.\n\n"
-        "Power the headset on and connect it, then start FunTimeVR again."
+        "Power the headset on and connect it, then start Fun Time VR again."
     ),
     Readiness.NO_RUNTIME: (
         "No OpenXR runtime is available.\n\n"
         "Install or start your VR runtime (PimaxXR, SteamVR), then start "
-        "FunTimeVR again."
+        "Fun Time VR again."
     ),
 }
 

@@ -281,25 +281,25 @@ _SECTIONS: tuple[_Section, ...] = (
                 "fisheye, stereographic, equisolid, rectilinear, 360 — remembered per "
                 "video; a controller's stick pushed right or left steps forward or "
                 "back through them, and while the video wraps the view its up and "
-                "down shortens or stretches the video (FunTimeVR)",
+                "down shortens or stretches the video (Fun Time VR)",
                 ("P",),
                 ("projection_cycle", "projection_cycle_back"),
             ),
             _Row(
                 "Narrow / widen the angle a wrapped VR video spans, remembered per "
-                "video (FunTimeVR)",
+                "video (Fun Time VR)",
                 ("Alt+Left", "Alt+Right"),
                 ("projection_narrower", "projection_wider"),
             ),
             _Row(
                 "Recenter the VR scene onto wherever the headset faces now "
-                "(FunTimeVR)",
+                "(Fun Time VR)",
                 ("Z",),
                 ("recenter_view",),
             ),
             _Row(
                 "Tilt the VR screens up / down and level them again — squeezing "
-                "a trigger and moving the controller turns and tilts them too (FunTimeVR)",
+                "a trigger and moving the controller turns and tilts them too (Fun Time VR)",
                 ("PgUp", "PgDn", "Shift+Z"),
                 ("tilt_up", "tilt_down", "tilt_reset"),
             ),

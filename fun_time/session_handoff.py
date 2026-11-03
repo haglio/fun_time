@@ -77,7 +77,7 @@ DESKTOP = HandoffTarget(
 )
 VR = HandoffTarget(
     key="vr",
-    app_name="FunTimeVR",
+    app_name="Fun Time VR",
     module="fun_time_vr.orchestrator",
     launcher_log="vr_launcher.log",
     ready_marker="vr_launcher.ready",

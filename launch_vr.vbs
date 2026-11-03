@@ -17,7 +17,7 @@ Else
 End If
 
 Sub Decide()
-  app = "FunTimeVR"
+  app = "Fun Time VR"
   logPath = fso.BuildPath(root, "state\vr_launcher.log")
   readyFile = fso.BuildPath(root, "state\vr_launcher.ready")
   exitedFlag = fso.BuildPath(root, "state\vr_launcher.exited")

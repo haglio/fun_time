@@ -16,7 +16,7 @@ _NOT_READY = (
     "device never became ready.\n\nError: {error}"
 )
 _NO_SESSION = (
-    "Could not start a VR session.\n\nThe headset answered, but FunTimeVR could "
+    "Could not start a VR session.\n\nThe headset answered, but Fun Time VR could "
     "not open a session on it.\n\nError: {error}"
 )
 

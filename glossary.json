@@ -8,7 +8,8 @@
     "code_today": "the words the code says for it now; each has to be in the code, or the row is stale",
     "code_word": "the one word the code is to say for it; null while unruled",
     "status": "ruled: his word, given where `ruled` says | his_word: a word he has used, not yet put to him as the code's | agreed: screen, user and code already say one word | unruled: no word of his yet, the row waits for him | kept: a name from outside this app, or a thing he has no word for, so the code keeps its own",
-    "retired": "code words for it that are gone and stay gone; `keep` lists the tokens that may still carry the letters (another thing's name)"
+    "retired": "code words for it that are gone and stay gone; `keep` lists the tokens that may still carry the letters (another thing's name)",
+    "spellings_gone": "ways of writing its name that stay out of every file a person reads, matched as written; `spellings_kept` lists what a program must find spelled that way (a file's name, a scheduled task, a taskbar identity)"
   },
   "things": [
     {
@@ -557,6 +558,30 @@
       ],
       "code_word": null,
       "status": "kept"
+    },
+    {
+      "id": "the_apps_names",
+      "thing": "the app's name wherever a person reads it, on the desktop and in the headset",
+      "screen": [
+        "Enter VR — end this session and open Fun Time VR"
+      ],
+      "his_word": "Fun Time and Fun Time VR, with their spaces (2026-11-03)",
+      "code_today": [
+        "Fun Time",
+        "Fun Time VR"
+      ],
+      "code_word": "Fun Time VR",
+      "status": "ruled",
+      "ruled": "2026-11-03, his words",
+      "spellings_gone": [
+        "FunTimeVR",
+        "FunTime"
+      ],
+      "spellings_kept": [
+        "FunTime-",
+        "FunTime.",
+        "FunTime Genau Broker"
+      ]
     }
   ]
 }

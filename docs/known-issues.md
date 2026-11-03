@@ -1,6 +1,6 @@
 # Known Issues
 
-## FunTimeVR: The First Seconds Of A Launch Are Not Covered
+## Fun Time VR: The First Seconds Of A Launch Are Not Covered
 
 - Status: Deferred (2026-09-07)
 - Symptom: Between double-clicking Fun Time VR and the loading screen appearing, the
@@ -24,7 +24,7 @@
     before the Funestra is launched, so the bar is where the launch actually is
     from the very first frame the headset can show.
 
-## FunTimeVR: What a VR Session Does Not Launch
+## Fun Time VR: What a VR Session Does Not Launch
 
 - Status: Deferred
 - Scope:

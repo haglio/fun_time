@@ -198,7 +198,7 @@ def test_ensure_ready_gives_up_after_the_timeout(tmp_path):
 def test_explain_tells_the_user_to_power_on_a_missing_headset():
     message = explain(Probe(Readiness.NO_HEADSET, detail="not plugged in"))
     assert "headset" in message.lower()
-    assert "FunTimeVR" in message
+    assert "Fun Time VR" in message
     assert "not plugged in" in message
 
 

@@ -1,6 +1,6 @@
 # Why a VR Session Now Quits the Pimax Runtime
 
-**Symptom (2026-09-03):** after FunTimeVR or GenauVR ended, the headset stayed
+**Symptom (2026-09-03):** after Fun Time VR or GenauVR ended, the headset stayed
 powered on. Turning it off meant starting Pimax Play by hand purely so it could
 be quit. Other VR apps did not leave it that way — the user starts Pimax Play
 himself for those, sees it, and quits it.
@@ -72,7 +72,7 @@ client is a window onto services that outlive it, so a session reading the
 client could mistake an already-lit headset for one of its own. A runtime that
 was already up is the user's and is left alone.
 
-In FunTimeVR the reading and the quit both live in `fun_time_vr.orchestrator`,
+In Fun Time VR the reading and the quit both live in `fun_time_vr.orchestrator`,
 not in the Funestra: the orchestrator kills the Funestra outright at session end,
 so nothing in the Funestra's own teardown can be relied on to run. GenauVR's app
 is one process that exits normally, so it does both itself.
