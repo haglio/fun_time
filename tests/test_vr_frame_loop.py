@@ -1,5 +1,3 @@
-"""The headset's frame loop, run against a session, a renderer and a room that
-need no headset: what each frame shows, the loading screen, and the way the room comes down."""
 from __future__ import annotations
 
 import logging
@@ -132,8 +130,6 @@ def _a_headset(session=None, renderer=None) -> Headset:
 
 
 class _ALoadingScreen:
-    """The loading screen as the loop reads it: what it shows, and what it is told."""
-
     def __init__(self, *, showing=True, wanted=True, screen_ready=True):
         self.showing = showing
         self.wanted = wanted
@@ -246,11 +242,11 @@ class TestRaisingTheLoadingScreen:
         raise_the_loading_screen(_a_headset(session), _ALoadingScreen(), clock=clock, sleep=clock.sleep)
 
         assert [project for _at, project, _quads in session.ended] == [False, True]
-        assert len(session.frames) == 1  # the third frame was never asked for
+        assert len(session.frames) == 1
 
     def test_it_gives_up_once_the_first_frame_has_had_its_time(self):
         clock = _AClock()
-        session = _ASession(ready=True)  # every frame ends unshown
+        session = _ASession(ready=True)
 
         raise_the_loading_screen(_a_headset(session), _ALoadingScreen(), clock=clock, sleep=clock.sleep)
 
@@ -513,7 +509,7 @@ class TestShowingTheRoom:
 
         loop, glfw = self._show(session, the_room)
 
-        assert len(loop.arranging.asked) == 3  # the pass that heard the stop still draws
+        assert len(loop.arranging.asked) == 3
         assert glfw.polled == 3
 
     def test_a_closed_window_ends_it(self):
@@ -578,7 +574,7 @@ class TestTearingDown:
         ask_for_the_hold(tmp_path, stop_runtime=False)
         session, the_room = _ASession(_a_frame(), _a_frame()), _ARoom(_ALoadingScreen())
         polls = []
-        session.poll_events = lambda: (  # the closing screen polls once first
+        session.poll_events = lambda: (
             polls.append(1), release_the_headset(tmp_path) if len(polls) == 2 else None)
         stopped = []
 

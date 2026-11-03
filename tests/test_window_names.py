@@ -17,18 +17,12 @@ from fun_time.window_names import (
 
 
 class TestRoleTopmost:
-    """The windows with their own rect are always topmost.  The two that SHARE
-    the browser's rect are each topmost only while they are showing something."""
-
     def test_every_window_with_its_own_rect_is_always_topmost(self):
         for window_name in FIXED_TOPMOST_WINDOWS:
             for rfb_mode in RfbMode:
                 assert window_is_topmost(window_name, rfb_mode) is True, (window_name, rfb_mode)
 
     def test_window_groups_partition_the_managed_set(self):
-        """The Main Funestra is among the windows with a rect of their own: Kino
-        and Genau both run on it, so the Main Funestra has no hidden half to keep
-        out of the band."""
         assert set(MANAGED_WINDOWS) == {
             "rfb", "portrait", "landscape", "main_funestra", "dashboard", "origenerator",
         }
@@ -45,31 +39,19 @@ class TestVisibleRoles:
             "portrait", "landscape", "dashboard", "main_funestra", "rfb"}
 
     def test_origenerator_in_the_browsers_place_counts_the_browser_under_it(self):
-        """Covered, not parked: omniminimize takes the browser down with the rest,
-        and omnirestore brings it back under the hosted window."""
         assert set(visible_windows(RfbMode.ORIGENERATOR)) == set(MANAGED_WINDOWS)
 
 
 class TestOrigeneratorRoles:
-    """The hosted Origenerator's window joins the managed set, over the RFB's
-    rect.  It is in the topmost band only while it holds the browser's place —
-    and it is promoted AFTER the fixed roles, which is what stacks it above the
-    window it covers."""
-
     def test_the_hosted_window_follows_what_holds_the_browsers_place(self):
         assert window_is_topmost(ORIGENERATOR_WINDOW, RfbMode.ORIGENERATOR) is True
         assert window_is_topmost(ORIGENERATOR_WINDOW, RfbMode.RFB) is False
 
     def test_the_browser_leaves_the_band_while_the_hosted_window_covers_it(self):
-        """Promoting a window that is completely covered only puts it briefly
-        ABOVE its loading screen — HWND_TOPMOST inserts at the top of the band — so every
-        re-band flashed the browser over Origenerator on its way past."""
         assert window_is_topmost("rfb", RfbMode.RFB) is True
         assert window_is_topmost("rfb", RfbMode.ORIGENERATOR) is False
 
     def test_the_hosted_window_is_promoted_after_the_one_it_covers(self):
-        # HWND_TOPMOST inserts at the top of the band, so a later promotion
-        # wins: the hosted window must come after the fixed roles.
         assert MANAGED_WINDOWS.index(ORIGENERATOR_WINDOW) > MANAGED_WINDOWS.index("rfb")
 
 

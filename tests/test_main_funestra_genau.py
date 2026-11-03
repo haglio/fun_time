@@ -1,5 +1,3 @@
-"""Genau as it runs on the Main Funestra: its own channel, its own frames, its
-own status, over a fabricated flicks folder whose decode hands back numbered frames."""
 from __future__ import annotations
 
 import json
@@ -46,8 +44,6 @@ def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray
 
 
 def _run_now(*, target, args=(), name=""):
-    """The loader's thread runs on the spot; the UDP reader, which would bind a
-    port and loop, is not started at all."""
     if name == "genau-udp":
         return
     target(*args)
@@ -353,8 +349,6 @@ class TestItsFrame:
         assert len(world.sink.sent) > sent_before
 
     def test_the_frame_carries_the_flicks_time_on_screen(self, tmp_path):
-        """Genau opens with its flick held and nothing elapsed of the ten
-        seconds a flick gets."""
         world = World(tmp_path)
         world.tick(0.05)
 
@@ -397,9 +391,6 @@ def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):
 
 
 class TestTurnedAsAsked:
-    """The HUD's portrait and landscape pair, said to Genau on the Main
-    Funestra's channel, over the orientations Evolver measured its flicks in."""
-
     _TURNED = (("alpha one.mp4", "portrait"), ("beta two.mp4", "landscape"))
 
     def _world(self, tmp_path, **over) -> World:

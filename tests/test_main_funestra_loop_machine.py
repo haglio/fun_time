@@ -15,8 +15,6 @@ from main_funestra.loop_machine import LoopMachine
 
 
 def _funscript() -> Funscript:
-    """Base actions (pos >= 95) at 0, 2000 and 4000: what a mark of 2500..3500
-    snaps out to."""
     return Funscript(actions=[
         (0, 100), (1000, 0), (2000, 100), (3000, 0), (4000, 100),
     ])
@@ -37,7 +35,6 @@ class FakePlayback:
 
 
 def _loops(*, scripted: bool = True):
-    """A `LoopMachine` over a fake Funestra, plus what it asked of its owner."""
     playback = FakePlayback()
     seeks: list[float] = []
     takeovers: list[int] = []
@@ -92,8 +89,6 @@ class TestTheRecordGesture:
         assert seeks[-1] == 2000, "the playhead lands on the loop's start"
 
     def test_an_unscripted_video_loops_the_raw_range(self):
-        """Videos can be recorded without a funscript; only the snapping is
-        funscript-gated."""
         loops, playback, _seeks, _takeovers, _marks = _loops(scripted=False)
 
         loops.record_down(2500)
@@ -128,8 +123,6 @@ class TestTheRecordGesture:
         assert marks == [2500, None], "looping now, not marking"
 
     def test_the_funestra_is_told_where_the_mark_starts_and_when_it_closes(self):
-        """A Playback floors its seeks at the mark, so it hears of the mark the
-        moment it opens and again the moment it closes."""
         loops, _playback, _seeks, _takeovers, marks = _loops()
 
         loops.record_down(2500)
@@ -238,9 +231,6 @@ class TestLeavingALoop:
 
 
 class TestWhatEachTickOfThePlayheadDoes:
-    """`observe` is the half of a loop no gesture can say: a mark that ran to the
-    end of the file.  A clock that jumped is the Funestra's own to message."""
-
     def test_a_tick_while_nothing_is_marked_or_running_asks_for_nothing(self):
         loops, _playback, _seeks, takeovers, _marks = _loops()
 
@@ -274,8 +264,6 @@ class TestWhatEachTickOfThePlayheadDoes:
         assert (loops.marking, playback.ab_loop) == (True, None)
 
     def test_a_rewound_clock_is_not_the_loops_to_answer(self):
-        """Every Funestra here takes the device back on a rewind itself; a second
-        reset from the loop would re-arm the glide twice for one wrap."""
         loops, _playback, _seeks, takeovers, _marks = _loops()
         loops.restore(2000, 4000)
         loops.observe(3900)

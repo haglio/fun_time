@@ -1,4 +1,3 @@
-"""The browsable handles of the Main Funestra library — one per version group."""
 from __future__ import annotations
 
 import json
@@ -10,7 +9,6 @@ from tests.drive_fakes import files_that_never_answer
 
 
 def _library(tmp_path: Path) -> tuple[Path, Path]:
-    """A ``videos/videos`` library beside its ``videos/metadata`` sidecar tree."""
     videos = tmp_path / "videos" / "videos" / "main"
     metadata = tmp_path / "videos" / "metadata"
     videos.mkdir(parents=True)
@@ -52,8 +50,6 @@ def _sidecar(
 
 
 def test_the_recorded_kind_puts_a_video_in_the_excerpts_band(tmp_path: Path):
-    """Evolver records what every library video is; the browse reads that
-    rather than working it out again."""
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     whole = _video(videos, "big_batch/0 unsorted/whole.mp4")
@@ -72,8 +68,6 @@ def test_the_recorded_kind_puts_a_video_in_the_excerpts_band(tmp_path: Path):
 
 
 def test_a_recorded_whole_video_stays_out_of_a_folder_full_of_cuts(tmp_path: Path):
-    """The folder a video sits in is the last resort, not an override: it is
-    how a video with no record at all is read, and this one has a record."""
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     for index in range(3):
@@ -105,10 +99,6 @@ def test_files_sharing_a_recorded_version_group_become_one_handle(tmp_path: Path
 
 
 def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):
-    """Evolver records one family id for every file whose name begins the same
-    way, so a downloaded set arrived as one handle: five scenes showing as one,
-    with four of them reachable only by cycling versions inside a video they are
-    no version of.  The id still anchors the family; the number refines it."""
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     names = ("jane doe - example studio.mp4",
@@ -133,9 +123,6 @@ def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):
 def test_handles_are_alphabetical_regardless_of_case_or_folder(tmp_path: Path):
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
-    # One source folder, three pipeline stages under it, deliberately shelved so
-    # the folder walk yields gamma, beta, alpha — the order a folder browser
-    # would show, and the one a handle browser must not.
     for relative, group in (
         ("big_batch/0 unsorted/gamma.mp4", "Gamma Scene"),
         ("big_batch/1 could use work/beta.mp4", "Beta Scene"),
@@ -162,8 +149,6 @@ def test_a_version_group_leads_with_its_largest_file(tmp_path: Path):
 
 
 def test_the_version_order_reads_the_sizes_off_the_folders(tmp_path: Path):
-    """The browse opens on a drive that has stopped answering about its videos:
-    every size the order needs is in the folder listings already."""
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     original = _video(videos, "0 unsorted/beta.mp4", size=2048)
@@ -189,11 +174,6 @@ def test_a_video_with_no_recorded_family_stands_alone_under_its_own_name(tmp_pat
 
 
 def test_a_handle_plays_its_largest_version_but_thumbnails_its_smallest(tmp_path: Path):
-    """The thumbnail comes off the cheapest rendition to decode.
-
-    An upscale is many times the size of the original it came from — minutes
-    rather than seconds to open — for a video that is the same either way.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     original = _video(videos, "0 unsorted/beta.mp4", size=2048)
@@ -208,13 +188,6 @@ def test_a_handle_plays_its_largest_version_but_thumbnails_its_smallest(tmp_path
 
 
 def test_handles_are_sectioned_by_source_folder_biggest_first(tmp_path: Path):
-    """Videos group under the folder they come from, not the stage folder.
-
-    The top folder under a library source is where a video *came from* — a
-    source, a batch — which is the one thing about its path worth knowing; the
-    stage folders under it are still hidden.  Sections lead with the biggest, so
-    the bulk of the library is where the browse opens.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     for relative, group in (
@@ -252,12 +225,6 @@ def test_a_folder_that_never_divided_its_cuts_still_shows_full_and_clips(tmp_pat
 
 
 def test_a_folders_two_sections_stay_together_however_big_each_gets(tmp_path: Path):
-    """Section order ranks whole *folders*, not the bands inside them.
-
-    A folder whose cuts outnumber its videos many times over must not have those
-    cuts jump the queue over another folder entirely — the folders stay in size
-    order, and each one's videos and cuts stay adjacent, videos first.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"), library_root, "Beta Scene")
@@ -276,9 +243,6 @@ def test_a_folders_two_sections_stay_together_however_big_each_gets(tmp_path: Pa
 
 
 def test_a_band_is_named_after_the_folder_it_was_filed_into(tmp_path: Path):
-    """Two bands filed into two folders of their own are named after those
-    folders, so what the header reads and what Explorer shows are the same words.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
@@ -297,12 +261,6 @@ def test_a_band_is_named_after_the_folder_it_was_filed_into(tmp_path: Path):
 
 
 def test_a_folder_that_was_never_split_keeps_its_own_name(tmp_path: Path):
-    """Descending is only right where it separates the bands.
-
-    A folder holding whole videos alone must stay named after itself — the
-    folders under it are pipeline stages, and naming a band after one of those
-    would put the browse back to reading stage names.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     for relative in ("small_batch/0 unsorted/alpha.mp4", "small_batch/3_good_to_go/beta.mp4"):
@@ -314,12 +272,6 @@ def test_a_folder_that_was_never_split_keeps_its_own_name(tmp_path: Path):
 
 
 def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
-    """One clip still sitting in the old tree must not drag the band's name back.
-
-    A move of hundreds of files can strand one — held open by the running
-    session — and the band is still, in every sense that matters, the folder the
-    rest of it is in.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"),
@@ -391,11 +343,6 @@ def test_unrecorded_cuts_outnumbering_the_whole_videos_reclassify_nothing(tmp_pa
 
 
 def test_a_cut_with_no_record_still_goes_with_the_cuts_it_sits_among(tmp_path: Path):
-    """A sidecar that never got the ``clip`` record must not send a cut to the
-    whole videos — beside the very scene it was carved out of, which is the one
-    place the browse exists to keep cuts out of.  The folder its librarian filed
-    it into holds nothing but cuts, so it settles what the record left unsaid.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     for index in range(3):
@@ -420,12 +367,6 @@ def test_a_cut_with_no_record_still_goes_with_the_cuts_it_sits_among(tmp_path: P
 
 
 def test_a_folder_that_never_separated_its_cuts_reclassifies_nothing(tmp_path: Path):
-    """The fallback reaches only where the librarian already drew the line.
-
-    With no cuts folder to sit in, the folders under a source folder are the
-    pipeline's own stages — and a stage standing in for a division of the
-    library is exactly what this browse exists not to do.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     _sidecar(metadata, _video(videos, "big_batch/0 unsorted/beta.mp4"),
@@ -445,12 +386,6 @@ def test_a_folder_that_never_separated_its_cuts_reclassifies_nothing(tmp_path: P
 
 
 def test_an_unrecorded_video_among_whole_ones_is_left_where_it_is(tmp_path: Path):
-    """Only the cuts folder pulls a video across — the whole videos' one cannot.
-
-    The fallback answers "is this a cut?" and nothing else, so a video with no
-    record sitting among whole videos stays a whole video, which is also what it
-    was before there was a fallback at all.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     for index in range(2):
@@ -472,12 +407,6 @@ def test_an_unrecorded_video_among_whole_ones_is_left_where_it_is(tmp_path: Path
 
 
 def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_path: Path):
-    """Each source folder's line is its own — they are different librarians.
-
-    Two folders can use the same word for different things, so a folder that
-    files its cuts under one name says nothing about a same-named folder
-    somewhere else in the library.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     for index in range(2):
@@ -494,13 +423,6 @@ def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_p
 
 
 def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Path):
-    """A cut and its source scene share a recorded family, and must not share a
-    handle.  Evolver ties an excerpt to the scene it came out of with the same
-    ``version.group``, but they are not two renditions of one video — one is a
-    piece of the other.  Folded together, the cut vanishes: the whole scene is
-    the larger file, so it takes the handle, the title and the folder, and the
-    excerpt is left reachable only by cycling versions inside the scene.
-    """
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     excerpt = _video(videos, "big_batch/cuts/0 unsorted/beta_cut.mp4", size=64)
@@ -517,9 +439,6 @@ def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Pat
 
 
 def test_a_tile_is_labelled_with_the_name_evolver_recorded(tmp_path: Path):
-    """Which is the movie and who is in it -- what the file is called says
-    neither, and a scene wears the name of the clip cut out of it, which no
-    reader here could work out without walking the whole library."""
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     scene = _video(videos, "big_batch/0 unsorted/Jane-Doe_540-hQ2vLm8t.mp4", size=4096)
@@ -535,7 +454,6 @@ def test_a_tile_is_labelled_with_the_name_evolver_recorded(tmp_path: Path):
 
 
 def test_a_tile_evolver_has_not_named_falls_back_to_the_family_then_the_file(tmp_path: Path):
-    """A library it has not been over yet still browses, under the names it has."""
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
     grouped = _video(videos, "big_batch/3 good to go/Jane-Doe_540-hQ2vLm8t_apo8.mp4")
@@ -571,8 +489,6 @@ def test_the_headsets_vr_videos_get_a_folder_beside_the_flat_ones(tmp_path: Path
 
 
 def test_vr_videos_sitting_straight_in_their_folder_are_in_the_vr_folder(tmp_path: Path):
-    """Loose in their folder, they had no section, and a root that divides
-    shows its folders and never its loose videos."""
     vr, flat = _headset_library(tmp_path)
 
     handles = handles_by_shape(f"{vr}|{flat}", str(vr), None)

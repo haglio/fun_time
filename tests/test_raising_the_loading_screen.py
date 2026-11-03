@@ -37,9 +37,6 @@ def _opened_loading_screen(state_dir, *, cancelable=True, popen=None):
 
 
 class TestWhatTheLoadingScreenSaysBeforeTheScreenIsUp:
-    """The launch's own work runs under the loading screen, so the loading screen's first line is
-    written before the screen that reads it exists."""
-
     def test_the_first_phase_is_on_disk_before_the_screen_is_launched(self, tmp_path: Path):
         written: list[str] = []
         popen = MagicMock(side_effect=lambda *_a, **_kw: written.append(
@@ -50,8 +47,6 @@ class TestWhatTheLoadingScreenSaysBeforeTheScreenIsUp:
         assert parse_progress(written[0]).message == STARTUP_PHASES[0].message
 
     def test_a_done_a_crash_left_there_cannot_close_the_new_loading_screen(self, tmp_path: Path):
-        """The screen closes on DONE, so a leftover one read on its first poll
-        would take the loading screen off a launch that had only just raised it."""
         (tmp_path / PROGRESS_FILENAME).write_text("DONE", encoding="utf-8")
 
         loading_screen = _opened_loading_screen(tmp_path)
@@ -92,8 +87,6 @@ class TestTheLaunchersLoadingScreen:
 
 
 def test_the_loading_screen_goes_the_moment_the_fun_time_that_raised_it_does(tmp_path: Path):
-    """His answer when asked whether a crashed Fun Time's loading screen
-    should wait out its minute: no, it goes at once."""
     screen = MagicMock()
 
     with patch("fun_time.raising_the_loading_screen.tie_to_this_process") as tie:
@@ -112,8 +105,6 @@ class TestTakingTheLoadingScreenDown:
         assert not loading_screen.progress_file.exists()
 
     def test_a_screen_that_will_not_go_is_killed(self, tmp_path: Path):
-        """Its window is topmost over every monitor: left standing it hides
-        whatever the launch has to say, for a minute of staleness guard."""
         loading_screen = _opened_loading_screen(tmp_path)
         loading_screen.process.wait.side_effect = subprocess.TimeoutExpired("loading_screen", 3.0)
 
@@ -124,7 +115,7 @@ class TestTakingTheLoadingScreenDown:
     def test_a_session_with_no_loading_screen_takes_nothing_down(self, tmp_path: Path):
         loading_screen = open_the_loading_screen(tmp_path, show_overlays=False, sibling_checkouts="")
 
-        loading_screen.take_it_down()  # an integration run has no screen to tell
+        loading_screen.take_it_down()
 
         assert not loading_screen.progress_file.exists()
 
@@ -140,15 +131,11 @@ class TestWhatEscCancelsAtTheLoadingScreen:
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
 
     def test_a_launch_arriving_from_vr_says_esc_cancels_exiting_vr(self, tmp_path):
-        """He asked for the desktop from inside the headset: until it is up,
-        Esc takes him back into VR."""
         raise_transition_screen(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
 
     def test_a_launch_on_the_way_back_offers_no_esc(self, tmp_path):
-        """Esc already called the crossing off; a second would send him back
-        the other way for as long as he kept pressing it."""
         raise_transition_screen(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path, cancelable=False).hint == ""
@@ -156,8 +143,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
     def test_an_esc_pressed_while_the_app_changed_over_calls_the_arrival_off(
         self, tmp_path,
     ):
-        """Nothing but the hotkey script left over from the session he left was
-        listening then, and the flag it dropped is his answer to this launch."""
         raise_transition_screen(tmp_path, DESKTOP)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -166,13 +151,10 @@ class TestWhatEscCancelsAtTheLoadingScreen:
         assert loading_screen.progress.cancelled
 
     def test_the_first_line_is_not_a_checkpoint_the_flag_can_stop(self, tmp_path):
-        """That flag is answered where the teardown lives, at the first phase
-        with children to kill -- not here, where raising the loading screen would raise
-        past the launch instead."""
         raise_transition_screen(tmp_path, DESKTOP)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
-        loading_screen = _opened_loading_screen(tmp_path)  # must not raise
+        loading_screen = _opened_loading_screen(tmp_path)
 
         assert parse_progress(
             loading_screen.progress_file.read_text(encoding="utf-8")).message == STARTUP_PHASES[0].message
@@ -189,11 +171,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
 
 
 class TestEscOnTheWayBackFromACancelledCrossing:
-    """A launch that IS a crossing coming back cannot be cancelled.  Esc is what
-    called the crossing off; there is nowhere further back to go, and cancelling
-    here closed the app out from under him -- which is not what any number of
-    Escs may do."""
-
     def test_the_standing_loading_screen_is_what_says_this_is_a_return(self, tmp_path):
         assert not returning_from_a_crossing(tmp_path)
 
@@ -208,13 +185,6 @@ class TestEscOnTheWayBackFromACancelledCrossing:
 
 @pytest.mark.real_startup_waits
 class TestTheWayBackFromVr:
-    """Leaving VR, "Returning to Fun Time..." stands over the monitors until the
-    loading screen is up to take over from it.  The launch gives the loading
-    screen a few seconds; on a busy computer it came up later than that, and
-    "Returning to Fun Time..." had gone by then, so the desktop showed between
-    the two.
-    """
-
     @pytest.fixture
     def clock(self, monkeypatch) -> SleepDrivenClock:
         clock = SleepDrivenClock()
@@ -223,7 +193,6 @@ class TestTheWayBackFromVr:
 
     @staticmethod
     def _a_screen_seen_from(clock: SleepDrivenClock, seconds: float, monkeypatch) -> None:
-        """Its window exists before it is shown, and counts only once it can be seen."""
         def its_window(_pid, title, *, include_hidden=False) -> int:
             return 77 if title == WINDOW_TITLE and (include_hidden or clock.now >= seconds) else 0
 
@@ -248,8 +217,6 @@ class TestTheWayBackFromVr:
 
     def test_a_launch_with_nothing_to_hand_over_waits_only_the_usual_few_seconds(
             self, tmp_path, clock, monkeypatch):
-        """Nothing on the monitors is waiting on the loading screen then, and the
-        launch's own work is held for as long as it waits."""
         self._a_screen_seen_from(clock, raising_the_loading_screen.WINDOW_WAIT_S + 3.0, monkeypatch)
 
         self._launched(tmp_path)
@@ -268,7 +235,4 @@ class TestTheWayBackFromVr:
 
 
 def test_the_way_back_leaves_fun_time_most_of_the_time_the_crossing_gives_it():
-    """The crossing calls itself failed, and says so in an alert, when the
-    arriving Fun Time has not reported in within STARTUP_TIMEOUT_S -- and the
-    wait for the loading screen comes before that report."""
     assert raising_the_loading_screen.WINDOW_WAIT_UNDER_A_CROSSING_S <= STARTUP_TIMEOUT_S / 2

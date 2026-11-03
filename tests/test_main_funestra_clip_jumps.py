@@ -1,4 +1,3 @@
-"""The playlist moves a clip's sidecar makes possible, and the state one leaves."""
 from __future__ import annotations
 
 import json
@@ -26,16 +25,11 @@ def _clip(lib: Path, meta: Path, rel: str, comp: str, index: int,
 
 
 class FakePlayback:
-    """Records the playlist moves the jumps drive, in the Funestra's own shape:
-    a list of files, with the scripts named beside it."""
-
     def __init__(self, current: Path, playlist=None) -> None:
         self.current_video = current
         self.playlist = [item.path for item in (playlist or [PlaylistItem(current)])]
         self.replaced: list[list[PlaylistItem]] = []
         self.played: list[tuple[Path, Path | None]] = []
-        # A real playback only restarts when it opens an item; swapping the list
-        # around the clip on screen leaves this alone.
         self.loaded_first = 0
 
     def replace_playlist(self, playlist, funscripts=None) -> None:
@@ -61,7 +55,6 @@ class FakeMessages:
 
 
 def _world(tmp_path: Path):
-    """A Vol6 compilation of two clips, plus the scene one was taken from."""
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     first = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1,
                   "Scene Two", "Jane Doe")
@@ -81,13 +74,6 @@ def _jumps(nav, current: Path, funscripts=None, playlist=None):
 
 
 class CountingNav:
-    """A nav that notes every library walk asked of it, for the caching tests.
-
-    Each of these questions ranges over the whole library, and the HUD asks
-    several times a second, so what the tests are pinning is how MANY walks one
-    video costs -- hence a record of the calls rather than of the answers.
-    """
-
     def __init__(self, real) -> None:
         self._real = real
         self.asked: list[tuple[str, Path]] = []
@@ -110,9 +96,6 @@ class CountingNav:
 
 
 class TestWhatTheButtonsCanDoFromHere:
-    """The HUD draws its compilation and clip/scene buttons dim where a press
-    would do nothing, and only this Funestra can say which case it is in."""
-
     def test_a_clip_says_it_belongs_to_a_compilation(self, tmp_path):
         nav, first, _second, scene = _world(tmp_path)
 
@@ -126,14 +109,11 @@ class TestWhatTheButtonsCanDoFromHere:
         assert _jumps(nav, scene)[0].jump_to == "clip"
 
     def test_a_clip_whose_scene_is_not_in_the_library_says_nothing(self, tmp_path):
-        """The common case — most clips' source scenes were never kept."""
         nav, first, _second, _scene = _world(tmp_path)
 
         assert _jumps(nav, first)[0].jump_to == ""
 
     def test_the_library_is_walked_once_per_video_rather_than_per_ask(self, tmp_path):
-        """The HUD asks several times a second, and each answer walks the
-        clips against the scenes."""
         nav, _first, second, scene = _world(tmp_path)
         counting = CountingNav(nav)
 
@@ -148,15 +128,8 @@ class TestWhatTheButtonsCanDoFromHere:
 
 
 class TestResume:
-    """Reopening cannot be read off the playlist.  Fun Time rotates the resumed
-    file onto the video its Funestra last showed, but only when that video is in
-    the file — and a compilation's clips often are not, so the list comes back
-    leading with something else entirely.  The remembered clip is the anchor."""
-
     def test_the_remembered_volume_is_rebuilt_around_the_remembered_clip(self, tmp_path):
         nav, first, second, scene = _world(tmp_path)
-        # The resumed playlist leads with a video from the ordinary browse, and
-        # does not contain the clip that was on screen at all.
         jumps, session, _messages = _jumps(nav, scene, playlist=[PlaylistItem(scene)])
 
         jumps.resume("Vol6", second)
@@ -166,8 +139,6 @@ class TestResume:
         assert [video for video, _fs in session.replaced[-1]] == [first, second]
 
     def test_a_volume_the_remembered_clip_is_not_in_is_dropped(self, tmp_path):
-        """Something rebuilt rather than resumed, and the remembered pair belongs
-        to a session that is over."""
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, _messages = _jumps(nav, scene)
 
@@ -199,8 +170,6 @@ class TestResume:
 
 class TestEndCompilation:
     def test_the_video_on_screen_keeps_playing(self, tmp_path):
-        """Leaving is about what "next" will reach, not about what is playing —
-        the clip on screen carries on, now in the length mode's playlist."""
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
@@ -210,13 +179,9 @@ class TestEndCompilation:
 
         assert jumps.compilation == ""
         assert session.replaced[-1] == browse
-        assert session.loaded_first == 0  # nothing reloaded, so nothing restarted
+        assert session.loaded_first == 0
 
     def test_a_clip_the_length_mode_filtered_out_is_kept_anyway(self, tmp_path):
-        """A quarter of a volume's clips are non-canonical versions and so are
-        absent from the mode's own playlist.  Dropping them would mean leaving a
-        compilation yanked the video away — which is exactly what leaving must
-        not do."""
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
@@ -247,8 +212,6 @@ class TestPlayCompilation:
         assert messages.said == [("compilation: 2 clips", MessageLevel.NORMAL)]
 
     def test_remembers_which_compilation_is_holding_the_playlist(self, tmp_path):
-        """The HUD reports this; it is the state the Funestra could get stuck in
-        with nothing on screen naming it."""
         nav, _first, second, _scene = _world(tmp_path)
         jumps, _session, _messages = _jumps(nav, second)
 
@@ -267,8 +230,6 @@ class TestPlayCompilation:
         assert jumps.compilation == ""
 
     def test_leaving_forgets_it(self, tmp_path):
-        """Saying "clips" or reloading rebuilds the playlist from elsewhere, so
-        the compilation is no longer what is on screen."""
         nav, _first, second, _scene = _world(tmp_path)
         jumps, _session, _messages = _jumps(nav, second)
         jumps.play_compilation()
@@ -299,10 +260,6 @@ class TestSingleVideoJumps:
         assert messages.said == [("clip jump", MessageLevel.NORMAL)]
 
     def test_a_miss_says_so_rather_than_moving(self, tmp_path):
-        """Most clips' source movies are not in the library at all, so having
-        nowhere to go is the ordinary case — and silence is what left the Funestra
-        looking broken.  A warning, then, not an error: Fun Time flashes an error
-        red, and nothing here went wrong."""
         nav, first, _second, _scene = _world(tmp_path)
         jumps, session, messages = _jumps(nav, first)
 
@@ -312,8 +269,6 @@ class TestSingleVideoJumps:
         assert messages.said == [("full video not available", MessageLevel.WARNING)]
 
     def test_neither_jump_disturbs_the_compilation_it_is_inside(self, tmp_path):
-        """These two move to one video; only "compilation" replaces the playlist,
-        so the HUD must keep naming the volume you are still walking."""
         nav, _first, second, _scene = _world(tmp_path)
         jumps, _session, _messages = _jumps(nav, second)
         jumps.play_compilation()
@@ -324,17 +279,12 @@ class TestSingleVideoJumps:
 
 
 class TestWhatTheVideoIsCalled:
-    """The HUD's muted line under the status names the video, and the
-    library's record of it beats the filename wherever there is one."""
-
     def test_it_is_the_name_evolver_recorded_for_the_video(self, tmp_path):
         nav, first, _second, _scene = _world(tmp_path)
 
         assert _jumps(nav, first)[0].title == "Jane Doe - Scene Two"
 
     def test_the_name_rides_the_walk_the_buttons_already_paid_for(self, tmp_path):
-        """Naming the video asks the same question the buttons do -- which clip
-        belongs to this scene -- so it must not walk the library a second time."""
         nav, _first, second, _scene = _world(tmp_path)
         counting = CountingNav(nav)
 

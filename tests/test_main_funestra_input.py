@@ -1,9 +1,3 @@
-"""What arrives in a Funestra's window, and what it is taken to mean.
-
-The translation itself: which SDL event reaches the Funestra as a press, a
-release, a move or the window being closed -- and that a key reaches nothing,
-the room's keyboard being Fun Time's.
-"""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -46,8 +40,6 @@ def _deal(window_input, *events) -> None:
 
 class TestTheWindowBeingClosed:
     def test_a_quit_gesture_is_the_funestras_to_answer(self):
-        """The close button and Alt+F4 arrive here; in a session it is the
-        session that goes, not this one window, and the Funestra knows."""
         window_input, funestra = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.QUIT))

@@ -202,10 +202,6 @@ class TestDialingAWrappedFrame:
 
 
 class TestWhichHandsStickCounts:
-    """Both hands' sticks are read, and their two readings are combined here
-    rather than by the runtime: left to the runtime's own rule, the left stick
-    answered in a single direction."""
-
     def test_a_hand_at_rest_does_not_cancel_the_other(self):
         assert strongest([0.0, -0.8]) == -0.8
         assert strongest([-0.8, 0.0]) == -0.8

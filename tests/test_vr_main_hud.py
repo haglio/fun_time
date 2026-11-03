@@ -1,4 +1,3 @@
-"""The HUD hanging in the headset: the one width it is held to, and which side it hangs on."""
 from __future__ import annotations
 
 import logging
@@ -15,8 +14,6 @@ from fun_time_vr.main_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
 
 
 def _the_main_hud_in(mode: str) -> MainHud:
-    """The HUD as the Funestra draws it for *mode*: the room's buttons
-    declared and the broker up, with the OSR2's readout under them."""
     return MainHud(
         modes=ModeHud(video="scene one"),
         main_hud_model=MainHudModel(main_mode=mode, locked=False,
@@ -29,15 +26,7 @@ def _the_main_hud_in(mode: str) -> MainHud:
 
 
 class TestTheHeldWidth:
-    """He saw the HUD change size between the modes: the HUD sized itself
-    to its rows, and the genau-mode ones are narrower.  A screen in a scene that
-    changes size is a screen that moves, so the Funestra holds it to one width."""
-
     def test_it_covers_the_widest_row_the_main_hud_can_build(self):
-        """The painter widens past this constant for a row it cannot otherwise
-        hold, so a constant short of the widest row makes the HUD change size
-        when the mode does.  The kino-mode transport row is that row, and it
-        grows every time the HUD grows a button."""
         widest = max(
             _row_width(main_hud_rows(MainFunestraFacts(main_mode=mode, latest=False,
                                              plays_vr=True, plays_flat=True), in_vr=True))
@@ -47,8 +36,6 @@ class TestTheHeldWidth:
         assert widest + 2 * _PAD <= HUD_WIDTH_PX
 
     def test_it_clears_the_widest_mode(self):
-        """Held narrower than its rows the painter widens the HUD, and the
-        two modes would differ again; the constant has to clear both."""
         for mode in ("kino", "genau"):
             assert MainHudPainter().rgba(_the_main_hud_in(mode))[1][0] <= HUD_WIDTH_PX
 
@@ -62,10 +49,6 @@ class TestTheHeldWidth:
 
 
 class TestWhichSideTheConsoleHangsOn:
-    """The keys move this HUD round the sides of the Main Funestra.  A video that
-    wraps the viewer leaves no edge to hang against, so there it hangs
-    under the dashboard as it always has."""
-
     def test_it_takes_the_satellite_its_keys_named(self):
         for edge in HudEdge:
             assert hud_hangs_from(edge, wrapped=False) is edge

@@ -52,9 +52,6 @@ def test_thumbnail_path_changes_when_the_video_is_modified(tmp_path: Path):
 
 
 def test_a_cached_still_is_found_for_a_video_its_drive_will_not_answer_about(tmp_path: Path):
-    """The map under the Main Funestra is drawn on the dispatch loop, so a still it
-    looks up while the drive is stuck on that very video would freeze every
-    control in the session -- the folder's listing dates it instead."""
     folder = tmp_path / "vids"
     folder.mkdir()
     video = folder / "clip.mp4"
@@ -120,12 +117,12 @@ def test_thumbnail_for_reuses_the_cached_file(tmp_path: Path):
     cache = tmp_path / "cache"
 
     first = thumbnail_for(video, cache, max_size=32)
-    first.write_bytes(b"SENTINEL")  # mark it so regeneration would be visible
+    first.write_bytes(b"SENTINEL")
 
     second = thumbnail_for(video, cache, max_size=32)
 
     assert second == first
-    assert second.read_bytes() == b"SENTINEL"  # served from cache, not rebuilt
+    assert second.read_bytes() == b"SENTINEL"
 
 
 def test_a_video_that_cannot_be_decoded_gets_no_thumbnail(tmp_path: Path):
@@ -140,26 +137,20 @@ def test_a_video_that_is_not_there_gets_no_thumbnail(tmp_path: Path):
 
 
 def test_a_cached_thumbnail_is_offered_only_while_its_file_is_there(tmp_path: Path):
-    """The HUD paints with this, so it must never extract — just report the cached
-    file if the prewarm has already made it, else None."""
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"x")
     cache = tmp_path / "cache"
 
-    assert cached_thumbnail(video, cache) is None  # nothing extracted yet
+    assert cached_thumbnail(video, cache) is None
 
     dest = thumbnail_path(video, cache)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(b"JPEG")  # as if the prewarm produced it
+    dest.write_bytes(b"JPEG")
 
     assert cached_thumbnail(video, cache) == dest
 
 
 def test_prewarming_covers_every_path_it_is_handed(tmp_path: Path):
-    """Stills are extracted up front so a first use never blocks on a frame grab
-    — the source of the multi-second map lag.  Each caller decides *which*
-    videos: a satellite warms every video in its library, the main library browser
-    warms one per handle, off the cheapest rendition of it."""
     cache_dir = tmp_path / "thumbs"
     warmed: list[tuple[str, object]] = []
 

@@ -1,4 +1,3 @@
-"""SatelliteLaunch — the launch chain's per-Funestra bundle (finding B_orchestration/001)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -32,7 +31,5 @@ def test_for_satellite_hands_back_the_matching_slot(tmp_path: Path):
 
 
 def test_for_satellite_refuses_the_swap(tmp_path: Path):
-    """A mis-wired Funestra swaps the two Funestras' command files — the launch
-    path's own comments warn about exactly this — so it fails loudly instead."""
     with pytest.raises(ValueError, match="portrait launch was handed to landscape"):
         for_funestra(_launch(FunTimeFunestra.PORTRAIT, tmp_path), FunTimeFunestra.LANDSCAPE)

@@ -1,10 +1,3 @@
-"""Unit tests: integration teardown only ever kills its own desktop's processes.
-
-The reap hits only windows on the hidden integration desktop — never the user's
-real (input-desktop) session — which is what makes an unattended run safe.  It
-has no other mode: the suite refuses to run anywhere but the hidden desktop, so
-there is nowhere a by-name sweep of the machine could be the right answer.
-"""
 from __future__ import annotations
 
 import os
@@ -28,8 +21,8 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
         222: r"C:\blah\genau\.venv\Scripts\pythonw.exe",
         333: r"C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe",
         444: r"C:\blah\fun_time\.venv\Scripts\python.exe",  # a queued run's pytest
-        555: None,                                          # window owner already exited
-        666: r"C:\Python314\python.exe",                    # a leftover hosted Origenerator
+        555: None,
+        666: r"C:\Python314\python.exe",
         own: sys.executable,
     }
     command_lines = {444: "python.exe -m pytest tests/integration/",
@@ -48,10 +41,9 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
         integration_support._kill_leftover_app_processes()
 
     killed = {call.args[0] for call in kill.call_args_list}
-    assert killed == {222, 333, 666}  # Funestras/AHK by image, the hosted app by command line
+    assert killed == {222, 333, 666}
     assert 444 not in killed     # never another run's pytest
     assert own not in killed     # never the running pytest process itself
-    # Only the window-owning pids are asked what they run — never the machine.
     assert set(asked) <= set(images)
 
 

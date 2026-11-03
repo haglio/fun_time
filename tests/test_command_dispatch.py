@@ -84,8 +84,6 @@ def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeCon
 
 def _set_current(config: BridgeConfig, funestra: FunTimeFunestra, video: str, *, locked: bool = False,
                  playlist_length: int = 0) -> None:
-    """Make read_satellite_status report *video* as satellite *Funestra*'s current
-    video — the file-based stand-in for the old get_current_file_path mock."""
     status = config.satellite(funestra).status_file
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
@@ -96,7 +94,6 @@ def _set_current(config: BridgeConfig, funestra: FunTimeFunestra, video: str, *,
 
 
 def _cmds(config: BridgeConfig, funestra: FunTimeFunestra) -> list[str]:
-    """The verbs queued on satellite *Funestra*'s command file, in order."""
     cmd_file = config.satellite(funestra).cmd_file
     if not cmd_file.exists():
         return []
@@ -104,7 +101,6 @@ def _cmds(config: BridgeConfig, funestra: FunTimeFunestra) -> list[str]:
 
 
 def _playlist(config: BridgeConfig, funestra: FunTimeFunestra) -> list[str]:
-    """The video paths written to satellite *Funestra*'s playlist file, in order."""
     playlist = config.satellite(funestra).playlist_file
     if not playlist.exists():
         return []
@@ -121,17 +117,12 @@ def _make_state(**overrides) -> BridgeState:
     return BridgeState(**defaults)
 
 
-# --- open_rfb_tab on lock ---
-
-
 def _tab_page(op_key: str) -> str:
-    """The HTML of the landing page an open_rfb_tab op points at."""
     assert op_key.startswith("file:///"), op_key
     return Path(url2pathname(urlparse(op_key).path)).read_text(encoding="utf-8")
 
 
 def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
-    """Lock defers the load after the same Ctrl+R page the RFB's own tabs use."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
 
@@ -179,8 +170,6 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
 
 
 def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
-    """Locking is the strongest 'I like this' signal — it must feed the
-    watch stats that drive playback frequency."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
     video = tmp_path / "clip.mp4"
@@ -206,8 +195,6 @@ def test_portrait_unlock_records_no_watch_event(tmp_path: Path):
 
 
 def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: Path):
-    """The page is written off the bridge config, which now carries the port
-    the manifest names (bug 22)."""
     config = replace(_make_config(tmp_path), loopback_port=8771)
     state = _make_state(portrait=SatelliteState(locked=False))
 
@@ -301,8 +288,6 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
 
 
 def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
-    """A locked Provider video with a metadata sidecar opens the generate page
-    (prompts in the #ft fragment), not the dead /image/{id} gallery link."""
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
     rel = Path("2_outbox") / "upscaled_by_orientation" / "landscape" / "provider"
@@ -331,9 +316,6 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     assert '"https://example.com/video#ft=' in _tab_page(rfb_ops[0].key)
 
 
-# --- portrait_lock ---
-
-
 def test_portrait_lock_toggles_lock_on(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
@@ -358,9 +340,6 @@ def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     assert _cmds(config, 2) == ["LOCK_OFF", "NEXT"]
 
 
-# --- landscape_lock ---
-
-
 def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=False))
@@ -371,9 +350,6 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
 
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).locked is True
     assert _cmds(config, 3) == ["LOCK_ON"]
-
-
-# --- the spoken "lock" and "unlock": the state asked for, not a flip ---
 
 
 @pytest.mark.parametrize(("command", "funestra"), [
@@ -408,7 +384,6 @@ def test_a_spoken_unlock_unlocks_a_locked_satellite(command, funestra, tmp_path:
     ("landscape_lock_on", True), ("landscape_lock_off", False)])
 def test_a_spoken_lock_or_unlock_leaves_a_satellite_already_that_way_alone(
         command, locked, tmp_path: Path):
-    """Said twice, "lock" stays locked where the key's flip would let go."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=locked),
                         landscape=SatelliteState(locked=locked))
@@ -420,13 +395,7 @@ def test_a_spoken_lock_or_unlock_leaves_a_satellite_already_that_way_alone(
     assert _cmds(config, FunTimeFunestra.PORTRAIT) == _cmds(config, FunTimeFunestra.LANDSCAPE) == []
 
 
-# --- back-dating a spoken command to the video it was meant for ---
-
-
 def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_path: Path):
-    """A phrase is only recognized once the speaker stops, so an auto-advancing
-    satellite can be a video on by then.  Locking brings back the video the user
-    was actually looking at, and locks that."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
     meant = "C:\\clips\\meant.mp4"
@@ -436,16 +405,12 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     with patch("fun_time.lock.mark_favorite") as favs:
         new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
 
-    # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK_ON it.
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK_ON"]
     assert favs.call_args[0][0] == meant
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
 
 
 def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path: Path):
-    """"Trash" condemns the video the speaker saw.  Once the satellite has moved
-    on there is nothing to advance past — the condemned video is dropped from the
-    playlist where it sits, and the innocent video now playing is left alone."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
     meant = "C:\\clips\\meant.mp4"
@@ -457,14 +422,9 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     ):
         dispatch_command("portrait_trash", state, config, target_path=meant)
 
-    # Back-dated: jump back to the condemned video (PLAY_FILE) then TRASH it where
-    # it sits; the innocent video now playing is left alone.
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "TRASH"]
     assert favs.call_args[0][0] == meant
     assert trash.call_args[0][1] == Path(meant)
-
-
-# --- portrait_trash ---
 
 
 def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
@@ -483,9 +443,6 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
 
 
 def test_portrait_trash_queues_a_trash_verb_and_condemns_the_video(tmp_path: Path):
-    """An unlocked discard queues a bare TRASH (the native Funestra drops the
-    current video and plays the next) and condemns the video — unfavorited and
-    moved to trash, this video not being a favorite (``test_lock`` covers that branch)."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
 
@@ -501,9 +458,6 @@ def test_portrait_trash_queues_a_trash_verb_and_condemns_the_video(tmp_path: Pat
     assert trash.call_args[0][1] == Path("C:\\clips\\portrait.mp4")
 
 
-# --- portrait_prev / portrait_next ---
-
-
 def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
@@ -511,7 +465,6 @@ def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_prev", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is False
-    # A locked Funestra unlocks first (repeat-one off), then steps back.
     assert _cmds(config, 2) == ["LOCK_OFF", "PREV"]
 
 
@@ -524,11 +477,7 @@ def test_portrait_next_queues_next(tmp_path: Path):
     assert _cmds(config, 2) == ["NEXT"]
 
 
-# --- main_prev / main_next ---
-
-
 def test_primary_prev_in_kino_mode_writes_main_funestra_cmd(tmp_path: Path):
-    """Kino mode displays the Main Funestra, so navigation goes to the Main Funestra's command file, not a satellite's."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -556,8 +505,6 @@ def test_primary_next_in_main_funestra_mode_writes_main_funestra_cmd(tmp_path: P
 
 
 def test_primary_prev_in_genau_mode_writes_main_funestra_cmd(tmp_path: Path):
-    """Outside kino mode, the Main Funestra is the Main Funestra — even while Genau mode is
-    active, [ and ] navigate the paused Main Funestra in the background."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
@@ -566,12 +513,7 @@ def test_primary_prev_in_genau_mode_writes_main_funestra_cmd(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
-# --- main_lock ---
-
-
 def test_primary_lock_toggles_the_main_funestras_hold_on_the_video(tmp_path: Path):
-    """The apostrophe and the HUD's padlock both send the toggle; the Main Funestra holds
-    the state, since only it knows what its own end of file is doing."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -587,17 +529,11 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     dispatch_command("main_lock_on", state, config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
-    # Queued after the first, not overwriting it: the file is the same queue
-    # the device arbiter's handoff verbs ride, and a whole-file write here is
-    # what used to erase them.
     dispatch_command("main_lock_off", state, config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
 
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
-    """The lock is about what is on screen, and in genau mode that is Genau's
-    flick — the same split the speed controls make.  One padlock on the HUD
-    rather than one per Funestra, which is what left Kino mode with two."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
 
@@ -618,8 +554,6 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
 
 
 def test_the_comma_holds_genaus_flick_while_genau_is_on_the_main_screen(tmp_path: Path):
-    """The comma sits under K in Genau's own cluster of keys, the way S and Down
-    sit under W and Up in the satellites'."""
     config = _make_config(tmp_path)
 
     dispatch_command("genau_lock", _make_state(main_mode=MainMode.GENAU), config)
@@ -697,17 +631,12 @@ def test_a_lock_key_does_nothing_while_the_other_funestra_is_on_the_main_screen(
 ])
 def test_locking_the_primary_makes_it_the_satellite_a_bare_command_reaches(
         tmp_path: Path, command, main_mode):
-    """A satellite's own lock key selects that Funestra; the Main Funestra's do the same,
-    so a following bare "next" goes where the last thing you touched was."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=main_mode, active_funestra=2)
 
     state, _ops = dispatch_command(command, state, config)
 
     assert state.active_funestra == 1
-
-
-# --- projection_cycle, recenter_view and the tilt (FunTimeVR's Main Funestra) ---
 
 
 @pytest.mark.parametrize("command, verb", [
@@ -724,7 +653,6 @@ def test_locking_the_primary_makes_it_the_satellite_a_bare_command_reaches(
     ("vr_reset", "LAYOUT_RESET"),
 ])
 def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Path):
-    """A projection, a heading and a tilt are things only the headset has."""
     config = _make_config(tmp_path, vr_main_funestra=True)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -741,12 +669,6 @@ def test_a_vr_only_verb_reaches_the_vr_main_funestra(command, verb, tmp_path: Pa
 )
 @pytest.mark.parametrize("main_mode", ["kino", "genau"])
 def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_path: Path):
-    """the Main Funestra has no projection and no headset to face, in any mode.
-
-    The channel is the Main Funestra's, and the desktop Main Funestra answers a
-    smaller contract than the VR one -- so this is gated on which Funestra the
-    session launched, not on which mode it is in.
-    """
     config = _make_config(tmp_path)
     state = _make_state(main_mode=main_mode)
 
@@ -754,9 +676,6 @@ def test_a_vr_only_verb_is_ignored_in_a_desktop_session(command, main_mode, tmp_
 
     assert not config.main_funestra_cmd_file.exists()
     assert ops == [WindowOp(op=Op.IGNORED, key="outside VR")]
-
-
-# --- main_funestra cycle-version / length-mode ---
 
 
 def test_main_funestra_cycle_version_writes_main_funestra_cmd(tmp_path: Path):
@@ -778,8 +697,6 @@ def test_main_funestra_cycle_version_back_writes_the_other_way(tmp_path: Path):
 
 
 def _upscaled_with_an_original(tmp_path: Path) -> tuple[Path, Path, Path]:
-    """A video as the library files it: the upscale that plays, under a media
-    root, with the sorted original it was made from."""
     media_root = tmp_path / "videos" / "2D" / "AI"
     upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
                / "provider" / "clip_topaz.mp4")
@@ -806,9 +723,6 @@ def test_a_satellite_version_step_sends_the_videos_renditions_to_that_funestra(t
 
 
 def test_a_spoken_version_step_goes_back_to_the_video_the_speaker_saw(tmp_path: Path):
-    """A satellite can advance while a phrase is being recognized, so the step
-    names the video that was on screen when it began: the Funestra is brought back
-    to it first, and the versions carried are that video's."""
     media_root, upscale, original = _upscaled_with_an_original(tmp_path)
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
@@ -883,8 +797,6 @@ def test_naming_the_length_already_running_asks_for_nothing(tmp_path: Path):
 
 
 def test_inside_a_compilation_naming_the_length_running_is_the_way_back_out(tmp_path: Path):
-    """The compilation's videos stand in for the list without changing the
-    length, so naming the one running is how a voice leaves it."""
     config, builds = _recording(_make_config(tmp_path))
     _on_screen(config, "C:/v/clip one.mp4", compilation="Vol6")
 
@@ -894,8 +806,6 @@ def test_inside_a_compilation_naming_the_length_running_is_the_way_back_out(tmp_
 
 
 def test_end_compilation_writes_end_compilation(tmp_path: Path):
-    """Out of a compilation without naming a length — the Main Funestra goes back to whichever
-    mode it was in when it entered."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -905,7 +815,6 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
 
 
 def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
-    """Length/version actions are inert in genau mode, where Genau owns the display."""
     config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_funestra_length_clips", _make_state(main_mode=MainMode.GENAU),
@@ -915,9 +824,6 @@ def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
     assert builds.asked == []
     assert not config.main_funestra_cmd_file.exists()
     assert [op.op for op in ops] == [Op.IGNORED]
-
-
-# --- video navigation (compilation / full vid / money shot) ---
 
 
 def test_compilation_writes_play_compilation(tmp_path: Path):
@@ -988,8 +894,6 @@ def test_video_nav_inert_in_genau_mode(tmp_path: Path):
 
 
 def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
-    """Genau owns the display and the device there; the Main Funestra's playlist and script are
-    not what Fun Time is watching, so a jump into them would be invisible."""
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_next_funscripted", _make_state(main_mode=MainMode.GENAU), config)
     assert not config.main_funestra_cmd_file.exists()
@@ -998,8 +902,6 @@ def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
 def test_video_nav_voice_phrases():
     assert VOICE_COMMANDS["compilation"] == "main_funestra_compilation"
     assert VOICE_COMMANDS["full video"] == "main_funestra_full_vid"
-    # The video-jump phrases are overlay content, so take them from whichever
-    # overlay is loaded rather than naming one.
 
     for phrase in load_content()["clip_jump_phrases"]:
         assert VOICE_COMMANDS[phrase] == "main_funestra_clip_jump"
@@ -1033,9 +935,6 @@ def test_a_satellites_funscript_move_goes_to_that_satellite_as_the_nudges_do(
     assert _cmds(config, funestra) == [verb]
 
 
-# --- landscape_prev / landscape_next ---
-
-
 def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
@@ -1047,9 +946,6 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
 
 
 def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
-    """The eight Funestra branches are copy-paste siblings, so the mistake they
-    invite is a Funestra mix-up: the D key advancing the Portrait Funestra nobody
-    was looking at while the landscape video stays put."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
 
@@ -1061,8 +957,6 @@ def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
 
 
 def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: Path):
-    """Same Funestra-mix-up pin for the destructive sibling: a swapped Funestra here
-    would condemn whatever the Portrait Funestra happened to be showing."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=True))
 
@@ -1089,9 +983,6 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
 def test_a_satellite_with_no_video_on_screen_ignores_video_scoped_commands(
     tmp_path: Path, command: str,
 ):
-    """A satellite that has not published its first status — mid-startup, or
-    between videos — has no current video, and a key mashed exactly then must
-    be inert: no crash, no message, no verb queued against an empty path."""
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command(command, _make_state(), config)
@@ -1101,21 +992,13 @@ def test_a_satellite_with_no_video_on_screen_ignores_video_scoped_commands(
     assert _cmds(config, 3) == []
 
 
-# --- active Funestra tracking ---
-
-
 def test_a_fresh_session_starts_with_the_primary_active():
-    """The Main Funestra is on the display the eye opens on, so it holds the floor at
-    startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
-    addressed."""
     assert BridgeState().active_funestra == 1
 
 
 def test_portrait_command_sets_active_funestra_to_portrait(tmp_path: Path):
-    """A portrait command marks portrait as the active Funestra, so a later
-    command that names none ('lock', 'next', ...) knows which Funestra to hit."""
     config = _make_config(tmp_path)
-    state = _make_state(active_funestra=3)  # currently on landscape
+    state = _make_state(active_funestra=3)
 
     new_state, _ops = dispatch_command("portrait_next", state, config)
 
@@ -1134,8 +1017,6 @@ def test_landscape_command_sets_active_funestra_to_landscape(tmp_path: Path):
 
 
 def test_primary_nav_sets_active_funestra_to_primary(tmp_path: Path):
-    """Navigating the Main Funestra (the Main Funestra) makes it the active Funestra (slot 1), so bare
-    'next'/'previous' then drive it too."""
     config = _make_config(tmp_path)
 
     for command in ("main_next", "main_prev"):
@@ -1144,9 +1025,6 @@ def test_primary_nav_sets_active_funestra_to_primary(tmp_path: Path):
 
 
 def test_naming_a_funestras_f_mode_makes_it_the_active_one(tmp_path: Path):
-    """Bare "f mode" follows the active Funestra, so naming one has to select it —
-    a satellite's does by its prefix, and the Main Funestra needs the same or "main
-    f mode" then "f mode" would land on whichever Funestra was addressed before."""
     config = _make_config(tmp_path)
 
     for suffix in ("", "_on", "_off"):
@@ -1168,9 +1046,6 @@ def test_naming_a_funestras_playback_speed_makes_it_the_active_one(tmp_path: Pat
     assert new_state.active_funestra == 2
 
 
-# --- the crown ---
-
-
 def test_crowning_the_portrait_funestra_takes_the_crown_from_the_main_funestra(tmp_path: Path):
     new_state, ops = dispatch_command(
         "portrait_crown", _make_state(crowned=Crown.MAIN), _make_config(tmp_path))
@@ -1186,13 +1061,7 @@ def test_crowning_the_main_funestra_takes_the_crown_back_from_the_portrait_funes
     assert new_state.crowned is Crown.MAIN
 
 
-# --- the HUD's own minimize button ---
-
-
 def test_minimize_parks_that_funestras_window(tmp_path: Path):
-    """A satellite's HUD minimize button asks for one window and nothing else: the
-    op names the role, and the Funestra's playback — its lock, its loop, its playlist —
-    is untouched, because the Funestra goes on running where it cannot be seen."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
 
@@ -1212,17 +1081,12 @@ def test_minimize_names_each_satellite_its_own_window(tmp_path: Path):
 
 
 def test_the_main_funestras_button_parks_its_window_in_either_mode(tmp_path: Path):
-    """Kino and Genau both run on the Main Funestra's window, so the HUD's
-    button parks that one window whichever of them has it."""
     config = _make_config(tmp_path)
 
     for mode in ("genau", "kino"):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
         assert ops == [WindowOp(op="minimize_window", key="main_funestra")], mode
-
-
-# --- omnipause_toggle ---
 
 
 def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
@@ -1233,7 +1097,6 @@ def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
 
     assert new_state.omni_paused is True
     assert any(op.op == "suspend_hotkeys" for op in ops)
-    # OmniPause freezes the native satellites by writing their paused flag files.
     assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
 
@@ -1246,18 +1109,12 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    # Leaving OmniPause clears both satellites' paused flags and resumes the Main Funestra.
     assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
     assert config.main_funestra_paused_file.read_text(encoding="utf-8") == "0"
 
 
-# --- F-mode ---
-
-
 def _fmode_result(**kwargs):
-    """Stand in for the real flow: it reports back exactly the Funestras it was
-    handed, in the order the module lists them."""
     funestras = tuple(kwargs["funestras"])
     enabled = kwargs["enabled"]
     return type("R", (), {
@@ -1269,15 +1126,12 @@ def _fmode_result(**kwargs):
 
 
 def _dispatch_fmode(command: str, state: BridgeState, config: BridgeConfig):
-    """Run *command* with the playlist rebuild stubbed out, and hand back the mock
-    so a caller can look at what the flow was asked for."""
     with patch("fun_time.f_mode.apply_fmode", side_effect=_fmode_result) as mock_fmode:
         new_state, ops = dispatch_command(command, state, config)
     return new_state, ops, mock_fmode
 
 
 def test_fmode_toggle_enables_every_funestra_from_disabled(tmp_path: Path):
-    """The bare command is still the whole-room gesture the F key always was."""
     config = _make_config(tmp_path)
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
@@ -1289,9 +1143,6 @@ def test_fmode_toggle_enables_every_funestra_from_disabled(tmp_path: Path):
 
 
 def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_path: Path):
-    """With one Funestra already in F-mode, the key that means "narrow everything"
-    must finish the job, not undo the half of it that is done — otherwise one press
-    leaves Fun Time in the split state it was pressed to resolve."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(favorites_filter=True))
 
@@ -1299,8 +1150,6 @@ def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_
 
     assert (new_state.main_scripted_filter, new_state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter,
             new_state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter) == (True, True, True)
-    # …and the Funestra that was already narrowed is left out of the rebuild, so its
-    # queue is not reshuffled for nothing.
     assert mock_fmode.call_args.kwargs["funestras"] == (FunTimeFunestra.MAIN, FunTimeFunestra.LANDSCAPE)
 
 
@@ -1315,14 +1164,12 @@ def test_fmode_toggle_lifts_it_once_every_funestra_is_in_it(tmp_path: Path):
 
 
 def _f_modes(state: BridgeState) -> tuple[bool, bool, bool]:
-    """F-mode on each of the three Funestras, in Funestra order."""
     return (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter,
             state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter)
 
 
 @pytest.mark.parametrize("funestra", list(FunTimeFunestra))
 def test_a_named_funestra_goes_into_f_mode_alone(tmp_path: Path, funestra: FunTimeFunestra):
-    """What each HUD's own F button posts: that Funestra and no other."""
     config = _make_config(tmp_path)
 
     new_state, _ops, mock_fmode = _dispatch_fmode(
@@ -1345,7 +1192,6 @@ def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_pat
 
 
 def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
-    """A phrase misheard twice must not leave F-mode the opposite of what was asked."""
     config = _make_config(tmp_path)
 
     stays_on, _ops, _mock = _dispatch_fmode(
@@ -1358,8 +1204,6 @@ def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path
 
 
 def test_asserting_the_state_a_funestra_is_already_in_rebuilds_nothing(tmp_path: Path):
-    """The rebuild replaces the queue, so "portrait f mode on" said twice would
-    reshuffle what the first one built."""
     config = _make_config(tmp_path)
 
     _state, _ops, mock_fmode = _dispatch_fmode(
@@ -1369,23 +1213,15 @@ def test_asserting_the_state_a_funestra_is_already_in_rebuilds_nothing(tmp_path:
 
 
 def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
-    """Every path into F-mode — the F key, a HUD button, a spoken "F mode" — flashes
-    the same confirmation, since the dispatch owns it rather than the voice layer
-    echoing the phrase it heard."""
     config = _make_config(tmp_path)
 
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    # At the favorites' own level, so it flashes green: F-mode is the filter over
-    # them, and green is what the favorites and the funscripts own.
     assert ops == [WindowOp(op="message", key="F-Mode enabled", source="system",
                             level=FAVORITE)]
 
 
 def test_fmode_flashes_a_plain_white_message_when_it_turns_off(tmp_path: Path):
-    """Disabling F-mode flashed red, the color kept for errors, and nothing went
-    wrong.  It is white, and says which way it went: a green "F mode" there once
-    read as "turned on"."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True)
 
@@ -1421,8 +1257,6 @@ def test_favorites_said_to_a_satellite_in_kino_mode_flips_its_f_mode_as_a_show_d
 
 
 def test_fmode_passes_each_satellites_current_order(tmp_path: Path):
-    """A rebuild has to keep the Funestra's order, and the two satellites can be in
-    different ones, so each Funestra's own ordering goes with it."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(latest=False), portrait=SatelliteState(latest=True))
 
@@ -1458,7 +1292,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
         new_state, ops = dispatch_command("filter_portrait_alpha", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
-    assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == ""  # the other satellite is untouched
+    assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == ""
     assert mock_filter.call_count == 1
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["funestra"] is FunTimeFunestra.PORTRAIT
@@ -1469,15 +1303,12 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
 
 
 def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
-    """"no loop" reshapes the queue back to the browse but re-uses the
-    satellite's own filter so it survives — unlike reset, which clears it."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(filter="alpha"))
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
-    # The browse is built with the CURRENT filter (kept), not cleared to "".
     assert mock_browse.call_args.kwargs["query"] == "alpha"
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
@@ -1485,9 +1316,6 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
 
 
 def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
-    """A HUD thumbnail click sends "<Funestra>_play_video|<path>"; the satellite
-    switches straight to that video via the same play helper cycling uses, and
-    clicking it makes that satellite the active Funestra."""
     config = _make_config(tmp_path)
     state = _make_state()
     path = r"C:\vids\portrait\pick_me.mp4"
@@ -1512,15 +1340,12 @@ def test_a_video_sent_to_a_satellite_screen_carries_its_funscript(tmp_path: Path
 
 
 def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_path: Path):
-    """A HUD double-click sends "<Funestra>_lock_video|<path>": on an already-locked
-    satellite (repeat-one) it just plays the picked video, which keeps it locked."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
     path = r"C:\vids\portrait\lock_me.mp4"
 
     new_state, _ops = dispatch_command(f"portrait_lock_video|{path}", state, config)
 
-    # Already repeat-one: the double-click just moves the lock onto the picked video.
     assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
 
@@ -1538,23 +1363,15 @@ def test_a_double_click_on_a_satellite_already_locked_favorites_the_video_it_pic
     assert is_favorite(picked, config.regen_metadata_root)
 
 
-# --- HUD keyboard navigation ---
-
-
 def _nav_config(tmp_path: Path) -> tuple[BridgeConfig, dict[str, str]]:
-    """A grouped portrait library with a seed row (subject_b) and an action column
-    (subject_a_zeta) around subject_a — the nav map keyboard navigation walks."""
     return _make_grouped_config(tmp_path, {
-        "subject_a": _cycle_meta("111", "Alpha"),           # corner
-        "subject_b": _cycle_meta("222", "Alpha"),           # seed sibling (same act, other subject)
-        "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),  # action sibling (same subject, other act)
+        "subject_a": _cycle_meta("111", "Alpha"),
+        "subject_b": _cycle_meta("222", "Alpha"),
+        "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
     })
 
 
 def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: Path):
-    """Shift+Down from the corner selects the first of the subject's other acts,
-    switches the satellite to it (like a thumbnail click) and freezes the nav map on
-    the start video."""
     config, paths = _nav_config(tmp_path)
     state = _make_state()
 
@@ -1568,9 +1385,6 @@ def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: 
 
 
 def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
-    """A second Shift+Down, with the anchor still frozen on subject_a and the
-    satellite now on its Beta act, steps to the next act — traversal the frozen
-    anchor makes possible even though a plain switch would re-home the nav map."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_beta": _cycle_meta("111", "Beta Massage"),
@@ -1582,30 +1396,24 @@ def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the anchor held
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]
 
 
 def test_nav_past_the_last_action_wraps_round_to_the_anchor(tmp_path: Path):
-    """The column is a ring the anchor heads, so Shift+Down off its last act
-    comes back round to the anchor instead of stopping — hold the key and you
-    tour the column."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
     })
     state = _make_state(portrait=SatelliteState(nav_anchor=paths["subject_a"]))
 
-    _set_current(config, 2, paths["subject_a_zeta"])  # the column's only act — its last
+    _set_current(config, 2, paths["subject_a_zeta"])
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a']}"]
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the ring kept its head
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]
 
 
 def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
-    """Wrapping needs somewhere to wrap to.  These videos share an act, so the
-    anchor has no other action to step down onto: nothing switches and it reads
-    red."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
@@ -1615,16 +1423,13 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
     _set_current(config, 2, paths["subject_a"])
     _new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
-    assert _cmds(config, 2) == []  # an empty axis: nothing switched
+    assert _cmds(config, 2) == []
     dead_end = [op for op in ops if op.op == "message"]
     assert dead_end
     assert dead_end[0].level == logging.WARNING
 
 
 def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
-    """The action column hangs off the lit cell, so a vertical step from a seed
-    reaches THAT seed's other acts — action groups are seed-scoped, and the frozen
-    anchor's own acts belong to a different video.  The nav map re-roots on the seed."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
@@ -1636,13 +1441,10 @@ def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b_zeta']}"]
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_b"]  # re-rooted on the seed
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_b"]
 
 
 def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
-    """The dive looks at the lit seed's own acts, not the anchor's: subject_a has
-    a Zeta to offer, but the selection is on subject_b, which has none — so the
-    step is a dead end and the nav map stays rooted where it was."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
@@ -1654,36 +1456,24 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == []
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # the nav map held still
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]
     dead_end = [op for op in ops if op.op == "message"]
     assert dead_end
     assert dead_end[0].level == logging.WARNING
 
 
 def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
-    """A stale anchor whose map no longer holds the live video (an auto-advance)
-    is abandoned: navigation re-anchors on whatever is now playing and steps from
-    there."""
     config, paths = _nav_config(tmp_path)
-    # Frozen on a bogus anchor subject_a_zeta is not subject_a's; the live video
-    # subject_a is not on subject_a_zeta's seed/action map, so it re-anchors on subject_a.
     state = _make_state(portrait=SatelliteState(nav_anchor="C:/vids/portrait/gone.mp4"))
 
     _set_current(config, 2, paths["subject_a"])
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]  # re-anchored on the live video
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == paths["subject_a"]
 
 
 def test_a_non_nav_satellite_command_clears_the_nav_anchor(tmp_path: Path):
-    """Any Funestra command that is not a navigation step ends navigation, so the nav map
-    stops freezing and re-homes on the live video.
-
-    Enter once had its own command for this — it locked the selection and dropped
-    the anchor — but the Funestra's own lock key already lands here, so the extra key
-    was retired rather than kept as a second way in.
-    """
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(nav_anchor="C:/vids/portrait/anchor.mp4"))
 
@@ -1695,14 +1485,6 @@ def test_a_non_nav_satellite_command_clears_the_nav_anchor(tmp_path: Path):
 @pytest.mark.parametrize("command", ["main_next", "main_prev", "main_lock"])
 def test_a_main_funestra_command_leaves_both_satellite_anchors_alone(
         tmp_path: Path, command: str):
-    """Only the Funestra a command names may end its own keyboard navigation.
-
-    The Main Funestra has no anchor of its own, and every one of its commands was
-    dropping the LANDSCAPE satellite's — an old binary helper read "not
-    portrait" as landscape, and the Main Funestra inherited the landscape half.
-    So a nav map frozen on that screen re-homed on a key press aimed at another one
-    (bug 71).
-    """
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(nav_anchor="C:/vids/landscape/anchor.mp4"), portrait=SatelliteState(nav_anchor="C:/vids/portrait/anchor.mp4"))
 
@@ -1713,8 +1495,6 @@ def test_a_main_funestra_command_leaves_both_satellite_anchors_alone(
 
 
 def test_landscape_nav_sets_the_active_funestra(tmp_path: Path):
-    """A landscape nav key (Shift+W / Shift+S) makes landscape the active Funestra, so a
-    later bare command ("lock", "next") resolves to it."""
     config = _make_config(tmp_path)
     state = _make_state()
 
@@ -1737,8 +1517,6 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
 
 
 def test_filter_command_both_scope_messages_each_satellite_under_its_own_source(tmp_path: Path):
-    """A both-scope filter touches two windows, so it reports two messages — one
-    filed under each — rather than one line the log panel cannot filter."""
     config = _make_config(tmp_path)
     state = _make_state()
 
@@ -1751,8 +1529,6 @@ def test_filter_command_both_scope_messages_each_satellite_under_its_own_source(
 
 
 def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
-    # A filter that matched nothing kept the current playlist, so it must not be
-    # recorded — otherwise a later reorder/F-mode rebuild would blank the satellite.
     config = _make_config(tmp_path)
     state = _make_state()
 
@@ -1764,10 +1540,6 @@ def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
 
 
 def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
-    """Clearing one Funestra is "portrait no filter" — the grid's own command, which
-    "portrait clear filter" now reaches too.  It had a second command family of
-    its own (``filter_portrait_clear``) that did exactly this; two ways in for one
-    action is how the two drift, so the phrases joined the grid instead."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(filter="twirling"), portrait=SatelliteState(filter="alpha"))
 
@@ -1776,7 +1548,7 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
-    assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == "twirling"  # untouched
+    assert new_state.satellite(FunTimeFunestra.LANDSCAPE).filter == "twirling"
     assert mock_filter.call_args.kwargs["query"] == ""
 
 
@@ -1804,13 +1576,11 @@ def test_recents_passes_the_satellites_filter_and_roots(tmp_path: Path):
         dispatch_command("portrait_latest", state, config)
 
     kwargs = mock_filter.call_args.kwargs
-    assert kwargs["recent"] is True  # Latest = newest-first
-    assert kwargs["query"] == "alpha"  # its own filter is kept
+    assert kwargs["recent"] is True
+    assert kwargs["query"] == "alpha"
 
 
 def test_recents_reorders_only_the_satellite_it_names(tmp_path: Path):
-    """"portrait premiere" used not to parse at all — the ordering was global.  A
-    sided reorder reloads that satellite and leaves the other one alone."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1824,8 +1594,6 @@ def test_recents_reorders_only_the_satellite_it_names(tmp_path: Path):
 
 
 def test_shuffle_puts_one_satellite_back_without_touching_the_other(tmp_path: Path):
-    """Latest' counterpart has to be sided too, or a Funestra reloaded newest-first
-    could never be shuffled back on its own."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(latest=True), portrait=SatelliteState(latest=True))
 
@@ -1835,12 +1603,10 @@ def test_shuffle_puts_one_satellite_back_without_touching_the_other(tmp_path: Pa
 
     assert mock_filter.call_args.kwargs["recent"] is False
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).latest is False
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True  # the other Funestra keeps its order
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True
 
 
 def test_a_sided_reorder_drops_that_satellites_lock_and_loop(tmp_path: Path):
-    """The rebuild replaces the queue, so whatever the Funestra was holding — a lock, a
-    group loop, a widened row — goes with it."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True, loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4"))
 
@@ -1855,10 +1621,6 @@ def test_a_sided_reorder_drops_that_satellites_lock_and_loop(tmp_path: Path):
 
 
 def test_a_reorder_starts_the_satellite_at_the_top_of_the_new_order(tmp_path: Path):
-    """The bug this fixes: "portrait latest" did reorder the queue, but the Funestra
-    kept playing the video it was on and carried on from there — so the new order only
-    ever applied after it and the newest arrivals, the whole point of asking, were
-    never reached."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1869,8 +1631,6 @@ def test_a_reorder_starts_the_satellite_at_the_top_of_the_new_order(tmp_path: Pa
 
 
 def test_a_filter_leaves_the_video_on_screen_where_it_is(tmp_path: Path):
-    """Filtering is not "start over": the reload keeps the video playing while it
-    survives the new list."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1881,9 +1641,6 @@ def test_a_filter_leaves_the_video_on_screen_where_it_is(tmp_path: Path):
 
 
 def test_reset_returns_the_satellite_to_every_default(tmp_path: Path):
-    """"reset" puts the whole Funestra back, not just its filter: the lock released, the
-    order shuffled, F-mode dropped, any loop / widened row / frozen nav map dropped, and
-    playing from the top of a fresh browse."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True, filter="alpha", latest=True, favorites_filter=True, loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4", nav_anchor="C:/v/a.mp4"))
 
@@ -1906,10 +1663,6 @@ def test_reset_returns_the_satellite_to_every_default(tmp_path: Path):
 
 
 def test_reset_rebuilds_the_satellite_wide_rather_than_still_in_f_mode(tmp_path: Path):
-    """Dropping the flag is not enough — the rebuild reads it back to decide how
-    wide to build.  Cleared after the rebuild, a Funestra reset out of F-mode came back
-    still holding a browse of the favorites alone while the HUD said the filter
-    was off."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(favorites_filter=True))
 
@@ -1921,10 +1674,6 @@ def test_reset_rebuilds_the_satellite_wide_rather_than_still_in_f_mode(tmp_path:
 
 
 def test_reset_leaves_a_satellite_that_is_already_at_its_defaults_alone(tmp_path: Path):
-    """Pressing it twice must do no more than pressing it once.  The rebuild
-    reshuffles and starts at the top, so the second press landed on a different
-    video than the first and the third on another again — a button meaning "put it
-    back" was the quickest way to keep changing what was playing."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1934,7 +1683,7 @@ def test_reset_leaves_a_satellite_that_is_already_at_its_defaults_alone(tmp_path
     assert mock_filter.call_count == 0
     assert ops == []
     assert _cmds(config, 2) == []
-    assert state.active_funestra == 2  # still the Funestra a bare "next" would reach
+    assert state.active_funestra == 2
 
 
 def test_a_satellite_whose_own_sound_was_turned_up_has_nothing_to_reset(tmp_path: Path):
@@ -1960,10 +1709,6 @@ def test_a_satellite_whose_own_sound_was_turned_up_has_nothing_to_reset(tmp_path
 def test_reset_still_fires_for_any_one_thing_left_narrowing_the_satellite(
     tmp_path: Path, narrowed: SatelliteState
 ):
-    """Every one of these is something a reset takes off, so a Funestra holding any
-    one of them is not at its defaults.  A skip that read too few of them would
-    be the worse failure of the two: the press would do nothing while there was
-    something to undo."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1999,9 +1744,6 @@ def test_reset_puts_the_satellites_speed_back_to_normal_as_the_main_funestras_do
 
 
 def test_a_satellite_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_path: Path):
-    """The browse is already the one a reset would build, so rebuilding it would
-    only move the video on screen -- the Main Funestra's reset leaves its browse
-    alone for the same reason."""
     config = _make_config(tmp_path)
     _publish_speed(config, FunTimeFunestra.PORTRAIT, 1.5)
     remembering_the_rate = _make_state().with_satellite(FunTimeFunestra.PORTRAIT, speed=1.5)
@@ -2016,8 +1758,6 @@ def test_a_satellite_whose_speed_alone_is_off_resets_it_without_reshuffling(tmp_
 
 
 def test_reset_skips_only_the_satellite_that_has_nothing_to_put_back(tmp_path: Path):
-    """Each Funestra is judged on its own, so "both reset" with one Funestra narrowed
-    rebuilds that one and leaves the other's browse where it is."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(filter="alpha"))
 
@@ -2046,8 +1786,6 @@ def test_reset_leaves_the_other_satellite_alone(tmp_path: Path):
 
 
 def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
-    """The narrow gesture: the filter goes and the Funestra keeps the order it was
-    browsing in, so it is not a way to lose your place in a Latest browse."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(filter="alpha", latest=True))
 
@@ -2056,12 +1794,9 @@ def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True          # still its Latest order
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is True
-
-
-# --- portrait/landscape cycle action & cycle seed ---
 
 
 def _cycle_meta(image_seed: str, action: str) -> dict:
@@ -2074,12 +1809,7 @@ def _cycle_meta(image_seed: str, action: str) -> dict:
 def _make_grouped_config(
     tmp_path: Path, videos: dict[str, dict | None], funestra: int = 2,
 ) -> tuple[BridgeConfig, dict[str, str]]:
-    """A BridgeConfig whose *Funestra*'s source dir holds *videos* (+ sidecars).
-
-    Only the named Funestra's sources point at the dir, so a command that reads
-    the wrong Funestra's library comes up empty instead of silently passing.
-    """
-    media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
+    media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     satellite_dir = media_root / ("portrait" if funestra == 2 else "landscape")
     satellite_dir.mkdir(parents=True, exist_ok=True)
@@ -2104,10 +1834,6 @@ def _make_grouped_config(
 
 def _subject_meta(*, prompt: str = "x, y, z", image_seed: str = "1",
                   action: str = "Alpha", quality: str = "Best") -> dict:
-    """A sidecar whose grouping the real index derives: videos sharing *prompt*
-    and *quality* (and the other image-identity fields) are one seed family;
-    the same family with the same *image_seed* is one subject (action group);
-    and *prompt*'s comma tags are the scene the widen ranks near-matches by."""
     return {
         "video": {"prompt": f"do {action}", "action": action, "seed": "9"},
         "source_image": {"positive_prompt": prompt, "seed": image_seed, "quality": quality},
@@ -2131,8 +1857,6 @@ def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path)
 
 
 def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp_path: Path):
-    """"Action" asks for another take on the video the speaker had in front of
-    them, so the siblings are the back-dated video's, not the newcomer's."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
@@ -2143,7 +1867,6 @@ def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp
     _set_current(config, 2, paths["other_subject"])
     dispatch_command("portrait_cycle_action", state, config, target_path=paths["subject_zeta"])
 
-    # The siblings are the back-dated (spoken) video's, not the newcomer's.
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
 
 
@@ -2159,7 +1882,6 @@ def test_portrait_cycle_action_messages_when_video_has_no_siblings(tmp_path: Pat
     assert _cmds(config, 2) == []
     dead_end = [op for op in ops if op.op == "message"]
     assert [op.key for op in dead_end] == ["No other actions"]
-    # A dead end is a warning, so it reads yellow: red is kept for errors.
     assert dead_end[0].level == logging.WARNING
 
 
@@ -2179,8 +1901,6 @@ def test_a_successful_cycle_action_message_is_an_ordinary_white_notice(tmp_path:
 
 
 def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
-    """Cycling is 'show me this subject differently', not 'move on' — a lock
-    (and its repeat-one) must survive and apply to the sibling."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
@@ -2191,8 +1911,6 @@ def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
     new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
 
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-    # Cycling is "show this differently", not "move on": it switches the video but
-    # never releases the lock, so no UNLOCK is queued.
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
 
 
@@ -2221,7 +1939,6 @@ def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
     _set_current(config, 2, paths["subject_a"])
     dispatch_command("portrait_cycle_seed", state, config)
 
-    # subject_a_other_action shares the current seed (skipped); the sister is subject_b.
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
 
 
@@ -2236,8 +1953,6 @@ def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_p
     _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
-    # Every seed hit narrates itself so the log/flash shows what happened; an exact
-    # sister reads "Next seed", which is the contrast that makes a widen legible.
     assert [op.key for op in ops if op.op == "message"] == ["Next seed"]
 
 
@@ -2258,8 +1973,6 @@ def test_portrait_cycle_seed_messages_without_seed_siblings(tmp_path: Path):
 
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
-    """Same beach scene as its kin, but a render setting (image quality) set — so
-    two such metas are near-matches yet split into separate seed families."""
     return {
         "video": {"prompt": "beach", "action": "Alpha", "seed": "5"},
         "source_image": {"positive_prompt": "subject at the beach", "seed": image_seed, "quality": quality},
@@ -2267,11 +1980,9 @@ def _scene_meta(*, image_seed: str, quality: str) -> dict:
 
 
 def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
-    """Now that the HUD shows which sisters exist, plain cycle-seed dead-ends
-    instead of auto-widening — the widening moved to the "more seeds" command."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_best": _scene_meta(image_seed="111", quality="Best"),
-        "subject_draft": _scene_meta(image_seed="222", quality="Draft"),  # near-match only
+        "subject_draft": _scene_meta(image_seed="222", quality="Draft"),
     })
     state = _make_state()
 
@@ -2285,11 +1996,7 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
 
 
 def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Path):
-    """"more seeds" never jumps to another video — it records that this video's seed
-    row is widened (which the HUD reads to grow the row in place) and loops that
-    row, which reshapes the queue but leaves the video on screen playing."""
     config, paths = _make_grouped_config(tmp_path, {
-        # Different subjects (different prompts), the same act, overlapping scenes.
         "cur": _subject_meta(prompt="a, b", action="Gamma"),
         "other": _subject_meta(prompt="a, c", action="Gamma"),
     })
@@ -2298,18 +2005,14 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
     _set_current(config, 2, c)
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))  # no jump
-    assert _playlist(config, 2)[0] == c   # the video on screen leads the looped queue
+    assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))
+    assert _playlist(config, 2)[0] == c
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == c
     assert [op.key for op in ops if op.op == "message"] == ["More seeds"]
 
 
 def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
-    """A wider seed row is more of *this act*, so an act nothing else in the library
-    does has no wider row — and says so, rather than widening into another act, which
-    it would then loop and play."""
     config, paths = _make_grouped_config(tmp_path, {
-        # The same scene, but nothing else does cur's act.
         "cur": _subject_meta(prompt="a", action="Zeta"),
         "other": _subject_meta(prompt="a", image_seed="2", action="Alpha"),
     })
@@ -2318,35 +2021,31 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
     _set_current(config, 2, c)
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # nothing widened
+    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
     messages = [op for op in ops if op.op == "message"]
     assert [op.key for op in messages] == ["Widening net failed"]
     assert messages[0].level == logging.WARNING
 
 
 def test_more_seeds_reports_widening_failed_when_the_library_holds_one_video(tmp_path: Path):
-    """The other dead end: there is no other video at all to widen to."""
     config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
 
     _set_current(config, 2, paths["only"])
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # nothing widened
+    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
     messages = [op for op in ops if op.op == "message"]
     assert [op.key for op in messages] == ["Widening net failed"]
     assert messages[0].level == logging.WARNING
 
 
 def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
-    """Widening the row starts the seed loop too — the point of a wider row is to
-    cycle it, so the satellite plays the widened pool without a separate "loop
-    seeds" after it."""
     config, a, a2, b = _widened_loop_config(tmp_path)
 
     _set_current(config, 2, a)
-    state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)  # no loop running
+    state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])   # looping the widened pool
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a
@@ -2354,9 +2053,6 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
 
 
 def _other_act_widen_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str, str]:
-    """Four videos: {a, a2} share the exact seed family; c is another family
-    (same act, a barely-overlapping scene); b shares a's scene exactly — the
-    closest of all — but does another act, so an unbounded widen took it."""
     config, paths = _make_grouped_config(tmp_path, {
         "a": _subject_meta(image_seed="1"),
         "a2": _subject_meta(image_seed="2"),
@@ -2367,61 +2063,46 @@ def _other_act_widen_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str
 
 
 def test_more_seeds_never_queues_a_video_of_another_action(tmp_path: Path):
-    """"more seeds" loops what it draws, so a video ranked into the row *plays*.  The
-    row is this act's other subjects; the nearest-scened video of another act belongs
-    to the action column, and queueing it put that act on screen unasked."""
     config, a, a2, b, c = _other_act_widen_config(tmp_path)
 
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert sorted(_playlist(config, 2)) == sorted([a, a2, c])  # b does something else
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, c])
     assert b not in _playlist(config, 2)
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a
 
 
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
-    """Widening the row while a seed loop runs must widen the loop too, so the satellite
-    cycles the wider pool the HUD now shows instead of only the exact family."""
     config, a, a2, b = _widened_loop_config(tmp_path)
-    state = _make_state(portrait=SatelliteState(loop="seed"))  # a seed loop is already running
+    state = _make_state(portrait=SatelliteState(loop="seed"))
 
     _set_current(config, 2, a)
     new_state, ops = dispatch_command("portrait_more_seeds", state, config)
 
-    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])  # re-looped wide
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-    assert [op.key for op in ops if op.op == "message"] == ["More seeds"]  # keeps its own message
+    assert [op.key for op in ops if op.op == "message"] == ["More seeds"]
 
 
 def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
-    """Image-to-video videos of one source image share a seed family across
-    actions (the family is keyed on the image, action-blind).  But the seed axis
-    is "the same act, another subject", and the HUD draws only same-action items,
-    so "next seed" must skip a different-action video even though it is a sister
-    seed — that video is reached on the action axis instead."""
     config, paths = _make_grouped_config(tmp_path, {
         "a_alpha": _cycle_meta("200", "Alpha"),
         "b_alpha": _cycle_meta("300", "Alpha"),
-        "c_gamma": _cycle_meta("250", "Gamma"),  # sister seed, other action
+        "c_gamma": _cycle_meta("250", "Gamma"),
     })
     state = _make_state()
-    # c sorts first above the current seed (200 < 250 < 300): without the action
-    # gate the walk would land on it; with the gate it must reach b instead.
 
     _set_current(config, 2, paths["a_alpha"])
     _new_state, ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    # b_alpha, not the sister-seed c_gamma (a different action, reached via the
-    # action axis instead).
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['b_alpha']}"]
     assert [op.key for op in ops if op.op == "message"] == ["Next seed"]
 
 
 def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
-    """The landscape variants must hit the landscape port and lock flag."""
     config, paths = _make_grouped_config(tmp_path, {})
     media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"
@@ -2444,12 +2125,8 @@ def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
     new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
 
     assert new_state.satellite(FunTimeFunestra.LANDSCAPE).locked is True, "cycling must not release the landscape lock"
-    # Targets the landscape command file, keeping the lock (no UNLOCK queued)...
     assert _cmds(config, 3) == [f"PLAY_FILE {videos['subject_alpha']}"]
-    assert _cmds(config, 2) == []  # ...and never touches the Portrait Funestra.
-
-
-# --- portrait/landscape wrong action ---
+    assert _cmds(config, 2) == []
 
 
 def _sidecar_video(config: BridgeConfig, path: str) -> dict:
@@ -2457,8 +2134,6 @@ def _sidecar_video(config: BridgeConfig, path: str) -> dict:
 
 
 def test_portrait_wrong_action_strikes_the_act_out_of_the_sidecar(tmp_path: Path):
-    """"Wrong action" says the video is fine but its label is not: the act goes,
-    which is what puts the video back in front of Evolver's backfill tool."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
     })
@@ -2477,8 +2152,6 @@ def test_portrait_wrong_action_strikes_the_act_out_of_the_sidecar(tmp_path: Path
 
 
 def test_wrong_action_reports_a_dead_end_when_the_video_has_no_act(tmp_path: Path):
-    """A video nobody has labeled yet has no wrong act to remove — it is already
-    waiting to be named — so the command flashes yellow like every other dead end."""
     config, paths = _make_grouped_config(tmp_path, {"unlabeled": {"video": {"prompt": "p"}}})
     state = _make_state()
 
@@ -2492,8 +2165,6 @@ def test_wrong_action_reports_a_dead_end_when_the_video_has_no_act(tmp_path: Pat
 
 
 def test_wrong_action_judges_the_video_that_was_playing_when_it_was_spoken(tmp_path: Path):
-    """The mislabeled video is the one the speaker was looking at.  A satellite
-    that auto-advanced mid-phrase must not have its innocent newcomer struck."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "newcomer": _cycle_meta("222", "Alpha"),
@@ -2508,8 +2179,6 @@ def test_wrong_action_judges_the_video_that_was_playing_when_it_was_spoken(tmp_p
 
 
 def test_landscape_wrong_action_strikes_the_landscape_video(tmp_path: Path):
-    """Each Funestra judges its own video: the landscape command must never reach
-    across to whatever portrait happens to be playing."""
     config, paths = _make_grouped_config(tmp_path, {
         "on_portrait": _cycle_meta("111", "Zeta Massage"),
         "on_landscape": _cycle_meta("222", "Alpha"),
@@ -2526,8 +2195,6 @@ def test_landscape_wrong_action_strikes_the_landscape_video(tmp_path: Path):
 
 
 def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: Path):
-    """The index decides the HUD's action column and where a cycle lands next, so
-    a struck act must not go on grouping the video it no longer has."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
@@ -2535,7 +2202,7 @@ def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: 
     state = _make_state()
 
     _set_current(config, 2, paths["subject_zeta"])
-    dispatch_command("portrait_cycle_action", state, config)  # warms the cached index
+    dispatch_command("portrait_cycle_action", state, config)
     dispatch_command("portrait_wrong_action", state, config)
 
 
@@ -2543,14 +2210,10 @@ def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: 
     assert index.act_of(paths["subject_zeta"]) == ""
 
 
-# --- latest / shuffle ---
-
-
 def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     config = _make_config(tmp_path)
     config.regen_media_root = tmp_path / "media"
     config.regen_metadata_root = tmp_path / "metadata"
-    # Already in Latest: asking again must keep newest-first, never toggle off.
     state = _make_state(portrait=SatelliteState(latest=True, locked=True))
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -2563,17 +2226,10 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     assert kwargs["recent"] is True
     assert kwargs["favorites_filter"] is False
     assert kwargs["cmd_file"] == config.portrait_cmd_file
-    # Latest must collapse action groups too, so the provider roots flow through.
     assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 
-# --- mode switch (genau_activate / main_kino_activate / main_kino_activate) ---
-
-
 def test_a_switch_brings_the_main_funestras_window_back_and_hands_it_the_focus(tmp_path: Path):
-    """Kino and Genau share the Main Funestra's one window, so the switch has no
-    window to swap: it brings that window back if it was parked and gives it
-    the focus, so focus never falls through to another application."""
     config = _make_config(tmp_path)
 
     for from_mode, command, to_mode in (
@@ -2589,8 +2245,6 @@ def test_a_switch_brings_the_main_funestras_window_back_and_hands_it_the_focus(t
 
 
 def test_a_mode_switch_tells_the_main_funestra_which_of_kino_and_genau_has_its_window(tmp_path: Path):
-    """The window is the Main Funestra's; Fun Time says which of the two running on
-    it is to show, with the same verb a startup seeds."""
     config = _make_config(tmp_path)
 
     dispatch_command("genau_activate", _make_state(main_mode=MainMode.KINO), config)
@@ -2599,9 +2253,6 @@ def test_a_mode_switch_tells_the_main_funestra_which_of_kino_and_genau_has_its_w
     config.main_funestra_cmd_file.unlink()
     dispatch_command("main_kino_activate", _make_state(main_mode=MainMode.GENAU), config)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == ["SHOW kino"]
-
-
-# --- genau command forwarding (_GENAU_CMD_MAP) ---
 
 
 def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -2616,9 +2267,6 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
 
 def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
-    """The hand is at work in both modes — driving outright in genau
-    mode, filling the funscript's gaps in kino mode — so its own rate keys
-    never land on the Main Funestra's video rate."""
     for mode in ("kino", "genau"):
         config = _make_config(tmp_path / mode)
         state = _make_state(main_mode=mode)
@@ -2632,8 +2280,6 @@ def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
 
 
 def _set_main_funestra_driving(config, *, driving: bool) -> None:
-    """Publish a Main Funestra status so the speed arbiter sees the funscript
-    driving (scripted, not resting) or not."""
     config.main_funestra_status_file.write_text(
         f"has_funscript={'1' if driving else '0'}\nfunscript_resting=0\n",
         encoding="utf-8",
@@ -2641,10 +2287,6 @@ def _set_main_funestra_driving(config, *, driving: bool) -> None:
 
 
 def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
-    """The HUD's ± marks sit on one readout or the other, so each must move
-    the engine it sits on: Genau's pair stayed on the motion even mid-funscript,
-    from when one shared pair made pressing Genau's − move the playback rate
-    across the HUD instead."""
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=True)
     state = _make_state(main_mode=MainMode.KINO)
@@ -2656,9 +2298,6 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
 
 
 def test_the_bare_nudge_routes_to_main_funestra_in_kino_mode_while_the_funscript_drives(tmp_path: Path):
-    """Kino mode, actively scripted stretch: the funscript drives the OSR2 and Genau
-    is paused, so "speed up" tunes the Main Funestra's video — whose clock scales the script.
-    Sent to Genau it moved a number on a dimmed readout and nothing else."""
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=True)
     state = _make_state(main_mode=MainMode.KINO)
@@ -2670,8 +2309,6 @@ def test_the_bare_nudge_routes_to_main_funestra_in_kino_mode_while_the_funscript
 
 
 def test_the_bare_nudge_routes_to_genau_in_kino_mode_while_genau_drives(tmp_path: Path):
-    # Kino mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
-    # OSR2, so the bare nudge tunes Genau's motion rate.
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=False)
     state = _make_state(main_mode=MainMode.KINO)
@@ -2683,8 +2320,6 @@ def test_the_bare_nudge_routes_to_genau_in_kino_mode_while_genau_drives(tmp_path
 
 
 def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path):
-    """A device held at either end follows neither engine, so the nudge that
-    follows the OSR2's driver reaches the video instead."""
     config = _make_config(tmp_path)
 
     dispatch_command("speed_up",
@@ -2695,7 +2330,6 @@ def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path)
 
 
 def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: Path):
-    """Nothing to arbitrate in genau mode: only the motion's rate is running."""
     config = _make_config(tmp_path / "genau")
     dispatch_command("speed_up", _make_state(main_mode=MainMode.GENAU), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
@@ -2738,9 +2372,6 @@ def test_the_main_funestras_video_rate_is_ignored_in_genau_mode(tmp_path: Path, 
 
 
 def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_path: Path):
-    """Kino mode, unscripted stretch: the bare nudge goes to the motion, so naming
-    the playback is the only way to move the video's rate — and it has to land
-    there rather than follow whichever engine happens to be driving."""
     config = _make_config(tmp_path)
     _set_main_funestra_driving(config, driving=False)
     state = _make_state(main_mode=MainMode.KINO)
@@ -2752,11 +2383,8 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
 
 
 def test_absolute_speed_reaches_main_funestra_video_in_kino_mode_even_when_genau_drives(tmp_path: Path):
-    # Absolute video-speed sets (multiplier, min/max) tune whatever the Main Funestra shows, so
-    # they land on the Main Funestra's video even during a Genau-driven stretch — they must not
-    # silently vanish the way a driver-routed command would.
     config = _make_config(tmp_path)
-    _set_main_funestra_driving(config, driving=False)  # Genau owns the OSR2 this stretch
+    _set_main_funestra_driving(config, driving=False)
     state = _make_state(main_mode=MainMode.KINO)
 
     dispatch_command("main_funestra_speed_150", state, config)
@@ -2842,9 +2470,6 @@ def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
 
 
 def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
-    """The audio companion is a sink and a level of zero is all it needs.  The Main Funestra
-    also *draws* the level, and from zero alone it cannot tell muted from turned
-    all the way down — nor what unmuting should return to."""
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70), config)
@@ -2869,13 +2494,6 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
 
 
 def test_the_level_reaches_both_funestras_that_draw_it(tmp_path: Path):
-    """the Main Funestra and Genau each draw the primary display's volume chip, and each is told
-    the level and the mute as two facts — the sink gets a mute as a zero, which
-    cannot say whether the speaker is off or turned all the way down.
-
-    Genau is told in every mode, not only the ones it is showing in, so the chip
-    is already right when it takes the screen.
-    """
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70, main_mode=MainMode.KINO), config)
@@ -2885,8 +2503,6 @@ def test_the_level_reaches_both_funestras_that_draw_it(tmp_path: Path):
 
 
 def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
-    """The level arrives over a text channel from another process, so it is not
-    trusted: out of range is clamped, unparseable is dropped rather than raised."""
     config = _make_config(tmp_path)
 
     assert dispatch_command("audio_set_volume|400", _make_state(), config)[0].volume == 100
@@ -2922,9 +2538,7 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
     new_state, ops = dispatch_command("audio_mute", _make_state(volume=70), config)
 
     assert new_state.muted is True
-    assert new_state.volume == 70  # remembered, so unmuting restores it
-    # What the Main Funestra is told is its own test; here the companion, which only has to
-    # be quiet, gets the plain zero.
+    assert new_state.volume == 70
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
     assert ops == [WindowOp(op="message", key="Muted", source="main")]
 
@@ -2942,7 +2556,6 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
 
 
 def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
-    """Saying "mute" twice must not undo the mute — "un mute" is how you come back."""
     config = _make_config(tmp_path)
 
     still_muted, _ops = dispatch_command("audio_mute", _make_state(muted=True), config)
@@ -3003,9 +2616,6 @@ def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb
 
 
 class TestOsr2ControlState:
-    """The HUD's OSR2 switch and the words for it set one field, which is
-    what the switch lights off and what the arbiter reads."""
-
     def test_each_button_leaves_the_session_in_the_state_it_names(self, tmp_path: Path):
         config = _make_config(tmp_path)
 
@@ -3016,9 +2626,6 @@ class TestOsr2ControlState:
             assert ops == []
 
     def test_a_park_sends_the_device_home(self, tmp_path: Path):
-        """The broker walks it there and swallows the script feed on the way;
-        keeping both engines from being heard is the arbiter's, re-stated every
-        tick, so a verb fired here would be undone by its next assertion."""
         config = _make_config(tmp_path)
 
         after, ops = dispatch_command("robot_hand_park", _make_state(), config)
@@ -3028,9 +2635,6 @@ class TestOsr2ControlState:
         assert ops == []
 
     def test_driving_again_calls_the_brokers_hold_off(self, tmp_path: Path):
-        """A release inside the hold's settle delay has to cancel the write as
-        well as the mute, or the device is sent to the end just after it was
-        handed back."""
         config = _make_config(tmp_path)
         parked, _ops = dispatch_command("robot_hand_park", _make_state(), config)
 
@@ -3096,8 +2700,6 @@ class TestTakingTheOsr2:
 
 
 def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
-    """What is left of auto-advance is its pace: the arming and the hold it could
-    disagree with are one padlock now (see the main lock tests above)."""
     for command, verb in (
         ("genau_flick_seconds_down", "FLICK_SECONDS_DOWN"),
         ("genau_flick_seconds_up", "FLICK_SECONDS_UP"),
@@ -3177,9 +2779,6 @@ def test_robot_hand_cmd_reaches_genau_in_kino_mode(tmp_path: Path):
     assert ops == []
 
 
-# --- genau numeric command forwarding ---
-
-
 def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
@@ -3233,8 +2832,6 @@ def test_enter_omnipause_pauses_satellites_and_suspends(tmp_path: Path):
 
 
 def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
-    """Entering omnipause must emit a disable_all_topmost op so the dispatch
-    loop removes topmost from all windows."""
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
@@ -3272,7 +2869,6 @@ def test_leaving_the_pause_relief_entered_keeps_the_osr2_retracted(tmp_path: Pat
 
 
 def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):
-    """Toggle entering omnipause must also emit disable_all_topmost."""
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False)
 
@@ -3282,8 +2878,6 @@ def test_omnipause_toggle_enter_emits_disable_all_topmost(tmp_path: Path):
 
 
 def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
-    """Leaving omnipause must emit restore_all_topmost so the dispatch
-    loop rebuilds the z-order stack."""
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
@@ -3293,13 +2887,6 @@ def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
 
 
 def test_a_leave_omnipause_verb_no_producer_can_send_is_inert(tmp_path: Path):
-    """Leaving is internal: the toggle is what calls it.
-
-    No key, phrase or button in the family ever sent this verb -- it is absent
-    from windows_bridge_hotkeys.ahk, from VOICE_COMMANDS and from every HUD
-    button id -- so it is not a spelling of the resume, and a hand-written
-    command file does not get one.
-    """
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
@@ -3310,9 +2897,6 @@ def test_a_leave_omnipause_verb_no_producer_can_send_is_inert(tmp_path: Path):
 
 
 def test_leaving_omnipause_brings_back_the_funestras_a_button_parked(tmp_path: Path):
-    """Resuming is Fun Time coming back, and a Funestra minimized from its own HUD
-    took that HUD down with it — so it cannot ask for itself, and nothing else
-    would have brought it back but the taskbar."""
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
@@ -3321,8 +2905,6 @@ def test_leaving_omnipause_brings_back_the_funestras_a_button_parked(tmp_path: P
 
 
 def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
-    """A window has to be back on screen before the re-stack orders it and the
-    activate raises it, or both land on something minimized."""
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
@@ -3333,8 +2915,6 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
 
 
 def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):
-    """It frees the desktop by dropping the topmost bands, not by minimizing —
-    so there is nothing for the resume to undo but what a button parked."""
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command("enter_omnipause", _make_state(), config)
@@ -3343,7 +2923,6 @@ def test_entering_omnipause_parks_nothing_of_its_own(tmp_path: Path):
 
 
 def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
-    """Genau should stay topmost during omnipause — only pause playback."""
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, main_mode=MainMode.GENAU)
 
@@ -3353,7 +2932,6 @@ def test_enter_omnipause_does_not_remove_genau_topmost(tmp_path: Path):
 
 
 def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
-    """Esc (omnipause toggle) should pause Genau, not remove its topmost."""
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=False, main_mode=MainMode.GENAU)
 
@@ -3383,9 +2961,6 @@ def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
     new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "activate_window" and op.key == "main_funestra" for op in ops)
-
-
-# --- Main Funestra nudge ---
 
 
 @pytest.mark.parametrize("main_mode", list(MainMode))
@@ -3429,8 +3004,6 @@ def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
 ])
 def test_a_ten_second_step_on_a_video_of_ten_seconds_or_shorter_does_nothing_and_says_why(
         tmp_path: Path, command, status_of, expected_message):
-    """The HUD draws the pair faded there; a key or a spoken word for it is
-    refused the same way, with what the faded button's hover says."""
     config = _make_config(tmp_path)
     _publish_status(status_of(config), duration_ms=10_000)
 
@@ -3477,9 +3050,6 @@ def test_a_ten_second_step_with_just_ten_seconds_to_go_still_steps(
     assert _cmds(config, FunTimeFunestra.PORTRAIT) == [verb]
 
 
-# --- main_funestra record commands ---
-
-
 def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
@@ -3497,7 +3067,6 @@ def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_
 
 
 def test_main_funestra_record_commands_work_in_kino_mode(tmp_path: Path):
-    """Kino mode displays the Main Funestra, so loop recording works there too."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -3517,9 +3086,6 @@ def test_main_funestra_record_commands_are_ignored_in_genau_mode(tmp_path: Path)
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
-# --- unknown command ---
-
-
 def test_an_unknown_command_leaves_the_session_exactly_as_it_was(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
@@ -3531,9 +3097,6 @@ def test_an_unknown_command_leaves_the_session_exactly_as_it_was(tmp_path: Path)
 
 
 def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog):
-    """The fall-through used to be indistinguishable from a handled no-op, so a
-    key bound to a misspelled id was simply a dead key.  The state still comes
-    back unchanged; the log now says why nothing happened."""
     config = _make_config(tmp_path)
 
     with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
@@ -3564,13 +3127,7 @@ def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(tmp_path: 
     assert not any("portrait_say_experiments" in record.message for record in caplog.records)
 
 
-# --- genaumacher_save ---
-
-
 def test_genaumacher_save_raises_a_save_video_op_and_runs_nothing_inline(tmp_path: Path):
-    """The save is a 10-second cross-repo subprocess; the dispatcher only asks
-    for it (the loop runs it on a worker thread), so the 20 Hz tick never
-    stalls on a booting interpreter."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -3591,27 +3148,16 @@ def test_genaumacher_save_is_ignored_in_genau_mode(tmp_path: Path):
     assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
 
 
-# --- group loops and lock-action --------------------------------------------
-
 def _loop_config(tmp_path: Path, *, axis: str, funestra: int = 2) -> tuple[BridgeConfig, str, str]:
-    """A config whose Funestra holds a two-item group on the requested axis,
-    grouped by the real index over real sidecars."""
     if axis == "action":
-        # Same subject (one source image), different acts.
         videos = {"a": _subject_meta(action="Alpha"), "b": _subject_meta(action="Twirling")}
     else:
-        # Same act + params, different image seeds.
         videos = {"a": _subject_meta(image_seed="1"), "b": _subject_meta(image_seed="2")}
     config, paths = _make_grouped_config(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"]
 
 
 def _widened_loop_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str]:
-    """Three same-scene videos {a, a2, b} whose exact seed families split: a and
-    a2 share one family (same prompt + quality, seeds apart), while b is its
-    own render (a Draft of the identical prompt).  So a's exact seed row is
-    {a, a2}, but the widen — which ranks b in on its identical scene tags —
-    is all three."""
     config, paths = _make_grouped_config(tmp_path, {
         "a": _subject_meta(image_seed="1"),
         "a2": _subject_meta(image_seed="2"),
@@ -3626,8 +3172,6 @@ def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: P
     _set_current(config, 2, a)
     _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    # The group is written as the Funestra's playlist (current-first) and reloaded; the
-    # native Funestra then loops it by auto-advance.
     assert sorted(_playlist(config, 2)) == sorted([a, b])
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert any(op.op == "message" and op.source == "portrait" for op in ops)
@@ -3644,83 +3188,66 @@ def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: 
 
 
 def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(tmp_path: Path):
-    """When the row was widened around the video on screen, "loop seeds" loops the
-    whole loose family (across its exact seed families) and keeps the widen anchor in
-    state, so the HUD stays widened and frozen as the loop auto-advances the re-renders."""
     config, a, a2, b = _widened_loop_config(tmp_path)
-    state = _make_state(portrait=SatelliteState(widen_video=a))  # widened around the video on screen
+    state = _make_state(portrait=SatelliteState(widen_video=a))
 
     _set_current(config, 2, a)
     new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a  # anchor kept so the HUD stays wide
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == a
 
 
 def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
-    """A plain "loop seeds" (widen anchor does not match the video on screen) loops
-    only the exact family, so it must drop any stale widen anchor — otherwise the
-    HUD would wrongly read the exact-family loop as a widened one."""
     config, a, b = _loop_config(tmp_path, axis="seed")
-    state = _make_state(portrait=SatelliteState(widen_video="C:/somewhere/else.mp4"))  # stale, not on screen
+    state = _make_state(portrait=SatelliteState(widen_video="C:/somewhere/else.mp4"))
 
     _set_current(config, 2, a)
     new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
-    assert sorted(_playlist(config, 2)) == sorted([a, b])  # exact family only
+    assert sorted(_playlist(config, 2)) == sorted([a, b])
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # stale anchor dropped
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
 
 
 def test_a_video_marked_trash_stops_being_drawn_on_the_map(tmp_path: Path):
-    """The nav map draws the library around the video on screen, and a trashed video
-    has left the library — so its row stops offering it, rather than holding a
-    thumbnail of something that is no longer there for the rest of the session.
-    """
     config, a, b = _loop_config(tmp_path, axis="seed")
     _set_current(config, 2, a)
     assert nav_map_cells(_satellite_group_index(FunTimeFunestra.PORTRAIT, config, b), b)[0] == [a]
 
-    _discard(2, _make_state(), config)            # "trash" on the video on screen
+    _discard(2, _make_state(), config)
 
     index = _satellite_group_index(FunTimeFunestra.PORTRAIT, config, b)
     assert nav_map_cells(index, b)[0] == []
 
 
 def test_marking_videos_trash_until_one_is_left_turns_the_loop_into_a_lock(tmp_path: Path):
-    """A loop shrinks with its group, and a loop of one video is that video over
-    and over — which is the lock.  So the Satellite locks and the loop goes, the same
-    answer a loop button gives a group that only ever held one video."""
     config, a, b = _loop_config(tmp_path, axis="seed")
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
-    state, ops = _discard(2, state, config)       # "trash" on the video on screen
+    state, ops = _discard(2, state, config)
 
     assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "TRASH", "LOCK_ON"]
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-    # Plain, not the favorites' green: nothing was starred, nothing was pressed.
     assert [(op.op, op.key, op.source, op.level) for op in ops
             if op.key == "Locked"] == [("message", "Locked", "portrait", MESSAGE)]
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
-    """A group of one is not a dead end: the loop buttons still work, they just
-    mean "lock" then — repeat-one on the current video, no sub-playlist."""
     config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
 
     _set_current(config, 2, str(only))
     new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    assert _playlist(config, 2) == []  # no queue reshape for a group of one
-    assert _cmds(config, 2) == ["LOCK_ON"]  # a group of one is really a single-video lock
+    assert _playlist(config, 2) == []
+    assert _cmds(config, 2) == ["LOCK_ON"]
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
     messages = [op for op in ops if op.op == "message"]
     assert [op.key for op in messages] == ["Locked"]
-    # Green, because a lock puts the video in the favorites.
     assert [op.level for op in messages] == [FAVORITE]
 
 
@@ -3734,8 +3261,6 @@ def test_a_loop_of_one_video_puts_it_in_the_favorites_as_every_lock_does(tmp_pat
 
 
 def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
-    """The HUD reads this flag to freeze its nav map on the looped group and keep the
-    loop button lit while the video auto-advances, so it must live in the state."""
     config, a, _b = _loop_config(tmp_path, axis="action")
 
     _set_current(config, 2, a)
@@ -3756,25 +3281,16 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
 
 
 def test_a_loop_anchors_on_the_video_it_started_on(tmp_path: Path):
-    """A loop's queue is written video-on-screen-first, so the HUD has to order its
-    map the same way — from the video the loop started on.
-
-    Anchoring the nav map on some other item (the group's lowest-keyed one) drew the
-    video on screen somewhere in the middle of the row the instant the loop began,
-    and made the action column light up upward as the group played.
-    """
     config, a, b = _loop_config(tmp_path, axis="seed")
 
-    _set_current(config, 2, b)  # the loop starts on the group's *second* item
+    _set_current(config, 2, b)
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == b
-    assert _playlist(config, 2) == [b, a]  # the nav map's order is the queue's order
+    assert _playlist(config, 2) == [b, a]
 
 
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
-    """The one-item "loop" is really a lock, so it must drop any loop the Funestra
-    was running instead of leaving a stale flag."""
     config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
 
@@ -3785,16 +3301,10 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     )
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # the lock drops the widened row too
+    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
 
 
 def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path):
-    """A lock inside a loop is a hold at one position in it, not the end of it.
-
-    LOCK repeats the video on screen and leaves the loop's queue untouched, so the
-    Funestra really is still looping — dropping the flag only stopped the HUD from
-    saying so, and then unlocking put you back into a loop the HUD had disowned.
-    """
     config = _make_config(tmp_path)
     video = r"C:\videos\provider2\abc_123.mp4"
 
@@ -3807,15 +3317,12 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
         )
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-    assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "action"      # still looping, just held
-    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == video    # …over the same map
-    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == video    # …and the same widened row
+    assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "action"
+    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == video
+    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == video
 
 
 def test_unlocking_leaves_the_loop_running(tmp_path: Path):
-    """Coming out of the lock drops you straight back into the loop you were in:
-    UNLOCK restores auto-advance over the loop's own queue, which the lock never
-    replaced, so the flag has to survive the unlock too."""
     config = _make_config(tmp_path)
     video = r"C:\videos\provider2\abc_123.mp4"
 
@@ -3832,8 +3339,6 @@ def test_unlocking_leaves_the_loop_running(tmp_path: Path):
 
 
 def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
-    """A filter that selects videos rebuilds the playlist, replacing the loop's
-    sub-playlist — so the loop (and any widened row) is gone."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -3848,8 +3353,6 @@ def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
 
 
 def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
-    """A filter that matches nothing never touches the playlist, so a loop that
-    was running — and its widened row — survives it."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -3864,13 +3367,6 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
 
 
 def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Path):
-    """Ending a loop must take away the loop's own chrome — the lit button and the
-    rectangle — and nothing else.
-
-    The nav map keeps hanging on the same video, over the same (possibly widened) row, so
-    the thumbnails do not re-home onto whichever item the loop had reached; it lets
-    go by itself once the browse moves on past the group.
-    """
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
@@ -3879,51 +3375,35 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
             _make_state(portrait=SatelliteState(loop="action", nav_map_anchor="C:/v/anchor.mp4", widen_video="C:/v/anchor.mp4")), config,
         )
 
-    assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""                            # the loop is off
-    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/anchor.mp4"       # the nav map stays put
-    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/anchor.mp4"       # …and stays widened
+    assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
+    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/anchor.mp4"
+    assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/anchor.mp4"
 
 
 def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
-    """Cancelling a loop must not yank you to a different video: the queue is
-    reshaped to the browse in place (retarget keeps the current video playing),
-    never replaced — so no restart, no seek-back papering over one."""
     config = _make_config(tmp_path)
     browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(), config)
 
-    # The browse is written as the Funestra's playlist and reloaded in place.
     assert _playlist(config, 2) == browse
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
 
 
 def test_no_loop_keeps_the_video_on_screen_by_heading_the_restored_browse(tmp_path: Path):
-    """Turning a loop OFF must not interrupt the video playing.
-
-    The Funestra keeps its video across a reload only when that video is still in the
-    new list, and a loop item usually is NOT in the browse — the browse holds one
-    representative per group, and the loop was cycling the others.  Without this the
-    reload fell through to "restart at the top" and yanked the user onto another
-    video, which is exactly the interruption the loop-off toggle must not cause.
-    """
     config = _make_config(tmp_path)
-    playing = r"C:\v\seed_4.mp4"  # a loop item, not one of the browse's picks
+    playing = r"C:\v\seed_4.mp4"
     browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
     _set_current(config, 2, playing)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
-    # It heads the restored list, so the reload keeps it playing and the browse is
-    # simply what comes up next.
     assert _playlist(config, 2) == [playing, *browse]
 
 
 def test_no_loop_leaves_a_browse_that_already_holds_the_video_untouched(tmp_path: Path):
-    """When the video on screen IS one of the browse's picks the reload already keeps
-    it, so the browse keeps its own order — no needless reshuffle of what comes next."""
     config = _make_config(tmp_path)
     browse = [r"C:\v\one.mp4", r"C:\v\two.mp4", r"C:\v\three.mp4"]
     _set_current(config, 2, r"C:\v\two.mp4")
@@ -3935,14 +3415,12 @@ def test_no_loop_leaves_a_browse_that_already_holds_the_video_untouched(tmp_path
 
 
 def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path):
-    """A filter that now matches nothing must not blank the queue: with no browse
-    paths, no_loop only clears the flag and never reshapes the live queue."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[]):
         state, ops = dispatch_command("portrait_no_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
-    assert _playlist(config, 2) == []  # empty browse never blanks the live queue
+    assert _playlist(config, 2) == []
     assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "message"] == ["Loop off"]
@@ -3976,15 +3454,8 @@ def test_next_in_a_loop_of_several_videos_moves_on_within_the_loop(tmp_path: Pat
     assert state.portrait.loop == "seed"
 
 
-# --- the loop key's cycle: the lock, seeds, actions, off ---------------------
-
 def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
                   action_group: bool = True, funestra: int = 2) -> tuple[BridgeConfig, str, str, str]:
-    """A three-video library where the video on screen (a) has both loops to
-    offer: an action group {a, b} and a seed family {a, c}.  Either can be
-    collapsed to a group of one — a subject with a single act (b rendered from
-    another scene entirely), or a video nobody re-seeded doing a's act (c
-    re-labelled to an act of its own)."""
     videos = {
         "a": _subject_meta(image_seed="1", action="Alpha"),
         "b": (_subject_meta(image_seed="1", action="Beta") if action_group
@@ -4018,7 +3489,6 @@ def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
 
 
 def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
-    """The cycle's last stop is the old behavior — back to the browse, filter kept."""
     config, a, _b, _c = _cycle_config(tmp_path)
     browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
 
@@ -4066,7 +3536,7 @@ def test_with_nothing_to_loop_the_loop_key_locks_then_lets_go_without_moving_on(
         state, ops = dispatch_command("portrait_loop", state, config)
 
     browse.assert_not_called()
-    assert _cmds(config, 2) == ["LOCK_ON", "LOCK_OFF"]  # let go where it stands, no NEXT
+    assert _cmds(config, 2) == ["LOCK_ON", "LOCK_OFF"]
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is False
     assert [op.key for op in ops if op.op == "message"] == ["Unlocked"]
 
@@ -4086,8 +3556,6 @@ def test_the_loop_keys_off_stop_lets_go_of_a_lock_taken_inside_the_loop(tmp_path
 
 
 def test_the_loop_key_ends_a_loop_the_video_has_drifted_out_of(tmp_path: Path):
-    """A loop whose video has auto-advanced somewhere with no groups still steps
-    off — the off stop is never skipped for want of a loopable axis."""
     config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
@@ -4109,8 +3577,6 @@ def test_the_loop_key_drives_only_its_own_satellite(tmp_path: Path):
 
 
 def test_the_loop_key_does_nothing_with_no_video_on_screen(tmp_path: Path):
-    """No current video means no groups to read, so the press must not fall through
-    to the off stop and rebuild the browse."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
@@ -4122,8 +3588,6 @@ def test_the_loop_key_does_nothing_with_no_video_on_screen(tmp_path: Path):
 
 
 def test_a_reorder_clears_only_its_own_satellites_loop(tmp_path: Path):
-    """A reorder rebuilds the Funestra it names, so that Funestra's loop goes — and the
-    other Funestra, which was not rebuilt, keeps looping."""
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -4152,7 +3616,6 @@ def test_fmode_clears_the_loop_of_every_satellite_it_rebuilds(tmp_path: Path):
 
 
 def test_a_sided_fmode_leaves_the_other_satellites_loop_running(tmp_path: Path):
-    """Only the rebuilt Funestra lost its queue, so only its loop goes with it."""
     config = _make_config(tmp_path)
 
     state, _ops, _mock = _dispatch_fmode(
@@ -4181,14 +3644,11 @@ def test_lock_action_filters_to_the_current_videos_action(tmp_path: Path):
 
 
 def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Path):
-    """A group command names the video the speaker had in front of them, so the
-    group is that video's — not that of whatever the satellite advanced to."""
     config, meant, sibling = _loop_config(tmp_path, axis="action")
 
     _set_current(config, 2, "C:/v/advanced_to.mp4")
     dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)
 
-    # The group is the back-dated (spoken) video's, not the newcomer's.
     assert sorted(_playlist(config, 2)) == sorted([meant, sibling])
 
 
@@ -4204,14 +3664,13 @@ def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_
         dispatch_command("portrait_lock_action", _make_state(), config,
                          target_path=paths["meant"])
 
-    # The act filtered to is the back-dated (spoken) video's, not the newcomer's.
     assert mock_filter.call_args.kwargs["query"] == "beta gamma"
 
 
 def test_lock_action_without_metadata_says_so(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    _set_current(config, 3, "C:/v/clip.mp4")  # a video with no sidecar at all
+    _set_current(config, 3, "C:/v/clip.mp4")
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
 
@@ -4221,9 +3680,6 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
         op.op == "message" and "No action metadata" in op.key and op.source == "landscape"
         for op in ops
     )
-
-
-# --- where the genaumacher sibling is ---
 
 
 def test_the_genaumacher_sibling_is_found_beside_the_primary_not_beside_a_worktree():
@@ -4288,10 +3744,6 @@ def test_every_main_list_rebuild_is_handed_to_the_sessions_builder(tmp_path, com
 
 
 def test_main_latest_reloads_the_main_funestra_newest_first(tmp_path):
-    """The Main Funestra had only the shuffle, so a video that arrived an hour ago sat
-    somewhere in a thousand-video rotation with no way to ask for it.  It browses in
-    the satellites' two orders now, and the order is remembered — an F-mode rebuild
-    afterwards has to reload it the same way round rather than quietly reshuffling."""
     config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_latest", BridgeState(), config)
@@ -4326,17 +3778,12 @@ def test_narrowing_the_main_funestra_keeps_its_order(tmp_path):
 
 
 def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
-    """The bug this fixes: "main latest" in genau mode rewrote a playlist for the Main Funestra,
-    which was neither on screen nor playing, and Genau — the Funestra actually
-    showing — carried on in the order it launched in.  Two messages and nothing
-    happening.  The reorder goes to whoever owns the slot's screen, as the lock
-    does."""
     config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
-    assert builds.asked == []  # the Main Funestra's playlist is left exactly as it was
+    assert builds.asked == []
     assert [op.key for op in ops if op.op == "message"] == ["Latest"]
 
     dispatch_command("main_shuffle", state, config)
@@ -4345,10 +3792,6 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
 
 
 def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path):
-    """``main_latest`` says which order the playlist file we built for the Main Funestra is in —
-    an F-mode rebuild reads it to reload the same way round — so setting it for a
-    Genau reorder would light "Latest" over a Main Funestra playlist nobody reordered.  Genau
-    keeps its own, which is what the HUD draws while Genau is showing."""
     config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
@@ -4361,8 +3804,6 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
 
 
 def test_a_main_reorder_in_kino_mode_still_reaches_main_funestra(tmp_path):
-    """Kino mode is the Main Funestra on screen with Genau driving the OSR2, so the video being
-    browsed is the Main Funestra's — Genau's flicks are not what a reorder there is about."""
     config, builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.KINO), config)
@@ -4432,7 +3873,6 @@ def test_a_narrowed_orientation_is_something_main_reset_puts_back(tmp_path):
 
 
 def _vr_config(tmp_path):
-    """A session whose rotation holds both shapes, as the headset's does."""
     config = _make_config(tmp_path)
     config.vr_library_dirs = str(tmp_path / "primary" / "vr")
     return config
@@ -4461,7 +3901,6 @@ def test_a_narrowing_carries_on_from_the_video_on_screen(tmp_path):
 
 
 def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
-    """A rebuild reshuffles, and this must not become a second "shuffle main"."""
     config, builds = _recording(_vr_config(tmp_path))
 
     _state, ops = dispatch_command("main_projection_both", _make_state(), config)
@@ -4476,10 +3915,6 @@ def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
     ("main_funestra_length_clips", BridgeState(main_plays_flat=False)),
 ])
 def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, command, state):
-    """Both shapes off, both lengths off, or a mix no video passes -- VR only with
-    videos only, since no VR video is a video: the video on screen stays as the
-    whole list, locked, and Fun Time says so once.  An empty list would leave
-    the Funestra playing the list it had, videos the buttons leave out."""
     config = _vr_config(tmp_path)
     on_screen = tmp_path / "primary" / "vr" / "scene one.mp4"
     on_screen.parent.mkdir(parents=True)
@@ -4498,9 +3933,6 @@ def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, co
 
 
 def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path):
-    """Every session outside the headset: no VR library among its sources, so
-    narrowing to either half would leave the Funestra with nothing or with what it
-    already had.  Its console draws no buttons for it either."""
     config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_projection_vr", _make_state(), config)
@@ -4512,7 +3944,6 @@ def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path):
 
 
 def _genau_vr_config(tmp_path):
-    """A headset session, whose Genau browses a folder of VR flicks beside its flat one."""
     config = _vr_config(tmp_path)
     config.genau_vr_flicks = str(tmp_path / "vr_flicks")
     return config
@@ -4582,7 +4013,6 @@ def test_asking_genau_for_the_shapes_it_already_plays_sends_it_nothing(tmp_path)
 
 
 def test_a_genau_with_only_flat_flicks_ignores_the_filter(tmp_path):
-    """The desktop's Genau, and a headset whose config names no VR flicks folder."""
     config = _vr_config(tmp_path)
 
     state, ops = dispatch_command(
@@ -4680,9 +4110,6 @@ def test_main_reset_flashes_reset_over_the_main_funestra(tmp_path):
 
 
 def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path):
-    """Resetting a Funestra is addressing it, the way locking it or naming its F-mode
-    is — so a bare "next" after it lands here rather than on whichever satellite was
-    touched last."""
     config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_reset", _make_state(active_funestra=2), config)
@@ -4691,10 +4118,6 @@ def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path
 
 
 def test_reordering_the_main_funestra_starts_it_at_the_top(tmp_path):
-    """A reorder filters nothing out, so the Main Funestra keeps the video on screen across the
-    reload and carries on from wherever it now sits — leaving the newest-first list
-    to apply only after it, and the arrivals that were asked for never coming up.
-    The satellites' reorder starts at the top for exactly this reason; so does this."""
     config, builds = _recording(_make_config(tmp_path))
 
     dispatch_command("main_latest", BridgeState(), config)
@@ -4703,7 +4126,6 @@ def test_reordering_the_main_funestra_starts_it_at_the_top(tmp_path):
 
 
 def _origenerator_config(tmp_path: Path) -> BridgeConfig:
-    """A config whose session hosts an Origenerator (the mode exists at all)."""
     config = _make_config(tmp_path)
     return replace(
         config,
@@ -4716,15 +4138,10 @@ def _origenerator_config(tmp_path: Path) -> BridgeConfig:
 
 
 def _up(**fields) -> BridgeState:
-    """A state whose hosted Origenerator has finished booting, which is every
-    session past its first half-minute.  Before that the mode is refused
-    outright, so a test about the switch itself has to say the app is up."""
     return BridgeState(origenerator_ready=True, **fields)
 
 
 def _in_origenerator_mode(*funestras: FunTimeFunestra, **fields) -> BridgeState:
-    """*funestras* in their Origenerator mode -- both, with none named -- in a
-    session whose hosted app is up."""
     state = _up(**fields)
     for funestra in funestras or FunTimeFunestra.SATELLITES:
         state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR,
@@ -4780,9 +4197,6 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
 class TestEachSatellitesOwnMode:
     def test_a_satellites_origenerator_button_hands_that_funestra_alone_to_the_app(
             self, tmp_path):
-        """That Funestra goes on playing, now the app's slideshow: its own list is kept
-        aside for the way back and its hold let go, so the app decides what
-        holds.  The other Funestra and the browser's place are left as they were."""
         config = _origenerator_config(tmp_path)
         for funestra in FunTimeFunestra.SATELLITES:
             write_playlist_file(config.satellite(funestra).playlist_file,
@@ -4801,8 +4215,6 @@ class TestEachSatellitesOwnMode:
 
     def test_a_satellites_kino_button_asks_the_app_to_let_go_of_that_funestra_alone(
             self, tmp_path):
-        """It comes home once the app has let go of it -- the loop takes it back
-        (take_back_funestras) -- and nothing pauses on the way."""
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("landscape_kino_activate", _in_origenerator_mode(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
@@ -4836,8 +4248,6 @@ class TestEachSatellitesOwnMode:
         assert _origenerator_cmds(config) == ["portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_the_toggle_puts_both_in_origenerator_mode_unless_both_already_are(self, tmp_path):
-        """The F key's own rule for a toggle over several Funestras: it completes
-        the switch or lifts it, never leaving the two halfway."""
         config = _origenerator_config(tmp_path)
         state, _ = dispatch_command("satellites_toggle",
                                     _in_origenerator_mode(FunTimeFunestra.PORTRAIT), config)
@@ -4852,12 +4262,6 @@ class TestEachSatellitesOwnMode:
         assert any(op.op == "message" and op.level == logging.WARNING for op in ops)
 
     def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
-        """Fun Time opens without waiting that app out, so for the first
-        half-minute of a session Origenerator is made of windows that do not
-        exist.  Every Origenerator button is drawn dim over that stretch and
-        posts nothing; this is the answer for the key and the spoken word,
-        which have no dim button to look at.
-        """
         config = _origenerator_config(tmp_path)
 
         for command in ("portrait_origenerator_activate", "satellites_toggle"):
@@ -4903,8 +4307,6 @@ class TestEachSatellitesOwnMode:
 class TestTheRandomFavsBrowsersPlace:
     def test_origenerator_takes_the_browsers_place_and_leaves_the_funestras_alone(
             self, tmp_path):
-        """Its Core is restored over the browser and the pair stacked
-        (restack_rfb): the browser out of the band, the hosted window in it."""
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.rfb_mode is RfbMode.ORIGENERATOR
@@ -4948,9 +4350,6 @@ class TestTheRandomFavsBrowsersPlace:
 
 class TestOrigeneratorTransport:
     def test_satellite_transport_reaches_the_hosted_app_not_the_funestra(self, tmp_path):
-        """The hosted app drives its own Funestra: a press on its HUD is its to
-        answer, so it goes there as the HUD posted it, and the session does
-        not step the Funestra on its own account."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
         state, _ = dispatch_command("portrait_next", state, config)
@@ -4958,10 +4357,6 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == []
 
     def test_every_press_on_a_hosted_satellite_routes_as_it_was_posted(self, tmp_path):
-        """The buttons on that Funestra's HUD are the hosted app's own, and so is
-        the nav map under them -- whatever it declared, it answers, so the session
-        routes every one of them but the Lock without needing to know what it
-        means."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
         presses = ("portrait_prev", "portrait_trash", "portrait_reset",
@@ -4977,8 +4372,6 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 3) == []
 
     def test_a_satellite_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path):
-        """A rebuild would write the session's own list over the one the hosted
-        app handed that Funestra."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
@@ -4989,9 +4382,6 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == ["filter_portrait_scene_one"]
 
     def test_an_act_said_to_no_satellite_narrows_both_hosted_shows(self, tmp_path):
-        """Said with no side named, an act filters both satellites; over two
-        hosted shows that is both shows, each told in its own side's words --
-        and never a rebuild of the Funestras the hosted app is feeding."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
@@ -5003,8 +4393,6 @@ class TestOrigeneratorTransport:
             "filter_portrait_scene_one", "filter_landscape_scene_one"]
 
     def test_the_funestras_own_controls_stay_the_sessions(self, tmp_path):
-        """Minimize parks the Funestra's window and speed is the rate it plays at:
-        both are the Funestra's, whoever is handing it what to play."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
@@ -5062,11 +4450,6 @@ class TestOrigeneratorTransport:
         assert _origenerator_cmds(config) == ["portrait_fmode_off"]
 
     def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
-        """The session owns Fun Time's microphone — one mic, one transcription —
-        so a command about a hosted region is heard here and posted there as the
-        words themselves.  Matching them is the hosted app's own business: only
-        it knows which shelves its tree has and which detail parts have
-        detectors installed."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
@@ -5080,23 +4463,20 @@ class TestOrigeneratorTransport:
         ]
 
     def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
-        """"portrait no filter" drops a Funestra's act filter; over a hosted show
-        the same words drop both switches on its HUD.  One phrase, one meaning
-        per mode -- and in kino mode the Funestra keeps it."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode(portrait=SatelliteState(filter="alpha"))
 
         state, _ = dispatch_command("portrait_no_filter", state, config)
 
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]
-        assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"     # the blacked Funestra's own is left alone
+        assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
 
         with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
             mock_filter.return_value = _filter_result(count=10)
             funestra_state, _ = dispatch_command(
                 "portrait_no_filter", BridgeState(portrait=SatelliteState(filter="alpha")), config)
         assert funestra_state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
-        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]  # nothing more
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]
 
     def test_every_phrase_the_hosted_app_answers_reaches_it_said_to_either_satellite(self, tmp_path):
         config = _origenerator_config(tmp_path)
@@ -5122,11 +4502,6 @@ class TestOrigeneratorTransport:
 
 
 class TestALockOnAHostedSide:
-    """A key press is instantaneous, so a Satellite in its Origenerator mode is locked
-    the moment its Lock is asked for, not once the hosted app has read the press,
-    by which time its slideshow can have moved on.  The hosted app is told after,
-    and gives the lock the rest of what a lock gives there."""
-
     @pytest.mark.parametrize("funestra_locked", [False, True])
     @pytest.mark.parametrize("kept_for_kino", [False, True])
     def test_a_pressed_lock_locks_the_funestra_and_leaves_the_rest_to_the_hosted_app(
@@ -5162,9 +4537,6 @@ class TestALockOnAHostedSide:
         ("portrait_lock_on", ["LOCK_ON"]), ("portrait_lock_off", [])])
     def test_a_lock_or_a_letting_go_said_is_handed_on_whatever_the_funestra_says_of_its_lock(
             self, command, to_the_funestra, funestra_locked, tmp_path):
-        """The hosted app's padlock says which it is: the Funestra is also locked
-        while a spoken request or a run holds its item.  Letting go never steps
-        it on to the next."""
         config = _origenerator_config(tmp_path)
         _set_current(config, FunTimeFunestra.PORTRAIT, "C:\\images\\up.png", locked=funestra_locked)
 
@@ -5176,7 +4548,6 @@ class TestALockOnAHostedSide:
             [], to_the_funestra, [command])
 
     def test_the_hosted_apps_own_word_for_its_lock_is_the_satellites_spoken_lock(self, tmp_path):
-        """Judged, as every spoken lock is, by when he began saying it."""
         config = replace(_origenerator_config(tmp_path),
                          origenerator_lock_phrases=frozenset({"hold"}))
         meant = "C:\\images\\meant.png"
@@ -5211,8 +4582,6 @@ class TestOmniPauseWithOrigenerator:
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
 
     def test_leave_sets_the_funestras_going_again_in_origenerator_mode(self, tmp_path):
-        """The Funestras show the hosted app's slideshows through the mode, so the
-        room resuming resumes them as it does in kino mode."""
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode(omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)
@@ -5221,8 +4590,6 @@ class TestOmniPauseWithOrigenerator:
         assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
         assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
 
-
-# --- the lock helpers, at the file channel ----------------------------------
 
 def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
@@ -5235,7 +4602,6 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
         state, _ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-    # Locking holds the current video (LOCK) and does not advance past it.
     assert _cmds(config, 2) == ["LOCK_ON"]
     assert favs.call_args[0][0] == "clip.mp4"
     assert "Locked portrait satellite" in caplog.text
@@ -5249,7 +4615,6 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
         state, _ops = _toggle_lock(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
     assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
-    # Unlocking releases the hold (UNLOCK) and moves on rather than replaying (NEXT).
     assert _cmds(config, 3) == ["LOCK_OFF", "NEXT"]
     assert "Unlocked landscape satellite" in caplog.text
 
@@ -5260,7 +4625,6 @@ def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
     state = cancel_lock(2, _make_state(portrait=SatelliteState(locked=True)), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is False
-    # A locked Funestra is repeat-one; cancelling it queues UNLOCK to restore advance.
     assert _cmds(config, 2) == ["LOCK_OFF"]
 
 
@@ -5270,7 +4634,6 @@ def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
     state = cancel_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is False
-    # Nothing was locked, so there is no hold to release — no verb is queued.
     assert _cmds(config, 2) == []
 
 
@@ -5306,8 +4669,6 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_trash(tmp_path:
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=True)), config)
 
     assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
-    # A locked discard drops the repeat-one hold (UNLOCK) then trashes the video,
-    # which advances into the playlist (TRASH).
     assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert favs.call_args[0][0] == "odd.mp4"
     assert trash.call_args[0][1] == Path("odd.mp4")
@@ -5328,12 +4689,10 @@ def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
         state, _ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
     assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
-    # Nothing to release, so discard is a bare TRASH (drop current, play next).
     assert _cmds(config, 3) == ["TRASH"]
 
 
 def _favorite_video(tmp_path: Path, config, name: str) -> Path:
-    """A real file on disk whose record marks it a favorite."""
     video = tmp_path / "clips" / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"video")
@@ -5343,8 +4702,6 @@ def _favorite_video(tmp_path: Path, config, name: str) -> Path:
 
 
 def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path, caplog):
-    """Discarding a favorite demotes it instead of condemning it: its record
-    stops marking it a favorite, and nothing else about the video changes."""
     config = _make_config(tmp_path)
     video = _favorite_video(tmp_path, config, "kept.mp4")
     _set_current(config, 3, str(video))
@@ -5353,15 +4710,11 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
     assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
-    # NEXT, not TRASH: it moves on from the video but leaves it in the playlist,
-    # so PREV comes straight back to it.
     assert _cmds(config, 3) == ["NEXT"]
     assert not is_favorite(video, config.regen_metadata_root)
     assert video.exists()
     assert list(config.trash_dir.iterdir()) == []
     assert f"Removed from favorites on Funestra 3: {video}" in caplog.text
-    # The demotion and the condemnation look the same on screen otherwise, so
-    # each says which one it was.
     assert [(op.op, op.key, op.source) for op in ops] == [
         ("message", "Unfavorited", "landscape")
     ]
@@ -5394,8 +4747,6 @@ def test_discarding_a_locked_favorite_lets_the_satellite_go(tmp_path: Path):
 
 
 def test_demoting_a_favorite_the_funestra_already_left_does_not_drag_it_back(tmp_path: Path):
-    """Back-dating exists so a condemned video is the one dropped.  A demotion
-    drops nothing, so a satellite that has moved on is left where it is."""
     config = _make_config(tmp_path)
     video = _favorite_video(tmp_path, config, "spoken_about.mp4")
     _set_current(config, 3, str(tmp_path / "clips" / "advanced_to.mp4"))
@@ -5430,9 +4781,6 @@ def test_a_spoken_discard_still_demotes_its_video_before_the_funestra_has_named_
 
 
 def test_discarding_a_demoted_video_again_marks_it_trash(tmp_path: Path):
-    """The demotion is one step only — once a video is out of the favorites, the
-    next discard is the full condemnation: dropped from the playlist (TRASH) and
-    moved out of the library."""
     config = _make_config(tmp_path)
     video = _favorite_video(tmp_path, config, "twice.mp4")
     _set_current(config, 2, str(video))
@@ -5444,8 +4792,6 @@ def test_discarding_a_demoted_video_again_marks_it_trash(tmp_path: Path):
 
     assert [op.key for op in demote_ops] == ["Unfavorited"]
     assert [op.key for op in condemn_ops] == ["Sent to Trash"]
-    # And in different colors: undoing a favoriting is one of the things green
-    # is kept for, condemning a video that was never a favorite is not.
     assert [op.level for op in demote_ops] == [FAVORITE]
     assert [op.level for op in condemn_ops] == [MESSAGE]
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
@@ -5455,11 +4801,6 @@ def test_discarding_a_demoted_video_again_marks_it_trash(tmp_path: Path):
 
 class TestASessionThatHostsNoOrigenerator:
     def test_a_resumed_origenerator_mode_still_drives_the_funestras(self, tmp_path):
-        """A config naming no Origenerator hosts none while its manifest still
-        names the app's command file, and the shared state file can carry
-        origenerator mode over from a session that hosted one: every satellite
-        verb then went to an app that was not there, and "portrait next" did
-        nothing."""
         config = replace(_origenerator_config(tmp_path), origenerator_enabled=False)
         state = _in_origenerator_mode()
 
@@ -5471,9 +4812,6 @@ class TestASessionThatHostsNoOrigenerator:
 
 
 class TestWhereEachHudSits:
-    """The Ctrl keys move a Funestra's HUD: round the corners of its item on the
-    desktop, against a side of its Funestra in the headset."""
-
     def test_a_satellite_key_moves_that_funestras_hud_to_that_corner(self, tmp_path):
         config = _make_config(tmp_path)
 
@@ -5558,9 +4896,6 @@ class TestAClickInACorner:
 
 
 class TestMinimizingAHud:
-    """The minus on a HUD collapses it to a square with a plus; the plus brings
-    the HUD back.  Said as well as pressed, and kept across a mode switch."""
-
     def test_a_funestras_minus_collapses_its_hud_and_its_plus_brings_it_back(self, tmp_path):
         config = _make_config(tmp_path)
 
@@ -5588,10 +4923,6 @@ class TestMinimizingAHud:
 
 
 class TestNamingAFunestraAddressesIt:
-    """Whatever is said, keyed or clicked that names a Funestra makes it the one a
-    bare phrase reaches next -- its HUD, its window's minimize, its crown and every
-    Main Funestra and Genau control included."""
-
     @pytest.mark.parametrize(("command", "funestra"), [
         ("portrait_hud_minimize", FunTimeFunestra.PORTRAIT),
         ("landscape_hud_restore", FunTimeFunestra.LANDSCAPE),

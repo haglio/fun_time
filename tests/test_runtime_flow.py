@@ -39,15 +39,10 @@ def _make_action_video(
 
 
 def _satellite_lines(state_dir: Path, funestra: str) -> list[str]:
-    """The plain video-path lines a satellite's playlist file holds.
-
-    The native Funestra reads a plain one-path-per-line file, with no header,
-    written to ``state_dir/{Funestra}_playlist.tsv``."""
     return (state_dir / f"{funestra}_playlist.tsv").read_text(encoding="utf-8").splitlines()
 
 
 def _reloaded(cmd_file: Path) -> bool:
-    """Whether a RELOAD_PLAYLIST verb was queued on a satellite's command file."""
     if not cmd_file.exists():
         return False
     return "RELOAD_PLAYLIST" in cmd_file.read_text(encoding="utf-8").splitlines()
@@ -78,7 +73,6 @@ def _mode_switch(files, *, current, target, omni_paused=False):
 
 
 def _main_funestra_cmds(files) -> list[str]:
-    """What the switch queued for the Main Funestra, one verb per line as it drains them."""
     cmd_file = files["main_funestra_cmd_file"]
     return cmd_file.read_text(encoding="utf-8").split("\n")[:-1] if cmd_file.exists() else []
 
@@ -101,9 +95,6 @@ def test_genau_to_kino_starts_the_video_and_hands_kino_the_window(flow_files):
 
 
 def test_a_mode_switch_leaves_who_drives_the_osr2_to_the_arbiter(flow_files):
-    """Genau and its audio run in both modes (the paused flags are OmniPause's
-    and the startup hold's), and the arbiter alone says which of the hand and a
-    funscript sends -- so the switch touches neither."""
     for current, target in (("kino", "genau"), ("genau", "kino")):
         _mode_switch(flow_files, current=current, target=target)
 
@@ -156,11 +147,8 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
 
     assert result.funestras == FMODE_FUNESTRAS
     assert result.enabled is True
-    # Each satellite is told to re-read its playlist file; the Main Funestra reloads via its own
-    # command file too.  All three playlist files are rewritten in place.
     assert portrait_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
     assert landscape_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
-    # …and what else rides along on the Main Funestra's write is that test's business.
     assert "RELOAD_PLAYLIST" in main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert (state_dir / "landscape_playlist.tsv").exists()
@@ -168,12 +156,6 @@ def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Pat
 
 
 def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: Path):
-    """F-mode is per Funestra, so naming one must rebuild that one alone.
-
-    Rebuilding a Funestra that was not asked for would reshuffle its queue out from
-    under it — which is exactly what the old all-three build did, and the reason
-    the rebuild is per Funestra now.
-    """
     portrait_root, landscape_root = tmp_path / "portrait", tmp_path / "landscape"
     for root in (portrait_root, landscape_root):
         root.mkdir(parents=True)
@@ -204,16 +186,13 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
 
 
 def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
-    """The Main Funestra cannot read F-mode off the playlist it is handed — a list of scripted
-    videos looks like any other — so its HUD only knows because it is told: the
-    flag is queued right after the reload it belongs to."""
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
     main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
 
     def told(enabled: bool) -> list[str]:
-        main_funestra_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
+        main_funestra_cmd_file.unlink(missing_ok=True)
         apply_fmode(
             satellites={
                 FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(
@@ -235,22 +214,12 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
 
 
 def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
-    """The Main Funestra keeps the video on screen across a reload whenever the new list still
-    holds it — and a reorder, filtering nothing out, always does.  So "main latest"
-    would rebuild newest-first and change nothing anyone could see: the new order
-    applied only after the video playing, and the arrivals asked for never came up.
-
-    The jump rides the same write as the reload, since the file is overwritten
-    rather than appended, and goes last so it lands on the list just taken.
-    """
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     old, new = root / "old.mp4", root / "new.mp4"
     for path, mtime in ((old, 1000), (new, 2000)):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
-    # The head carries its funscript, exactly as the playlist line does: the Main Funestra drives
-    # the OSR2 off that column.
     script = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "new.funscript"
     script.parent.mkdir(parents=True)
     script.write_text("{}", encoding="utf-8")
@@ -267,8 +236,6 @@ def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: P
 
 
 def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path):
-    """With the provider roots supplied, the rebuilt satellite playlists collapse
-    same-source-image action groups to one entry."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -310,7 +277,6 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
 
-    # Turning F-mode off must keep the satellite playlists newest-first, not reshuffle.
     apply_fmode(
         satellites={
             FunTimeFunestra.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
@@ -328,10 +294,6 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
 
 
 def test_a_rebuild_can_start_the_satellite_at_the_top_of_the_new_list(tmp_path: Path):
-    """"Latest" means "show me what has just arrived", and a plain reload keeps the
-    video on screen and carries on from where it sat — so the new order only ever
-    applied *after* it and the newest videos were never reached.  A caller that means
-    "start over" asks for the head, which the Funestra takes as PLAY_FILE."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     old, new = portrait_root / "old.mp4", portrait_root / "new.mp4"
@@ -352,8 +314,6 @@ def test_a_rebuild_can_start_the_satellite_at_the_top_of_the_new_list(tmp_path: 
 
 
 def test_a_rebuild_leaves_the_video_on_screen_alone_by_default(tmp_path: Path):
-    """A filter change is not a "start over": the reload keeps the video playing while
-    it survives, so only a caller that asks gets moved to the head."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     (portrait_root / "clip.mp4").write_text("x", encoding="utf-8")
@@ -369,7 +329,6 @@ def test_a_rebuild_leaves_the_video_on_screen_alone_by_default(tmp_path: Path):
 
 
 def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **roots) -> None:
-    """Reload the portrait satellite in one order — what "latest"/"shuffle" run."""
     apply_satellite_filter(
         funestra=2,
         query=query,
@@ -383,8 +342,6 @@ def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **
 
 
 def test_recents_orders_one_satellite_newest_first(tmp_path: Path):
-    """Recents is a sided command now — it reloads the satellite it names, and only
-    that one, newest-first."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     old, new = portrait_root / "old.mp4", portrait_root / "new.mp4"
@@ -395,12 +352,11 @@ def test_recents_orders_one_satellite_newest_first(tmp_path: Path):
     _reorder(tmp_path, portrait_root, recent=True)
 
     assert _reloaded(tmp_path / "portrait_cmd.txt")
-    assert not (tmp_path / "landscape_cmd.txt").exists()  # the other Funestra is untouched
+    assert not (tmp_path / "landscape_cmd.txt").exists()
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(new), str(old)]
 
 
 def test_recents_repicks_up_new_files(tmp_path: Path):
-    """A repeat press rescans the sources so newly-arrived files land on top."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     old = portrait_root / "old.mp4"
@@ -418,8 +374,6 @@ def test_recents_repicks_up_new_files(tmp_path: Path):
 
 
 def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
-    """Recents honors action groups too: with the provider roots supplied,
-    same-source-image videos collapse to one entry, its newest item."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -457,7 +411,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
             FunTimeFunestra.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="twirling"),
         },
         funestras=FMODE_FUNESTRAS,
-        enabled=False,  # F-mode OFF, so only the metadata filter applies
+        enabled=False,
         main_list=MainList(sources="", state_dir=tmp_path / "state"),
         main_settings=MainListSettings(),
         state_dir=tmp_path / "state",
@@ -476,8 +430,6 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    # Distinct prompts keep the two Alphas in distinct seed families, so the
-    # filtered build keeps both and the newest-first order is visible.
     old = _make_action_video(portrait_root, metadata_root, "old", "Alpha", "scene one")
     new = _make_action_video(portrait_root, metadata_root, "new", "Alpha", "scene two")
     _make_action_video(portrait_root, metadata_root, "other", "Twirling", "scene three")
@@ -487,7 +439,7 @@ def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: 
     _reorder(tmp_path, portrait_root, recent=True, query="alpha",
              regen_metadata_root=metadata_root)
 
-    assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]  # filtered to alpha, newest-first
+    assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]
 
 
 def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
@@ -511,7 +463,6 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
 
     assert result.applied is True
     assert result.count == 1
-    # Only the targeted satellite's command file gets a reload.
     assert _reloaded(portrait_cmd_file)
     assert not landscape_cmd_file.exists()
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
@@ -542,8 +493,8 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
 
     assert result.applied is False
     assert result.count == 0
-    assert not cmd_file.exists()  # no reload
-    assert "PRIOR" in playlist.read_text(encoding="utf-8")  # left in place, not rebuilt
+    assert not cmd_file.exists()
+    assert "PRIOR" in playlist.read_text(encoding="utf-8")
 
 
 def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
@@ -568,8 +519,6 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
 
 
 def test_a_satellites_browse_is_the_filter_applied_to_the_library(tmp_path: Path):
-    """The pure browse builder "no loop" reshapes the queue back to: it honors
-    the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
     video = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
@@ -605,8 +554,6 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
     assert not flow_files["genau_cmd_file"].exists(), "the hand is the arbiter's to stop"
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["PARK"]
-    # Both satellites are frozen via their paused flag file — a paused native
-    # satellite simply cannot auto-advance, so no HTTP re-pause is needed.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
@@ -649,22 +596,14 @@ def test_apply_leave_omnipause_in_kino_mode_resumes_main_funestra_and_lifts_the_
 
     assert result.next_omni_paused is False
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
-    # The hand's flag lifts with everyone's; which of it and the funscript
-    # drives is the arbiter's call on its next tick, so no RESUME is sent here.
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
-    # Broker is un-PARKed regardless of mode
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8").split() == ["RESUME"]
-    # Both satellites are unfrozen via their paused flag file.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
 def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(flow_files):
-    """Kino mode hands the OSR2 between the funscript and Genau per stretch, and the
-    arbiter re-asserts that on its next tick.  Resuming Genau's motion here too
-    started it against a funscript that was still driving — both on the device at
-    once, which the user felt as the OSR2 fighting itself."""
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["main_funestra_paused_file"].write_text("1", encoding="utf-8")
@@ -673,7 +612,6 @@ def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
-    # Kino mode displays the Main Funestra, so the Main Funestra resumes too (Genau just drives the OSR2).
     assert flow_files["main_funestra_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
@@ -690,7 +628,6 @@ def test_apply_leave_omnipause_in_genau_mode_lifts_genaus_flags_and_leaves_its_h
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
     assert not flow_files["main_funestra_paused_file"].exists(), "the Main Funestra pause state untouched"
-    # Both satellites are unfrozen regardless of the Main Funestra's mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 

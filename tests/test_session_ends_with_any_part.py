@@ -1,12 +1,3 @@
-"""A part of Fun Time that closes while the session is up ends the whole
-session, saying which part.
-
-His rule (2026-10-08): "If one component of Fun Time dies, the whole thing
-should die." Origenerator Core was closed for not responding in the middle of a
-session (2026-10-07 23:31), and Fun Time carried on without it: the
-Satellites stayed in Origenerator mode on a frozen slideshow, their HUDs still
-answering presses that went nowhere.
-"""
 from __future__ import annotations
 
 from fun_time import funestra_deaths

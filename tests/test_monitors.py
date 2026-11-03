@@ -14,8 +14,6 @@ def _mi(x: int, y: int, w: int, h: int) -> MonitorInfo:
 
 
 class TestOrientationCorrection:
-    """Landscape beats portrait for the primary role; ties go to the leftmost."""
-
     def test_landscape_primary_portrait_secondary_keeps_assignment(self):
         monitors = [_mi(0, 0, 2560, 1392), _mi(2560, 0, 1440, 3440)]
         primary, secondary = get_logical_monitor_rects(monitors, primary_index=1, secondary_index=2)

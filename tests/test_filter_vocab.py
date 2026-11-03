@@ -31,11 +31,6 @@ def test_set_commands_round_trip_through_decode():
 
 
 def test_the_wire_format_is_the_filter_prefix_scope_and_slugged_query():
-    """The command string is real IPC surface, not a private encoding: the
-    voice controller writes it to the dashboard command file and
-    dispatch_command matches it by these exact spellings.  Encode and decode
-    staying inverse is not enough — a changed spelling would round-trip here
-    and go unmatched there."""
     assert set_command("both", "beta gamma") == "filter_both_beta_gamma"
     assert set_command("portrait", "alpha") == "filter_portrait_alpha"
     assert set_command("landscape", "delta") == "filter_landscape_delta"
@@ -61,8 +56,6 @@ def test_both_names_the_pair_before_or_after_the_act():
 
 def test_spoken_form_can_differ_from_the_matched_query():
     voice = filter_voice_commands(ACTS)
-    # "delta" is voiced as "delta form", but the command — and therefore the
-    # metadata substring — stays the real query "delta".
     assert "delta" not in voice
     assert voice["delta form"] == set_command("both", "delta")
     assert decode_filter_command(voice["delta form"]) == ("both", "delta")
@@ -74,10 +67,6 @@ def test_multi_word_query_round_trips():
 
 
 def test_clearing_a_filter_is_not_this_module_s_business():
-    """It was — "clear filter" for both Satellites, "clear portrait" for one — and that
-    put the Satellite word where every other satellite phrase puts an action's own
-    words.  Clearing is "no filter" in the grid now, so it scopes like the rest:
-    "portrait clear filter", either order, bare for the Satellite last navigated."""
     voice = filter_voice_commands(ACTS)
     for phrase in ("clear filter", "show everything", "clear portrait", "clear landscape"):
         assert phrase not in voice
@@ -97,25 +86,17 @@ def test_set_commands_for_scope_lists_every_act():
 
 
 def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
-    """"delta" is voiced "delta form" because the model has no token for the real
-    word.  The reference must show "delta": the workaround is a fact about the
-    speech model, and printing it would teach the reader a word for the act that
-    nobody uses for it."""
     forms = display_forms(ACTS)
     assert set(forms) == set(ACTS)
     assert "delta" in forms
     assert "delta form" not in forms
-    assert "beta gamma" in forms  # a multi-word query reads as itself
+    assert "beta gamma" in forms
 
 
 def test_the_committed_example_vocabulary_is_loaded_and_usable(tmp_path: Path):
-    """A fresh or public checkout has only content.example.json, and the whole
-    grammar must be buildable from it alone.  Pinned against the example file
-    itself rather than whatever overlay this machine happens to carry, so the
-    test means the same thing on every checkout."""
     acts = load_acts(tmp_path / "no_local.json", EXAMPLE_CONTENT)
     voice = filter_voice_commands(acts)
-    assert voice  # non-empty
+    assert voice
     assert all(decode_filter_command(cmd) is not None for cmd in voice.values())
 
 
