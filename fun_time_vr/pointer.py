@@ -202,7 +202,7 @@ def handle_vertices(
 class Grab:
     def __init__(
         self, handle: str, placement: Placement, *, start: SurfacePoint, aspect: float = 1.0,
-        widened_by: float = 1.0, radius: float = RADIUS_M,
+        widened_by: float = 1.0,
     ) -> None:
         self.handle = handle
         self._placement = placement
@@ -210,18 +210,17 @@ class Grab:
         self._size_deg = widened_deg(placement.width_deg, 1.0 / widened_by)
         self._start = start
         self._aspect = aspect
-        self._radius = radius
         self._side = 1.0 if turn_deg(
             placement.azimuth_deg, start.azimuth_deg) >= 0.0 else -1.0
         self._anchor = (
             placement.azimuth_deg - self._side * placement.width_deg / 2.0,
-            (center_height(placement, radius) + self._half_height(placement.width_deg))
+            (center_height(placement, RADIUS_M) + self._half_height(placement.width_deg))
             * math.cos(math.radians(placement.width_deg) / 2.0),
         )
         self._width_deg = placement.width_deg
 
     def _half_height(self, width_deg: float) -> float:
-        return half_width(width_deg, self._radius) / self._aspect
+        return half_width(width_deg, RADIUS_M) / self._aspect
 
     def _from_the_anchor(self, azimuth_deg: float) -> float:
         turn = turn_deg(self._anchor[0], azimuth_deg)
@@ -232,11 +231,11 @@ class Grab:
         if self.handle == MOVE:
             azimuth = placement.azimuth_deg + turn_deg(self._start.azimuth_deg, point.azimuth_deg)
             off_center = math.radians(turn_deg(placement.azimuth_deg, self._start.azimuth_deg))
-            lift = (center_height(placement, self._radius)
+            lift = (center_height(placement, RADIUS_M)
                     + (point.y - self._start.y) / math.cos(off_center))
             return clamp_placement(Placement(
                 azimuth_deg=turn_deg(0.0, azimuth),
-                elevation_deg=elevation_at(lift, self._radius),
+                elevation_deg=elevation_at(lift, RADIUS_M),
                 width_deg=self._size_deg,
             ))
         return self._resized_to(point)
@@ -245,7 +244,7 @@ class Grab:
         azimuth, y = self._anchor
         across = math.radians(self._side * self._from_the_anchor(point.azimuth_deg))
         down = 2.0 * math.asin(
-            max(-1.0, min(1.0, (y - point.y) * self._aspect / (2.0 * self._radius))))
+            max(-1.0, min(1.0, (y - point.y) * self._aspect / (2.0 * RADIUS_M))))
         weight = (math.cos(math.radians(self._width_deg) / 2.0) / self._aspect) ** 2
         reached_deg = min(math.degrees((across + weight * down) / (1.0 + weight)), _HALF_TURN_DEG)
         size_deg = clamp_width(widened_deg(reached_deg, 1.0 / self._widened_by))
@@ -254,7 +253,7 @@ class Grab:
         lift = y / math.cos(math.radians(width_deg) / 2.0) - self._half_height(width_deg)
         return Placement(
             azimuth_deg=turn_deg(0.0, azimuth + self._side * width_deg / 2.0),
-            elevation_deg=clamp_elevation(elevation_at(lift, self._radius)),
+            elevation_deg=clamp_elevation(elevation_at(lift, RADIUS_M)),
             width_deg=size_deg,
         )
 
@@ -364,6 +363,11 @@ def _wrapped_around(screens: Sequence[Screen]) -> Screen | None:
                  if screen.immersive and screen.pressable), None)
 
 
+def _click_on_the_wrap(screens: Sequence[Screen]) -> PressEvent | None:
+    wrapped = _wrapped_around(screens)
+    return None if wrapped is None else PressEvent(PRESS, wrapped.name, 0.5, 0.5)
+
+
 @dataclass
 class _Squeeze:
     rotation: np.ndarray
@@ -425,7 +429,9 @@ class Pointer:
             return self._squeezing(aim, ray, point, screens, edge)
         under = _hover_at(point, screens) if point is not None else None
         if under is None:
-            return self._off_every_screen(aim, ray, point, screens, edge, scene_rotation)
+            if edge == PRESS:
+                self._start_squeeze(aim, scene_rotation, _click_on_the_wrap(screens))
+            return Frame(ray=ray, point=point)
         screen, hover = under
         events: tuple[PressEvent, ...] = ()
         taken = screen.name if edge == PRESS else None
@@ -441,15 +447,6 @@ class Pointer:
             self._pressing = screen
             events = (PressEvent(PRESS, screen.name, hover.u, hover.v),)
         return Frame(ray=ray, point=point, hover=hover, taken=taken, events=events)
-
-    def _off_every_screen(self, aim: AimPose, ray: Ray, point: SurfacePoint | None,
-                          screens: Sequence[Screen], edge: str | None,
-                          scene_rotation: np.ndarray) -> Frame:
-        if edge == PRESS:
-            wrapped = _wrapped_around(screens)
-            self._start_squeeze(aim, scene_rotation, None if wrapped is None else PressEvent(
-                PRESS, wrapped.name, 0.5, 0.5))
-        return Frame(ray=ray, point=point)
 
     def _start_squeeze(self, aim: AimPose, scene_rotation: np.ndarray,
                        click: PressEvent | None) -> None:
