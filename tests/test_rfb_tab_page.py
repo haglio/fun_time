@@ -25,11 +25,6 @@ def _video(tmp_path: Path, name: str = "clip.mp4") -> Path:
 
 
 def test_render_tab_page_embeds_the_target_and_the_label():
-    """The render is four token substitutions into a static template; what it
-    owns is that the target URL and the fav's label both land and no token
-    survives.  What the template's own CSS and JS then DO with them is the
-    page's business, not this module's — asserting the template's spelling
-    here only change-detects a static asset."""
     html = render_tab_page(TabTarget(REGEN_URL, "https://example.com/image/abc"))
 
     assert f'"{REGEN_URL}"' in html
@@ -55,9 +50,6 @@ def test_render_tab_page_escapes_a_script_breakout():
     assert "<script>evil()" not in html
 
 
-# --- the video being recreated ---
-
-
 def test_render_tab_page_embeds_the_video_as_a_file_uri(tmp_path: Path):
     video = _video(tmp_path, "a clip.mp4")
 
@@ -74,23 +66,18 @@ def test_render_tab_page_without_a_video_embeds_an_empty_source():
 
 
 def test_render_tab_page_embeds_no_video_for_a_relative_path():
-    """A path that is not absolute has no file URI; the page just omits the video."""
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path="clip.mp4"))
 
     assert 'var video = "";' in html
 
 
 def test_render_tab_page_asks_this_session_whether_it_is_omnipaused(tmp_path: Path):
-    """A page pointed at the wrong URL just never freezes — silently, forever."""
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
 
     assert f'"{omnipause_url()}"' in html
 
 
 def test_render_tab_page_asks_at_the_port_this_session_serves_on():
-    """The port is the session's, not the module's: a session serving anywhere
-    but the default left every page polling 8770, where nothing answered, and
-    the freeze the pages exist for silently never came (bug 22)."""
     html = render_tab_page(TabTarget(REGEN_URL, "l"), loopback_port=8771)
 
     assert f'"{omnipause_url(8771)}"' in html
@@ -106,9 +93,6 @@ def test_the_written_pages_carry_the_port_they_were_handed(tmp_path: Path):
     assert omnipause_url(8771) in (pages / "tab_01.html").read_text(encoding="utf-8")
     [lock_page] = pages.glob("lock_*.html")
     assert omnipause_url(8771) in lock_page.read_text(encoding="utf-8")
-
-
-# --- writing pages ---
 
 
 def test_tabs_dir_hangs_off_the_state_dir(tmp_path: Path):

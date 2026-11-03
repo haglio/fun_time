@@ -1,4 +1,3 @@
-"""A real checkout and a worktree made from it, for tests of what a worktree's primary checkout is."""
 from __future__ import annotations
 
 import subprocess

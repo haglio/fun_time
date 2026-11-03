@@ -59,9 +59,6 @@ def _decode(url: str) -> dict:
     return json.loads(unquote(url.split("#ft=", 1)[1]))
 
 
-# --- build_payload ---
-
-
 def test_payload_for_source_image_targets_image_with_both_prompts():
     payload = build_payload(IMAGE_META)
 
@@ -72,7 +69,6 @@ def test_payload_for_source_image_targets_image_with_both_prompts():
     assert ["Quality", "Best"] in payload["settings"]
     assert ["Style", "Default"] in payload["settings"]
     assert ["Model", "Realism"] in payload["settings"]
-    # video_settings carry the video step's params for the post-it
     assert ["Action", "Oral Insertion"] in payload["video_settings"]
 
 
@@ -93,9 +89,6 @@ def test_payload_skips_empty_setting_values():
     assert "Seed" in labels
 
 
-# --- build_regen_url ---
-
-
 def test_regen_url_image_uses_image_base_and_decodable_payload():
     url = build_regen_url(IMAGE_META, video_url=VIDEO_URL, image_url=IMAGE_URL)
 
@@ -110,9 +103,6 @@ def test_regen_url_video_uses_video_base():
 
     assert url.startswith(VIDEO_URL + "#ft=")
     assert _decode(url)["kind"] == "video"
-
-
-# --- regen_url_for_video (end to end) ---
 
 
 def _setup(tmp_path: Path, orient: str, name: str, meta: dict) -> tuple[Path, Path, Path]:
@@ -151,9 +141,6 @@ def test_a_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
 
 
 def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path):
-    """Evolver records what kind every video is, so a video whose generation was
-    never scraped now HAS a sidecar. There is nothing to regenerate from in it,
-    and a URL built off it would carry no prompt at all."""
     _media_root, metadata_root, video = _setup(
         tmp_path, "portrait", "abc_topaz.mp4", {"video": {"type": "short"}},
     )
@@ -167,8 +154,6 @@ def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path)
 
 
 def test_a_sidecar_holding_only_the_stamps_offers_no_regenerate_link(tmp_path: Path):
-    """Evolver also stamps what every app watched, and a favorite flag, on
-    every sidecar; neither says anything about how the video was made."""
     _media_root, metadata_root, video = _setup(
         tmp_path, "portrait", "abc_topaz.mp4",
         {"video": {"type": "short"}, "watch": {"weight": 2.0}, "favorite": True},

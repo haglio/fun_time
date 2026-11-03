@@ -78,26 +78,16 @@ EXAMPLE_CONFIG = Path(__file__).resolve().parent.parent / "fun_time_config.examp
 
 
 def _the_users_config() -> dict:
-    """The config as the user's own session has it, naming what the machine shares.
-
-    Read from the committed example his real config is written from, so a section
-    that moves into it reaches every check here the day it lands.
-    """
     config = json.loads(EXAMPLE_CONFIG.read_text(encoding="utf-8"))
-    # A session may be pinned at the broker's own directory rather than its own
-    # state dir — a branch session is — and a run copies the config whole.
     config["paths"]["broker_state_dir"] = "C:/Users/Example/workspace/fun_time/state"
     config["voice_control"]["enabled"] = True
     config["loopback_port"] = LOOPBACK_PORT
-    # A key no session reads, still in the genau section of configs written when
-    # Genau ran in a program of its own, naming the companion's port.
     config["genau"]["notify_port"] = AUDIO_COMPANION_PORT
     return config
 
 
 @pytest.fixture
 def isolated_ports():
-    """The rewritten config, with the run's own slot for the OSR2 closed afterwards."""
     config = _the_users_config()
     isolate_shared_resources(config)
     try:
@@ -133,11 +123,6 @@ def _write_bridge_pids(session: FunTimeIntegrationSession, children: dict[str, C
 
 @pytest.fixture(autouse=True)
 def _hermetic_stop(session, monkeypatch):
-    """Neutralize the Satellite-effecting halves of stop() so tests stay hermetic.
-
-    The desktop-scoped leftover sweep is exercised elsewhere; here we isolate
-    the deterministic identity-checked kill path.
-    """
     monkeypatch.setattr(session, "_reap_leftover_runtime_processes", lambda: None)
 
 
@@ -146,9 +131,9 @@ def test_stop_taskkills_every_recorded_child(session):
         session,
         {
             "main_funestra_pid": ChildProcess(201, 2010),
-            "portrait_pid": ChildProcess(202, 2020),   # satellite
-            "landscape_pid": ChildProcess(203, 2030),  # satellite
-            "dashboard_pid": ChildProcess(0, 0),       # disabled in integration — absent
+            "portrait_pid": ChildProcess(202, 2020),
+            "landscape_pid": ChildProcess(203, 2030),
+            "dashboard_pid": ChildProcess(0, 0),
             "origenerator_pid": ChildProcess(205, 2050),
             "audio_pid": ChildProcess(206, 2060),
         },
@@ -158,16 +143,10 @@ def test_stop_taskkills_every_recorded_child(session):
          patch.object(windows_bridge_orchestrator, "kill_process_tree", killed.append):
         session.stop()
 
-    # Every recorded child with a real PID is killed by that exact PID; the
-    # zero placeholder (disabled dashboard) is skipped.
     assert sorted(killed) == [201, 202, 203, 205, 206]
 
 
 def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
-    """A test that opens a second session over the same state dir hands it a
-    Funestra still publishing: the one dying holds its own status file's temp name,
-    and the new Funestra's first write of it dies on the sharing violation, which
-    takes the whole startup down (seen on run 4 of a flake gate, 2026-10-06)."""
     _write_bridge_pids(session, {"main_funestra_pid": ChildProcess(201, 2010)})
     alive = [True, True, False]
     asked: list[int] = []
@@ -195,7 +174,7 @@ def test_stop_gives_up_on_a_child_that_never_goes(session):
          patch.object(windows_bridge_orchestrator, "kill_process_tree", lambda _pid: None), \
          patch.object(integration_support, "is_process_alive", return_value=True), \
          patch.object(integration_support.time, "sleep", lambda _s: None):
-        session.stop()  # returns rather than looping for good
+        session.stop()
 
 
 def test_stop_does_not_kill_a_recorded_pid_windows_recycled(session):
@@ -262,11 +241,9 @@ def test_every_session_lays_its_room_out_on_the_same_two_monitors_whatever_the_m
 
 
 def test_stop_survives_missing_bridge_pids(session):
-    """A session that failed before writing bridge_pids.ini must still tear
-    down without raising — and without trying to kill anything by PID."""
     killed: list[int] = []
     with patch.object(windows_bridge_orchestrator, "kill_process_tree", killed.append):
-        session.stop()  # no bridge_pids.ini on disk
+        session.stop()
 
     assert killed == []
 
@@ -330,8 +307,6 @@ def test_a_wait_that_runs_out_ends_with_what_it_was_handed_to_explain_it(clock):
 
 
 def test_a_wait_is_counted_in_the_seconds_the_run_could_run(monkeypatch, run_time):
-    """Ten thousand polls are half an hour on the wall, and none of it the run's
-    while normal-priority work holds every processor."""
     monkeypatch.setattr(integration_support, "time", SleepDrivenClock())
     run_time(StarvedRun())
     polls = iter(range(10_000))
@@ -432,9 +407,6 @@ def test_the_seconds_a_check_lets_pass_are_the_seconds_the_run_could_run(monkeyp
 
 
 def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):
-    """His own session's hotkey script runs whenever he has Fun Time open, so a
-    wait for every AutoHotkey on the machine spent its whole budget at both ends
-    of every test; the ones the reap ends, kill_process_tree waits out itself."""
     monkeypatch.setattr(integration_support, "_kill_leftover_app_processes", lambda: None)
     monkeypatch.setattr(session, "_wait_for_orchestrators_to_exit", lambda: None)
     monkeypatch.setattr(integration_support.time, "sleep",
@@ -474,15 +446,6 @@ def test_the_orchestrator_wait_holds_until_the_last_integration_orchestrator_is_
 
 
 def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolated_ports):
-    """The audio companion binds a fixed UDP port, and ``build_integration_config``
-    rewrote only *paths* — so a run and a live session raced for one socket.
-
-    Whichever bound second died with WSAEADDRINUSE.  Started in the order the
-    user would message, that is theirs: a run holding the port means opening Fun
-    Time loses its companion audio, with nothing on screen to explain it.  And
-    while both were up, Genau's notifications went to whichever companion won,
-    which need not be its own session's.
-    """
     config = isolated_ports
 
     assert config["audio_companion"]["port"] != AUDIO_COMPANION_PORT
@@ -490,14 +453,6 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolat
 
 
 def test_the_integration_config_never_reaches_the_machines_osr2(isolated_ports):
-    """T-Code is the one output that reaches hardware.
-
-    Every Funestra and Genau reach the OSR2 through the broker's slot, and the
-    broker holds the OSR2's serial port — one process, one device, for the whole
-    machine.  A run that kept the production slot would therefore drive the
-    user's OSR2 while they are using it, and no amount of desktop or state-dir
-    isolation touches that: a socket is not per-desktop.
-    """
     config = isolated_ports
 
     assert config["osr2_slot_port"] != OSR2_SLOT_PORT
@@ -581,45 +536,18 @@ def test_the_runs_slot_listens_so_the_runs_senders_have_somewhere_to_connect(iso
 
 
 def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):
-    """8770 is machine-wide, and the loser of a race for it loses the surface
-    entirely — a warning in a log, then no Tampermonkey auto-update and RFB tab
-    pages that never hear about OmniPause.  A run held it for minutes at a time
-    and the guard is what kept the user's session from being that loser.
-    """
     config = isolated_ports
 
     assert config["loopback_port"] != LOOPBACK_PORT
 
 
 def test_a_run_never_starts_or_adopts_the_machines_broker(isolated_ports):
-    """The broker is a machine singleton holding the OSR2's serial port.
-
-    A session start launches its tray, and the dashboard's broker actions can
-    stop the machine's broker.  Neither belongs to a test run: the broker is not
-    the run's to start, and is emphatically not the run's to stop out from under
-    the user.
-
-    Emptying the launcher is what makes all of it inert, without a second mode
-    in the production code: ``funestra.broker`` starts nothing without one, and
-    a stop is only ever asked once a *fresh* heartbeat says a broker is running
-    -- which a run's own state dir, where no broker writes, can never show.
-    """
     config = isolated_ports
 
     assert config["paths"]["broker_tray_launcher"] == ""
 
 
 def test_a_run_never_inherits_a_pin_at_the_machines_broker_directory(isolated_ports):
-    """The broker's files are the one part of ``state/`` a session may be pointed
-    away from its own directory for — a branch session is, because the machine's
-    one broker writes where its own config says and nowhere else.
-
-    A run copies the config whole, so it would inherit that pin: park and retract
-    written into the live broker's command file while the user is using it, and
-    the live heartbeat read back as the run's own — which is precisely the fresh
-    heartbeat the broker's stop above is only ever asked on.  Dropped,
-    the whole channel falls back inside the run's own state dir.
-    """
     config = isolated_ports
 
     assert "broker_state_dir" not in config["paths"]
@@ -648,7 +576,6 @@ def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_port
 
 
 def _every_value(node) -> list:
-    """Every leaf value in a nested config, wherever it is nested."""
     if isinstance(node, dict):
         return [leaf for child in node.values() for leaf in _every_value(child)]
     if isinstance(node, list):
@@ -657,15 +584,6 @@ def _every_value(node) -> list:
 
 
 def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated_ports):
-    """The completeness check the whole arrangement rests on.
-
-    Each test above names one shared endpoint and says why it matters; between
-    them they are the entire list, and this sweeps both configs to prove it —
-    including any field that mentions one of these ports in passing, or a new
-    field that quietly copies one in.  A run that holds none of them cannot
-    reach the user's session at all, which is what lets the two share a machine
-    instead of taking turns on it.
-    """
     config = isolated_ports
     machines_own = {AUDIO_COMPANION_PORT, GENAU_INBOUND_PORT, OSR2_SLOT_PORT, LOOPBACK_PORT}
 
@@ -699,16 +617,6 @@ def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):
 
 
 def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
-    """A run launches this checkout's code, so it has to launch this
-    checkout's SIBLINGS too.
-
-    A branch that leans on an unlanded ``funestra`` change — the satellites'
-    HUD moved there, say — otherwise starts Funestras that import a name the
-    primary's install does not have.  Every one of them dies at import, with no
-    window and no status file, and the suite reads as a wall of timeouts rather
-    than as a path problem: eight errors and six failures, none of them naming
-    the import that actually failed.
-    """
     state_dir = tmp_path / "state"
     state_dir.mkdir(exist_ok=True)
     branch = tmp_path / "funestra_branch"
@@ -725,8 +633,6 @@ def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
 
 
 def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
-    """Which is every ordinary checkout: the run launches exactly what a
-    session on the machine's own config launches."""
     (tmp_path / "state").mkdir(exist_ok=True)
     monkeypatch.setattr(integration_support, "PROJECT_DIR", tmp_path)
     config: dict = {}
@@ -916,13 +822,6 @@ def test_the_vr_test_draws_nothing_from_the_vr_library():
 
 
 def test_a_window_whose_median_hides_a_stall_is_not_quiet():
-    """The settle gate the VR pipeline test runs on.
-
-    Its old form asked only for a median under budget, and a machine still
-    tearing a session down answers that: measured on this machine, a probe
-    window came in at a 9.5ms median with a 428ms frame inside it, was taken
-    for settled, and the sample that followed blew the guard — reported as
-    the pipeline pacing the loop when the pipeline was never asked."""
     quiet = [1.0] * 120
     hiding_a_stall = [1.0] * 80 + [40.0] * 39 + [428.0]
 
@@ -934,22 +833,11 @@ def test_a_window_whose_median_hides_a_stall_is_not_quiet():
 
 
 def test_a_quiet_window_tolerates_the_odd_frame():
-    """One frame in a hundred over budget is a machine, not a regression: the
-    gate is the 90th percentile, so a handful of stray frames never fails it
-    while a window that is over budget most of the time always does."""
     assert window_is_quiet([1.0] * 115 + [50.0] * 5, budget_ms=11.1)
     assert not window_is_quiet([1.0] * 50 + [50.0] * 70, budget_ms=11.1)
 
 
 def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
-    """What the video-transition guard judges.
-
-    The regression it guards stalled EVERY transition for hundreds of
-    milliseconds, so the honest question is what a transition typically
-    costs.  Judging the single worst frame instead put the guard on the one
-    statistic machine noise owns: a run whose four transitions cost 79, 91,
-    92 and 628ms is a machine hiccup on one pass, not a pipeline that stalls
-    on every video change."""
     noise_on_one_pass = [[1.0, 78.7], [1.0, 90.6], [1.0, 91.7], [1.0, 628.0]]
     stalls_every_pass = [[1.0, 640.0], [1.0, 647.0], [1.0, 651.0], [1.0, 660.0]]
 
@@ -958,9 +846,6 @@ def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
 
 
 def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
-    """A Funestra publishes its status by replacing the file, and a read that lands
-    inside the replace gets the reader's empty record: no video, not paused, about
-    a Funestra that has a video and is paused."""
     published = MainFunestraStatus(video="C:/example/scene one.mp4", duration_ms=61_000, paused=True)
     reads = iter([MainFunestraStatus(), published])
 
@@ -992,8 +877,6 @@ def test_a_replace_that_outlasts_one_retry_is_still_waited_out():
 
 
 def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
-    """A Funestra that has published nothing yet is not waited on forever, and the
-    reads are paced: a reader holding the file open is what fails the replace."""
     clock = [0.0]
     reads = []
 
@@ -1085,11 +968,6 @@ def test_a_modules_shared_session_is_done_with_before_a_test_starts_one_of_its_o
 
 @pytest.mark.repo_check
 def test_every_app_a_run_stands_in_for_is_python_that_parses():
-    """A stub app is Python inside a string, so nothing compiles it until a real
-    run launches it -- and a stub that dies on import reads as the session waiting
-    out an app that never answers, which is a slow run each time.  One escape too
-    few, in a string holding a string, cost two of them (2026-10-06).
-    """
     sources = []
     for path in sorted((Path(__file__).resolve().parent / "integration").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))

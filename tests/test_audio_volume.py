@@ -14,12 +14,10 @@ def test_write_then_read_roundtrips_the_level(tmp_path: Path):
 
 
 def test_an_unpublished_level_reads_as_full_volume(tmp_path: Path):
-    """The companion may start before the bridge has ever published a level."""
     assert read_volume(tmp_path / "missing.txt") == MAX_VOLUME
 
 
 def test_a_corrupt_level_reads_as_full_volume(tmp_path: Path):
-    """A half-written file must not silence the session."""
     path = tmp_path / "audio_volume.txt"
     path.write_text("", encoding="utf-8")
 

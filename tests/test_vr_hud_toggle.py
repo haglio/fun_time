@@ -151,9 +151,6 @@ class TestWhatItSays:
 
 
 class TestTheNameOfWhatHasJustStarted:
-    """Minimized, the HUD is the plus hanging beside the item, and it names
-    a video for its first few seconds where the plus's own name would hang."""
-
     @staticmethod
     def _flashing(toggle: HudToggle, *, minimized: bool = True) -> OutsideButtons:
         outside = OutsideButtons("portrait", minimized=minimized, flash="scene one")

@@ -28,8 +28,6 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
 
 
 def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
-    # Hand-rolled on purpose: the section must be ABSENT, and the writer
-    # always emits it — this pins the reader against the older export.
     snapshot_file = tmp_path / "dashboard_state.ini"
     snapshot_file.write_text("[voice]\nactive=1\n", encoding="utf-8")
 
@@ -50,8 +48,6 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
 
 
 def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
-    # Hand-rolled on purpose, like the omnipause default above: the [voice]
-    # section must be absent, which the writer never produces.
     snapshot_file = tmp_path / "dashboard_state.ini"
     snapshot_file.write_text("[omnipause]\nactive=0\n", encoding="utf-8")
 
@@ -98,9 +94,6 @@ def test_read_genau_status_parses_the_flick_lock(tmp_path: Path):
 
 
 def test_read_genau_status_defaults_the_flick_lock_to_on(tmp_path: Path):
-    """A flick repeating is where Genau opens, so a status that says nothing about
-    the lock — or none at all — must not light the HUD's padlock the wrong
-    way."""
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("shape=sine\n", encoding="utf-8")
 
@@ -109,8 +102,6 @@ def test_read_genau_status_defaults_the_flick_lock_to_on(tmp_path: Path):
 
 
 def test_read_main_funestra_status_parses_has_funscript(tmp_path: Path):
-    # The Main Funestra publishes has_funscript per current video; the device arbiter
-    # reads it to decide whether the funscript or Genau drives the OSR2.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nloop_state=normal\npaused=0\n",
@@ -131,8 +122,6 @@ def test_read_main_funestra_status_defaults_has_funscript_to_false(tmp_path: Pat
 
 
 def test_read_main_funestra_status_parses_funscript_resting(tmp_path: Path):
-    # The Main Funestra flags when the current spot is in a funscript gap so the device arbiter
-    # can hand that stretch to Genau.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nhas_funscript=1\nfunscript_resting=1\n", encoding="utf-8"
@@ -157,9 +146,6 @@ def test_read_main_funestra_status_parses_the_lock(tmp_path: Path):
 
 
 def test_read_main_funestra_status_defaults_the_lock_to_on(tmp_path: Path):
-    """Holding one video is what the Main Funestra does until told otherwise, so a
-    status that says nothing about the lock — or no status at all — must not read
-    as unlocked and light the HUD's padlock the wrong way."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 
@@ -168,8 +154,6 @@ def test_read_main_funestra_status_defaults_the_lock_to_on(tmp_path: Path):
 
 
 def test_read_main_funestra_status_parses_position_and_duration(tmp_path: Path):
-    # Watch tracking (breeding) needs the playback fraction, so both the
-    # position and the video length are read off the Main Funestra's status file.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nloop_state=normal\npaused=0\n",
@@ -207,8 +191,6 @@ def test_read_main_funestra_status_reads_no_published_rate_as_normal_speed(tmp_p
 
 
 def test_read_genau_status_names_the_flick_on_screen(tmp_path: Path):
-    """Genau rescans its folder every launch and opens at the top of it, so the
-    flick it was left showing survives only by being published and handed back."""
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("flick=C:\\flicks\\alpha.mp4\n", encoding="utf-8")
 
@@ -216,8 +198,6 @@ def test_read_genau_status_names_the_flick_on_screen(tmp_path: Path):
 
 
 def test_read_genau_status_reads_no_flick_before_one_is_up(tmp_path: Path):
-    """Genau publishes from its refresh loop, which can run before the first flick
-    is decoded — and an older Genau does not publish the key at all."""
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("flick=\n", encoding="utf-8")
 
@@ -234,8 +214,6 @@ def test_read_genau_status_says_whether_the_flick_up_is_flipped(tmp_path: Path):
 
 
 def test_read_main_funestra_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
-    """A loop lives in the Funestra process, so what the Main Funestra publishes is how the
-    room learns of one, to keep it for a reopened session to hand back."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
@@ -246,9 +224,6 @@ def test_read_main_funestra_status_parses_the_range_a_running_loop_holds(tmp_pat
 
 
 def test_read_main_funestra_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
-    """The bounds go on being published as the empty range when the loop is
-    cancelled, and an older Main Funestra does not publish them at all — neither is a loop
-    to come back to."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nloop_state=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
@@ -287,19 +262,14 @@ def test_funscript_driving_is_scripted_and_not_resting():
     assert MainFunestraStatus(has_funscript=False).funscript_driving is False
 
 
-
-
 class TestTheStatusFilesShape:
     def test_a_line_with_no_equals_is_passed_over(self, tmp_path):
-        """Both Funestras' files are read by this one parse; a torn write leaves
-        a fragment that is not a pair, and it must not take the read down."""
         path = tmp_path / "status.txt"
         path.write_text("video=demo.mp4\nnonsense\nposition_ms=42\n", encoding="utf-8")
 
         assert read_key_values(path) == {"video": "demo.mp4", "position_ms": "42"}
 
     def test_only_the_first_equals_separates(self, tmp_path):
-        """A path with an '=' in it is a value, not a second key."""
         path = tmp_path / "status.txt"
         path.write_text("video=C:/clips/a=b.mp4\n", encoding="utf-8")
 

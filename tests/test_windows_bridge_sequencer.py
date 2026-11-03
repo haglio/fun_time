@@ -73,7 +73,6 @@ FAKE_MONITORS = [
 
 
 def fake_screen_layout(layout_config, **strip):
-    """The plan FAKE_MONITORS give, through the same function a session calls."""
     with patch("fun_time.window_layout.enumerate_monitors", return_value=FAKE_MONITORS):
         return screen_layout(layout_config, **strip)
 
@@ -81,8 +80,6 @@ CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
 MAIN_FUNESTRA_PID = 25
 
-# Main slot on the secondary monitor with conftest's main_top_ratio=0.727:
-# portrait height = int(3440 * 0.727) = 2500, Main Funestra height = 940.
 PRIMARY_MEDIA_RECT = {"x": 2560, "y": 2500, "width": 1440, "height": 940}
 
 
@@ -95,7 +92,6 @@ def _make_manifest(cfg_factory, tmp_path, overrides: dict | None = None):
 
 
 def _pause_every_funestra(m) -> list[Path]:
-    """The three paused flags, all set — the state seed_startup_states leaves."""
     flags = [Path(m.commands.main_funestra_paused_file), Path(m.commands.genau_paused_file),
              Path(m.commands.audio_paused_file)]
     for flag in flags:
@@ -131,7 +127,6 @@ def _name_a_sibling_checkout(manifest_path, checkout: Path) -> Path:
 
 
 def _fake_core_in(mode: MainMode):
-    """A core session that resumes into *mode* — what its real one returns."""
     def launch(**kwargs):
         _write_result(kwargs["result_file"], CORE_PIDS)
         return mode
@@ -139,7 +134,6 @@ def _fake_core_in(mode: MainMode):
 
 
 def _seed_paused_flags(manifest_path) -> dict[str, Path]:
-    """Hold all three main-slot flags, as the core session's seeding does."""
     m = configparser.ConfigParser()
     m.optionxform = str
     m.read(str(manifest_path), encoding="utf-8")
@@ -153,7 +147,6 @@ def _seed_paused_flags(manifest_path) -> dict[str, Path]:
 
 
 def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
-    """Startup through to the reveal, resuming into *mode*, windows all faked."""
     with _sequencer_stubs(
             start_core_session=dict(side_effect=_fake_core_in(mode)),
             wait_for_window_by_title=dict(return_value=88888)):
@@ -164,23 +157,12 @@ def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
 
 SEQUENCER = "fun_time.windows_bridge_sequencer"
 
-#: Collaborators the sequencer reaches through another module, patched there.
 _STUB_MODULES = {"launch_origenerator": "fun_time.hosted_origenerator",
                  "is_process_alive": "fun_time.funestra_deaths"}
 
 
 @contextlib.contextmanager
 def _sequencer_stubs(**overrides):
-    """The startup sequence's collaborators, stubbed at their boundary, once.
-
-    The same ten-name patch stack used to be spelled out in 26 tests; a test
-    that needs a collaborator to behave differently passes the mock kwargs for
-    it (``wait_for_window_by_title=dict(side_effect=...)``), and reads any
-    mock back off the yielded namespace.  The clock is deliberately NARROW —
-    ``monotonic`` frozen at zero and a no-op ``sleep``, not a module-wide
-    MagicMock — so a new ``time.*`` use in the sequencer fails loudly here
-    instead of silently answering with a fresh mock.
-    """
     spec: dict[str, dict] = {
         "start_core_session": dict(side_effect=_fake_core),
         "launch_main_funestra": dict(side_effect=_fake_main_funestra),
@@ -189,8 +171,6 @@ def _sequencer_stubs(**overrides):
         "wait_for_window_by_title": dict(return_value=99999),
         "move_window": {},
         "set_always_on_top": {},
-        # Every Funestra launched here is a made-up pid, so Fun Time is running
-        # unless a test says one of them died.
         "is_process_alive": dict(return_value=True),
     }
     spec.update(overrides)
@@ -205,17 +185,11 @@ def _sequencer_stubs(**overrides):
         yield mocks
 
 
-
 def _fake_ui(**kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
 def _fake_main_funestra(**kwargs):
-    """the Main Funestra, launched: its status file appears once it has a video up.
-
-    The overlay is held on exactly that file, so a fake that returned a pid and
-    wrote nothing would leave every startup here waiting out the full budget.
-    """
     Path(kwargs["status_file"]).write_text("video=this_session.mp4\n", encoding="utf-8")
     return MAIN_FUNESTRA_PID
 
@@ -224,12 +198,6 @@ ORIGENERATOR_PID = 91
 
 
 def _fake_origenerator(**kwargs):
-    """The hosted app, launched and up: both regions occupied in its status file.
-
-    Written for the same reason ``_fake_main_funestra`` writes the Main Funestra's — the overlay is
-    held on this file now — and written full, since a status saying the app
-    answers but shows nothing is what holds a session in origenerator mode.
-    """
     Path(kwargs["status_file"]).write_text(
         "portrait_active=1\nportrait_video=\nportrait_locked=0\n"
         "landscape_active=1\nlandscape_video=\nlandscape_locked=0\n",
@@ -239,11 +207,6 @@ def _fake_origenerator(**kwargs):
 
 
 def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
-    """Each phase's result INI carries the launch's clock stamp, so a second
-    launch into the same state dir writes beside the first's results instead
-    of clobbering them.  Two clock readings, two paths — under the suite's
-    old frozen-clock stubs every call returned <prefix>_0.ini, a version of
-    the helper with no uniqueness at all."""
     ticks = iter([12.001, 47.002])
     monkeypatch.setattr(windows_bridge_sequencer, "time",
                         SimpleNamespace(monotonic=lambda: next(ticks)))
@@ -258,7 +221,6 @@ def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
 
 class TestRunStartupSequence:
     def _captured_launch(self, cfg_factory, tmp_path, *, paths=None, **stubs):
-        """One startup run with the core and UI launch kwargs captured."""
         cfg = load_config(cfg_factory({
             "regen": {
                 "media_root": str(tmp_path / "media"),
@@ -296,9 +258,6 @@ class TestRunStartupSequence:
         assert result.audio_pid == 70
 
     def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
-        """Our python, the satellite module, and each Satellite's files — plus a log
-        per windowed Funestra: under pythonw there is no console, so without one
-        an unhandled exception dies tracelessly."""
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["satellite_python_exe"] == str(cfg.paths.python_exe)
@@ -312,27 +271,18 @@ class TestRunStartupSequence:
             assert launch.channels.status == Path(state / f"{satellite}_status.txt")
             assert launch.log_file == tmp_path / f"{satellite}_satellite.log"
             assert launch.channels.playlist == tmp_path / f"{satellite}_playlist.tsv"
-        # The Main Funestra's status file rides along too: startup resumes each Funestra onto
-        # the video its status file names, and the Main Funestra is the third of the three.
         assert core_called["main_funestra_status_file"] == str(cfg.main_funestra_status_file)
         assert core_called["main_funestra_paused_file"] == str(cfg.main_funestra_paused_file)
 
     def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
-        """The sequencer threads the computed rects into the core launch, so
-        each Funestra opens where it plays."""
         _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["portrait"].rect.x == 2560
         assert core_called["portrait"].rect.width > 0
         assert core_called["landscape"].rect != core_called["portrait"].rect
-        # The same plan reaches the dashboard, which is launched separately.
         assert ui_called["dashboard_width"] > 0
 
     def test_the_core_launch_carries_the_session_files_through(self, cfg_factory, tmp_path):
-        """The state dir, the provider roots (so the startup
-        build can collapse action groups), and the broker's heartbeat and
-        command paths (so startup can leave a live broker running, and park
-        the OSR2 for the long wait)."""
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["state_dir"] == tmp_path
@@ -341,8 +291,6 @@ class TestRunStartupSequence:
         assert core_called["broker_cmd_file"] == str(cfg.broker_cmd_file)
 
     def test_the_ui_launch_enables_the_dashboard_and_forwards_the_rfb_rect(self, cfg_factory, tmp_path):
-        """The RFB rect flows through so the reference popup can fill that
-        space."""
         _cfg, _result, _core, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
         assert ui_called["dashboard_enabled"] is True
@@ -373,7 +321,6 @@ class TestRunStartupSequence:
         with _sequencer_stubs(launch_main_funestra=dict(side_effect=capture_main_funestra), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # The Main Funestra is wired from the manifest [modules]/[commands] keys and the Main Funestra's rect.
         assert main_funestra_kwargs == {
             "python_exe": str(cfg.paths.python_exe),
             "main_funestra_module": "main_funestra",
@@ -382,42 +329,26 @@ class TestRunStartupSequence:
             "command_file": str(cfg.main_funestra_cmd_file),
             "paused_file": str(cfg.main_funestra_paused_file),
             "status_file": str(cfg.main_funestra_status_file),
-            # The HUD: the panel Fun Time publishes for the Main Funestra's HUD, Genau's
-            # readout for the section under it, and where a press goes back.
             "console_file": str(main_funestra_hud_path(cfg.paths.state_dir)),
             "drive_file": str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt"),
-            # The Main Funestra is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "main_funestra.log",
-            # Where it keeps the mode it was in and the point each video was left
-            # at; left to itself it puts them beside the config, in the checkout.
             "state_dir": tmp_path,
             "main_funestra_x": PRIMARY_MEDIA_RECT["x"],
             "main_funestra_y": PRIMARY_MEDIA_RECT["y"],
             "main_funestra_width": PRIMARY_MEDIA_RECT["width"],
             "main_funestra_height": PRIMARY_MEDIA_RECT["height"],
-            # Genau runs on this window too, through files of its own: Fun Time's
-            # verbs for the hand and the video, its pause, and the status it publishes.
             "genau_command_file": str(cfg.genau_cmd_file),
             "genau_paused_file": str(cfg.genau_paused_file),
             "genau_status_file": str(cfg.genau_status_file),
-            # Genau's loop-delivery folder, played as shorts by Kino and browsed by Genau.
             "flicks_dir": str(cfg.paths.flicks_dir),
-            # This manifest has no regen.metadata_root, so the Main Funestra is left to
-            # group by name; launch_main_funestra's --metadata-dir wiring is covered in
-            # test_windows_bridge_startup.
             "metadata_dir": None,
-            # Nothing to resume Genau onto: no status file from a session before.
             "genau_start_flick": "",
             "genau_latest": False,
             "genau_f_mode": False,
             "genau_orientations": (True, True),
             "notice_file": str(cfg.main_funestra_notice_file),
-            # Where a press on the Main Funestra's volume control posts its command — the same
-            # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
             "osr2_port": str(ports.OSR2_SLOT),
-            # Which checkouts to run — empty in an ordinary session, so the Funestra
-            # resolves through its venv.
             "sibling_checkouts": "",
         }
 
@@ -438,8 +369,6 @@ class TestRunStartupSequence:
 
     def test_the_main_funestra_reads_every_setting_from_fun_times_own_config(
             self, cfg_factory, tmp_path):
-        """Its library folders, its T-Code port and Genau's numbers all live in
-        Fun Time's config, so that is the one file it is handed."""
         cfg = load_config(cfg_factory({}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
@@ -471,8 +400,6 @@ class TestRunStartupSequence:
         assert main_funestra_kwargs["sibling_checkouts"] == str(checkout)
 
     def test_the_satellites_start_with_the_named_checkouts(self, cfg_factory, tmp_path):
-        """They import funestra too: left out, they ran the venv's install while
-        every other part of the session ran the branch."""
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         checkout = _name_a_sibling_checkout(manifest_path, tmp_path / "a_worktree")
 
@@ -495,26 +422,20 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), move_window=dict(side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        # The two satellite windows are positioned immediately in normal mode.
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
-        # The windows that own a rect are promoted to topmost, the Main Funestra
-        # (2525) included so it floats above the desktop.
         promoted = {h for h, on in topmost_calls if on}
         assert promoted == {3030, 4040, 2525}
 
     def test_non_hidden_path_unpauses_main_funestra(self, cfg_factory, tmp_path):
-        """The no-loading-screen path (integration / normal without the
-        overlay) must still start the Main Funestra — the reveal that clears main_funestra_paused
-        cannot live only in the hidden branch."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
         main_funestra_paused = Path(m["commands"]["main_funestra_paused_file"])
         main_funestra_paused.parent.mkdir(parents=True, exist_ok=True)
-        main_funestra_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
+        main_funestra_paused.write_text("1", encoding="utf-8")
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
@@ -522,9 +443,6 @@ class TestRunStartupSequence:
         assert main_funestra_paused.read_text(encoding="utf-8").strip() == "0"
 
     def test_genau_is_launched_onto_the_video_it_was_left_showing(self, cfg_factory, tmp_path):
-        """Genau's status file is the only record of which flick was up — it
-        rescans its folder every launch — so it is read before Genau is started
-        and handed straight back on the command line."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         cfg.genau_status_file.parent.mkdir(parents=True, exist_ok=True)
         cfg.genau_status_file.write_text(
@@ -539,9 +457,6 @@ class TestRunStartupSequence:
         assert launch.call_args.kwargs["genau_start_flick"] == "C:\\flicks\\alpha.mp4"
 
     def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
-        """Whether Genau was on Latest is in the state the core session just
-        resumed, and it has to go on the launch beside the video: the LATEST verb
-        browses the new order from its top, over the video just resumed."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         write_shared_state(shared_state_path(tmp_path), BridgeState(genau_latest=True))
 
@@ -584,9 +499,6 @@ class TestRunStartupSequence:
         assert stubs.launch_main_funestra.call_args.kwargs["osr2_port"] == "50599"
 
     def test_a_genau_session_opens_with_the_main_funestra_up_and_in_the_band(self, cfg_factory, tmp_path):
-        """Reopening in genau mode: the session is still BUILT in kino mode — the Main Funestra loads
-        the Main Funestra's playlist and the overlay waits on it — and Genau runs on that same
-        window, so nothing is parked and the window floats as it does in kino mode."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
             "Main Funestra": 2525,
@@ -598,14 +510,9 @@ class TestRunStartupSequence:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
-        # Handed on, because the orchestrator starts the mode's Funestra once the
-        # loading screen is gone.
         assert result.main_mode is MainMode.GENAU
 
     def test_a_genau_session_is_revealed_by_starting_genau_not_main_funestra(self, cfg_factory, tmp_path):
-        """The reveal starts whichever Funestra owns the display, and only that
-        one: unpausing the Main Funestra regardless would put a video up under the parked
-        window and hand the OSR2 two drivers at once."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
@@ -615,7 +522,6 @@ class TestRunStartupSequence:
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_kino_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
-        """Kino mode runs both: the Main Funestra's video with Genau's HUD over it."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "kino")
@@ -627,9 +533,6 @@ class TestRunStartupSequence:
     def test_the_reveal_leaves_the_hand_to_the_arbiter_in_either_mode(
         self, cfg_factory, tmp_path, mode,
     ):
-        """The dispatch loop's arbiter says who has the OSR2 on its first tick, in
-        both modes, and starting the hand here would put it on the device against
-        a funscript about to take it."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         _seed_paused_flags(manifest_path)
         genau_cmd = Path(cfg.genau_cmd_file)
@@ -641,8 +544,6 @@ class TestRunStartupSequence:
         assert genau_cmd.read_text(encoding="utf-8") == ""
 
     def test_a_genau_session_leaves_kinos_video_held_at_the_reveal(self, cfg_factory, tmp_path):
-        """Genau's own mode: Kino's video stays held, so nothing plays under
-        Genau's flick."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
@@ -666,13 +567,6 @@ class TestRunStartupSequence:
 
 
 class _TrackingProgress:
-    """A ProgressReporter that records the phases it is told, in order.
-
-    Carries ``cancelled`` because the real reporter does and the sequencer reads
-    it — the wait for the Main Funestra polls it, so a double without it fails there rather
-    than at the assertion.
-    """
-
     cancelled = False
 
     def __init__(self, log: list[str] | None = None) -> None:
@@ -686,12 +580,6 @@ class _TrackingProgress:
 
 
 class _CancelOnAdvance:
-    """A ProgressReporter that cancels on its Nth ``advance`` call.
-
-    Stands in for the real StartupProgress once the loading screen has dropped
-    the cancel flag: the Nth checkpoint raises instead of writing progress.
-    """
-
     def __init__(self, cancel_on: int) -> None:
         self._cancel_on = cancel_on
         self.calls = 0
@@ -710,16 +598,8 @@ class _CancelOnAdvance:
 
 
 class TestTheOrderInsideTheStartupPhases:
-    """The sequence is the design, not an accident of how it was written.
-
-    Every one of these was a paragraph of comment inside the one 91-statement
-    function; each is now an assertion, so a phase moved past another fails
-    here instead of at the next session.
-    """
-
     def _sequence(self, cfg_factory, tmp_path, *, hide_windows=False,
                   overrides=None, extra_stubs=None) -> list[str]:
-        """One startup run, reduced to the order its collaborators were called."""
         cfg = load_config(cfg_factory(overrides or {}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
@@ -748,8 +628,6 @@ class TestTheOrderInsideTheStartupPhases:
         return order
 
     def test_the_layout_is_computed_before_any_funestra_launches(self, cfg_factory, tmp_path):
-        """A satellite is started straight into its real rect, so computing the
-        layout after the launch would hand it the wrong one."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order.index("layout") < order.index("core")
@@ -764,25 +642,18 @@ class TestTheOrderInsideTheStartupPhases:
 
     def test_the_browser_is_up_before_the_dashboard_that_opens_over_it(
             self, cfg_factory, tmp_path):
-        """The dashboard's reference popup opens over the browser's rect."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order.index("browser") < order.index("companions")
 
     def test_the_funestras_are_released_only_once_the_app_is_built(
             self, cfg_factory, tmp_path):
-        """Startup holds every Funestra so nothing plays into a session that is
-        still being built; the release is therefore the last thing the phases
-        do on the path with no loading screen to hide under."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order[-1] == "release"
         assert order.index("companions") < order.index("release")
 
     def test_a_covered_startup_releases_nothing_at_all(self, cfg_factory, tmp_path):
-        """With a loading screen the release belongs to the orchestrator, once
-        the loading screen is off the screen: released here, a video (and Genau's audio)
-        runs under the loading screen and its first seconds are gone unseen."""
         order = self._sequence(cfg_factory, tmp_path, hide_windows=True)
 
         assert "release" not in order
@@ -790,8 +661,6 @@ class TestTheOrderInsideTheStartupPhases:
 
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
-        """Cancelling at the layout checkpoint (2nd advance) has launched the
-        core stack — the satellites and the Main Funestra — but not the companions."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         ui = MagicMock()
 
@@ -808,8 +677,6 @@ class TestRunStartupSequenceCancellation:
         ui.assert_not_called()
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
-        """Cancelling once companions are up reports the whole tree — satellites,
-        the Main Funestra, dashboard, audio — plus the Random Favs Browser hwnd."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs(_maybe_launch_random_favs_browser=dict(return_value=7777), wait_for_window_by_title=dict(return_value=88888)):
@@ -825,11 +692,6 @@ class TestRunStartupSequenceCancellation:
 
 
 class TestAFunestraThatDiesWhileTheRoomComesUp:
-    """Every wait here is bounded and reveals anyway when it runs out, which is right
-    for a Funestra that is merely slow and wrong for one that is gone: his previews
-    spent every window and status timeout in turn and then opened on a session with no
-    Funestras in it, with Ctrl+Alt+Q the only way out (2026-09-22)."""
-
     def test_the_startup_ends_naming_the_funestra_and_what_it_said(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
@@ -871,8 +733,6 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
 
 
 class TestLoadingScreenStartup:
-    """When hide_windows=True, positioning is deferred until after UI companions launch."""
-
     def test_defers_positioning_under_the_overlay(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
@@ -891,23 +751,13 @@ class TestLoadingScreenStartup:
                 hide_windows=True,
             )
 
-        # The two satellite windows are positioned at final locations during Phase 4
         positioned_hwnds = {hwnd for hwnd, x, y, w, h in move_calls}
         assert {3030, 4040} <= positioned_hwnds
 
-        # Nothing may be activated while the loading screen is up
         assert all(activate is False for activate in move_activates), \
             f"move_window must not activate in loading screen mode: {move_activates}"
 
     def test_resolves_every_window_by_title_never_by_a_launcher_pid(self, cfg_factory, tmp_path):
-        """No window lookup may poll on a pid this sequence launched.
-
-        Every child starts through a venv ``Scripts\\pythonw.exe``, a launcher that
-        spawns the base interpreter as a CHILD — and the child owns the window.  So
-        the launched pid never matches, and each poll on one runs its full timeout
-        before the title lookup that was going to answer anyway.  The two
-        satellites and the Main Funestra together were 25 seconds of a 28-second loading screen.
-        """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
@@ -924,14 +774,8 @@ class TestLoadingScreenStartup:
                 hide_windows=True,
             )
 
-        # Not merely unused here — a pid lookup is not reachable from this module
-        # at all, so re-introducing one is a deliberate act rather than a habit.
         assert not hasattr(windows_bridge_sequencer, "wait_for_window")
         assert not hasattr(windows_bridge_sequencer, "find_window_by_pid")
-        # And every managed window is still resolved, by caption alone.
-        # The hosted app's three windows are never among them: it is still
-        # booting when Fun Time opens, so the dispatch loop resolves each the
-        # first time it is asked for one.
         assert result.hwnds_by_window == {
             "portrait": 3030, "landscape": 4040, "main_funestra": 2525,
             "dashboard": 5050, "rfb": 0,
@@ -939,10 +783,6 @@ class TestLoadingScreenStartup:
 
 
 class TestTheRoomIsBandedUnderTheLoadingScreen:
-    """A promotion made while the loading screen is up goes straight under it, so no
-    window is ever over the loading screen waiting for the loading screen to take the top back --
-    which, on a loaded machine, it does late."""
-
     HWNDS_BY_WINDOW: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
                   "main_funestra": 55}
     LOADING_SCREEN = 999
@@ -961,8 +801,6 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
         assert all(under == self.LOADING_SCREEN for _h, under in promotions)
 
     def test_the_walk_still_promotes_in_role_order(self):
-        """Each lands directly under the loading screen, so the last one promoted is still
-        the highest: the order is what puts the hosted window over the browser."""
         banded = [h for h, on, _under in self._calls(beneath=self.LOADING_SCREEN) if on]
         plain = [h for h, on, _under in self._calls() if on]
 
@@ -973,7 +811,6 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
             self.HWNDS_BY_WINDOW.values())
 
     def test_without_a_loading_screen_a_promotion_goes_to_the_top_of_the_band(self):
-        """The re-band after the loading screen has gone, and the path with no loading screen."""
         assert all(under == 0 for _h, _on, under in self._calls())
 
     def test_an_app_opening_with_origenerator_in_the_browsers_place_keeps_the_browser_under_it(
@@ -984,8 +821,6 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
 
 
 class TestPhase4Reveal:
-    """Phase 4 (hide_windows only): play satellites, unpause the Main Funestra."""
-
     def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
                     mode="kino"):
         title_map = title_to_hwnd or {"Fun Time": 5050, "Main Funestra": 2525}
@@ -1009,14 +844,6 @@ class TestPhase4Reveal:
             )
 
     def test_every_funestra_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
-        """The path with a loading screen does not start playing when its phases end.
-
-        The finishing pass — the bands, the settle — runs after this and under
-        the loading screen, so a Funestra released here plays for seconds he can neither see
-        nor hear, and the opening of the video is gone by the time the loading screen
-        lifts.  The orchestrator calls ``release_the_funestras`` itself, once the
-        loading screen is off the screen.
-        """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         held = _pause_every_funestra(m)
@@ -1027,8 +854,6 @@ class TestPhase4Reveal:
             assert flag.read_text(encoding="utf-8").strip() == "1", flag.name
 
     def test_the_release_starts_the_funestras_the_mode_shows(self, cfg_factory, tmp_path):
-        """And what the orchestrator calls once the loading screen is gone does start them:
-        The Main Funestra in kino mode, with Genau and its audio alongside."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         _pause_every_funestra(m)
@@ -1040,12 +865,6 @@ class TestPhase4Reveal:
         assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
 
     def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
-        """The whole point of the loading overlay is to hide the mess of starting
-        seven windows.  ``SetWindowPos(hwnd, HWND_TOPMOST, …)`` inserts a window at
-        the TOP of the topmost band — above the overlay, which is itself topmost —
-        so every promotion here flashes that window over the overlay until the
-        overlay's next 200ms poll re-asserts itself.  The bands go on once the
-        overlay is destroyed, in ``_fix_post_loading_windows``."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         topmost_calls: list[tuple] = []
@@ -1056,16 +875,6 @@ class TestPhase4Reveal:
         assert topmost_calls == []
 
 class TestMainFunestraGatesTheReveal:
-    """The overlay must not come down over the Main Funestra's own loading screen.
-
-    The Main Funestra opens its window before it reads its library, so the caption lookup that
-    stood for "the Main Funestra is up" now answers while the Main Funestra is still loading and painting its
-    own progress bar.  Standalone, that screen is the Main Funestra's to show; inside Fun Time
-    the wait belongs to Fun Time, and the phase named for it — "Waiting for
-    Funestras..." — is where it goes.  The Main Funestra is the third Funestra, and the only one
-    still loading by then.
-    """
-
     def test_the_funestras_phase_covers_the_wait_for_main_funestra(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         events: list[str] = []
@@ -1082,9 +891,6 @@ class TestMainFunestraGatesTheReveal:
                 hide_windows=True,
             )
 
-        # Inside the Funestras phase, and on the Main Funestra's own status file — not after
-        # "windows", where the bar would sit under "Positioning windows..."
-        # through a wait that positions nothing.
         assert events == [
             "services",
             "browser",
@@ -1097,11 +903,6 @@ class TestMainFunestraGatesTheReveal:
     def test_the_stale_status_is_read_for_the_resume_and_only_then_dropped(
         self, cfg_factory, tmp_path,
     ):
-        """Dropping last session's status file is what makes the next one mean
-        something — without it the wait ends at once on a video from a session
-        that is over.  But startup also resumes the Main Funestra onto the video that same file
-        names, so the drop has to fall between that read and the Main Funestra's launch.
-        """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         status_file = Path(cfg.main_funestra_status_file)
         status_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1126,16 +927,9 @@ class TestMainFunestraGatesTheReveal:
         assert seen["stale_at_launch"] is False
 
     def test_the_wait_for_the_funestras_cannot_outlast_the_overlay(self):
-        """The overlay tears itself down when the progress file has gone
-        STALE_TIMEOUT_S without changing — its guard against an orchestrator that
-        died.  The file is written when a phase STARTS, so a Funestras phase able to
-        run longer than that guard would drop the overlay mid-wait and reveal the
-        very loading screen it is waiting out.
-        """
         assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
     def test_the_windows_phase_cannot_outlast_it_either(self):
-        """That phase resolves three windows under one progress write."""
         assert 3 * WINDOW_RESOLVE_TIMEOUT_S < STALE_TIMEOUT_S
 
 
@@ -1150,8 +944,6 @@ MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
 
 
 class TestWaitForNewChromeWindow:
-    """The poll that pairs a launch with the window it opened."""
-
     def _clock(self, monkeypatch):
         ticks = iter(range(1000))
         monkeypatch.setattr(
@@ -1180,8 +972,6 @@ class TestWaitForNewChromeWindow:
 
 
 class TestMaybeLaunchRandomFavsBrowser:
-    """Regression: browser must launch (bug #3) and be positioned at its planned rect."""
-
     def _browser_settings(self, *, enabled: bool = True) -> RandomFavsBrowserSettings:
         return RandomFavsBrowserSettings(
             enabled=enabled,
@@ -1190,7 +980,6 @@ class TestMaybeLaunchRandomFavsBrowser:
         )
 
     def _fake_plan(self) -> WindowLayoutPlan:
-        """Build a minimal plan with a random_favs_browser rect."""
         return compute_window_layout(
             primary_monitor=MAIN_RECT,
             secondary_monitor=MonitorRect(x=2560, y=0, width=1440, height=3440),
@@ -1198,7 +987,6 @@ class TestMaybeLaunchRandomFavsBrowser:
         )
 
     def test_skipped_when_disabled(self):
-        """When disabled=0, no browser launch or window positioning happens."""
         m = self._browser_settings(enabled=False)
         plan = self._fake_plan()
         move_calls: list[tuple] = []
@@ -1225,16 +1013,13 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
             rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
 
-        # Browser window should be positioned at the planned rect
         mock_move.assert_called_once_with(
             55555, browser_rect.x, browser_rect.y, browser_rect.width, browser_rect.height,
             activate=True,
         )
-        # Should return the browser hwnd for topmost management
         assert rfb_hwnd == 55555
 
     def test_launches_the_urls_the_manifest_already_resolved(self):
-        """Lazy loading is settled when the manifest is built, not at launch."""
         m = self._browser_settings()
         plan = self._fake_plan()
 
@@ -1258,15 +1043,6 @@ class TestMaybeLaunchRandomFavsBrowser:
 
 
 class TestResolveSatelliteHwnds:
-    """A satellite window is found by its DISTINCT caption, and by nothing else.
-
-    Its pid cannot find it: ``Popen`` returns the venv's ``Scripts\\pythonw.exe``
-    launcher, which spawns the base interpreter as a CHILD, and that child owns the
-    window — so a pid poll here never resolves and always burns its whole timeout.
-    Distinct captions are also what keep the lookup from crossing the two, which
-    was the portrait/landscape visual swap.
-    """
-
     def test_resolves_each_satellite_by_its_distinct_title(self):
         title_to_hwnd = {"Portrait AI Funestra": 1111, "Landscape AI Funestra": 2222}
 
@@ -1276,11 +1052,7 @@ class TestResolveSatelliteHwnds:
         ) as by_title:
             portrait, landscape = _resolve_satellite_hwnds()
 
-        # The portrait window lands in the portrait slot, the landscape in the
-        # landscape slot — never crossed.
         assert (portrait, landscape) == (1111, 2222)
-        # Resolved by the two DISTINCT captions, never the shared "Satellite" that
-        # made the lookup ambiguous, and each lookup is exact.
         resolved = {call.args[0] for call in by_title.call_args_list}
         assert resolved == {"Portrait AI Funestra", "Landscape AI Funestra"}
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
@@ -1302,16 +1074,11 @@ class TestWaitForMainFunestraLoaded:
         def main_funestra_finishes_loading(_seconds):
             status_file.write_text("video=clip.mp4\n", encoding="utf-8")
 
-        # Absent on the first look, so it can only return by polling again.
         with sleeps_in(windows_bridge_sequencer) as slept:
             slept.side_effect = main_funestra_finishes_loading
             assert _wait_for_main_funestra_loaded(status_file, NullProgress()) is True
 
     def test_a_status_file_naming_no_video_is_not_a_loaded_main_funestra(self, tmp_path):
-        """the Main Funestra writes its status whole, but a poll can catch that first write
-        half-done.  So the wait reads the video out rather than taking the file's
-        mere existence for the signal, and an empty read keeps it waiting.
-        """
         status_file = tmp_path / "main_player_status.txt"
         status_file.write_text("", encoding="utf-8")
 
@@ -1321,20 +1088,12 @@ class TestWaitForMainFunestraLoaded:
             ) is False
 
     def test_a_main_funestra_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
-        """A crashed Main Funestra must not wedge startup under an overlay forever: the
-        wait is bounded, and past its budget the session is revealed without it.
-        """
         with sleeps_in(windows_bridge_sequencer):
             assert _wait_for_main_funestra_loaded(
                 tmp_path / "never.txt", NullProgress(), timeout_s=0.0,
             ) is False
 
     def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self, tmp_path):
-        """This is the one stretch of startup that can run for tens of seconds,
-        and the overlay covering it says "Press Esc to cancel".  Checked only at
-        the next phase boundary, that Esc would go unanswered for the whole of
-        the wait it is most likely to be pressed during.
-        """
         class Cancelled:
             cancelled = True
             def advance(self, phase: str) -> None: pass
@@ -1371,16 +1130,9 @@ class TestOrigeneratorLaunch:
         assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
         assert captured["layout_plan"].random_favs_browser.width > 0
         assert str(captured["command_file"]).endswith("origenerator_cmd.txt")
-        # A "1" a prior session's OmniPause stranded in the paused flag is
-        # cleared before the app launches — a stale freeze made every show
-        # open frozen while Fun Time ran.
         assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
 
     def test_the_hosted_app_is_handed_both_funestras(self, cfg_factory, tmp_path):
-        """Each Satellite's own channel -- the list its Funestra plays, the verbs it
-        drains, the status it publishes -- and where the app publishes the
-        panel the session puts on that Funestra.  Last session's panel is gone
-        before the app starts, so no side wears a show that is not running."""
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
         }}))
@@ -1409,8 +1161,6 @@ class TestOrigeneratorLaunch:
 
     def test_an_origenerator_with_no_interpreter_named_runs_from_its_own_install(
             self, cfg_factory, tmp_path):
-        """Its own install is where its pinned funestra lives, and the
-        libraries its own icon and its tests run it on."""
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
         }}))
@@ -1457,12 +1207,6 @@ class TestOrigeneratorLaunch:
 
     @contextlib.contextmanager
     def _answering(self):
-        """The open app reading its takeover, as a live one does.
-
-        A session no longer believes a takeover nothing read, so an offer
-        standing for an app that reads nothing is a session whose app never
-        came up -- which is its own test below.
-        """
         handed: dict = {}
 
         def answer(place, **kw):
@@ -1551,12 +1295,6 @@ class TestOrigeneratorLaunch:
     def test_an_app_that_never_answers_the_takeover_is_replaced_by_one_we_launch(
         self, cfg_factory, tmp_path
     ):
-        """What a takeover reaches is an open window's poll, and a process that
-        has stopped answering keeps standing its offer.  One was handed a
-        takeover on 2026-09-28 and never read it: the session reported it hosted
-        and Fun Time ran for five minutes with the Origenerator mode button grey.
-        Last session's status file is cleared first, so it cannot stand in for
-        this app answering."""
         cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path)
         stale_status = Path(cfg.origenerator_status_file)
@@ -1574,8 +1312,6 @@ class TestOrigeneratorLaunch:
     def test_a_session_claims_the_osr2_of_the_checkout_it_names(
         self, cfg_factory, tmp_path
     ):
-        # Even with no window to take over: a window this missed keeps its own
-        # switch, and two apps then stream into the one device.
         checkout = tmp_path / "origenerator"
         cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
         manifest_path = write_windows_bridge_manifest(
@@ -1718,16 +1454,6 @@ class TestOrigeneratorLaunch:
 
 
 class TestOrigeneratorDoesNotHoldTheRoomUp:
-    """The curtain waits for Fun Time, and no longer for the hosted app.
-
-    It used to, and that wait WAS the length of a launch: the app's window
-    lands ten to thirty seconds after its launch against five to eight for
-    everything else, so every session sat on "Waiting for Origenerator..."
-    long after Fun Time under the loading screen was finished.  Fun Time opens in video
-    mode instead and the app goes on booting out of sight; the dispatch loop
-    opens its mode up once it answers.
-    """
-
     def _hosted(self, cfg_factory, tmp_path, *, left_in_origenerator: bool = False):
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
@@ -1744,12 +1470,6 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     def test_a_session_resumed_into_origenerator_mode_still_opens_in_kino_mode(
         self, cfg_factory, tmp_path
     ):
-        """And asks the hosted app for nothing on the way: none of its three
-        windows is resolved or banded, and no show is asked for -- there is
-        nothing there yet to answer either.  The mode is owed in the shared
-        state (``session_resume.resume_shared_state``), for the dispatch loop to
-        pay once the app is up -- which is also when the regions can actually
-        be filled."""
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path, left_in_origenerator=True)
 
         with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
@@ -1761,17 +1481,12 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
 
     def test_the_sequencer_can_no_longer_reach_the_hosted_window_at_all(self):
-        """The window lookups it used to hold the loading screen with are gone from the
-        module, which is the part a comment could not keep true."""
         assert not hasattr(windows_bridge_sequencer, "find_window_for_process")
         assert not hasattr(windows_bridge_sequencer, "restore_window")
 
     def test_the_app_is_still_launched_first_of_everything(
         self, cfg_factory, tmp_path
     ):
-        """Nothing waits for it, which is exactly why it goes first: its boot
-        gets the whole of startup and the first minute of the session to run
-        in, rather than being started once there is time to spare."""
         _cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
         order: list[str] = []
 
@@ -1793,9 +1508,6 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         assert result.origenerator_pid == ORIGENERATOR_PID
 
     def test_the_bar_no_longer_carries_a_phase_for_it(self, cfg_factory, tmp_path):
-        """The phase was nine parts of a twelve-and-a-half-part bar, all of it
-        spent on one child's boot.  Its removal is the whole change, so a phase
-        walk that fired it again would be the change undone."""
         _cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
         progress = _TrackingProgress()
 
@@ -1812,7 +1524,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     ):
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
         (cfg.paths.state_dir / "origenerator_cmd.txt").write_text(
-            "PORTRAIT_NEXT\n", encoding="utf-8")  # last session's, never drained
+            "PORTRAIT_NEXT\n", encoding="utf-8")
 
         with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
             run_startup_sequence(
@@ -1824,10 +1536,6 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     def test_last_sessions_status_cannot_pass_for_this_sessions_app(
         self, cfg_factory, tmp_path
     ):
-        """The launch clears it, which is what lets the dispatch loop read the
-        file's mere existence as "this app is up": a status left by the last
-        session would open the mode before this one had drawn anything.
-        """
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
         status_file = Path(cfg.origenerator_status_file)
         status_file.parent.mkdir(parents=True, exist_ok=True)

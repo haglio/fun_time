@@ -1,4 +1,3 @@
-"""What the headset is shown of the session's log, and where each line goes."""
 from __future__ import annotations
 
 import logging
@@ -57,8 +56,6 @@ class TestWhichScreenALineBelongsTo:
         assert screen_for(SOURCE_LANDSCAPE) == SOURCE_LANDSCAPE
 
     def test_everything_else_belongs_to_the_primary(self):
-        """The desktop falls back to the Main Funestra for a line about no one
-        Funestra; there is no dash screen in the headset to fall back to either."""
         for source in (SOURCE_MAIN, SOURCE_SYSTEM, SOURCE_DASH, "something new"):
             assert screen_for(source) == MAIN
 
@@ -85,8 +82,6 @@ class TestWhatItPicksUp:
         assert board.flashed(MAIN).message == "landscape next"
 
     def test_the_backlog_it_opened_on_is_not_news(self, tmp_path):
-        """The session's history is not what a person is told the moment they
-        put the headset on; the board is for what happens next."""
         path = _log(tmp_path)
         _write(path, "an older command")
 
@@ -96,8 +91,6 @@ class TestWhatItPicksUp:
         assert board.flashed(MAIN) is None
 
     def test_the_diagnostic_chatter_under_a_message_is_not_shown(self, tmp_path):
-        """The same bar the desktop's messages flash on — a message, or louder —
-        so the two surfaces say the same things."""
         path = _log(tmp_path)
         board = MessageBoard(path)
         _write(path, "Voice command: landscape_next", level=logging.INFO)
@@ -130,8 +123,6 @@ class TestTheBannerOverEachFunestra:
         assert board.flashed(MAIN) is None
 
     def test_the_newest_line_wins_its_screen(self, tmp_path):
-        """One message per Funestra, as on the desktop: a second message replaces
-        the first rather than waiting its turn."""
         path = _log(tmp_path)
         board = MessageBoard(path)
         _write(path, "portrait next", source=SOURCE_PORTRAIT)
@@ -242,9 +233,6 @@ class TestWordsFlashedWithNoLogLine:
 
 
     def test_a_banner_is_timed_from_when_the_board_saw_it(self, tmp_path):
-        """The writer stamps wall time and the pump runs on a monotonic clock, so
-        a board that faded a line against the record's own timestamp would drop
-        it by the difference between the two — which on this machine is days."""
         path = _log(tmp_path)
         board = MessageBoard(path, message_seconds=5.0)
         _write(path, "landscape next")
@@ -262,13 +250,6 @@ class TestWordsFlashedWithNoLogLine:
 
 
 class TestWhatTheChannelWorkerAsksOfIt:
-    """The Funestra hands the board to the same worker it hands its Funestras, and
-    its teardown closes everything on that list.  The board answered ``pump``
-    and not ``close``, so the worker's list raised on its first entry and the
-    session died there — before it could tell the orchestrator it was holding
-    the headset covered, which cost every crossing the full fifteen-second
-    wait for an answer that could not come."""
-
     def test_the_board_can_be_closed_as_well_as_pumped(self, tmp_path):
         board = MessageBoard(_log(tmp_path))
 

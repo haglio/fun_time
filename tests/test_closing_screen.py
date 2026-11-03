@@ -9,9 +9,6 @@ from fun_time.overlay_progress import ready_file_for
 
 
 class FakeOverlay:
-    """Stands in for the real tkinter loading screen, which would put a full-screen
-    window over the machine running the suite."""
-
     def __init__(self, progress_file, **kwargs):
         self.progress_file = progress_file
         self.kwargs = kwargs
@@ -23,11 +20,8 @@ class FakeOverlay:
 
 class TestWindowTitle:
     def test_title_cannot_be_mistaken_for_the_dashboard(self):
-        """The dispatch loop resolves the dashboard by the exact title "Fun
-        Time" and is still running when this loading screen goes up, so the loading screen must
-        never answer to that name — it would be managed as the dashboard."""
         assert WINDOW_TITLE != "Fun Time"
-        assert "Fun Time" in WINDOW_TITLE  # still recognizably ours
+        assert "Fun Time" in WINDOW_TITLE
 
 
 class TestMain:
@@ -57,8 +51,6 @@ class TestMain:
         assert overlay.kwargs.get("taking_over") is None
 
     def test_reports_ready_only_once_the_loading_screen_is_painted(self, tmp_path, monkeypatch):
-        """Teardown holds its first kill for this flag, so writing it any earlier
-        than the paint would hand back a promise the screen has not kept."""
         progress_file, overlay = self._run_main(tmp_path, monkeypatch)
 
         assert not ready_file_for(progress_file).exists()

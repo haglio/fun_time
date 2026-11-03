@@ -1,11 +1,3 @@
-"""What Fun Time itself decides about how its processes are named.
-
-The machinery -- the version resource, the icon group, the copy and its
-staleness check -- belongs to :mod:`app_support.process_identity` and is tested
-there.  What is left here is the part only this repo can be wrong about: the two
-strings its launcher and its process sweep are written against, the roles it
-actually launches, and the one copy it makes a session in advance.
-"""
 from __future__ import annotations
 
 import re
@@ -19,10 +11,6 @@ from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 from tests.made_up_machine import running
 
-# Every role this repo launches a child under, gathered from the launch sites in
-# windows_bridge_startup, windows_bridge_orchestrator and library_browser, plus
-# the one the launcher runs.  A role reaches the task list and a file name, so
-# the set is worth naming somewhere a reader can see all of it at once.
 ROLES = (
     "Orchestrator", "Dashboard", "AudioCompanion", "LibraryBrowser",
     "MainFunestra", "Genau", "Origenerator", "Portrait", "Landscape",
@@ -37,17 +25,10 @@ class TestTheStringsOtherLanguagesMatchOn:
     held here to the byte."""
 
     def test_the_sweep_pattern_is_the_one_the_sweeps_were_written_against(self):
-        # Spelled out rather than derived, because a derivation would agree with
-        # itself after any change.  app_support's namer escapes the prefix --
-        # re.escape turns the hyphen into ``\-`` -- and this is the exact string
-        # the running sweeps match today.
         assert NAMER.process_name_pattern == (
             r"^pythonw?\.exe$|^py\.exe$|^FunTime-[A-Za-z]+\.exe$")
 
     def test_the_satellite_reap_is_the_sweep_that_carries_it(self):
-        # Pinning the string proves nothing on its own: a sweep that stopped
-        # using it would reach past this repo's own Funestras and force-kill
-        # whatever else the machine runs a satellite module under.
         stranded = "-m satellite --status-file C:/state/portrait_status.txt"
         machine = [(51, "FunTime-Portrait.exe", stranded, 0.0),
                    (52, "Relay-Portrait.exe", stranded, 0.0)]
@@ -57,10 +38,6 @@ class TestTheStringsOtherLanguagesMatchOn:
         assert ended == [51]
 
     def test_the_launcher_looks_for_the_name_the_namer_gives_the_orchestrator(self):
-        # launch.vbs looks in the venv for this file by name and runs it if it is
-        # there.  A namer that starts producing anything else does not fail --
-        # the launcher quietly falls back to the plain interpreter and the
-        # orchestrator goes back to being an anonymous row, for good.
         (desktop,) = [spec for spec in launchers(PROJECT_DIR) if spec.file == "launch.vbs"]
         named = NAMER.exe_name(desktop.interpreter, "Orchestrator")
 
@@ -70,29 +47,20 @@ class TestTheStringsOtherLanguagesMatchOn:
 
 class TestTheRolesThisRepoLaunches:
     def test_the_sweep_pattern_reaches_every_one_of_them(self):
-        # The satellite reap and the integration leftover sweep both bound
-        # themselves by image name.  A role-named copy the pattern misses is a
-        # Funestra no sweep can reach.
         for role in ROLES:
             name = NAMER.exe_name("pythonw.exe", role)
             assert re.match(NAMER.process_name_pattern, name), name
 
     def test_the_sweep_pattern_still_matches_a_plain_interpreter(self):
-        # The copy is best-effort, so a child can still arrive under the plain
-        # interpreter and must stay reachable.
         for name in ("pythonw.exe", "python.exe", "py.exe"):
             assert re.match(NAMER.process_name_pattern, name), name
 
     def test_the_sweep_pattern_leaves_everything_else_alone(self):
-        # These sweeps force-kill what they match, so a pattern that reaches one
-        # of the user's own apps is the worst failure this module can have.
         for name in ("notepad.exe", "mypythonw.exe", "FunTimeOther.exe",
                      "python3.exe", "Broker-Tray.exe"):
             assert not re.match(NAMER.process_name_pattern, name), name
 
     def test_each_one_reads_as_english_under_the_app_s_own_name(self):
-        # What the Processes tab actually shows.  The role has to be one word to
-        # be a file name; the row is where it comes back apart.
         assert NAMER.description("AudioCompanion") == "Fun Time – Audio Companion"
         assert NAMER.description("LibraryBrowser") == "Fun Time – Library Browser"
         for role in ROLES:
@@ -110,12 +78,6 @@ class TestTheRolesThisRepoLaunches:
 
 class TestPrepareOrchestratorLauncher:
     def test_names_a_copy_of_the_main_hud_interpreter_beside_the_running_one(self, tmp_path: Path):
-        # The HUD one by name: launch.vbs runs python.exe, and reading
-        # sys.executable would name a copy after a copy on every launch after
-        # the first -- FunTime-Orchestrator.exe copied to itself, once per run.
-        # Run against a throwaway venv, which reads the copy back: which
-        # launcher it was made from, what its row says, whose mark it carries,
-        # and that nothing to copy from costs the name and nothing else.
         assert_the_process_is_named(
             prepare_orchestrator_launcher, tmp_path,
             ProcessName(
@@ -129,6 +91,4 @@ class TestPrepareOrchestratorLauncher:
 
 
 def test_the_copies_carry_fun_time_s_own_mark():
-    """The row naming the app shows the app's face, and it is the icon every
-    other window in this repo draws from."""
     assert NAMER.icon == PROJECT_ICON

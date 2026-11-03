@@ -1,10 +1,3 @@
-"""The live windows under the managed windows.
-
-These pin :class:`fun_time.fun_time_windows.FunTimeWindows` directly, which is the
-point of it having been lifted out of the dispatch loop: the object needs the
-child pids, the browser's hwnd and the startup seed, and nothing else — no
-config, no session state, no runner.
-"""
 from __future__ import annotations
 
 from functools import partial
@@ -52,10 +45,6 @@ def make_windows(**overrides) -> FunTimeWindows:
 
 
 def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
-    """Startup resolves every window while it is still visible and hands the
-    map over; hidden windows are invisible to the pid/title lookups, so that
-    seed is the only way back to one.  Nothing else is needed to answer for a
-    role, which is what lets these windows be reasoned about on their own."""
     windows = FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
 
     assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
@@ -63,9 +52,6 @@ def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
 
 class TestResolveRole:
     def test_main_funestra_falls_back_to_exact_title_when_pid_fails(self):
-        """The venv pythonw launcher's PID differs from the interpreter that
-        owns the SDL window, so resolution must fall back to an exact-title
-        lookup — exact, so a caption merely containing the name cannot answer."""
         windows = make_windows()
 
         title_calls: list[tuple[str, bool]] = []
@@ -82,8 +68,6 @@ class TestResolveRole:
         assert hwnd == 2002
 
     def test_dashboard_falls_back_to_title_when_pid_fails(self):
-        """When find_window_by_pid cannot find the Dashboard (PID mismatch
-        from the venv launcher), resolution falls back to its title."""
         windows = make_windows()
 
         def title_lookup(title, exact=False):
@@ -94,12 +78,6 @@ class TestResolveRole:
             assert windows.hwnd("dashboard") == 9999
 
     def test_each_satellite_falls_back_to_its_own_exact_caption(self):
-        """The recorded satellite pids are the venv launcher's, not the
-        interpreter that owns the SDL window, so on a cold cache the by-pid
-        lookup finds nothing and resolution falls back to the caption — each
-        side's own, exactly.  The captions differ only in their first word,
-        so a swapped or substring lookup here assigns one Satellite's window to
-        the other, which is the portrait/landscape visual swap."""
         windows = make_windows()
 
         def title_lookup(title, exact=False):
@@ -114,15 +92,11 @@ class TestResolveRole:
             assert windows.hwnd("landscape") == LANDSCAPE_HWND
 
     def test_a_dead_hosted_window_handle_is_dropped_and_re_resolved(self):
-        """The hosted app's boot can put a short-lived twin of its caption up
-        first (its splash); caching that handle would aim every later restore
-        at a dead window — the mode switch that visibly does nothing.  Only
-        this role heals its cache, so a dead handle must be re-resolved."""
         windows = make_windows(pids={"origenerator": HOSTED_PID})
 
         with patch("fun_time.fun_time_windows.find_window_for_process",
                    return_value=8888):
-            assert windows.hwnd("origenerator") == 8888  # the splash, cached
+            assert windows.hwnd("origenerator") == 8888
 
         with patch("fun_time.fun_time_windows.window_exists", return_value=False), \
              patch("fun_time.fun_time_windows.find_window_for_process",
@@ -139,8 +113,6 @@ class TestResolveRole:
 
 
 class TestParking:
-    """Which window goes down, when, and what brings it back."""
-
     def test_a_mode_switch_holds_its_outgoing_funestra_up_for_the_settle(self):
         """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
         compositing it — so the Funestra a switch is leaving must go down only
@@ -164,13 +136,6 @@ class TestParking:
 
 
 class TestTopmostBands:
-    """Which windows float, and in what order they are promoted.
-
-    The modes are arguments, not state the object holds: these windows are the
-    same windows whatever the session is doing, and the band they belong in is
-    the caller's question to ask.
-    """
-
     def _promotions(self, windows, method, **kwargs) -> list[tuple[int, bool]]:
         calls: list[tuple[int, bool]] = []
         with patch("fun_time.fun_time_windows.find_window_by_pid", side_effect=lookup_pid), \
@@ -182,8 +147,6 @@ class TestTopmostBands:
         return calls
 
     def test_remove_all_topmost_drops_every_managed_window(self):
-        """Omnipause enter frees the desktop entirely — the Main Funestra included, so it is
-        never left stranded on top."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "remove_all_topmost")
@@ -191,8 +154,6 @@ class TestTopmostBands:
         assert {h for h, on in calls if on is False} == TOPMOST_HWNDS
 
     def test_restore_all_topmost_floats_every_window_with_a_rect_of_its_own(self):
-        """The Main Funestra among them: Kino and Genau share its one window, so it
-        is never the hidden half of a pair."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "restore_all_topmost", rfb_mode=RfbMode.RFB)
@@ -200,16 +161,6 @@ class TestTopmostBands:
         assert {h for h, on in calls if on is True} == TOPMOST_HWNDS
 
     def test_restore_all_topmost_leaves_the_browser_under_the_hosted_app(self):
-        """His: the Random Favs Browser flashes over Origenerator for a moment
-        every time Fun Time resumes from OmniPause.
-
-        The browser shares its rect with hosted Core, and the
-        band policy already answers "not topmost" for it in origenerator mode
-        — but this path promoted every fixed role without asking, so the
-        browser went to the top of the band (HWND_TOPMOST inserts there) and
-        stayed above Origenerator until the hosted window's own promotion pushed
-        the host back over it a moment later.  That gap is the flash.
-        """
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restore_all_topmost",
@@ -221,7 +172,6 @@ class TestTopmostBands:
             "app owns its rect, which puts it over Origenerator until the next "
             "promotion pushes it back down"
         )
-        # Everything the mode really does show still comes back.
         assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND,
                 HOSTED_HWND} <= set(promoted)
 
@@ -231,12 +181,6 @@ class TestTopmostBands:
                                 rfb_mode=RfbMode.ORIGENERATOR, paused=True) == []
 
     def test_origenerator_in_the_browsers_place_takes_the_browser_out_of_the_band(self):
-        """His: switching into Origenerator mode, Origenerator Core did not come
-        on top of the RFB.  The hosted app was busy opening its two shows, so
-        the restore sent to its window gave up after the stalled-window guard's
-        wait and landed after the promotion -- below the browser, which was
-        still in the band.  Out of the band, the browser cannot sit over a
-        topmost window however late that window's restore arrives."""
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restack_rfb_mode",
@@ -245,7 +189,6 @@ class TestTopmostBands:
         assert calls == [(RFB_HWND, False), (HOSTED_HWND, True)]
 
     def test_the_browser_back_in_its_place_goes_back_in_the_band(self):
-        """Or the RFB would sit under whatever else he has on its monitor."""
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restack_rfb_mode",
@@ -255,16 +198,13 @@ class TestTopmostBands:
 
 
 class TestOrigeneratorWindowConverger:
-    """The hosted app's window is converged to what holds the browser's place,
-    read off the window each pass rather than remembered."""
-
     def test_origenerator_resumed_in_the_browsers_place_restores_the_window_once_it_exists(
             self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=0), \
              patch("fun_time.fun_time_windows.restore_window") as restore:
             windows.converge_origenerator_window(RfbMode.ORIGENERATOR)
-        restore.assert_not_called()  # still booting — nothing to drive
+        restore.assert_not_called()
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
              patch("fun_time.fun_time_windows.restore_window") as restore, \
@@ -273,11 +213,6 @@ class TestOrigeneratorWindowConverger:
         restore.assert_called_once_with(4242, activate=False)
 
     def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self):
-        """The app's boot blocks its main thread, so a restore can time out
-        through the stalled-window guard and do nothing.  The converger judges
-        from the WINDOW each pass — still minimized means try again — instead
-        of remembering it as shown and leaving a resumed session parked until
-        the user digs it out of the taskbar."""
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.fun_time_windows.is_window_minimized", return_value=True), \
@@ -288,8 +223,6 @@ class TestOrigeneratorWindowConverger:
         assert restore.call_count == 2
 
     def test_a_shown_window_out_of_the_band_is_re_promoted(self):
-        # Restored but buried (the topmost bit never took): the converger
-        # re-bands it rather than reading "not minimized" as converged.
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.fun_time_windows.is_window_minimized", return_value=False), \

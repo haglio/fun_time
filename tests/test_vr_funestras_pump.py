@@ -1,20 +1,3 @@
-"""The file-channel worker, and its teardown, surviving one unit's fault.
-
-Every unit was pumped inside one unguarded ``for``, so a single raise ended the
-worker thread and every file channel with it: no command drained, no paused flag
-read, no status written, and -- because the main role's OSR2 tick runs there --
-the device stopped where it stood.  The frame loop knew nothing of it and kept
-drawing, so the session looked alive with nothing in it answering, which is what
-an OSR2 that "crashed at some point" and left no trace looks like.
-
-These pin the guard: the loop survives, the other units still pump, the fault is
-logged with its traceback the first time and counted after, and a unit that comes
-right closes its run out.
-
-The teardown's close of the same list was unguarded for the same reason, and the
-board it starts with answered no close at all -- so every session ended on that
-first entry, before it could report the headset hold the crossing waits on.
-"""
 from __future__ import annotations
 
 import logging
@@ -37,7 +20,6 @@ class _Recorder(logging.Handler):
 
 @pytest.fixture
 def recorded_funestra_log():
-    """The Funestra module's own logger, which is what the guard reports through."""
     logger = logging.getLogger("fun_time_vr.funestras")
     handler = _Recorder()
     before, logger.propagate = logger.propagate, False
@@ -49,8 +31,6 @@ def recorded_funestra_log():
 
 
 class _Unit:
-    """One pumped unit, standing in for a video/panel/keeper unit."""
-
     def __init__(self, raises=None, close_raises=None) -> None:
         self.turns = 0
         self.closed = 0
@@ -70,8 +50,6 @@ class _Unit:
 
 
 class _Stopper:
-    """Ends the worker after *turns*, so the loop is bounded."""
-
     def __init__(self, stop: threading.Event, turns: int) -> None:
         self._stop = stop
         self._turns = turns
@@ -91,8 +69,6 @@ def _run(units, *, turns):
 
 class TestOneUnitsFaultIsNotTheOthers:
     def test_the_worker_survives_and_the_rest_keep_pumping(self, recorded_funestra_log):
-        """The OSR2 is driven from this thread; a satellite's file channel
-        tripping over a half-written playlist must not be what stops it."""
         broken = _Unit(raises=lambda _turn: RuntimeError("channel is wedged"))
         healthy = _Unit()
 
@@ -136,8 +112,6 @@ class TestOneUnitsFaultIsNotTheOthers:
         assert recorded_funestra_log.records[0].getMessage() == "_Panel.pump failed"
 
     def test_two_units_of_one_class_keep_their_own_runs(self, recorded_funestra_log):
-        """The two satellites are one class: one coming right must not close out
-        the other's run, nor absorb its fault as a repeat."""
         class _Side(_Unit):
             def __init__(self, screen_name, raises=None):
                 super().__init__(raises)
@@ -154,10 +128,6 @@ class TestOneUnitsFaultIsNotTheOthers:
 
 
 class TestTheTeardownClosesTheWholeList:
-    """What the frame loop's `finally` does with the same list, and why one
-    unit's fault must not end it: everything after it stays open, and the acts
-    that follow -- reporting the headset hold above all -- never happen."""
-
     def test_a_unit_that_cannot_close_does_not_keep_the_others_open(
         self, recorded_funestra_log,
     ):
@@ -171,8 +141,6 @@ class TestTheTeardownClosesTheWholeList:
         assert len(traced) == 1
 
     def test_the_one_the_hold_still_needs_is_left_open(self):
-        """A crossing leaves the loading screen drawing in the headset while the desktop
-        comes back, so it is the one thing the teardown must not close."""
         loading_screen = _Unit()
         other = _Unit()
 

@@ -99,8 +99,6 @@ def test_every_handle_it_opens_is_closed():
 
 
 def test_it_names_what_was_still_running_when_it_stopped_waiting():
-    """A part slow to end is what held his quit up for half a minute, and
-    nothing said which part it was."""
     windows = FakeWindows({10: (1, 100), 11: (10, 101), 12: (10, 102)})
     windows.slow_to_end.add(11)
 
@@ -122,9 +120,6 @@ def test_the_zero_pid_of_a_child_that_was_never_launched_is_left_alone():
 
 
 def test_ending_a_tree_starts_no_main_hud_program_of_its_own():
-    """A session the crossing relay started runs under the windowed interpreter,
-    so a console program it started would get a window of its own, on screen:
-    quitting once flashed a row of black windows that way."""
     windows = FakeWindows({10: (1, 100), 11: (10, 101)})
 
     with patch("subprocess.Popen", side_effect=AssertionError("started a program")):

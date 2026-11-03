@@ -24,23 +24,11 @@ class TestBuildLibrarySource:
 
         source = build_library_source(vids)
 
-        # Both versions map to the same ordered pair list (canonical first).
         assert source.version_index[big] == source.version_index[small]
         assert source.version_index[big][0][0] == big
 
 
 class TestTheVersionIndexIsBuiltOnce:
-    """It looks like an attribute and was a plain property, so every reader paid
-    a full walk of the library and one JSON parse per video.
-
-    Startup alone has two readers -- `main_funestra.cli.resolve_playlist` collapses Fun
-    Time's playlist to one entry per version family, then `main_funestra.app` hands the
-    session its index -- and startup latency is the thing the loading screen
-    exists to paper over.  Nothing reads it after that: the session is handed a
-    plain dict and holds it for the rest of the run, so the answer was already
-    fixed for the session and the second walk only spent time.
-    """
-
     def test_reading_it_twice_walks_the_sidecars_once(self, tmp_path, monkeypatch):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         entries = []
@@ -65,9 +53,6 @@ class TestTheVersionIndexIsBuiltOnce:
 
 
 class TestBuildProgress:
-    """Walking the library is the wait the loading screen covers, so the build
-    reports it."""
-
     def test_reports_the_walk(self, tmp_path):
         vids = tmp_path / "videos"
         vids.mkdir()
@@ -79,13 +64,11 @@ class TestBuildProgress:
         assert seen == [PHASE_DISCOVER]
 
     def test_a_raising_callback_stops_the_build(self, tmp_path):
-        """Closing the window mid-wait has to end the wait, not be noticed once
-        it is over — so the callback aborts the build by raising."""
         vids = tmp_path / "videos"
         vids.mkdir()
 
         class GaveUp(Exception):
-            """Whatever the caller raises — the build has no opinion on it."""
+            pass
 
         def give_up(_phase):
             raise GaveUp
@@ -95,7 +78,6 @@ class TestBuildProgress:
 
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
-
     lib = tmp_path / "videos" / "videos"
     meta = tmp_path / "videos" / "metadata"
     original = lib / "example" / "2_orig" / "Scene-One-abc.mkv"
@@ -115,8 +97,8 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
     index = source.version_index
 
-    assert index[original] == index[upscale]  # folded despite unrelated names
-    assert index[original][0][0] == upscale  # canonical is the larger video
+    assert index[original] == index[upscale]
+    assert index[original][0][0] == upscale
 
 
 def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):

@@ -1,9 +1,3 @@
-"""The verbs Kino answers off the Main Funestra's command file, one at a time.
-
-The Funestra asks Kino first and answers the rest itself, so what is pinned
-here is Kino's own vocabulary: the loop gestures, the versions, the length
-modes, the compilation jumps, and the playlist Kino reads through its library.
-"""
 from __future__ import annotations
 
 import pytest
@@ -123,9 +117,6 @@ class TestTheLibrary:
         assert spies["reloaded"] == [1]
 
 
-# Every command line Kino answers, one per verb, with fabricated arguments.
-# These strings are what Fun Time writes into main_player_cmd.txt, so a verb
-# renamed on this Satellite is a control that goes quiet on the other.
 ACCEPTED_COMMANDS = [
     "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
     "CYCLE_VERSION", "CYCLE_VERSION_BACK",

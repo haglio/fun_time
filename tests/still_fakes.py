@@ -1,4 +1,3 @@
-"""Stand-ins for extracting the library browser's stills off its tests' made-up videos."""
 from __future__ import annotations
 
 import threading
@@ -14,9 +13,6 @@ def still_extractions() -> list[threading.Thread]:
 
 
 class ExtractionsHeldAtTheFirst:
-    """Each extraction leaves a still where the cache keeps it, and the first one
-    waits until the test lets it go."""
-
     def __init__(self) -> None:
         self.asked: list[str] = []
         self.holding = threading.Event()

@@ -1,4 +1,3 @@
-"""The files Fun Time launches the Main Funestra with, read off its command line whole."""
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,5 +1,3 @@
-"""Fun Time's two icons follow the family's icon spec."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,12 +10,8 @@ PROJECT_DIR = Path(fun_time.__file__).resolve().parent.parent
 
 
 def test_the_app_icon_is_the_familys_ft():
-    # One MAGENTA block letter on the family's 5x5 grid: Fun Time's two initials
-    # sharing a stem.
     assert_follows_the_family_spec(PROJECT_DIR / "icon.ico", "FT")
 
 
 def test_the_vr_icon_is_the_familys_v_and_r():
-    # The VR session carries Genau too, so its V carries Genau's R -- the two
-    # combined the way Fun Time's F and T are.
     assert_follows_the_family_spec(PROJECT_DIR / "vr_icon.ico", "VR")

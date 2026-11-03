@@ -1,4 +1,3 @@
-"""A case's scratch goes when the case ends, whatever it wrote there."""
 from __future__ import annotations
 
 import contextlib
@@ -39,8 +38,6 @@ def test_a_file_the_case_left_open_is_named_instead_of_left_behind(tmp_path: Pat
 
 
 def test_a_file_linked_in_from_outside_keeps_its_read_only_bit(tmp_path: Path):
-    """The integration suite links library videos into its scratch, and every
-    link to a file shares that file's read-only bit."""
     outside = tmp_path / "library.mp4"
     outside.write_bytes(b"a video its library keeps read-only")
     outside.chmod(stat.S_IREAD)

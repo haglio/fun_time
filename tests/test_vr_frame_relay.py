@@ -1,9 +1,3 @@
-"""Which frame the frame loop may show, and which texture a video may paint into.
-
-Every Funestra paints on a thread and a GL context of its own, so the two Satellites
-have to agree on three textures without either waiting on the other.  This is
-that agreement, apart from the GL calls it is made of.
-"""
 from __future__ import annotations
 
 from fun_time_vr.frame_relay import FrameRelay, StillAsked, capped_size
@@ -28,8 +22,6 @@ def test_a_painted_frame_is_shown_once_with_its_size_and_the_video_it_shows():
 
 
 def test_a_newer_frame_waits_until_the_one_being_copied_is_let_go():
-    """The frame loop's copy runs on the graphics card after the call returns, so
-    the texture it copies out of is off limits until the card says it is done."""
     relay = FrameRelay()
     relay.painted(0, texture=7, width=640, height=480, video=WIDE)
     relay.take()
@@ -51,9 +43,6 @@ def test_the_video_never_paints_over_the_frame_the_loop_is_copying():
 
 
 def test_there_is_always_somewhere_to_paint_the_next_frame():
-    """What the third texture is for: with the newest frame waiting to be taken
-    and another being copied, a video that had only two would have to stop
-    painting until the frame loop let one go."""
     relay = FrameRelay()
     for number in range(20):
         slot = relay.slot_to_paint()

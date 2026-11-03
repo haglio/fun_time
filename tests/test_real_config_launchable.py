@@ -35,9 +35,6 @@ from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.orchestrator import validate_config
 from tests.integration.integration_support import on_the_settings_this_machine_has
 
-# Off the machine the whole file is uncollected (see tests/conftest.py); this
-# mark only backstops a direct invocation naming the file, which bypasses
-# collect_ignore.
 pytestmark = pytest.mark.skipif(
     not DEFAULT_CONFIG_PATH.is_file(),
     reason=f"no local config at {DEFAULT_CONFIG_PATH} (git-ignored; absent in CI)",
@@ -54,19 +51,12 @@ def _the_settings_this_machine_has():
 
 
 def test_the_default_config_loads():
-    """A config that cannot even be read is the earlier half of the same failure."""
     config = load_config()
 
     assert config.config_path == DEFAULT_CONFIG_PATH
 
 
 def test_the_paths_that_reach_outside_this_checkout_are_where_the_config_says():
-    """The sibling executables and the sibling app's config, named individually.
-
-    These are the ones that move, because they live in other repos; a bare
-    FileNotFoundError from ``validate_config`` does not say which. Checked in a
-    worktree too -- they are absolute, so they do not vary by checkout.
-    """
     paths = load_config().paths
 
     for label, path in (
@@ -87,9 +77,4 @@ def test_the_paths_that_reach_outside_this_checkout_are_where_the_config_says():
     ),
 )
 def test_everything_the_launch_requires_exists():
-    """``validate_config`` is what ``main()`` runs before committing to a launch.
-
-    Failing here means the icon would do nothing: the orchestrator raises before
-    any window, and the launcher's console is hidden.
-    """
     validate_config(load_config())

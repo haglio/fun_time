@@ -1,4 +1,3 @@
-"""The controller drawn in each hand: a head the laser leaves from, and a handle under it."""
 from __future__ import annotations
 
 import numpy as np
@@ -25,8 +24,6 @@ def _square_to_the_ray(faces) -> list:
 
 
 def _parts_in_drawing_order(faces, origin: np.ndarray) -> list[str]:
-    """Which part each face is, in the order drawn; the faces lying flat on the
-    plane between the two parts are neither, and are left out."""
     order = []
     for face in faces:
         heights = face.corners[:, 1] - origin[1]
@@ -43,13 +40,11 @@ class TestTheControllerInTheHand:
 
         corners = _corners(controller_faces(origin, _LEVEL))
 
-        back_from_the_tip = corners[:, 2] - origin[2]  # the scene's forward is -z
+        back_from_the_tip = corners[:, 2] - origin[2]
         assert back_from_the_tip.min() == pytest.approx(0.0, abs=1e-9)
         assert back_from_the_tip.max() < 0.15
 
     def test_a_face_turned_away_from_the_eye_is_left_out(self):
-        """Nothing sorts the scene by depth, so a face on the far side would be
-        painted over the near ones.  The eye is at the scene's center."""
         pointed_away = _square_to_the_ray(controller_faces(np.array([0.0, 0.0, -0.5]), _LEVEL))
         pointed_at_him = _square_to_the_ray(
             controller_faces(np.array([0.0, 0.0, -0.5]), _TURNED_AROUND))
@@ -69,8 +64,6 @@ class TestTheControllerInTheHand:
         assert looked_up_at == sorted(looked_up_at, key=[HEAD, HANDLE].index)
 
     def test_it_is_lit_from_above_without_any_face_going_dark(self):
-        """One flat color would show him a silhouette; the shading is what makes
-        it a solid.  A face turned from the light still shows against the dark."""
         held_low, held_high = np.array([0.0, -0.5, -0.3]), np.array([0.0, 0.5, -0.3])
         looked_down_on = controller_faces(held_low, _LEVEL)
         looked_up_at = controller_faces(held_high, _LEVEL)

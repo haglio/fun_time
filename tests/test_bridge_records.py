@@ -1,4 +1,3 @@
-"""BridgeConfig's per-Satellite view — the config half of the Satellite lens."""
 from __future__ import annotations
 
 from pathlib import Path

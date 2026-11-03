@@ -1,4 +1,3 @@
-"""Bringing a reopened session back to the video each Funestra was on."""
 from __future__ import annotations
 
 from dataclasses import fields, replace
@@ -41,7 +40,6 @@ from tests.made_up_state import remembered_values, shifted_state
 
 
 def _videos(tmp_path: Path, *names: str) -> list[str]:
-    """Real files on disk, since a playlist names videos that have to be there."""
     paths = []
     for name in names:
         video = tmp_path / name
@@ -58,9 +56,6 @@ def _write_playlist(path: Path, lines: list[str]) -> None:
 def _never_came_home(
     tmp_path: Path, *, own: list[str], showing: str, hosted: list[str],
 ) -> SatelliteChannel:
-    """The Portrait Funestra as a session quit in origenerator mode leaves it: its
-    own list kept aside the way entering that mode keeps it, the hosted app's
-    list in its playlist file."""
     channel = SatelliteChannel(
         cmd_file=tmp_path / "portrait_cmd.txt",
         paused_file=tmp_path / "portrait_paused.txt",
@@ -77,9 +72,6 @@ def _never_came_home(
 
 class TestResumePlaylists:
     def test_rotates_a_playlist_onto_the_video_that_was_on_screen(self, tmp_path: Path):
-        """A Funestra starts at the top of its playlist file, so putting last
-        session's video there is what makes it resume — and rotating (rather than
-        moving it to the front) keeps the videos that were coming up coming up."""
         a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [a, b, c])
@@ -89,9 +81,6 @@ class TestResumePlaylists:
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
 
     def test_carries_the_funscript_column_through_the_rotation(self, tmp_path: Path):
-        """A playlist pairs each video with the funscript that drives the OSR2
-        through it; rewriting the file without that column would leave a resumed
-        session silently unscripted."""
         a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b, f"{c}\tc.funscript"])
@@ -105,14 +94,9 @@ class TestResumePlaylists:
         ]
 
     def test_reports_nothing_to_resume_when_a_playlist_file_is_missing(self, tmp_path: Path):
-        """A first run, or a state dir that has been wiped: there is no last
-        session on disk, so the caller has to build the playlists fresh."""
         assert resume_playlists([(tmp_path / "portrait_playlist.tsv", "")]) is False
 
     def test_leaves_every_playlist_alone_when_one_of_them_cannot_be_resumed(self, tmp_path: Path):
-        """One build writes both satellites' playlists, so they live or die
-        together: if either has no session to come back to, the caller rebuilds
-        the pair and each file must still be as the build left it."""
         a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         portrait = tmp_path / "portrait_playlist.tsv"
         _write_playlist(portrait, [a, b])
@@ -126,9 +110,6 @@ class TestResumePlaylists:
         assert portrait.read_text(encoding="utf-8").splitlines() == [a, b]
 
     def test_keeps_the_queue_when_the_video_it_left_on_is_gone(self, tmp_path: Path):
-        """A video trashed or deleted since leaves nothing to rotate onto, but
-        the queue around it is still last session's — worth far more than a
-        fresh shuffle — so it comes back from its top."""
         a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "landscape_playlist.tsv"
         _write_playlist(playlist, [a, b])
@@ -151,10 +132,6 @@ class TestResumePlaylists:
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
 
     def test_opens_a_funestra_that_never_came_home_on_its_own_list(self, tmp_path: Path):
-        """A session quit while the hosted Origenerator had the Funestra leaves that
-        app's items in the playlist file and the Funestra's own list kept aside.
-        Every session is built in kino mode, so its own list is what it opens on —
-        at the video it was showing when it left."""
         a, b, image = _videos(tmp_path, "a.mp4", "b.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[image])
 
@@ -163,8 +140,6 @@ class TestResumePlaylists:
         assert channel.playlist_file.read_text(encoding="utf-8").splitlines() == [b, a]
 
     def test_spends_a_kept_list_even_when_there_is_nothing_to_resume(self, tmp_path: Path):
-        """The caller then rebuilds every playlist, and a kept list that outlived
-        the rebuild would be dealt over it the next time that Funestra came home."""
         a, image = _videos(tmp_path, "a.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[image])
 
@@ -178,14 +153,6 @@ class TestResumePlaylists:
 
 
 class TestResumeSharedState:
-    """The other half of a resume: coming back in the mode you left in.
-
-    The playlist files carry F-mode, each Satellite's filter and order, and any group
-    loop baked into them, so a session that resumed those files and opened on a
-    default state described itself wrongly on every HUD — and answered the next
-    "F-mode" by reporting it *enabled* while nothing visibly changed.
-    """
-
     def test_an_app_saved_before_it_kept_its_funestras_settings_takes_their_last_reports(
             self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -227,10 +194,6 @@ class TestResumeSharedState:
         assert remembered_values(state) == remembered_values(left)
 
     def test_carries_each_funestras_own_f_mode_onto_the_resumed_session(self, tmp_path: Path):
-        """A resumed playlist holds whatever its own Funestra was narrowed to, so
-        each F-mode comes back as it was closed — and each HUD has to say so.
-        Carrying one flag for all three would put Funestras into an F-mode whose
-        playlist was never built under it."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=False), main_scripted_filter=True))
 
@@ -240,9 +203,6 @@ class TestResumeSharedState:
                 state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
-        """A loop IS the group written out as the Satellite's playlist, so resuming
-        that file resumes the loop — the HUD has to keep its button lit and its
-        map frozen where the loop left it, not read the queue as a browse."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", nav_map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4")))
 
@@ -255,8 +215,6 @@ class TestResumeSharedState:
         assert state.satellite(FunTimeFunestra.LANDSCAPE).nav_map_anchor == "C:/v/b.mp4"
 
     def test_carries_each_satellite_s_filter_and_order(self, tmp_path: Path):
-        """Both narrowed the playlist that just came back, so both are still in
-        force and belong in the title."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(filter="beta gamma", latest=True), portrait=SatelliteState(filter="alpha", latest=True)))
 
@@ -267,10 +225,6 @@ class TestResumeSharedState:
         assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
 
     def test_carries_the_main_funestra_s_order(self, tmp_path: Path):
-        """The Main Funestra's order fixes its resumed playlist exactly as a
-        satellite's does, so it comes back with it — otherwise the session opens
-        on a newest-first list while its HUD says Shuffle, and the next rebuild
-        reshuffles the order it was left in."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_latest=True))
 
@@ -279,10 +233,6 @@ class TestResumeSharedState:
         assert state.main_latest is True
 
     def test_carries_genau_s_order(self, tmp_path: Path):
-        """Genau rescans its folder every launch, so its order has no file to
-        ride back in on; it is named on the launch instead, off this flag.
-        Dropped, the session opened shuffled under a console that also said so,
-        having been left browsing Latest."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(genau_latest=True))
 
@@ -291,9 +241,6 @@ class TestResumeSharedState:
         assert state.genau_latest is True
 
     def test_carries_the_sound_level_and_each_satellite_s_lock(self, tmp_path: Path):
-        """Neither is a thing that should reset overnight, so both come back —
-        and each has its world put back with it, the level seeded to both audio
-        sinks at startup and the lock re-sent to its satellite."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True), volume=40, muted=True))
 
@@ -303,9 +250,6 @@ class TestResumeSharedState:
         assert (state.satellite(FunTimeFunestra.PORTRAIT).locked, state.satellite(FunTimeFunestra.LANDSCAPE).locked) == (True, False)
 
     def test_carries_what_the_osr2_was_left_in(self, tmp_path: Path):
-        """Held at one end, it stays that way: the device arbiter carries the
-        state out on the new session's first tick, the same as it does for a
-        press."""
         state_file = tmp_path / "shared_bridge_state.ini"
         for control in (OSR2_PARKED, OSR2_RETRACTED):
             write_shared_state(state_file, BridgeState(osr2_control=control))
@@ -313,9 +257,6 @@ class TestResumeSharedState:
             assert resume_shared_state(state_file, resumed=True).osr2_control == control
 
     def test_a_session_left_under_control_off_comes_back_parked(self, tmp_path: Path):
-        """Control off went when the four buttons became one switch; the
-        switch's off is parked, which is also where control off had left the
-        device."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(osr2_control="control_off"))
 
@@ -328,20 +269,12 @@ class TestResumeSharedState:
         assert resume_shared_state(state_file, resumed=True).osr2_funestra == FunTimeFunestra.LANDSCAPE
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
-        """Which Funestra owns the big display is as much a thing you set as the
-        sound level, so leaving the session showing Genau and reopening on the Main Funestra
-        is the same overnight reset.  Startup builds every session in kino mode
-        and then puts the carried mode on over the top (see
-        :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_mode=MainMode.GENAU))
 
         assert resume_shared_state(state_file, resumed=True).main_mode is MainMode.GENAU
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
-        """OmniPause's flags are cleared before the Funestras launch, and a
-        keyboard selection was never a thing you could leave running.  Carrying
-        either forward would be the same lie in the other direction."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(landscape=SatelliteState(nav_anchor="C:/v/b.mp4"), portrait=SatelliteState(nav_anchor="C:/v/a.mp4"), omni_paused=True, active_funestra=3))
 
@@ -364,11 +297,6 @@ class TestResumeSharedState:
         assert (state.crowned, state.majority) == (Crown.MAIN, Crown.PORTRAIT)
 
     def test_the_state_left_behind_is_named_positively_and_is_all_of_it(self):
-        """The list used to run the other way: what came BACK was spelled out,
-        so a field added to BridgeState and not added here was dropped, silently
-        and by default.  Dropping is now the exception, and every exception is a
-        field that exists.
-        """
         names = {field.name for field in fields(BridgeState)}
         assert names >= NOT_RESUMED, sorted(NOT_RESUMED - names)
         assert set(RESUMED_FIELDS) == names - NOT_RESUMED
@@ -393,8 +321,6 @@ class TestResumeSatelliteLocks:
         assert not landscape.exists()
 
     def test_queues_nothing_for_a_session_that_was_not_locked(self, tmp_path: Path):
-        """An unlocked side must not be sent anything at all: the satellite
-        launches auto-advancing, which is already what unlocked means."""
         portrait = tmp_path / "portrait_cmd.txt"
 
         resume_satellite_locks([(portrait, False)])
@@ -402,8 +328,6 @@ class TestResumeSatelliteLocks:
         assert not portrait.exists()
 
     def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
-        """The command file is a queue, so the lock joins it rather than
-        replacing a verb something else is waiting to have drained."""
         portrait = tmp_path / "portrait_cmd.txt"
         portrait.write_text("RELOAD_PLAYLIST\n", encoding="utf-8")
 
@@ -435,8 +359,6 @@ class TestResumeSatelliteLocks:
         assert len(seeds) == 3
 
     def test_the_seeded_state_is_what_the_session_opens_on(self, tmp_path: Path):
-        """The dispatch loop reads its state off this file every tick and never
-        hears about the return value, so the carry has to be on disk."""
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(portrait=SatelliteState(favorites_filter=True), omni_paused=True))
 
@@ -448,8 +370,6 @@ class TestResumeSatelliteLocks:
         assert written.omni_paused is False
 
     def test_a_first_run_leaves_a_state_file(self, tmp_path: Path):
-        """There is nothing to read on a wiped state dir, and the session still
-        has to open on a state — a written default, not a missing file."""
         state_file = tmp_path / "shared_bridge_state.ini"
 
         assert replace(resume_shared_state(state_file, resumed=True), main_shuffle_seed=0) == (
@@ -458,13 +378,6 @@ class TestResumeSatelliteLocks:
 
 
 class TestResumeMainLoop:
-    """The Main Funestra's A/B loop is a range inside one video, held in a Funestra
-    process that is about to be replaced — so like a satellite's lock it cannot
-    ride back in on a file the new Funestra reads, and has to be re-sent.  Either
-    orchestrator asks for it, so the whole decision is here rather than at each
-    of them: a desktop session and a headset one part company over which videos
-    they can play, not over what a loop is."""
-
     def _playlist(self, tmp_path: Path, *videos: str) -> Path:
         playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, list(_videos(tmp_path, *videos)))
@@ -483,8 +396,6 @@ class TestResumeMainLoop:
         assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
 
     def test_queues_nothing_when_there_was_no_loop(self, tmp_path: Path):
-        """A Main Funestra that was not looping must be sent nothing at all: playing
-        the video through is already what no loop means."""
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4")
 
@@ -493,10 +404,6 @@ class TestResumeMainLoop:
         assert not main_funestra_cmd.exists()
 
     def test_queues_nothing_when_another_video_leads_the_playlist(self, tmp_path: Path):
-        """A rebuilt playlist, or a video trashed since, leaves some other video at
-        the top -- and these bounds would mark out a stretch of a video nobody
-        chose.  This is the crossing between the two apps: each refuses the
-        other's primary playlist and rebuilds its own."""
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "b.mp4")
 
@@ -505,8 +412,6 @@ class TestResumeMainLoop:
         assert not main_funestra_cmd.exists()
 
     def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
-        """Startup has already seeded this channel with the sound level and the
-        F-mode flag, and the Main Funestra has drained none of it yet."""
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         main_funestra_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
         playlist = self._playlist(tmp_path, "a.mp4")
@@ -551,9 +456,6 @@ class TestResumeSatelliteVolumes:
 
 
 class TestResumeMainLock:
-    """The Main Funestra opens holding the video it loads, so unlike a satellite's
-    lock it is the UNheld video that has to be re-sent."""
-
     def test_queues_the_unlock_a_main_funestra_was_left_in(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
 
@@ -616,10 +518,6 @@ class TestWhatARestartBringsBackOfEachFunestra:
 
 
 class TestResumeGenau:
-    """Genau's Amp, Speed and Center bars, its shape, its flick seconds and its two
-    switches live in the engine that just died, and its own launch opens them at the
-    family's defaults."""
-
     def test_queues_the_bars_the_hand_was_left_at(self, tmp_path: Path):
         genau_cmd = tmp_path / "genau_cmd.txt"
 
@@ -638,8 +536,6 @@ class TestResumeGenau:
         assert not genau_cmd.exists()
 
     def test_says_a_shape_as_the_steps_that_reach_it(self, tmp_path: Path):
-        """No verb names a shape outright, so the one to take up is said as the
-        steps from the shape a fresh engine opens on."""
         genau_cmd = tmp_path / "genau_cmd.txt"
 
         resume_genau(genau_cmd, BridgeState(genau_shape="sawtooth"))
@@ -707,9 +603,6 @@ class TestResumeGenau:
 
 
 class TestOpeningTheMainList:
-    """Every session builds the Main Funestra's list from the buttons it was left
-    on, whatever list the last session left behind: nothing reopens it."""
-
     def _library(self, tmp_path: Path) -> tuple[MainList, list[str], list[str]]:
         vr_dir, flat_dir = tmp_path / "library" / "VR", tmp_path / "library" / "2D"
         for folder in (vr_dir, flat_dir):
@@ -733,8 +626,6 @@ class TestOpeningTheMainList:
     def test_a_desktop_session_opens_on_its_own_library_whatever_the_headset_left(
         self, tmp_path: Path,
     ):
-        """Its VR masters must never reach the primary monitor, and the VR video
-        the headset was showing opens nothing: the list starts at its own top."""
         _headset_list, vr, flat = self._library(tmp_path)
         desktop = MainList(sources=str(Path(flat[0]).parent), state_dir=tmp_path / "state")
         _write_playlist(desktop.file, [*vr, *flat])
@@ -771,10 +662,6 @@ class TestOpeningTheMainList:
 
 
 class TestPlaylistOpensOn:
-    """Whether the video a Funestra will actually load is the one expected — asked
-    of the Main Funestra before its loop is handed back, since a loop belongs to one
-    video and would otherwise be applied to whatever took its place."""
-
     def test_the_video_a_resumed_playlist_leads_with(self, tmp_path: Path):
         a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "main_player_playlist.tsv"
@@ -803,14 +690,6 @@ class TestPlaylistOpensOn:
 
 
 def test_an_app_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path):
-    """A satellite left in its Origenerator mode opens in it, and so does
-    Origenerator left in the Random Favs Browser's place.
-
-    Fun Time does not wait out the hosted app's boot and nothing rearranges
-    itself later either: the mode is what Fun Time is in from its first tick,
-    and the app arrives into a mode already set rather than switching the sides
-    under whatever was on them.
-    """
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(
         landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR),

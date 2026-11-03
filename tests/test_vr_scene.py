@@ -22,7 +22,6 @@ from fun_time_vr.scene import (
 def _rotate_by_quat(quat, vec):
     x, y, z, w = quat
     vx, vy, vz = vec
-    # Rotation matrix rows applied to vec (standard quaternion rotation).
     return (
         (1 - 2 * (y * y + z * z)) * vx + 2 * (x * y - w * z) * vy + 2 * (x * z + w * y) * vz,
         2 * (x * y + w * z) * vx + (1 - 2 * (x * x + z * z)) * vy + 2 * (y * z - w * x) * vz,
@@ -61,8 +60,8 @@ class TestSurfaceVertices:
 
     def test_u_runs_left_to_right_and_v_low_to_high(self):
         verts = surface_vertices(Placement(0.0, 0.0, 72.0), aspect=16 / 9)
-        assert verts[0, 3] == pytest.approx(0.0)   # leftmost column u
-        assert verts[-1, 3] == pytest.approx(1.0)  # rightmost column u
+        assert verts[0, 3] == pytest.approx(0.0)
+        assert verts[-1, 3] == pytest.approx(1.0)
         upper, lower = verts[0], verts[1]
         assert upper[1] > lower[1]
         assert upper[4] == pytest.approx(1.0)
@@ -136,8 +135,6 @@ class TestQuadLayerPlacement:
         assert height == pytest.approx(width / (9 / 16), rel=1e-6)
 
     def test_orientation_is_yaw_only_and_unit_length(self):
-        # The screens hang untilted whatever their elevation, and so must their
-        # quads, or a lifted satellite would lean back.
         _position, orientation, _size = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
         x, y, z, w = orientation
         assert x == 0.0
@@ -149,9 +146,6 @@ class TestQuadLayerPlacement:
             quad_layer_placement(Placement(0.0, 0.0, 36.0), aspect=-1.0)
 
     def test_tilting_lifts_the_quad_and_keeps_it_facing_the_viewer(self):
-        # Tilting is not the same as raising: the screen swings up the sphere
-        # and leans back, so its face still points at the eye rather than at
-        # the ceiling.
         pitch = 30.0
         position, orientation, _size = quad_layer_placement(
             Placement(0.0, 0.0, MAIN_WIDTH_DEG), aspect=16 / 9, scene_pitch_deg=pitch,
@@ -165,10 +159,6 @@ class TestQuadLayerPlacement:
         assert front == pytest.approx(toward_viewer, abs=1e-6)
 
     def test_the_quad_lands_where_the_eye_pass_would_draw_the_screen(self):
-        # The two render paths place the screens from one fact by two routes —
-        # this quaternion and the matrix product the eye pass multiplies in.
-        # A satellite off the center line is where a disagreement in the
-        # composition order would show, so that is what this pins.
         yaw, pitch = 40.0, -25.0
         position, _orientation, _size = quad_layer_placement(
             _A_SATELLITE, aspect=16 / 9, scene_yaw_deg=yaw, scene_pitch_deg=pitch,
@@ -182,10 +172,6 @@ class TestQuadLayerPlacement:
 
 
 class TestAttachedBelow:
-    """A strip hanging under a screen's lower edge, centered on it: the satellite's
-    HUD, which follows the screen wherever it is dragged and however it is
-    resized."""
-
     _FRAME = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
     def test_it_is_centered_under_the_screen_at_the_width_it_is_given(self):
@@ -212,10 +198,6 @@ class TestAttachedBelow:
 
 
 class TestAttachedAgainstASide:
-    """The same strip against the other three sides of a screen: what the Ctrl
-    keys ask for in the headset, where a HUD hangs beside its Funestra rather than
-    over its item."""
-
     _FRAME = Placement(azimuth_deg=0.0, elevation_deg=10.0, width_deg=28.0)
 
     def _hanging(self, edge, **extra):
@@ -284,7 +266,6 @@ class TestOneScreenInsideAnother:
                                 outer=across_the_seam)
 
     def test_a_screen_at_the_viewers_back_is_not_inside_the_one_ahead_of_him(self):
-        """Carried on through the viewer, its corners land in the middle of it."""
         widest = Placement(azimuth_deg=0.0, elevation_deg=0.0, width_deg=120.0)
 
         assert not self._inside(Placement(azimuth_deg=180.0, elevation_deg=0.0, width_deg=20.0),

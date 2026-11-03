@@ -1,10 +1,3 @@
-"""The modes Kino is in, and what it is told about the list it plays.
-
-The list is Fun Time's: it narrows and orders the Main Funestra's one list and
-tells Kino what the buttons built it under, since a narrowed list looks like any
-other.  What Kino keeps of its own is the compilation, the one place it swaps
-the list for a set of its own.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,12 +16,6 @@ THE_MAIN_LIST = [PlaylistItem(Path("videos/full-1.mp4")), PlaylistItem(Path("vid
 
 
 class FakePlayback:
-    """Records the playlist moves Kino drives, in the Funestra's shape.
-
-    ``load_playlist`` restarts on the new list's first entry and
-    ``replace_playlist`` keeps the video on screen.
-    """
-
     def __init__(self, current: Path = FIRST) -> None:
         self.current_video = current
         self.showing = current

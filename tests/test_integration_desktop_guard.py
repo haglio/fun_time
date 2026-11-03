@@ -30,9 +30,6 @@ def test_a_run_on_the_hidden_desktop_is_allowed():
 
 
 def test_a_run_on_the_users_own_desktop_is_refused():
-    """The user's desktop is where their session lives.  A suite that launches
-    real windows, a real AHK bridge and real Funestras there is a second session
-    on top of theirs, however carefully the rest of it is scoped."""
     with pytest.raises(RuntimeError) as failure:
         require_hidden_desktop(desktop_name=lambda: "Default")
 
@@ -54,28 +51,11 @@ def test_the_guard_defaults_to_the_desktop_it_is_actually_running_on():
 
 
 def test_the_predicate_and_the_refusal_agree():
-    """``on_hidden_desktop`` is what the conftest branches on before it touches
-    QT_QPA_PLATFORM; it must answer the same question the refusal asks."""
     assert on_hidden_desktop(desktop_name=lambda: HIDDEN_DESKTOP_NAME)
     assert not on_hidden_desktop(desktop_name=lambda: "Default")
 
 
 def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
-    """The gap this suite was written for, and did not cover.
-
-    ``pytest_sessionstart`` can only refuse when tests/integration/ is named on
-    the command line — that is what makes its conftest an *initial* conftest,
-    imported before the session starts.  A run that instead recurses in from
-    ``tests`` imports that file partway through collection, long after
-    sessionstart has passed, so nothing refused: the suite ran on the user's own
-    desktop and threw real Funestras, a real Main Funestra and a real AHK bridge over his
-    work.  That is what a config without the ``norecursedirs`` exclusion did.
-
-    Reproduced here by dropping ``integration`` from that setting — the rest of
-    the list is taken from the live config so this cannot go stale — and run
-    ``--collect-only``, so a regression is caught by an exit code rather than by
-    the windows it would otherwise open.
-    """
     without_the_exclusion = [
         directory for directory in pytestconfig.getini("norecursedirs") if directory != "integration"
     ]
@@ -116,12 +96,6 @@ def test_a_run_on_the_hidden_desktop_that_did_not_write_itself_down_for_line_is_
 
 
 def test_the_unit_suite_never_inherits_the_integration_flag():
-    """FUN_TIME_RUN_INTEGRATION flips real-window branches all over the
-    production code (focus stealing, activation, unsuspend), so a shell that
-    still exports it — a developer mid-integration-debugging — must not flip
-    them under the whole unit suite.  The conftest scrubs it for every test;
-    this one only observes the scrub.  Tests that are ABOUT the integration
-    branches set the flag back with ``monkeypatch.setenv``, which wins."""
     assert os.environ.get("FUN_TIME_RUN_INTEGRATION") is None
 
 

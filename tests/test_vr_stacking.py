@@ -1,4 +1,3 @@
-"""Which screen hangs in front of which in the headset."""
 from __future__ import annotations
 
 from fun_time_vr.pointer import Screen
@@ -45,7 +44,6 @@ def test_taking_hold_of_what_hangs_off_a_pane_brings_the_whole_pane_forward():
 
 
 def test_a_pane_taken_hold_of_leaves_one_it_covers_completely_in_front():
-    """Covered whole, that one could never be pointed at to bring it forward again."""
     stacking = Stacking()
     inside = Pane((_screen("portrait", 20.0, width_deg=20.0),))
     across_the_edge = Pane((_screen("landscape", -38.0),))
@@ -73,7 +71,6 @@ def test_a_pane_docked_under_another_comes_forward_with_it_and_not_the_other_way
 
 
 def test_two_panes_hanging_in_the_very_same_place_stand_as_they_were_taken():
-    """Each covers the other whole, so neither can be the one kept in front."""
     stacking = Stacking()
     panes = [Pane((_screen("landscape", -38.0),)), Pane((_screen("portrait", -38.0),))]
 
