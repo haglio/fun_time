@@ -208,16 +208,16 @@ v::QueueCommand("main_funestra_cycle_version")
 ; The Main Funestra: cycle the length of what plays — mixed (everything) / clips / full.
 t::QueueCommand("main_funestra_toggle_length")
 
-; FunTimeVR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
+; Fun Time VR: cycle the Main Funestra's video's projection.  Desktop Main Funestra ignores the verb.
 p::QueueCommand("projection_cycle")
 !Left::QueueCommand("projection_narrower")
 !Right::QueueCommand("projection_wider")
 
-; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
+; Fun Time VR: re-zero the scene onto wherever the headset is facing now (the
 ; runtime's own recenter menu doesn't reach this app).  Desktop Main Funestra ignores it.
 z::QueueCommand("recenter_view")
 
-; FunTimeVR: tilt the whole arrangement up and down, for watching from a
+; Fun Time VR: tilt the whole arrangement up and down, for watching from a
 ; recliner or flat on your back; Shift+Z stands it upright again beside Z's
 ; recenter.  Squeezing a controller's trigger and moving it turns and tilts the
 ; whole arrangement — these are for the desk.  Desktop Main Funestra ignores all three.

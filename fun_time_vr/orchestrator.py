@@ -170,7 +170,7 @@ logger = logging.getLogger("fun_time_vr.orchestrator")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Launch the FunTimeVR session.")
+    parser = argparse.ArgumentParser(description="Launch the Fun Time VR session.")
     parser.add_argument("--config", help="Path to a JSON config file.")
     parser.add_argument("--check", action="store_true", help="Validate config and exit.")
     parser.add_argument("--no-cancel", action="store_true",

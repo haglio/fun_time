@@ -337,9 +337,9 @@ class TestReportingAFailedCrossing:
         log = tmp_path / "vr_launcher.log"
         log.write_text("\n".join(f"line {n}" for n in range(40)) + "\n\n\n", encoding="utf-8")
         with alert_shown() as alert:
-            report_a_failed_crossing("FunTimeVR did not start.", log)
+            report_a_failed_crossing("Fun Time VR did not start.", log)
         message = alert.call_args.args[1]
-        assert "FunTimeVR did not start." in message
+        assert "Fun Time VR did not start." in message
         assert "line 39" in message
         assert "line 24" not in message
 
@@ -500,8 +500,8 @@ class TestTheRelayEndToEnd:
         assert "never finished shutting down" in reported.call_args.args[0]
 
     def test_an_incoming_session_that_never_came_up_is_reported(self, config):
-        let_go, start, come_up, report = self._patched(reason="FunTimeVR stopped.")
+        let_go, start, come_up, report = self._patched(reason="Fun Time VR stopped.")
         with let_go, start, come_up, report as reported:
             assert run(VR, config) == 1
-        assert reported.call_args.args[0] == "FunTimeVR stopped."
+        assert reported.call_args.args[0] == "Fun Time VR stopped."
         assert reported.call_args.args[1] == config.paths.state_dir / VR.launcher_log

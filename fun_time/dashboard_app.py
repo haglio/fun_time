@@ -218,7 +218,7 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     FMODE_TOGGLE: "F-Mode on every Funestra",
     RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-Mode, "
                 "normal speed, shuffled from the top"),
-    ENTER_VR: "Enter VR — end this session and open FunTimeVR",
+    ENTER_VR: "Enter VR — end this session and open Fun Time VR",
     EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
 }
 OMNIPAUSE_RESUME_TOOLTIP = "Play everything"
