@@ -274,20 +274,21 @@ def stock_the_playlists(
     carried: BridgeState,
     main_video: str = "",
 ) -> BridgeState:
-    manifest, state_dir = launch.manifest, launch.state_dir
     if not resumed:
         build_satellite_playlists(
-            portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
-            landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
-            state_dir=state_dir,
+            portrait=SatelliteBuild(sources=launch.manifest.media.portrait_dirs),
+            landscape=SatelliteBuild(sources=launch.manifest.media.landscape_dirs),
+            state_dir=launch.state_dir,
             metadata_root=launch.bridge_config.regen_metadata_root,
         )
     logger.info("Resumed last session's playlists" if resumed
                 else "Nothing to resume; built fresh playlists")
-    main_list = MainList(sources=manifest.media.main_funestra_library_sources,
-                         state_dir=state_dir, vr_dirs=manifest.media.vr_library_dirs,
+    main_list = MainList(sources=launch.manifest.media.main_funestra_library_sources,
+                         state_dir=launch.state_dir,
+                         vr_dirs=launch.manifest.media.vr_library_dirs,
                          metadata_root=launch.bridge_config.regen_metadata_root)
-    return open_the_main_list(main_list, carried, state_file=shared_state_path(state_dir),
+    return open_the_main_list(main_list, carried,
+                              state_file=shared_state_path(launch.state_dir),
                               on_screen=main_video)
 
 
@@ -342,24 +343,23 @@ def _take_down_the_launch(
 def _cancel_vr_startup(
     launch: _Launch, launched: _Launched, ahk_proc: subprocess.Popen,
 ) -> int:
-    state_dir, loading_screen = launch.state_dir, launch.loading_screen
-    origenerator_cmd_file = Path(launch.commands.origenerator_cmd_file)
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)",
                 len(launched.children))
-    back_to = (loading_screen.turns_back_to
-               if what_the_flag_asks(loading_screen.cancel_file) == CANCEL_WORD else None)
+    back_to = (launch.loading_screen.turns_back_to
+               if what_the_flag_asks(launch.loading_screen.cancel_file) == CANCEL_WORD else None)
     if (app := launched.children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
-            state_dir, app, origenerator_cmd_file,
+            launch.state_dir, app, Path(launch.commands.origenerator_cmd_file),
             keep=back_to is not None, taken_over=launched.hosted_taken_over):
         launched.children.pop("origenerator_pid")
     _take_down_the_launch(launch, launched, ahk_proc)
     if back_to is not None:
         logger.info("Canceled; handing back to %s", back_to.app_name)
-        request_handoff(state_dir, back_to, cancelable=False)
+        request_handoff(launch.state_dir, back_to, cancelable=False)
     else:
         logger.info("Canceled; closing")
-        drop_transition_screen(state_dir)
-        let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
+        drop_transition_screen(launch.state_dir)
+        let_go_of_a_kept_origenerator(
+            launch.state_dir, Path(launch.commands.origenerator_cmd_file))
     return 0
 
 
