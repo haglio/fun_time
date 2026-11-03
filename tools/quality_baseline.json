@@ -123,7 +123,7 @@
     "tests/test_fun_time_windows.py": 55,
     "tests/test_genaumacher_save.py": 12,
     "tests/test_headset_power.py": 6,
-    "tests/test_hidden_desktop.py": 36,
+    "tests/test_hidden_desktop.py": 32,
     "tests/test_hosted_origenerator.py": 20,
     "tests/test_hud_feed.py": 3,
     "tests/test_hud_transport.py": 18,
