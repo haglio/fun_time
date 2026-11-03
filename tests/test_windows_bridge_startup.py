@@ -958,14 +958,14 @@ def _a_main_funestra_launch(tmp_path: Path, **overrides) -> dict:
     sections = {}
     for name, (section, field) in _MANIFEST_FIELDS_OF_A_MAIN_FUNESTRA.items():
         sections.setdefault(section, {})[field] = launch[name]
-    return dict(
-        m=replace(manifest, **{section: replace(getattr(manifest, section), **fields)
+    return {
+        "m": replace(manifest, **{section: replace(getattr(manifest, section), **fields)
                                for section, fields in sections.items()}),
-        state_dir=launch["state_dir"], log_file=launch["log_file"],
-        rect=WindowRect(launch["main_funestra_x"], launch["main_funestra_y"],
+        "state_dir": launch["state_dir"], "log_file": launch["log_file"],
+        "rect": WindowRect(launch["main_funestra_x"], launch["main_funestra_y"],
                         launch["main_funestra_width"], launch["main_funestra_height"]),
-        genau=GenauStart(**{field: launch[name] for name, field in _GENAU_STARTS.items()
-                            if name in launch}))
+        "genau": GenauStart(**{field: launch[name] for name, field in _GENAU_STARTS.items()
+                            if name in launch})}
 
 
 def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
@@ -1496,11 +1496,11 @@ _A_UI_PLAN = WindowLayoutPlan(
 def _a_companions_manifest(tmp_path: Path, *, dashboard_enabled: bool = True,
                            python_exe="python.exe", sibling_checkouts="", **sections):
     manifest = _a_session_manifest(
-        tmp_path, executables=dict(python_exe=str(python_exe)),
-        modules=dict(dashboard_module="fun_time.dashboard_app",
-                     audio_module="fun_time.audio_companion_app"),
-        runtime=dict(config_path="cfg.json", sibling_checkouts=sibling_checkouts),
-        media=dict(genau_audio="audio"), **sections)
+        tmp_path, executables={"python_exe": str(python_exe)},
+        modules={"dashboard_module": "fun_time.dashboard_app",
+                     "audio_module": "fun_time.audio_companion_app"},
+        runtime={"config_path": "cfg.json", "sibling_checkouts": sibling_checkouts},
+        media={"genau_audio": "audio"}, **sections)
     return replace(manifest, dashboard_enabled=dashboard_enabled)
 
 
@@ -1591,8 +1591,8 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         "fun_time.windows_bridge_startup.launch_satellite", side_effect=[202, 303]
     ) as launch_satellite_mock:
         launch_core_apps(
-            _a_session_manifest(tmp_path, executables=dict(python_exe="fun_time_python.exe"),
-                                modules=dict(satellite_module="satellite")),
+            _a_session_manifest(tmp_path, executables={"python_exe": "fun_time_python.exe"},
+                                modules={"satellite_module": "satellite"}),
             _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
                     state_dir, portrait_rect),
             _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
@@ -2016,11 +2016,11 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
     def _launch(self, tmp_path: Path, *, audio_device=None, sibling_checkouts=""):
         manifest = _a_session_manifest(
             tmp_path,
-            executables=dict(python_exe="C:/example/python.exe"),
-            modules=dict(audio_module="fun_time.audio_companion_app"),
-            runtime=dict(config_path="C:/example/fun_time_config.json",
-                         sibling_checkouts=sibling_checkouts),
-            media=dict(genau_audio="C:/example/audio"))
+            executables={"python_exe": "C:/example/python.exe"},
+            modules={"audio_module": "fun_time.audio_companion_app"},
+            runtime={"config_path": "C:/example/fun_time_config.json",
+                         "sibling_checkouts": sibling_checkouts},
+            media={"genau_audio": "C:/example/audio"})
         with patch(
             "fun_time.windows_bridge_startup.subprocess.Popen", return_value=_FakeProc(33),
         ) as popen, patch(

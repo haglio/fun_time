@@ -78,6 +78,14 @@ class GenauEngine:
 
 
 @dataclass(frozen=True)
+class GenauChannels:
+    command: Path
+    paused: Path
+    status: Path
+    drive: Path
+
+
+@dataclass(frozen=True)
 class FlickLibrary:
     flicks: list[Path]
     start_flick: Path | None = None
@@ -109,7 +117,7 @@ class EngineSeams:
 
 def build_genau_engine(
     settings,
-    channels,
+    channels: GenauChannels,
     library: FlickLibrary,
     host: GenauHost,
     seams: EngineSeams | None = None,
