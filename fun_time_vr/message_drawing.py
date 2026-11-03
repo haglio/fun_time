@@ -15,12 +15,12 @@ import math
 import numpy as np
 from PIL import Image, ImageDraw
 from shared_ui.lettering import fit_text, load_font, wrap_text
-from shared_ui.notice_shape import (
-    NOTICE_PAD_H,
-    NOTICE_PAD_V,
-    NOTICE_RADIUS,
-    NOTICE_TOP_MARGIN,
-    NOTICE_TYPE_SIZE,
+from shared_ui.message_shape import (
+    MESSAGE_PAD_H,
+    MESSAGE_PAD_V,
+    MESSAGE_RADIUS,
+    MESSAGE_TOP_MARGIN,
+    MESSAGE_TYPE_SIZE,
 )
 from shared_ui.palette import BG_SECONDARY
 from shared_ui.spacing import GAP_SMALL
@@ -32,15 +32,15 @@ from .surfaces import red_and_blue_swapped
 # The type as a fraction of the height, never under the desktop's own; the rest
 # of the shape is the desktop's in multiples of it, so the proportions hold on any frame.
 FONT_FRACTION = 0.030
-MIN_FONT_PX = in_pixels(NOTICE_TYPE_SIZE)
-_PAD_X = NOTICE_PAD_H / MIN_FONT_PX
-_PAD_Y = NOTICE_PAD_V / MIN_FONT_PX
+MIN_FONT_PX = in_pixels(MESSAGE_TYPE_SIZE)
+_PAD_X = MESSAGE_PAD_H / MIN_FONT_PX
+_PAD_Y = MESSAGE_PAD_V / MIN_FONT_PX
 _BORDER = 1 / MIN_FONT_PX
-_RADIUS = NOTICE_RADIUS / MIN_FONT_PX
+_RADIUS = MESSAGE_RADIUS / MIN_FONT_PX
 
 # The desktop's own margin down a Funestra's window, as a fraction of one this tall.
 _WINDOW_HEIGHT_PX = 1000
-TOP_MARGIN_FRACTION = NOTICE_TOP_MARGIN / _WINDOW_HEIGHT_PX
+TOP_MARGIN_FRACTION = MESSAGE_TOP_MARGIN / _WINDOW_HEIGHT_PX
 
 WIDTH_FRACTION = 0.9  # most of the frame's width, never all of it
 MAX_LINES = 3

@@ -35,7 +35,7 @@ PBT_POWERSETTINGCHANGE = 0x8013
 GUID_SESSION_DISPLAY_STATUS = uuid.UUID("2b84c20e-ad23-4ddf-93db-05ffbd7efca5")
 POWER_MONITOR_OFF = 0
 SMTO_ABORTIFHUNG = 0x0002
-NOTICE_TIMEOUT_MS = 5000
+MESSAGE_TIMEOUT_MS = 5000
 
 _user32 = load_dll("user32", use_last_error=True)
 _user32.SendMessageTimeoutW.argtypes = [
@@ -116,7 +116,7 @@ class ThrowawayChrome:
             "<II", ctypes.sizeof(ctypes.wintypes.DWORD), POWER_MONITOR_OFF))
         for hwnd in _every_window(lambda hwnd: window_process(hwnd) == self._browser.pid):
             _user32.SendMessageTimeoutW(hwnd, WM_POWERBROADCAST, PBT_POWERSETTINGCHANGE, ctypes.addressof(power_notice),
-                                        SMTO_ABORTIFHUNG, NOTICE_TIMEOUT_MS, None)
+                                        SMTO_ABORTIFHUNG, MESSAGE_TIMEOUT_MS, None)
 
     def close(self) -> None:
         for hwnd in self._windows:

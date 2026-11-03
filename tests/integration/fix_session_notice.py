@@ -13,7 +13,7 @@ from fun_time.project_paths import PROJECT_ICON
 
 from .main_verifier import claude_command
 
-NOTICE_STAYS_MS = 30 * 60 * 1000
+MESSAGE_STAYS_MS = 30 * 60 * 1000
 
 
 def open_in_claude_desktop(claude: str, short_id: str, session: str, cwd: str,
@@ -35,7 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     tray.setToolTip(title)
     tray.show()
     tray.showMessage(title, body, QSystemTrayIcon.MessageIcon.Information, 0)
-    QTimer.singleShot(NOTICE_STAYS_MS, app.quit)
+    QTimer.singleShot(MESSAGE_STAYS_MS, app.quit)
     return app.exec()
 
 
