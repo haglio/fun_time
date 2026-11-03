@@ -161,3 +161,14 @@ def test_prewarming_covers_every_path_it_is_handed(tmp_path: Path):
 
     assert [Path(p).name for p, _cache in warmed] == ["a.mp4", "b.mp4", "c.mp4"]
     assert all(cache == cache_dir for _p, cache in warmed)
+
+
+def test_prewarming_pauses_after_each_video_so_decoding_never_starves_the_session(tmp_path: Path):
+    pauses: list[float] = []
+
+    prewarm_thumbnails(
+        ["a.mp4", "b.mp4", "c.mp4"], tmp_path / "thumbs",
+        thumbnailer=lambda _path, _cache: None, sleep_fn=pauses.append, pause_s=0.07,
+    )
+
+    assert pauses == [0.07, 0.07, 0.07]

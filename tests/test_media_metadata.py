@@ -11,6 +11,7 @@ from app_support.json_store import locked_update
 from funestra.satellite_hud import label_is_filtered
 
 from fun_time.media_metadata import (
+    EXCERPT,
     GroupIndexCache,
     action_group_items,
     action_label,
@@ -22,9 +23,11 @@ from fun_time.media_metadata import (
     metadata_path_for,
     path_matches_query,
     recorded_for,
+    recorded_orientation,
     reject_action,
     seed_family_items,
     video_title,
+    video_type_of,
     watch_weight_of,
     widened_seed_items,
 )
@@ -766,3 +769,29 @@ class TestWhatAVideoIsCalled:
         assert video_title({"version": {"group": "Jane-Doe_540-hQ2vLm8t"}},
                            "C:/lib/Jane-Doe_540-hQ2vLm8t_apo8.mp4") == "Jane-Doe_540-hQ2vLm8t"
         assert video_title({}, "C:/lib/Jane-Doe_540-hQ2vLm8t.mp4") == "Jane-Doe_540-hQ2vLm8t"
+
+
+def test_a_recorded_kind_is_the_kind_whatever_else_the_sidecar_holds():
+    payload = {"video": {"type": "short"}, "clip": {"compilation": "Vol1"}}
+
+    assert video_type_of(payload) == "short"
+
+
+def test_a_sidecar_from_before_kinds_with_a_carved_clip_reads_as_an_excerpt():
+    assert video_type_of({"clip": {"compilation": "Vol1", "index": 1}}) == EXCERPT
+
+
+def test_a_sidecar_recording_no_kind_and_no_clip_has_no_kind():
+    assert video_type_of({"video": {"action": "Alpha"}}) == ""
+
+
+def test_a_video_with_no_recorded_orientation_is_landscape():
+    assert recorded_orientation({}) == "landscape"
+
+
+def test_an_orientation_nobody_knows_is_landscape_too():
+    assert recorded_orientation({"video": {"orientation": "diagonal"}}) == "landscape"
+
+
+def test_a_recorded_portrait_orientation_is_kept():
+    assert recorded_orientation({"video": {"orientation": "portrait"}}) == "portrait"
