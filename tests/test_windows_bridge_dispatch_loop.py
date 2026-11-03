@@ -127,7 +127,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         landscape_paused_file=tmp_path / "landscape_paused.txt",
         landscape_status_file=tmp_path / "landscape_status.txt",
         landscape_playlist_file=tmp_path / "landscape_playlist.tsv",
-        weird_dir=tmp_path / "weird",
+        trash_dir=tmp_path / "trash",
         state_dir=tmp_path,
         main_sources="",
         portrait_sources="",
@@ -545,7 +545,7 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("active_cycle_seed", 1) == "active_cycle_seed"
 
     def test_a_bare_trash_on_the_main_funestra_reaches_genaus_item(self):
-        assert resolve_active_funestra_command("active_trash", FunTimeFunestra.MAIN) == "genau_weird_flick"
+        assert resolve_active_funestra_command("active_trash", FunTimeFunestra.MAIN) == "genau_trash_flick"
 
 
 class TestDispatchLoopRunner:
@@ -1407,7 +1407,7 @@ class TestWhatASpokenCommandFlashes:
         assert flashed == [("ignored in Genau mode: save clip", "system", logging.WARNING)]
 
     @pytest.mark.parametrize(("command", "said"), [
-        ("landscape_trash", "landscape weird"),
+        ("landscape_trash", "landscape trash"),
         ("landscape_wrong_action", "landscape wrong action"),
     ])
     def test_a_judgement_on_a_satellite_that_has_named_no_video_says_what_was_heard(
@@ -3005,7 +3005,7 @@ class TestWatchTracking:
 
     def test_trash_suppresses_classifying_the_discarded_video(self, tmp_path, monkeypatch):
 
-        config = make_config(tmp_path, weird_dir=tmp_path / "weird")
+        config = make_config(tmp_path, trash_dir=tmp_path / "trash")
         runner = make_runner(tmp_path, config=config)
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
@@ -3016,7 +3016,7 @@ class TestWatchTracking:
         )
         _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
         runner.tick()
-        runner._dispatch("portrait_trash")  # moves the file to weird
+        runner._dispatch("portrait_trash")  # moves the file to trash
         fake_now["t"] = 101.1
         _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()

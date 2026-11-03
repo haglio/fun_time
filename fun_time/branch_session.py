@@ -141,7 +141,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "main_player_library_dirs": paths.main_funestra_library_dirs,
             "portrait_dirs": paths.portrait_dirs,
             "landscape_dirs": paths.landscape_dirs,
-            "weird_dir": paths.weird_dir,
+            "trash_dir": paths.trash_dir,
             "state_dir": paths.state_dir,
             "broker_state_dir": paths.broker_state_dir,
             SIBLING_CHECKOUTS_KEY: paths.sibling_checkouts,

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from app_support.flick_folder import flat_flicks_in, flicks_folder_in, weird_pile_in
+from app_support.flick_folder import flat_flicks_in, flicks_folder_in, trash_folder_in
 
 from fun_time.funestra_status import read_genau_status
 from fun_time.lock import SENT_TO_TRASH
@@ -27,18 +27,18 @@ pytestmark = [
 ]
 
 GENAU_TAKES_A_VERB_WITHIN_S = 2.0
-GENAUS_KEYS = ("genau_next_flick", "genau_prev_flick", "genau_lock", "genau_weird_flick")
+GENAUS_KEYS = ("genau_next_flick", "genau_prev_flick", "genau_lock", "genau_trash_flick")
 
 
-def _condemned(weird: Path) -> list[Path]:
-    return [path for path in weird.rglob("*") if path.is_file()] if weird.is_dir() else []
+def _condemned(trash: Path) -> list[Path]:
+    return [path for path in trash.rglob("*") if path.is_file()] if trash.is_dir() else []
 
 
 def _genaus_flick(session: FunTimeIntegrationSession) -> str:
     return read_genau_status(session.config.genau_status_file).flick
 
 
-def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_says_so_in_genau_mode(
+def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_trash_says_so_in_genau_mode(
         monkeypatch):
     temp_root = build_integration_temp_root()
     genau = made_up_genau(temp_root)
@@ -47,7 +47,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
     played_from.mkdir()
     for name in ("alpha one.mp4", "beta two.mp4", "gamma three.mp4"):
         video_of_a_test_pattern(played_from / name, size="640x360", seconds=2)
-    weird = weird_pile_in(genau)
+    trash = trash_folder_in(genau)
     session = FunTimeIntegrationSession(build_integration_config(temp_root))
     try:
         session.start()
@@ -59,18 +59,18 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_weird_s
         let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
         genau = read_genau_status(session.config.genau_status_file)
-        assert (genau.flick, genau.locked, _condemned(weird)) == (flick_before, True, [])
+        assert (genau.flick, genau.locked, _condemned(trash)) == (flick_before, True, [])
 
         session.write_dashboard_command("genau_activate")
         session.wait_for_new_log("Switched to genau mode", timeout=12)
-        session.write_dashboard_command("genau_weird_flick")
+        session.write_dashboard_command("genau_trash_flick")
 
         session.wait_until(
-            lambda: _condemned(weird) and any(
+            lambda: _condemned(trash) and any(
                 n.message == SENT_TO_TRASH and n.source == "main" for n in session.messages()),
-            timeout=15, description='the flick on screen marked weird, and "Sent to Trash" flashed')
+            timeout=15, description='the flick on screen sent to Trash, and "Sent to Trash" flashed')
         let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
-        assert len(_condemned(weird)) == 1
+        assert len(_condemned(trash)) == 1
     finally:
         session.stop()

@@ -17,7 +17,7 @@ from funestra.flick_advance import FlickAdvanceState
 from funestra.flick_cache import DecodeRequestState, FlickCacheStore
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_flip import FlickFlip
-from funestra.flick_folder import move_flick_to_weird
+from funestra.flick_folder import move_flick_to_trash
 from funestra.flick_loader import FlickLoadController
 from funestra.flick_renderer import FlickRenderController
 from funestra.flick_selection import FlickSelectionController
@@ -216,32 +216,32 @@ def _narrow(selection: FlickSelectionController, scan: Callable[[], list[Path]],
         nothing_left()
 
 
-def _condemn(flick: Path, weird_dir: Path, log: logging.Logger, start_thread) -> None:
-    if not _still_open_after_trying(flick, weird_dir, log):
+def _condemn(flick: Path, trash_dir: Path, log: logging.Logger, start_thread) -> None:
+    if not _still_open_after_trying(flick, trash_dir, log):
         return
     log.info("%s is still open; condemning it once it is let go", flick.name)
-    start_thread(target=_condemn_once_let_go, args=(flick, weird_dir, log), name="genau-condemn")
+    start_thread(target=_condemn_once_let_go, args=(flick, trash_dir, log), name="genau-condemn")
 
 
-def _condemn_once_let_go(flick: Path, weird_dir: Path, log: logging.Logger) -> None:
+def _condemn_once_let_go(flick: Path, trash_dir: Path, log: logging.Logger) -> None:
     give_up_at = time.monotonic() + CONDEMN_PATIENCE_S
     while time.monotonic() < give_up_at:
         time.sleep(CONDEMN_RETRY_S)
-        if not _still_open_after_trying(flick, weird_dir, log):
+        if not _still_open_after_trying(flick, trash_dir, log):
             return
     log.error("%s was still open after %gs, so it was not condemned", flick.name, CONDEMN_PATIENCE_S)
 
 
-def _still_open_after_trying(flick: Path, weird_dir: Path, log: logging.Logger) -> bool:
+def _still_open_after_trying(flick: Path, trash_dir: Path, log: logging.Logger) -> bool:
     try:
-        landed = move_flick_to_weird(flick, weird_dir)
+        landed = move_flick_to_trash(flick, trash_dir)
     except PermissionError:
         return True
     except OSError:
-        log.error("Could not move %s to %s", flick.name, weird_dir, exc_info=True)
+        log.error("Could not move %s to %s", flick.name, trash_dir, exc_info=True)
         return False
     if landed is None:
         log.info("Flick %s was already gone; nothing to condemn", flick.name)
     else:
-        log.info("Condemned %s to %s", flick.name, weird_dir)
+        log.info("Condemned %s to %s", flick.name, trash_dir)
     return False

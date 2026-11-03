@@ -11,7 +11,7 @@
     "landscape_dirs": [
       "C:/path/to/library/landscape"
     ],
-    "weird_dir": "C:/path/to/library/misc",
+    "trash_dir": "C:/path/to/library/misc",
     "state_dir": "state",
     "broker_state_dir": "state",
     "broker_tray_launcher": "../broker/launch_broker_tray.vbs",

@@ -35,7 +35,7 @@ class BridgeConfig:
     landscape_paused_file: Path
     landscape_status_file: Path
     landscape_playlist_file: Path
-    weird_dir: Path
+    trash_dir: Path
     state_dir: Path
     main_sources: str
     portrait_sources: str

@@ -36,7 +36,7 @@ class PathsConfig:
     main_funestra_library_dirs: tuple[Path, ...]
     portrait_dirs: tuple[Path, ...]
     landscape_dirs: tuple[Path, ...]
-    weird_dir: Path
+    trash_dir: Path
     genau_dir: Path
     genau_audio_dir: Path
     state_dir: Path
@@ -309,7 +309,7 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         main_funestra_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in main_funestra_library_dirs_raw),
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
-        weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),
+        trash_dir=require_path(paths_raw, "trash_dir" if "trash_dir" in paths_raw else "weird_dir", source_path, base=project_dir, context="config.paths"),
         genau_dir=Path(haglio_settings.value("genau_dir")),
         genau_audio_dir=Path(haglio_settings.value("genau_audio_dir")),
         state_dir=state_dir,

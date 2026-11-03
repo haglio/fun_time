@@ -51,8 +51,8 @@ from tests.hosted_shows import publish_the_show
 def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
-    weird_dir = tmp_path / "weird"
-    weird_dir.mkdir(exist_ok=True)
+    trash_dir = tmp_path / "trash"
+    trash_dir.mkdir(exist_ok=True)
     return BridgeConfig(
         vr_main_funestra=vr_main_funestra,
         portrait_cmd_file=state_dir / "portrait_cmd.txt",
@@ -63,7 +63,7 @@ def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeCon
         landscape_paused_file=state_dir / "landscape_paused.txt",
         landscape_status_file=state_dir / "landscape_status.txt",
         landscape_playlist_file=state_dir / "landscape_playlist.tsv",
-        weird_dir=weird_dir,
+        trash_dir=trash_dir,
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
@@ -443,7 +443,7 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
 
 
 def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path: Path):
-    """"Weird" condemns the video the speaker saw.  Once the satellite has moved
+    """"Trash" condemns the video the speaker saw.  Once the satellite has moved
     on there is nothing to advance past — the condemned video is dropped from the
     playlist where it sits, and the innocent video now playing is left alone."""
     config = _make_config(tmp_path)
@@ -453,7 +453,7 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     _set_current(config, 2, now_playing)
     with (
         patch("fun_time.satellite_commands.unfavorite") as favs,
-        patch("fun_time.satellite_commands.move_to_weird") as weird,
+        patch("fun_time.satellite_commands.move_to_trash") as trash,
     ):
         dispatch_command("portrait_trash", state, config, target_path=meant)
 
@@ -461,7 +461,7 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     # it sits; the innocent video now playing is left alone.
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "TRASH"]
     assert favs.call_args[0][0] == meant
-    assert weird.call_args[0][1] == Path(meant)
+    assert trash.call_args[0][1] == Path(meant)
 
 
 # --- portrait_trash ---
@@ -474,7 +474,7 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
         patch("fun_time.satellite_commands.unfavorite"),
-        patch("fun_time.satellite_commands.move_to_weird"),
+        patch("fun_time.satellite_commands.move_to_trash"),
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
@@ -485,20 +485,20 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
 def test_portrait_trash_queues_a_trash_verb_and_condemns_the_video(tmp_path: Path):
     """An unlocked discard queues a bare TRASH (the native Funestra drops the
     current video and plays the next) and condemns the video — unfavorited and
-    moved to weird, this video not being a favorite (``test_lock`` covers that branch)."""
+    moved to trash, this video not being a favorite (``test_lock`` covers that branch)."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
         patch("fun_time.satellite_commands.unfavorite") as favs,
-        patch("fun_time.satellite_commands.move_to_weird") as weird,
+        patch("fun_time.satellite_commands.move_to_trash") as trash,
     ):
         dispatch_command("portrait_trash", state, config)
 
     assert _cmds(config, 2) == ["TRASH"]
     assert favs.call_args[0][0] == "C:\\clips\\portrait.mp4"
-    assert weird.call_args[0][1] == Path("C:\\clips\\portrait.mp4")
+    assert trash.call_args[0][1] == Path("C:\\clips\\portrait.mp4")
 
 
 # --- portrait_prev / portrait_next ---
@@ -654,7 +654,7 @@ def test_letting_genaus_flick_go_follows_nothing(tmp_path: Path):
     assert not is_favorite(flick, config.regen_metadata_root)
 
 
-def test_marking_genaus_flick_weird_takes_it_out_of_the_favorites_as_a_satellites_does(
+def test_marking_genaus_flick_trash_takes_it_out_of_the_favorites_as_a_satellites_does(
         tmp_path: Path):
     config = _make_config(tmp_path)
     config.regen_metadata_root = tmp_path / "metadata"
@@ -662,7 +662,7 @@ def test_marking_genaus_flick_weird_takes_it_out_of_the_favorites_as_a_satellite
     _show_on_genau(config, flick, locked=True)
     mark_favorite(flick, config.regen_metadata_root, True)
 
-    dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
+    dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
 
     assert not is_favorite(flick, config.regen_metadata_root)
 
@@ -1069,7 +1069,7 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
     _set_current(config, 3, "C:\\clips\\landscape.mp4")
     with (
         patch("fun_time.satellite_commands.unfavorite"),
-        patch("fun_time.satellite_commands.move_to_weird"),
+        patch("fun_time.satellite_commands.move_to_trash"),
     ):
         new_state, _ops = dispatch_command("landscape_trash", state, config)
 
@@ -3110,19 +3110,19 @@ def test_genau_flick_commands_write_cmd_file(tmp_path: Path):
         assert ops == []
 
 
-def test_marking_genaus_flick_weird_flashes_marked_weird_over_the_main_funestra(tmp_path: Path):
+def test_marking_genaus_flick_trash_flashes_marked_trash_over_the_main_funestra(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    _, ops = dispatch_command("genau_weird_flick", _make_state(main_mode=MainMode.GENAU), config)
+    _, ops = dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "WEIRD\n"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TRASH\n"
     assert [(op.op, op.key, op.source) for op in ops] == [("message", "Sent to Trash", "main")]
 
 
 @pytest.mark.parametrize("command", [
     "genau_prev_flick",
     "genau_next_flick",
-    "genau_weird_flick",
+    "genau_trash_flick",
     "genau_lock",
     "genau_flip_ends",
     "genau_flick_seconds_down",
@@ -3673,8 +3673,8 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""  # stale anchor dropped
 
 
-def test_a_video_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
-    """The nav map draws the library around the video on screen, and a weirded video
+def test_a_video_marked_trash_stops_being_drawn_on_the_map(tmp_path: Path):
+    """The nav map draws the library around the video on screen, and a trashed video
     has left the library — so its row stops offering it, rather than holding a
     thumbnail of something that is no longer there for the rest of the session.
     """
@@ -3682,13 +3682,13 @@ def test_a_video_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
     _set_current(config, 2, a)
     assert nav_map_cells(_satellite_group_index(FunTimeFunestra.PORTRAIT, config, b), b)[0] == [a]
 
-    _discard(2, _make_state(), config)            # "weird" on the video on screen
+    _discard(2, _make_state(), config)            # "trash" on the video on screen
 
     index = _satellite_group_index(FunTimeFunestra.PORTRAIT, config, b)
     assert nav_map_cells(index, b)[0] == []
 
 
-def test_marking_videos_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_path: Path):
+def test_marking_videos_trash_until_one_is_left_turns_the_loop_into_a_lock(tmp_path: Path):
     """A loop shrinks with its group, and a loop of one video is that video over
     and over — which is the lock.  So the Satellite locks and the loop goes, the same
     answer a loop button gives a group that only ever held one video."""
@@ -3696,7 +3696,7 @@ def test_marking_videos_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_p
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
-    state, ops = _discard(2, state, config)       # "weird" on the video on screen
+    state, ops = _discard(2, state, config)       # "trash" on the video on screen
 
     assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "TRASH", "LOCK_ON"]
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
@@ -4741,7 +4741,7 @@ def test_the_satellites_the_hosted_app_holds_are_named_by_their_satellites(tmp_p
                              _make_config(tmp_path)) == frozenset()
 
 
-def test_a_spoken_weird_reaches_a_hosted_satellite_with_when_it_was_said(tmp_path):
+def test_a_spoken_trash_reaches_a_hosted_satellite_with_when_it_was_said(tmp_path):
     config = replace(_origenerator_config(tmp_path),
                      origenerator_said_at_suffix=" @{said_at_epoch_seconds}")
     said_two_seconds_ago = time.monotonic() - 2.0
@@ -5294,13 +5294,13 @@ def test_unlocking_opens_no_rfb_tab(tmp_path: Path):
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
 
-def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path: Path, caplog):
+def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_trash(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
     _set_current(config, 3, "odd.mp4")
 
     with (
         patch("fun_time.satellite_commands.unfavorite") as favs,
-        patch("fun_time.satellite_commands.move_to_weird") as weird,
+        patch("fun_time.satellite_commands.move_to_trash") as trash,
         caplog.at_level(logging.INFO, logger="fun_time.satellite_commands"),
     ):
         state, ops = _discard(3, _make_state(landscape=SatelliteState(locked=True)), config)
@@ -5310,7 +5310,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
     # which advances into the playlist (TRASH).
     assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert favs.call_args[0][0] == "odd.mp4"
-    assert weird.call_args[0][1] == Path("odd.mp4")
+    assert trash.call_args[0][1] == Path("odd.mp4")
     assert "Discarding from Funestra 3: odd.mp4" in caplog.text
     assert [(op.op, op.key, op.source) for op in ops] == [
         ("message", "Sent to Trash", "landscape")
@@ -5323,7 +5323,7 @@ def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
 
     with (
         patch("fun_time.satellite_commands.unfavorite"),
-        patch("fun_time.satellite_commands.move_to_weird"),
+        patch("fun_time.satellite_commands.move_to_trash"),
     ):
         state, _ops = _discard(3, _make_state(landscape=SatelliteState(locked=False)), config)
 
@@ -5358,7 +5358,7 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     assert _cmds(config, 3) == ["NEXT"]
     assert not is_favorite(video, config.regen_metadata_root)
     assert video.exists()
-    assert list(config.weird_dir.iterdir()) == []
+    assert list(config.trash_dir.iterdir()) == []
     assert f"Removed from favorites on Funestra 3: {video}" in caplog.text
     # The demotion and the condemnation look the same on screen otherwise, so
     # each says which one it was.
@@ -5429,7 +5429,7 @@ def test_a_spoken_discard_still_demotes_its_video_before_the_funestra_has_named_
     assert [op.key for op in ops] == ["Unfavorited"]
 
 
-def test_discarding_a_demoted_video_again_marks_it_weird(tmp_path: Path):
+def test_discarding_a_demoted_video_again_marks_it_trash(tmp_path: Path):
     """The demotion is one step only — once a video is out of the favorites, the
     next discard is the full condemnation: dropped from the playlist (TRASH) and
     moved out of the library."""
@@ -5450,7 +5450,7 @@ def test_discarding_a_demoted_video_again_marks_it_weird(tmp_path: Path):
     assert [op.level for op in condemn_ops] == [MESSAGE]
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()
-    assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]
+    assert [p.name for p in config.trash_dir.iterdir()] == ["twice.mp4"]
 
 
 class TestASessionThatHostsNoOrigenerator:

@@ -263,7 +263,7 @@ def wrong_action(
 
     The video judged is the one the speaker was looking at (*target_path*) rather
     than whatever an auto-advancing satellite has moved on to, exactly as for
-    "weird" and the cycles.
+    "trash" and the cycles.
     """
     source = satellite_source(funestra)
     current = target_path or satellite_current(config, funestra)

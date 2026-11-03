@@ -244,7 +244,7 @@ y::QueueCommand("robot_hand_toggle_learned")
 ; K above to condemn the flick, M and . either side for previous and next, and the
 ; comma under K to hold it, where Down sits under Up and S under W.  Comma and
 ; period by scancode, the way the semicolon is.
-k::QueueCommand("genau_weird_flick")
+k::QueueCommand("genau_trash_flick")
 m::QueueCommand("genau_prev_flick")
 SC033::QueueCommand("genau_lock")
 SC034::QueueCommand("genau_next_flick")

@@ -43,7 +43,7 @@ _GENAUS_FLICK_SECONDS = "genau_flick_seconds_"
 
 
 _GENAUS_FLICK_COMMANDS = frozenset({
-    "genau_prev_flick", "genau_next_flick", "genau_weird_flick", "genau_lock", "genau_flip_ends",
+    "genau_prev_flick", "genau_next_flick", "genau_trash_flick", "genau_lock", "genau_flip_ends",
 })
 
 
@@ -79,10 +79,10 @@ def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _mark_genaus_flick_weird(state: BridgeState, config: BridgeConfig,
+def _send_genaus_flick_to_trash(state: BridgeState, config: BridgeConfig,
                             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     unfavorite(read_genau_status(config.genau_status_file).flick, config)
-    append_command(config.genau_cmd_file, "WEIRD")
+    append_command(config.genau_cmd_file, "TRASH")
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 
@@ -96,7 +96,7 @@ def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,
 
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_forward_to_genau, verb) for cmd, verb in _GENAU_CMD_MAP.items()},
-    "genau_weird_flick": _mark_genaus_flick_weird,
+    "genau_trash_flick": _send_genaus_flick_to_trash,
 }
 
 PARSED_FORMS = (_parsed_numeric,)

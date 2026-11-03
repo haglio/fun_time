@@ -42,7 +42,7 @@ def test_watch_stats_that_are_missing_or_unreadable_count_as_none(tmp_path: Path
 
 
 def test_record_watch_event_prunes_entries_for_vanished_files(tmp_path: Path):
-    """A video moved away (e.g. marked weird) should not leave a stats orphan."""
+    """A video moved away (e.g. sent to Trash) should not leave a stats orphan."""
     stats_file = tmp_path / "watch_stats.json"
     keeper = _touch(tmp_path, "keeper.mp4")
     goner = _touch(tmp_path, "goner.mp4")
@@ -186,7 +186,7 @@ def test_tracker_counts_each_repeat_wrap_as_a_completion():
 
 
 def test_tracker_discard_suppresses_classifying_the_departed_video():
-    """Marking weird moves the file away — the transition must record nothing,
+    """Marking trash moves the file away — the transition must record nothing,
     and the next video is tracked normally."""
     clock = _Clock()
     tracker = WatchTracker(clock=clock)

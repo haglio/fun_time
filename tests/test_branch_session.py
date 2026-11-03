@@ -58,7 +58,7 @@ def _write_config(path: Path, **paths: str) -> Path:
             "main_player_library_dirs": ["C:/library/main"],
             "portrait_dirs": ["C:/library/portrait"],
             "landscape_dirs": ["C:/library/landscape"],
-            "weird_dir": "C:/library/misc",
+            "trash_dir": "C:/library/misc",
             "genau_dir": "C:/library/genau",
             "state_dir": "state",
             "genau_config_path": "C:/genau/genau_config.json",

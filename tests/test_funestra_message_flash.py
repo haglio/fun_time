@@ -25,7 +25,7 @@ def _runner(tmp_path: Path) -> DispatchLoopRunner:
     )
     config = BridgeConfig(
         **{name: tmp_path / f"{name}.txt" for name in path_fields},
-        weird_dir=tmp_path / "weird",
+        trash_dir=tmp_path / "trash",
         state_dir=tmp_path,
         main_sources="",
         portrait_sources="",

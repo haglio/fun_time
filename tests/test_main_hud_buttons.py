@@ -88,12 +88,12 @@ class TestTransport:
         assert _button(MainFunestraFacts(main_mode=MainMode.KINO), "main_fmode").lit is False
         assert _button(MainFunestraFacts(main_mode=MainMode.KINO, f_mode=True), "main_fmode").lit is True
 
-    def test_genau_steps_its_own_flicks_and_can_mark_one_weird(self):
+    def test_genau_steps_its_own_flicks_and_can_mark_one_trash(self):
         actions = _actions(MainFunestraFacts(main_mode=MainMode.GENAU))
 
         assert "genau_prev_flick" in actions
         assert "genau_next_flick" in actions
-        assert "genau_weird_flick" in actions
+        assert "genau_trash_flick" in actions
 
     def test_genau_can_flip_the_flick_up_half_a_loop(self):
         flip = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_flip_ends")
@@ -671,7 +671,7 @@ class TestFaces:
         assert not named - set(icon_names())
 
     def test_the_bin_takes_something_away(self):
-        assert _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_weird_flick").danger is True
+        assert _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_trash_flick").danger is True
 
 
 class TestOrientationPair:
