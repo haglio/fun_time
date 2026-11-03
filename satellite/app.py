@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         return _run(args, playlist)
 
 
-def _open_window(placement: WindowPlacement) -> int:
+def _open_window(placement: WindowPlacement, claim_identity) -> int:
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on a control had to be made
     # twice.  The mechanism is written down in funestra.sdl_hints.
@@ -54,7 +54,7 @@ def _open_window(placement: WindowPlacement) -> int:
     # wearing its icon.  Cosmetic, so a refusal never costs the Funestra its start.
     if placement.taskbar_identity:
         try:
-            set_app_user_model_id(placement.taskbar_identity)
+            claim_identity(placement.taskbar_identity)
         except OSError:
             logger.info("Could not take the taskbar identity %s",
                         placement.taskbar_identity)
@@ -71,9 +71,9 @@ def _open_window(placement: WindowPlacement) -> int:
     return pygame.display.get_wm_info()["window"]
 
 
-def _run(args, playlist: list[PlaylistItem]) -> int:
+def _run(args, playlist: list[PlaylistItem], *, claim_identity=set_app_user_model_id) -> int:
     placement = WindowPlacement.from_args(args)
-    funestra = Funestra.on_window(_open_window(placement), FunestraSetup(
+    funestra = Funestra.on_window(_open_window(placement, claim_identity), FunestraSetup(
         channels=SatelliteChannels.from_args(args), playlist=playlist,
         audible=not audio_muted(args), tiles=placement.tiles,
     ))

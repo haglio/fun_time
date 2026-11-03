@@ -4,9 +4,7 @@ import logging
 import threading
 import time
 
-import numpy as np
 from app_support.threading_utils import start_daemon_thread
-from OpenGL import GL
 
 from .frame_relay import SLOTS, FrameHandover
 from .painting import Painting, Showing
@@ -20,51 +18,17 @@ STILL_SIZE_PX = (512, 256)
 CLOSE_TIMEOUT_S = 10.0
 
 
-class GpuMark:
-    def __init__(self) -> None:
-        self._query = int(GL.glGenQueries(1)[0])
-
-    def set(self) -> None:
-        GL.glBeginQuery(GL.GL_TIME_ELAPSED, self._query)
-        GL.glEndQuery(GL.GL_TIME_ELAPSED)
-
-    @property
-    def reached(self) -> bool:
-        return bool(GL.glGetQueryObjectiv(self._query, GL.GL_QUERY_RESULT_AVAILABLE))
-
-    def close(self) -> None:
-        GL.glDeleteQueries(1, [self._query])
-
-
-class Gpu:
-    def mark(self) -> GpuMark:
-        return GpuMark()
-
-    def flush(self) -> None:
-        GL.glFlush()
-
-    def copy(self, frame, target: RenderTarget) -> None:
-        GL.glCopyImageSubData(
-            frame.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
-            target.texture, GL.GL_TEXTURE_2D, 0, 0, 0, 0,
-            frame.width, frame.height, 1,
-        )
-
-    def read_pixels(self, target: RenderTarget) -> np.ndarray:
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, target.fbo)
-        GL.glPixelStorei(GL.GL_PACK_ALIGNMENT, 1)
-        pixels = GL.glReadPixels(0, 0, target.width, target.height, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-        return np.frombuffer(pixels, np.uint8).reshape(target.height, target.width, 4)
-
-
 class VideoThread:
+    close_timeout_s = CLOSE_TIMEOUT_S
+
     def __init__(self, contexts, build_engine, cap_px: int, *, name: str, perf=None) -> None:
         self._contexts = contexts
         self._name = name
         self._perf = perf
         self._frames = FrameHandover(name, cap_px)
-        self._showing = Showing(self._frames, gpu=Gpu())
+        self._showing = Showing(self._frames, gpu=contexts.gpu())
+        self._new_gpu = contexts.gpu
+        self._new_target = contexts.render_target
         self._stop = threading.Event()
         self._built = threading.Event()
         self._fault: BaseException | None = None
@@ -93,12 +57,12 @@ class VideoThread:
 
     def close(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=CLOSE_TIMEOUT_S)
+        self._thread.join(timeout=self.close_timeout_s)
         if self._thread.is_alive():
             logger.error(
                 "The %s video is still inside mpv after %.0fs; its context is left to the "
                 "process to reap, since freeing it under a render is a crash",
-                self._name, CLOSE_TIMEOUT_S)
+                self._name, self.close_timeout_s)
             return
         self._showing.close()
         self._contexts.close(self._window)
@@ -109,11 +73,11 @@ class VideoThread:
         still: RenderTarget | None = None
         painting: Painting | None = None
         try:
-            targets = [RenderTarget() for _ in range(SLOTS)]
-            still = RenderTarget()
+            targets = [self._new_target() for _ in range(SLOTS)]
+            still = self._new_target()
             still.ensure(*STILL_SIZE_PX)
             self.engine = build_engine()
-            painting = Painting(self.engine, self._frames, gpu=Gpu(), perf=self._perf)
+            painting = Painting(self.engine, self._frames, gpu=self._new_gpu(), perf=self._perf)
         except BaseException as fault:  # noqa: BLE001 -- raised again on the frame loop's thread
             self._fault = fault
         finally:

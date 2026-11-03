@@ -85,11 +85,9 @@ unread-dataclass-fields = ["CommandFiles.portrait_hud_file", "CommandFiles.lands
 not-unit-tested = [
     { path = "fun_time/chrome_accessibility.py", because = "reaches a real Chrome's tabs: needs a browser" },
     { path = "fun_time/win32_events.py", because = "listens to the presses and carets of a real desktop" },
-    { path = "satellite/app.py", because = "a Funestra's shell: needs the playback engine's library" },
     { path = "fun_time_vr/gl_contexts.py", because = "needs a graphics context" },
-    { path = "fun_time_vr/app.py", because = "the headset's shell: needs a headset" },
     { path = "fun_time_vr/render.py", because = "needs a graphics context" },
-    { path = "fun_time_vr/video_thread.py", because = "needs a graphics context" },
+    { path = "fun_time_vr/app.py", because = "the headset's shell: needs a headset" },
     { path = "fun_time_vr/vr_session.py", because = "needs a headset and a graphics context" },
     { path = "fun_time_vr/windows_sound.py", because = "sets Windows' default sound devices: a test would change the machine's" },
 ]

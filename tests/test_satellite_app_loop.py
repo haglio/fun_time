@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pygame
+import pytest
 from funestra.funestra_setup import FunestraSetup
 
 import satellite.app
@@ -116,13 +118,13 @@ def _videos(tmp_path: Path, *names: str) -> list[Path]:
     return out
 
 
-def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1):
+def _run_loop(tmp_path: Path, args, *, fake=None, passes: int = 1, claim_identity=None):
     fake = fake or _FakePygame()
     opens = _OpensAFunestra(_FakeFunestra(passes=passes))
     with patch("satellite.app.pygame", fake), \
          patch("satellite.app.before_the_window_exists"), \
          patch("satellite.app.Funestra", opens):
-        code = _run(args, playlist=resolve_playlist(args))
+        code = _run(args, playlist=resolve_playlist(args), claim_identity=claim_identity)
     return code, opens, fake
 
 
@@ -219,21 +221,66 @@ def test_the_window_takes_the_size_fun_time_gives_it_from_outside(tmp_path):
     assert fake.window.resizable is True
 
 
-def test_the_satellite_plays_ahead_of_background_work(tmp_path, monkeypatch):
+@pytest.fixture
+def plays(monkeypatch):
+    played = []
+    monkeypatch.setattr(satellite.app, "set_up_logging", lambda: None)
+    monkeypatch.setattr(satellite.app, "_run", lambda _args, _playlist: played.append("plays") or 0)
+    return played
+
+
+def test_the_satellite_plays_ahead_of_background_work(tmp_path, monkeypatch, plays):
     playlist = tmp_path / "playlist.tsv"
     playlist.write_text(f"{_videos(tmp_path, 'v0')[0]}\n", encoding="utf-8")
-    order = []
 
     @contextlib.contextmanager
     def ahead_on_the_processor():
-        order.append("ahead")
+        plays.append("ahead")
         yield
-        order.append("back")
+        plays.append("back")
 
-    monkeypatch.setattr(satellite.app, "set_up_logging", lambda: None)
     monkeypatch.setattr(satellite.app, "ahead_on_the_processor", ahead_on_the_processor)
-    monkeypatch.setattr(satellite.app, "_run",
-                        lambda _args, _playlist: order.append("plays") or 0)
 
     assert satellite.app.main(["--playlist", str(playlist)]) == 0
-    assert order == ["ahead", "plays", "back"]
+    assert plays == ["ahead", "plays", "back"]
+
+
+def test_a_satellite_with_nothing_to_play_ends_at_once_saying_so(tmp_path, plays, caplog):
+    playlist = tmp_path / "playlist.tsv"
+    playlist.write_text("", encoding="utf-8")
+
+    assert satellite.app.main(["--playlist", str(playlist)]) == 1
+    assert "No videos to play" in caplog.text
+    assert plays == []
+
+
+def test_a_satellite_opens_where_the_launch_placed_it(tmp_path):
+    try:
+        _run_loop(tmp_path, _loop_args(tmp_path, _videos(tmp_path, "v0"), x="-1200", y="40"))
+
+        assert os.environ["SDL_VIDEO_WINDOW_POS"] == "-1200,40"
+    finally:
+        os.environ.pop("SDL_VIDEO_WINDOW_POS", None)
+
+
+def test_a_satellite_takes_its_taskbar_identity_before_its_window_exists(tmp_path):
+    order = []
+    fake = _FakePygame()
+    fake.init = lambda: order.append("window")
+
+    _run_loop(tmp_path, _loop_args(tmp_path, _videos(tmp_path, "v0"), taskbar_identity="Made.Up"),
+              fake=fake, claim_identity=order.append)
+
+    assert order == ["Made.Up", "window"]
+
+
+def test_a_refused_taskbar_identity_never_costs_the_funestra_its_start(tmp_path):
+    def refuse(_identity):
+        raise OSError("refused")
+
+    code, opens, _fake = _run_loop(
+        tmp_path, _loop_args(tmp_path, _videos(tmp_path, "v0"), taskbar_identity="Made.Up"),
+        claim_identity=refuse)
+
+    assert code == 0
+    assert opens.asked is not None
