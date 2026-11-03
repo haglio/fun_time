@@ -1,4 +1,3 @@
-"""The lines Kino adds to the Main Funestra's status file."""
 from __future__ import annotations
 
 from funestra.modes import LoopState
@@ -20,9 +19,6 @@ class TestStatusFields:
         ]
 
     def test_a_running_loop_publishes_the_range_it_holds(self):
-        """The loop is the one thing a restart cannot rebuild from the playlist:
-        it is a range inside one video, so the orchestrator can only hand it
-        back if it is told what it was."""
         fields = status_fields(StubLoops(LoopState.LOOPING, (2000, 4000)))
 
         assert fields["loop_state"] == "looping"
@@ -41,9 +37,6 @@ class TestStatusFields:
         assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("0", "0")
 
     def test_the_videos_place_in_the_library_is_published_for_the_main_huds_buttons(self):
-        """Fun Time lights the compilation, version and video-jump buttons from
-        these lines -- only Kino knows them, and a Funestra that says nothing
-        leaves them dim."""
         library = LibraryStatus(compilation="Vol 3", has_compilation=True,
                                 has_other_versions=True, jump_to="clip")
 

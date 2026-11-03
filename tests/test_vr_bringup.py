@@ -1,11 +1,10 @@
-"""Opening a session on the headset, and what is said when it cannot be opened."""
 from __future__ import annotations
 
 from fun_time_vr.bringup import open_vr_session
 
 
 class _DeviceNotReady(Exception):
-    """Stands in for the runtime's own "graphics device invalid"."""
+    pass
 
 
 class _Clock:
@@ -52,9 +51,6 @@ def test_a_session_that_opens_first_time_is_handed_straight_back():
 
 
 def test_a_cold_runtime_is_waited_out():
-    """The runtime answers the readiness probe before its compositor's graphics
-    device is up, and opening a session in that window fails — transiently, so
-    bring-up retries rather than dying on a popup."""
     clock = _Clock()
 
     opened = _open([_raises(_DeviceNotReady()), _raises(_DeviceNotReady()),
@@ -75,8 +71,6 @@ def test_a_runtime_that_never_comes_up_gives_up_at_the_deadline():
 
 
 def test_any_other_failure_is_reported_at_once():
-    """Only the cold-device case is transient; everything else is a session this
-    headset is not going to give, so retrying it just delays the popup."""
     clock = _Clock()
 
     opened = _open([_raises(RuntimeError("no runtime"))], clock)
@@ -88,8 +82,6 @@ def test_any_other_failure_is_reported_at_once():
 
 
 def test_the_deadline_is_measured_from_the_first_attempt():
-    """A retry loop that re-read the clock as a fresh start would never end: the
-    window is six seconds and each retry costs two, so four tries fit."""
     clock = _Clock()
     tried: list[float] = []
 

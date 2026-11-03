@@ -93,7 +93,6 @@ from tests.fun_time_window_fakes import (
 from tests.hosted_shows import publish_the_show
 from tests.made_up_state import remembered_values, shifted_state
 
-# A browse's process and window, fabricated: nothing of this machine's.
 BROWSE_PID = 424242
 BROWSE_HWND = 909090
 
@@ -105,14 +104,6 @@ LINK_CARRYING_A_PROMPT = build_regen_url(
 
 @pytest.fixture(autouse=True)
 def _neutralise_topmost_reads():
-    """The only real-desktop reach left in a tick() is _log_topmost_state, which
-    reads each managed window's WS_EX_TOPMOST flag on every OmniPause toggle.
-    These tests are about dispatch, not z-order, and a real read would land on
-    whichever window answers on this machine — so the flag read is neutralised
-    (nothing is ever found topmost).  The native satellites publish their
-    playback to status files, so a tick's satellite/Main Funestra sampling is inert
-    here (no status files written).  A test asserting on topmost state patches
-    is_window_topmost itself."""
     with patch("fun_time.fun_time_windows.is_window_topmost", return_value=False):
         yield
 
@@ -149,12 +140,6 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
                             paused: bool = False, locked: bool = False) -> None:
-    """Write a native satellite's status file the way its Funestra publishes it.
-
-    ``fraction`` sets how far through the video the Funestra reports: None writes a
-    not-yet-known duration (``read_satellite_status().fraction`` is then None, so
-    the sample is dropped), otherwise position/duration encode the fraction.
-    """
     duration_ms = 0 if fraction is None else 1000
     position_ms = 0 if fraction is None else round(fraction * duration_ms)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,13 +151,6 @@ def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
 
 
 def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
-    """A runner over the imaginary desktop in ``tests.fun_time_window_fakes``.
-
-    The pids and the browser hwnd are the windows object's, not the runner's,
-    so they are named here the way the tests have always named them and folded
-    into one.  ``clock`` is that object's settle clock: a test that is about
-    the beat a mode switch waits out hands in a :class:`FakeClock`.
-    """
     windows = FunTimeWindows(
         pids=ChildPids(
             main_funestra=kwargs.pop("main_funestra_pid", MAIN_FUNESTRA_PID),
@@ -195,9 +173,6 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         windows=windows,
         **settings,
     )
-    # Park the periodic sync (z-order convergence + dashboard update) in the
-    # far future so a tick in a test runs only what the test drove.  The one
-    # test that is ABOUT the sync moves _last_sync back into the past itself.
     runner._last_sync = float("inf")
     return runner
 
@@ -220,8 +195,6 @@ def test_the_loop_holds_genaus_image_out_of_a_park_while_the_osr2_is_quiet(tmp_p
 
 
 def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, tmp_path):
-    """The lock's landing page is written off this config, and it has to poll
-    the port the manifest names, not the module's default (bug 22)."""
     config = load_config(cfg_factory({"loopback_port": 8771}))
     manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
 
@@ -229,15 +202,6 @@ def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, t
 
 
 def test_either_session_hosts_the_origenerator_its_config_names(cfg_factory, tmp_path):
-    """One configured Origenerator, two session shapes, both hosting it.
-
-    The headset was excluded for as long as the app's shows were windows of
-    their own laid over the satellites, which a VR session has none of.  They
-    are the satellite FUNESTRAS' own playlists now (fun_time.funestra_handover),
-    and the headset's satellites are Funestras, so the same checkout is the same
-    mode in either shape.  A session that hosts none is still a config naming
-    none, which the assertion below the fixture holds.
-    """
     origenerator_dir = tmp_path / "origenerator"
     origenerator_dir.mkdir()
     config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator_dir)}}))
@@ -285,8 +249,6 @@ def _wait_until_the_browse_thread_ends(mock_browse) -> None:
 
 @contextlib.contextmanager
 def _press_channel(tmp_path):
-    """A listening dashboard press socket, its port published where the
-    runner looks for it.  Closes with the block, assertion failures included."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as recv_sock:
         recv_sock.bind(("127.0.0.1", 0))
         recv_sock.settimeout(1.0)
@@ -296,13 +258,6 @@ def _press_channel(tmp_path):
 
 
 def _presses_until(recv_sock, expected: str, *, timeout: float = 10.0) -> list[str]:
-    """Every press read off ``recv_sock`` up to and including ``expected``.
-
-    The press goes out on the tick's own thread, so what these tests are waiting
-    for is a datagram, not a length of time. The socket's own short timeout paces
-    the polling, and this returns the moment the expected press lands -- or
-    everything that did arrive, so the assertion above can say what came instead.
-    """
     received: list[str] = []
 
     def _arrived() -> bool:
@@ -322,23 +277,17 @@ def _presses_until(recv_sock, expected: str, *, timeout: float = 10.0) -> list[s
 
 class TestDetectSleepGap:
     def test_reports_gap_when_stall_exceeds_threshold(self):
-        # The dispatch thread freezes during system sleep; a wall-clock jump
-        # far above the tick cadence means we just woke.
         assert detect_sleep_gap(1000.0, 1000.0 + 300, threshold_s=90.0) == 300
 
     def test_no_gap_for_normal_iteration(self):
         assert detect_sleep_gap(1000.0, 1000.05) is None
 
     def test_default_threshold_ignores_a_merely_slow_tick(self):
-        # A tick blocked on a stalled disk can run tens of seconds.  The default
-        # threshold must clear that, not misread it as a wake.
         assert detect_sleep_gap(1000.0, 1000.0 + 40) is None
 
 
 class TestRunLoopWakeLogging:
     def test_run_logs_warning_after_wall_clock_jump(self, tmp_path, caplog):
-        """A wall-clock jump between iterations is logged so the next
-        resume-after-idle failure is anchored to a confirmed sleep/wake."""
         runner = make_runner(tmp_path)
         ticks = {"n": 0}
 
@@ -347,7 +296,6 @@ class TestRunLoopWakeLogging:
             if ticks["n"] >= 2:
                 runner.stop()
 
-        # last_wall init, iter-1 now (no jump), iter-2 now (1000s jump).
         scripted = [1000.0, 1000.0, 2000.0]
         cursor = {"i": 0}
 
@@ -356,7 +304,7 @@ class TestRunLoopWakeLogging:
             if i < len(scripted):
                 cursor["i"] += 1
                 return scripted[i]
-            return scripted[-1]  # logging's own time.time() calls land here
+            return scripted[-1]
 
         with patch.object(runner, "tick", side_effect=fake_tick), \
              patch("fun_time.windows_bridge_dispatch_loop.time.time", side_effect=fake_time), \
@@ -411,20 +359,16 @@ class TestPollDashboardCommands:
         assert result == ["main_next", "main_next", "portrait_prev"]
 
     def test_concurrent_write_does_not_lose_new_commands(self, tmp_path):
-        """Rename-then-read ensures writes during processing go to a new file."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("first_command\n", encoding="utf-8")
 
         result = poll_dashboard_commands(cmd_file)
 
         assert result == ["first_command"]
-        # A new write after polling should work — file was deleted, not held open
         cmd_file.write_text("second_command\n", encoding="utf-8")
         assert cmd_file.exists()
 
     def test_a_stale_claim_file_does_not_block_commands(self, tmp_path):
-        """A claim stranded by a crash mid-drain must not block future polls:
-        the next claim replaces it."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
         stale = cmd_file.with_suffix(cmd_file.suffix + ".consuming")
         stale.write_text("old_command\n", encoding="utf-8")
@@ -437,7 +381,6 @@ class TestPollDashboardCommands:
         assert not stale.exists()
 
     def test_strips_utf8_bom_from_commands(self, tmp_path):
-        """AHK FileAppend with UTF-8 adds a BOM; commands must not be BOM-prefixed."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_bytes(b"\xef\xbb\xbfmain_prev\n")
 
@@ -447,12 +390,7 @@ class TestPollDashboardCommands:
 
 
 class TestResolveActiveSideCommand:
-    """A Satellite-agnostic 'active_*' command is rewritten onto whichever satellite
-    is currently active; anything else passes through untouched."""
-
     def test_group_commands_ride_the_same_active_and_both_plumbing(self):
-        # The loop / lock-action commands follow the <scope>_<action> shape, so
-        # they resolve and expand without any special-casing.
         assert resolve_active_funestra_command("active_action_loop", 3) == "landscape_action_loop"
         assert resolve_active_funestra_command("active_lock_action", 2) == "portrait_lock_action"
         assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
@@ -468,7 +406,6 @@ class TestResolveActiveSideCommand:
         assert resolve_active_funestra_command("portrait_lock", 3) == "portrait_lock"
 
     def test_active_nav_targets_primary_when_primary_is_active(self):
-        """The Main Funestra (slot 1) joins the active-side feature for nav."""
         assert resolve_active_funestra_command("active_next", 1) == "main_next"
         assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
 
@@ -482,46 +419,28 @@ class TestResolveActiveSideCommand:
                 f"portrait_{action}", f"landscape_{action}"]
 
     def test_reset_on_the_primary_means_the_main_funestras_own_reset(self):
-        """Another phrase that means a different thing on each Funestra: on a
-        satellite it drops the act filter and the loop, on the Main Funestra its
-        length mode and its F-mode.  Without this, a bare "reset" said after
-        navigating the Main Funestra reached nothing at all."""
         assert resolve_active_funestra_command("active_reset", 1) == "main_reset"
         assert resolve_active_funestra_command("active_reset", 2) == "portrait_reset"
         assert resolve_active_funestra_command("active_reset", 3) == "landscape_reset"
 
     def test_end_loop_on_the_primary_means_main_funestras_own_loop(self):
-        """A Satellite-agnostic phrase may mean a different thing on each Funestra: on a
-        satellite "end loop" ends a group loop, on the Main Funestra it cancels the Main Funestra's A-B
-        loop.  The resolution is where that translation belongs."""
         assert resolve_active_funestra_command("active_no_loop", 1) == "main_funestra_loop_cancel"
         assert resolve_active_funestra_command("active_no_loop", 2) == "portrait_no_loop"
         assert resolve_active_funestra_command("active_no_loop", 3) == "landscape_no_loop"
 
     def test_a_bare_lock_reaches_the_primary_too(self):
-        """A lock means the same thing on all three — repeat-one on what is on
-        screen — so the bare word follows the active side onto the Main Funestra rather
-        than falling through to nothing there."""
         assert resolve_active_funestra_command("active_lock_on", 1) == "main_lock_on"
         assert resolve_active_funestra_command("active_lock_off", 1) == "main_lock_off"
         assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
         assert resolve_active_funestra_command("active_lock_off", 3) == "landscape_lock_off"
 
     def test_a_bare_f_mode_reaches_whichever_funestra_is_active(self):
-        """Every Funestra has its own F-mode, so the bare phrase follows the active
-        side onto any of the three — the Main Funestra included, which is where it
-        lands at startup."""
         for suffix in ("", "_on", "_off"):
             assert resolve_active_funestra_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
             assert resolve_active_funestra_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
             assert resolve_active_funestra_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
 
     def test_a_bare_browse_order_reaches_whichever_funestra_is_active(self):
-        """Every Funestra browses in these two orders, the Main Funestra included now
-        that Genau answers them too.  Left out, a bare "latest" said while the Main
-        Funestra was the active one resolved to a command with no handler and did
-        nothing — the Funestra had to be named for a word that is supposed to reach
-        whoever is active."""
         for order in ("latest", "shuffle"):
             assert resolve_active_funestra_command(f"active_{order}", 1) == f"main_{order}"
             assert resolve_active_funestra_command(f"active_{order}", 2) == f"portrait_{order}"
@@ -540,8 +459,6 @@ class TestResolveActiveSideCommand:
             assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
-        """Main has no cycle, so a bare satellite-only command while it
-        is active resolves to nothing (unchanged → a downstream no-op)."""
         assert resolve_active_funestra_command("active_cycle_seed", 1) == "active_cycle_seed"
 
     def test_a_bare_trash_on_the_main_funestra_reaches_genaus_item(self):
@@ -550,7 +467,6 @@ class TestResolveActiveSideCommand:
 
 class TestDispatchLoopRunner:
     def test_dispatches_dashboard_command(self, tmp_path):
-        # Use huge sync interval so genau sync doesn't fire
         runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_next", encoding="utf-8")
@@ -564,8 +480,6 @@ class TestDispatchLoopRunner:
         assert not cmd_file.exists()
 
     def test_bare_active_lock_targets_the_landscape_when_it_is_active(self, tmp_path):
-        """Voice 'lock' (active_lock_on) locks whichever side is active — here
-        landscape, e.g. after the user navigated it with A/D."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), active_funestra=3)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
@@ -579,7 +493,6 @@ class TestDispatchLoopRunner:
         assert "portrait_lock_on" not in commands
 
     def test_bare_active_next_targets_the_active_funestra(self, tmp_path):
-        """A non-lock bare command ('next') also follows the active side."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(active_funestra=2)
         (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
@@ -592,10 +505,6 @@ class TestDispatchLoopRunner:
         assert "portrait_next" in commands
 
     def test_a_spoken_command_carries_the_video_the_sampler_back_dates_it_to(self, tmp_path):
-        """A phrase is only recognized once the speaker stops, so the video on
-        screen when they started talking is the one they meant.  Which video
-        that was is the sampler's timeline to answer; what the runner owes is
-        putting its answer on the dispatch."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(portrait=SatelliteState(locked=False), active_funestra=2)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
@@ -619,8 +528,6 @@ class TestDispatchLoopRunner:
         assert mock_dispatch.call_args.kwargs["spoken_at"] == 100.2
 
     def test_the_tick_samples_every_funestra_on_the_watch_cadence(self, tmp_path):
-        """Watch tracking rides the tick, and knows whether Fun Time is paused —
-        under OmniPause nothing is playing, so nothing is sampled."""
         runner = make_runner(tmp_path)
 
         with patch.object(runner.watch, "sample_due") as sample:
@@ -633,8 +540,6 @@ class TestDispatchLoopRunner:
             assert sample.call_args.kwargs["paused"] is True
 
     def test_nudge_dispatches_to_command(self, tmp_path):
-        """The Main Funestra answers a nudge in every mode it appears in, so a nudge
-        dispatches to the Main Funestra's SEEK command (which stacks against its live clock)."""
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("main_nudge_next", encoding="utf-8")
 
@@ -646,9 +551,6 @@ class TestDispatchLoopRunner:
         assert "main_nudge_next" in commands
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
-        """Entering omnipause frees the desktop: EVERY managed window leaves the
-        TOPMOST band — including the Main Funestra, which carries the topmost flag in kino mode
-        and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
 
@@ -666,10 +568,6 @@ class TestDispatchLoopRunner:
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_funestra(
         self, tmp_path,
     ):
-        """Leaving omnipause gives every managed window its TOPMOST bit back — the
-        Main Funestra, which floats above the desktop again, among them — and
-        re-activates the Main Funestra's window, which Kino and Genau share.
-        """
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=True)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -722,10 +620,6 @@ class TestDispatchLoopRunner:
                 _wait_until_the_browse_thread_ends(mock_browse)
 
         assert "browse_library" in messages
-        # Browsing must NOT enter OmniPause: the old flow paused the whole
-        # session for the browse and resumed only the Main Funestra, stranding the
-        # satellites + voice frozen.  The browser opens with everything
-        # still playing.
         assert runner.state.omni_paused is False
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
@@ -739,7 +633,6 @@ class TestDispatchLoopRunner:
         assert _mailbox(runner) == ["suspend_hotkeys"]
 
     def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path):
-        """Told by the record it was built with, not by the environment."""
         runner = make_runner(tmp_path, env=SessionEnvironment(integration=True))
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
@@ -761,9 +654,6 @@ class TestDispatchLoopRunner:
         assert _mailbox(runner) == ["unsuspend_hotkeys"]
 
     def test_dispatch_sends_a_message_to_the_event_log_not_to_ahk(self, tmp_path):
-        """A message is a message for the person watching; it goes to the log
-        panel's stream, and AHK — which used to flash it at the mouse — never
-        hears about it."""
         runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
@@ -779,9 +669,6 @@ class TestDispatchLoopRunner:
         assert mock_message.call_args[1] == {"source": "main", "level": message_op.level}
 
     def test_a_dead_end_message_is_logged_at_its_warning_level(self, tmp_path):
-        """A no-effect message carries WARNING so the panel and flash render it
-        yellow; the dispatch loop must pass that level through, not flatten it to
-        NOTICE."""
         runner = make_runner(tmp_path)
 
         message_op = WindowOp(op="message", key="No other seeds", source="portrait", level=logging.WARNING)
@@ -805,7 +692,6 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path)
         assert runner.state.omni_paused is False
 
-        # Simulate AHK dispatch updating shared state file
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
         runner.tick()
 
@@ -826,8 +712,6 @@ class TestDispatchLoopRunner:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).locked is True
 
     def test_quit_asks_the_hotkey_script_to_end_the_session_rather_than_exit(self, tmp_path):
-        """Exiting, it would take Esc with it, and Esc on the closing screen is
-        the way to call the quit off."""
         runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("quit", encoding="utf-8")
@@ -838,8 +722,6 @@ class TestDispatchLoopRunner:
         assert ahk_cmd_file.read_text(encoding="utf-8") == "end_session"
 
     def test_entering_vr_ends_this_session_with_word_of_where_to_go(self, tmp_path):
-        """Crossing over IS the quit, plus a request the orchestrator reads on
-        its way out (docs/entering-vr.md)."""
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
 
@@ -865,10 +747,6 @@ class TestDispatchLoopRunner:
     def test_crossing_to_the_session_already_running_says_so_and_stays_put(
         self, tmp_path, caplog, command, vr_main_funestra,
     ):
-        """A session can be told the same thing twice — misheard, or said again
-        while the headset was slow to come up — and ending the session on the
-        second is the worst available reading of it.  The crossing had nowhere
-        to go, so it is said as a warning, in yellow."""
         runner = make_runner(tmp_path, config=make_config(
             tmp_path, vr_main_funestra=vr_main_funestra,
         ))
@@ -883,14 +761,10 @@ class TestDispatchLoopRunner:
                 if r.getMessage().startswith("Already running")] == [logging.WARNING]
 
     def test_saying_it_again_while_the_crossing_is_under_way_is_ignored(self, tmp_path, caplog):
-        """Speech takes seconds to settle, so a session that has been asked to
-        cross hears nothing back for long enough that the natural thing is to
-        say it again.  The session is already on its way out by then, and the
-        second ask must not start anything: it says so and stops."""
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
         runner.tick()
-        assert take_handoff_request(tmp_path).target is VR  # the first one stands
+        assert take_handoff_request(tmp_path).target is VR
         (tmp_path / "ahk_cmd.txt").unlink()
         (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
 
@@ -914,8 +788,6 @@ class TestDispatchLoopRunner:
         assert take_handoff_request(tmp_path).target is VR
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
-        """omniminimize minimizes the windows the modes show, without stealing
-        focus."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
@@ -930,12 +802,9 @@ class TestDispatchLoopRunner:
         assert {h for h, _ in minimized} == {
             RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND,
         }
-        # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
     def test_omniminimize_in_genau_mode_includes_the_main_funestra_too(self, tmp_path):
-        """Genau runs on the Main Funestra's window, so that window is on screen in
-        genau mode as in kino mode, and goes down with the rest."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -967,8 +836,6 @@ class TestDispatchLoopRunner:
         assert minimized == []
 
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
-        """omnirestore un-minimizes the windows omniminimize minimized — no
-        more (a second omnirestore is a no-op), no less, never activating."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
@@ -990,17 +857,12 @@ class TestDispatchLoopRunner:
             assert [h for h, _ in restored] == minimized_hwnds
             assert all(kw.get("activate") is False for _, kw in restored)
 
-            # The minimized set was consumed: another omnirestore does nothing.
             cmd_file.write_text("omnirestore", encoding="utf-8")
             runner.tick()
 
         assert [h for h, _ in restored] == minimized_hwnds
 
     def test_a_huds_minimize_button_parks_only_that_funestra(self, tmp_path):
-        """The satellites are borderless, so the HUD button is the only way to get
-        one out of the way on its own.  It reaches exactly that window — the other
-        Funestras stay up — and never activates, so parking one does not hand the
-        foreground to the next."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_minimize", encoding="utf-8")
@@ -1016,10 +878,6 @@ class TestDispatchLoopRunner:
         assert all(kw.get("activate") is False for _, kw in minimized)
 
     def test_a_huds_minimize_button_takes_effect_without_a_settle(self, tmp_path):
-        """Unlike the hosted app's window on a switch out of its mode, which
-        waits out MAIN_BLANK_SETTLE_S so it can present itself first, nothing
-        here has been told to step aside — so the window goes down in the same
-        tick as the press."""
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1033,19 +891,13 @@ class TestDispatchLoopRunner:
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
-            # Nothing was queued after a settle either: letting one pass adds
-            # no second minimize.
             clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
     def test_the_main_funestras_main_hud_button_parks_the_main_funestras_window_in_either_mode(self, tmp_path):
-        """Kino and Genau share the Main Funestra's one window, so the HUD's
-        button reaches that window whichever of them has it."""
         for mode, wanted in (("genau", [MAIN_FUNESTRA_HWND]), ("kino", [MAIN_FUNESTRA_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-            # Through the shared state file, which every tick re-reads over
-            # whatever the runner is holding.
             write_shared_state(tmp_path / "shared_state.ini", BridgeState(main_mode=mode))
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("main_minimize", encoding="utf-8")
@@ -1060,9 +912,6 @@ class TestDispatchLoopRunner:
             assert minimized == wanted, mode
 
     def test_leaving_omnipause_brings_back_every_window_a_button_parked(self, tmp_path):
-        """A Funestra parked from its own HUD took that HUD down with it, so it
-        cannot ask to come back — resuming Fun Time is what returns it, to the same
-        rect, and the list is consumed so a second resume restores nothing."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1092,9 +941,6 @@ class TestDispatchLoopRunner:
         assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
 
     def test_a_huds_minimize_button_says_nothing_to_ahk(self, tmp_path):
-        """The op loop's fall-through writes an unrecognized op straight to the AHK
-        command file, so a new op that is not handled would arrive there as a bogus
-        verb rather than doing its job."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_minimize", encoding="utf-8")
@@ -1121,9 +967,6 @@ class TestDispatchLoopRunner:
         assert data.decode("utf-8") == "portrait_lock"
 
     def test_help_reference_commands_send_press_but_do_not_dispatch(self, tmp_path):
-        """The reference popup is a dashboard-UI concern: the loop echoes each
-        command (toggle and close) as a press (the dashboard acts on it) and
-        dispatches nothing — no Funestra commands, no shared-state churn."""
         for command in ("help_reference", "help_reference_close"):
             with _press_channel(tmp_path) as recv_sock:
                 runner = make_runner(tmp_path, dashboard_enabled=True)
@@ -1137,9 +980,6 @@ class TestDispatchLoopRunner:
             assert data.decode("utf-8") == command
 
     def test_a_missing_press_port_file_does_not_cost_the_command(self, tmp_path):
-        """The press channel is best-effort UI feedback: before the dashboard
-        has published its port (or if it never does), the command itself must
-        still dispatch rather than die with the echo."""
         runner = make_runner(tmp_path, dashboard_enabled=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
@@ -1186,8 +1026,6 @@ class TestDispatchLoopRunner:
         assert vc.is_muted
 
     def test_the_mic_being_turned_off_is_kept_in_the_apps_state(self, tmp_path):
-        """The mute is this controller's alone, and the session that comes next is
-        a new one with a controller of its own."""
         runner = make_runner(tmp_path)
         runner.voice.controller = VoiceController(
             cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
@@ -1224,8 +1062,6 @@ class TestDispatchLoopRunner:
         assert heard == [("opened", "landscape"), ("closed", "landscape")]
 
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
-        """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a
-        paused room says, only the exempt commands reach the dispatch loop."""
         runner = make_runner(tmp_path)
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused", clock=lambda: 0.0)
@@ -1341,8 +1177,6 @@ class TestWhatASpokenCommandFlashes:
     def test_a_bare_command_flashes_over_the_funestra_it_reached(
         self, tmp_path, active_funestra, source,
     ):
-        """"Portrait next" makes portrait the active Funestra, so the "next" after
-        it drives portrait -- and what was heard belongs over portrait."""
         spoken = format_spoken_command("active_next", spoken_at=1.0, said="next")
 
         flashed = self._flashed(tmp_path, spoken, active_funestra=active_funestra)
@@ -1471,8 +1305,6 @@ class TestWhatASpokenCommandFlashes:
     def test_words_the_hosted_apps_show_takes_flash_what_was_heard(
         self, tmp_path, command, said,
     ):
-        """On a Funestra F-mode flashes which way it went; in origenerator mode the
-        words go to the show on that Satellite, which flashes nothing here."""
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
@@ -1516,7 +1348,6 @@ class TestOpenRfbTab:
 
     @staticmethod
     def _rfb_patches(calls: list[tuple[str, object]], *, alive: bool = True):
-        """Patch the win32 pair and the launcher, recording the order they run in."""
         return (
             patch(
                 "fun_time.windows_bridge_dispatch_loop.window_exists",
@@ -1884,16 +1715,6 @@ class TestWhatArrivesInTheLibrary:
 
 
 class TestModeSwitchVisibility:
-    """Kino and Genau share the Main Funestra's one window, so a mode switch swaps
-    no windows: it tells that window which of the two to show, brings it back if
-    it was parked and hands it the focus, so focus never falls through to
-    another application.
-
-    These tests run the real dispatch_command, pinning the whole path from
-    command string to win32 call — including the show_window/activate_window ops,
-    whose silent dropping broke mode switches once.
-    """
-
     def _run_mode_switch(self, tmp_path, *, from_mode, command, integration=False):
         runner = make_runner(tmp_path, env=SessionEnvironment(integration=integration))
         runner.state = BridgeState(main_mode=from_mode)
@@ -1937,8 +1758,6 @@ class TestModeSwitchVisibility:
         assert told[:2] == ["SHOW", "kino"]
 
     def test_activation_suppressed_during_integration_runs(self, tmp_path):
-        """An integration session keeps mode switches from stealing the real
-        desktop's focus; the window is still brought back."""
         calls, _told = self._run_mode_switch(
             tmp_path, from_mode="kino", command="genau_activate",
             integration=True,
@@ -1948,20 +1767,12 @@ class TestModeSwitchVisibility:
 
 class TestResolveRole:
     def test_cached_hwnd_survives_hiding_and_show_window_reaches_it(self, tmp_path):
-        """Hidden windows are invisible to the pid/title lookups, so the
-        HWND captured while a window was visible must be cached and reused —
-        otherwise a parked window could never be shown again."""
         runner = make_runner(tmp_path)
 
-        # The Main Funestra is visible: the pid lookup finds it once, populating the cache.
         with patch("fun_time.fun_time_windows.find_window_by_pid",
                    side_effect=lookup_pid):
             assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
-        # The Main Funestra is now minimized: the pid/title lookups are mocked to fail, but
-        # the cache still answers, and a show_window op reaches the cached hwnd
-        # (show_window restores rather than SW_SHOWs — the idle Funestra is parked
-        # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
         show_op = WindowOp(op="show_window", key="main_funestra")
         with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
@@ -1976,21 +1787,7 @@ class TestResolveRole:
 
 
 class TestBrowseLibrary:
-    """Tests for the browse_library command (the Main Funestra "browse" feature).
-
-    Browsing must leave playback and voice alone — everything keeps playing
-    while you pick.  The browser only needs the topmost bands dropped so it is
-    not buried under the always-on-top windows; it must never enter OmniPause.
-    """
-
     def test_browse_never_enters_omnipause(self, tmp_path):
-        """The core regression: browsing must not pause the session.
-
-        The bug — browse entered OmniPause, and picking a video resumed only
-        The Main Funestra, leaving the satellites + voice frozen (so "pause" was ignored with
-        "we're in omnipause").  Browsing keeps everything playing, so it never
-        enters OmniPause and never leaves the session paused.
-        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2007,9 +1804,6 @@ class TestBrowseLibrary:
         assert runner.state.omni_paused is False
 
     def test_removes_topmost_from_all_managed_windows(self, tmp_path):
-        """The dialog needs a clear stage: every managed window drops out of the
-        topmost band so it can't bury the dialog.  Nothing pauses — this is the
-        only window state browsing touches."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2026,11 +1820,6 @@ class TestBrowseLibrary:
         assert removed == TOPMOST_HWNDS
 
     def test_browses_the_session_library_over_the_primary_display(self, tmp_path):
-        """The browse opens Fun Time's own library browser, filling the Main Funestra's rect.
-
-        The Main Funestra's window is what the pick will play in, so the browser stands exactly
-        where the video will be — and covers nothing else on either monitor.
-        """
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False)
@@ -2048,11 +1837,6 @@ class TestBrowseLibrary:
         )
 
     def test_browses_from_the_folder_the_main_funestra_is_playing_in(self, tmp_path):
-        """What is up decides where the browse opens, so it goes with the launch.
-
-        The Main Funestra publishes it, which is also the only thing that knows —
-        the pick that started this session's video may have come from anywhere.
-        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         runner.config.main_funestra_status_file.write_text(
@@ -2069,10 +1853,6 @@ class TestBrowseLibrary:
         assert mock_browse.call_args.kwargs["playing"] == "C:/videos/big_batch/beta.mp4"
 
     def test_leaving_omnipause_puts_an_open_browse_back_on_top(self, tmp_path):
-        """The state he could not get out of: leaving OmniPause restacks the
-        Funestras, HWND_TOPMOST inserts at the TOP of the band, and the browse was
-        left underneath the Main Funestra it opens over — with the key that opens
-        one refused while one is already open."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": None})
@@ -2085,12 +1865,9 @@ class TestBrowseLibrary:
             runner._dispatch("omnipause_toggle")
 
         assert on_top.call_args_list == [((BROWSE_HWND, True), {})]
-        # The whole process tree, not the started pid: that one owns no window.
         assert lookup.call_args_list == [((BROWSE_PID,), {})]
 
     def test_nothing_is_promoted_when_no_browse_is_open(self, tmp_path):
-        """Including one that has already exited — its window is another
-        process's by now, and this must never reach for it."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
@@ -2104,8 +1881,6 @@ class TestBrowseLibrary:
         assert on_top.call_args_list == []
 
     def test_sends_selected_file_to_main_funestra_by_default(self, tmp_path):
-        """In kino mode (the default) a selected file becomes a Main Funestra PLAY_FILE
-        command, paired with its mirrored funscript when one exists."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2126,8 +1901,6 @@ class TestBrowseLibrary:
         assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
     def test_sends_selected_file_to_main_funestra_in_kino_mode(self, tmp_path):
-        """Kino mode displays the Main Funestra, so a selected file becomes a Main Funestra PLAY_FILE
-        command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.KINO)
@@ -2177,7 +1950,6 @@ class TestBrowseLibrary:
         assert not runner.config.main_funestra_cmd_file.exists()
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
-        """When the user cancels the dialog, nothing is sent to the Main Funestra."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2190,8 +1962,6 @@ class TestBrowseLibrary:
         assert not runner.config.main_funestra_cmd_file.exists()
 
     def test_restores_topmost_after_the_pick(self, tmp_path):
-        """After the pick, every managed window gets its topmost band back —
-        the Main Funestra included, so the video floats above the desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2208,8 +1978,6 @@ class TestBrowseLibrary:
         assert restored == TOPMOST_HWNDS
 
     def test_restores_the_main_funestras_band_in_genau_mode_too(self, tmp_path):
-        """Genau shows on the Main Funestra's window, so the window comes back
-        into the band in genau mode as it does in kino mode."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
 
@@ -2226,13 +1994,6 @@ class TestBrowseLibrary:
         assert restored == TOPMOST_HWNDS
 
     def test_hands_the_keyboard_to_the_browser_and_takes_it_back(self, tmp_path):
-        """The global hotkeys are suspended for the browse, then restored.
-
-        Otherwise they eat the keys the browser needs: the arrows are the
-        satellites' prev/next and every letter is some command, so an
-        alphabetical grid could neither be walked nor typed at — a hotkey
-        consumes the press rather than passing it on.
-        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         suspends: list[str] = []
@@ -2250,8 +2011,6 @@ class TestBrowseLibrary:
         assert _mailbox(runner) == ["suspend_hotkeys", "unsuspend_hotkeys"]
 
     def test_leaves_the_suspended_hotkeys_alone_when_already_paused(self, tmp_path):
-        """Under OmniPause the hotkeys are already suspended and must stay that
-        way — unsuspending after the browse would end the pause's own hold."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
@@ -2263,7 +2022,6 @@ class TestBrowseLibrary:
         assert not runner.ahk_cmd_file.exists()
 
     def test_topmost_removed_before_the_browser_opens(self, tmp_path):
-        """Topmost removal happens before the browser window goes up."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2280,9 +2038,6 @@ class TestBrowseLibrary:
         assert first_remove < call_log.index("browse")
 
     def test_skips_topmost_management_when_already_paused(self, tmp_path):
-        """Under OmniPause the topmost bands are already down and must stay down
-        (restoring them would strand windows on top mid-pause), so browse leaves
-        them alone — but still opens the browser."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
@@ -2296,12 +2051,6 @@ class TestBrowseLibrary:
         mock_browse.assert_called_once()
 
     def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
-        """With no Main Funestra window to stand over, the browser picks its own place.
-
-        find_window_by_title is stubbed too: _resolve_window("main_funestra") falls back to it
-        when the pid lookup misses, and left live it would enumerate the real
-        desktop and return a stray HWND (a running Fun Time's the Main Funestra window) — a flake.
-        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -2320,7 +2069,7 @@ class TestBrowseLibrary:
         topmost drop/restore pair.  So while a browse holds the floor, another
         press is a no-op — dropped without blocking, not queued after it."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)  # fast path — no bands to manage
+        runner.state = BridgeState(omni_paused=True)
 
         browses: list[str] = []
         first_browse_open = threading.Event()
@@ -2337,7 +2086,7 @@ class TestBrowseLibrary:
             first.start()
             assert first_browse_open.wait(timeout=10.0)
 
-            runner._handle_browse_library()  # the second press, while one is open
+            runner._handle_browse_library()
 
             let_the_browse_close.set()
             first.join(timeout=10.0)
@@ -2351,8 +2100,6 @@ class TestBrowseLibrary:
 
         with patch.object(runner, "_handle_browse_library") as mock_handle:
             runner.tick()
-            # The routing happens on a daemon thread the tick starts, so the
-            # call is what there is to wait for -- and it is the assertion too.
             wait_until(lambda: mock_handle.call_count >= 1, timeout=10.0)
 
         mock_handle.assert_called_once()
@@ -2406,12 +2153,7 @@ class TestBrowsingFromTheHeadset:
         assert not read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=True)
 
 
-# ---------------------------------------------------------------------------
-# OmniPause voice freeze
-# ---------------------------------------------------------------------------
-
 class TestWhatAPausedRoomCarriesOut:
-
     def test_a_command_said_before_the_pause_is_carried_out_when_it_arrives_during_it(
         self, tmp_path,
     ):
@@ -2434,8 +2176,6 @@ class TestWhatAPausedRoomCarriesOut:
         assert [call.args[0] for call in mock_dispatch.call_args_list] == ["landscape_next"]
 
     def test_keeps_the_mouse_live_under_omnipause(self, tmp_path):
-        """A lock-HUD click (bare command, no ``spoken_at``) still acts while
-        paused — the user cannot fat-finger it the way a phrase mis-fires."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2540,19 +2280,7 @@ class TestWithTheHeadsetOff:
         assert not vc_cmd.exists()
 
 
-# ---------------------------------------------------------------------------
-# Idempotent voice commands
-# ---------------------------------------------------------------------------
-
 class TestIdempotentVoiceCommands:
-    """Tests for idempotent command variants used by voice control.
-
-    Each command checks current state before acting — saying "pause" while
-    already paused is a no-op, not an unpause.
-    """
-
-    # -- pause / play --
-
     def test_pause_enters_omnipause_when_not_paused(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -2589,7 +2317,6 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_toggle.assert_not_called()
 
-    # -- enter_omnipause (Space hotkey) --
 
     def test_enter_omnipause_enters_when_not_paused(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2631,15 +2358,8 @@ class TestIdempotentVoiceCommands:
 
         mock_d.assert_not_called()
 
-    # -- relief_omnipause (Shift+Esc) --
 
     def test_relief_omnipause_still_dispatches_when_already_paused(self, tmp_path):
-        """Space is swallowed when the session is already paused; Shift+Esc is not.
-
-        A paused session can still have the device on the user — that is the case
-        relief exists for — so the retract must reach the broker rather than being
-        dropped as a redundant enter.
-        """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2651,9 +2371,6 @@ class TestIdempotentVoiceCommands:
         assert [call.args[0] for call in mock_d.call_args_list] == ["relief_omnipause"]
 
     def test_relief_omnipause_logs_the_topmost_state_like_any_other_entry(self, tmp_path):
-        """Relief drops every window out of the topmost band exactly as Space and
-        Esc do, so it owes the same post-enter record — that log is what pins a
-        window which re-asserted itself while the session was meant to be free."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2665,12 +2382,8 @@ class TestIdempotentVoiceCommands:
 
         mock_log.assert_called_once_with("post-enter")
 
-    # -- f mode, sided --
 
     def test_a_sided_fmode_reaches_the_dispatch_as_written(self, tmp_path):
-        """The on/off forms are the dispatch's own commands now — it alone knows
-        which Funestras each names, and it is what decides a no-op rebuilds nothing —
-        so the loop passes them straight through rather than second-guessing them."""
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2679,8 +2392,6 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("portrait_fmode_on", None)
 
     def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
-        """"both f mode" is sugar, exactly as it is for every other sided command:
-        there is no combined handler, just the pair run in turn."""
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2690,7 +2401,6 @@ class TestIdempotentVoiceCommands:
             "portrait_fmode", "landscape_fmode",
         ]
 
-    # -- genau activate --
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2702,10 +2412,6 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("genau_activate", None)
 
     def test_genau_activate_dispatches_in_kino_mode(self, tmp_path):
-        """Kino mode has the Robot Hand under it but is NOT genau mode: the
-        Genau-mode button must still switch to full Genau.  Regression — an old
-        guard asked whether Genau was active, which kino mode also was, so it
-        swallowed this."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.KINO)
         with patch.object(runner, "_dispatch") as mock_d:
@@ -2715,9 +2421,6 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("genau_activate", None)
 
     def test_genau_activate_dispatches_when_already_in_genau_mode(self, tmp_path):
-        """The loop forwards genau_activate unconditionally — switching to the
-        mode you are already in is a no-op at the planner level (see
-        test_mode_plan.test_same_mode_is_noop), not a special case here."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         with patch.object(runner, "_dispatch") as mock_d:
@@ -2726,13 +2429,8 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
 
-    # -- the dashboard snapshot's failure mode --
 
     def test_a_locked_dashboard_state_file_warns_once_a_minute_not_never(self, tmp_path, caplog):
-        """_update_dashboard swallowed EVERYTHING silently — a genuine bug in
-        the snapshot writer froze the dashboard forever, twice a second, with
-        nothing in the log.  An OSError (the file locked by a reader) now warns,
-        throttled so a stuck disk does not fill the log."""
         runner = make_runner(tmp_path, dashboard_enabled=True)
         with patch(
             "fun_time.windows_bridge_dispatch_loop.write_dashboard_snapshot",
@@ -2744,8 +2442,6 @@ class TestIdempotentVoiceCommands:
         assert len(warnings) == 1
 
     def test_a_bug_in_the_snapshot_writer_is_not_swallowed(self, tmp_path):
-        """A TypeError is ours, not the disk's; the loop's outer per-tick
-        exception log is where it belongs."""
         runner = make_runner(tmp_path, dashboard_enabled=True)
         with patch(
             "fun_time.windows_bridge_dispatch_loop.write_dashboard_snapshot",
@@ -2778,7 +2474,6 @@ class TestIdempotentVoiceCommands:
 
     def test_the_dashboard_is_told_what_holds_the_browsers_place_and_whether_origenerator_is_up(
             self, tmp_path):
-        """For the strip under its log, which draws that pair."""
         runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
         runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
                                origenerator_ready=True)
@@ -2812,13 +2507,8 @@ class TestIdempotentVoiceCommands:
 
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).f_mode is True
 
-    # -- the window-op vocabulary --
 
     def test_an_unknown_op_is_an_error_not_an_ahk_verb(self, tmp_path, caplog):
-        """The interpreter's fall-through used to write any unknown op verbatim
-        into ahk_cmd.txt, where AHK ignored it — a misspelled op was a silent
-        no-op.  Now only the two hotkey-suspension verbs pass through, and
-        anything else is an error in the log."""
         runner = make_runner(tmp_path)
         with patch(
             "fun_time.windows_bridge_dispatch_loop.dispatch_command",
@@ -2830,18 +2520,11 @@ class TestIdempotentVoiceCommands:
         assert any("frobnicate" in record.message for record in caplog.records)
 
     def test_the_op_interpreter_covers_the_whole_vocabulary(self):
-        """Every Op item has a handler, so a new op without one is caught by
-        this (and by the import-time assert beside the table) instead of at the
-        first press."""
         assert set(_OP_HANDLERS) == set(Op)
         assert {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS} == _AHK_PASSTHROUGH_OPS
 
-    # -- genaumacher save --
 
     def test_save_video_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
-        """The save boots a sibling repo's interpreter (up to its 10 s timeout),
-        so the tick hands it to a thread and the message lands when it does —
-        the one command whose confirmation trails the keypress."""
         runner = make_runner(tmp_path)
         with patch(
             "fun_time.genaumacher_save.save_clip_session",
@@ -2859,13 +2542,9 @@ class TestIdempotentVoiceCommands:
         mock_save.assert_called_once_with(runner.config)
         flashed = [r for r in caplog.records if r.message == "Genaumacher: fabricated-session"]
         assert flashed[0].source == "main"
-        # The op is handled, never mistaken for an AHK verb (the else-branch
-        # writes unknown ops verbatim into ahk_cmd.txt).
         assert not runner.ahk_cmd_file.exists()
 
     def test_save_video_failure_flashes_nothing(self, tmp_path, caplog):
-        """save_clip_session answers "" on failure and has already logged why;
-        an empty message would flash an empty rectangle."""
         runner = make_runner(tmp_path)
         with patch(
             "fun_time.genaumacher_save.save_clip_session", return_value=""
@@ -2878,7 +2557,6 @@ class TestIdempotentVoiceCommands:
         assert all(not getattr(r, "source", "") == "main" or "Genaumacher" not in r.message
                    for r in caplog.records)
 
-    # -- broker start / broker stop --
 
     START = "fun_time.windows_bridge_dispatch_loop.broker.start"
     STOP = "fun_time.windows_bridge_dispatch_loop.broker.stop"
@@ -2890,7 +2568,6 @@ class TestIdempotentVoiceCommands:
 
     def test_broker_start_starts_when_not_running(self, tmp_path):
         runner = make_runner(tmp_path)
-        # No heartbeat file → broker not running
         with patch(self.START) as mock_start:
             self._say(runner, tmp_path, "broker_start")
         mock_start.assert_called_once_with(runner.config.broker_tray_launcher)
@@ -2903,22 +2580,13 @@ class TestIdempotentVoiceCommands:
         mock_start.assert_not_called()
 
     def test_broker_start_never_stops_the_broker(self, tmp_path):
-        """A stale heartbeat does not mean no broker. osr2_broker only ticks the
-        heartbeat while it holds the serial port, so a broker that cannot reach a
-        powered-off OSR2 reads as dead while it is very much alive -- and stopping
-        it drops harem and the user's own MFP session with it. Starting is a
-        start; only an explicit stop may stop it."""
         runner = make_runner(tmp_path)
-        # No heartbeat file at all: the broker reads as dead.
         with patch(self.STOP) as mock_stop, patch(self.START) as mock_start:
             self._say(runner, tmp_path, "broker_start")
         mock_start.assert_called_once()
         mock_stop.assert_not_called()
 
     def test_broker_panel_starts_a_broker_that_reads_as_dead_without_stopping_it(self, tmp_path):
-        """The B panel toggles the broker.  Toggling one that reads as dead has
-        to start it, not restart it — the same stale-heartbeat trap as
-        broker_start, and the same live broker on the other side of it."""
         runner = make_runner(tmp_path)
         with patch(self.STOP) as mock_stop, patch(self.START) as mock_start:
             self._say(runner, tmp_path, "broker_panel")
@@ -2926,8 +2594,6 @@ class TestIdempotentVoiceCommands:
         mock_stop.assert_not_called()
 
     def test_broker_panel_stops_a_broker_waiting_for_an_unplugged_osr2(self, tmp_path):
-        """The light says such a Broker is running, so its press stops it, as it
-        does any running Broker; starting another would only be refused."""
         runner = make_runner(tmp_path)
         (tmp_path / "osr2_not_found.txt").write_text(str(time.time()), encoding="utf-8")
         with patch(self.STOP) as mock_stop, patch(self.START) as mock_start:
@@ -2945,21 +2611,13 @@ class TestIdempotentVoiceCommands:
 
     def test_broker_stop_noop_when_not_running(self, tmp_path):
         runner = make_runner(tmp_path)
-        # No heartbeat file → broker not running
         with patch(self.STOP) as mock_stop:
             self._say(runner, tmp_path, "broker_stop")
         mock_stop.assert_not_called()
 
 
 class TestWatchTracking:
-    """The runner samples both satellites ~1 Hz and turns transitions into
-    watch-stats events, with user nav commands marking skips."""
-
     def _run_samples(self, runner, monkeypatch, timeline):
-        """Drive tick() through (t, portrait_path, portrait_fraction) samples,
-        publishing each to the portrait satellite's status file the way its
-        native Funestra would (a None fraction writes an unknown duration, which
-        the sampler drops)."""
         fake_now = {"t": 0.0}
         monkeypatch.setattr(
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
@@ -2977,7 +2635,7 @@ class TestWatchTracking:
         self._run_samples(runner, monkeypatch, [
             (100.0, str(a), 0.1),
             (101.1, str(a), 0.9),
-            (102.2, "", None),          # unreadable sample is ignored
+            (102.2, "", None),
             (103.3, str(tmp_path / "b.mp4"), 0.0),
         ])
 
@@ -2994,8 +2652,8 @@ class TestWatchTracking:
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
         )
         _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
-        runner.tick()                       # samples a.mp4 at 20%
-        runner._dispatch("portrait_next")   # user skips
+        runner.tick()
+        runner._dispatch("portrait_next")
         fake_now["t"] = 101.1
         _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()
@@ -3004,7 +2662,6 @@ class TestWatchTracking:
         assert stats[normalize_path_key(str(a))]["skips"] == 1
 
     def test_trash_suppresses_classifying_the_discarded_video(self, tmp_path, monkeypatch):
-
         config = make_config(tmp_path, trash_dir=tmp_path / "trash")
         runner = make_runner(tmp_path, config=config)
         a = tmp_path / "a.mp4"
@@ -3016,7 +2673,7 @@ class TestWatchTracking:
         )
         _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
         runner.tick()
-        runner._dispatch("portrait_trash")  # moves the file to trash
+        runner._dispatch("portrait_trash")
         fake_now["t"] = 101.1
         _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()
@@ -3026,10 +2683,6 @@ class TestWatchTracking:
 
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_a_parked_window_be_shown_again(self, tmp_path):
-        """A window parked from its own button is invisible to the pid/title
-        lookups; with those mocked to fail, the runner must answer from the hwnds
-        the startup sequencer seeded while everything was visible, or a switch
-        could never bring the Main Funestra's window back."""
         runner = make_runner(
             tmp_path,
             hwnds_by_window={"main_funestra": 2001},
@@ -3045,9 +2698,6 @@ class TestSeededRoleHwnds:
 
 
 class TestKinoModeFunscriptHandoff:
-    """The arbitration itself is the driver's (see tests/test_device_arbiter.py);
-    what the runner owes is running it each tick against the current modes."""
-
     def test_the_tick_arbitrates_for_the_mode_the_session_is_in(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.KINO, omni_paused=True)
@@ -3126,8 +2776,6 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
 
 
 class TestExpandGroupCommand:
-    """A group word is sugar for the Funestras it names, driven one at a time."""
-
     def test_passes_through_non_both_commands(self):
         assert expand_group_command("portrait_next") == ["portrait_next"]
         assert expand_group_command("quit") == ["quit"]
@@ -3154,9 +2802,6 @@ class TestExpandGroupCommand:
 
 
 class TestBothSatelliteCommands:
-    """A polled "both" command drives Portrait then Landscape through the same
-    per-command handling as the individual satellite commands."""
-
     def test_both_next_dispatches_to_each_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
@@ -3169,8 +2814,6 @@ class TestBothSatelliteCommands:
         assert commands == ["portrait_next", "landscape_next"]
 
     def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
-        """"lock both" (both_lock_on) is the spoken lock said to each Satellite: an
-        already-locked side is left alone, so only the unlocked one locks."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
@@ -3192,15 +2835,11 @@ class TestBothSatelliteCommands:
 
 
 def _told(runner, funestra) -> list[str]:
-    """What the loop's dispatch sent satellite *Funestra*, in order."""
     cmd_file = runner.config.satellite(funestra).cmd_file
     return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
 
 class TestHudPublishing:
-    """The panels themselves are the feed's (see tests/test_hud_feed.py); what
-    the runner owes is putting the current state on the feed's cadence."""
-
     def test_the_tick_feeds_the_huds_the_state_it_is_holding(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(portrait=SatelliteState(locked=True), main_mode=MainMode.KINO)
@@ -3213,23 +2852,11 @@ class TestHudPublishing:
 
 
 class TestBrowserOutlivesNothing:
-    """The browser is a child of the session, so quitting has to take it.
-
-    It is launched mid-session rather than at startup, so it cannot join the
-    _CHILD_GROUPS teardown list the way the Funestras and companions do; the
-    dispatch loop owns it instead, and its close is where the browse dies.
-    """
-
     def test_quitting_the_session_kills_a_browser_still_open(self, tmp_path):
         runner = make_runner(tmp_path)
         opened = threading.Event()
         terminated = threading.Event()
         process = Mock()
-        # A browser stays up until something ends it, which is the shape this
-        # test is about -- so the fake's wait() returns when terminate() is
-        # called rather than after 0.4 s of standing in for a browse. If the
-        # stop ever failed to terminate, the old fake released the thread
-        # anyway and the test could still pass; this one cannot.
         process.wait.side_effect = lambda: (opened.set(), terminated.wait(10.0))
         process.terminate.side_effect = terminated.set
 
@@ -3267,7 +2894,7 @@ class TestOrigeneratorShows:
         runner.rfb_shortcut = Shortcut(target="chrome.exe", work_dir="", arguments="")
         runner._pending_rfb_urls = ["file:///tab.html"]
         runner._flush_rfb_tabs()
-        assert runner._pending_rfb_urls == ["file:///tab.html"]  # held, not dropped
+        assert runner._pending_rfb_urls == ["file:///tab.html"]
 
 
 def _genau_publishes(tmp_path, *, locked: bool, flick: str) -> None:
@@ -3281,12 +2908,6 @@ def _what_the_gallery_heard(tmp_path) -> list[str]:
 
 
 class TestAGenauLockTakesTheGalleryToTheFlick:
-    """In genau mode beside the hosted Origenerator, the main lock takes the
-    gallery to the flick -- the app makes some of Genau's flicks, and a lock on
-    one of its own shows already goes there.  It follows what Genau reports
-    holding rather than what was on screen at the press, since an unlocked
-    Genau can move on to the next flick between the two."""
-
     FIRST = r"C:\library\genau\flicks\wan22_i2v_00007__topaz.mp4"
     NEXT = r"C:\library\genau\flicks\wan22_i2v_00008__topaz.mp4"
 
@@ -3297,7 +2918,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
                                rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
         return runner
 
-    @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])  # the padlock, the comma
+    @pytest.mark.parametrize("press", ["main_lock", "genau_lock"])
     def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path, press):
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
@@ -3311,8 +2932,6 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.NEXT}"]
 
     def test_letting_genau_move_on_leaves_the_gallery_alone(self, tmp_path):
-        """Genau still says it is locked until it has read the press, so an
-        unlock is the one press where waiting for "locked" would be wrong."""
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
@@ -3437,13 +3056,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
 
 
 class TestOrigeneratorWindowConverger:
-    """The convergence itself is the windows object's (see
-    tests/test_fun_time_windows.py); what the runner owns is when it runs."""
-
     def test_omnipause_leaves_the_hosted_window_exactly_where_it_is(self, tmp_path):
-        """OmniPause's window state is its own — every band is down and the
-        room is stopped — so a converger firing inside it would restore or
-        park the hosted app against what the pause just did."""
         runner = make_runner(tmp_path, origenerator_pid=700)
         runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
                                omni_paused=True)
@@ -3514,11 +3127,6 @@ def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
 
 
 class TestASessionThatHostsNoOrigenerator:
-    """The shared state file is read every tick and can carry origenerator mode
-    over from a session that hosted one; a session whose config names no
-    Origenerator has no such mode, and reading it in sent every satellite verb
-    to an app that was not there."""
-
     def test_a_resumed_origenerator_mode_reads_as_kino(self, tmp_path):
         runner = make_runner(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
@@ -3542,8 +3150,6 @@ class TestASessionThatHostsNoOrigenerator:
 
 
 def _hosting(tmp_path, **overrides):
-    """A config for a session hosting an Origenerator, whose status file is
-    where that app says it has finished booting."""
     return replace(make_config(tmp_path, **overrides), origenerator_enabled=True,
                    origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
                    origenerator_paused_file=tmp_path / "origenerator_paused.txt",
@@ -3557,7 +3163,6 @@ def _follow_the_satellites(runner, *, now: float) -> None:
 
 
 def _in_origenerator_mode(state: BridgeState, *funestras: FunTimeFunestra) -> BridgeState:
-    """*state* with *funestras* in their Origenerator mode -- both, with none named."""
     for funestra in funestras or FunTimeFunestra.SATELLITES:
         state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR,
                                      handed_over=True)
@@ -3574,11 +3179,6 @@ def _the_hosted_app_answers(tmp_path):
 
 
 class TestOrigeneratorModeOpensWhenTheAppDoes:
-    """Over the stretch where the hosted app is still booting the mode cannot be
-    entered at all, and the loop is what knows: it reads the app's status file
-    each tick, publishes the answer onto the state both HUDs draw from, and
-    refuses the switch until it is yes."""
-
     def test_the_mode_is_closed_until_the_app_publishes_a_status(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
 
@@ -3599,9 +3199,6 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         assert runner.state.origenerator_ready is True
 
     def test_the_answer_is_latched_rather_than_re_read_all_session(self, tmp_path):
-        """The app runs for the whole session, so this is a handful of reads at
-        the start of one and nothing after -- and a status file momentarily
-        unreadable mid-session cannot close a mode the user is standing in."""
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
         runner.tick()
@@ -3619,9 +3216,6 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         assert runner.state.origenerator_ready is False
 
     def test_the_answer_is_written_back_to_the_file_the_moment_it_changes(self, tmp_path):
-        """This is shared state, so it has to reach the file other processes
-        read it from -- and nothing else writes that file until some command is
-        dispatched, which on a session nobody is touching may be never."""
         state_file = tmp_path / "shared_state.ini"
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         write_shared_state(state_file, BridgeState())
@@ -3672,9 +3266,6 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
 
 
 class TestOpeningInOrigeneratorMode:
-    """Startup hands the loop the wait under Fun Time's loading screen, and the loop takes
-    the mode up through the switch's own command once the hosted app answers."""
-
     @staticmethod
     def _the_app_answers(has_answered):
         return has_answered()
@@ -3776,9 +3367,6 @@ class TestOpeningInOrigeneratorMode:
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_an_app_the_wait_gave_up_on_leaves_the_app_in_kino_mode_for_good(self, tmp_path):
-        """Fun Time the loading screen came off is Fun Time he is using: the ticks after it
-        switch nothing, even once the app turns up, and the file says kino too --
-        the mode it records is the mode both HUDs draw and the switch acts on."""
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, _in_origenerator_mode(
             BridgeState(rfb_mode=RfbMode.ORIGENERATOR)))
@@ -3797,7 +3385,6 @@ class TestOpeningInOrigeneratorMode:
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):
-        """A second open restarts the show on a Satellite already open."""
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
@@ -3811,14 +3398,7 @@ class TestOpeningInOrigeneratorMode:
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent
 
 
-
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
-    """Two of the session's paths were worked out from a neighbor's, so the
-    writer that owns the layout had no say in them: the state directory was
-    dashboard_state_file's parent, and the message channel was main_funestra_status_file
-    with the name swapped.  Both are keys now, and a manifest that says
-    something else is believed."""
-
     def _manifest(self, cfg_factory, tmp_path, **overrides):
         data = build_windows_bridge_manifest(load_config(cfg_factory()))
         data["commands"].update(overrides)
@@ -3855,9 +3435,6 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
 
 class TestTheAppTakesAFunestra:
-    """A Satellite switched to Origenerator mode is the app's from the first HUD the
-    app publishes for it after the switch, and wears that HUD at once."""
-
     def _switched(self, tmp_path):
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
@@ -3889,10 +3466,6 @@ class TestTheAppTakesAFunestra:
 
 
 class TestTheFunestrasComeHome:
-    """Leaving origenerator mode asks the hosted app to let go of the two
-    Funestras, and each comes home once it has: its own list back, turned onto
-    the video it left, with the session's own hold put back on it."""
-
     def _left_for_origenerator(self, tmp_path, *, locked=False):
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config)
@@ -3923,10 +3496,9 @@ class TestTheFunestrasComeHome:
         _follow_the_satellites(runner, now=100.5)
 
         assert self._queued(config, FunTimeFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
-        assert self._queued(config, FunTimeFunestra.LANDSCAPE) == []    # still the app's
+        assert self._queued(config, FunTimeFunestra.LANDSCAPE) == []
 
     def test_a_satellite_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
-        """An app that has stalled or gone does not get to keep the Funestras."""
         runner, config = self._left_for_origenerator(tmp_path)
 
         _follow_the_satellites(runner, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
@@ -3945,12 +3517,9 @@ class TestTheFunestrasComeHome:
         runner.state = runner.state.with_satellite(FunTimeFunestra.PORTRAIT,
                                                    mode=SatellitesMode.KINO)
         _follow_the_satellites(runner, now=100.6)
-        assert self._queued(config, FunTimeFunestra.PORTRAIT) == []     # nothing owed any more
+        assert self._queued(config, FunTimeFunestra.PORTRAIT) == []
 
     def test_a_satellite_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
-        """Out of the mode before the app had read the way in: it will still
-        write its list for the Satellite, so handing the Satellite's own back first would
-        leave the Funestra on the app's."""
         runner, config = self._left_for_origenerator(tmp_path)
         self._lets_go_of(config, FunTimeFunestra.PORTRAIT)
         runner.homecoming.expect(FunTimeFunestra.SATELLITES, runner.config, now=101.0)

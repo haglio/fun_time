@@ -26,8 +26,6 @@ from fun_time_vr.projection import (
 
 @pytest.fixture
 def library(tmp_path):
-    """A fabricated library shaped like the real one: videos/videos mirrored by
-    videos/metadata (the sidecar path rule derives one from the other)."""
     videos = tmp_path / "videos" / "videos"
     metadata = tmp_path / "videos" / "metadata"
     (videos / "VR" / "finished").mkdir(parents=True)
@@ -163,9 +161,6 @@ class TestSidecarPersistence:
         assert ProjectionMemory(metadata).saved(str(video)) is None
 
     def test_a_choice_for_a_video_in_a_vr_folder_on_another_drive_is_remembered(self, tmp_path):
-        """Where every one of his VR videos is: the folder exists only on the
-        cloud drive, so none of them is beside the metadata root, and a choice
-        made for one was dropped with a line in the log."""
         metadata = tmp_path / "local" / "videos" / "metadata"
         metadata.mkdir(parents=True)
         vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"

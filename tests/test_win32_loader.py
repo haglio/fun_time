@@ -74,7 +74,6 @@ def test_the_win32_wrapper_imports_where_ctypes_has_no_windll():
 
 
 def test_the_package_modules_are_found():
-    """A glob that matched nothing would make the case below vacuous."""
     assert "fun_time.win32" in PACKAGE_MODULES
     assert "fun_time.single_instance" in PACKAGE_MODULES
 

@@ -24,7 +24,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
-# Every link of the chain, and the call it must make.
 FUNESTRA_LOOPS = {
     REPO / "main_funestra" / "window.py": "deal",
     REPO / "main_funestra" / "input.py": "close_requested",
@@ -32,7 +31,6 @@ FUNESTRA_LOOPS = {
 
 
 def _calls(source: Path, name: str) -> bool:
-    """Whether *source* calls *name*, plainly or through something holding it."""
     tree = ast.parse(source.read_text(encoding="utf-8"))
     return any(
         isinstance(node, ast.Call) and (
@@ -44,8 +42,6 @@ def _calls(source: Path, name: str) -> bool:
 
 
 def test_the_loop_routes_its_quit_through_the_session():
-    """A loop that sets its own stop event straight from a QUIT event is the
-    regression: it looks right standalone and takes one window out of a session."""
     missing = [
         source.relative_to(REPO).as_posix()
         for source, call in FUNESTRA_LOOPS.items()

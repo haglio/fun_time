@@ -5,8 +5,6 @@ from pathlib import Path
 from fun_time.content import WebProvider
 from fun_time.media_actions import make_web_url_from_path, move_to_trash
 
-# Explicit providers keep these tests independent of the ambient content overlay
-# (the real content.local.json is absent on a public checkout).
 _PROVIDERS = (
     WebProvider(marker="alpha", gallery_url="https://example.com/alpha/{id}"),
     WebProvider(marker="beta", gallery_url="https://example.com/beta/{id}"),
@@ -20,8 +18,6 @@ def test_make_web_url_from_path_supports_known_roots():
 
 
 def test_move_to_trash_leaves_nothing_for_a_missing_source(tmp_path: Path):
-    """A video already gone (trashed twice, or moved by hand) is not an error:
-    the move reports where it WOULD have landed and writes nothing."""
     trash_dir = tmp_path / "trash"
 
     dest = move_to_trash(trash_dir, tmp_path / "vanished.mp4")

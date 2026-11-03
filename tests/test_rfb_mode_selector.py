@@ -1,6 +1,3 @@
-"""The strip under the dashboard's log, which says what holds the Random Favs
-Browser's place -- drawn by the hand that draws a Satellite Funestra's own
-Kino / Origenerator pair, so the two read as one control."""
 from __future__ import annotations
 
 import numpy as np
@@ -29,8 +26,6 @@ def test_whichever_holds_the_browsers_place_is_lit():
 
 
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
-    """As a Satellite Funestra's is: faded, never pressed, and saying on hover
-    what it waits for."""
     starting = selector_buttons(RfbMode.RFB, origenerator_ready=False)
     ready = selector_buttons(RfbMode.RFB, origenerator_ready=True)
 
@@ -46,8 +41,6 @@ def _rgb(pixels: np.ndarray, rect, *, inset: int = 2) -> np.ndarray:
 
 
 def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
-    """The same ground, edge, corner, face and width, pixel for pixel inside
-    the edge -- the corners alone blend into what each is drawn over."""
     hud = HudRenderer("portrait").render(HudModel(
         funestra="portrait", rows=(mode_row("portrait", mode=ORIGENERATOR_MODE),)))
     hud_rect = next(rect for rect, button in hud.targets.buttons

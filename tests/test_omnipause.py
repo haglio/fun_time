@@ -21,7 +21,6 @@ def test_toggle_leaves_omnipause_when_already_paused():
 
     assert plan.action == "leave"
     assert plan.next_omni_paused is False
-    # Genau owns the display in genau mode, so there is no Main Funestra playback to resume.
     assert plan.resume_main_funestra_playback is False
     assert plan.log_message == "OmniPause: leaving"
 

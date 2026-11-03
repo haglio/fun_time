@@ -67,7 +67,6 @@ def pid_written_to(path: Path, *, by: subprocess.Popen | None = None) -> int:
 
 
 def with_what_it_started(pid: int) -> list[StartedProcess]:
-    """A venv's python starts the real interpreter a moment after it starts."""
     budget = Budget(5.0)
     while not list_child_pids(pid) and not budget.expired():
         time.sleep(0.1)
@@ -81,7 +80,6 @@ def _born_after(child: StartedProcess, parent: StartedProcess) -> bool:
 
 
 def running(process: StartedProcess) -> bool:
-    """Not yet ended, and its pid still its own: a pid handed on is another process."""
     handle = _kernel32.OpenProcess(_SYNCHRONIZE | _PROCESS_QUERY_LIMITED_INFORMATION, False, process.pid)
     if not handle:
         return False

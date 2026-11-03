@@ -1,5 +1,3 @@
-"""The engine a headset's Funestra plays through: silent until the headset is
-worn, whatever the room or a chip asks before then."""
 from __future__ import annotations
 
 from pathlib import Path

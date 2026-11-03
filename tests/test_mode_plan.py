@@ -23,8 +23,6 @@ def test_main_funestra_displays_in_kino_mode_alone():
 
 
 def test_the_verb_each_mode_says_to_the_main_funestra():
-    """Kino and Genau both run on the Main Funestra's window; a switch tells that
-    window which of them has it."""
     assert (show_verb("kino"), show_verb("genau")) == ("SHOW kino", "SHOW genau")
 
 

@@ -1,8 +1,3 @@
-"""The crossing between the two sessions: "enter VR", "exit VR".
-
-The design is in ``docs/entering-vr.md``; what is held here is every rule of it
-that a reader could otherwise only take on trust.
-"""
 from __future__ import annotations
 
 import ctypes
@@ -61,8 +56,6 @@ def config(cfg_factory):
 
 
 class TestTheRequestFile:
-    """One ending, described once."""
-
     def test_a_request_is_taken_off_the_disk_as_it_is_read(self, tmp_path: Path):
         request_handoff(tmp_path, VR)
         assert take_handoff_request(tmp_path).target is VR
@@ -70,8 +63,6 @@ class TestTheRequestFile:
         assert take_handoff_request(tmp_path) is None
 
     def test_a_teardown_may_read_the_request_without_spending_it(self, tmp_path: Path):
-        """The teardown has to know Fun Time is changing shape rather than
-        closing; the orchestrator still has to find the request afterwards."""
         request_handoff(tmp_path, VR)
 
         assert pending_handoff(tmp_path) is VR
@@ -89,12 +80,10 @@ class TestTheRequestFile:
     def test_clearing_is_what_startup_does_to_a_request_a_crash_left(self, tmp_path: Path):
         request_handoff(tmp_path, DESKTOP)
         clear_handoff_request(tmp_path)
-        clear_handoff_request(tmp_path)  # and again, on a session that crossed cleanly
+        clear_handoff_request(tmp_path)
         assert not handoff_request_path(tmp_path).exists()
 
     def test_a_way_back_is_asked_for_with_no_esc_of_its_own(self, tmp_path: Path):
-        """Esc called the crossing off; a second one on the way back would
-        leave him going back and forth for as long as he kept pressing it."""
         request_handoff(tmp_path, DESKTOP, cancelable=False)
 
         taken = take_handoff_request(tmp_path)
@@ -109,10 +98,6 @@ class TestTheRequestFile:
 
 
 class TestTheLoadingScreenThatSpansTheCrossing:
-    """Raised by the session leaving, taken down by the one arriving -- the one
-    thing a closing screen cannot do, and why the monitors went bare between
-    them (docs/entering-vr.md)."""
-
     @pytest.mark.parametrize(
         ("target", "says"), [(VR, "Entering VR"), (DESKTOP, "Returning to Fun Time")],
     )
@@ -139,8 +124,6 @@ class TestTheLoadingScreenThatSpansTheCrossing:
         assert crossing_progress_path(tmp_path).read_text(encoding="utf-8").strip() == "DONE"
 
     def test_an_ordinary_startup_drops_nothing_and_leaves_nothing(self, tmp_path: Path):
-        """Every desktop startup asks; a DONE written where no loading screen was raised
-        would leave a file for the next session to read as one."""
         drop_transition_screen(tmp_path)
 
         assert not crossing_progress_path(tmp_path).exists()
@@ -155,7 +138,6 @@ class TestTheLoadingScreenThatSpansTheCrossing:
         ]
 
     def test_the_way_back_goes_up_saying_it_is_canceling(self, tmp_path: Path):
-        """Never, even for a poll, offering the Esc that already went."""
         with patch.object(session_handoff.subprocess, "Popen") as popen:
             session_handoff.launch_the_way_back_screen(tmp_path, sibling_checkouts="")
 
@@ -166,8 +148,6 @@ class TestTheLoadingScreenThatSpansTheCrossing:
         ]
 
     def test_a_crossing_that_never_happened_uncovers_the_monitors(self, config):
-        """The loading screen is waiting for a session that is not coming, and its own
-        staleness timeout is minutes long."""
         raise_transition_screen(config.paths.state_dir, VR)
         with patch.object(session_handoff, "wait_for_the_session_to_let_go",
                           return_value=False), \
@@ -180,11 +160,7 @@ class TestTheLoadingScreenThatSpansTheCrossing:
 
 
 class TestTheHeadsetHold:
-    """The headset's half of a crossing: a handshake, because the arriving
-    desktop session claims the channels the held Funestra was driving."""
-
     def test_the_hold_carries_whether_to_stop_the_runtime(self, tmp_path: Path):
-        """The orchestrator is the only thing that knows, and it exits first."""
         hold_the_headset(tmp_path, stop_runtime=True)
         assert headset_hold_asked(tmp_path) is True
         assert headset_hold_stops_the_runtime(tmp_path) is True
@@ -201,8 +177,6 @@ class TestTheHeadsetHold:
         assert headset_is_held(tmp_path) is True
 
     def test_a_new_hold_never_reads_the_last_one_s_answer(self, tmp_path: Path):
-        """One stale ack and the outgoing session would walk away from a Funestra
-        that had not stopped writing the files the next one is claiming."""
         hold_the_headset(tmp_path, stop_runtime=False)
         report_the_headset_held(tmp_path)
 
@@ -222,7 +196,7 @@ class TestTheHeadsetHold:
     def test_nothing_is_held_where_no_hold_was_asked(self, tmp_path: Path):
         assert headset_hold_asked(tmp_path) is False
         assert headset_hold_stops_the_runtime(tmp_path) is False
-        release_the_headset(tmp_path)  # and asking again is safe
+        release_the_headset(tmp_path)
 
     def test_a_crossing_that_never_happened_lets_the_headset_go(self, config):
         hold_the_headset(config.paths.state_dir, stop_runtime=False)
@@ -235,9 +209,6 @@ class TestTheHeadsetHold:
 
 
 class TestTheKeptOrigenerator:
-    """The hosted app a crossing leaves running rather than booting twice
-    (docs/entering-vr.md)."""
-
     def test_the_record_is_the_pid_and_the_creation_time(self, tmp_path: Path):
         """Never the pid alone: Windows hands freed pids straight back out, and
         the adopting session checks the pair against the process still there."""
@@ -262,21 +233,15 @@ class TestTheKeptOrigenerator:
 
 
 class TestWhichSessionIsWhich:
-    """Where the Main Funestra lives is the whole difference between the two."""
-
     def test_a_session_hosting_its_main_funestra_in_vr_is_the_vr_one(self):
         assert this_session(vr_main_funestra=True) is VR
         assert this_session(vr_main_funestra=False) is DESKTOP
 
     def test_each_target_names_the_marker_its_orchestrator_really_writes(self):
-        """The relay watches the file the incoming session drops, so a marker
-        renamed on one Satellite and not the other would read every launch as wedged."""
         assert DESKTOP.ready_marker == STARTUP_MARKER_NAME
         assert VR.ready_marker == VR_STARTUP_MARKER_NAME
 
     def test_each_target_names_a_module_a_launcher_actually_starts(self):
-        """Read out of the ``.vbs`` launchers, so the relay cannot start a
-        session by a module name nothing else in the repo launches."""
         launched = {
             module for launcher, module in LAUNCHED if launcher.endswith(".vbs")
         }
@@ -284,8 +249,6 @@ class TestWhichSessionIsWhich:
 
 
 class TestWaitingForTheOutgoingSession:
-    """The name frees when the outgoing process is gone, not when it is asked."""
-
     def test_it_returns_as_soon_as_no_session_is_playing(self):
         playing = iter([True, True, False])
         with patch.object(session_handoff, "a_session_is_playing", lambda _name: next(playing)):
@@ -302,7 +265,7 @@ class TestWaitingForTheOutgoingSession:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.CreateMutexW.restype = ctypes.c_void_p
         name = rf"Local\FunTimeTest.{uuid4().hex}"
-        left_behind = kernel32.CreateMutexW(None, False, name)  # a handle owning nothing
+        left_behind = kernel32.CreateMutexW(None, False, name)
 
         assert a_session_is_playing(name) is False
 
@@ -311,8 +274,6 @@ class TestWaitingForTheOutgoingSession:
 
 class TestStartingTheIncomingSession:
     def test_the_stale_marker_goes_before_the_launch(self, tmp_path: Path):
-        """It is written once per launch and read as this launch's: left there,
-        the session that just ended would vouch for one not started yet."""
         (tmp_path / VR.ready_marker).write_text("ready\n", encoding="utf-8")
         with patch.object(session_handoff.subprocess, "Popen") as popen:
             popen.side_effect = lambda *a, **k: (
@@ -327,10 +288,6 @@ class TestStartingTheIncomingSession:
     def test_it_runs_the_module_on_this_session_s_config_from_its_own_checkout(
         self, tmp_path: Path
     ):
-        """The working directory is what swaps the code, so a branch session
-        crosses into the branch rather than into the primary.  The interpreter
-        is the named copy where there is one, and the plain one where there is
-        not — as here, where nothing can be copied from a fake."""
         with patch.object(session_handoff.subprocess, "Popen") as popen:
             start_the_session(
                 VR, python_exe="py.exe", project_dir=tmp_path / "worktree",
@@ -382,8 +339,6 @@ class TestWatchingItComeUp:
 
 
 class TestReportingAFailedCrossing:
-    """By now there is nothing on screen at all, so the dialog is the only word."""
-
     def test_it_carries_the_tail_of_the_launcher_log(self, tmp_path: Path):
         log = tmp_path / "vr_launcher.log"
         log.write_text("\n".join(f"line {n}" for n in range(40)) + "\n\n\n", encoding="utf-8")
@@ -486,8 +441,6 @@ class TestTheRelayEndToEnd:
         reported.assert_not_called()
 
     def test_a_crossing_esc_turned_back_says_so_on_the_loading_screen(self, config):
-        """Still saying "Entering VR..." while it goes back the other way, the
-        loading screen reads as the Esc having done nothing."""
         state_dir = config.paths.state_dir
         raise_transition_screen(state_dir, VR)
         (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
@@ -499,8 +452,6 @@ class TestTheRelayEndToEnd:
         assert (line.message, line.hint) == (CANCELING, "")
 
     def test_the_esc_that_turned_it_back_is_spent(self, config):
-        """One press, one crossing called off: left lying there, the same Esc
-        would be read again by whatever looks next."""
         state_dir = config.paths.state_dir
         raise_transition_screen(state_dir, VR)
         flag = state_dir / CANCEL_FILENAME
@@ -512,7 +463,6 @@ class TestTheRelayEndToEnd:
         assert not flag.exists()
 
     def test_the_quit_chord_during_the_crossing_opens_nothing(self, config):
-        """It means end everything, and nothing failed: no session, no dialog."""
         state_dir = config.paths.state_dir
         raise_transition_screen(state_dir, VR)
         (state_dir / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
@@ -524,7 +474,6 @@ class TestTheRelayEndToEnd:
         reported.assert_not_called()
 
     def test_the_quit_chord_during_the_crossing_gives_everything_back(self, config):
-        """Nothing is coming to take the covers down or adopt the hosted app."""
         state_dir = config.paths.state_dir
         raise_transition_screen(state_dir, VR)
         hold_the_headset(state_dir, stop_runtime=False)
@@ -540,8 +489,6 @@ class TestTheRelayEndToEnd:
         closed.assert_called_once_with(Path(state_dir), config.origenerator_cmd_file)
 
     def test_a_way_back_is_never_turned_around_by_a_second_esc(self, config):
-        """One Esc per loading screen: a second press on the way back would leave him
-        going back and forth for as long as he kept pressing it."""
         state_dir = config.paths.state_dir
         raise_transition_screen(state_dir, DESKTOP)
         (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")

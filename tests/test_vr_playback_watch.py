@@ -1,11 +1,9 @@
-"""When the Main Funestra is judged to have stopped advancing."""
 from __future__ import annotations
 
 from fun_time_vr.playback_watch import STALLED, STILL_STALLED, PlaybackWatch
 
 
 def _run(watch, *ticks):
-    """Feed ``(position_ms, playing, now)`` triples; collect the verdicts."""
     return [watch.note(position_ms=p, playing=q, now=t) for p, q, t in ticks]
 
 
@@ -17,15 +15,11 @@ class TestWhileItIsMoving:
             None, None, None]
 
     def test_a_paused_funestra_is_not_stalled(self):
-        """Genau mode is the Main Funestra holding one frame on purpose, and so is
-        omnipause; neither is the failure this watches for."""
         watch = PlaybackWatch(seconds=5.0)
 
         assert _run(watch, (900, False, 0.0), (900, False, 30.0)) == [None, None]
 
     def test_a_funestra_with_nothing_open_is_not_stalled(self):
-        """The caller passes playing=False until a duration is known, so an open
-        that takes a while is not a freeze."""
         watch = PlaybackWatch(seconds=5.0)
 
         assert _run(watch, (0, False, 0.0), (0, False, 60.0), (0, True, 61.0)) == [
@@ -45,8 +39,6 @@ class TestWhenItStops:
             None, STALLED, None]
 
     def test_the_second_verdict_waits_a_full_window_for_the_reopen(self):
-        """The caller reopens the file on STALLED; saying it again before that
-        has had a chance to take hold would report a recovery that never ran."""
         watch = PlaybackWatch(seconds=5.0)
 
         assert _run(

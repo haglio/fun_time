@@ -1,10 +1,3 @@
-"""What is left when an integration run ends: what its Funestras logged if it
-failed, and nothing else.
-
-Every test used to delete its session's temp root on the way out, so a failure
-that only showed in a full run arrived with nothing to read, and the session
-sent to fix it spent most of its budget making the failure happen again.
-"""
 from __future__ import annotations
 
 import os
@@ -71,8 +64,6 @@ def test_a_root_that_will_not_go_is_named_and_the_others_still_do(tmp_path: Path
 
 
 def test_a_funestra_still_on_its_way_out_is_waited_for(tmp_path: Path):
-    """The last session's Funestras are killed with taskkill /F, which returns
-    before they have finished going."""
     root = _a_session_root(tmp_path, "going")
 
     with (root / "integration_runtime" / "state" / "main_funestra.log").open("a") as log:
@@ -82,8 +73,6 @@ def test_a_funestra_still_on_its_way_out_is_waited_for(tmp_path: Path):
 
 
 def test_the_wait_outlasts_the_slowest_funestra_measured_on_a_busy_machine():
-    """59 seconds from a session's stop to its last Funestra gone, with the flake
-    gate keeping every core busy."""
     assert integration_support.RELEASE_BUDGET_S >= 2 * 59
 
 

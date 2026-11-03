@@ -1,11 +1,3 @@
-"""Reading the hotkey script's source, for the tests that cannot call it.
-
-``windows_bridge_hotkeys.ahk`` is an AutoHotkey entrypoint: it demands two
-arguments, binds the session's hotkeys and then stays resident, so nothing can
-import it and no test can reach one of its functions as it stands.  Lifting a
-function out of its text is what lets a test either assert on it or hand it to a
-real AutoHotkey to run.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,21 +10,11 @@ def script_text() -> str:
 
 
 def suspend_exempt_block() -> str:
-    """The stretch of hotkeys the script marks exempt from its own suspension.
-
-    Two things read it: what keys a paused room still answers, and whether a
-    command's key is one of them.
-    """
     text = script_text()
     return text.split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
 
 
 def function_source(name: str) -> str:
-    """One AHK function's whole definition, braces included.
-
-    Reading a whole function rather than grepping the file keeps an assertion
-    about one function from passing on a line that happens to sit in another.
-    """
     text = script_text()
     for line in text.splitlines():
         if line.startswith(f"{name}(") and line.endswith("{"):

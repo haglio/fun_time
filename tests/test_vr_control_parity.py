@@ -1,24 +1,3 @@
-"""Every control the session can send, answered by something a VR session hosts.
-
-A headset runs the same orchestrator, the same dispatch loop, the same AHK
-hotkey script and the same voice control as the desktop.  What differs is who
-is listening at the far end of each file channel: the three Funestras live
-inside the one VR process, with the headset's own verbs beside Kino's on the
-Main Funestra, the hosted Origenerator answers a Satellite in its mode as it does
-on the desktop, and the windows the desktop's ops act on do not exist.  So a
-control can be perfectly routed and still be dead in the headset — which is
-exactly how the main-slot padlock and F-mode's word in the title came to be dead
-there with the whole suite green.
-
-This module closes that.  It walks every command the reference can produce —
-every hotkey, every spoken phrase — through the real dispatch, against the
-config a headset session builds and in both of the Satellite's modes, and
-holds each verb that lands to the vocabulary of whatever will actually read it
-in a VR session -- the hosted Origenerator's through the expectations Fun Time
-publishes of it (tests/origenerator_expectations.py).  The only way to leave a
-control dead in the headset is to name it, with its reason, in one of the sets
-here or in that module's.
-"""
 from __future__ import annotations
 
 import json
@@ -67,28 +46,12 @@ from tests.dispatch_sweep import every_command, headset_config, sweep
 from tests.genau_fakes import FakeNotifier, FakeSink
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
-# Window ops a VR session raises and nothing acts on: every role lives inside
-# the one VR process with no HWND of its own, and the session hands its
-# dispatch loop no window of the hosted Origenerator's either — that one boots
-# parked and stays parked for the stay (docs/known-issues.md) — so these
-# resolve nothing and settle into no-ops.  ``message`` is here for a nearer
-# reason: its overlay is a desktop window the session does not launch, so a
-# flash that would confirm a key on the desktop confirms nothing in the
-# headset.  Listed so the sweep can tell a designed no-op from a new one.
 _OPS_WITH_NO_WINDOWS = frozenset({
     Op.MESSAGE, Op.SHOW_WINDOW, Op.HIDE_WINDOW, Op.ACTIVATE_WINDOW, Op.MINIMIZE_WINDOW,
     Op.RESTORE_PARKED, Op.RESTACK_RFB,
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })
 
-# Ops that still act in a headset: the AHK bridge IS launched there, the genaumacher
-# is a subprocess of its own, an RFB tab is skipped rather than misdelivered
-# (a session with no browser window of its own opens none), and handing the
-# Funestras to a hosted app and back is file work on the Funestras' own channels, as
-# is following a main lock to what the Main Funestra's Funestra says it holds, and
-# the line that says a spoken command was ignored, which the loop writes in
-# place of what was heard, and the words a narrowing of the Main Funestra's
-# browse says where it is done.
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
     Op.HAND_OVER_FUNESTRAS, Op.TAKE_BACK_FUNESTRAS, Op.FOLLOW_THE_LOCK, Op.IGNORED, Op.NARROWING_ANSWERS,
@@ -99,32 +62,22 @@ _OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_FUNESTRA_ANSWERS})
 
 @pytest.fixture(scope="module")
 def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
-    """The sweep, for a headset hosting the Origenerator its config names.
-
-    Module-scoped: the sweep is the same for every assertion below and runs the
-    whole reference four times.
-    """
     return sweep(headset_config(tmp_path_factory.mktemp("vr_parity")),
                  (SATELLITE_KINO_MODE, ORIGENERATOR_MODE))
 
 
 @pytest.fixture(scope="module")
 def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
-    """The sweep for a headset whose config names no Origenerator, in the
-    origenerator mode a desktop session's shared state can still carry in."""
     root = tmp_path_factory.mktemp("vr_parity_hosting_none")
     return sweep(headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
 
 
 def test_the_sweep_sends_every_funestra_its_ten_second_steps(landed):
-    """A step is refused with less than ten seconds to go, so the sweep holds
-    every Funestra halfway through a long video; else it would never send one."""
     for channel in ("main_funestra_cmd_file", "portrait_cmd_file", "landscape_cmd_file"):
         assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, channel)), channel
 
 
 def _sent_to(landed, channel: str) -> dict[str, str]:
-    """Every verb sent on *channel* during the sweep, and one command that sent it."""
     seen: dict[str, str] = {}
     for where, written in landed.items():
         for line in written.get(channel, ()):
@@ -136,10 +89,6 @@ WINDOW = (640, 480)
 
 
 class _TheHeadsetsMainFunestra:
-    """The headset's Main Funestra on fakes, built the way the headset builds
-    it: Kino and Genau running on it with the headset's own verbs beside them,
-    driven through its command file -- the vocabulary asked of the window itself."""
-
     def __init__(self, tmp_path: Path) -> None:
         videos = tmp_path / "videos"
         videos.mkdir(exist_ok=True)
@@ -174,8 +123,6 @@ class _TheHeadsetsMainFunestra:
         return self.verbs.apply(command)
 
     def answers(self, line: str) -> bool:
-        """Whether the window answered *line* off its command file: the
-        Funestra says on its log which lines nothing on it answered."""
         self._command_file.write_text(line + "\n", encoding="utf-8")
         with _the_funestras_refusals() as refused:
             self.funestra.tick(viewport=WINDOW)
@@ -223,19 +170,7 @@ class _Refusals(logging.Handler):
 
 
 class TestTheMainFunestra:
-    """The one window a VR session builds for itself, and so the one that can
-    quietly stop answering a key the desktop answers."""
-
     def test_every_verb_it_is_sent_is_one_it_answers(self, landed, tmp_path):
-        """A key that posts a verb the headset's Main Funestra drops is a
-        control that does nothing at all in the headset, with nothing on screen
-        to say so.
-
-        ``'`` posted TOGGLE_LOCK into a role with no lock and the F key's
-        SET_F_MODE went the same way: both dispatched cleanly, both dead, and
-        the only trace was one "verb the VR main role does not handle" line in
-        a log nobody reads while wearing a headset.
-        """
         window = _TheHeadsetsMainFunestra(tmp_path)
         dead = {
             verb: where
@@ -258,15 +193,6 @@ class TestTheMainFunestra:
 
 
 def _a_whole_line(verb: str) -> str:
-    """*verb* with an argument where the spelling needs one: the name of a thing
-    that runs on the window for SHOW, and 1 for the rest, which reads as a number,
-    a path or a flag.
-
-    Half a command is refused on purpose, so a vocabulary check that sent
-    bare verbs would report every value-taking one as unanswered.  Which ones
-    want a value is read off the registries rather than listed here, so
-    a verb that starts taking one cannot leave this check sending it bare.
-    """
     if verb not in _VERBS_THAT_TAKE_A_VALUE:
         return verb
     return f"{verb} {_WORDS_FOR.get(verb, 1)}"
@@ -286,9 +212,6 @@ _VERBS_THAT_TAKE_A_VALUE = frozenset(
 
 
 class TestTheSatellites:
-    """Both satellites are the satellite package's own session, hosted offscreen
-    — so their vocabulary is the desktop's, and this holds it there."""
-
     def test_every_verb_they_are_sent_is_one_the_session_answers(self, landed, tmp_path):
         videos = tmp_path / "sat"
         videos.mkdir()
@@ -337,9 +260,6 @@ def _a_satellite_line(verb: str, video: Path) -> str:
 
 
 class TestGenau:
-    """Genau's role is the same engine on the same registry, so its vocabulary
-    is checked against that registry rather than against a built role."""
-
     def test_every_verb_it_is_sent_is_in_the_registry(self, landed):
         dead = {
             verb: where
@@ -350,10 +270,6 @@ class TestGenau:
 
 
 class TestTheHostedOrigenerator:
-    """In origenerator mode what is said to a Satellite goes to the hosted app, which
-    a headset hosts as the desktop does.  Every line it is sent is held to what
-    the app answers by tests/test_origenerator_expectations.py."""
-
     def test_it_is_sent_what_is_said_to_a_satellite_in_its_mode(self, landed):
         assert landed["kino/origenerator/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
@@ -364,9 +280,6 @@ class TestTheHostedOrigenerator:
             "__ops__": []}
 
 
-# What the loop in front of the dispatch answers itself, all of it about the
-# room as a whole: its end and its crossing, its pause, its windows and panels,
-# the broker and the microphone.
 _THE_LOOPS_OWN = frozenset({
     "quit", *HANDOFF_COMMANDS, *HELP_REFERENCE_COMMANDS,
     "omniminimize", "omnirestore", "omnipause_toggle", "enter_omnipause",
@@ -378,12 +291,6 @@ _THE_LOOPS_OWN = frozenset({
 
 class TestTheLoopInFrontOfTheDispatch:
     def test_every_other_command_reaches_the_dispatch_as_it_was_said(self, tmp_path):
-        """The sweep walks the dispatch, so a command the loop rewrites on its
-        way there is sent as something the sweep never saw.  The spoken "lock"
-        and "unlock" were turned into the key's flip by the session's own idea
-        of whether a Funestra was locked, which in Origenerator mode no show's
-        lock ever reached: said twice, "lock" let go, and "unlock" did nothing.
-        """
         runner = make_runner(tmp_path)
         rewritten = {}
         for command in every_command():
@@ -400,11 +307,6 @@ class TestWhatAHeadsetDoesNotHost:
     """Windows, for any role; and an Origenerator, where its config names none."""
 
     def test_a_config_naming_no_origenerator_sends_one_nothing(self, landed_hosting_none):
-        """Its manifest still names the app's command file, and the shared state
-        a desktop session left can still say origenerator mode — so a gate on
-        anything but the config would send every satellite verb to an app that
-        is not there, and leave both satellites with no key that reached them.
-        """
         routed = {
             where: written["origenerator_cmd_file"]
             for where, written in landed_hosting_none.items()
@@ -413,8 +315,6 @@ class TestWhatAHeadsetDoesNotHost:
         assert not routed, f"these reached an Origenerator the config names none of: {routed}"
 
     def test_every_window_op_raised_is_one_a_headset_has_an_answer_for(self, landed):
-        """Either it acts here, or it is a known no-op because the roles have no
-        windows.  A new op is neither until somebody says which."""
         known = _OPS_WITH_NO_WINDOWS | _OPS_THAT_STILL_ACT
         unclassified = {
             op: where
@@ -434,8 +334,6 @@ class TestWhatAHeadsetDoesNotHost:
         assert not waiting, f"these wait on the headset's Main Funestra to answer: {waiting}"
 
     def test_the_op_sets_between_them_loading_screen_the_whole_vocabulary(self):
-        """A new op added to the dispatcher must be placed in one of them,
-        rather than waiting for a command that happens to raise it."""
         placed = (_OPS_WITH_NO_WINDOWS, _OPS_THAT_STILL_ACT, _OPS_A_HEADSET_NEVER_RAISES)
         assert set(Op) == frozenset().union(*placed)
         assert sum(map(len, placed)) == len(set(Op))

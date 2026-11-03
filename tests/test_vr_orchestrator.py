@@ -93,7 +93,6 @@ from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 @pytest.fixture
 def config(tmp_path, monkeypatch):
-    """A loadable config with a VR section, all paths fabricated under tmp."""
     library = tmp_path / "library"
     vr_dir = library / "VR" / "finished"
     flat_dir = library / "2D"
@@ -145,8 +144,6 @@ class TestVrConfig:
     def test_vr_section_loads(self, config, tmp_path):
         assert config.vr.library_dirs == (tmp_path / "library" / "VR" / "finished",)
         assert config.vr.audio_device == "Example Headset"
-        # Off by default: the bundled Pimax runtime accepts quad layers and
-        # never composites them (screens submitted that way don't appear).
         assert config.vr.compositor_layers is False
 
     def test_absent_vr_section_defaults_empty(self, config, tmp_path):
@@ -182,19 +179,8 @@ class TestVrManifest:
         assert vr["compositor_layers"] == "0"
 
     def test_every_vr_key_the_writer_emits_has_a_field_to_land_in(self, config):
-        """The ``[vr]`` writer and ``VrSettings`` are two halves of one schema.
-
-        ``fun_time.manifest`` pins this for the sections it owns and passes over
-        this one on purpose, so nothing checked that the two ends of the section
-        FunTimeVR writes to itself still agreed — and they had already stopped:
-        ``audio_device`` was written every launch and had no field to be read
-        into, which is how the VR Main Funestra lost its audio-device routing.
-        ``funestra_module`` is the one key with no reader by design: the launcher
-        starts the module it names from its own constant.
-        """
         written = set(build_vr_manifest(config)["vr"])
         read_back = {field.name for field in fields(VrSettings)}
-        # Genau's numbers ride flat and land together, in the one `genau` field.
         genau_keys = set(GenauSettings().manifest_fields())
 
         assert written - {"funestra_module"} - genau_keys == read_back - {"genau"}
@@ -213,21 +199,8 @@ class TestVrManifest:
 
 
 class TestOrigeneratorInVr:
-    """A headset session hosts the Origenerator its config names, as a desktop
-    session does.
-
-    The mode's shows were windows of their own once, laid over the satellites,
-    and a VR session has no windows: it declared the mode off, and a session
-    resumed out of a desktop session's origenerator mode was pulled back to
-    video.  The shows are the satellite FUNESTRAS' own playlists now
-    (``fun_time.funestra_handover``) and the headset's satellites are Funestras, so
-    the only thing left on the monitors is the app's own window -- which boots
-    parked and, in a headset session, is never restored.
-    """
-
     @pytest.fixture
     def hosted(self, config, tmp_path):
-        """The same config with an Origenerator named, as a real one names it."""
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         return replace(config, paths=replace(
@@ -237,7 +210,6 @@ class TestOrigeneratorInVr:
         ))
 
     def test_the_desktop_manifest_does_name_one(self, hosted, tmp_path):
-        """The precondition, so the assertions below cannot pass vacuously."""
         desktop = build_windows_bridge_manifest(hosted)
         assert desktop["runtime"]["origenerator_dir"] == str(tmp_path / "origenerator")
         assert desktop["executables"]["origenerator_python_exe"]
@@ -249,9 +221,6 @@ class TestOrigeneratorInVr:
         assert manifest["executables"]["origenerator_python_exe"]
 
     def test_the_session_reads_back_as_hosting_one(self, hosted, tmp_path):
-        """The join the rest hangs off: ``origenerator_enabled`` is what puts the
-        mode pair on both HUDs, lets a resumed origenerator mode stand, and
-        answers the switch with the mode instead of a message."""
         path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
             LaunchManifest.read(path), vr_main_funestra=True)
@@ -259,29 +228,20 @@ class TestOrigeneratorInVr:
         assert bridge.origenerator_enabled is True
 
     def test_the_session_brings_the_app_up_before_the_funestra(self):
-        """Its boot is the slowest thing a session waits on and nothing waits on
-        it, so it goes first here as it does on the desktop; a room left in the
-        mode then has the least of it left to wait out under its loading screen."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["bring_up_the_hosted_app"] < calls["launch_vr_funestras"]
 
     def test_the_app_runs_the_checkouts_this_session_names(self):
-        """It imports funestra too, so a branch of it reaches the app the way
-        it reaches every other child."""
         tree = ast.parse(_the_session_as_one_source())
         (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
                    and ast.unparse(n.func) == "bring_up_the_hosted_app"]
         given = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
 
         assert given["sibling_checkouts"] == "manifest.runtime.sibling_checkouts"
-        # No monitor in here to put the app's own window on, so the launch asks
-        # for its frame instead.
         assert given["in_a_headset"] == "True"
 
     def test_a_session_with_no_checkout_named_still_hosts_none(self, config, tmp_path):
-        """The mode is offered off the checkout alone, in the headset as on the
-        monitors: a config naming none is a session without the mode."""
         path = write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
             LaunchManifest.read(path), vr_main_funestra=True)
@@ -289,8 +249,6 @@ class TestOrigeneratorInVr:
         assert bridge.origenerator_enabled is False
 
     def test_a_room_left_in_the_mode_asks_for_the_slideshows_as_it_opens(self, hosted, tmp_path):
-        """The desktop's own comeback, in the headset: the room holds its loading screen up
-        for the hosted app and opens with the slideshow on each Funestra it held."""
         state_dir = hosted.paths.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir),
@@ -337,16 +295,12 @@ class TestOrigeneratorInVr:
             "the headset's room opened in kino mode")
 
     def test_the_wait_is_named_on_the_loading_screen_before_the_line_that_fills_the_bar(self):
-        """Put after it, the wait read as a step past "Finalizing..." with the
-        bar already full."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert (calls["finish_under_the_loading_screen"]
                 < calls["progress.advance"])
 
     def test_the_mode_is_taken_up_before_the_room_is_shown(self):
-        """The headset's loading screen comes down on the DONE, so a comeback after it would
-        rearrange both Funestras under a room he is already using."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert (calls["finish_under_the_loading_screen"]
@@ -354,9 +308,6 @@ class TestOrigeneratorInVr:
 
 
 class _FakeProc:
-    """poll()/terminate()/wait() shaped like subprocess.Popen, exiting after a
-    set number of polls."""
-
     def __init__(self, exits_after_polls=None):
         self._exits_after = exits_after_polls
         self._polls = 0
@@ -383,8 +334,6 @@ class TestWaitForSessionEnd:
         ) == "ahk"
 
     def test_a_marked_end_ends_the_session_with_the_script_still_running(self, tmp_path):
-        """The script stays up over the closing screen, where Esc can still call
-        the end off, so its exit is not what says the session ended."""
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
 
         assert _wait_for_session_end(
@@ -392,9 +341,6 @@ class TestWaitForSessionEnd:
         ) == "asked"
 
     def test_the_script_left_running_by_a_marked_end_is_stopped_after_the_teardown(self):
-        """Up over the closing screen so Esc stays live, and never left running
-        once the teardown is done: a script outliving its session swallows
-        every key it binds."""
         tree = ast.parse(_the_session_as_one_source())
         (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
             isinstance(c, ast.Call) and ast.unparse(c.func) == "_wait_for_session_end"
@@ -406,17 +352,11 @@ class TestWaitForSessionEnd:
         assert calls.index("kill_recorded_child") < calls.index("stop_hotkey_script")
 
     def test_funestra_exit_ends_the_session_too(self, tmp_path):
-        # The headset's window is the session's only window, so closing it
-        # must end the whole session — an orchestrator that kept waiting on
-        # AHK held the single-instance mutex and blocked every relaunch.
-
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
         ) == "funestras"
 
     def test_any_other_part_of_the_room_closing_ends_the_session(self, tmp_path, monkeypatch):
-        """His rule (2026-10-08): if one part of Fun Time dies, the whole thing
-        dies with it, rather than carrying on without it."""
         monkeypatch.setattr(funestra_deaths, "process_started", lambda pid: None)
 
         assert _wait_for_session_end(
@@ -426,10 +366,6 @@ class TestWaitForSessionEnd:
 
 
 class TestTheModeASessionComesBackIn:
-    """The desktop session shares this state dir, and the headset hosts both
-    of the Main Funestra's Funestras now -- so the mode it was closed in comes across
-    with everything else, and the session is seeded and revealed in it."""
-
     @staticmethod
     def _calls(function_name: str, spelling: str):
         source = (_the_session_as_one_source() if function_name == "run_vr_bridge"
@@ -439,8 +375,6 @@ class TestTheModeASessionComesBackIn:
                 if isinstance(n, ast.Call) and ast.unparse(n.func) == spelling]
 
     def test_the_state_is_no_longer_corrected_on_the_way_in(self, tmp_path):
-        """There used to be a resume_vr_state that struck the mode out; the state
-        the session opens on is fun_time's own resume, mode and all."""
         assert not hasattr(orchestrator, "resume_vr_state")
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_mode=MainMode.GENAU, volume=40))
@@ -448,15 +382,12 @@ class TestTheModeASessionComesBackIn:
         assert read_shared_state(state_file).main_mode is MainMode.GENAU
 
     def test_the_flags_are_seeded_in_the_carried_mode(self):
-        """Seeded in the default instead, Genau's role would open as the HUD layer
-        under a video the dispatch loop believes is parked."""
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
         given = {kw.arg: ast.unparse(kw.value) for kw in seed.keywords}
 
         assert given["mode"] == "carried.main_mode"
 
     def test_genau_is_sent_the_shapes_it_was_left_browsing(self):
-        """After the seeding, which writes Genau's command file whole."""
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
         (resume,) = self._calls("run_vr_bridge", "resume_genau_shapes")
 
@@ -472,15 +403,11 @@ class TestTheModeASessionComesBackIn:
             "carried", "main_funestra_status.video")
 
     def test_the_flags_are_seeded_after_the_main_list_has_said_what_it_opens_on(self):
-        """A list that would hold nothing puts its buttons back to their defaults,
-        and the Main Funestra is told F-mode from what the list was built under."""
         source = _the_session_as_one_source()
 
         assert source.index("stock_the_playlists(") < source.index("seed_startup_states(")
 
     def test_the_loop_the_main_funestra_was_running_is_queued_for_it(self):
-        """A loop lives nowhere but in the Funestra holding it, so entering VR used
-        to drop one even though the video it was cut from came across."""
         (resume,) = self._calls("run_vr_bridge", "resume_main_loop")
 
         assert [ast.unparse(arg) for arg in resume.args] == [
@@ -490,8 +417,6 @@ class TestTheModeASessionComesBackIn:
         ]
 
     def test_it_is_queued_after_the_playlists_are_stocked(self):
-        """The rebuild and its rotation are what decide whether the video the loop
-        was cut from is the one this session opens on."""
         source = _the_session_as_one_source()
 
         assert source.index("stock_the_playlists(") < source.index("resume_main_loop(")
@@ -512,8 +437,6 @@ class TestTheModeASessionComesBackIn:
             {kw.arg for kw in desktop.keywords}, len(desktop.args))
 
     def test_the_reveal_releases_the_funestras_the_mode_puts_to_work(self):
-        """The desktop's own reveal: the video in kino mode, Genau's hand and its
-        music in genau mode -- rather than unpausing the video whatever the mode."""
         (release,) = self._calls("run_vr_bridge", "release_the_funestras")
 
         assert [ast.unparse(arg) for arg in release.args] == ["manifest", "carried.main_mode"]
@@ -522,10 +445,6 @@ class TestTheModeASessionComesBackIn:
 
 class TestLaunchVrFunestras:
     def test_the_funestra_starts_on_the_named_python_against_the_manifest(self, tmp_path):
-        """The command line is the whole contract: OUR interpreter (the VR
-        Funestra ships from this repo), the Funestra module, and the manifest that
-        tells it everything else — with its HUD kept in a log, because
-        under pythonw an import-time death is otherwise traceless."""
         with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
             launch_vr_funestras(
                 python_exe=tmp_path / "python.exe",
@@ -543,9 +462,6 @@ class TestLaunchVrFunestras:
 
 
 class TestWaitForFunestra:
-    """The startup readiness handshake: the first status write means ready,
-    and both ways it can fail are reported at once, by name."""
-
     class _Alive:
         returncode = None
 
@@ -582,9 +498,6 @@ class TestWaitForFunestra:
 
 
 class TestTheCheckRun:
-    """``--check`` validates the config and stops, which is what `launch_vr.vbs`
-    uses to refuse a bad session before any window is opened."""
-
     def test_a_valid_config_checks_out(self, config, monkeypatch, tmp_path):
         with patch.object(orchestrator, "load_config", return_value=config), \
              mutex_free(), \
@@ -606,12 +519,6 @@ class TestTheCheckRun:
 
 
 class TestStockingThePlaylists:
-    """The three playlists a VR session opens on, built through the real
-    fun_time builders — so a change to their signature is caught here rather
-    than by a launch that writes vr_launcher.ready and then dies (2026-09-03:
-    the satellites' builder grew SatelliteBuild arguments, the desktop caller
-    moved with it, this one did not, and FunTimeVR could not start at all)."""
-
     def _stock(self, config, tmp_path, *, resumed: bool, carried: BridgeState | None = None,
                main_video: str = "") -> BridgeState:
         manifest = LaunchManifest.read(
@@ -646,9 +553,6 @@ class TestStockingThePlaylists:
     def test_the_main_list_comes_up_on_the_video_it_was_on_and_the_headsets_library_under_it(
         self, config, tmp_path,
     ):
-        """Crossing in from the desktop: the video on screen comes first, which the
-        headset can play because this session's sources include the desktop's,
-        and the headset's own library is in the queue under it (docs/entering-vr.md)."""
         vr_video, flat = self._library(tmp_path)
         (tmp_path / "state").mkdir()
         (tmp_path / "state" / "main_player_playlist.tsv").write_text(f"{flat}\n", encoding="utf-8")
@@ -658,7 +562,6 @@ class TestStockingThePlaylists:
         assert self._main_list(tmp_path) == [str(flat), str(vr_video)]
 
     def test_a_video_gone_since_opens_the_main_list_at_its_top(self, config, tmp_path):
-        """Rather than on a dead path."""
         self._library(tmp_path)
 
         self._stock(config, tmp_path, resumed=True,
@@ -667,9 +570,6 @@ class TestStockingThePlaylists:
         assert "gone since" not in self._main_list(tmp_path)[0]
 
     def test_vr_only_holds_no_2d_video_whatever_the_last_list_held(self, config, tmp_path):
-        """The bug this closes: a session reopened its last list whenever it held
-        a VR video at all, so "VR only" came back over a list that still held 2D
-        videos, and Next played them."""
         vr_video, flat = self._library(tmp_path)
         (tmp_path / "state").mkdir()
         (tmp_path / "state" / "main_player_playlist.tsv").write_text(
@@ -702,9 +602,6 @@ class TestStockingThePlaylists:
 
 
 class TestResumeGenausShapes:
-    """Genau rescans its folders whole at every launch, so a narrowing it was
-    left under has to be re-sent, the way a satellite's lock is."""
-
     def _shapes(self, tmp_path: Path, *, plays_vr: bool, plays_flat: bool) -> VideoShapes:
         return VideoShapes(vr_dirs=str(tmp_path / "vr_flicks"),
                            plays_vr=plays_vr, plays_flat=plays_flat)
@@ -732,7 +629,6 @@ class TestResumeGenausShapes:
         assert not genau.exists()
 
     def test_queues_nothing_to_a_genau_with_only_flat_flicks(self, tmp_path: Path):
-        """The desktop's, which the narrowing a headset session left carries over to."""
         genau = tmp_path / "genau_cmd.txt"
 
         resume_genau_shapes(genau, VideoShapes(vr_dirs="", plays_vr=True, plays_flat=False))
@@ -741,9 +637,6 @@ class TestResumeGenausShapes:
 
 
 class TestTheCrossingBackToTheDesktop:
-    """FunTimeVR's end of it, the desktop orchestrator's mirrored: the request
-    cleared coming in, the relay spawned going out (docs/entering-vr.md)."""
-
     def _main(self, config, *, during_session=lambda: None):
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
@@ -792,8 +685,6 @@ def _the_session_main_starts(config, argv: list[str]) -> MagicMock:
 class TestTheCheckoutsItsOwnCheckoutNames:
     def test_the_session_runs_the_sibling_checkouts_this_checkout_names(
             self, config, tmp_path, monkeypatch):
-        """Whatever wrote its config: a production checkout from before
-        2026-10-16 reads only the old name of the file that names them."""
         checkout = tmp_path / "funestra_worktree"
         (tmp_path / "state").mkdir(exist_ok=True)
         (tmp_path / "state" / SIBLING_CHECKOUTS_OVERRIDE_NAME).write_text(
@@ -814,9 +705,6 @@ class TestTheWayBackIntoVr:
     def test_a_funestra_left_holding_the_headset_is_gone_before_the_new_one_starts(
         self, config,
     ):
-        """Let go of first, it would close its XR session and could stop the very
-        runtime this launch needs; its hold left on disk, the new Funestra would
-        read itself as held and show "Returning to Fun Time..." for good."""
         class FunestraLaunched(Exception):
             pass
 
@@ -903,11 +791,6 @@ class TestWhatAReopenCarriesIntoTheHeadset:
         assert queued["genau"][-2:] == ["SPEED 76", "LEARNED_ON"]
 
 class TestHandingTheHeadsetOver:
-    """The wait is the point: the arriving desktop session claims the very
-    status and command files the held Funestra's roles were driving, so the
-    orchestrator does not let go until the Funestra says it has
-    (docs/entering-vr.md)."""
-
     class _Alive:
         def poll(self):
             return None
@@ -921,8 +804,6 @@ class TestHandingTheHeadsetOver:
             assert _wait_for_the_headset_hold(tmp_path, self._Alive()) is True
 
     def test_a_funestra_that_never_answers_is_closed_as_before(self, tmp_path: Path):
-        """A hold that cannot be taken is never worth a session that will not
-        start, so the flag goes back off and the caller kills the Funestra."""
         hold_the_headset(tmp_path, stop_runtime=False)
 
         with patch.object(orchestrator, "HEADSET_HOLD_ACK_TIMEOUT_S", 0.0):
@@ -932,9 +813,6 @@ class TestHandingTheHeadsetOver:
         assert headset_hold_asked(tmp_path) is False
 
     def test_a_funestra_that_has_already_gone_is_not_waited_out(self, tmp_path: Path, caplog):
-        """It answered nothing because it was not there to answer: the wait ran
-        its whole fifteen seconds anyway, on every crossing, and those seconds
-        were the room not coming back."""
         hold_the_headset(tmp_path, stop_runtime=False)
         started = time.monotonic()
 
@@ -948,7 +826,6 @@ class TestHandingTheHeadsetOver:
 
 
 def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch, tmp_path):
-    """Started hidden, so nothing on screen would offer to quit it afterwards."""
     stopped = []
     monkeypatch.setattr(
         "fun_time_vr.orchestrator.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
@@ -966,8 +843,6 @@ def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch, t
 
 def test_a_runtime_fun_time_woke_is_put_to_sleep_when_vr_is_the_last_room(
         monkeypatch, tmp_path):
-    """He quits from inside the headset: the desktop session that woke the
-    runtime is long gone, so this one has to be what turns the headset off."""
     stopped = []
     monkeypatch.setattr(
         "fun_time_vr.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
@@ -1001,18 +876,12 @@ def test_an_error_that_ends_fun_time_vr_puts_the_runtime_fun_time_woke_to_sleep(
 
 
 class TestGenausRoleInTheManifest:
-    """What the headset needs to run Genau's engine, carried in the one file
-    it reads: the folder, the companion's address, and the engine's numbers."""
-
     def test_genaus_flicks_folder_rides_whole(self, config):
-        """The headset plays its VR folder and its 2D folder both, and keeps a
-        condemned flick's place in the trash folder beside it."""
         vr = build_vr_manifest(config)["vr"]
 
         assert vr["flicks_folder"] == str(config.paths.flicks_dir)
 
     def test_the_dispatch_loop_is_told_which_folder_holds_the_vr_flicks(self, config, tmp_path):
-        """Where it decides whether the HUD offers Genau the VR and flat pair."""
         def bridge_config(session_config):
             path = write_manifest_data(build_vr_manifest(session_config), tmp_path / "launch.ini")
             return build_bridge_config_from_manifest(LaunchManifest.read(path), vr_main_funestra=True)
@@ -1046,14 +915,7 @@ class TestGenausRoleInTheManifest:
 
 
 class TestTheOnePin:
-    """One app, one button.  FunTimeVR had a pin and an AppUserModelID of its own
-    while the headset was a separate thing to start; it is entered by saying
-    "enter VR" now, so a VR session is Fun Time in a headset and lights Fun
-    Time's button."""
-
     def test_the_vr_funestra_claims_fun_times_own_identity(self):
-        """The claim is made before any window exists, so the id it names is
-        what every window of the session ends up grouped under."""
         source = inspect.getsource(app.main)
         claimed = [
             ast.unparse(node.args[0])
@@ -1064,8 +926,6 @@ class TestTheOnePin:
         assert claimed == ["preview_marker.session_identity(preview_marker.shown_as())"]
 
     def test_there_is_no_second_identity_left_to_claim(self):
-        """The VR id is gone rather than merely unused: left defined, the next
-        window opened in the headset could still be given a button of its own."""
         assert not [name for name in vars(win32_taskbar) if name.endswith("APP_USER_MODEL_ID")
                     and name != "APP_USER_MODEL_ID"]
 
@@ -1099,8 +959,6 @@ class TestTheOnePin:
 
 
 def _the_session_as_one_source() -> str:
-    """``run_vr_bridge`` with each step of its own it calls written out where it
-    calls it, so what comes after what reads across the steps as one source."""
     steps = {name: thing for name, thing in vars(orchestrator).items()
              if inspect.isfunction(thing) and name.startswith("_")}
 
@@ -1129,17 +987,12 @@ def _the_session_as_one_source() -> str:
 
 
 def _call_lines_in_run_vr_bridge() -> dict[str, int]:
-    """Where each call falls in the session's one source; a spelling made more
-    than once keeps its last."""
     calls = sorted((n for n in ast.walk(ast.parse(_the_session_as_one_source()))
                     if isinstance(n, ast.Call)), key=lambda n: n.lineno)
     return {ast.unparse(n.func): n.lineno for n in calls}
 
 
 class TestTheAudioCompanionInVr:
-    """Launched as on the desktop, before the Funestra so it is listening when
-    Genau's role says which flick is up, and sent to the headset's output."""
-
     def test_it_is_launched_on_the_headsets_output(self):
         tree = ast.parse(_the_session_as_one_source())
         (launch,) = [n for n in ast.walk(tree)
@@ -1158,13 +1011,7 @@ class TestTheAudioCompanionInVr:
 
 
 class TestTheHeadsetsLoadingScreen:
-    """The orchestrator's half of the loading screen: the files it writes, the order it
-    kills in, and the wait it holds the first kill for.  The panel itself is a
-    surface of the Funestra -- see tests/test_vr_loading_screen.py."""
-
     def test_a_stale_cancel_flag_cannot_abort_the_next_launch(self, tmp_path):
-        """One left by a session that was called off would raise at this
-        launch's first checkpoint, before the user had touched anything."""
         stale = tmp_path / CANCEL_FILENAME
         stale.write_text("cancel\n", encoding="utf-8")
 
@@ -1189,14 +1036,12 @@ class TestTheHeadsetsLoadingScreen:
             "Press Esc to cancel entering VR")
 
     def test_an_esc_pressed_while_the_room_changed_over_calls_the_arrival_off(self, tmp_path):
-        """The hotkey script left over from Fun Time was all that heard it."""
         raise_transition_screen(tmp_path, VR)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
         assert _LoadingScreen(tmp_path).progress.cancelled
 
     def test_a_session_entered_on_the_way_back_offers_no_esc(self, tmp_path):
-        """Esc already called a crossing off to get here."""
         raise_transition_screen(tmp_path, VR)
         loading_screen = _LoadingScreen(tmp_path, cancelable=False)
         loading_screen.progress.advance("services")
@@ -1204,9 +1049,6 @@ class TestTheHeadsetsLoadingScreen:
         assert parse_progress(loading_screen.progress_file.read_text(encoding="utf-8")).hint == ""
 
     def test_clearing_writes_no_done(self, tmp_path):
-        """DONE is how a finished launch uncovers a room worth seeing.  The
-        paths that clear without one have nothing to reveal, and the loading screen comes
-        down with the Funestra instead."""
         loading_screen = _LoadingScreen(tmp_path)
         loading_screen.progress.advance("funestras")
 
@@ -1216,19 +1058,12 @@ class TestTheHeadsetsLoadingScreen:
         assert not loading_screen.cancel_file.exists()
 
     def test_the_hotkey_script_is_up_before_the_funestra(self):
-        """Esc is the only way to call a launch off from inside a headset, and
-        AHK's hook is the only route that does not need a window's focus -- so
-        the script has to be up before there is anything to cancel."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["launch_hotkey_script"] < calls["launch_vr_funestras"]
-        # And the pids file, which is what takes the script's startup hold off,
-        # is written only once there is a session for its keys to drive.
         assert calls["launch_vr_funestras"] < calls["write_pids_file"]
 
     def test_the_funestras_are_released_after_the_loading_screen_comes_down(self):
-        """Released before it and the first seconds of a video play under a
-        panel nobody can see through."""
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["progress.finish"] < calls["release_the_funestras"]
@@ -1246,10 +1081,6 @@ class TestCancellingALaunch:
         monkeypatch.setattr(orchestrator, "stop_hotkey_script",
                             lambda _proc, _file: order.append("hotkeys"))
         monkeypatch.setattr(orchestrator, "kill_recorded_child", end)
-        # The monitors as the crossing left them, before this session started: a
-        # full-screen window belonging to the session that has already gone.  And
-        # the marker a crossing's own exit leaves, which is why the flag's word is
-        # what decides.
         if crossing:
             raise_transition_screen(tmp_path, orchestrator.VR)
         loading_screen = orchestrator._LoadingScreen(tmp_path)
@@ -1267,17 +1098,12 @@ class TestCancellingALaunch:
         return code, order, loading_screen
 
     def test_esc_on_a_launch_nobody_crossed_into_closes_it(self, tmp_path, monkeypatch):
-        """It said "cancel opening Fun Time VR", and nothing was open before it
-        to go back to."""
         self._cancel(tmp_path, monkeypatch, {}, crossing=False)
 
         assert pending_handoff(tmp_path) is None
 
     def test_the_funestra_is_killed_last_whatever_order_it_was_recorded_in(
             self, tmp_path, monkeypatch):
-        """It is the thing wearing the "Cancelling..." panel: every other child
-        goes while that is still in front of the eyes, so nothing half-started
-        is ever revealed."""
         children = {
             "vr_funestras_pid": ChildProcess(pid="funestras", created_at=1),
             "audio_pid": ChildProcess(pid="audio", created_at=1),
@@ -1288,8 +1114,6 @@ class TestCancellingALaunch:
         assert order == ["hotkeys", "audio", "funestras"]
 
     def test_a_part_slow_to_end_does_not_let_the_headset_loading_screen_go(self, tmp_path, monkeypatch):
-        """A quit's teardown, under the loading screen instead of the closing one:
-        a part slow to end must not let it go over the half-built room."""
         heard: list[bool] = []
 
         def the_audio_companion_takes_its_time(child):
@@ -1312,20 +1136,12 @@ class TestCancellingALaunch:
 
     def test_a_crossings_own_exit_marker_is_not_read_as_a_quit(
             self, tmp_path, monkeypatch):
-        """Crossing over ends the session he left through the hotkey script's
-        command channel, which stamps the session-end marker -- so reading THAT
-        made every Esc look like the quit chord and took his monitors instead of
-        handing them back.  The word in the cancel flag is the one that knows."""
-        self._cancel(tmp_path, monkeypatch, {})  # marker present, flag says cancel
+        self._cancel(tmp_path, monkeypatch, {})
 
         assert pending_handoff(tmp_path) == DESKTOP
 
     def test_esc_hands_the_monitors_back_to_the_session_he_came_from(
             self, tmp_path, monkeypatch):
-        """The transition screen belongs to a process that has already gone.  Left
-        standing over a machine with no session running, there is no way back to
-        Fun Time and no way to anything else -- it cost him a reboot.  So the
-        desktop is asked for, and the loading screen stays up until IT is running."""
         self._cancel(tmp_path, monkeypatch, {})
 
         assert pending_handoff(tmp_path) == DESKTOP
@@ -1333,7 +1149,6 @@ class TestCancellingALaunch:
 
     def test_the_quit_chord_closes_the_hosted_app_fun_time_left_waiting(
             self, tmp_path, monkeypatch):
-        """Fun Time parked it for its return, and no return is coming."""
         closed: list = []
         monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
                             lambda state_dir, _cmd_file: closed.append(state_dir))
@@ -1352,16 +1167,12 @@ class TestCancellingALaunch:
         assert closed == []
 
     def test_the_way_back_to_fun_time_offers_no_esc(self, tmp_path, monkeypatch):
-        """One Esc per loading screen: a second would send him back into VR."""
         self._cancel(tmp_path, monkeypatch, {})
 
         taken = take_handoff_request(tmp_path)
         assert (taken.target, taken.cancelable) == (DESKTOP, False)
 
     def test_the_monitors_say_so_the_moment_esc_lands(self, tmp_path, monkeypatch):
-        """Pressing Esc looked like nothing happening: the loading screen went on saying
-        "Entering VR..." through a teardown that takes seconds, so he pressed it
-        again -- and the second one cancelled the launch coming back."""
         self._cancel(tmp_path, monkeypatch, {})
 
         said = crossing_progress_path(tmp_path).read_text(encoding="utf-8")
@@ -1369,8 +1180,6 @@ class TestCancellingALaunch:
 
     def test_the_quit_chord_takes_the_monitors_back_instead(
             self, tmp_path, monkeypatch):
-        """Esc means "not this, put me back"; the quit chord means "end
-        everything", and nothing is coming to drop the loading screen for us."""
         self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
 
         assert pending_handoff(tmp_path) is None
@@ -1387,9 +1196,6 @@ class _AliveFunestra:
 
 class TestTheClosingScreen:
     def test_teardown_holds_its_first_kill_until_the_loading_screen_is_painted(self, tmp_path):
-        """The Funestra reports the panel painted by dropping the desktop's own
-        ready flag; until then, killing anything would show the very thing the
-        loading screen exists to hide."""
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         seen = []
 
@@ -1398,8 +1204,6 @@ class TestTheClosingScreen:
                 (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8")).message)
             shutdown.advance("funestras")
 
-        # The opening phase was on disk before the body ran, so the Funestra had
-        # something to read from its first poll.
         assert seen == [CLOSING_STATUS]
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not (tmp_path / SHUTDOWN_READY_FILENAME).exists()
@@ -1415,7 +1219,6 @@ class TestTheClosingScreen:
         assert line.hint == "Press Esc to cancel closing Fun Time VR"
 
     def test_a_flag_from_a_previous_session_cannot_vouch_for_this_one(self, tmp_path):
-        """It would let this teardown start with nothing yet covering the view."""
         stale = tmp_path / SHUTDOWN_READY_FILENAME
         stale.write_text("", encoding="utf-8")
         cleared = []
@@ -1426,9 +1229,6 @@ class TestTheClosingScreen:
         assert cleared == [False]
 
     def test_a_part_slow_to_end_does_not_let_the_headset_loading_screen_go(self, config):
-        """The desktop's closing screen went away over a dashboard still waiting
-        its turn: a part took longer to end than the loading screen's guard, and nothing
-        said the teardown was still going."""
         heard: list[bool] = []
 
         def the_audio_companion_takes_its_time(child):
@@ -1445,9 +1245,6 @@ class TestTheClosingScreen:
 
     def test_a_teardown_stuck_anywhere_but_ending_a_part_still_lets_the_headset_loading_screen_go(
             self, tmp_path):
-        """A loading screen that never went would leave him in front of a panel for good.
-        Only a wait for a part to end, which always ends, may keep it up past its
-        guard."""
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         heard: list[bool] = []
 
@@ -1459,16 +1256,12 @@ class TestTheClosingScreen:
         assert heard == [False]
 
     def test_a_session_the_funestra_ended_gets_no_loading_screen(self, tmp_path):
-        """Nothing is left that can put a frame in the headset -- and nothing
-        left to hide either, the cut to the runtime's own environment having
-        already happened."""
         with _closing_screen(tmp_path, _AliveFunestra(alive=False), enabled=False) as shutdown:
             shutdown.advance("funestras")
 
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_the_funestra_is_the_last_child_teardown_kills(self):
-        """It wears the loading screen, so it goes after everything it was hiding."""
         tree = ast.parse(_the_session_as_one_source())
         kills = [ast.unparse(n) for n in sorted(
             (n for n in ast.walk(tree)
@@ -1487,10 +1280,6 @@ class TestTheClosingScreen:
 
 
 class TestWaitingForTheRoom:
-    """The loading screen comes down when the frames are up, not when the first status
-    line is written -- that one says a role picked a video, which is a second or
-    so before any of it reaches the headset."""
-
     def test_the_marker_landing_ends_the_wait(self, tmp_path):
         marker = scene_ready_file(tmp_path)
         marker.write_text("", encoding="utf-8")
@@ -1507,10 +1296,6 @@ class TestWaitingForTheRoom:
             scene_ready_file(tmp_path), _AliveFunestra())
 
     def test_a_room_that_never_reported_is_revealed_rather_than_failed(self):
-        """The Funestra caps its own wait, so a marker missing by now means
-        something stranger than a slow decode -- and holding a launch on it
-        would be worse than a room with one screen still blank.  The answer is
-        deliberately dropped: nothing downstream may branch on it."""
         tree = ast.parse(_the_session_as_one_source())
         (call,) = [n for n in ast.walk(tree)
                    if isinstance(n, ast.Call) and ast.unparse(n.func) == "_wait_for_the_room"]
@@ -1526,7 +1311,6 @@ class TestWaitingForTheRoom:
         assert calls["_wait_for_the_room"] < calls["progress.finish"]
 
     def test_a_previous_sessions_marker_cannot_vouch_for_this_one(self):
-        """It would say the room was up before a frame of it existed."""
         source = _the_session_as_one_source()
 
         assert "room_ready_file.unlink(missing_ok=True)" in source
@@ -1534,10 +1318,6 @@ class TestWaitingForTheRoom:
 
 
 class TestEscDuringTheLongWait:
-    """The phase a cold headset spends a minute or two in.  A cancel that only
-    landed at the far end of it would be a way out arriving after the thing it
-    was meant to call off."""
-
     class _Cancelled:
         cancelled = True
 
@@ -1556,8 +1336,6 @@ class TestEscDuringTheLongWait:
             _wait_for_the_room(scene_ready_file(tmp_path), _AliveFunestra(), self._Cancelled())
 
     def test_both_waits_are_handed_the_reporter_that_carries_the_flag(self):
-        """Passed nothing they are plain waits, so a call site that forgot it is
-        a phase Esc cannot reach."""
         tree = ast.parse(_the_session_as_one_source())
         waits = [ast.unparse(n) for n in ast.walk(tree)
                  if isinstance(n, ast.Call)
@@ -1610,8 +1388,6 @@ class TestTheHotkeyScriptsArguments:
         return launched[0]
 
     def test_it_is_told_which_orchestrator_to_watch(self, config):
-        """After a crossing it outlives this process, and has to know when the
-        session it belonged to is gone."""
         assert self._launched(config)[-1] == str(os.getpid())
 
     def test_it_is_the_desks_own_script_so_esc_pauses_the_room_in_the_headset_too(self, config):
@@ -1619,7 +1395,6 @@ class TestTheHotkeyScriptsArguments:
 
 
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
-    """Everything a VR launch starts or waits on, faked; the files it writes are real."""
     stand_ins = dict(
         open_event_log=MagicMock(),
         add_dispatch_file_handler=MagicMock(),
@@ -1644,8 +1419,6 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
 def _end_a_vr_session(
     orchestrator, config, *, ended_by, runtime_was_running=True, **overrides,
 ) -> list[str]:
-    """Run a VR session to its end, every child faked; what its closing screen
-    was told Esc cancels comes back."""
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
     offered: list[str] = []
     real_closing_screen = orchestrator._closing_screen
@@ -1674,7 +1447,6 @@ def _end_a_vr_session(
 
 
 def _asked_to_cross(config):
-    """The crossing to the desktop asked for, the way "exit VR" asks for it."""
     def ended(*_args, **_kwargs):
         request_handoff(config.paths.state_dir, DESKTOP)
         return "asked"
@@ -1683,7 +1455,6 @@ def _asked_to_cross(config):
 
 
 def _asked_then_esc(config):
-    """The quit asked for, then Esc pressed on the closing screen."""
     def ended(*_args, **_kwargs):
         (config.paths.state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         return "asked"
@@ -1708,8 +1479,6 @@ class TestOpeningAVrSession:
         assert pending_handoff(config.paths.state_dir) is None
 
     def test_a_funestra_that_never_comes_up_is_ended_with_the_loading_screen_kept_up(self, config):
-        """What it launched is ended under the loading screen, and a part slow to
-        end must not let it go over the half-built room."""
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         heard: list[bool] = []
 
@@ -1784,8 +1553,6 @@ class TestOpeningAVrSession:
         assert offered == ["Press Esc to cancel exiting VR"]
 
     def test_a_session_crossing_to_fun_time_leaves_the_hotkey_script_listening(self, config):
-        """While the room changes over nothing else hears Esc; the relay reads
-        what it dropped once this session has let go."""
         def asked_to_cross(*_args, **_kwargs):
             request_handoff(config.paths.state_dir, DESKTOP)
             return "asked"
@@ -1808,8 +1575,6 @@ class TestOpeningAVrSession:
         assert (taken.target, taken.cancelable) == (VR, False)
 
     def test_that_loading_screen_runs_the_sibling_checkouts_the_session_names(self, config):
-        """A loading screen that cannot import the branch's siblings never comes up,
-        and this one is all the headset has until the next session is."""
         sibling = config.paths.state_dir.parent / "sibling_checkout"
         sibling.mkdir(parents=True, exist_ok=True)
         named = replace(config, paths=replace(config.paths, sibling_checkouts=(sibling,)))
@@ -1826,8 +1591,6 @@ class TestOpeningAVrSession:
     def test_on_the_way_back_into_vr_the_headset_stays_covered_and_the_runtime_up(
         self, config,
     ):
-        """The Funestra keeps its loading screen in front of him until the next one is up,
-        and a runtime stopped here would only have to be started again."""
         asked = MagicMock()
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           hold_the_headset=asked,
@@ -1838,7 +1601,6 @@ class TestOpeningAVrSession:
     def test_a_refused_hold_on_the_way_back_into_vr_leaves_the_runtime_running(
         self, config,
     ):
-        """VR is coming straight back; stopped here it would only be started again."""
         released: list = []
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           _wait_for_the_headset_hold=MagicMock(return_value=False),
@@ -1847,8 +1609,6 @@ class TestOpeningAVrSession:
         assert released == []
 
     def test_on_the_way_back_into_vr_both_covers_say_it_is_canceling(self, config):
-        """The held Funestra reads the transition screen's words; with none up it
-        would go on saying "Returning to Fun Time..." on the way back into VR."""
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           _wait_for_the_headset_hold=MagicMock(return_value=True))
 
@@ -1857,10 +1617,6 @@ class TestOpeningAVrSession:
         assert (line.message, line.hint) == (CANCELING, "")
 
     def test_the_funestra_is_asked_to_hold_before_the_controls_come_down(self, config):
-        """Letting go is the Funestra's longest act -- two worker threads joined
-        and four videos closed -- and the session has its own controls and its
-        companion to bring down.  Asked first, the two run side by Satellite; asked
-        after, the crossing paid for them one at a time."""
         controls = MagicMock()
         asked_by_then: list[bool] = []
         controls.stop.side_effect = lambda: asked_by_then.append(
@@ -1875,9 +1631,6 @@ class TestOpeningAVrSession:
         assert asked_by_then == [True]
 
     def test_a_crossing_hands_the_funestra_the_runtime_this_session_started(self, config):
-        """Nobody else knows it started one: the orchestrator is about to exit,
-        and the Funestra outlives it holding the loading screen, so the runtime's fate
-        rides on the ask."""
         asked = MagicMock()
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_to_cross(config),
@@ -1889,7 +1642,6 @@ class TestOpeningAVrSession:
         asked.assert_called_once_with(config.paths.state_dir, stop_runtime=True)
 
     def test_on_the_way_back_into_vr_the_hosted_app_stays_parked(self, config):
-        """Fun Time left it for its own return, which can still come later."""
         parked: list = []
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_then_esc(config),

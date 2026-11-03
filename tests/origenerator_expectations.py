@@ -1,14 +1,3 @@
-"""What Fun Time relies on of the Origenerator it hosts, read off the code that
-relies on it: the module it starts, the caption it finds the window by, the
-flags of each launch, the words a headset writes on the app's input file and
-every line a session writes on its command file.
-
-Origenerator's suite reads the document from this repo's main before that app
-ships anything, and tests/test_origenerator_expectations.py holds it here to
-this code and to what Origenerator has shipped -- so a change on either Satellite
-that would cost a session its Origenerator fails in the suite of the app that made
-it.
-"""
 from __future__ import annotations
 
 import json
@@ -46,9 +35,6 @@ from tests.hosted_shows import publish_the_show
 
 EXPECTATIONS = Path(__file__).with_suffix(".json")
 
-# Said to a Satellite in Origenerator mode, where what a Satellite is told is the hosted
-# app's to answer, and answered by nothing over there.  Keyed by what the line
-# says after the Satellite.
 LEFT_UNANSWERED: dict[str, str] = {
     "wrong_action": "a show's image carries no act label to strike, and the app "
                     "refuses the strike on purpose",
@@ -112,8 +98,6 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
 
 
 def _as_published(line: str) -> str:
-    """A filter's row is an act of his content overlay, and a go-to's file is a
-    video of his library, neither of which this document carries."""
     if line.startswith(go_to_line("")):
         return go_to_line("{file}")
     filtered = decode_filter_command(line)

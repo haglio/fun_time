@@ -1,14 +1,3 @@
-"""How the integration suite presses its way back out of the hosted app's mode.
-
-The wait that follows the press — each Funestra playing its own videos again —
-cannot tell a Funestra handed its list back from one the app never took.  So the
-press has to come after the app has both Funestras, or it is answered by a session
-that never entered the mode at all, and the app's lists land on the Funestras
-after the test that pressed it has ended.  The test that runs next then reads a
-playlist holding the app's items and reports that the Funestras had no lists of
-their own, which is how the hosted-shows test went red on 2026-09-16 and again
-on 2026-09-18.
-"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,14 +5,10 @@ from pathlib import Path
 from fun_time.fun_time_funestras import FunTimeFunestra
 from tests.integration.test_origenerator_mode_integration import _bring_the_satellites_home
 
-# How many looks at a Funestra the hosted app takes to answer the open the
-# switch sent it — a couple, as it does on a machine with other work on it.
 _LOOKS_BEFORE_THE_APP_ANSWERS = 2
 
 
 class _Satellite:
-    """One Funestra's playlist and status files, as the session addresses them."""
-
     def __init__(self, app: _App, funestra: FunTimeFunestra, own_video: Path, image: Path):
         self._app = app
         self._funestra = funestra
@@ -56,13 +41,6 @@ class _Paths:
 
 
 class _App:
-    """A session whose hosted app takes a couple of looks to take the Funestras.
-
-    Addressing a Funestra — which every poll of that Funestra does — is what moves the
-    room on, so Fun Time runs on the suite's own polling rather than on a clock
-    another agent's machine would keep differently.
-    """
-
     def __init__(self, tmp_path: Path):
         self.state_dir = tmp_path / "state"
         self.state_dir.mkdir()

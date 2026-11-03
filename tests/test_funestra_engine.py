@@ -32,11 +32,6 @@ def _runner(returncodes, *, stdout=""):
 
 
 class _Funestras:
-    """A fake ``subprocess.run`` answering the three things a launch asks a Funestra's
-    interpreter: whether the engine imports, where that Funestra looks for it first,
-    and where the shared copy is.  The import succeeds once the DLL is in the place
-    it looks, which is what the repair puts there."""
-
     def __init__(self, looks_in: Path, shared: Path, *, reason: str = "no engine"):
         self.looks_in, self.shared, self.reason = looks_in, shared, reason
         self.probed: list[str] = []
@@ -66,10 +61,6 @@ def _shared_engine(tmp_path: Path, contents: bytes = b"engine") -> Path:
 
 
 def test_a_funestra_that_cannot_load_gets_the_shared_copy_where_it_looks_first(tmp_path: Path):
-    """The engine is fetched rather than tracked, so a funestra checkout a session
-    pins has no ``vendor/`` of its own and the Funestra dies on import.  The shared
-    copy goes where that checkout looks first and the Funestra is asked again, instead
-    of the launch refusing over a gap it can close."""
     looks_in = tmp_path / "funestra" / "vendor"
     funestras = _Funestras(looks_in, _shared_engine(tmp_path))
 
@@ -78,10 +69,6 @@ def test_a_funestra_that_cannot_load_gets_the_shared_copy_where_it_looks_first(t
 
 
 def test_where_the_shared_copy_is_comes_from_the_funestra_this_repo_pins(tmp_path: Path):
-    """The session's own pin is left off that one question.  A funestra checkout
-    from before 2026-09-26 answers it with a folder under AppData, which is private
-    to the app an agent's shell runs inside and empty for everything the user
-    launches -- so asking the pinned checkout would name a source that is not there."""
     pinned = tmp_path / "funestra"
     pinned.mkdir()
     funestras = _Funestras(pinned / "vendor", _shared_engine(tmp_path))
@@ -95,11 +82,6 @@ def test_where_the_shared_copy_is_comes_from_the_funestra_this_repo_pins(tmp_pat
 
 
 def test_the_funestras_are_probed_with_the_pythonpath_they_are_launched_with(tmp_path: Path):
-    """A session pins its funestra by putting a checkout of it first on every
-    Funestra's PYTHONPATH, so a probe without that tests the venv's funestra and
-    not the one the Funestra imports.  It passed while every Funestra died looking for
-    the engine, and the room came up under a loading screen that never lifted
-    (2026-09-22)."""
     pinned = tmp_path / "funestra"
     pinned.mkdir()
     run = _runner([0])
@@ -110,8 +92,6 @@ def test_the_funestras_are_probed_with_the_pythonpath_they_are_launched_with(tmp
 
 
 def test_a_funestra_that_loads_the_engine_is_left_alone(tmp_path: Path):
-    """No second copy and not even the question: the DLL is 117 MB, and a launch that
-    handed one to every pinned checkout would spend that at every start."""
     looks_in = tmp_path / "vendor"
     looks_in.mkdir()
     (looks_in / "libmpv-2.dll").write_bytes(b"the one it already has")
@@ -123,10 +103,6 @@ def test_a_funestra_that_loads_the_engine_is_left_alone(tmp_path: Path):
 
 
 def test_the_alert_carries_what_the_funestra_itself_said(tmp_path: Path):
-    """His previews sat under a loading screen that never lifted while each Funestra's
-    log held the whole answer -- which folders were looked in and what was not in
-    them.  On screen that text beats any sentence written here, and the frames of the
-    traceback under it are not part of it."""
     said = ('Traceback (most recent call last):\n'
             '  File "<string>", line 1, in <module>\n'
             "OSError: The engine (libmpv) could not be loaded. Looked in: "
@@ -159,8 +135,6 @@ def test_the_probe_is_the_engine_import_itself():
 
 
 def test_a_funestra_whose_interpreter_cannot_say_where_it_looks_is_not_given_a_copy(tmp_path: Path):
-    """Every answer here comes from running the Funestra's own interpreter, which can
-    fail for its own reasons; a copy is made only where one was actually asked for."""
     shared = _shared_engine(tmp_path)
 
     def run(cmd, **_kwargs):
@@ -175,10 +149,6 @@ def test_a_funestra_whose_interpreter_cannot_say_where_it_looks_is_not_given_a_c
 
 
 def test_both_the_desktop_and_headset_launches_gate_on_the_engine():
-    # A dead engine takes the headset's Funestras down exactly as it does the
-    # desktop's, so both entry points must refuse rather than open onto empty
-    # windows -- the desktop/headset pairing the engineering law requires.
-
     for entry_point in (desktop, headset):
         source = Path(entry_point.__file__).read_text(encoding="utf-8")
         assert "engine_missing_abort(config" in source
