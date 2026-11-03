@@ -43,7 +43,7 @@ from fun_time.hosted_origenerator import (
     bring_up_the_hosted_app,
     what_it_answers_by_voice_in,
 )
-from fun_time.main_list import MainList, MainListSettings
+from fun_time.main_list import MainList
 from fun_time.main_list_commands import genau_flick_shapes
 from fun_time.manifest import (
     LaunchManifest,
@@ -145,6 +145,7 @@ from fun_time.windows_bridge_startup import (
     reap_orphaned_satellites,
     reset_satellite_paused_states,
     seed_startup_states,
+    the_broker_launcher,
 )
 
 from . import vr_runtime
@@ -532,10 +533,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     bridge_config, progress = launch.bridge_config, launch.progress
     progress.advance("services")
     write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
-    ensure_broker(
-        commands.broker_state_dir or None,
-        Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
-    )
+    ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
     reset_satellite_paused_states(
         commands.portrait_paused_file, commands.landscape_paused_file,
     )
@@ -565,14 +563,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
         carried=carried,
         main_video=main_funestra_status.video,
     )
-    seed_startup_states(
-        commands.genau_paused_file, commands.audio_paused_file,
-        commands.main_funestra_paused_file, commands.audio_volume_file,
-        commands.genau_cmd_file, main_funestra_cmd_file=commands.main_funestra_cmd_file,
-        volume=carried.volume, muted=carried.muted, max_intensity=carried.max_intensity,
-        satellite_cmd_files=(commands.portrait_cmd_file, commands.landscape_cmd_file),
-        main_list=MainListSettings.of(carried), mode=carried.main_mode,
-    )
+    seed_startup_states(commands, carried)
     resume_satellite_locks([
         (Path(commands.portrait_cmd_file), carried.satellite(FunTimeFunestra.PORTRAIT).locked),
         (Path(commands.landscape_cmd_file), carried.satellite(FunTimeFunestra.LANDSCAPE).locked),
@@ -598,14 +589,7 @@ def _launch_the_children(launch: _Launch, config, launched: _Launched) -> None:
     if hosted is not None:
         launched.hosted = hosted
         launched.record("origenerator_pid", hosted.pid)
-    audio = launch_audio_companion(
-        python_exe=manifest.executables.python_exe,
-        audio_module=manifest.modules.audio_module,
-        config_path=manifest.runtime.config_path,
-        audio_folder=manifest.media.genau_audio,
-        audio_device=config.vr.audio_device,
-        sibling_checkouts=manifest.runtime.sibling_checkouts,
-    )
+    audio = launch_audio_companion(manifest, audio_device=config.vr.audio_device)
     logger.info("Audio companion launched (pid=%d)", audio.pid)
     launched.record("audio_pid", audio.pid)
 

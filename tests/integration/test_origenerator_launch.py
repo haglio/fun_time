@@ -12,6 +12,7 @@ from fun_time.hosted_contract import CONTRACT_FILE, declared_flags, published_by
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
     HandedFunestra,
+    OrigeneratorSession,
     origenerator_interpreter,
     origenerator_launch_command,
     origenerator_launch_kwargs,
@@ -87,12 +88,13 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
     command = origenerator_launch_command(
         python_exe=python_exe,
         origenerator_dir=checkout,
-        layout_plan=_PLAN,
-        command_file=tmp_path / "origenerator_cmd.txt",
-        paused_file=tmp_path / "origenerator_paused.txt",
-        status_file=tmp_path / "origenerator_status.txt",
-        dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-        funestras=_funestras(tmp_path),
+        session=OrigeneratorSession(
+            layout_plan=_PLAN,
+            command_file=tmp_path / "origenerator_cmd.txt",
+            paused_file=tmp_path / "origenerator_paused.txt",
+            status_file=tmp_path / "origenerator_status.txt",
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            funestras=_funestras(tmp_path)),
     )
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=checkout, sibling_checkouts=this_checkouts_siblings() or None)
@@ -125,12 +127,13 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
     command = origenerator_launch_command(
         python_exe=python_exe,
         origenerator_dir=checkout,
-        layout_plan=_PLAN,
-        command_file=tmp_path / "c.txt",
-        paused_file=tmp_path / "p.txt",
-        status_file=tmp_path / "s.txt",
-        dashboard_cmd_file=tmp_path / "d.txt",
-        funestras=_funestras(tmp_path),
+        session=OrigeneratorSession(
+            layout_plan=_PLAN,
+            command_file=tmp_path / "c.txt",
+            paused_file=tmp_path / "p.txt",
+            status_file=tmp_path / "s.txt",
+            dashboard_cmd_file=tmp_path / "d.txt",
+            funestras=_funestras(tmp_path)),
     )
 
     assert command[1:3] == ["-m", "origenerator"]
@@ -154,11 +157,13 @@ def test_every_flag_this_session_sends_is_one_the_installed_copy_declares(tmp_pa
     checkout, python_exe = _hosted_checkout_and_python()
     published = _the_contract_it_publishes(checkout)
     command = origenerator_launch_command(
-        python_exe=python_exe, origenerator_dir=checkout, layout_plan=_PLAN,
-        command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
-        status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
-        funestras=_funestras(tmp_path),
-        frames_file=tmp_path / "frame.bin", input_file=tmp_path / "input.txt",
+        python_exe=python_exe, origenerator_dir=checkout,
+        session=OrigeneratorSession(
+            layout_plan=_PLAN,
+            command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
+            status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
+            funestras=_funestras(tmp_path),
+            frames_file=tmp_path / "frame.bin", input_file=tmp_path / "input.txt"),
     )
     written = [word for word in command if word.startswith("--")]
 

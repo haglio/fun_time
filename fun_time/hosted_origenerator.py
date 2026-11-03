@@ -24,6 +24,7 @@ from .standalone_origenerator import OpenOrigenerator, claim_the_osr2, the_open_
 from .window_layout import WindowLayoutPlan, screen_layout
 from .windows_bridge_startup import (
     HandedFunestra,
+    OrigeneratorSession,
     launch_origenerator,
     origenerator_interpreter,
     origenerator_launch_kwargs,
@@ -86,17 +87,17 @@ def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
 
 
 def the_session_it_is_handed(m: LaunchManifest, plan: WindowLayoutPlan, *,
-                             in_a_headset: bool) -> dict:
-    return {
-        "layout_plan": plan,
-        "frames_file": m.commands.origenerator_frames_file if in_a_headset else None,
-        "input_file": m.commands.origenerator_input_file if in_a_headset else None,
-        "command_file": m.commands.origenerator_cmd_file,
-        "paused_file": m.commands.origenerator_paused_file,
-        "status_file": m.commands.origenerator_status_file,
-        "dashboard_cmd_file": m.commands.dashboard_cmd_file,
-        "funestras": _the_funestras_it_is_handed(m),
-    }
+                             in_a_headset: bool) -> OrigeneratorSession:
+    return OrigeneratorSession(
+        layout_plan=plan,
+        frames_file=m.commands.origenerator_frames_file if in_a_headset else None,
+        input_file=m.commands.origenerator_input_file if in_a_headset else None,
+        command_file=m.commands.origenerator_cmd_file,
+        paused_file=m.commands.origenerator_paused_file,
+        status_file=m.commands.origenerator_status_file,
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
+        funestras=_the_funestras_it_is_handed(m),
+    )
 
 
 def what_an_adopted_app_is_told(frames_file: str, input_file: str, *, in_a_headset: bool) -> str:
@@ -139,13 +140,13 @@ def bring_up_the_hosted_app(
     origenerator_cmd_file.write_text("", encoding="utf-8")
     Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
     session = the_session_it_is_handed(m, plan, in_a_headset=in_a_headset)
-    for funestra in session["funestras"].values():
+    for funestra in session.funestras.values():
         Path(funestra.hud_file).unlink(missing_ok=True)
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
         handoff.hand_over(open_app.place, pid=open_app.pid,
                           args=the_args_it_declares(open_app.checkout,
-                                                    origenerator_session_args(**session)))
+                                                    origenerator_session_args(session)))
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)
@@ -158,8 +159,8 @@ def bring_up_the_hosted_app(
     origenerator_pid = launch_origenerator(
         python_exe=_its_interpreter(m, origenerator_dir),
         origenerator_dir=origenerator_dir,
+        session=session,
         sibling_checkouts=sibling_checkouts,
-        **session,
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
     return HostedApp(origenerator_pid, already_open=False, taken_over=False, slideshow_on=())

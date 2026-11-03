@@ -51,6 +51,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
+    WindowRect,
     compute_window_layout,
     screen_layout,
 )
@@ -63,7 +64,7 @@ from fun_time.windows_bridge_sequencer import (
     release_the_funestras,
     run_startup_sequence,
 )
-from fun_time.windows_bridge_startup import HandedFunestra
+from fun_time.windows_bridge_startup import GenauStart, HandedFunestra
 from tests.git_checkouts import a_worktree_of
 from tests.sleeps import sleeps_in
 
@@ -111,7 +112,7 @@ def _write_result(result_file, values):
         parser.write(fp)
 
 
-def _fake_core(**kwargs):
+def _fake_core(m, **kwargs):
     _write_result(kwargs["result_file"], CORE_PIDS)
     return "kino"
 
@@ -128,7 +129,7 @@ def _name_a_sibling_checkout(manifest_path, checkout: Path) -> Path:
 
 
 def _fake_core_in(mode: MainMode):
-    def launch(**kwargs):
+    def launch(m, **kwargs):
         _write_result(kwargs["result_file"], CORE_PIDS)
         return mode
     return launch
@@ -186,12 +187,12 @@ def _sequencer_stubs(**overrides):
         yield mocks
 
 
-def _fake_ui(**kwargs):
+def _fake_ui(m, **kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
-def _fake_main_funestra(**kwargs):
-    Path(kwargs["status_file"]).write_text("video=this_session.mp4\n", encoding="utf-8")
+def _fake_main_funestra(m, **kwargs):
+    Path(m.commands.main_funestra_status_file).write_text("video=this_session.mp4\n", encoding="utf-8")
     return MAIN_FUNESTRA_PID
 
 
@@ -199,7 +200,7 @@ ORIGENERATOR_PID = 91
 
 
 def _fake_origenerator(**kwargs):
-    Path(kwargs["status_file"]).write_text(
+    Path(kwargs["session"].status_file).write_text(
         "portrait_active=1\nportrait_video=\nportrait_locked=0\n"
         "landscape_active=1\nlandscape_video=\nlandscape_locked=0\n",
         encoding="utf-8",
@@ -236,12 +237,12 @@ class TestRunStartupSequence:
         core_called = {}
         ui_called = {}
 
-        def capture_core(**kwargs):
-            core_called.update(kwargs)
+        def capture_core(m, **kwargs):
+            core_called.update(kwargs, m=m)
             _write_result(kwargs["result_file"], CORE_PIDS)
 
-        def capture_ui(**kwargs):
-            ui_called.update(kwargs)
+        def capture_ui(m, **kwargs):
+            ui_called.update(kwargs, m=m)
             _write_result(kwargs["result_file"], UI_PIDS)
 
         with _sequencer_stubs(start_core_session={"side_effect": capture_core},
@@ -261,8 +262,8 @@ class TestRunStartupSequence:
     def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
-        assert core_called["satellite_python_exe"] == str(cfg.paths.python_exe)
-        assert core_called["satellite_module"] == "satellite"
+        assert core_called["m"].executables.python_exe == str(cfg.paths.python_exe)
+        assert core_called["m"].modules.satellite_module == "satellite"
         state = cfg.paths.state_dir
         for satellite in ("portrait", "landscape"):
             launch = core_called[satellite]
@@ -272,8 +273,8 @@ class TestRunStartupSequence:
             assert launch.channels.status == Path(state / f"{satellite}_status.txt")
             assert launch.log_file == tmp_path / f"{satellite}_satellite.log"
             assert launch.channels.playlist == tmp_path / f"{satellite}_playlist.tsv"
-        assert core_called["main_funestra_status_file"] == str(cfg.main_funestra_status_file)
-        assert core_called["main_funestra_paused_file"] == str(cfg.main_funestra_paused_file)
+        assert core_called["m"].commands.main_funestra_status_file == str(cfg.main_funestra_status_file)
+        assert core_called["m"].commands.main_funestra_paused_file == str(cfg.main_funestra_paused_file)
 
     def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
         _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
@@ -281,25 +282,23 @@ class TestRunStartupSequence:
         assert core_called["portrait"].rect.x == 2560
         assert core_called["portrait"].rect.width > 0
         assert core_called["landscape"].rect != core_called["portrait"].rect
-        assert ui_called["dashboard_width"] > 0
+        assert ui_called["plan"].dashboard.width > 0
 
     def test_the_core_launch_carries_the_session_files_through(self, cfg_factory, tmp_path):
         cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
 
         assert core_called["state_dir"] == tmp_path
-        assert core_called["regen_metadata_root"] == tmp_path / "metadata"
-        assert core_called["broker_state_dir"] == str(cfg.paths.broker_state_dir)
-        assert core_called["broker_cmd_file"] == str(cfg.broker_cmd_file)
+        commands = core_called["m"].commands
+        assert Path(core_called["m"].regen.metadata_root) == tmp_path / "metadata"
+        assert commands.broker_state_dir == str(cfg.paths.broker_state_dir)
+        assert commands.broker_cmd_file == str(cfg.broker_cmd_file)
 
     def test_the_ui_launch_enables_the_dashboard_and_forwards_the_rfb_rect(self, cfg_factory, tmp_path):
         _cfg, _result, _core, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
-        assert ui_called["dashboard_enabled"] is True
-        assert {"rfb_x", "rfb_y", "rfb_width", "rfb_height"} <= set(ui_called)
+        assert ui_called["m"].dashboard_enabled is True
         assert all(
-            isinstance(ui_called[key], int)
-            for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
-        )
+            isinstance(value, int) for value in ui_called["plan"].random_favs_browser)
 
     def test_a_session_hosting_origenerator_opens_the_dashboard_tall_enough_for_its_strip(
             self, cfg_factory, tmp_path):
@@ -307,51 +306,47 @@ class TestRunStartupSequence:
             cfg_factory, tmp_path, paths={"origenerator_dir": str(tmp_path / "origenerator")},
             launch_origenerator={"side_effect": _fake_origenerator})
 
-        assert ui_called["dashboard_height"] == dashboard_window_height(rfb_mode_selector=True)
-        assert ui_called["rfb_y"] == ui_called["dashboard_y"] + ui_called["dashboard_height"]
+        dashboard = ui_called["plan"].dashboard
+        assert dashboard.height == dashboard_window_height(rfb_mode_selector=True)
+        assert ui_called["plan"].random_favs_browser.y == dashboard.y + dashboard.height
 
     def test_launches_the_main_funestra_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         main_funestra_kwargs = {}
 
-        def capture_main_funestra(**kwargs):
-            main_funestra_kwargs.update(kwargs)
-            return _fake_main_funestra(**kwargs)
+        def capture_main_funestra(m, **kwargs):
+            main_funestra_kwargs.update(kwargs, m=m)
+            return _fake_main_funestra(m, **kwargs)
 
         with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}, wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_funestra_kwargs == {
-            "python_exe": str(cfg.paths.python_exe),
-            "main_funestra_module": "main_funestra",
-            "config_path": str(cfg.config_path),
-            "playlist_file": str(cfg.main_funestra_playlist_file),
-            "command_file": str(cfg.main_funestra_cmd_file),
-            "paused_file": str(cfg.main_funestra_paused_file),
-            "status_file": str(cfg.main_funestra_status_file),
-            "console_file": str(main_funestra_hud_path(cfg.paths.state_dir)),
-            "drive_file": str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt"),
-            "log_file": tmp_path / "main_funestra.log",
-            "state_dir": tmp_path,
-            "main_funestra_x": PRIMARY_MEDIA_RECT["x"],
-            "main_funestra_y": PRIMARY_MEDIA_RECT["y"],
-            "main_funestra_width": PRIMARY_MEDIA_RECT["width"],
-            "main_funestra_height": PRIMARY_MEDIA_RECT["height"],
-            "genau_command_file": str(cfg.genau_cmd_file),
-            "genau_paused_file": str(cfg.genau_paused_file),
-            "genau_status_file": str(cfg.genau_status_file),
-            "flicks_dir": str(cfg.paths.flicks_dir),
-            "metadata_dir": None,
-            "genau_start_flick": "",
-            "genau_latest": False,
-            "genau_f_mode": False,
-            "genau_orientations": (True, True),
-            "notice_file": str(cfg.main_funestra_notice_file),
-            "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
-            "osr2_port": str(ports.OSR2_SLOT),
-            "sibling_checkouts": "",
-        }
+        given = main_funestra_kwargs["m"]
+        assert given == LaunchManifest.read(manifest_path)
+        assert given.executables.python_exe == str(cfg.paths.python_exe)
+        assert given.modules.main_funestra_module == "main_funestra"
+        assert given.runtime.config_path == str(cfg.config_path)
+        commands = given.commands
+        assert commands.main_funestra_playlist_file == str(cfg.main_funestra_playlist_file)
+        assert commands.main_funestra_cmd_file == str(cfg.main_funestra_cmd_file)
+        assert commands.main_funestra_paused_file == str(cfg.main_funestra_paused_file)
+        assert commands.main_funestra_status_file == str(cfg.main_funestra_status_file)
+        assert commands.main_funestra_console_file == str(main_funestra_hud_path(cfg.paths.state_dir))
+        assert commands.genau_drive_file == str(Path(cfg.genau_cmd_file).parent / "genau_drive.txt")
+        assert commands.genau_cmd_file == str(cfg.genau_cmd_file)
+        assert commands.genau_paused_file == str(cfg.genau_paused_file)
+        assert commands.genau_status_file == str(cfg.genau_status_file)
+        assert given.media.genau_flicks == str(cfg.paths.flicks_dir)
+        assert given.regen.metadata_root == ""
+        assert commands.main_funestra_notice_file == str(cfg.main_funestra_notice_file)
+        assert commands.dashboard_cmd_file == str(cfg.paths.state_dir / "dashboard_cmd.txt")
+        assert commands.osr2_slot_port == str(ports.OSR2_SLOT)
+        assert given.runtime.sibling_checkouts == ""
+        assert main_funestra_kwargs["log_file"] == tmp_path / "main_funestra.log"
+        assert main_funestra_kwargs["state_dir"] == tmp_path
+        assert main_funestra_kwargs["rect"] == WindowRect(**PRIMARY_MEDIA_RECT)
+        assert main_funestra_kwargs["genau"] == GenauStart()
 
     def test_the_main_funestra_starts_from_fun_times_own_python_whatever_genau_python_the_config_names(
             self, cfg_factory, tmp_path):
@@ -359,14 +354,14 @@ class TestRunStartupSequence:
             "paths": {"genau_python_exe": str(tmp_path / "genau" / "pythonw.exe")}})
         main_funestra_kwargs: dict = {}
 
-        def capture_main_funestra(**kwargs):
-            main_funestra_kwargs.update(kwargs)
-            return _fake_main_funestra(**kwargs)
+        def capture_main_funestra(m, **kwargs):
+            main_funestra_kwargs.update(kwargs, m=m)
+            return _fake_main_funestra(m, **kwargs)
 
         with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_funestra_kwargs["python_exe"] == str(cfg.paths.python_exe)
+        assert main_funestra_kwargs["m"].executables.python_exe == str(cfg.paths.python_exe)
 
     def test_the_main_funestra_reads_every_setting_from_fun_times_own_config(
             self, cfg_factory, tmp_path):
@@ -376,29 +371,29 @@ class TestRunStartupSequence:
 
         main_funestra_kwargs: dict = {}
 
-        def capture_main_funestra(**kwargs):
-            main_funestra_kwargs.update(kwargs)
-            return _fake_main_funestra(**kwargs)
+        def capture_main_funestra(m, **kwargs):
+            main_funestra_kwargs.update(kwargs, m=m)
+            return _fake_main_funestra(m, **kwargs)
 
         with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_funestra_kwargs["config_path"] == str(cfg.config_path)
-        assert main_funestra_kwargs["flicks_dir"] == str(cfg.paths.flicks_dir)
+        assert main_funestra_kwargs["m"].runtime.config_path == str(cfg.config_path)
+        assert main_funestra_kwargs["m"].media.genau_flicks == str(cfg.paths.flicks_dir)
 
     def test_the_main_funestra_starts_with_the_named_checkouts(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         checkout = _name_a_sibling_checkout(manifest_path, tmp_path / "a_worktree")
         main_funestra_kwargs: dict = {}
 
-        def capture_main_funestra(**kwargs):
-            main_funestra_kwargs.update(kwargs)
-            return _fake_main_funestra(**kwargs)
+        def capture_main_funestra(m, **kwargs):
+            main_funestra_kwargs.update(kwargs, m=m)
+            return _fake_main_funestra(m, **kwargs)
 
         with _sequencer_stubs(launch_main_funestra={"side_effect": capture_main_funestra}, wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert main_funestra_kwargs["sibling_checkouts"] == str(checkout)
+        assert main_funestra_kwargs["m"].runtime.sibling_checkouts == str(checkout)
 
     def test_the_satellites_start_with_the_named_checkouts(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -407,7 +402,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs() as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert stubs.start_core_session.call_args.kwargs["sibling_checkouts"] == str(checkout)
+        assert stubs.start_core_session.call_args.args[0].runtime.sibling_checkouts == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -455,7 +450,7 @@ class TestRunStartupSequence:
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert launch.call_args.kwargs["genau_start_flick"] == "C:\\flicks\\alpha.mp4"
+        assert launch.call_args.kwargs["genau"].start_flick == "C:\\flicks\\alpha.mp4"
 
     def test_genau_is_launched_in_the_order_it_was_left_browsing(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -464,7 +459,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert stubs.launch_main_funestra.call_args.kwargs["genau_latest"] is True
+        assert stubs.launch_main_funestra.call_args.kwargs["genau"].latest is True
 
     def test_genau_is_launched_in_the_f_mode_it_was_left_in_over_the_apps_favorites(
             self, cfg_factory, tmp_path):
@@ -474,10 +469,10 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        given = stubs.launch_main_funestra.call_args.kwargs
+        given = stubs.launch_main_funestra.call_args
         manifest = LaunchManifest.read(manifest_path)
-        assert given["genau_f_mode"] is True
-        assert given["notice_file"] == manifest.commands.main_funestra_notice_file
+        assert given.kwargs["genau"].f_mode is True
+        assert given.args[0].commands.main_funestra_notice_file == manifest.commands.main_funestra_notice_file
 
     def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):
         records = tmp_path / "library" / "videos" / "metadata"
@@ -487,7 +482,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert Path(stubs.launch_main_funestra.call_args.kwargs["metadata_dir"]) == records
+        assert Path(stubs.launch_main_funestra.call_args.args[0].regen.metadata_root) == records
 
     def test_the_main_funestra_reaches_the_osr2_through_the_slot_the_config_names(
             self, cfg_factory, tmp_path):
@@ -497,7 +492,7 @@ class TestRunStartupSequence:
         with _sequencer_stubs(wait_for_window_by_title={"return_value": 88888}) as stubs:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert stubs.launch_main_funestra.call_args.kwargs["osr2_port"] == "50599"
+        assert stubs.launch_main_funestra.call_args.args[0].commands.osr2_slot_port == "50599"
 
     def test_a_genau_session_opens_with_the_main_funestra_up_and_in_the_band(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -697,7 +692,7 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
     def test_the_startup_ends_naming_the_funestra_and_what_it_said(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        def a_main_funestra_that_cannot_load_its_engine(**kwargs):
+        def a_main_funestra_that_cannot_load_its_engine(m, **kwargs):
             with Path(kwargs["log_file"]).open("a", encoding="utf-8") as log:
                 log.write("OSError: The engine (libmpv) could not be loaded. Looked in: "
                           "C:\\funestra\\vendor (no libmpv-2.dll in it)\n")
@@ -916,13 +911,14 @@ class TestMainFunestraGatesTheReveal:
 
         seen: dict = {}
 
-        def capture_core(**kwargs):
-            seen["resumed_onto"] = read_main_funestra_status(Path(kwargs["main_funestra_status_file"])).video
+        def capture_core(m, **kwargs):
+            seen["resumed_onto"] = read_main_funestra_status(
+                Path(m.commands.main_funestra_status_file)).video
             _write_result(kwargs["result_file"], CORE_PIDS)
 
-        def capture_main_funestra(**kwargs):
-            seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
-            return _fake_main_funestra(**kwargs)
+        def capture_main_funestra(m, **kwargs):
+            seen["stale_at_launch"] = Path(m.commands.main_funestra_status_file).exists()
+            return _fake_main_funestra(m, **kwargs)
 
         with _sequencer_stubs(start_core_session={"side_effect": capture_core}, launch_main_funestra={"side_effect": capture_main_funestra}, wait_for_window_by_title={"return_value": 88888}):
             run_startup_sequence(
@@ -1131,9 +1127,9 @@ class TestOrigeneratorLaunch:
         assert not result.origenerator_taken_over
         assert captured["origenerator_dir"] == str(tmp_path / "origenerator")
         assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
-        assert captured["layout_plan"].random_favs_browser.width > 0
-        assert str(captured["command_file"]).endswith("origenerator_cmd.txt")
-        assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
+        assert captured["session"].layout_plan.random_favs_browser.width > 0
+        assert str(captured["session"].command_file).endswith("origenerator_cmd.txt")
+        assert Path(captured["session"].paused_file).read_text(encoding="utf-8") == "0"
 
     def test_the_hosted_app_is_handed_both_funestras(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({"paths": {
@@ -1156,7 +1152,7 @@ class TestOrigeneratorLaunch:
 
         for funestra in FunTimeFunestra.SATELLITES:
             files = cfg.satellite(funestra)
-            assert captured["funestras"][funestra.label] == HandedFunestra(
+            assert captured["session"].funestras[funestra.label] == HandedFunestra(
                 playlist_file=str(files.playlist_file), cmd_file=str(files.cmd_file),
                 status_file=str(files.status_file),
                 hud_file=str(files.origenerator_hud_file))
@@ -1494,9 +1490,9 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         order: list[str] = []
 
         def note(name, answer):
-            def stub(**kwargs):
+            def stub(*args, **kwargs):
                 order.append(name)
-                return answer(**kwargs) if callable(answer) else answer
+                return answer(*args, **kwargs) if callable(answer) else answer
             return stub
 
         with _sequencer_stubs(
@@ -1546,7 +1542,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         seen: dict = {}
 
         def capture(**kwargs):
-            seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
+            seen["stale_at_launch"] = Path(kwargs["session"].status_file).exists()
             return _fake_origenerator(**kwargs)
 
         with _sequencer_stubs(launch_origenerator={"side_effect": capture}):
