@@ -35,11 +35,6 @@ from tests.hosted_shows import publish_the_show
 
 EXPECTATIONS = Path(__file__).with_suffix(".json")
 
-LEFT_UNANSWERED: dict[str, str] = {
-    "wrong_action": "a show's image carries no act label to strike, and the app "
-                    "refuses the strike on purpose",
-}
-
 
 def published_text(scratch: Path) -> str:
     return json.dumps(expectations(scratch), indent=2) + "\n"
@@ -56,14 +51,6 @@ def expectations(scratch: Path) -> dict:
             build_bridge_config_from_manifest(on_the_monitors), headset_config(scratch / "in_a_headset"))),
         "said_at_field": SAID_AT_FIELD,
     }
-
-
-def _said_after_the_satellite(line: str) -> str:
-    for funestra in FunTimeFunestra.SATELLITES:
-        satellite = f"{funestra.label}_"
-        if line.lower().startswith(satellite):
-            return line[len(satellite):].lower()
-    return line
 
 
 _A_RECT = WindowRect(0, 0, 10, 10)
@@ -93,8 +80,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         *(said_to_the_hosted_app(funestra.label, "{words}")
           for funestra in FunTimeFunestra.SATELLITES),
     ]
-    return {_as_published(line) for line in written
-            if _said_after_the_satellite(line) not in LEFT_UNANSWERED}
+    return {_as_published(line) for line in written}
 
 
 def _as_published(line: str) -> str:

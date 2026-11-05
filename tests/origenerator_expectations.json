@@ -123,6 +123,7 @@
     "landscape_seed_loop",
     "landscape_shuffle",
     "landscape_trash",
+    "landscape_wrong_action",
     "portrait_action_loop",
     "portrait_close_slideshow",
     "portrait_cycle_action",
@@ -160,7 +161,8 @@
     "portrait_reset",
     "portrait_seed_loop",
     "portrait_shuffle",
-    "portrait_trash"
+    "portrait_trash",
+    "portrait_wrong_action"
   ],
   "said_at_field": "said_at_epoch_seconds"
 }
