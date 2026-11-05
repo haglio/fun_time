@@ -8,8 +8,9 @@ from pathlib import Path
 from app_support.file_channel import read_flag
 from funestra.file_channel import append_command
 from funestra.flick_advance import FlickAdvanceState
-from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_SPEED, SET_VOLUME
+from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_VOLUME, set_speed
 from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
+from funestra.playback_rate import NORMAL_RATE
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
 
@@ -153,8 +154,8 @@ def resume_satellite_volumes(carried: BridgeState,
 
 def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:
     for command_file, rate in rates:
-        if rate != 1.0:
-            append_command(Path(command_file), f"{SET_SPEED} {rate:g}")
+        if rate != NORMAL_RATE:
+            append_command(Path(command_file), set_speed(rate))
 
 
 def resume_what_lives_in_a_funestra(

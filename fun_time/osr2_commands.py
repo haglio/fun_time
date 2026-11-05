@@ -12,6 +12,7 @@ from funestra.funestra_verbs import (
     SET_SPEED,
     SPEED_DOWN,
     SPEED_UP,
+    set_speed,
 )
 from funestra.main_hud import HOLD_VERB, OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED
 
@@ -60,7 +61,7 @@ def percent_rate(value: str) -> str | None:
         pct = int(value)
     except ValueError:
         return None
-    return f"{SET_SPEED} {pct / 100:g}"
+    return set_speed(pct / 100)
 
 
 def _speed_target(state: BridgeState, config: BridgeConfig, *,
@@ -78,9 +79,6 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *,
             and read_main_funestra_status(config.main_funestra_status_file).funscript_driving):
         return FunTimeFunestra.MAIN
     return None
-
-
-NORMAL_SPEED = f"{SET_SPEED} 1"
 
 
 _SKIP_AHEAD_NAMES = {
