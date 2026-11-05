@@ -82,7 +82,7 @@ def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
     seen: set[str] = set()
     for item in action_group_items(index, current):
         action = index.act_of(item)
-        if not action or action == current_action or action in seen:
+        if action == current_action or action in seen:
             continue
         seen.add(action)
         reps.append(item)
