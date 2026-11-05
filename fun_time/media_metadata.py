@@ -7,8 +7,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from app_support import favorites, video_action
-from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
+from app_support import favorites, video_action, watch_weights
+from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, record_path
 from app_support.video_names import clip_title, version_group_of
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.video_families import action_group_key, filter_keeps, normalized_text, seed_group_key
@@ -34,14 +34,9 @@ def metadata_path_for(
 ) -> Path | None:
     if metadata_root is None:
         return None
-    metadata_root = Path(metadata_root)
-    return mirrored_path(
-        video_path,
-        roots=(*library_roots_beside(metadata_root),
-               *(_library_holding(Path(folder)) for folder in outlying_dirs)),
-        mirror_root=metadata_root,
-        suffix=".json",
-    )
+    return record_path(
+        video_path, Path(metadata_root),
+        more_roots=tuple(_library_holding(Path(folder)) for folder in outlying_dirs))
 
 
 EXCERPT = "excerpt"
@@ -74,9 +69,6 @@ def recorded_duration_seconds(payload: dict) -> float | None:
     return float(seconds) if isinstance(seconds, (int, float)) else None
 
 
-WATCH_BLOCK = "watch"
-
-
 _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
@@ -98,16 +90,6 @@ def video_title(payload: dict, video: str | Path) -> str:
         or recorded_group(payload, video)
         or Path(video).stem
     )
-
-
-def watch_weight_of(payload: dict) -> float:
-    block = payload.get(WATCH_BLOCK)
-    if not isinstance(block, dict):
-        return 1.0
-    try:
-        return float(block.get("weight", 1.0))
-    except (TypeError, ValueError):
-        return 1.0
 
 
 def load_metadata(json_path: str | Path) -> dict:
@@ -314,7 +296,7 @@ def _entry_for(path: str, metadata: dict) -> VideoEntry:
         seed_key=seed_group_key(metadata),
         scene_tags=scene_tags(metadata),
         from_image=bool(metadata.get("source_image")),
-        weight=watch_weight_of(metadata),
+        weight=watch_weights.weight_of(metadata),
     )
 
 

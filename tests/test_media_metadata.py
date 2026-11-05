@@ -28,7 +28,6 @@ from fun_time.media_metadata import (
     seed_family_items,
     video_title,
     video_type_of,
-    watch_weight_of,
     widened_seed_items,
 )
 
@@ -256,13 +255,6 @@ def test_build_group_index_carries_each_videos_watch_weight(tmp_path: Path):
     assert index.weight_of(paths["loved"]) == 4.0
     assert index.weight_of(paths["plain"]) == 1.0
     assert index.weight_of(paths["no_metadata"]) == 1.0
-
-
-def test_watch_weight_of_reads_the_stamped_weight_and_defaults_to_one():
-    assert watch_weight_of({"watch": {"completions": 3, "skips": 0, "locks": 0, "weight": 2.0}}) == 2.0
-    assert watch_weight_of({"video": {"type": "short"}}) == 1.0
-    assert watch_weight_of({"watch": "eight"}) == 1.0
-    assert watch_weight_of({"watch": {"weight": "heavy"}}) == 1.0
 
 
 def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):

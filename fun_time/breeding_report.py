@@ -5,8 +5,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support import watch_weights
+
 from .config import load_config
-from .media_metadata import WATCH_BLOCK, recorded_for, watch_weight_of
+from .media_metadata import recorded_for
 from .modes import collect_video_files
 
 
@@ -58,13 +60,13 @@ def build_breeding_rows(
     rows: list[BreedingRow] = []
     for path in video_paths:
         metadata = recorded_for(path, metadata_root)
-        block = metadata.get(WATCH_BLOCK)
+        block = metadata.get(watch_weights.WATCH_BLOCK)
         if not isinstance(block, dict):
             continue
         action, seed, prompt = _identity_of(metadata)
         rows.append(BreedingRow(
             path=path,
-            weight=watch_weight_of(metadata),
+            weight=watch_weights.weight_of(metadata),
             completions=_count(block, "completions"),
             skips=_count(block, "skips"),
             locks=_count(block, "locks"),
