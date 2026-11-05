@@ -803,3 +803,47 @@ def test_hud_thumbnails_caps_at_limit_and_skips_unreadable():
 
 def test_a_hud_with_no_videos_in_it_shows_no_thumbnails():
     assert hud_thumbnails([], Path("cache"), limit=4, thumbnailer=lambda *_: None) == []
+
+
+def _column_index(**actions: str) -> GroupIndex:
+    paths = {name: f"C:/vids/{name}.mp4" for name in actions}
+    return GroupIndex(
+        entries=_entries(*(VideoEntry(path=paths[name], action=action, action_key="G")
+                           for name, action in actions.items())),
+        action_items={"G": sorted(paths.values())},
+        seed_items={},
+    )
+
+
+def test_a_video_with_no_action_has_a_row_in_the_column_with_no_action_name():
+    index = _column_index(words="Alpha", made="")
+
+    hud = _hud("portrait", locked=False, current="C:/vids/words.mp4", index=index)
+
+    assert hud.action_siblings == ["C:/vids/made.mp4"]
+    assert hud.action_labels == ("",)
+
+
+def test_a_video_with_no_action_sees_the_others_in_its_column():
+    index = _column_index(words="Alpha", made="")
+
+    hud = _hud("portrait", locked=False, current="C:/vids/made.mp4", index=index)
+
+    assert hud.action_siblings == ["C:/vids/words.mp4"]
+    assert hud.action_labels == ("Alpha",)
+
+
+def test_several_videos_with_no_action_share_one_row_as_any_action_does():
+    index = _column_index(words="Alpha", made_one="", made_two="")
+
+    hud = _hud("portrait", locked=False, current="C:/vids/words.mp4", index=index)
+
+    assert hud.action_siblings == ["C:/vids/made_one.mp4"]
+
+
+def test_a_video_with_no_action_has_no_row_for_its_own_blank():
+    index = _column_index(made_one="", made_two="")
+
+    hud = _hud("portrait", locked=False, current="C:/vids/made_one.mp4", index=index)
+
+    assert hud.action_siblings == []
