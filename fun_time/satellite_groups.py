@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from app_support.media_renditions import renditions
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file, step_version
 from funestra.loop_cycle import LOCK, next_stop, standing_at
@@ -24,7 +25,6 @@ from .media_metadata import (
     seed_family_items,
     widened_seed_items,
 )
-from .media_renditions import renditions
 from .modes import SatelliteBuild, collect_video_files, scripted_item, write_playlist_file
 from .runtime_flow import satellite_browse_paths
 from .satellite_control import read_satellite_status

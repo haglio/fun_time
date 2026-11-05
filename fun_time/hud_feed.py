@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app_support import favorites, osr2_device
+from app_support.media_renditions import renditions
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
 from funestra.hud_controls import longer_than_a_step
@@ -28,7 +29,6 @@ from .main_list_commands import (
     main_video_shapes,
 )
 from .media_metadata import load_metadata, metadata_path_for
-from .media_renditions import renditions
 from .origenerator_switches import hosts, origenerator_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,

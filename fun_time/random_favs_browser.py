@@ -5,10 +5,11 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.media_renditions import original_rendition
+
 from .config import ProjectConfig, RegenConfig
 from .content import WebProvider
 from .media_metadata import favorites_in
-from .media_renditions import original_rendition
 from .regen import regen_url_for_video
 from .rfb_tab_page import TabTarget
 

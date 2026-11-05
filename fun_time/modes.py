@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.media_renditions import renditions
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, mirrored_path
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.funscript import load as load_funscript
@@ -21,7 +22,6 @@ from .media_metadata import (
     recorded_duration_seconds,
     recorded_for,
 )
-from .media_renditions import has_an_upscale
 from .mode_plan import EnhancementLevel
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
@@ -33,6 +33,10 @@ PLAYLIST_MAIN_FUNESTRA = "main_player_playlist"
 
 def is_supported_video_path(path: str) -> bool:
     return Path(path).suffix.lower() in SUPPORTED_VIDEO_EXTS
+
+
+def has_an_upscale(media_root: str | Path | None) -> Callable[[str], bool]:
+    return lambda video_path: bool(renditions(video_path, media_root))
 
 
 def source_roots(source_spec: str) -> list[Path]:
