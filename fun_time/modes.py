@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app_support.media_renditions import renditions
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, mirrored_path
-from app_support.watch_weights import passes_inclusion, weighted_shuffle
+from app_support.watch_weights import dealt_by_weight, newest_of_each_group
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.funscript import load as load_funscript
 from funestra.playlist import PlaylistItem, write_playlist
@@ -183,40 +183,14 @@ class VideoShapes:
                            plays_vr=self.plays_vr, plays_flat=self.plays_flat)
 
 
-def _collapse_axis(
-    index: GroupIndex,
-    by_seed_family: bool,
-) -> tuple[Callable[[str], str | None], Callable[[str], list[str]]]:
+def _group_of(index: GroupIndex, by_seed_family: bool) -> Callable[[str], str | None]:
     if by_seed_family:
         def seed_family_of(path: str) -> str | None:
             seed_key = index.entry(path).seed_key
             return seed_key[0] if seed_key is not None else None
 
-        return seed_family_of, lambda family: index.seed_items[family]
-    return (
-        lambda path: index.entry(path).action_key,
-        lambda key: index.action_items[key],
-    )
-
-
-def _collapse_groups(
-    paths: list[str],
-    group_key_of: Callable[[str], str | None],
-    items_of: Callable[[str], list[str]],
-    pick: Callable[[list[str]], str],
-) -> list[str]:
-    picks: list[str] = []
-    seen_groups: set[str] = set()
-    for path in paths:
-        group_key = group_key_of(path)
-        if group_key is None:
-            picks.append(path)
-            continue
-        if group_key in seen_groups:
-            continue
-        seen_groups.add(group_key)
-        picks.append(pick(items_of(group_key)))
-    return picks
+        return seed_family_of
+    return lambda path: index.entry(path).action_key
 
 
 def _collapse_and_weigh(
@@ -226,19 +200,9 @@ def _collapse_and_weigh(
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    randomizer = rng or random.Random()
     index = build_group_index(paths, metadata_root)
-    survivors = [path for path in paths if passes_inclusion(index.weight_of(path), randomizer)]
-    surviving = {normalize_path_key(path) for path in survivors}
-    group_key_of, items_of = _collapse_axis(index, by_seed_family)
-
-    def pick(items: list[str]) -> str:
-        candidates = [item for item in items if normalize_path_key(item) in surviving]
-        weights = [index.weight_of(item) for item in candidates]
-        return randomizer.choices(candidates, weights=weights, k=1)[0]
-
-    collapsed = _collapse_groups(survivors, group_key_of, items_of, pick)
-    return weighted_shuffle(collapsed, index.weight_of, randomizer)
+    return dealt_by_weight(paths, weight_of=index.weight_of,
+                           group_of=_group_of(index, by_seed_family), rng=rng or random.Random())
 
 
 def _collapse_recent(
@@ -250,9 +214,9 @@ def _collapse_recent(
     dates = FolderListings()
     ordered = sort_paths_by_recency(paths, dates)
     index = build_group_index(ordered, metadata_root)
-    group_key_of, items_of = _collapse_axis(index, by_seed_family)
-    return _collapse_groups(
-        ordered, group_key_of, items_of, lambda items: max(items, key=dates.modified))
+    return newest_of_each_group(
+        ordered, _group_of(index, by_seed_family),
+        newest=lambda group: max(sorted(group), key=dates.modified))
 
 
 def satellite_narrowing(
