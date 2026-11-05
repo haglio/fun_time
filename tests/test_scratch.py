@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.scratch import scratch_dir
+from tests.scratch import scratch_dir, scratch_root_of
 
 
 def test_a_read_only_file_does_not_keep_the_scratch_standing(tmp_path: Path):
@@ -52,3 +52,11 @@ def test_a_file_linked_in_from_outside_keeps_its_read_only_bit(tmp_path: Path):
         assert not outside.stat().st_mode & stat.S_IWRITE
     finally:
         outside.chmod(stat.S_IWRITE)
+
+
+def test_a_worker_of_a_run_side_by_side_keeps_its_scratch_in_a_folder_of_its_own():
+    assert scratch_root_of(Path("everyone's"), {"PYTEST_XDIST_WORKER": "gw3"}) == Path("everyone's") / "gw3"
+
+
+def test_a_run_in_one_process_keeps_its_scratch_where_it_always_did():
+    assert scratch_root_of(Path("everyone's"), {}) == Path("everyone's")
