@@ -17,10 +17,10 @@ def make_sampler(tmp_path: Path) -> WatchSampler:
     )
 
 
-def _publish(path: Path, video, *, fraction: float) -> None:
+def _publish(path: Path, video, *, fraction: float, image: bool = False) -> None:
     path.write_text(
         f"video={video}\nposition_ms={round(fraction * 1000)}\nduration_ms=1000\n"
-        "paused=0\nlocked=0\n",
+        f"paused=0\nlocked=0\npicture={int(image)}\n",
         encoding="utf-8",
     )
 
@@ -41,16 +41,16 @@ def test_a_video_watched_to_the_end_is_recorded_as_a_completion(tmp_path):
     assert stats[normalize_path_key(str(video))]["completions"] == 1
 
 
-def test_a_satellite_playing_the_hosted_apps_images_books_nothing(tmp_path):
+def test_an_image_on_a_satellite_books_nothing_however_far_its_hold_has_run(tmp_path):
     image = tmp_path / "scene one.png"
     image.write_text("x", encoding="utf-8")
     sampler = make_sampler(tmp_path)
 
     for now, fraction in ((100.0, 0.1), (101.1, 0.9)):
-        _publish(tmp_path / "portrait_status.txt", image, fraction=fraction)
-        sampler.sample_due(now=now, paused=False, hosted=(2,))
-    _publish(tmp_path / "portrait_status.txt", tmp_path / "next.png", fraction=0.0)
-    sampler.sample_due(now=102.2, paused=False, hosted=(2,))
+        _publish(tmp_path / "portrait_status.txt", image, fraction=fraction, image=True)
+        sampler.sample_due(now=now, paused=False)
+    _publish(tmp_path / "portrait_status.txt", tmp_path / "next.png", fraction=0.0, image=True)
+    sampler.sample_due(now=102.2, paused=False)
 
     assert normalize_path_key(str(image)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
@@ -215,7 +215,7 @@ class TestBackDating:
         status = sampler.satellite_status_files[2]
         for at, image in ((100.0, "C:\\images\\meant.png"), (101.0, "C:\\images\\next.png")):
             status.write_text(f"video={image}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
-            sampler.sample_due(now=at, paused=False, hosted=(2,))
+            sampler.sample_due(now=at, paused=False)
 
         assert sampler.video_at(parse_command("portrait_lock_on"), 100.2) == "C:\\images\\meant.png"
 
