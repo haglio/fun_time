@@ -662,3 +662,17 @@ def test_a_queue_not_holding_the_video_comes_back_from_its_top():
 
 def test_a_funestra_that_published_no_status_leaves_the_queue_as_it_was():
     assert rotated_onto(["a.mp4", "b.mp4"], "", path_of=str) == ["a.mp4", "b.mp4"]
+
+
+def test_latest_keeps_the_first_spelled_of_a_group_made_at_the_same_moment(tmp_path: Path):
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
+        "subject1_alpha": _i2v_meta("111", "Alpha"),
+        "subject1_Zeta": _i2v_meta("111", "Zeta"),
+    })
+    for name in paths:
+        os.utime(Path(paths[name]), (1000, 1000))
+
+    built = build_satellite_playlist_paths(
+        SatelliteBuild(str(source_dir), recent=True), metadata_root=metadata_root)
+
+    assert built == [paths["subject1_Zeta"]]
