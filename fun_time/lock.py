@@ -28,18 +28,22 @@ def a_lock_holds(item: str, state: BridgeState,
                  config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     if not item:
         return state, []
-    page = make_web_url_from_path(item, load_web_providers())
-    mark_favorite(item, config.regen_metadata_root, True, page=page)
+    favorite = _with_its_page(item)
+    mark_favorite(item, config.regen_metadata_root, True, page=favorite.web_url)
     record_watch_event(watch_stats_path(config.state_dir), item, "lock")
-    return _where_more_of_it_is_made(FavEntry(local_path=item, web_url=page), state, config)
+    return _where_more_of_it_is_made(favorite, state, config)
+
+
+def _with_its_page(item: str) -> FavEntry:
+    return FavEntry(local_path=item, web_url=make_web_url_from_path(item, load_web_providers()))
 
 
 def a_hosted_lock_holds(item: str, state: BridgeState,
                         config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     record = metadata_path_for(item, config.regen_metadata_root)
-    if record is None or not record.is_file():
-        return state, []
-    return a_lock_holds(item, state, config)
+    if record is not None and record.is_file():
+        return a_lock_holds(item, state, config)
+    return _where_more_of_it_is_made(_with_its_page(item), state, config)
 
 
 def unfavorite(item: str, config: BridgeConfig) -> None:
