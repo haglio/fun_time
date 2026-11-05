@@ -31,7 +31,7 @@ from tests.logging_state import logging_given_back
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 from tests.process_state import the_guard_for
 from tests.qt_application import application
-from tests.scratch import scratch_dir
+from tests.scratch import scratch_dir, scratch_root_of
 from tests.thread_state import no_thread_outlives_this
 
 # test_real_config_launchable is a check on THIS MACHINE's state — the
@@ -216,12 +216,13 @@ def _end_the_process_before_its_libraries_clean_up(exit_code: int) -> None:
     _winapi.TerminateProcess(_winapi.GetCurrentProcess(), exit_code)
 
 
-TMP_ROOT = Path(
+_EVERY_WORKERS_TMP_ROOT = Path(
     os.environ.get(
         "FUN_TIME_PYTEST_TMP_ROOT",
         str(Path(__file__).resolve().parent.parent / ".tmp-pytest-local"),
     )
 ).resolve()
+TMP_ROOT = scratch_root_of(_EVERY_WORKERS_TMP_ROOT, os.environ)
 
 
 @pytest.fixture
@@ -233,11 +234,12 @@ def tmp_path() -> Path:
 @pytest.fixture(autouse=True, scope="session")
 def _cleanup_tmp_root():
     yield
-    try:
-        if TMP_ROOT.is_dir() and not any(TMP_ROOT.iterdir()):
-            TMP_ROOT.rmdir()
-    except OSError:
-        pass
+    for root in (TMP_ROOT, _EVERY_WORKERS_TMP_ROOT):
+        try:
+            if root.is_dir() and not any(root.iterdir()):
+                root.rmdir()
+        except OSError:
+            pass
 
 
 def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:

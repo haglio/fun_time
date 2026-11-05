@@ -8,8 +8,10 @@ Shared rules are in the global `~/.claude/CLAUDE.md`. This file contains only fu
 
 Unit tests (run freely, no permission needed):
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -x
+.\.venv\Scripts\python.exe -m pytest -x -q -n 8
 ```
+
+That is the whole unit run in eight worker processes (pytest-xdist), about two minutes against seven in one process, so it is the run to make before every commit. A run that names a file goes in one process, without `-n`. Each worker keeps its temporary folders under its own folder of `.tmp-pytest-local`; a test that writes to a fixed name, port or Windows object fails only in this run, so give it `tmp_path` or a free port. A venv without the plugin answers `unrecognized arguments: -n`: the production updater installs it the next time Fun Time is closed after the commit naming it reaches production, and until then run without `-n`.
 
 The default `pytest` invocation only runs unit tests. Integration tests live in `tests/integration/` and are excluded from the default collection.
 

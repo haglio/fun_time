@@ -23,7 +23,7 @@ requires-python = ">=3.14"
 # other half had not landed turned all of them red at once. Moving to a newer
 # one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.431",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.434",
     "funestra @ git+https://github.com/haglio/funestra@v0.1.785",
     "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.342",
     # The family's listener: it brings vosk and sounddevice, and hears for this
@@ -49,6 +49,7 @@ dev = [
     "pytest>=9,<10",
     "pytest-cov>=7,<8",
     "pytest-timeout>=2.4,<3",
+    "pytest-xdist>=3.8,<4",
     "ruff==0.16.6",
     "vulture>=2.16,<3",
 ]
@@ -154,6 +155,7 @@ environment = { HAGLIO_UPKEEP = "1" }
 # table at all also makes every launcher here bring this checkout up, and wait
 # out an update of it or of Origenerator, before it starts what it starts.
 [tool.haglio.production]
+tests-run-from-its-venv = true
 commit-file = 'state\main_verifier_passed.txt'
 also-runs = ["origenerator"]
 

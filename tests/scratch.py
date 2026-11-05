@@ -11,6 +11,10 @@ from pathlib import Path
 from tests.logging_state import logging_given_back
 
 
+def scratch_root_of(everyones: Path, environ) -> Path:
+    return everyones / environ.get("PYTEST_XDIST_WORKER", "")
+
+
 @contextlib.contextmanager
 def scratch_dir(root: Path) -> Iterator[Path]:
     root.mkdir(parents=True, exist_ok=True)
