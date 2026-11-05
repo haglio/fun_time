@@ -199,6 +199,20 @@
       "ruled": "his answers of 2026-11-02"
     },
     {
+      "id": "scene",
+      "thing": "the full video a clip came from",
+      "screen": [
+        "Play the full scene this clip came from"
+      ],
+      "his_word": "scene (2026-11-05: 'scene is fine in this context')",
+      "code_today": [
+        "scene"
+      ],
+      "code_word": "scene",
+      "status": "ruled",
+      "ruled": "2026-11-05, his words"
+    },
+    {
       "id": "main_funestra",
       "thing": "the Funestra in the middle, on the main monitor",
       "screen": [
