@@ -6,9 +6,10 @@ from functools import partial
 from pathlib import Path
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRASH
+from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRASH, set_speed
 from funestra.hud_placement import HudCorner
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
+from funestra.playback_rate import NORMAL_RATE
 
 from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
 from .command_value import FILTER, Command
@@ -22,7 +23,6 @@ from .mode_plan import EnhancementLevel
 from .origenerator_switches import hosts
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
-    NORMAL_SPEED,
     PLAYBACK_RATE_ACTS,
     percent_rate,
     skip_ahead_refused,
@@ -169,7 +169,7 @@ def _browse_at_defaults(satellite: SatelliteState) -> bool:
 
 
 def satellite_at_defaults(satellite: SatelliteState, status: SatelliteStatus) -> bool:
-    return _browse_at_defaults(satellite) and status.speed == 1.0
+    return _browse_at_defaults(satellite) and status.speed == NORMAL_RATE
 
 
 def _reset(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
@@ -186,7 +186,7 @@ def _reset(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
         state = clear_satellite_grouping(state, funestra)
         result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
         logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
-    send_satellite(config, funestra, NORMAL_SPEED)
+    send_satellite(config, funestra, set_speed(NORMAL_RATE))
     return state, [WindowOp(op="message", key="Reset", source=satellite_source(funestra))]
 
 

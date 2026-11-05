@@ -6,9 +6,10 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import LOCK_ON
+from funestra.funestra_verbs import LOCK_ON, set_speed
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 from funestra.modes import LengthMode, LoopState
+from funestra.playback_rate import NORMAL_RATE
 
 from main_funestra.genau_verbs import genau_orientations
 
@@ -30,7 +31,6 @@ from .main_list import MainListSettings, new_shuffle_seed
 from .main_list_builds import MainListBuild
 from .mode_plan import EnhancementLevel, kino_shows
 from .modes import VideoShapes
-from .osr2_commands import NORMAL_SPEED
 from .shared_state import BridgeState
 from .vr_videos import shapes_verb
 
@@ -208,14 +208,14 @@ def main_funestra_at_defaults(
         return False
     if not kino_shows(state.main_mode):
         return True
-    return (not status.locked and status.loop_state is LoopState.NORMAL and status.speed == 1.0
+    return (not status.locked and status.loop_state is LoopState.NORMAL and status.speed == NORMAL_RATE
             and not status.compilation)
 
 
 _MAIN_FUNESTRA_RESET_VERBS = (
     MAIN_FUNESTRA_CMD_MAP["main_funestra_loop_cancel"],
     MAIN_LOCK_COMMANDS["main_lock_off"],
-    NORMAL_SPEED,
+    set_speed(NORMAL_RATE),
 )
 
 

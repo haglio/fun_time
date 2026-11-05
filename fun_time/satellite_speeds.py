@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import SET_SPEED
+from funestra.funestra_verbs import set_speed
 
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
 
@@ -21,4 +21,4 @@ class SatelliteSpeeds:
         if last is None or self._main_funestra.speed == last.speed:
             return
         for cmd_file in self._satellite_cmd_files:
-            append_command(cmd_file, f"{SET_SPEED} {self._main_funestra.speed:g}")
+            append_command(cmd_file, set_speed(self._main_funestra.speed))
