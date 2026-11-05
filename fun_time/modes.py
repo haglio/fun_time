@@ -8,6 +8,7 @@ from pathlib import Path
 
 from app_support.media_renditions import renditions
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, mirrored_path
+from app_support.watch_weights import passes_inclusion, weighted_shuffle
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.funscript import load as load_funscript
 from funestra.playlist import PlaylistItem, write_playlist
@@ -24,7 +25,6 @@ from .media_metadata import (
 )
 from .mode_plan import EnhancementLevel
 from .vr_videos import keep_shapes
-from .watch_stats import passes_inclusion, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_playlist"
 PLAYLIST_LANDSCAPE = "landscape_playlist"

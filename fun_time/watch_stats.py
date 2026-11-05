@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import json
-import math
-import random
 import time
-from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .media_metadata import normalize_path_key
@@ -27,23 +24,6 @@ def load_watch_stats(stats_file: str | Path) -> dict[str, dict[str, int]]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
-
-
-def weighted_shuffle(
-    paths: Iterable[str],
-    weight_of: Callable[[str], float | None],
-    rng: random.Random,
-) -> list[str]:
-    def sort_key(path: str) -> float:
-        weight = weight_of(path) or 1.0
-        u = max(rng.random(), 1e-12)
-        return -math.log(u) / weight
-
-    return sorted(paths, key=sort_key)
-
-
-def passes_inclusion(weight: float, rng: random.Random) -> bool:
-    return weight >= 1.0 or rng.random() < weight
 
 
 class WatchTracker:

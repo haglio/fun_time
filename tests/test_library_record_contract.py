@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from app_support import favorites, video_action
+from app_support import favorites, video_action, watch_weights
 from funestra import video_families
 from shared_ui.orientation import ORIENTATIONS
 
@@ -62,7 +62,7 @@ def test_the_running_time_f_mode_measures_a_funscript_against_is_promised():
 
 
 def test_the_playback_weight_this_app_draws_by_is_promised():
-    assert "weight" in _fields(media_metadata.WATCH_BLOCK)
+    assert "weight" in _fields(watch_weights.WATCH_BLOCK)
 
 
 def test_the_favorite_f_mode_keeps_is_the_mark_evolver_promises():
