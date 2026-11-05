@@ -52,7 +52,7 @@ from fun_time.manifest import (
     write_manifest_data,
     write_windows_bridge_manifest,
 )
-from fun_time.media_metadata import normalize_path_key
+from fun_time.media_metadata import is_favorite, metadata_path_for, normalize_path_key
 from fun_time.origenerator_switches import RfbMode
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
@@ -994,6 +994,29 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert heard == [("opened", "landscape"), ("closed", "landscape")]
+
+    def test_a_lock_the_hosted_app_tells_of_is_held_as_a_kino_lock_is_and_never_sent_back(
+            self, tmp_path):
+        metadata_root = tmp_path / "videos" / "metadata"
+        video = tmp_path / "videos" / "videos" / "portrait" / "scene one.mp4"
+        record = metadata_path_for(video, metadata_root)
+        record.parent.mkdir(parents=True)
+        record.write_text(json.dumps({"video": {"action": "alpha"}}), encoding="utf-8")
+        hosted_app = tmp_path / "origenerator_cmd.txt"
+        runner = make_runner(tmp_path, config=make_config(
+            tmp_path, regen_metadata_root=metadata_root, origenerator_enabled=True,
+            origenerator_cmd_file=hosted_app))
+        runner.state = replace(runner.state, origenerator_ready=True).with_satellite(
+            FunTimeFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR, handed_over=True)
+        (tmp_path / "dashboard_cmd.txt").write_text(
+            f"portrait_lock_held|{video}\n", encoding="utf-8")
+
+        runner.tick()
+
+        assert is_favorite(video, metadata_root)
+        assert load_watch_stats(tmp_path / "watch_stats.json")[
+            normalize_path_key(str(video))]["locks"] == 1
+        assert not hosted_app.exists()
 
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)

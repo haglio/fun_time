@@ -8,7 +8,7 @@ from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
 from .fun_time_funestras import FunTimeFunestra
 from .media_actions import make_web_url_from_path
-from .media_metadata import mark_favorite
+from .media_metadata import mark_favorite, metadata_path_for
 from .origenerator_switches import RfbMode
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_mode import switch_the_rfb_mode
@@ -32,6 +32,14 @@ def a_lock_holds(item: str, state: BridgeState,
     mark_favorite(item, config.regen_metadata_root, True, page=page)
     record_watch_event(watch_stats_path(config.state_dir), item, "lock")
     return _where_more_of_it_is_made(FavEntry(local_path=item, web_url=page), state, config)
+
+
+def a_hosted_lock_holds(item: str, state: BridgeState,
+                        config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
+    record = metadata_path_for(item, config.regen_metadata_root)
+    if record is None or not record.is_file():
+        return state, []
+    return a_lock_holds(item, state, config)
 
 
 def unfavorite(item: str, config: BridgeConfig) -> None:
