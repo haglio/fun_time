@@ -418,9 +418,9 @@ A press on the video itself still does nothing: a satellite's paused state belon
 
 Minimizing the **dashboard** minimizes all of Fun Time with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.
 
-For one Funestra on its own, every Funestra's HUD carries a **minimize bar**: last in each satellite's control row, and beside the mode buttons on the Main Funestra's HUD (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. the Main Funestra's HUD's button parks the Main Funestra's window, which Kino and Genau both run on. In the headset there is no minimize bar at all: its Funestras are screens in the room rather than windows, so there is nothing for one to park.
+For one Funestra on its own, every Funestra's HUD carries a **minimize bar**: last in each satellite's control row, and beside the mode buttons on the Main Funestra's HUD (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its place, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. the Main Funestra's HUD's button parks the Main Funestra's window, which Kino and Genau both run on. In the headset there is no minimize bar at all: its Funestras are screens in the room rather than windows, so there is nothing for one to park.
 
-The Funestra keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active Satellite, since a Funestra you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the HUD went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is Fun Time coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
+The Funestra keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active Satellite, since a Funestra you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the HUD went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is Fun Time coming back, so every window a minimize button parked returns to its place, in its band, before the re-stack and the focus land.
 
 ### Closing one window closes the session
 
@@ -496,7 +496,7 @@ Check the current standings any time with the leaderboard (from the project root
 ./.venv/Scripts/python.exe -m fun_time.breeding_report
 ```
 
-It ranks every stamped video in the configured library by that weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the same sidecar. Columns: **WEIGHT** is the shuffle-frequency multiplier; **C** = completions (full watches — one per repeat loop while locked), **L** = locks, **S** = skips, **O** = orientation (P portrait / L landscape). Options: `--top N` (rows per section, default 15), `--all`.
+It ranks every stamped video in the configured library by that weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the same sidecar. Columns: **WEIGHT** is the shuffle-frequency multiplier; **C** = completions (full watches — one per repeat loop while locked), **L** = locks, **S** = skips, **O** = shape (P portrait / L landscape). Options: `--top N` (rows per section, default 15), `--all`.
 
 ## Favorites
 
