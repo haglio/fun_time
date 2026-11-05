@@ -7,8 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from app_support import favorites
-from app_support.json_store import locked_update
+from app_support import favorites, video_action
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
 from app_support.video_names import clip_title, version_group_of
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
@@ -146,31 +145,9 @@ def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
         video_suffixes=sorted(SUPPORTED_VIDEO_EXTS))
 
 
-WRONG_ACTION_FIELD = "wrong_action"
-
-
 def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> str:
-    json_path = metadata_path_for(video_path, metadata_root)
-    if json_path is None:
-        return ""
-    struck = ""
-
-    def strike_the_act_out(payload: dict) -> dict | None:
-        nonlocal struck
-        video = payload.get("video")
-        if not isinstance(video, dict):
-            return None
-        struck = str(video.pop("action", "") or "").strip()
-        if not struck:
-            return None
-        video[WRONG_ACTION_FIELD] = struck
-        return payload
-
-    try:
-        locked_update(json_path, strike_the_act_out)
-    except ValueError:
-        return ""
-    return struck
+    record = metadata_path_for(video_path, metadata_root)
+    return "" if record is None else video_action.strike(record)
 
 
 def filter_haystack(metadata: dict) -> str:

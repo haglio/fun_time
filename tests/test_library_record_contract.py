@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from app_support import favorites
+from app_support import favorites, video_action
 from funestra import video_families
 from shared_ui.orientation import ORIENTATIONS
 
@@ -34,9 +34,9 @@ def test_the_act_and_its_rejection_are_where_evolver_says():
     record = _record()
     video = record["blocks"]["video"]
 
-    assert media_metadata.WRONG_ACTION_FIELD in video["fields"]
-    assert video["written_by_the_reader"] == [media_metadata.WRONG_ACTION_FIELD]
-    assert "action" in video["fields"]
+    assert video_action.WRONG_ACTION_KEY in video["fields"]
+    assert video["written_by_the_reader"] == [video_action.WRONG_ACTION_KEY]
+    assert video_action.ACTION_KEY in video["fields"]
 
 
 def test_every_field_a_videos_identity_is_built_from_is_promised():
