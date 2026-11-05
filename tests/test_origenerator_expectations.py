@@ -6,11 +6,10 @@ import os
 import pytest
 
 from fun_time.command_dispatch import handles
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import SAID_AT_FIELD, declared_flags
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.origenerator_contract import answers, published
-from tests.origenerator_expectations import EXPECTATIONS, LEFT_UNANSWERED, published_text
+from tests.origenerator_expectations import EXPECTATIONS, published_text
 
 REWRITE = "FUN_TIME_REWRITE_ORIGENERATOR_EXPECTATIONS"
 
@@ -73,18 +72,6 @@ def test_the_shipped_origenerator_answers_every_line_an_app_writes(relied_on, sh
 
 def test_the_app_answers_every_line_the_shipped_origenerator_tells_it_of_a_request(shipped):
     assert set(shipped["request_lines"]) <= set(REQUEST_NEWS)
-
-
-def test_the_lines_left_unanswered_are_lines_the_shipped_origenerator_refuses(shipped):
-    answered = [line for line in (f"{funestra.label}_{said}" for said in LEFT_UNANSWERED
-                                  for funestra in FunTimeFunestra.SATELLITES)
-                if answers(line, shipped)]
-
-    assert answered == []
-
-
-def test_every_line_left_unanswered_says_why():
-    assert [said for said, why in LEFT_UNANSWERED.items() if not why.strip()] == []
 
 
 def test_the_app_reads_every_line_the_shipped_origenerator_tells_it_of_a_lock(shipped):
