@@ -114,7 +114,7 @@ _MAIN_SOUND = ("audio_volume_down", "audio_volume_up", "audio_mute", "audio_unmu
 
 def flip_row(flick: Noun) -> _Row:
     return _Row(
-        f"flip the Genau {flick.one} half a loop — for a picture running "
+        f"flip the Genau {flick.one} half a loop — for a video running "
         "opposite the OSR2; it stays flipped, and saying it again puts it back",
         (),
         ("genau_flip_ends",),
@@ -191,14 +191,14 @@ _SECTIONS: tuple[_Section, ...] = (
                     controller=(STICK_SIDEWAYS,),
                 ),
                 _Row(
-                    "narrow / widen the angle a wrapped VR picture spans — the bar "
+                    "narrow / widen the angle a wrapped VR video spans — the bar "
                     "labeled Angle beside the projection controls in the headset, "
                     "dragged with the trigger",
                     controller=(ANGLE_BAR,),
                 ),
                 _Row(
                     "move or resize a VR screen — a squeeze on the handle over a screen "
-                    "carries it, and on the handles outside a picture's lower corners "
+                    "carries it, and on the handles outside a screen's lower corners "
                     "resizes it; the stick pushed forward or pulled back sizes the Main "
                     "Funestra, and with the trigger held brings every screen nearer or "
                     "farther",
@@ -213,7 +213,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("", (
                 _Row(
                     "control on / off — park holds the OSR2 settled home, and Genau's "
-                    "picture with it; a funscript stands down for it too, and Fun Time "
+                    "video with it; a funscript stands down for it too, and Fun Time "
                     "plays on unheard until unpark puts the motion back to whatever it "
                     "was doing.  Control off settles the OSR2 home and "
                     "lets go of it there; the device itself stays on",
@@ -295,7 +295,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "trash — in Kino mode it sends the video to Trash and moves on, or "
                     "unfavorites it instead when it has been previously favorited; in "
-                    "Origenerator mode it deletes the picture and moves on",
+                    "Origenerator mode it deletes the image or video and moves on",
                     commands=(*_sided("trash"), "genau_trash_flick"),
                     columns=(("Up",), ("W",), ("K",)),
                 ),
@@ -336,7 +336,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ),
                 _Row(
                     "navigate the map — move the lit cell up or down its column of "
-                    "acts, switching to that one",
+                    "actions, switching to that one",
                     commands=("portrait_nav_up", "portrait_nav_down",
                               "landscape_nav_up", "landscape_nav_down"),
                     columns=(("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S")),
@@ -423,7 +423,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "\"move\" may lead, \"upper\" says the same as \"top\" and \"bottom\" "
                     "the same as \"lower\") it goes straight there, in the headset an "
                     "upper corner hanging it over the Funestra's top edge and a lower one "
-                    "under its lower edge.  A click in a corner of the picture sends it "
+                    "under its lower edge.  A click in a corner of the video sends it "
                     "there and opens it, and so does a squeeze on the plus beside a side "
                     "of the Funestra in the headset",
                     commands=_every_funestra(*(f"hud_{corner}" for corner in _HUD_CORNERS)),
@@ -453,30 +453,29 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
             _Group("Nav Map", (
                 _Row(
-                    "cycle action — same subject(s) and scene, another act: the next "
-                    "one down the map's column",
+                    "cycle action — same seed or initial image, another action",
                     commands=_sided("cycle_action"),
                 ),
-                _Row("cycle seed — the same scene from another seed, along the map's row",
+                _Row("cycle seed — same settings, another seed",
                      commands=_sided("cycle_seed")),
                 _Row(
-                    "wrong action — in Kino mode: the video's act is mislabeled; strike "
+                    "wrong action — the item's action is mislabeled; strike "
                     "it so Evolver's backfill tool asks about it again",
                     commands=_sided("wrong_action"),
                 ),
             )),
             _Group("Loops", (
-                _Row("more seeds — widen the seed row past exact matches, and loop it",
+                _Row("more seeds — widen the net to include seeds from very similar settings",
                      commands=_sided("more_seeds")),
-                _Row("loop the actions — repeat the map's column around this one",
+                _Row("loop actions — same seed or initial image, all of its actions",
                      commands=_sided("action_loop")),
-                _Row("loop the seeds — repeat the map's row around this one",
+                _Row("loop seeds — same settings, all of their seeds",
                      commands=_sided("seed_loop")),
                 _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
             )),
             _Group("Filter", (
                 _Row(
-                    "filter by act — say the act on its own",
+                    "filter by action — say the action on its own",
                     commands=set_commands_for_scope("satellites")
                     + set_commands_for_scope("portrait")
                     + set_commands_for_scope("landscape"),
@@ -486,7 +485,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "drop all filters — keep the order and everything else; in "
                     "Origenerator mode every narrowing at once: the favorites, the "
-                    "enhanced ones, and the act filter",
+                    "enhanced ones, and the action filter",
                     commands=_sided("no_filter"),
                 ),
             )),
@@ -557,10 +556,10 @@ _SECTIONS: tuple[_Section, ...] = (
                 _said_to_a_slideshow("play the experiments or requests", "experiments", "requests"),
                 _said_to_a_slideshow("play, pause, or stop the slideshow", "play slideshow",
                                      "start slideshow", "pause slideshow", "stop slideshow"),
-                _said_to_a_slideshow("fix the picture on screen — its face, hands, teeth, or eyes",
+                _said_to_a_slideshow("fix the image on screen — its face, hands, teeth, or eyes",
                                      "fix face", "fix hands", "fix teeth", "fix eyes"),
                 _said_to_a_slideshow(
-                    f"animate the picture as a Genau {_FLICK.one} — said alone, “genau” is "
+                    f"animate the image as a Genau {_FLICK.one} — said alone, “genau” is "
                     "the Genau mode, so name a Satellite or “satellites”", *GENAU_SAID),
             )),
         ),
