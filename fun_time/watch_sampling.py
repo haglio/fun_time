@@ -19,6 +19,8 @@ NAV_COMMANDS: dict[int, frozenset[str]] = {
 
 DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3}
 
+_NOTHING_BEING_WATCHED = ("", 0.0)
+
 
 class WatchSampler:
     def __init__(
@@ -50,9 +52,13 @@ class WatchSampler:
         for which, status_file in self.satellite_status_files.items():
             status = read_satellite_status(status_file)
             self._on_screen[which].observe(status.video, now=now)
-            if status.image or status.fraction is None:
+            if status.image:
+                watched, fraction = _NOTHING_BEING_WATCHED
+            elif status.fraction is None:
                 continue
-            for event, video in self._trackers[which].observe(status.video, status.fraction):
+            else:
+                watched, fraction = status.video, status.fraction
+            for event, video in self._trackers[which].observe(watched, fraction):
                 record_watch_event(self.stats_file, video, event)
 
     def _sample_main(self) -> None:
