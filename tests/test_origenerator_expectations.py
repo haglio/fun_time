@@ -7,6 +7,7 @@ import pytest
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import SAID_AT_FIELD, declared_flags
+from fun_time.satellite_commands import told_of_a_hosted_lock
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.origenerator_contract import answers, published
 from tests.origenerator_expectations import EXPECTATIONS, LEFT_UNANSWERED, published_text
@@ -84,3 +85,10 @@ def test_the_lines_left_unanswered_are_lines_the_shipped_origenerator_refuses(sh
 
 def test_every_line_left_unanswered_says_why():
     assert [said for said, why in LEFT_UNANSWERED.items() if not why.strip()] == []
+
+
+def test_the_app_reads_every_line_the_shipped_origenerator_tells_it_of_a_lock(shipped):
+    unread = [line for line in shipped.get("lock_lines", ())
+              if told_of_a_hosted_lock(line.replace("{file}", "scene one.mp4")) is None]
+
+    assert unread == []

@@ -44,6 +44,9 @@ _HUD_POSTED_WITH_A_VALUE = frozenset(form.rstrip("|") for form in PREFIXED_COMMA
     "portrait_hud_restore_at", "landscape_hud_restore_at", "main_hud_restore_at",
 }
 
+_TOLD_BY_THE_HOSTED_APP = frozenset(
+    f"{funestra}_{satellite_commands.LOCK_HELD}" for funestra in ("portrait", "landscape"))
+
 
 def _loop_branch_ids() -> frozenset[str]:
     return (frozenset(windows_bridge_dispatch_loop._LOOP_COMMANDS)
@@ -159,6 +162,7 @@ def test_every_route_is_reachable_from_some_surface():
         | _HUD_POSTED_WITH_A_VALUE
         | _satellite_verbs()
         | {"portrait_lock", "landscape_lock"}
+        | _TOLD_BY_THE_HOSTED_APP
     )
     unreachable = set(ROUTES) - reachable
     assert not unreachable, f"routes nothing can reach: {sorted(unreachable)}"
@@ -180,7 +184,7 @@ def test_the_reference_and_the_routes_agree():
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
 
     documented = _keys(reference | frozenset(HUD_ONLY_COMMAND_IDS) | _HUD_POSTED_WITH_A_VALUE
-                       | _expected_numeric_ids() | _expected_filter_ids())
+                       | _expected_numeric_ids() | _expected_filter_ids() | _TOLD_BY_THE_HOSTED_APP)
     undocumented = set(ROUTES) - documented
     assert not undocumented, f"routed commands the reference omits: {sorted(undocumented)}"
 
@@ -188,7 +192,7 @@ def test_the_reference_and_the_routes_agree():
 def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode():
     own = {
         "minimize", "crown", "take_osr2", "kino_activate", "origenerator_activate",
-        "lock", "lock_on", "lock_off",
+        "lock", "lock_on", "lock_off", "lock_held",
         "speed", "speed_up", "speed_down", "speed_min", "speed_max",
         "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
         "hud_upper_left", "hud_upper_right", "hud_lower_left", "hud_lower_right",

@@ -12,11 +12,11 @@ from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 from funestra.playback_rate import NORMAL_RATE
 
 from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
-from .command_value import FILTER, Command
+from .command_value import FILTER, Command, parse_command
 from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
-from .lock import build_discard_plan, unfavorite
+from .lock import a_hosted_lock_holds, build_discard_plan, unfavorite
 from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
 from .mode_plan import EnhancementLevel
@@ -290,6 +290,21 @@ def _lock_video(command: Command, state: BridgeState, config: BridgeConfig,
     return lock_satellite(command.satellite, state, config, command.argument)
 
 
+LOCK_HELD = "lock_held"
+
+
+def told_of_a_hosted_lock(text: str) -> str | None:
+    command = parse_command(text)
+    if command.satellite is None or command.action != LOCK_HELD or not command.argument:
+        return None
+    return command.argument
+
+
+def _hosted_lock(command: Command, state: BridgeState, config: BridgeConfig,
+                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return a_hosted_lock_holds(command.argument, state, config)
+
+
 def _filter(command: Command, state: BridgeState, config: BridgeConfig,
             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _set_filter(command.argument, command.satellite, state, config)
@@ -311,7 +326,7 @@ def _enhancement(level: EnhancementLevel, funestra: FunTimeFunestra, state: Brid
 
 THE_FUNESTRAS_OWN = frozenset({
     "minimize", "crown", "take_osr2", "kino_activate", "origenerator_activate",
-    "lock", "lock_on", "lock_off",
+    "lock", "lock_on", "lock_off", LOCK_HELD,
     "speed", *PLAYBACK_RATE_ACTS,
     "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
     *(f"hud_{corner}" for corner in HudCorner),
@@ -351,6 +366,7 @@ SATELLITE_ACTIONS: dict[str, SatelliteHandler] = {
 SATELLITE_VALUED: dict[str, Route] = {
     "play_video": _play_video,
     "lock_video": _lock_video,
+    LOCK_HELD: _hosted_lock,
     FILTER: _filter,
     "speed": _speed,
 }

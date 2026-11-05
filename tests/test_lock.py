@@ -5,7 +5,7 @@ from unittest.mock import patch
 from app_support import favorites
 
 from fun_time.content import WebProvider
-from fun_time.lock import a_lock_holds, build_discard_plan
+from fun_time.lock import a_hosted_lock_holds, a_lock_holds, build_discard_plan
 from fun_time.media_metadata import recorded_for
 from fun_time.shared_state import BridgeState
 from fun_time.watch_stats import watch_stats_path
@@ -45,3 +45,13 @@ def test_discarding_a_non_favorite_condemns_it():
 
     assert plan.condemns is True
     assert plan.message_text == "Sent to Trash"
+
+
+def test_a_lock_the_hosted_app_tells_of_on_a_file_with_no_record_makes_none(tmp_path):
+    config = make_config(tmp_path, regen_metadata_root=tmp_path / "metadata")
+    video = tmp_path / "videos" / "made here" / "scene one.mp4"
+
+    assert a_hosted_lock_holds(str(video), BridgeState(), config) == (BridgeState(), [])
+
+    assert not config.regen_metadata_root.exists()
+    assert not watch_stats_path(config.state_dir).exists()
