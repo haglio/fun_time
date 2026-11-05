@@ -224,3 +224,32 @@ class TestBackDating:
         self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
 
         assert sampler.video_at(parse_command("portrait_trash"), None) == ""
+
+
+
+def _a_video_the_slideshow_left_for_an_image(tmp_path, *, next_pressed_on: str) -> dict:
+    video = tmp_path / "alpha.mp4"
+    video.write_text("x", encoding="utf-8")
+    status = tmp_path / "portrait_status.txt"
+    sampler = make_sampler(tmp_path)
+    _publish(status, video, fraction=0.3)
+    sampler.sample_due(now=100.0, paused=False)
+    if next_pressed_on == "the video":
+        sampler.note_command("portrait_next")
+    _publish(status, tmp_path / "scene one.png", fraction=0.1, image=True)
+    sampler.sample_due(now=101.1, paused=False)
+    if next_pressed_on == "the image":
+        sampler.note_command("portrait_next")
+    _publish(status, tmp_path / "beta.mp4", fraction=0.0)
+    sampler.sample_due(now=102.2, paused=False)
+    return load_watch_stats(tmp_path / "watch_stats.json").get(normalize_path_key(str(video)), {})
+
+
+def test_next_pressed_on_an_image_is_not_charged_to_the_video_before_it(tmp_path):
+    assert _a_video_the_slideshow_left_for_an_image(tmp_path, next_pressed_on="the image") == {}
+
+
+def test_next_pressed_on_a_video_is_a_skip_though_an_image_comes_next(tmp_path):
+    booked = _a_video_the_slideshow_left_for_an_image(tmp_path, next_pressed_on="the video")
+
+    assert booked["skips"] == 1
