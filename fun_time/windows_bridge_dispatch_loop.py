@@ -22,7 +22,7 @@ from funestra.playlist import PlaylistItem
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
-from .command_dispatch import app_at_defaults, dispatch_command, routes_to_origenerator
+from .command_dispatch import app_at_defaults, dispatch_command
 from .command_value import Command, parse_command
 from .crown import Seating
 from .dashboard_actions import (
@@ -59,7 +59,7 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
 from .origenerator_opening import OrigeneratorOpening, holding_nothing
-from .origenerator_switches import RfbMode, hosts
+from .origenerator_switches import RfbMode
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .session_end import mark_session_end
@@ -232,9 +232,7 @@ class DispatchLoopRunner:
         held = self.lock_follower.held()
         if held:
             self._take(*a_lock_holds(held, self.state, self.config))
-        self.watch.sample_due(now=now, paused=self.state.omni_paused,
-                              hosted=tuple(funestra for funestra in FunTimeFunestra.SATELLITES
-                                           if hosts(funestra, self.state, self.config)))
+        self.watch.sample_due(now=now, paused=self.state.omni_paused)
         self.hud.publish_due(self.state, now=now)
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused
@@ -284,13 +282,11 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: Command, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command.text)
-        hosted = routes_to_origenerator(command, self.state, self.config)
-        if not hosted:
-            self.watch.note_command(command.text)
+        self.watch.note_command(command.text)
         self._take(*dispatch_command(
             command, self.state, self.config,
             target_path=self.watch.video_at(command, spoken_at),
-            spoken_at=spoken_at, hosted=hosted,
+            spoken_at=spoken_at,
         ))
 
     def _take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:

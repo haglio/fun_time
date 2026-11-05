@@ -1006,8 +1006,8 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path, config=make_config(
             tmp_path, regen_metadata_root=metadata_root, origenerator_enabled=True,
             origenerator_cmd_file=hosted_app))
-        runner.state = replace(runner.state, origenerator_ready=True).with_satellite(
-            FunTimeFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR, handed_over=True)
+        runner.state = _in_origenerator_mode(
+            replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
         (tmp_path / "dashboard_cmd.txt").write_text(
             f"portrait_lock_held|{video}\n", encoding="utf-8")
 
@@ -2582,11 +2582,15 @@ class TestIdempotentVoiceCommands:
 
 
 class TestWatchTracking:
-    def _run_samples(self, runner, monkeypatch, timeline):
-        fake_now = {"t": 0.0}
+    def _a_made_up_clock(self, monkeypatch, starting_at: float = 0.0) -> dict:
+        fake_now = {"t": starting_at}
         monkeypatch.setattr(
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
         )
+        return fake_now
+
+    def _run_samples(self, runner, monkeypatch, timeline):
+        fake_now = self._a_made_up_clock(monkeypatch)
         for t, path, fraction in timeline:
             fake_now["t"] = t
             _write_satellite_status(runner.config.portrait.status_file, path, fraction=fraction)
@@ -2612,10 +2616,7 @@ class TestWatchTracking:
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
 
-        fake_now = {"t": 100.0}
-        monkeypatch.setattr(
-            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
-        )
+        fake_now = self._a_made_up_clock(monkeypatch, 100.0)
         _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
         runner.tick()
         runner._dispatch(parse_command("portrait_next"))
@@ -2632,10 +2633,7 @@ class TestWatchTracking:
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
 
-        fake_now = {"t": 100.0}
-        monkeypatch.setattr(
-            "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
-        )
+        fake_now = self._a_made_up_clock(monkeypatch, 100.0)
         _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
         runner.tick()
         runner._dispatch(parse_command("portrait_trash"))
@@ -2644,6 +2642,49 @@ class TestWatchTracking:
         runner.tick()
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
+
+
+    def _holding_a_slideshow(self, tmp_path):
+        runner = make_runner(tmp_path, config=make_config(
+            tmp_path, origenerator_enabled=True,
+            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
+        runner.state = _in_origenerator_mode(
+            replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
+        return runner
+
+    def test_a_video_watched_to_the_end_in_a_slideshow_is_a_completion(
+            self, tmp_path, monkeypatch):
+        runner = self._holding_a_slideshow(tmp_path)
+        a = tmp_path / "a.mp4"
+        a.write_text("x", encoding="utf-8")
+
+        self._run_samples(runner, monkeypatch, [
+            (100.0, str(a), 0.1),
+            (101.1, str(a), 0.9),
+            (102.2, str(tmp_path / "b.mp4"), 0.0),
+        ])
+
+        stats = load_watch_stats(tmp_path / "watch_stats.json")
+        assert stats[normalize_path_key(str(a))]["completions"] == 1
+
+    def test_next_pressed_early_in_a_slideshows_video_is_a_skip(self, tmp_path, monkeypatch):
+        runner = self._holding_a_slideshow(tmp_path)
+        a = tmp_path / "a.mp4"
+        a.write_text("x", encoding="utf-8")
+        fake_now = self._a_made_up_clock(monkeypatch, 100.0)
+        _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
+        runner.tick()
+
+        runner._dispatch(parse_command("portrait_next"))
+        fake_now["t"] = 101.1
+        _write_satellite_status(runner.config.portrait.status_file, str(tmp_path / "b.mp4"),
+                                fraction=0.0)
+        runner.tick()
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "portrait_next"]
+        stats = load_watch_stats(tmp_path / "watch_stats.json")
+        assert stats[normalize_path_key(str(a))]["skips"] == 1
 
 
 class TestSeededRoleHwnds:
@@ -3013,36 +3054,6 @@ class TestOrigeneratorWindowConverger:
             runner._converge_origenerator_window()
 
         converge.assert_called_once_with(RfbMode.ORIGENERATOR)
-
-
-class TestOrigeneratorWatchGuard:
-    def test_a_routed_step_books_nothing_against_the_blacked_funestra(self, tmp_path):
-        config = make_config(tmp_path, origenerator_enabled=True,
-                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
-        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
-        runner.state = _in_origenerator_mode(runner.state, FunTimeFunestra.PORTRAIT)
-        with patch.object(runner.watch, "note_command") as note:
-            runner._dispatch(parse_command("portrait_next"))
-        note.assert_not_called()
-
-    def test_the_satellites_the_app_holds_are_left_out_of_the_watch(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
-        _the_hosted_app_answers(tmp_path)
-        write_shared_state(tmp_path / "shared_state.ini",
-                           _in_origenerator_mode(BridgeState(), FunTimeFunestra.LANDSCAPE))
-
-        with patch.object(runner.watch, "sample_due") as sample:
-            runner.tick()
-
-        assert sample.call_args.kwargs["hosted"] == (FunTimeFunestra.LANDSCAPE,)
-
-    def test_a_funestra_mode_step_still_books_the_funestra(self, tmp_path):
-        config = make_config(tmp_path, origenerator_enabled=True,
-                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
-        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
-        with patch.object(runner.watch, "note_command") as note:
-            runner._dispatch(parse_command("portrait_next"))
-        note.assert_called_once_with("portrait_next")
 
 
 def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):

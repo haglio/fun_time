@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Collection
 from pathlib import Path
 
 from funestra.on_screen_history import OnScreenHistory
@@ -38,20 +37,20 @@ class WatchSampler:
                                                        3: OnScreenHistory()}
         self._last_sample = 0.0
 
-    def sample_due(self, *, now: float, paused: bool, hosted: Collection[int] = ()) -> None:
+    def sample_due(self, *, now: float, paused: bool) -> None:
         if now - self._last_sample < SAMPLE_INTERVAL_S:
             return
         self._last_sample = now
         if paused:
             return
-        self._sample_satellites(now=now, hosted=hosted)
+        self._sample_satellites(now=now)
         self._sample_main()
 
-    def _sample_satellites(self, *, now: float, hosted: Collection[int]) -> None:
+    def _sample_satellites(self, *, now: float) -> None:
         for which, status_file in self.satellite_status_files.items():
             status = read_satellite_status(status_file)
             self._on_screen[which].observe(status.video, now=now)
-            if which in hosted or status.fraction is None:
+            if status.image or status.fraction is None:
                 continue
             for event, video in self._trackers[which].observe(status.video, status.fraction):
                 record_watch_event(self.stats_file, video, event)
