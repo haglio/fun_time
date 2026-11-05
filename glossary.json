@@ -595,6 +595,65 @@
         "FunTime.",
         "FunTime Genau Broker"
       ]
+    },
+    {
+      "id": "action",
+      "thing": "what a video shows being done, named on a Satellite's HUD and filtered to by voice",
+      "screen": [
+        "Cycle action — same seed or initial image, another action",
+        "Loop actions — same seed or initial image, all of its actions",
+        "Wrong action — the item's action is mislabeled",
+        "Filter by action — say the action on its own"
+      ],
+      "his_word": "action, never act (2026-11-05)",
+      "code_today": [
+        "action"
+      ],
+      "code_word": "action",
+      "status": "ruled",
+      "ruled": "his ruling of 2026-11-05, given with the command reference's lines for the Satellites' loops and cycles"
+    },
+    {
+      "id": "image",
+      "thing": "a still picture in the library or made by Origenerator, as opposed to a video",
+      "screen": [
+        "Cycle action — same seed or initial image, another action"
+      ],
+      "his_word": "image, never picture (2026-11-05)",
+      "code_today": [
+        "image"
+      ],
+      "code_word": "image",
+      "status": "ruled",
+      "ruled": "his ruling of 2026-11-05, given with the command reference's lines for the Satellites' loops and cycles"
+    },
+    {
+      "id": "settings",
+      "thing": "what an item was made with apart from its seed: the workflow and its values",
+      "screen": [
+        "Cycle seed — same settings, another seed",
+        "Loop seeds — same settings, all of their seeds",
+        "More seeds — widen the net to include seeds from very similar settings"
+      ],
+      "his_word": "settings, never config (2026-11-05)",
+      "code_today": [
+        "settings"
+      ],
+      "code_word": "settings",
+      "status": "ruled",
+      "ruled": "his ruling of 2026-11-05, given with the command reference's lines for the Satellites' loops and cycles"
+    },
+    {
+      "id": "seed_group",
+      "thing": "the items one set of settings made with different seeds, which Loop seeds plays",
+      "screen": null,
+      "his_word": "seed group, never seed family (2026-11-05)",
+      "code_today": [
+        "seed family"
+      ],
+      "code_word": "seed group",
+      "status": "ruled",
+      "ruled": "his ruling of 2026-11-05, given with the command reference's lines for the Satellites' loops and cycles; the code's seed_family is renamed in a later change"
     }
   ]
 }

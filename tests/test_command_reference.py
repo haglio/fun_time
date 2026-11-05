@@ -233,7 +233,7 @@ def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
         for word in ("portrait", "landscape", "satellites"):
             assert word in section.note
         for row in section.rows:
-            if row.description.startswith(("filter by act", "drop ")):
+            if row.description.startswith(("filter by action", "drop ")):
                 continue
             for phrase in row.voice:
                 if _collapse_scopes(phrase) not in sayable_bare:
@@ -381,7 +381,7 @@ def test_genaus_flick_steps_and_trash_ride_the_shared_rows_and_k_sits_under_main
     assert trash.detail == (
         "in Kino mode it sends the video to Trash and moves on, or unfavorites it instead "
         "when it has been previously favorited; in Origenerator mode it deletes the "
-        "picture and moves on")
+        "image or video and moves on")
     assert _the_row_of("genau_prev_flick").description == "previous"
     assert _the_row_of("genau_next_flick").description == "next"
 
@@ -779,7 +779,7 @@ def test_the_vr_section_opens_with_the_crossing_and_ends_with_the_screens():
         "enter / exit VR", "VR reset", "recenter",
         "tilt the VR screens up / down and level them again",
         "cycle the video's VR projection",
-        "narrow / widen the angle a wrapped VR picture spans",
+        "narrow / widen the angle a wrapped VR video spans",
         "move or resize a VR screen"]
     assert vr.rows[0].commands == ("enter_vr", "exit_vr")
     assert vr.rows[0].detail == ""
@@ -856,7 +856,7 @@ def test_the_origenerator_section_speaks_origenerators_own_words():
     assert [group.title for group in origenerator.groups] == [""]
     assert [row.description for row in origenerator.rows] == [
         "play the experiments or requests", "play, pause, or stop the slideshow",
-        "fix the picture on screen", f"animate the picture as a Genau {genau_flick_noun().one}",
+        "fix the image on screen", f"animate the image as a Genau {genau_flick_noun().one}",
     ]
     assert origenerator.rows[0].detail == ""
     assert origenerator.rows[2].detail == "its face, hands, teeth, or eyes"
@@ -902,9 +902,9 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
         "cycle action", "cycle seed", "wrong action"]
     assert cycle.detail == "seeds, then actions, then off"
     assert [row.description for row in _group("Funestras", "Loops").rows] == [
-        "more seeds", "loop the actions", "loop the seeds", "stop looping"]
+        "more seeds", "loop actions", "loop seeds", "stop looping"]
     assert [row.description for row in _group("Funestras", "Filter").rows] == [
-        "filter by act", "filter to the action on screen", "drop all filters"]
+        "filter by action", "filter to the action on screen", "drop all filters"]
     assert _group("Funestras", "Other").rows == (crown,)
     assert crown.description == "crown the Main Funestra or the Portrait Funestra"
     assert crown.detail == (
@@ -1107,7 +1107,7 @@ def test_the_controller_column_says_what_the_headsets_controllers_do_on_each_row
         HOLD_TRIGGER_AND_B_OR_Y: ["previous scene in the video"],
         HOLD_TRIGGER_AND_A_OR_X: ["next scene in the video"],
         STICK_SIDEWAYS: ["cycle the video's VR projection"],
-        ANGLE_BAR: ["narrow / widen the angle a wrapped VR picture spans"],
+        ANGLE_BAR: ["narrow / widen the angle a wrapped VR video spans"],
         STICK_UP_DOWN: ["move or resize a VR screen", "open the browser"],
         HOLD_TRIGGER_AND_STICK_UP_DOWN: ["move or resize a VR screen"],
         HOLD_TRIGGER_AND_MOVE: ["tilt the VR screens up / down and level them again"],
@@ -1279,7 +1279,7 @@ def test_render_reference_html_has_no_heading_or_subtitle():
 
 def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     rows = _group("Funestras", "Filter").rows
-    set_row = next(r for r in rows if r.description.startswith("filter by act"))
+    set_row = next(r for r in rows if r.description.startswith("filter by action"))
     assert set(set_row.voice) == set(display_forms())
     spoken = {form for forms in load_acts().values() for form in forms}
     workarounds = spoken - set(display_forms())
@@ -1346,3 +1346,27 @@ def test_the_reference_html_styles_inline_with_no_style_block():
 
     assert "<style" not in html
     assert 'style="' in html
+
+
+_NOT_HIS_WORDS = re.compile(r"\b(acts?|pictures?|subjects?|configs?|famil(y|ies))\b", re.IGNORECASE)
+
+
+def test_the_reference_names_things_by_the_apps_own_words():
+    said = [text for section in build_reference_sections()
+            for text in (section.title, section.note or "",
+                         *(part for row in section.rows for part in (row.description, row.detail)))]
+
+    assert [text for text in said if _NOT_HIS_WORDS.search(text)] == []
+
+
+def test_the_satellites_loops_cycles_and_more_seeds_read_in_his_words():
+    rows = {f"{row.description} — {row.detail}" for section in build_reference_sections()
+            for row in section.rows}
+
+    assert {"cycle action — same seed or initial image, another action",
+            "cycle seed — same settings, another seed",
+            "loop actions — same seed or initial image, all of its actions",
+            "loop seeds — same settings, all of their seeds",
+            "wrong action — the item's action is mislabeled; strike it so "
+            "Evolver's backfill tool asks about it again",
+            "more seeds — widen the net to include seeds from very similar settings"} <= rows
