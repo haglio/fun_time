@@ -253,21 +253,24 @@ def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_l
 
 def _seed_startup_states(tmp_path: Path, *, genau_cmd_file=None, audio_volume_file=None,
                          mode=None, **left_as):
-    commands = replace(
-        desktop_manifest(tmp_path / "app").commands,
-        genau_paused_file=str(tmp_path / "genau_paused.txt"),
-        audio_paused_file=str(tmp_path / "audio_paused.txt"),
-        main_funestra_paused_file=str(tmp_path / "main_player_paused.txt"),
-        audio_volume_file=str(audio_volume_file or tmp_path / "audio_volume.txt"),
-        genau_cmd_file=str(genau_cmd_file or tmp_path / "genau_cmd.txt"),
-        main_funestra_cmd_file=str(tmp_path / "main_player_cmd.txt"),
-        portrait_cmd_file=str(tmp_path / "portrait_cmd.txt"),
-        landscape_cmd_file=str(tmp_path / "landscape_cmd.txt"),
+    manifest = desktop_manifest(tmp_path / "app")
+    manifest = replace(
+        manifest,
+        commands=replace(
+            manifest.commands,
+            genau_paused_file=str(tmp_path / "genau_paused.txt"),
+            audio_paused_file=str(tmp_path / "audio_paused.txt"),
+            main_funestra_paused_file=str(tmp_path / "main_player_paused.txt"),
+            audio_volume_file=str(audio_volume_file or tmp_path / "audio_volume.txt"),
+            genau_cmd_file=str(genau_cmd_file or tmp_path / "genau_cmd.txt"),
+            main_funestra_cmd_file=str(tmp_path / "main_player_cmd.txt")),
+        portrait=replace(manifest.portrait, cmd_file=tmp_path / "portrait_cmd.txt"),
+        landscape=replace(manifest.landscape, cmd_file=tmp_path / "landscape_cmd.txt"),
     )
     carried = replace(BridgeState(), **left_as)
     if mode is not None:
         carried = replace(carried, main_mode=MainMode(mode))
-    seed_startup_states(commands, carried)
+    seed_startup_states(manifest, carried)
 
 
 def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
@@ -441,9 +444,9 @@ def _manifest_from(kwargs: dict):
             main_funestra_paused_file=str(kwargs["main_funestra_paused_file"]),
             audio_volume_file=str(kwargs["audio_volume_file"]),
             main_funestra_cmd_file=str(kwargs["main_funestra_cmd_file"]),
-            main_funestra_status_file=str(kwargs["main_funestra_status_file"]),
-            portrait_cmd_file=str(channels["portrait"].command),
-            landscape_cmd_file=str(channels["landscape"].command)),
+            main_funestra_status_file=str(kwargs["main_funestra_status_file"])),
+        portrait=replace(m.portrait, cmd_file=channels["portrait"].command),
+        landscape=replace(m.landscape, cmd_file=channels["landscape"].command),
     )
 
 
@@ -474,8 +477,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         [state_dir / "portrait_status.txt", state_dir / "landscape_status.txt"],
     )
     ensure.assert_called_once_with(str(state_dir), None)
-    commands, carried = seed.call_args.args
-    assert commands == _manifest_from(kwargs).commands
+    manifest, carried = seed.call_args.args
+    assert manifest == _manifest_from(kwargs)
     assert (carried.volume, carried.muted, carried.max_intensity, carried.main_mode) == (
         MAX_VOLUME, False, FULL_INTENSITY, "kino")
     assert MainListSettings.of(carried) == MainListSettings.of(

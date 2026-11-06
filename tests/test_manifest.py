@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.config import LayoutConfig, load_config
+from fun_time.config import LayoutConfig, SatelliteChannel, load_config
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     ChildModules,
@@ -26,13 +27,18 @@ from fun_time.manifest import (
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
+_A_SATELLITES_CHANNEL = {
+    "cmd_file", "paused_file", "status_file", "playlist_file", "notice_file", "hud_file",
+    "origenerator_hud_file", "sources",
+}
+
 _EXPECTED_KEYS: dict[str, set[str]] = {
     "runtime": {
         "config_path", "windows_bridge_log_file", "sibling_checkouts", "origenerator_dir",
     },
     "executables": {"python_exe", "origenerator_python_exe"},
     "media": {
-        "main_funestra_library_sources", "portrait_dirs", "landscape_dirs", "trash_dir",
+        "main_funestra_library_sources", "trash_dir",
         "genau_flicks", "genau_audio", "vr_library_dirs", "genau_vr_flicks",
     },
     "modules": {
@@ -44,12 +50,6 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "genau_status_file",
         "main_funestra_cmd_file", "main_funestra_paused_file", "main_funestra_status_file",
         "main_funestra_console_file", "main_funestra_playlist_file",
-        "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
-        "portrait_playlist_file", "portrait_hud_file", "portrait_notice_file",
-        "portrait_origenerator_hud_file",
-        "landscape_cmd_file", "landscape_paused_file", "landscape_status_file",
-        "landscape_playlist_file", "landscape_hud_file", "landscape_notice_file",
-        "landscape_origenerator_hud_file",
         "broker_cmd_file", "broker_state_dir",
         "broker_tray_launcher", "audio_paused_file", "audio_volume_file",
         "dashboard_state_file", "dashboard_cmd_file",
@@ -59,6 +59,8 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "origenerator_status_file",
         "osr2_slot_port",
     },
+    "portrait": _A_SATELLITES_CHANNEL,
+    "landscape": _A_SATELLITES_CHANNEL,
     "dashboard": {"enabled"},
     "loopback": {"port"},
     "layout": {
@@ -117,6 +119,8 @@ class TestReadingItBack:
             ("random_favs_browser", RandomFavsBrowserSettings),
             ("regen", RegenSettings),
             ("layout", LayoutConfig),
+            ("portrait", SatelliteChannel),
+            ("landscape", SatelliteChannel),
         )}
         covered["dashboard"] = {"enabled"}
         covered["loopback"] = {"port"}
@@ -146,18 +150,15 @@ class TestReadingItBack:
         assert manifest.layout == cfg.layout
         assert manifest.random_favs_browser.enabled is cfg.random_favs_browser.enabled
 
-    def test_a_satellites_file_can_be_asked_for_by_that_satellite(self, cfg_path, tmp_path):
+    def test_a_satellites_channel_comes_back_as_the_config_spelled_it(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)
-        commands = LaunchManifest.read(
-            write_windows_bridge_manifest(
-                cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)).commands
+        manifest = LaunchManifest.read(
+            write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
 
-        assert commands.funestra_file("portrait", "hud") == commands.portrait_hud_file
-        assert commands.funestra_file("landscape", "cmd") == commands.landscape_cmd_file
-        assert commands.funestra_file("portrait", "playlist") == commands.portrait_playlist_file
-        assert commands.funestra_file("landscape", "notice") == commands.landscape_notice_file
-        assert (commands.funestra_file("landscape", "origenerator_hud")
-                == commands.landscape_origenerator_hud_file)
+        for funestra in FunTimeFunestra.SATELLITES:
+            assert manifest.satellite(funestra) == cfg.satellite(funestra)
+        assert manifest.satellite(FunTimeFunestra.PORTRAIT).sources == "|".join(
+            str(path) for path in cfg.paths.portrait_dirs)
 
     def test_a_missing_key_names_the_key_and_the_file(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)

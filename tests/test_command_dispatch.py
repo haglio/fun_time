@@ -20,6 +20,7 @@ from fun_time import genaumacher_save
 from fun_time.aiming import resolve_active_funestra_command
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
+from fun_time.config import SatelliteChannel
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_MAIN, SOURCE_PORTRAIT
@@ -55,19 +56,13 @@ def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeCon
     trash_dir.mkdir(exist_ok=True)
     return BridgeConfig(
         vr_main_funestra=vr_main_funestra,
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        portrait_playlist_file=state_dir / "portrait_playlist.tsv",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
+        portrait=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
+                                               sources=str(tmp_path / "portrait")),
+        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
+                                                sources=str(tmp_path / "landscape")),
         trash_dir=trash_dir,
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),
-        portrait_sources=str(tmp_path / "portrait"),
-        landscape_sources=str(tmp_path / "landscape"),
         broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
@@ -867,7 +862,7 @@ def test_a_satellites_skip_ahead_reaches_it_while_it_has_the_osr2(tmp_path: Path
 
     dispatch_command("landscape_funscript_jump", state, config)
 
-    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
+    assert config.landscape.cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
 def test_a_satellites_skip_ahead_is_refused_while_another_funestra_has_the_osr2(tmp_path: Path):
@@ -876,7 +871,7 @@ def test_a_satellites_skip_ahead_is_refused_while_another_funestra_has_the_osr2(
 
     _, ops = dispatch_command("portrait_funscript_jump", state, config)
 
-    assert not config.portrait_cmd_file.exists()
+    assert not config.portrait.cmd_file.exists()
     assert ops == [WindowOp(op="message", key="The portrait Satellite doesn't have the OSR2",
                             level=logging.WARNING)]
 
@@ -1093,8 +1088,8 @@ def test_omnipause_toggle_enters_pause_from_unpaused(tmp_path: Path):
 
     assert new_state.omni_paused is True
     assert any(op.op == "suspend_hotkeys" for op in ops)
-    assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
-    assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+    assert config.portrait.paused_file.read_text(encoding="utf-8") == "1"
+    assert config.landscape.paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
@@ -1105,8 +1100,8 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
-    assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
+    assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
     assert config.main_funestra_paused_file.read_text(encoding="utf-8") == "0"
 
 
@@ -1294,7 +1289,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert kwargs["funestra"] is FunTimeFunestra.PORTRAIT
     assert kwargs["build"].filter_query == "alpha"
     assert kwargs["channel"].cmd_file == config.satellite(2).cmd_file
-    assert kwargs["build"].sources == config.portrait_sources
+    assert kwargs["build"].sources == config.portrait.sources
     assert any(op.op == "message" for op in ops)
 
 
@@ -1818,12 +1813,13 @@ def _make_grouped_config(
             sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    sources_key = "portrait_sources" if funestra == 2 else "landscape_sources"
+    config = _make_config(tmp_path)
     config = replace(
-        _make_config(tmp_path),
+        config,
         regen_media_root=media_root,
         regen_metadata_root=metadata_root,
-        **{sources_key: str(satellite_dir)},
+        **{FunTimeFunestra(funestra).label: replace(config.satellite(funestra),
+                                                   sources=str(satellite_dir))},
     )
     return config, paths
 
@@ -2114,7 +2110,7 @@ def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
         sidecar = metadata_path_for(video, config.regen_metadata_root)
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    config = replace(config, landscape_sources=str(landscape_dir))
+    config = replace(config, landscape=replace(config.landscape, sources=str(landscape_dir)))
     state = _make_state(landscape=SatelliteState(locked=True))
 
     _set_current(config, 3, videos["subject_zeta"])
@@ -2221,7 +2217,7 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["build"].recent is True
     assert kwargs["build"].favorites_filter is False
-    assert kwargs["channel"].cmd_file == config.portrait_cmd_file
+    assert kwargs["channel"].cmd_file == config.portrait.cmd_file
     assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 
@@ -2407,8 +2403,8 @@ def test_a_satellites_speed_pair_steps_that_satellite_alone(tmp_path: Path):
     dispatch_command("portrait_speed_up", _make_state(), config)
     dispatch_command("landscape_speed_down", _make_state(), config)
 
-    assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.landscape.cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.main_funestra_cmd_file.exists()
 
 
@@ -2418,8 +2414,8 @@ def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: P
     dispatch_command("portrait_speed_50", _make_state(), config)
     dispatch_command("landscape_speed_200", _make_state(), config)
 
-    assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 0.5\n"
-    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 2\n"
+    assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 0.5\n"
+    assert config.landscape.cmd_file.read_text(encoding="utf-8") == "SET_SPEED 2\n"
     assert not config.main_funestra_cmd_file.exists()
 
 
@@ -2429,8 +2425,8 @@ def test_either_end_of_the_range_named_for_a_satellite_is_set_on_that_satellite_
     dispatch_command("portrait_speed_min", _make_state(), config)
     dispatch_command("landscape_speed_max", _make_state(), config)
 
-    assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
-    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
+    assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
+    assert config.landscape.cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
     assert not config.main_funestra_cmd_file.exists()
 
 
@@ -2511,7 +2507,7 @@ def test_the_max_intensity_slider_reaches_every_funestra_that_can_drive_the_devi
 
     assert new_state.max_intensity == 35
     for command_file in (config.genau_cmd_file, config.main_funestra_cmd_file,
-                         config.portrait_cmd_file, config.landscape_cmd_file):
+                         config.portrait.cmd_file, config.landscape.cmd_file):
         assert command_file.read_text(encoding="utf-8").strip() == "SET_MAX_INTENSITY 35"
     assert ops == [WindowOp(op="message", key="Max intensity 35%", source="main")]
 
@@ -2671,13 +2667,13 @@ class TestTakingTheOsr2:
 
     def test_the_bare_nudge_speeds_the_satellite_funestra_whose_script_has_the_osr2(self, tmp_path: Path):
         config = _make_config(tmp_path)
-        config.portrait_status_file.write_text("has_funscript=1\nfunscript_resting=0\n",
+        config.portrait.status_file.write_text("has_funscript=1\nfunscript_resting=0\n",
                                                encoding="utf-8")
 
         dispatch_command("speed_up", _make_state(main_mode=MainMode.GENAU,
                                                  osr2_funestra=FunTimeFunestra.PORTRAIT), config)
 
-        assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+        assert config.portrait.cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
         assert not config.genau_cmd_file.exists()
 
     def test_the_bare_nudge_speeds_the_robot_hand_while_a_satellite_funestra_has_it(self, tmp_path: Path):
@@ -2836,8 +2832,8 @@ def test_enter_omnipause_pauses_satellites_and_suspends(tmp_path: Path):
 
     assert new_state.omni_paused is True
     assert any(op.op == "suspend_hotkeys" for op in ops)
-    assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
-    assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+    assert config.portrait.paused_file.read_text(encoding="utf-8") == "1"
+    assert config.landscape.paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_enter_omnipause_emits_disable_all_topmost(tmp_path: Path):
@@ -2860,7 +2856,7 @@ def test_relief_omnipause_is_omnipause_and_the_retract_hold_together(tmp_path: P
     assert any(op.op == "disable_all_topmost" for op in ops)
     assert any(op.op == "suspend_hotkeys" for op in ops)
     assert all(paused.read_text(encoding="utf-8") == "1" for paused in (
-        config.portrait_paused_file, config.landscape_paused_file,
+        config.portrait.paused_file, config.landscape.paused_file,
         config.main_funestra_paused_file, config.genau_paused_file,
         config.audio_paused_file))
 
@@ -2957,8 +2953,8 @@ def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
-    assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
+    assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
 
 
 @pytest.mark.parametrize("main_mode", list(MainMode))
@@ -4134,8 +4130,6 @@ def _origenerator_config(tmp_path: Path) -> BridgeConfig:
         origenerator_enabled=True,
         origenerator_cmd_file=config.state_dir / "origenerator_cmd.txt",
         origenerator_paused_file=config.state_dir / "origenerator_paused.txt",
-        portrait_origenerator_hud_file=config.state_dir / "origenerator_portrait_hud.json",
-        landscape_origenerator_hud_file=config.state_dir / "origenerator_landscape_hud.json",
     )
 
 
@@ -4221,7 +4215,7 @@ class TestEachSatellitesOwnMode:
         state, ops = dispatch_command("landscape_kino_activate", _in_origenerator_mode(), config)
         assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
         assert _origenerator_cmds(config) == ["landscape_close_slideshow"]
-        assert not config.landscape_paused_file.exists()
+        assert not config.landscape.paused_file.exists()
         assert [(op.op, op.key) for op in ops] == [("take_back_funestras", "landscape")]
 
     def test_a_button_for_the_mode_a_satellite_is_already_in_changes_nothing(self, tmp_path):
@@ -4589,8 +4583,8 @@ class TestOmniPauseWithOrigenerator:
         state, _ = dispatch_command("omnipause_toggle", state, config)
         assert not state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
-        assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
-        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
+        assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
 
 
 def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):

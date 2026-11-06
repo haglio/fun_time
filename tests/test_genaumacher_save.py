@@ -8,6 +8,8 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.bridge_records import BridgeConfig
+from fun_time.config import SatelliteChannel
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genaumacher_save import save_clip_session
 
 
@@ -15,19 +17,13 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
     return BridgeConfig(
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        portrait_playlist_file=state_dir / "portrait_playlist.tsv",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
+        portrait=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
+                                               sources=str(tmp_path / "portrait")),
+        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
+                                                sources=str(tmp_path / "landscape")),
         trash_dir=tmp_path / "trash",
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),
-        portrait_sources=str(tmp_path / "portrait"),
-        landscape_sources=str(tmp_path / "landscape"),
         broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",

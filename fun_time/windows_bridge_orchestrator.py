@@ -550,11 +550,11 @@ def start_hud_priming(
     if not enabled:
         primed.set()
         return None, primed
-    sources = (bridge_config.portrait_sources, bridge_config.landscape_sources)
+    sources = (bridge_config.portrait.sources, bridge_config.landscape.sources)
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
         {
-            **{funestra.label: Path(manifest.commands.funestra_file(funestra.label, "hud"))
+            **{funestra.label: manifest.satellite(funestra).hud_file
                for funestra in FunTimeFunestra.SATELLITES},
             "main_funestra": Path(manifest.commands.main_funestra_console_file),
             DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
@@ -859,7 +859,7 @@ def _start_the_dispatch_loop(dispatch_runner: DispatchLoopRunner) -> threading.T
 DISPATCH_LOOP_STOP_S = 1.0
 
 
-def stop_everything(commands: CommandFiles,
+def stop_everything(manifest: LaunchManifest,
                     dispatch: tuple[DispatchLoopRunner, threading.Thread]) -> None:
     runner, loop = dispatch
     runner.stop()
@@ -867,8 +867,8 @@ def stop_everything(commands: CommandFiles,
     if loop.is_alive():
         logger.warning("The dispatch loop was still busy %.1fs after the session ended",
                        DISPATCH_LOOP_STOP_S)
-    silence_the_funestras(commands)
-    hold_the_osr2(commands)
+    silence_the_funestras(manifest)
+    hold_the_osr2(manifest.commands)
 
 
 @dataclass(frozen=True)
@@ -927,7 +927,7 @@ def _run_until_the_hotkeys_exit(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
-        stop_everything(launch.manifest.commands, running.dispatch)
+        stop_everything(launch.manifest, running.dispatch)
         crossing = pending_handoff(state_dir)
         esc_cancels = (CANCEL_CLOSING_FUN_TIME
                        if asked and show_overlays and crossing is None else "")

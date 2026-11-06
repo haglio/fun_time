@@ -828,11 +828,9 @@ class TestPhase4Reveal:
         # Both Funestras reporting frames: the loading screen waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
         # anything into it), so a run with no status files would hold it up.
-        manifest = configparser.ConfigParser()
-        manifest.optionxform = str
-        manifest.read(str(manifest_path), encoding="utf-8")
-        for key in ("portrait_status_file", "landscape_status_file"):
-            status = Path(manifest["commands"][key])
+        manifest = LaunchManifest.read(manifest_path)
+        for funestra in FunTimeFunestra.SATELLITES:
+            status = manifest.satellite(funestra).status_file
             status.parent.mkdir(parents=True, exist_ok=True)
             status.write_text("video=a.mp4\nposition_ms=250\n", encoding="utf-8")
         topmost_tracker = (lambda h, v, **_kw: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v, **_kw: None)
@@ -1150,9 +1148,8 @@ class TestOrigeneratorLaunch:
         for funestra in FunTimeFunestra.SATELLITES:
             files = cfg.satellite(funestra)
             assert captured["session"].funestras[funestra.label] == HandedFunestra(
-                playlist_file=str(files.playlist_file), cmd_file=str(files.cmd_file),
-                status_file=str(files.status_file),
-                hud_file=str(files.origenerator_hud_file))
+                playlist_file=files.playlist_file, cmd_file=files.cmd_file,
+                status_file=files.status_file, hud_file=files.origenerator_hud_file)
         assert captured["stale_at_launch"] is False
 
     def test_an_origenerator_with_no_interpreter_named_runs_from_its_own_install(

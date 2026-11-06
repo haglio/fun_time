@@ -28,9 +28,12 @@ def _video(folder: Path, name: str) -> str:
     return str(path)
 
 
-def _watching(tmp_path, **config) -> tuple[LatestArrivals, object]:
+def _watching(tmp_path, *, portrait_sources: str = "", landscape_sources: str = "",
+              **config) -> tuple[LatestArrivals, object]:
     config = make_config(tmp_path, **config)
-    for sources in (config.main_sources, config.portrait_sources, config.landscape_sources):
+    config = replace(config, portrait=replace(config.portrait, sources=portrait_sources),
+                     landscape=replace(config.landscape, sources=landscape_sources))
+    for sources in (config.main_sources, config.portrait.sources, config.landscape.sources):
         if sources:
             _video(Path(sources), "already there.mp4")
     arrivals = LatestArrivals(config)
@@ -55,18 +58,18 @@ class TestASatellitePlayingItsLatestList:
 
         arrivals.deliver(PORTRAIT_LATEST)
 
-        assert _queued(config.portrait_cmd_file) == [_next(newcomer)]
+        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
 
     def test_its_hud_knows_the_groups_of_what_it_put_up_without_a_rescan(self, tmp_path):
         library = tmp_path / "portrait"
         arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        prime_group_indexes((config.portrait_sources,), config.regen_metadata_root)
+        prime_group_indexes((config.portrait.sources,), config.regen_metadata_root)
         newcomer = _video(library, "scene two.mp4")
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST)
 
-        assert cached_group_index(config.portrait_sources, paths_supplier=list,
+        assert cached_group_index(config.portrait.sources, paths_supplier=list,
                                   metadata_root=None).contains(newcomer)
 
     def test_in_f_mode_puts_up_only_the_favorites_among_what_arrives(self, tmp_path):
@@ -80,7 +83,7 @@ class TestASatellitePlayingItsLatestList:
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(
             FunTimeFunestra.PORTRAIT, favorites_filter=True))
 
-        assert _queued(config.portrait_cmd_file) == [_next(favorite)]
+        assert _queued(config.portrait.cmd_file) == [_next(favorite)]
 
     def test_hands_several_over_oldest_first_so_the_newest_comes_up_first(self, tmp_path):
         library = tmp_path / "portrait"
@@ -91,7 +94,7 @@ class TestASatellitePlayingItsLatestList:
 
         arrivals.deliver(PORTRAIT_LATEST)
 
-        assert _queued(config.portrait_cmd_file) == [_next(older), _next(newer)]
+        assert _queued(config.portrait.cmd_file) == [_next(older), _next(newer)]
 
     def test_holds_what_arrives_through_a_loop_and_puts_it_up_next_when_the_loop_ends(
             self, tmp_path):
@@ -101,11 +104,11 @@ class TestASatellitePlayingItsLatestList:
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(FunTimeFunestra.PORTRAIT, loop="seed"))
-        held = _queued(config.portrait_cmd_file)
+        held = _queued(config.portrait.cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 
         assert held == []
-        assert _queued(config.portrait_cmd_file) == [_next(newcomer)]
+        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
 
     def test_holds_what_arrives_while_it_plays_origenerators_slideshows(self, tmp_path):
         library = tmp_path / "portrait"
@@ -117,11 +120,11 @@ class TestASatellitePlayingItsLatestList:
 
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(
             FunTimeFunestra.PORTRAIT, mode=ORIGENERATOR_MODE))
-        held = _queued(config.portrait_cmd_file)
+        held = _queued(config.portrait.cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 
         assert held == []
-        assert _queued(config.portrait_cmd_file) == [_next(newcomer)]
+        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
 
     def test_holds_what_arrives_until_it_is_back_on_its_own_list(self, tmp_path):
         library = tmp_path / "portrait"
@@ -130,11 +133,11 @@ class TestASatellitePlayingItsLatestList:
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST, coming_home={FunTimeFunestra.PORTRAIT})
-        held = _queued(config.portrait_cmd_file)
+        held = _queued(config.portrait.cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 
         assert held == []
-        assert _queued(config.portrait_cmd_file) == [_next(newcomer)]
+        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
 
 
 class TestASatelliteShuffling:
@@ -147,7 +150,7 @@ class TestASatelliteShuffling:
         arrivals.deliver(BridgeState())
         arrivals.deliver(PORTRAIT_LATEST)
 
-        assert _queued(config.portrait_cmd_file) == []
+        assert _queued(config.portrait.cmd_file) == []
 
 
 class TestTheMainFunestraPlayingItsLatestList:

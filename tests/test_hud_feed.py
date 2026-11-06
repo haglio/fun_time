@@ -17,6 +17,7 @@ from funestra.osr2_visualizer import DriveHud, publish_drive
 from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
+from fun_time.config import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
@@ -28,19 +29,11 @@ from fun_time.shared_state import BridgeState, SatelliteState
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
     settings = {
-        "portrait_cmd_file": tmp_path / "portrait_cmd.txt",
-        "portrait_paused_file": tmp_path / "portrait_paused.txt",
-        "portrait_status_file": tmp_path / "portrait_status.txt",
-        "portrait_playlist_file": tmp_path / "portrait_playlist.tsv",
-        "landscape_cmd_file": tmp_path / "landscape_cmd.txt",
-        "landscape_paused_file": tmp_path / "landscape_paused.txt",
-        "landscape_status_file": tmp_path / "landscape_status.txt",
-        "landscape_playlist_file": tmp_path / "landscape_playlist.tsv",
+        "portrait": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT),
+        "landscape": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.LANDSCAPE),
         "trash_dir": tmp_path / "trash",
         "state_dir": tmp_path,
         "main_sources": "",
-        "portrait_sources": "",
-        "landscape_sources": "",
         "broker_mode_file": tmp_path / "rh_mode.txt",
         "genau_cmd_file": tmp_path / "rh_cmd.txt",
         "genau_paused_file": tmp_path / "rh_paused.txt",
@@ -66,9 +59,7 @@ def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
 def hosting_config(tmp_path) -> BridgeConfig:
     return make_config(
         tmp_path, origenerator_enabled=True,
-        origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-        portrait_origenerator_hud_file=tmp_path / "origenerator_portrait_hud.json",
-        landscape_origenerator_hud_file=tmp_path / "origenerator_landscape_hud.json")
+        origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
 
 
 def make_feed(tmp_path, *, config=None) -> HudFeed:

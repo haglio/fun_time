@@ -17,6 +17,7 @@ from OpenGL import GL, _configflags
 
 import fun_time_vr.funestras as vrp
 from fun_time.config import load_config
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.runtime_flow import apply_mode_switch
@@ -110,16 +111,17 @@ def _write_the_playlists(config, manifest, vr) -> None:
         "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
         encoding="utf-8",
     )
-    Path(commands.portrait_playlist_file).write_text(
+    manifest.portrait.playlist_file.write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.portrait_dirs, 2)),
         encoding="utf-8",
     )
-    Path(commands.landscape_playlist_file).write_text(
+    manifest.landscape.playlist_file.write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.landscape_dirs, 2)),
         encoding="utf-8",
     )
-    for satellite in ("main_funestra", "portrait", "landscape"):
-        Path(commands.funestra_file(satellite, "paused")).write_text("0", encoding="utf-8")
+    Path(commands.main_funestra_paused_file).write_text("0", encoding="utf-8")
+    for funestra in FunTimeFunestra.SATELLITES:
+        manifest.satellite(funestra).paused_file.write_text("0", encoding="utf-8")
 
 
 def _has_a_picture(unit) -> bool:
@@ -135,7 +137,7 @@ def _has_a_picture(unit) -> bool:
 
 @dataclass(frozen=True)
 class _Pipeline:
-    commands: Any
+    manifest: Any
     main: Any
     satellites: list
 
@@ -161,7 +163,7 @@ class _Pipeline:
 
 
 def _wait_for_the_first_pictures(pipeline: _Pipeline) -> None:
-    status = Path(pipeline.commands.main_funestra_status_file)
+    status = Path(pipeline.manifest.commands.main_funestra_status_file)
     wait_for(lambda: read_main_funestra_status(status).video,
              desc="the Main Funestra's first status write")
     pipeline.run_frames(240)
@@ -226,12 +228,12 @@ def _assert_video_changes_keep_pace(pipeline: _Pipeline) -> None:
     # its shaders and the CUDA interop its frames arrive through, 40 to
     # 250ms of it, charged to whichever thread calls render.  On the loop
     # that was the whole headset freezing at every video change.
-    commands, landscape = pipeline.commands, pipeline.satellites[1]
+    landscape = pipeline.satellites[1]
     transitions: list[list[float]] = []
-    landscape_status = Path(commands.landscape_status_file)
+    landscape_status = pipeline.manifest.landscape.status_file
     for _ in range(4):
         leaving = published_status(read_satellite_status, landscape_status).video
-        append_command(Path(commands.landscape_cmd_file), "NEXT")
+        append_command(pipeline.manifest.landscape.cmd_file, "NEXT")
         transitions.append([])
         pipeline.run_frames(60, sink=transitions[-1])
         wait_for(lambda was=leaving: read_satellite_status(landscape_status).video not in ("", was),
@@ -261,9 +263,9 @@ def _assert_video_changes_keep_pace(pipeline: _Pipeline) -> None:
 
 
 def _assert_a_paused_satellite_holds_still(pipeline: _Pipeline) -> None:
-    commands = pipeline.commands
-    status = Path(commands.portrait_status_file)
-    Path(commands.portrait_paused_file).write_text("1", encoding="utf-8")
+    portrait = pipeline.manifest.portrait
+    status = portrait.status_file
+    portrait.paused_file.write_text("1", encoding="utf-8")
     wait_for(lambda: read_satellite_status(status).paused,
              desc="the portrait satellite to report paused")
     position_before = published_status(read_satellite_status, status).position_ms
@@ -299,7 +301,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         vrp._SatelliteUnit(satellite, launch, remembered=remembered.placements)
         for satellite in (PORTRAIT, LANDSCAPE)
     ]
-    pipeline = _Pipeline(manifest.commands, main, satellites)
+    pipeline = _Pipeline(manifest, main, satellites)
     perf = vrp.FramePerf(logger=vrp.logger)
     pump_failure: list[BaseException] = []
 

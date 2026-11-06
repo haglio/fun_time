@@ -4,8 +4,10 @@ import logging
 from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
+from fun_time.config import SatelliteChannel
 from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.event_log import FAVORITE, MESSAGE
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_messages import read_funestra_message
 from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
@@ -14,9 +16,6 @@ from tests.fun_time_window_fakes import MAIN_FUNESTRA_PID
 
 def _runner(tmp_path: Path) -> DispatchLoopRunner:
     path_fields = (
-        "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
-        "portrait_playlist_file", "landscape_cmd_file", "landscape_paused_file",
-        "landscape_status_file", "landscape_playlist_file",
         "broker_mode_file", "genau_cmd_file", "genau_paused_file",
         "genau_status_file",
         "audio_paused_file", "audio_volume_file", "main_funestra_cmd_file",
@@ -27,11 +26,9 @@ def _runner(tmp_path: Path) -> DispatchLoopRunner:
         trash_dir=tmp_path / "trash",
         state_dir=tmp_path,
         main_sources="",
-        portrait_sources="",
-        landscape_sources="",
         main_funestra_notice_file=tmp_path / "main_player_notice.txt",
-        portrait_notice_file=tmp_path / "portrait_notice.txt",
-        landscape_notice_file=tmp_path / "landscape_notice.txt",
+        portrait=SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT),
+        landscape=SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.LANDSCAPE),
     )
     return DispatchLoopRunner(
         config,

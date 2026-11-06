@@ -384,7 +384,7 @@ class TestTheModeASessionComesBackIn:
     def test_the_flags_are_seeded_in_the_carried_mode(self):
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
 
-        assert [ast.unparse(argument) for argument in seed.args] == ["commands", "carried"]
+        assert [ast.unparse(argument) for argument in seed.args] == ["manifest", "carried"]
 
     def test_genau_is_sent_the_shapes_it_was_left_browsing(self):
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
@@ -423,7 +423,7 @@ class TestTheModeASessionComesBackIn:
     def test_the_headset_comes_back_as_quiet_as_the_osr2_was_left(self):
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
 
-        assert [ast.unparse(argument) for argument in seed.args] == ["commands", "carried"]
+        assert [ast.unparse(argument) for argument in seed.args] == ["manifest", "carried"]
 
     def test_the_headset_is_seeded_with_everything_the_desktop_is(self):
         (headset,) = self._calls("run_vr_bridge", "seed_startup_states")

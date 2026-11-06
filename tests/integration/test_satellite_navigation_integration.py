@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +13,7 @@ from funestra.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
+from fun_time.config import SatelliteChannel
 from fun_time.filter_vocab import load_camera_words
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_transport import HudPublisher
@@ -110,19 +112,16 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
     state_dir = satellite.folder
     runtime = state_dir.parent
     return BridgeConfig(
-        portrait_cmd_file=satellite.cmd,
-        portrait_paused_file=satellite.paused,
-        portrait_status_file=satellite.status,
-        portrait_playlist_file=satellite.playlist,
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
+        portrait=replace(
+            SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
+                                          sources=str(satellite.sources)),
+            cmd_file=satellite.cmd, paused_file=satellite.paused, status_file=satellite.status,
+            playlist_file=satellite.playlist),
+        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
+                                                sources=str(runtime / "landscape")),
         trash_dir=runtime / "trash",
         state_dir=state_dir,
         main_sources=str(runtime / "primary"),
-        portrait_sources=str(satellite.sources),
-        landscape_sources=str(runtime / "landscape"),
         broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",

@@ -17,12 +17,22 @@ from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manif
 from fun_time_vr.orchestrator import build_vr_manifest
 from tests.made_up_genau import with_made_up_genau
 
-_CHANNELS = (
-    "main_funestra_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
-    "origenerator_cmd_file", "broker_cmd_file", "main_funestra_paused_file",
-    "genau_paused_file", "audio_paused_file", "portrait_paused_file",
-    "landscape_paused_file", "origenerator_paused_file",
-)
+
+def _channels(config: BridgeConfig) -> dict[str, Path | None]:
+    return {
+        "main_funestra_cmd_file": config.main_funestra_cmd_file,
+        "genau_cmd_file": config.genau_cmd_file,
+        "portrait_cmd_file": config.portrait.cmd_file,
+        "landscape_cmd_file": config.landscape.cmd_file,
+        "origenerator_cmd_file": config.origenerator_cmd_file,
+        "broker_cmd_file": config.broker_cmd_file,
+        "main_funestra_paused_file": config.main_funestra_paused_file,
+        "genau_paused_file": config.genau_paused_file,
+        "audio_paused_file": config.audio_paused_file,
+        "portrait_paused_file": config.portrait.paused_file,
+        "landscape_paused_file": config.landscape.paused_file,
+        "origenerator_paused_file": config.origenerator_paused_file,
+    }
 
 
 def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
@@ -80,8 +90,7 @@ def every_command() -> list[str]:
 def drain(config: BridgeConfig) -> dict[str, list[str]]:
     config.main_list_builds.settle()
     written: dict[str, list[str]] = {}
-    for name in _CHANNELS:
-        path = getattr(config, name, None)
+    for name, path in _channels(config).items():
         if path is None or not Path(path).exists():
             continue
         lines = [

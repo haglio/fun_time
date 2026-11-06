@@ -6,20 +6,11 @@ from pathlib import Path
 
 from app_support import ports, state_files
 
-from .config import LayoutConfig, RegenConfig
+from .config import LayoutConfig, RegenConfig, SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .main_funestra_hud import main_funestra_hud_path
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
-
-
-def _satellite_files(config) -> dict[str, str]:
-    return {
-        f"{funestra.label}_{name}": str(getattr(config.satellite(funestra), name))
-        for funestra in FunTimeFunestra.SATELLITES
-        for name in ("cmd_file", "paused_file", "status_file", "notice_file", "playlist_file",
-                     "hud_file", "origenerator_hud_file")
-    }
 
 
 def build_windows_bridge_manifest(
@@ -39,8 +30,6 @@ def build_windows_bridge_manifest(
         "media": {
             "main_funestra_library_sources": "|".join(str(path) for path in config.paths.main_funestra_library_dirs),
             "vr_library_dirs": "",
-            "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
-            "landscape_dirs": "|".join(str(path) for path in config.paths.landscape_dirs),
             "trash_dir": str(config.paths.trash_dir),
             "genau_flicks": str(config.paths.flicks_dir),
             "genau_vr_flicks": "",
@@ -62,7 +51,6 @@ def build_windows_bridge_manifest(
             "main_funestra_status_file": str(config.main_funestra_status_file),
             "main_funestra_console_file": str(main_funestra_hud_path(config.paths.state_dir)),
             "main_funestra_playlist_file": str(config.main_funestra_playlist_file),
-            **_satellite_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
             "broker_state_dir": str(config.paths.broker_state_dir),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
@@ -79,6 +67,8 @@ def build_windows_bridge_manifest(
             "origenerator_input_file": str(config.origenerator_input_file),
             "osr2_slot_port": str(config.osr2_slot_port),
         },
+        **{funestra.label: config.satellite(funestra).as_manifest_section()
+           for funestra in FunTimeFunestra.SATELLITES},
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",
         },
@@ -147,8 +137,6 @@ class Executables:
 @dataclass(frozen=True)
 class MediaSources:
     main_funestra_library_sources: str
-    portrait_dirs: str
-    landscape_dirs: str
     trash_dir: str
     genau_flicks: str
     genau_audio: str
@@ -175,18 +163,6 @@ class CommandFiles:
     main_funestra_status_file: str
     main_funestra_console_file: str
     main_funestra_playlist_file: str
-    portrait_cmd_file: str
-    portrait_paused_file: str
-    portrait_status_file: str
-    portrait_playlist_file: str
-    portrait_hud_file: str
-    portrait_notice_file: str
-    landscape_cmd_file: str
-    landscape_paused_file: str
-    landscape_status_file: str
-    landscape_playlist_file: str
-    landscape_hud_file: str
-    landscape_notice_file: str
     broker_cmd_file: str
     audio_paused_file: str
     audio_volume_file: str
@@ -201,12 +177,7 @@ class CommandFiles:
     origenerator_paused_file: str = ""
     origenerator_frames_file: str = ""
     origenerator_input_file: str = ""
-    portrait_origenerator_hud_file: str = ""
-    landscape_origenerator_hud_file: str = ""
     osr2_slot_port: str = str(ports.OSR2_SLOT)
-
-    def funestra_file(self, funestra: str, kind: str) -> str:
-        return getattr(self, f"{funestra}_{kind}_file")
 
     @property
     def genau_drive_file(self) -> str:
@@ -250,6 +221,12 @@ class LaunchManifest:
     layout: LayoutConfig
     random_favs_browser: RandomFavsBrowserSettings
     regen: RegenSettings
+    portrait: SatelliteChannel
+    landscape: SatelliteChannel
+
+    def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
+        return (self.portrait if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
+                else self.landscape)
 
     @classmethod
     def read(cls, path: str | Path) -> LaunchManifest:
@@ -258,14 +235,17 @@ class LaunchManifest:
         parser.optionxform = str
         parser.read(str(path), encoding="utf-8")
 
-        def record(section: str, kind: type):
+        def values_of(section: str, kind: type) -> dict[str, str]:
             values = parser[section] if parser.has_section(section) else {}
             missing = [f.name for f in fields(kind)
                        if f.name not in values and f.default is MISSING]
             if missing:
                 raise ManifestKeyMissing(
                     f"[{section}] {', '.join(missing)} missing from {path}")
-            return kind(**{f.name: values[f.name] for f in fields(kind) if f.name in values})
+            return {f.name: values[f.name] for f in fields(kind) if f.name in values}
+
+        def record(section: str, kind: type):
+            return kind(**values_of(section, kind))
 
         def flag(section: str, key: str) -> str:
             if not parser.has_option(section, key):
@@ -275,6 +255,9 @@ class LaunchManifest:
         return cls(
             **{attr: record(section, kind)
                for section, (attr, kind) in _SECTION_RECORDS.items()},
+            **{funestra.label: SatelliteChannel.from_manifest_section(
+                   values_of(funestra.label, SatelliteChannel))
+               for funestra in FunTimeFunestra.SATELLITES},
             dashboard_enabled=flag("dashboard", "enabled").strip()
             not in {"", "0", "false", "False"},
             loopback_port=int(flag("loopback", "port")),
