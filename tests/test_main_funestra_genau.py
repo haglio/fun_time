@@ -411,6 +411,17 @@ def test_closing_it_closes_the_device_line_and_the_audio_companion(tmp_path):
     assert (world.sink.closed, world.notifier.closed) == (True, True)
 
 
+def test_it_answers_the_apps_volume_though_it_draws_no_volume_control_since_an_unanswered_verb_is_logged_each_time_the_volume_moves(
+        tmp_path, caplog):
+    world = World(tmp_path)
+
+    with caplog.at_level(logging.WARNING):
+        world.send("SET_VOLUME 70 1")
+
+    assert [record.getMessage() for record in caplog.records
+            if record.levelno >= logging.WARNING] == []
+
+
 class TestTurnedAsAsked:
     _TURNED = (("alpha one.mp4", "portrait"), ("beta two.mp4", "landscape"))
 
