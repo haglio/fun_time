@@ -65,7 +65,8 @@ def bar_controls(layout: DashboardBarLayout, state: BarState) -> tuple[BarContro
     return (
         BarControl(QUIT_BUTTON, layout.quit_button, "power"),
         BarControl(OMNIPAUSE_TOGGLE, layout.omnipause_button,
-                   "play" if state.omni_paused else "pause"),
+                   "play" if state.omni_paused else "pause",
+                   lit=None if state.omni_paused else BLUE),
         BarControl(HELP_REFERENCE, layout.help_button, "question",
                    lit=BLUE if state.reference_open else None),
         BarControl(VOICE_TOGGLE, layout.voice_panel, "mic",

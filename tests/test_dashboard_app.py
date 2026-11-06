@@ -1236,7 +1236,7 @@ def test_the_bar_wears_the_huds_button_edge_and_corner():
     lit = {item.rect: item.outline
            for item in _scene(_snapshot(voice_active=True, f_mode=True)).rects}
 
-    assert all(item.outline == TEXT_MUTED for item in _scene().rects)
+    assert all(item.outline == TEXT_MUTED for item in _scene(_snapshot(omni_paused=True, voice_active=False)).rects)
     assert lit[layout.voice_panel] == BLUE
     assert lit[layout.fmode_button] == GREEN
     assert lit[layout.quit_button] == TEXT_MUTED
