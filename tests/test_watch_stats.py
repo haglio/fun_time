@@ -3,7 +3,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from fun_time.media_metadata import normalize_path_key
+from funestra.video_groups import normalize_path_key
+
 from fun_time.watch_stats import (
     WatchTracker,
     load_watch_stats,

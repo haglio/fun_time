@@ -13,6 +13,7 @@ from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.playback_rate import NORMAL_RATE
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
+from funestra.video_groups import normalize_path_key
 
 from main_funestra.loop_verbs import SET_LOOP
 
@@ -20,7 +21,6 @@ from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import take_back_the_list
 from .funestra_settings import FunestraReports, with_what_the_funestras_report
 from .main_list import MainList, MainListSettings, new_shuffle_seed
-from .media_metadata import normalize_path_key
 from .modes import rotated_onto
 from .shared_state import (
     BridgeState,

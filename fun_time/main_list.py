@@ -9,13 +9,13 @@ from pathlib import Path
 from app_support.video_names import stable_title, strip_processing_suffixes
 from funestra.funestra_verbs import SET_F_MODE
 from funestra.modes import LengthMode
+from funestra.video_groups import normalize_path_key
 from shared_ui.orientation import PORTRAIT
 
 from .media_metadata import (
     EXCERPT,
     FULL_LENGTH,
     SHORT,
-    normalize_path_key,
     recorded_for,
     recorded_orientation,
     video_type_of,

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from funestra.video_groups import normalize_path_key
+
 from fun_time.command_value import parse_command
-from fun_time.media_metadata import normalize_path_key
 from fun_time.watch_sampling import WatchSampler
 from fun_time.watch_stats import load_watch_stats
 

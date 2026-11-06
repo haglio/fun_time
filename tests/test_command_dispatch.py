@@ -15,6 +15,7 @@ from app_support import osr2_hold
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode, SatellitesMode
+from funestra.video_groups import normalize_path_key
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
@@ -36,7 +37,6 @@ from fun_time.media_metadata import (
     load_metadata,
     mark_favorite,
     metadata_path_for,
-    normalize_path_key,
 )
 from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import write_playlist_file
