@@ -235,16 +235,18 @@ class TestAudioPlaybackController:
         assert music.loaded == str(named)
         assert music.busy
 
-    def test_a_clip_line_with_no_audio_falls_silent_and_says_so(self, tmp_path, monkeypatch, caplog):
+    def test_a_clip_line_with_no_audio_falls_silent_and_says_so_as_news_not_a_warning(
+            self, tmp_path, monkeypatch, caplog):
         controller, music, _clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
-        with caplog.at_level(logging.WARNING, logger="test.audio"):
+        with caplog.at_level(logging.INFO, logger="test.audio"):
             controller.handle_udp_line("FLICK Missing")
 
         assert music.events[-1] == "stop"
         assert controller.current_path is None
-        assert any("Missing" in r.getMessage() for r in caplog.records)
+        said = [r for r in caplog.records if "Missing" in r.getMessage()]
+        assert [r.levelno for r in said] == [logging.INFO]
 
     def test_set_volume_scales_the_mixer(self, tmp_path: Path):
         music = MagicMock()
