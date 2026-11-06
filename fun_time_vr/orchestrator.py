@@ -276,8 +276,8 @@ def stock_the_playlists(
 ) -> BridgeState:
     if not resumed:
         build_satellite_playlists(
-            portrait=SatelliteBuild(sources=launch.manifest.media.portrait_dirs),
-            landscape=SatelliteBuild(sources=launch.manifest.media.landscape_dirs),
+            portrait=SatelliteBuild(sources=launch.manifest.portrait.sources),
+            landscape=SatelliteBuild(sources=launch.manifest.landscape.sources),
             state_dir=launch.state_dir,
             metadata_root=launch.bridge_config.regen_metadata_root,
         )
@@ -512,12 +512,10 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     progress.advance("services")
     write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
-    reset_satellite_paused_states(
-        commands.portrait_paused_file, commands.landscape_paused_file,
-    )
+    reset_satellite_paused_states(manifest.portrait.paused_file, manifest.landscape.paused_file)
     reap_orphaned_satellites(
         manifest.modules.satellite_module,
-        [commands.portrait_status_file, commands.landscape_status_file],
+        [manifest.portrait.status_file, manifest.landscape.status_file],
     )
     reap_orphaned_satellites(VR_FUNESTRAS_MODULE, [str(launch.manifest_path)])
     release_the_headset(state_dir)
@@ -525,8 +523,8 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
     main_funestra_status = read_main_funestra_status(launch.main_funestra_status_file)
-    portrait_status = read_satellite_status(Path(commands.portrait_status_file))
-    landscape_status = read_satellite_status(Path(commands.landscape_status_file))
+    portrait_status = read_satellite_status(manifest.portrait.status_file)
+    landscape_status = read_satellite_status(manifest.landscape.status_file)
     resumed = resume_playlists([
         (portrait_playlist, portrait_status.video),
         (landscape_playlist, landscape_status.video),
@@ -539,16 +537,16 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
         carried=carried,
         main_video=main_funestra_status.video,
     )
-    seed_startup_states(commands, carried)
+    seed_startup_states(manifest, carried)
     resume_satellite_locks([
-        (Path(commands.portrait_cmd_file), carried.satellite(FunTimeFunestra.PORTRAIT).locked),
-        (Path(commands.landscape_cmd_file), carried.satellite(FunTimeFunestra.LANDSCAPE).locked),
+        (manifest.satellite(funestra).cmd_file, carried.satellite(funestra).locked)
+        for funestra in FunTimeFunestra.SATELLITES
     ])
     resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        satellite_cmd_files={FunTimeFunestra.PORTRAIT: Path(commands.portrait_cmd_file),
-                             FunTimeFunestra.LANDSCAPE: Path(commands.landscape_cmd_file)},
+        satellite_cmd_files={funestra: manifest.satellite(funestra).cmd_file
+                             for funestra in FunTimeFunestra.SATELLITES},
         genau_cmd_file=Path(commands.genau_cmd_file),
     )
     resume_main_loop(Path(commands.main_funestra_cmd_file), carried,
@@ -679,7 +677,7 @@ def _close_the_session(
 ) -> None:
     manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
     funestra = launched.funestra
-    stop_everything(commands, (running.dispatch_runner, running.dispatch_thread))
+    stop_everything(manifest, (running.dispatch_runner, running.dispatch_thread))
     held = back_to_vr = False
     if (crossing := pending_handoff(state_dir)) is not None:
         launch_transition_screen(state_dir, crossing,

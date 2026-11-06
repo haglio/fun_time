@@ -490,14 +490,15 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         funestra, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     commands = manifest.commands
+    own = manifest.satellite(FunTimeFunestra[funestra.upper()])
     handed = faked_collaborators["Funestra"].call_args.args[1]._asdict()
     channels = handed["channels"]
-    assert channels.command == Path(commands.funestra_file(funestra, "cmd"))
-    assert channels.paused == Path(commands.funestra_file(funestra, "paused"))
-    assert channels.playlist == Path(commands.funestra_file(funestra, "playlist"))
-    assert channels.status == Path(commands.funestra_file(funestra, "status"))
+    assert channels.command == own.cmd_file
+    assert channels.paused == own.paused_file
+    assert channels.playlist == own.playlist_file
+    assert channels.status == own.status_file
     assert channels.play_points == Path(commands.state_dir) / play_points_filename(funestra)
-    assert channels.hud == Path(commands.funestra_file(funestra, "hud"))
+    assert channels.hud == own.hud_file
     assert channels.dashboard_cmd == Path(commands.dashboard_cmd_file)
     assert handed["hud_surface"] is unit.hud
 

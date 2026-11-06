@@ -131,15 +131,15 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg)
         assert result["modules"]["satellite_module"] == "satellite"
 
-    def test_satellite_file_quartet_in_manifest(self, cfg_path: Path):
+    def test_each_satellites_section_carries_its_own_files(self, cfg_path: Path):
         cfg = load_config(cfg_path)
-        commands = build_windows_bridge_manifest(cfg)["commands"]
+        manifest = build_windows_bridge_manifest(cfg)
         state = cfg.paths.state_dir
         for satellite in ("portrait", "landscape"):
-            assert commands[f"{satellite}_cmd_file"] == str(state / f"{satellite}_cmd.txt")
-            assert commands[f"{satellite}_paused_file"] == str(state / f"{satellite}_paused.txt")
-            assert commands[f"{satellite}_status_file"] == str(state / f"{satellite}_status.txt")
-            assert commands[f"{satellite}_playlist_file"] == str(state / f"{satellite}_playlist.tsv")
+            assert manifest[satellite]["cmd_file"] == str(state / f"{satellite}_cmd.txt")
+            assert manifest[satellite]["paused_file"] == str(state / f"{satellite}_paused.txt")
+            assert manifest[satellite]["status_file"] == str(state / f"{satellite}_status.txt")
+            assert manifest[satellite]["playlist_file"] == str(state / f"{satellite}_playlist.tsv")
 
     def test_the_brokers_files_are_manifested_from_the_brokers_own_directory(
         self, tmp_path: Path, cfg_factory,
@@ -177,12 +177,12 @@ class TestControllerManifest:
         }})
         cfg = load_config(path)
         manifest = build_windows_bridge_manifest(cfg)
-        assert str(tmp_path / "portrait") in manifest["media"]["portrait_dirs"]
-        assert str(portrait_extra) in manifest["media"]["portrait_dirs"]
-        assert "|" in manifest["media"]["portrait_dirs"]
-        assert str(tmp_path / "landscape") in manifest["media"]["landscape_dirs"]
-        assert str(landscape_extra) in manifest["media"]["landscape_dirs"]
-        assert "|" in manifest["media"]["landscape_dirs"]
+        assert str(tmp_path / "portrait") in manifest["portrait"]["sources"]
+        assert str(portrait_extra) in manifest["portrait"]["sources"]
+        assert "|" in manifest["portrait"]["sources"]
+        assert str(tmp_path / "landscape") in manifest["landscape"]["sources"]
+        assert str(landscape_extra) in manifest["landscape"]["sources"]
+        assert "|" in manifest["landscape"]["sources"]
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -273,7 +273,7 @@ class TestControllerManifest:
         assert manifest_path.name == WINDOWS_BRIDGE_MANIFEST_FILENAME
         assert parser["runtime"]["config_path"] == str(cfg.config_path)
         assert parser["modules"]["satellite_module"] == "satellite"
-        assert parser["commands"]["portrait_playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
+        assert parser["portrait"]["playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
         assert parser["commands"]["genau_paused_file"] == str(cfg.genau_paused_file)

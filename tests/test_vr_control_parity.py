@@ -251,7 +251,7 @@ class TestTheSatellites:
             reload_playlist=lambda: session.replace_playlist(
                 [item.path for item in read_playlist(playlist)]),
         )
-        for line in config.portrait_cmd_file.read_text(encoding="utf-8").splitlines():
+        for line in config.portrait.cmd_file.read_text(encoding="utf-8").splitlines():
             apply_satellite_command(line, controls)
 
         assert not session.is_locked

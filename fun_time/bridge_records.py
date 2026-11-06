@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from app_support import state_files
 
-from .config import RegenConfig
+from .config import RegenConfig, SatelliteChannel
 from .event_log import MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .loopback_server import LOOPBACK_PORT
@@ -21,19 +21,11 @@ if TYPE_CHECKING:
 
 @dataclass
 class BridgeConfig:
-    portrait_cmd_file: Path
-    portrait_paused_file: Path
-    portrait_status_file: Path
-    portrait_playlist_file: Path
-    landscape_cmd_file: Path
-    landscape_paused_file: Path
-    landscape_status_file: Path
-    landscape_playlist_file: Path
+    portrait: SatelliteChannel
+    landscape: SatelliteChannel
     trash_dir: Path
     state_dir: Path
     main_sources: str
-    portrait_sources: str
-    landscape_sources: str
     broker_mode_file: Path
     genau_cmd_file: Path
     genau_paused_file: Path
@@ -46,8 +38,6 @@ class BridgeConfig:
     dashboard_state_file: Path
     loopback_port: int = LOOPBACK_PORT
     main_funestra_notice_file: Path | None = None
-    portrait_notice_file: Path | None = None
-    landscape_notice_file: Path | None = None
     vr_main_funestra: bool = False
     vr_library_dirs: str = ""
     genau_vr_flicks: str = ""
@@ -60,8 +50,6 @@ class BridgeConfig:
     origenerator_paused_file: Path | None = None
     origenerator_lock_phrases: frozenset[str] = frozenset()
     origenerator_status_file: Path | None = None
-    portrait_origenerator_hud_file: Path | None = None
-    landscape_origenerator_hud_file: Path | None = None
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None
@@ -70,25 +58,8 @@ class BridgeConfig:
     main_list_builds: MainListBuilds = BUILDS_HERE
 
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
-        if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT:
-            return SatelliteChannel(
-                cmd_file=self.portrait_cmd_file,
-                paused_file=self.portrait_paused_file,
-                status_file=self.portrait_status_file,
-                playlist_file=self.portrait_playlist_file,
-                sources=self.portrait_sources,
-                origenerator_hud_file=self.portrait_origenerator_hud_file,
-                notice_file=self.portrait_notice_file,
-            )
-        return SatelliteChannel(
-            cmd_file=self.landscape_cmd_file,
-            paused_file=self.landscape_paused_file,
-            status_file=self.landscape_status_file,
-            playlist_file=self.landscape_playlist_file,
-            sources=self.landscape_sources,
-            origenerator_hud_file=self.landscape_origenerator_hud_file,
-            notice_file=self.landscape_notice_file,
-        )
+        return (self.portrait if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
+                else self.landscape)
 
     @property
     def hosts_origenerator(self) -> bool:
@@ -115,17 +86,6 @@ class BridgeConfig:
             media_root=self.regen_media_root,
             metadata_root=self.regen_metadata_root,
         )
-
-
-@dataclass(frozen=True)
-class SatelliteChannel:
-    cmd_file: Path
-    paused_file: Path
-    status_file: Path
-    playlist_file: Path
-    sources: str
-    origenerator_hud_file: Path | None = None
-    notice_file: Path | None = None
 
 
 class Op(StrEnum):

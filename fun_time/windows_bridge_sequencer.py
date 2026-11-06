@@ -215,23 +215,23 @@ def _launch_the_satellites(
 ) -> tuple[str, int, int]:
     core_result_file = _build_unique_result_path(state_dir, "core_session")
 
-    def _launch(funestra: FunTimeFunestra, satellite: str, sources: str, playlist: str, rect):
+    def _launch(funestra: FunTimeFunestra, playlist: str, rect):
+        satellite = funestra.label
+        channel = m.satellite(funestra)
         return SatelliteLaunch(
             funestra=funestra,
-            sources=sources,
+            sources=channel.sources,
             channels=replace(
-                SatelliteChannels.from_manifest(
-                    m.commands, satellite,
+                SatelliteChannels.from_channel(
+                    channel, m.commands, satellite,
                     play_points=state_dir / play_points_filename(satellite)),
                 playlist=build_playlist_file_path(state_dir, playlist)),
             log_file=state_dir / f"{satellite}_satellite.log",
             rect=rect,
         )
 
-    portrait_launch = _launch(FunTimeFunestra.PORTRAIT, "portrait", m.media.portrait_dirs,
-                          PLAYLIST_PORTRAIT, plan.portrait)
-    landscape_launch = _launch(FunTimeFunestra.LANDSCAPE, "landscape", m.media.landscape_dirs,
-                           PLAYLIST_LANDSCAPE, plan.landscape)
+    portrait_launch = _launch(FunTimeFunestra.PORTRAIT, PLAYLIST_PORTRAIT, plan.portrait)
+    landscape_launch = _launch(FunTimeFunestra.LANDSCAPE, PLAYLIST_LANDSCAPE, plan.landscape)
     portrait_logs = logs_as_they_stand(portrait_launch.log_file)
     landscape_logs = logs_as_they_stand(landscape_launch.log_file)
     main_mode = start_core_session(
@@ -382,8 +382,7 @@ def _wait_for_the_app_to_be_drawing(
             "still has on screen", MAIN_FUNESTRA_LOAD_TIMEOUT_S,
         )
     if not _wait_for_funestras_drawing(
-        (m.commands.portrait_status_file,
-         m.commands.landscape_status_file),
+        tuple(m.satellite(funestra).status_file for funestra in FunTimeFunestra.SATELLITES),
         progress,
         funestras=funestras,
     ):

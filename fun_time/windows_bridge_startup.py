@@ -142,7 +142,8 @@ def ensure_broker(
     broker.start(broker_tray_launcher)
 
 
-def seed_startup_states(commands: CommandFiles, carried: BridgeState) -> None:
+def seed_startup_states(manifest: LaunchManifest, carried: BridgeState) -> None:
+    commands = manifest.commands
     genau_cmd_file = Path(commands.genau_cmd_file)
     main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
     genau_cmd_file.parent.mkdir(parents=True, exist_ok=True)
@@ -162,9 +163,8 @@ def seed_startup_states(commands: CommandFiles, carried: BridgeState) -> None:
         append_command(main_funestra_cmd_file, label)
     if carried.max_intensity < FULL_INTENSITY:
         publish_max_intensity(
-            (Path(command_file) for command_file in
-             (genau_cmd_file, main_funestra_cmd_file,
-              commands.portrait_cmd_file, commands.landscape_cmd_file)),
+            (genau_cmd_file, main_funestra_cmd_file,
+             *(manifest.satellite(funestra).cmd_file for funestra in FunTimeFunestra.SATELLITES)),
             max_intensity=carried.max_intensity)
 
 
@@ -220,7 +220,7 @@ def start_core_session(
                          metadata_root=regen_metadata_root)
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
                                  on_screen=main_funestra_status.video)
-    seed_startup_states(commands, carried)
+    seed_startup_states(m, carried)
     reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)
     prepare_random_favs_browser_manifest(
         m.runtime.config_path, m.random_favs_browser.manifest_file)

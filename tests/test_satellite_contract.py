@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import MISSING, fields, replace
 from pathlib import Path
 
+from fun_time.config import SatelliteChannel
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import CommandFiles
 from fun_time.osr2_section import osr2_readout_path
 from satellite.cli import build_parser
@@ -87,39 +89,39 @@ class TestReadOutOfTheManifest:
                    if field.default is MISSING}
         return CommandFiles(**spelled)
 
-    def test_a_satellite_s_files_are_read_by_satellite_rather_than_spelled_out(self):
-        channels = SatelliteChannels.from_manifest(self._commands(), "portrait")
+    def _of(self, funestra: FunTimeFunestra, commands: CommandFiles | None = None) -> SatelliteChannels:
+        channel = SatelliteChannel.in_state_dir(Path("state"), funestra)
+        return SatelliteChannels.from_channel(channel, commands or self._commands(), funestra.label)
 
-        assert channels.command == Path("state/portrait_cmd_file")
-        assert channels.paused == Path("state/portrait_paused_file")
-        assert channels.playlist == Path("state/portrait_playlist_file")
-        assert channels.status == Path("state/portrait_status_file")
-        assert channels.notice == Path("state/portrait_notice_file")
-        assert channels.hud == Path("state/portrait_hud_file")
+    def test_a_satellite_s_files_are_read_off_its_channel_rather_than_spelled_out(self):
+        channels = self._of(FunTimeFunestra.PORTRAIT)
+
+        assert channels.command == Path("state/portrait_cmd.txt")
+        assert channels.paused == Path("state/portrait_paused.txt")
+        assert channels.playlist == Path("state/portrait_playlist.tsv")
+        assert channels.status == Path("state/portrait_status.txt")
+        assert channels.notice == Path("state/portrait_notice.txt")
+        assert channels.hud == Path("state/portrait_hud.json")
 
     def test_the_two_satellites_differ_in_every_file_of_their_own(self):
-        commands = self._commands()
-
-        portrait = SatelliteChannels.from_manifest(commands, "portrait")
-        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+        portrait = self._of(FunTimeFunestra.PORTRAIT)
+        landscape = self._of(FunTimeFunestra.LANDSCAPE)
 
         own = [field for field, _flag, kind in CHANNELS if kind is not None]
         for field in own:
             assert getattr(portrait, field) != getattr(landscape, field), field
 
     def test_the_dashboard_s_command_file_is_the_session_s_one(self):
-        commands = self._commands()
-
-        portrait = SatelliteChannels.from_manifest(commands, "portrait")
-        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+        portrait = self._of(FunTimeFunestra.PORTRAIT)
+        landscape = self._of(FunTimeFunestra.LANDSCAPE)
 
         assert portrait.dashboard_cmd == landscape.dashboard_cmd
 
     def test_each_satellite_reaches_the_osr2_through_the_brokers_slot_under_its_own_name(self):
         commands = replace(self._commands(), osr2_slot_port="50599")
 
-        portrait = SatelliteChannels.from_manifest(commands, "portrait")
-        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+        portrait = self._of(FunTimeFunestra.PORTRAIT, commands)
+        landscape = self._of(FunTimeFunestra.LANDSCAPE, commands)
 
         assert (portrait.osr2_sender, portrait.osr2_port) == ("portrait", 50599)
         assert (landscape.osr2_sender, landscape.osr2_port) == ("landscape", 50599)
@@ -127,8 +129,8 @@ class TestReadOutOfTheManifest:
     def test_the_motion_each_satellite_draws_is_the_one_genau_publishes(self):
         commands = self._commands()
 
-        portrait = SatelliteChannels.from_manifest(commands, "portrait")
-        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+        portrait = self._of(FunTimeFunestra.PORTRAIT, commands)
+        landscape = self._of(FunTimeFunestra.LANDSCAPE, commands)
 
         assert portrait.drive == landscape.drive == Path(commands.genau_drive_file)
         assert portrait.dashboard_cmd == Path("state/dashboard_cmd_file")
@@ -136,19 +138,19 @@ class TestReadOutOfTheManifest:
     def test_each_satellite_hands_on_its_motion_to_a_file_of_its_own_in_the_state_folder(self):
         commands = self._commands()
 
-        portrait = SatelliteChannels.from_manifest(commands, "portrait")
-        landscape = SatelliteChannels.from_manifest(commands, "landscape")
+        portrait = self._of(FunTimeFunestra.PORTRAIT, commands)
+        landscape = self._of(FunTimeFunestra.LANDSCAPE, commands)
 
         assert portrait.osr2_readout == osr2_readout_path(Path(commands.state_dir), "portrait")
         assert landscape.osr2_readout == osr2_readout_path(Path(commands.state_dir), "landscape")
         assert portrait.osr2_readout != landscape.osr2_readout
 
     def test_the_play_points_are_named_by_a_rule_rather_than_a_key(self):
-        channels = SatelliteChannels.from_manifest(
+        channels = SatelliteChannels.from_channel(
+            SatelliteChannel.in_state_dir(Path("state"), FunTimeFunestra.PORTRAIT),
             self._commands(), "portrait", play_points=Path("state/points.json"))
 
         assert channels.play_points == Path("state/points.json")
 
     def test_no_play_points_is_answered_rather_than_invented(self):
-        assert SatelliteChannels.from_manifest(
-            self._commands(), "portrait").play_points is None
+        assert self._of(FunTimeFunestra.PORTRAIT).play_points is None

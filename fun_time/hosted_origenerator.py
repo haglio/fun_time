@@ -77,10 +77,10 @@ def _it_took_the_takeover(open_app: OpenOrigenerator) -> bool:
 def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
     return {
         funestra.label: HandedFunestra(
-            playlist_file=m.commands.funestra_file(funestra.label, "playlist"),
-            cmd_file=m.commands.funestra_file(funestra.label, "cmd"),
-            status_file=m.commands.funestra_file(funestra.label, "status"),
-            hud_file=m.commands.funestra_file(funestra.label, "origenerator_hud"),
+            playlist_file=m.satellite(funestra).playlist_file,
+            cmd_file=m.satellite(funestra).cmd_file,
+            status_file=m.satellite(funestra).status_file,
+            hud_file=m.satellite(funestra).origenerator_hud_file,
         )
         for funestra in FunTimeFunestra.SATELLITES
     }

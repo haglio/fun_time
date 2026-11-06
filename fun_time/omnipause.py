@@ -70,8 +70,8 @@ class PausedFiles:
     @classmethod
     def of(cls, config: BridgeConfig) -> PausedFiles:
         return cls(
-            portrait=config.portrait_paused_file,
-            landscape=config.landscape_paused_file,
+            portrait=config.portrait.paused_file,
+            landscape=config.landscape.paused_file,
             genau=config.genau_paused_file,
             audio=config.audio_paused_file,
             main_funestra=config.main_funestra_paused_file,

@@ -25,19 +25,14 @@ _.resizable  # pygame's Window property, set so SDL takes a resize from outside
 _.cbSize
 dwSize  # PROCESSENTRY32, for Toolhelp32
 
-# CommandFiles reaches these by Satellite, through funestra_file: a satellite's
-# channels are read as a group now (satellite.contract), so no module
-# spells either key.
-portrait_hud_file
-landscape_hud_file
-
 # --- Read from a sibling package, which is a scan of its own ---
 build_genau_engine  # main_funestra.genau builds Genau's engine with it
 _.current_flick  # main_funestra.genau, off the engine
 _.playhead  # main_funestra.genau, off the engine
 _.time_on_screen  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
-from_manifest  # satellite.contract; fun_time_vr's Funestra and the sequencer
+from_channel  # satellite.contract; fun_time_vr's Funestra and the sequencer
+from_manifest  # genau_config and main_funestra.contract; fun_time_vr's Funestras
 top_block  # main_funestra.kino; funestra's Funestra heads its HUD with it
 _._shaped  # main_funestra.genau's Genau narrows its flicks through the headset's own
 # fun_time.arrivals asks each of these of main_funestra.genau's flicks before it

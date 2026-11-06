@@ -176,8 +176,8 @@ class DispatchLoopRunner:
             changed=partial(_publish_the_satellite_changing_hands, self))
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
-            satellite_status_files={2: config.portrait_status_file,
-                                    3: config.landscape_status_file},
+            satellite_status_files={funestra: config.satellite(funestra).status_file
+                                    for funestra in FunTimeFunestra.SATELLITES},
             stats_file=watch_stats_path(config.state_dir),
         )
         self.arbiter = DeviceArbiter(
@@ -721,14 +721,8 @@ def build_bridge_config_from_manifest(
     return BridgeConfig(
         vr_main_funestra=vr_main_funestra,
         main_list_builds=BuildsOffTheLoop(),
-        portrait_cmd_file=Path(commands.portrait_cmd_file),
-        portrait_paused_file=Path(commands.portrait_paused_file),
-        portrait_status_file=Path(commands.portrait_status_file),
-        portrait_playlist_file=Path(commands.portrait_playlist_file),
-        landscape_cmd_file=Path(commands.landscape_cmd_file),
-        landscape_paused_file=Path(commands.landscape_paused_file),
-        landscape_status_file=Path(commands.landscape_status_file),
-        landscape_playlist_file=Path(commands.landscape_playlist_file),
+        portrait=manifest.portrait,
+        landscape=manifest.landscape,
         trash_dir=Path(manifest.media.trash_dir),
         state_dir=Path(commands.state_dir),
         loopback_port=manifest.loopback_port,
@@ -736,8 +730,6 @@ def build_bridge_config_from_manifest(
         vr_library_dirs=manifest.media.vr_library_dirs,
         genau_vr_flicks=manifest.media.genau_vr_flicks,
         python_exe=manifest.executables.python_exe,
-        portrait_sources=manifest.media.portrait_dirs,
-        landscape_sources=manifest.media.landscape_dirs,
         broker_mode_file=Path(commands.broker_mode_file),
         genau_cmd_file=Path(commands.genau_cmd_file),
         genau_paused_file=Path(commands.genau_paused_file),
@@ -748,8 +740,6 @@ def build_bridge_config_from_manifest(
         main_funestra_paused_file=Path(commands.main_funestra_paused_file),
         main_funestra_status_file=Path(commands.main_funestra_status_file),
         main_funestra_notice_file=Path(commands.main_funestra_notice_file),
-        portrait_notice_file=Path(commands.portrait_notice_file),
-        landscape_notice_file=Path(commands.landscape_notice_file),
         dashboard_state_file=Path(commands.dashboard_state_file),
         broker_cmd_file=Path(commands.broker_cmd_file),
         broker_state_dir=Path(v) if (v := commands.broker_state_dir.strip()) else None,
@@ -764,8 +754,4 @@ def build_bridge_config_from_manifest(
             said_at_suffix_of(v) if (v := manifest.runtime.origenerator_dir.strip()) else ""),
         origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
         origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,
-        portrait_origenerator_hud_file=(
-            Path(v) if (v := commands.portrait_origenerator_hud_file.strip()) else None),
-        landscape_origenerator_hud_file=(
-            Path(v) if (v := commands.landscape_origenerator_hud_file.strip()) else None),
     )

@@ -12,6 +12,7 @@ from funestra.main_hud import HOLD_VERB
 
 from .bridge_records import BridgeConfig
 from .broker_control import write_broker_command
+from .fun_time_funestras import FunTimeFunestra
 from .manifest import CommandFiles, LaunchManifest
 from .runtime_flow import write_flag_file
 from .shared_state import BridgeState, read_shared_state, shared_state_path
@@ -75,14 +76,16 @@ class RunningSession:
     loopback_server: ThreadingHTTPServer | None
 
 
-def silence_the_funestras(commands: CommandFiles) -> None:
+def silence_the_funestras(manifest: LaunchManifest) -> None:
+    commands = manifest.commands
     for paused_file in (
         commands.main_funestra_paused_file, commands.audio_paused_file,
-        commands.portrait_paused_file, commands.landscape_paused_file,
         commands.origenerator_paused_file,
     ):
         if paused_file.strip():
             write_flag_file(paused_file, True)
+    for funestra in FunTimeFunestra.SATELLITES:
+        write_flag_file(manifest.satellite(funestra).paused_file, True)
 
 
 def hold_the_osr2(commands: CommandFiles) -> None:

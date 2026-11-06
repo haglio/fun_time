@@ -1475,10 +1475,11 @@ class TestClosingScreenLifecycle:
         paused_at_loading_screen_up: dict[str, str] = {}
 
         def read_the_sound_flags():
-            commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
+            manifest = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+            commands = manifest.commands
             for flag in map(Path, (
                 commands.main_funestra_paused_file, commands.audio_paused_file,
-                commands.portrait_paused_file, commands.landscape_paused_file,
+                manifest.portrait.paused_file, manifest.landscape.paused_file,
                 commands.origenerator_paused_file,
             )):
                 paused_at_loading_screen_up[flag.name] = (
@@ -1549,14 +1550,15 @@ class TestClosingScreenLifecycle:
     ):
         manifest_path = write_windows_bridge_manifest(
             load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
-        commands = replace(LaunchManifest.read(manifest_path).commands,
-                           origenerator_paused_file="")
+        manifest = LaunchManifest.read(manifest_path)
+        manifest = replace(manifest, commands=replace(manifest.commands,
+                                                      origenerator_paused_file=""))
 
-        silence_the_funestras(commands)
+        silence_the_funestras(manifest)
 
         assert [Path(flag).read_text(encoding="utf-8") for flag in (
-            commands.main_funestra_paused_file, commands.audio_paused_file,
-            commands.portrait_paused_file, commands.landscape_paused_file,
+            manifest.commands.main_funestra_paused_file, manifest.commands.audio_paused_file,
+            manifest.portrait.paused_file, manifest.landscape.paused_file,
         )] == ["1", "1", "1", "1"]
 
     def test_a_dispatch_loop_still_busy_stops_nothing_late_and_is_logged(
@@ -1564,12 +1566,13 @@ class TestClosingScreenLifecycle:
     ):
         manifest_path = write_windows_bridge_manifest(
             load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
-        commands = LaunchManifest.read(manifest_path).commands
+        manifest = LaunchManifest.read(manifest_path)
         still_busy = MagicMock(**{"is_alive.return_value": True})
 
         with caplog.at_level(logging.WARNING, logger=windows_bridge_orchestrator.__name__):
-            stop_everything(commands, (MagicMock(), still_busy))
+            stop_everything(manifest, (MagicMock(), still_busy))
 
+        commands = manifest.commands
         assert Path(commands.main_funestra_paused_file).read_text(encoding="utf-8") == "1"
         assert Path(commands.broker_cmd_file).read_text(encoding="utf-8").split() == ["PARK"]
         assert [r.getMessage() for r in caplog.records] == [
@@ -3346,7 +3349,8 @@ class TestTheHudPublisherASessionStarts:
     @staticmethod
     def _started(cfg_factory, tmp_path, *, camera_words=()) -> tuple[MagicMock, Path]:
         manifest_path = write_windows_bridge_manifest(load_config(cfg_factory({})))
-        bridge_config = SimpleNamespace(portrait_sources="", landscape_sources="", state_dir=tmp_path)
+        bridge_config = SimpleNamespace(portrait=SimpleNamespace(sources=""),
+                                        landscape=SimpleNamespace(sources=""), state_dir=tmp_path)
 
         with patch("fun_time.windows_bridge_orchestrator.load_camera_words",
                    return_value=camera_words),              patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
@@ -3375,7 +3379,8 @@ class TestTheHudPublisherASessionStarts:
         video.touch()
         manifest = LaunchManifest.read(write_windows_bridge_manifest(
             config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
-        bridge_config = SimpleNamespace(portrait_sources="", landscape_sources="", main_sources="",
+        bridge_config = SimpleNamespace(portrait=SimpleNamespace(sources=""),
+                                        landscape=SimpleNamespace(sources=""), main_sources="",
                                         regen_metadata_root=None, state_dir=tmp_path)
         warmed: list[str] = []
 

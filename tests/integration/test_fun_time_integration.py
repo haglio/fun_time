@@ -18,7 +18,7 @@ from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
 from funestra.modes import LoopState
 from funestra.playlist import PlaylistItem
 
-from fun_time.config import SatelliteFiles
+from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import (
     MainFunestraStatus,
@@ -545,7 +545,7 @@ def _said_to_the_portrait_funestra(session: FunTimeIntegrationSession, command: 
     return flashed_before
 
 
-def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteFiles,
+def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteChannel,
                       command: str, said: str, warning: str) -> None:
     held_ms = read_satellite_status(portrait.status_file).position_ms
     flashed_before = _said_to_the_portrait_funestra(session, command, said)
@@ -748,7 +748,7 @@ def test_fun_time_the_max_intensity_holds_a_satellite_funestras_funscript_down_t
     assert _osr2_still(held), held
 
 
-def _held_still(session: FunTimeIntegrationSession, satellite: SatelliteFiles) -> SatelliteStatus:
+def _held_still(session: FunTimeIntegrationSession, satellite: SatelliteChannel) -> SatelliteStatus:
     session.wait_until(
         lambda: bool(read_satellite_status(satellite.status_file).video),
         description="the Funestra to name the clip it opened on",
@@ -760,7 +760,7 @@ def _held_still(session: FunTimeIntegrationSession, satellite: SatelliteFiles) -
     return published_status(read_satellite_status, satellite.status_file)
 
 
-def _showing(satellite: SatelliteFiles) -> Path:
+def _showing(satellite: SatelliteChannel) -> Path:
     return Path(read_satellite_status(satellite.status_file).video or "x").resolve()
 
 

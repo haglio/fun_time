@@ -5,19 +5,13 @@ from pathlib import Path
 from funestra.file_channel import consume_command_file, publish_whole
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 
-from fun_time.bridge_records import SatelliteChannel
+from fun_time.config import SatelliteChannel
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_handover import hand_back, hud_stamp, keep_aside, let_go_since
 
 
 def _channel(tmp_path: Path) -> SatelliteChannel:
-    return SatelliteChannel(
-        cmd_file=tmp_path / "portrait_cmd.txt",
-        paused_file=tmp_path / "portrait_paused.txt",
-        status_file=tmp_path / "portrait_status.txt",
-        playlist_file=tmp_path / "portrait_playlist.tsv",
-        sources="",
-        origenerator_hud_file=tmp_path / "origenerator_portrait_hud.json",
-    )
+    return SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT)
 
 
 def _paths(path: Path) -> list[str]:

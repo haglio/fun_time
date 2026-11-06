@@ -9,7 +9,8 @@ from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST
 from funestra.playlist import read_playlist, write_playlist
 from funestra.satellite_hud import parse_hud
 
-from .bridge_records import BridgeConfig, SatelliteChannel
+from .bridge_records import BridgeConfig
+from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .modes import rotated_onto
 from .origenerator_switches import origenerator_shows

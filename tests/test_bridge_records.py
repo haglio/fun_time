@@ -3,24 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
+from fun_time.config import SatelliteChannel
+from fun_time.fun_time_funestras import FunTimeFunestra
 
 
 def _make_config(tmp_path: Path) -> BridgeConfig:
     state_dir = tmp_path / "state"
     return BridgeConfig(
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        portrait_playlist_file=state_dir / "portrait_playlist.tsv",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        landscape_playlist_file=state_dir / "landscape_playlist.tsv",
+        portrait=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
+                                               sources=str(tmp_path / "portrait")),
+        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
+                                                sources=str(tmp_path / "landscape")),
         trash_dir=tmp_path / "trash",
         state_dir=state_dir,
         main_sources=str(tmp_path / "primary"),
-        portrait_sources=str(tmp_path / "portrait"),
-        landscape_sources=str(tmp_path / "landscape"),
         broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
@@ -34,18 +30,27 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     )
 
 
-def test_satellite_bundles_one_satellites_channel(tmp_path: Path):
+def test_each_satellite_is_asked_for_by_its_funestra(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    portrait, landscape = config.satellite(2), config.satellite(3)
+    assert config.satellite(FunTimeFunestra.PORTRAIT) is config.portrait
+    assert config.satellite(FunTimeFunestra.LANDSCAPE) is config.landscape
+    assert config.satellite(2).sources == str(tmp_path / "portrait")
 
-    assert portrait.cmd_file == config.portrait_cmd_file
-    assert portrait.paused_file == config.portrait_paused_file
-    assert portrait.status_file == config.portrait_status_file
-    assert portrait.playlist_file == config.portrait_playlist_file
-    assert portrait.sources == config.portrait_sources
-    assert landscape.cmd_file == config.landscape_cmd_file
-    assert landscape.paused_file == config.landscape_paused_file
-    assert landscape.status_file == config.landscape_status_file
-    assert landscape.playlist_file == config.landscape_playlist_file
-    assert landscape.sources == config.landscape_sources
+
+def test_a_satellites_channel_is_spelled_once_from_its_state_dir(tmp_path: Path):
+    state_dir = tmp_path / "state"
+
+    channel = SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
+                                            sources="D:/clips|E:/more")
+
+    assert channel == SatelliteChannel(
+        cmd_file=state_dir / "landscape_cmd.txt",
+        paused_file=state_dir / "landscape_paused.txt",
+        status_file=state_dir / "landscape_status.txt",
+        playlist_file=state_dir / "landscape_playlist.tsv",
+        notice_file=state_dir / "landscape_notice.txt",
+        hud_file=state_dir / "landscape_hud.json",
+        origenerator_hud_file=state_dir / "origenerator_landscape_hud.json",
+        sources="D:/clips|E:/more",
+    )

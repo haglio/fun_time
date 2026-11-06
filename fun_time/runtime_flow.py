@@ -9,7 +9,7 @@ from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
 from funestra.modes import SatellitesMode
 
-from .bridge_records import SatelliteChannel
+from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import keep_aside
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds

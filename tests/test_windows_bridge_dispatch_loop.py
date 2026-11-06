@@ -30,7 +30,7 @@ from fun_time import load_config, windows_bridge_dispatch_loop
 from fun_time.aiming import resolve_active_funestra_command
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
-from fun_time.config import VoiceControlConfig
+from fun_time.config import SatelliteChannel, VoiceControlConfig
 from fun_time.content import load_web_providers
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
@@ -113,19 +113,11 @@ def _neutralise_topmost_reads():
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
     settings = {
-        "portrait_cmd_file": tmp_path / "portrait_cmd.txt",
-        "portrait_paused_file": tmp_path / "portrait_paused.txt",
-        "portrait_status_file": tmp_path / "portrait_status.txt",
-        "portrait_playlist_file": tmp_path / "portrait_playlist.tsv",
-        "landscape_cmd_file": tmp_path / "landscape_cmd.txt",
-        "landscape_paused_file": tmp_path / "landscape_paused.txt",
-        "landscape_status_file": tmp_path / "landscape_status.txt",
-        "landscape_playlist_file": tmp_path / "landscape_playlist.tsv",
+        "portrait": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT),
+        "landscape": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.LANDSCAPE),
         "trash_dir": tmp_path / "trash",
         "state_dir": tmp_path,
         "main_sources": "",
-        "portrait_sources": "",
-        "landscape_sources": "",
         "broker_mode_file": tmp_path / "rh_mode.txt",
         "genau_cmd_file": tmp_path / "rh_cmd.txt",
         "genau_paused_file": tmp_path / "rh_paused.txt",
@@ -2492,7 +2484,7 @@ class TestIdempotentVoiceCommands:
         runner = make_runner(tmp_path, dashboard_enabled=True)
         runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
-        runner.config.landscape_status_file.write_text(
+        runner.config.landscape.status_file.write_text(
             "video=C:/v/l.mp4\nspeed=0.5\n", encoding="utf-8")
 
         runner._update_dashboard()
@@ -2651,7 +2643,7 @@ class TestWatchTracking:
         )
         for t, path, fraction in timeline:
             fake_now["t"] = t
-            _write_satellite_status(runner.config.portrait_status_file, path, fraction=fraction)
+            _write_satellite_status(runner.config.portrait.status_file, path, fraction=fraction)
             runner.tick()
 
     def test_tick_records_a_completion_for_a_fully_watched_video(self, tmp_path, monkeypatch):
@@ -2678,11 +2670,11 @@ class TestWatchTracking:
         monkeypatch.setattr(
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
         )
-        _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
+        _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
         runner.tick()
         runner._dispatch("portrait_next")
         fake_now["t"] = 101.1
-        _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
+        _write_satellite_status(runner.config.portrait.status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")
@@ -2698,11 +2690,11 @@ class TestWatchTracking:
         monkeypatch.setattr(
             "fun_time.windows_bridge_dispatch_loop.time.monotonic", lambda: fake_now["t"]
         )
-        _write_satellite_status(runner.config.portrait_status_file, str(a), fraction=0.2)
+        _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
         runner.tick()
         runner._dispatch("portrait_trash")
         fake_now["t"] = 101.1
-        _write_satellite_status(runner.config.portrait_status_file, str(tmp_path / "b.mp4"), fraction=0.0)
+        _write_satellite_status(runner.config.portrait.status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
@@ -3180,9 +3172,7 @@ def _hosting(tmp_path, **overrides):
     return replace(make_config(tmp_path, **overrides), origenerator_enabled=True,
                    origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
                    origenerator_paused_file=tmp_path / "origenerator_paused.txt",
-                   origenerator_status_file=tmp_path / "origenerator_status.txt",
-                   portrait_origenerator_hud_file=tmp_path / "origenerator_portrait_hud.json",
-                   landscape_origenerator_hud_file=tmp_path / "origenerator_landscape_hud.json")
+                   origenerator_status_file=tmp_path / "origenerator_status.txt")
 
 
 def _follow_the_satellites(runner, *, now: float) -> None:
@@ -3282,7 +3272,7 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
         write_shared_state(state_file, remembered)
         runner = make_runner(tmp_path)
         for status_file in (runner.config.main_funestra_status_file,
-                            runner.config.portrait_status_file, runner.config.landscape_status_file,
+                            runner.config.portrait.status_file, runner.config.landscape.status_file,
                             runner.config.genau_status_file, runner.config.genau_drive_file):
             status_file.write_text("", encoding="utf-8")
 
@@ -3448,17 +3438,17 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
         assert build_bridge_config_from_manifest(manifest).main_funestra_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
 
-    def test_each_satellites_message_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
-        manifest = self._manifest(
-            cfg_factory, tmp_path,
-            portrait_notice_file=str(tmp_path / "elsewhere" / "portrait_notice.txt"),
-            landscape_notice_file=str(tmp_path / "elsewhere" / "landscape_notice.txt"))
+    def test_each_satellites_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+        data = build_windows_bridge_manifest(load_config(cfg_factory()))
+        data["portrait"]["notice_file"] = str(tmp_path / "elsewhere" / "portrait_notice.txt")
+        data["landscape"]["cmd_file"] = str(tmp_path / "elsewhere" / "landscape_cmd.txt")
+        manifest = LaunchManifest.read(write_manifest_data(data, tmp_path / "manifest.ini"))
 
         config = build_bridge_config_from_manifest(manifest)
 
         assert config.satellite(FunTimeFunestra.PORTRAIT).notice_file == (
             tmp_path / "elsewhere" / "portrait_notice.txt")
-        assert config.landscape_notice_file == tmp_path / "elsewhere" / "landscape_notice.txt"
+        assert config.landscape.cmd_file == tmp_path / "elsewhere" / "landscape_cmd.txt"
 
 
 class TestTheAppTakesAFunestra:

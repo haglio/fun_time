@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 from funestra.main_hud import OSR2_DRIVING
 from funestra.modes import MainMode
 
-from fun_time.bridge_records import SatelliteChannel
+from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.main_list_builds import BUILDS_HERE, MainListBuild
@@ -41,11 +42,10 @@ def _make_action_video(
 
 
 def _channel(tmp_path: Path, label: str, sources, cmd_file: Path) -> SatelliteChannel:
-    return SatelliteChannel(
-        cmd_file=cmd_file, paused_file=tmp_path / f"{label}_paused.txt",
-        status_file=tmp_path / f"{label}_status.txt",
-        playlist_file=tmp_path / "state" / f"{label}_playlist.tsv", sources=str(sources),
-    )
+    channel = SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra[label.upper()],
+                                            sources=str(sources))
+    return replace(channel, cmd_file=cmd_file,
+                   playlist_file=tmp_path / "state" / f"{label}_playlist.tsv")
 
 
 def _satellite_lines(state_dir: Path, funestra: str) -> list[str]:

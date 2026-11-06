@@ -9,7 +9,7 @@ from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.main_hud import OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode, SatellitesMode
 
-from fun_time.bridge_records import SatelliteChannel
+from fun_time.config import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_handover import hand_back, keep_aside
@@ -56,13 +56,7 @@ def _write_playlist(path: Path, lines: list[str]) -> None:
 def _never_came_home(
     tmp_path: Path, *, own: list[str], showing: str, hosted: list[str],
 ) -> SatelliteChannel:
-    channel = SatelliteChannel(
-        cmd_file=tmp_path / "portrait_cmd.txt",
-        paused_file=tmp_path / "portrait_paused.txt",
-        status_file=tmp_path / "portrait_status.txt",
-        playlist_file=tmp_path / "portrait_playlist.tsv",
-        sources="",
-    )
+    channel = SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT)
     _write_playlist(channel.playlist_file, own)
     channel.status_file.write_text(f"video={showing}\n", encoding="utf-8")
     keep_aside(channel)

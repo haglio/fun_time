@@ -41,6 +41,7 @@ from fun_time.dashboard_actions import (
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
@@ -653,8 +654,8 @@ class _SatelliteUnit(_VideoUnit):
         commands = manifest.commands
         self.screen_name = funestra
         self._messages = messages
-        channels = SatelliteChannels.from_manifest(
-            commands, funestra,
+        channels = SatelliteChannels.from_channel(
+            manifest.satellite(FunTimeFunestra[funestra.upper()]), commands, funestra,
             play_points=Path(commands.state_dir) / play_points_filename(funestra))
         self._dashboard_cmd_file = channels.dashboard_cmd
         self._audio_device = vr.audio_device.strip()
