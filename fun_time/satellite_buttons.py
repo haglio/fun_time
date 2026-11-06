@@ -19,7 +19,7 @@ from funestra.hud_controls import (
 from funestra.modes import SatellitesMode
 
 from .crown import CROWN_ICON, Crown
-from .funestra_buttons import NOUN, minimize_button
+from .funestra_buttons import NOUN, minimize_funestra_button
 from .origenerator_switches import ORIGENERATOR_MODE, mode_command
 
 MODE_BUTTONS = (
@@ -69,7 +69,7 @@ def funestra_rows(funestra: str, state: HudState | None = None) -> tuple[tuple[B
         versions_button(f"{funestra}_cycle_version", noun=NOUN,
                         has_other_versions=state.has_other_versions),
         *(() if state.in_vr or state.mode is not None
-          else (minimize_button(funestra), *_crown(funestra, state.crowned))),
+          else (minimize_funestra_button(funestra), *_crown(funestra, state.crowned))),
     ))
     return tuple(rows)
 
@@ -81,7 +81,7 @@ def mode_row(funestra: str, *, mode: SatellitesMode,
         *(_mode_button(funestra, button_mode, label, lit=mode is button_mode,
                        dim=button_mode is ORIGENERATOR_MODE and not origenerator_ready)
           for button_mode, label in MODE_BUTTONS),
-        *(() if in_vr else (minimize_button(funestra), *_crown(funestra, crowned))),
+        *(() if in_vr else (minimize_funestra_button(funestra), *_crown(funestra, crowned))),
     )
 
 

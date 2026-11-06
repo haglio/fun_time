@@ -29,7 +29,7 @@ from shared_ui.spacing import BUTTON_WORD_W
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_buttons import NOUN, minimize_button
+from .funestra_buttons import NOUN, minimize_funestra_button
 from .inclusion_pairs import (
     LENGTH,
     ORIENTATION,
@@ -92,7 +92,7 @@ def main_hud_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tup
                 for command, label, main_mode in MODE_BUTTONS
             ),
             *(() if in_vr else (
-                minimize_button("main"),
+                minimize_funestra_button("main"),
                 Button(Crown.MAIN.command, CROWN_ICON,
                        "Crowned — a portrait video here takes most of the secondary "
                        "monitor" if facts.crowned else
