@@ -6,11 +6,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from funestra.flick_folder import flat_flicks_in, vr_flicks_in
+from funestra.video_groups import normalize_path_key
 
 from .folder_listings import FolderListings
 from .media_metadata import (
     EXCERPT,
-    normalize_path_key,
     recorded_for,
     recorded_group,
     video_title,

@@ -13,15 +13,15 @@ from funestra.hud_title import (
     looping_label,
 )
 from funestra.modes import SatellitesMode
-
-from fun_time.media_metadata import (
+from funestra.video_groups import (
     GroupIndex,
     action_group_items,
-    cached_group_index,
     normalize_path_key,
     seed_family_items,
     widened_seed_items,
 )
+
+from fun_time.media_metadata import cached_group_index
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
 

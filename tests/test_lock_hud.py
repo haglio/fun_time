@@ -3,6 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from funestra.video_groups import (
+    GroupIndex,
+    VideoEntry,
+)
+from funestra.video_groups import normalize_path_key as K
+
 from fun_time.lock_hud import (
     SatelliteInputs,
     build_hud,
@@ -15,13 +21,8 @@ from fun_time.lock_hud import (
     prime_group_indexes,
 )
 from fun_time.media_metadata import (
-    GroupIndex,
-    VideoEntry,
     cached_group_index,
     metadata_path_for,
-)
-from fun_time.media_metadata import (
-    normalize_path_key as K,
 )
 
 CUR = "C:/vids/current.mp4"

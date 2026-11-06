@@ -13,8 +13,6 @@ from funestra.satellite_hud import label_is_filtered
 from fun_time.media_metadata import (
     EXCERPT,
     GroupIndexCache,
-    action_group_items,
-    action_label,
     build_group_index,
     cached_group_index,
     filter_haystack,
@@ -25,10 +23,8 @@ from fun_time.media_metadata import (
     recorded_for,
     recorded_orientation,
     reject_action,
-    seed_family_items,
     video_title,
     video_type_of,
-    widened_seed_items,
 )
 
 SOURCE_IMAGE = {
@@ -322,19 +318,6 @@ def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
         "portrait", paths_supplier=list, metadata_root=metadata_root)
 
 
-def test_a_video_learned_after_the_build_stands_in_its_groups_as_if_built_in(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "subject1_zeta": _i2v_meta(action="Zeta Massage", video_seed="1"),
-        "subject1_alpha": _i2v_meta(action="Alpha", video_seed="2"),
-        "subject2_alpha": _i2v_meta(action="Alpha", video_seed="3", image_overrides={"seed": "9"}),
-    })
-    index = build_group_index([paths["subject1_zeta"], paths["subject2_alpha"]], metadata_root)
-
-    index.learn(paths["subject1_alpha"], metadata_root)
-
-    assert index == build_group_index(paths.values(), metadata_root)
-
-
 def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_a_rescan(
         tmp_path: Path):
     _media_root, metadata_root, paths = _library(tmp_path, {
@@ -483,136 +466,6 @@ def _write_library(tmp_path, videos: dict[str, dict]) -> tuple[Path, Path, dict[
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
         paths[name] = str(video)
     return media_root, metadata_root, paths
-
-
-def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "clip": _t2v("Alpha", "1"),
-        "twirl": _t2v("Twirling", "1"),
-        "other": _t2v("Alpha", "2"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    items = action_group_items(index, paths["clip"])
-
-    assert sorted(items) == sorted([paths["clip"], paths["twirl"]])
-    assert index.act_of(paths["clip"]) == "Alpha"
-
-
-def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "clip_a": _t2v("Alpha", "1"),
-        "clip_b": _t2v("Alpha", "2"),
-        "twirl": _t2v("Twirling", "1"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    items = seed_family_items(index, paths["clip_a"])
-
-    assert sorted(items) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["twirl"] not in items
-
-
-def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
-    def i2v(action: str, image_seed: str) -> dict:
-        return {
-            "video": {"prompt": f"do {action}", "action": action, "seed": "77"},
-            "source_image": {"positive_prompt": "subject", "seed": image_seed},
-        }
-
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "clip_a": i2v("Alpha", "1"),
-        "clip_b": i2v("Alpha", "2"),
-        "twirl_b": i2v("Twirling", "2"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    items = seed_family_items(index, paths["clip_a"])
-
-    assert sorted(items) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["twirl_b"] not in items
-
-
-def test_widened_seed_items_add_the_most_similar_videos_capped(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("Alpha", "1", prompt="a, b, c, d"),
-        "sister": _t2v("Alpha", "2", prompt="a, b, c, d"),
-        "near": _t2v("Alpha", "3", prompt="a, b, c, e"),
-        "far": _t2v("Alpha", "4", prompt="x, y, z"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    items = widened_seed_items(index, paths["cur"], additions=1)
-
-    assert sorted(items) == sorted([paths["cur"], paths["sister"], paths["near"]])
-    assert paths["far"] not in items
-
-
-def test_widened_seed_items_never_leave_the_videos_own_action(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
-        "other_act": _t2v("Theta", "2", prompt="a, b, c"),
-        "same_act": _t2v("Alpha", "3", prompt="a, x, y"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert widened_seed_items(index, paths["cur"], additions=6) == [
-        paths["cur"], paths["same_act"],
-    ]
-
-
-def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "solo": _t2v("Zeta", "1", prompt="a, b, c"),
-        "near": _t2v("Alpha", "2", prompt="a, b, c"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert widened_seed_items(index, paths["solo"], additions=6) == [paths["solo"]]
-
-
-def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("XYZ Alpha", "1", prompt="a, b, c"),
-        "other_casing": _t2v("Xyz Alpha", "2", prompt="a, b, c"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert widened_seed_items(index, paths["cur"]) == [paths["cur"], paths["other_casing"]]
-
-
-def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
-    def i2v(action: str, seed: str, prompt: str) -> dict:
-        return {
-            "video": {"prompt": f"do {action}", "action": action, "seed": seed},
-            "source_image": {"positive_prompt": prompt, "seed": seed},
-        }
-
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": i2v("Delta", "1", "a, b, c"),
-        "t2v_kin": _t2v("Delta", "2", prompt="a, b, c"),
-        "i2v_kin": i2v("Delta", "3", "a, b, d"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert widened_seed_items(index, paths["cur"], additions=1) == [
-        paths["cur"], paths["i2v_kin"],
-    ]
-    assert widened_seed_items(index, paths["t2v_kin"], additions=1)[1:] != []
-
-
-def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {
-        "clip_one": _t2v("Alpha", "1"),
-        "clip_two": _t2v("Alpha", "1"),
-        "twirl": _t2v("Twirling", "1"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert sorted(action_group_items(index, paths["clip_one"])) == sorted(paths.values())
-    labels = {action_label(index, paths[name]) for name in ("clip_one", "clip_two")}
-    assert labels == {"Alpha 1", "Alpha 2"}
-    assert action_label(index, paths["twirl"]) == "Twirling"
 
 
 def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):

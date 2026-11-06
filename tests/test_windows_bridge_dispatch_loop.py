@@ -23,6 +23,7 @@ from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 from funestra.status import StatusWriter
+from funestra.video_groups import normalize_path_key
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -52,7 +53,10 @@ from fun_time.manifest import (
     write_manifest_data,
     write_windows_bridge_manifest,
 )
-from fun_time.media_metadata import is_favorite, metadata_path_for, normalize_path_key
+from fun_time.media_metadata import (
+    is_favorite,
+    metadata_path_for,
+)
 from fun_time.origenerator_switches import RfbMode
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow

@@ -12,13 +12,15 @@ from app_support.watch_weights import dealt_by_weight, newest_of_each_group
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.funscript import load as load_funscript
 from funestra.playlist import PlaylistItem, write_playlist
+from funestra.video_groups import (
+    GroupIndex,
+    normalize_path_key,
+)
 
 from .folder_listings import FolderListings
 from .media_metadata import (
-    GroupIndex,
     build_group_index,
     is_favorite,
-    normalize_path_key,
     path_matches_query,
     recorded_duration_seconds,
     recorded_for,

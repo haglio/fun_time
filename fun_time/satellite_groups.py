@@ -7,6 +7,14 @@ from app_support.media_renditions import renditions
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file, step_version
 from funestra.loop_cycle import LOCK, next_stop, standing_at
+from funestra.video_groups import (
+    GroupIndex,
+    action_group_items,
+    action_label,
+    normalize_path_key,
+    seed_family_items,
+    widened_seed_items,
+)
 
 from .bridge_records import BridgeConfig, WindowOp
 from .event_log import FAVORITE
@@ -14,16 +22,10 @@ from .fun_time_funestras import FunTimeFunestra
 from .lock import a_lock_holds
 from .lock_hud import cell_path, locate_cell, nav_map_cells, navigate_cell
 from .media_metadata import (
-    GroupIndex,
-    action_group_items,
-    action_label,
     cached_group_index,
-    normalize_path_key,
     recorded_for,
     reject_action,
     reset_group_index_cache,
-    seed_family_items,
-    widened_seed_items,
 )
 from .modes import SatelliteBuild, collect_video_files, scripted_item, write_playlist_file
 from .runtime_flow import satellite_browse_paths

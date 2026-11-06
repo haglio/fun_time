@@ -6,8 +6,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+from funestra.video_groups import normalize_path_key
+
 from .folder_listings import FolderListings
-from .media_metadata import normalize_path_key
 
 logger = logging.getLogger(__name__)
 

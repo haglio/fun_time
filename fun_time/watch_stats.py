@@ -4,7 +4,7 @@ import json
 import time
 from pathlib import Path
 
-from .media_metadata import normalize_path_key
+from funestra.video_groups import normalize_path_key
 
 _EVENT_FIELDS = {
     "completion": "completions",
