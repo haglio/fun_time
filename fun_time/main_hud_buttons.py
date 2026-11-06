@@ -5,23 +5,19 @@ from dataclasses import dataclass
 from funestra.hud_button import Button
 from funestra.hud_controls import (
     RESET_TOOLTIP,
-    TRASH_ICON,
     browse_order_buttons,
     fmode_button,
     funscript_jump_button,
     lock_button,
     lock_tooltip,
+    next_button,
+    previous_button,
     reset_button,
     transport,
+    trash_button_under,
     versions_button,
 )
-from funestra.hud_icons import (
-    FMODE_ICON,
-    LOCK_ICON,
-    NEXT_ICON,
-    PREVIOUS_ICON,
-    shared_icon,
-)
+from funestra.hud_icons import shared_icon
 from funestra.main_hud import ROW_LABEL_W, VALUE_W
 from funestra.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
@@ -191,23 +187,19 @@ def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
         )
     flick = genau_flick_noun()
     return (
-        Button("genau_prev_flick", PREVIOUS_ICON, f"Previous {flick.one}"),
-        Button("genau_next_flick", NEXT_ICON, f"Next {flick.one}"),
-        Button("main_lock", LOCK_ICON,
-               f"Locked — this {flick.one} repeats; press to move on every "
-               f"{facts.pace_s}s" if facts.locked
-               else "Unlocked — moving on every "
-                    f"{facts.pace_s}s; press to hold this {flick.one}",
-               lit=facts.locked, favorite=True, group_break=True),
-        Button("main_fmode", FMODE_ICON,
-               "Showing the favorites only — press for all of them" if facts.f_mode
-               else "F-Mode — play only the favorites",
-               lit=facts.f_mode, favorite=True),
+        previous_button("genau_prev_flick", noun=flick.one),
+        next_button("genau_next_flick", noun=flick.one),
+        lock_button("main", locked=facts.locked, tooltip=(
+            f"Locked — this {flick.one} repeats; press to move on every {facts.pace_s}s"
+            if facts.locked
+            else f"Unlocked — moving on every {facts.pace_s}s; press to hold this {flick.one}")),
+        fmode_button("main", "Showing the favorites only — press for all of them" if facts.f_mode
+                     else "F-Mode — play only the favorites", lit=facts.f_mode),
         Button("genau_flip_ends", FLIP_ENDS_ICON,
                f"Flipped — this {flick.one} stays that way; press to put it back" if facts.flipped
                else f"Flip this {flick.one}, for one running opposite the OSR2 — it stays flipped",
                lit=facts.flipped, group_break=True),
-        Button("genau_trash_flick", TRASH_ICON, "Send to Trash — move it out", danger=True),
+        trash_button_under("genau_trash_flick", "Send to Trash — move it out"),
         *browse_order_buttons("main", latest=facts.latest),
         *_inclusion_buttons(facts, remembered=False, things=flick.many),
     )
