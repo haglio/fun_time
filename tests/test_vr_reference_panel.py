@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+from shared_ui.reference import CONTROLLER_HEADER, HOTKEY_HEADER, VOICE_HEADER
 
-from fun_time.command_reference import (
-    CONTROLLER_HEADER,
-    HOTKEY_HEADER,
-    VOICE_HEADER,
-    build_reference_sections,
-)
+from fun_time.command_reference import build_reference_sections
 from fun_time_vr.reference_panel import (
     _KEY_X,
     _PAD,

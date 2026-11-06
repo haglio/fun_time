@@ -46,6 +46,7 @@ from shared_ui.icons import icon_pixmap
 from shared_ui.pressable_drawing import PressableDrawing
 from shared_ui.preview import Preview
 from shared_ui.preview_icon import app_icon
+from shared_ui.reference import REFERENCE_WINDOW_TITLE
 from shared_ui.spacing import BUTTON_RADIUS_HUD
 
 from fun_time import preview_marker
@@ -86,7 +87,7 @@ from fun_time.message_feed import MessageFeed, screens_if_known
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.reference_dialog import REFERENCE_WINDOW_TITLE, ReferenceDialog
+from fun_time.reference_dialog import ReferenceDialog
 from fun_time.rfb_mode_selector import RfbModeSelector
 from fun_time.session_end import mark_session_end
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
