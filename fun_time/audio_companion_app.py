@@ -223,7 +223,7 @@ class AudioPlaybackController:
                 self.logger.info("Switching audio clip to %s", path.name)
                 self.switch_clip(path)
             else:
-                self.logger.warning("No audio file found for stem %s", stem)
+                self.logger.info("No audio file found for stem %s", stem)
                 self.switch_clip(None)
 
         elif line == "VISIBLE 1":
