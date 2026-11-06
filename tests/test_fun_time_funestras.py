@@ -19,11 +19,8 @@ def test_labels_are_the_lowercase_names():
     assert FunTimeFunestra.LANDSCAPE.label == "landscape"
 
 
-def test_satellites_are_the_scope_both_means():
+def test_the_satellites_are_the_portrait_then_the_landscape_funestra():
     assert FunTimeFunestra.SATELLITES == (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
-    assert FunTimeFunestra.for_scope("both") == FunTimeFunestra.SATELLITES
-    assert FunTimeFunestra.for_scope("portrait") == (FunTimeFunestra.PORTRAIT,)
-    assert FunTimeFunestra.for_scope("landscape") == (FunTimeFunestra.LANDSCAPE,)
 
 
 def test_the_event_log_sources_are_exactly_the_funestra_labels():

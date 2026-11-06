@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fun_time.command_value import parse_command
 from fun_time.media_metadata import normalize_path_key
 from fun_time.watch_sampling import WatchSampler
 from fun_time.watch_stats import load_watch_stats
@@ -200,14 +201,14 @@ class TestBackDating:
         self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
         self._observe(sampler, "portrait", "C:\\clips\\advanced_to.mp4", at=101.0)
 
-        assert sampler.video_at("portrait_lock", 100.2) == "C:\\clips\\meant.mp4"
+        assert sampler.video_at(parse_command("portrait_lock"), 100.2) == "C:\\clips\\meant.mp4"
 
     def test_each_satellite_reads_its_own_timeline(self, tmp_path):
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\portrait.mp4", at=100.0)
         self._observe(sampler, "landscape", "C:\\clips\\landscape.mp4", at=100.6)
 
-        assert sampler.video_at("landscape_trash", 100.7) == "C:\\clips\\landscape.mp4"
+        assert sampler.video_at(parse_command("landscape_trash"), 100.7) == "C:\\clips\\landscape.mp4"
 
     def test_a_satellite_showing_the_hosted_apps_images_is_back_dated_too(self, tmp_path):
         sampler = make_sampler(tmp_path)
@@ -216,10 +217,10 @@ class TestBackDating:
             status.write_text(f"video={image}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
             sampler.sample_due(now=at, paused=False, hosted=(2,))
 
-        assert sampler.video_at("portrait_lock_on", 100.2) == "C:\\images\\meant.png"
+        assert sampler.video_at(parse_command("portrait_lock_on"), 100.2) == "C:\\images\\meant.png"
 
     def test_a_hotkey_command_names_no_video(self, tmp_path):
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
 
-        assert sampler.video_at("portrait_trash", None) == ""
+        assert sampler.video_at(parse_command("portrait_trash"), None) == ""

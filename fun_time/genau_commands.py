@@ -6,7 +6,8 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import NEXT, PREV
 
-from .bridge_records import BridgeConfig, Handler, WindowOp
+from .bridge_records import BridgeConfig, Handler, Route, WindowOp
+from .command_value import Command
 from .event_log import SOURCE_MAIN
 from .funestra_status import read_genau_status
 from .lock import SENT_TO_TRASH, unfavorite
@@ -35,36 +36,25 @@ _GENAU_CMD_MAP = {
 }
 
 
-_GENAUS_FLICK_SECONDS = "genau_flick_seconds_"
+_GENAUS_FLICK_SECONDS = "genau_flick_seconds"
 
 
 _GENAUS_FLICK_COMMANDS = frozenset({
     "genau_prev_flick", "genau_next_flick", "genau_trash_flick", "genau_lock", "genau_flip_ends",
+    _GENAUS_FLICK_SECONDS, f"{_GENAUS_FLICK_SECONDS}_down", f"{_GENAUS_FLICK_SECONDS}_up",
 })
 
 
-def about_genaus_flick(command: str) -> bool:
-    return command in _GENAUS_FLICK_COMMANDS or command.startswith(_GENAUS_FLICK_SECONDS)
+def about_genaus_flick(command: Command) -> bool:
+    return command.action in _GENAUS_FLICK_COMMANDS
 
 
-_NUMERIC_PREFIXES = {
-    "robot_hand_amp_": "AMP",
-    "robot_hand_center_": "CENTER",
-    "robot_hand_speed_": "SPEED",
+_NUMERIC_COMMANDS = {
+    "robot_hand_amp": "AMP",
+    "robot_hand_center": "CENTER",
+    "robot_hand_speed": "SPEED",
     _GENAUS_FLICK_SECONDS: "FLICK_SECONDS",
 }
-
-
-def _parse_numeric_command(command: str) -> str | None:
-    for prefix, keyword in _NUMERIC_PREFIXES.items():
-        if command.startswith(prefix):
-            value_str = command[len(prefix):]
-            try:
-                int(value_str)
-            except ValueError:
-                return None
-            return f"{keyword} {value_str}"
-    return None
 
 
 def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
@@ -80,12 +70,9 @@ def _send_genaus_flick_to_trash(state: BridgeState, config: BridgeConfig,
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 
-def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,
-                          _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    genau_cmd = _parse_numeric_command(command)
-    if genau_cmd is None:
-        return None
-    return _forward_to_genau(genau_cmd, state, config, _target_path)
+def _numeric(keyword: str, command: Command, state: BridgeState, config: BridgeConfig,
+             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _forward_to_genau(f"{keyword} {command.argument}", state, config, _target_path)
 
 
 HANDLERS: dict[str, Handler] = {
@@ -93,4 +80,5 @@ HANDLERS: dict[str, Handler] = {
     "genau_trash_flick": _send_genaus_flick_to_trash,
 }
 
-PARSED_FORMS = (_parsed_numeric,)
+VALUED: dict[str, Route] = {command: partial(_numeric, keyword)
+                             for command, keyword in _NUMERIC_COMMANDS.items()}

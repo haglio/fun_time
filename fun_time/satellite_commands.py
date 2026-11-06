@@ -9,9 +9,9 @@ from funestra.file_channel import append_command
 from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRASH
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 
-from .bridge_records import BridgeConfig, Handler, WindowOp
+from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
+from .command_value import FILTER, Command
 from .event_log import FAVORITE, MESSAGE
-from .filter_vocab import decode_filter_command
 from .fun_time_funestras import FunTimeFunestra
 from .lock import build_discard_plan, unfavorite
 from .media_actions import move_to_trash
@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 
 
 def _lock_as_said(
-    funestra: FunTimeFunestra, locked: bool, state: BridgeState, config: BridgeConfig,
+    locked: bool, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
@@ -130,120 +130,21 @@ def _discard(
     return state, [flashed, *lock_ops]
 
 
-_CYCLE_COMMANDS = {
-    "portrait_cycle_action": (FunTimeFunestra.PORTRAIT, "action"),
-    "portrait_cycle_seed": (FunTimeFunestra.PORTRAIT, "seed"),
-    "landscape_cycle_action": (FunTimeFunestra.LANDSCAPE, "action"),
-    "landscape_cycle_seed": (FunTimeFunestra.LANDSCAPE, "seed"),
-}
-
-
-_VERSION_COMMANDS: dict[str, tuple[FunTimeFunestra, int]] = {
-    "portrait_cycle_version": (FunTimeFunestra.PORTRAIT, 1),
-    "portrait_cycle_version_back": (FunTimeFunestra.PORTRAIT, -1),
-    "landscape_cycle_version": (FunTimeFunestra.LANDSCAPE, 1),
-    "landscape_cycle_version_back": (FunTimeFunestra.LANDSCAPE, -1),
-}
-
-
-_MORE_SEEDS_SATELLITES = {"portrait_more_seeds": FunTimeFunestra.PORTRAIT,
-                     "landscape_more_seeds": FunTimeFunestra.LANDSCAPE}
-
-
-_LOOP_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
-    "portrait_action_loop": (FunTimeFunestra.PORTRAIT, "action"),
-    "portrait_seed_loop": (FunTimeFunestra.PORTRAIT, "seed"),
-    "landscape_action_loop": (FunTimeFunestra.LANDSCAPE, "action"),
-    "landscape_seed_loop": (FunTimeFunestra.LANDSCAPE, "seed"),
-}
-
-
-_LOCK_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {
-    "portrait_lock_action": FunTimeFunestra.PORTRAIT,
-    "landscape_lock_action": FunTimeFunestra.LANDSCAPE,
-}
-
-
 def lock_said(funestra: FunTimeFunestra, locked: bool) -> str:
-    return f"{funestra.label}_lock_{'on' if locked else 'off'}"
+    return Command.to(funestra, "lock_on" if locked else "lock_off").text
 
 
 def _lock_pressed(funestra: FunTimeFunestra) -> str:
-    return f"{funestra.label}_lock"
-
-
-LOCK_STATE_COMMANDS: dict[str, tuple[FunTimeFunestra, bool]] = {
-    lock_said(funestra, locked): (funestra, locked)
-    for funestra in FunTimeFunestra.SATELLITES
-    for locked in (True, False)
-}
-
-
-LOCK_TOGGLES: dict[str, FunTimeFunestra] = {_lock_pressed(funestra): funestra
-                                          for funestra in FunTimeFunestra.SATELLITES}
-
-
-_RESET_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
-    "portrait_reset": (FunTimeFunestra.PORTRAIT,),
-    "landscape_reset": (FunTimeFunestra.LANDSCAPE,),
-}
-
-
-_NO_LOOP_SATELLITES: dict[str, FunTimeFunestra] = {
-    "portrait_no_loop": FunTimeFunestra.PORTRAIT,
-    "landscape_no_loop": FunTimeFunestra.LANDSCAPE,
-}
-
-
-_LOOP_CYCLE_SATELLITES: dict[str, FunTimeFunestra] = {
-    "portrait_loop": FunTimeFunestra.PORTRAIT,
-    "landscape_loop": FunTimeFunestra.LANDSCAPE,
-}
-
-
-_NO_FILTER_SATELLITES: dict[str, tuple[FunTimeFunestra, ...]] = {
-    "portrait_no_filter": (FunTimeFunestra.PORTRAIT,),
-    "landscape_no_filter": (FunTimeFunestra.LANDSCAPE,),
-}
-
-
-_WRONG_ACTION_SATELLITES: dict[str, FunTimeFunestra] = {"portrait_wrong_action": FunTimeFunestra.PORTRAIT,
-                                          "landscape_wrong_action": FunTimeFunestra.LANDSCAPE}
-
-
-def _dispatch_lock_action(
-    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
-) -> tuple[BridgeState, list[WindowOp]]:
-    current = target_path or satellite_current(config, funestra)
-    if not current:
-        return state, []
-    action = video_action_label(current, config)
-    if not action:
-        return state, [WindowOp(op="message", key="No action metadata", source=satellite_source(funestra), level=logging.WARNING)]
-    return _dispatch_set_filter((funestra,), action.lower(), state, config)
-
-
-def _dispatch_lock_video(
-    funestra: FunTimeFunestra, path: str, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    return lock_satellite(funestra, state, config, path)
+    return Command.to(funestra, "lock").text
 
 
 _NAV_DIRECTIONS = ("up", "down")
 
-
-def _parse_nav(command: str) -> tuple[int, str] | None:
-    for prefix, funestra in (("portrait_nav_", FunTimeFunestra.PORTRAIT),
-                          ("landscape_nav_", FunTimeFunestra.LANDSCAPE)):
-        if command.startswith(prefix):
-            direction = command[len(prefix):]
-            if direction in _NAV_DIRECTIONS:
-                return funestra, direction
-    return None
+_HUD_NAV = frozenset(f"nav_{direction}" for direction in _NAV_DIRECTIONS)
 
 
-def is_hud_nav_command(command: str) -> bool:
-    return _parse_nav(command) is not None
+def is_hud_nav_command(command: Command) -> bool:
+    return command.action in _HUD_NAV
 
 
 def _dispatch_reorder(
@@ -269,25 +170,21 @@ def satellite_at_defaults(satellite: SatelliteState, status: SatelliteStatus) ->
     return _browse_at_defaults(satellite) and status.speed == 1.0
 
 
-def _dispatch_reset(
-    funestras: tuple[FunTimeFunestra, ...], state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    ops: list[WindowOp] = []
-    for funestra in funestras:
-        if satellite_at_defaults(state.satellite(funestra),
-                                 read_satellite_status(config.satellite(funestra).status_file)):
-            logger.info("Reset %s: already at its defaults", satellite_source(funestra))
-            continue
-        if not _browse_at_defaults(state.satellite(funestra)):
-            state = cancel_lock(funestra, state, config)
-            state = state.with_satellite(
-                funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
-            state = clear_satellite_grouping(state, funestra)
-            result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
-            logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
-        send_satellite(config, funestra, NORMAL_SPEED)
-        ops.append(WindowOp(op="message", key="Reset", source=satellite_source(funestra)))
-    return state, ops
+def _reset(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
+           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if satellite_at_defaults(state.satellite(funestra),
+                             read_satellite_status(config.satellite(funestra).status_file)):
+        logger.info("Reset %s: already at its defaults", satellite_source(funestra))
+        return state, []
+    if not _browse_at_defaults(state.satellite(funestra)):
+        state = cancel_lock(funestra, state, config)
+        state = state.with_satellite(
+            funestra, latest=False, filter="", favorites_filter=False, nav_anchor="")
+        state = clear_satellite_grouping(state, funestra)
+        result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
+        logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
+    send_satellite(config, funestra, NORMAL_SPEED)
+    return state, [WindowOp(op="message", key="Reset", source=satellite_source(funestra))]
 
 
 def _rebuild_satellite(
@@ -306,30 +203,30 @@ def _rebuild_satellite(
     )
 
 
-def _dispatch_set_filter(
-    funestras: tuple[FunTimeFunestra, ...], query: str, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    ops: list[WindowOp] = []
-    for funestra in funestras:
-        result = _rebuild_satellite(funestra, query, state, config)
-        if result.applied:
-            state = state.with_satellite(funestra, filter=query)
-            state = clear_satellite_grouping(state, funestra)
-        logger.info(result.log_message)
-        level = MESSAGE if result.applied else logging.WARNING
-        ops.append(WindowOp(op="message", key=result.log_message, source=satellite_source(funestra), level=level))
-    return state, ops
+def _set_filter(query: str, funestra: FunTimeFunestra, state: BridgeState,
+                config: BridgeConfig, _target_path: str = "") -> tuple[BridgeState, list[WindowOp]]:
+    result = _rebuild_satellite(funestra, query, state, config)
+    if result.applied:
+        state = state.with_satellite(funestra, filter=query)
+        state = clear_satellite_grouping(state, funestra)
+    logger.info(result.log_message)
+    level = MESSAGE if result.applied else logging.WARNING
+    return state, [WindowOp(op="message", key=result.log_message,
+                            source=satellite_source(funestra), level=level)]
 
 
-_TRANSPORT_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
-    "portrait_prev": (FunTimeFunestra.PORTRAIT, PREV),
-    "portrait_next": (FunTimeFunestra.PORTRAIT, NEXT),
-    "landscape_prev": (FunTimeFunestra.LANDSCAPE, PREV),
-    "landscape_next": (FunTimeFunestra.LANDSCAPE, NEXT),
-}
+def _lock_action(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
+                 target_path: str = "") -> tuple[BridgeState, list[WindowOp]]:
+    current = target_path or satellite_current(config, funestra)
+    if not current:
+        return state, []
+    action = video_action_label(current, config)
+    if not action:
+        return state, [WindowOp(op="message", key="No action metadata", source=satellite_source(funestra), level=logging.WARNING)]
+    return _set_filter(action.lower(), funestra, state, config)
 
 
-def _transport(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+def _transport(verb: str, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     state = cancel_lock(funestra, state, config)
     if verb == NEXT and is_single_video_loop(funestra, state, config):
@@ -338,14 +235,7 @@ def _transport(funestra: FunTimeFunestra, verb: str, state: BridgeState, config:
     return state, []
 
 
-_SENT_TO_A_SATELLITE: dict[str, tuple[FunTimeFunestra, str]] = {
-    f"{funestra.label}_{act}": (funestra, verb)
-    for funestra in FunTimeFunestra.SATELLITES
-    for act, verb in (*PLAYBACK_RATE_ACTS.items(), *FUNSCRIPT_MOVES.items())
-}
-
-
-def _send_to_satellite(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+def _send_to_satellite(verb: str, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if verb == JUMP_TO_FUNSCRIPT and (refused := skip_ahead_refused(funestra, state)):
         return state, refused
@@ -358,104 +248,78 @@ def _no_loop(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig
     return no_loop(funestra, state, config)
 
 
-def _reset(funestras: tuple[FunTimeFunestra, ...], state: BridgeState, config: BridgeConfig,
-           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_reset(funestras, state, config)
-
-
-def _set_filter(funestras: tuple[FunTimeFunestra, ...], query: str, state: BridgeState, config: BridgeConfig,
-                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_set_filter(funestras, query, state, config)
-
-
-def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
-                _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    nav = _parse_nav(command)
-    if nav is None:
-        return None
-    return navigate_hud(*nav, state, config)
-
-
-def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
-                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    # "|" is illegal in a Windows path, so it is an unambiguous delimiter.
-    if "_play_video|" not in command:
-        return None
-    head, _, path = command.partition("|")
-    return switch_to_video(
-        FunTimeFunestra.PORTRAIT if head.startswith("portrait_") else FunTimeFunestra.LANDSCAPE,
-        path, state, config)
-
-
-def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
-                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    if "_lock_video|" not in command:
-        return None
-    head, _, path = command.partition("|")
-    return _dispatch_lock_video(
-        FunTimeFunestra.PORTRAIT if head.startswith("portrait_") else FunTimeFunestra.LANDSCAPE,
-        path, state, config)
-
-
-def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
-                   _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    filter_target = decode_filter_command(command)
-    if filter_target is None:
-        return None
-    scope, query = filter_target
-    return _dispatch_set_filter(FunTimeFunestra.for_scope(scope), query, state, config)
-
-
-def _parsed_satellite_speed(command: str, state: BridgeState, config: BridgeConfig,
-                            _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    for funestra in FunTimeFunestra.SATELLITES:
-        verb = percent_rate(command, f"{funestra.label}_speed_")
-        if verb is not None:
-            send_satellite(config, funestra, verb)
-            return state, []
-    return None
-
-
-_REORDER_COMMANDS: dict[str, tuple[FunTimeFunestra, bool]] = {
-    "portrait_latest": (FunTimeFunestra.PORTRAIT, True),
-    "landscape_latest": (FunTimeFunestra.LANDSCAPE, True),
-    "portrait_shuffle": (FunTimeFunestra.PORTRAIT, False),
-    "landscape_shuffle": (FunTimeFunestra.LANDSCAPE, False),
-}
-
-
-def _reorder(funestra: FunTimeFunestra, recent: bool, state: BridgeState, config: BridgeConfig,
+def _reorder(recent: bool, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_reorder(funestra, recent, state, config)
 
 
-HANDLERS: dict[str, Handler] = {
-    **{cmd: partial(_transport, funestra, verb)
-       for cmd, (funestra, verb) in _TRANSPORT_COMMANDS.items()},
-    **{cmd: partial(_send_to_satellite, funestra, verb)
-       for cmd, (funestra, verb) in _SENT_TO_A_SATELLITE.items()},
-    **{cmd: partial(_toggle_lock, funestra) for cmd, funestra in LOCK_TOGGLES.items()},
-    **{cmd: partial(_lock_as_said, funestra, locked)
-       for cmd, (funestra, locked) in LOCK_STATE_COMMANDS.items()},
-    "portrait_trash": partial(_discard, FunTimeFunestra.PORTRAIT),
-    "landscape_trash": partial(_discard, FunTimeFunestra.LANDSCAPE),
-    **{cmd: partial(cycle_variant, funestra, kind)
-       for cmd, (funestra, kind) in _CYCLE_COMMANDS.items()},
-    **{cmd: partial(cycle_version, funestra, delta)
-       for cmd, (funestra, delta) in _VERSION_COMMANDS.items()},
-    **{cmd: partial(more_seeds, funestra) for cmd, funestra in _MORE_SEEDS_SATELLITES.items()},
-    **{cmd: partial(wrong_action, funestra) for cmd, funestra in _WRONG_ACTION_SATELLITES.items()},
-    **{cmd: partial(group_loop, funestra, axis)
-       for cmd, (funestra, axis) in _LOOP_COMMANDS.items()},
-    **{cmd: partial(loop_cycle, funestra) for cmd, funestra in _LOOP_CYCLE_SATELLITES.items()},
-    **{cmd: partial(_no_loop, funestra) for cmd, funestra in _NO_LOOP_SATELLITES.items()},
-    **{cmd: partial(_dispatch_lock_action, funestra)
-       for cmd, funestra in _LOCK_ACTION_SATELLITES.items()},
-    **{cmd: partial(_reorder, funestra, recent)
-       for cmd, (funestra, recent) in _REORDER_COMMANDS.items()},
-    **{cmd: partial(_reset, funestras) for cmd, funestras in _RESET_SATELLITES.items()},
-    **{cmd: partial(_set_filter, funestras, "") for cmd, funestras in _NO_FILTER_SATELLITES.items()},
+def _nav(direction: str, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
+         _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return navigate_hud(funestra, direction, state, config)
+
+
+def _play_video(command: Command, state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return switch_to_video(command.satellite, command.argument, state, config)
+
+
+def _lock_video(command: Command, state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return lock_satellite(command.satellite, state, config, command.argument)
+
+
+def _filter(command: Command, state: BridgeState, config: BridgeConfig,
+            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _set_filter(command.argument, command.satellite, state, config)
+
+
+def _speed(command: Command, state: BridgeState, config: BridgeConfig,
+           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    verb = percent_rate(command.argument)
+    if verb is None:
+        return state, []
+    send_satellite(config, command.satellite, verb)
+    return state, []
+
+
+THE_FUNESTRAS_OWN = frozenset({
+    "minimize", "crown", "take_osr2", "kino_activate", "origenerator_activate",
+    "lock", "lock_on", "lock_off",
+    "speed", *PLAYBACK_RATE_ACTS,
+    "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
+})
+
+
+SATELLITE_ACTIONS: dict[str, SatelliteHandler] = {
+    "prev": partial(_transport, PREV),
+    "next": partial(_transport, NEXT),
+    **{act: partial(_send_to_satellite, verb)
+       for act, verb in (*PLAYBACK_RATE_ACTS.items(), *FUNSCRIPT_MOVES.items())},
+    "lock": _toggle_lock,
+    "lock_on": partial(_lock_as_said, True),
+    "lock_off": partial(_lock_as_said, False),
+    "trash": _discard,
+    "cycle_action": partial(cycle_variant, kind="action"),
+    "cycle_seed": partial(cycle_variant, kind="seed"),
+    "cycle_version": partial(cycle_version, delta=1),
+    "cycle_version_back": partial(cycle_version, delta=-1),
+    "more_seeds": more_seeds,
+    "wrong_action": wrong_action,
+    "action_loop": partial(group_loop, axis="action"),
+    "seed_loop": partial(group_loop, axis="seed"),
+    "loop": loop_cycle,
+    "no_loop": _no_loop,
+    "lock_action": _lock_action,
+    "latest": partial(_reorder, True),
+    "shuffle": partial(_reorder, False),
+    "reset": _reset,
+    "no_filter": partial(_set_filter, ""),
+    **{f"nav_{direction}": partial(_nav, direction) for direction in _NAV_DIRECTIONS},
 }
 
-PARSED_FORMS = (_parsed_nav, _parsed_play_video, _parsed_lock_video, _parsed_filter,
-                _parsed_satellite_speed)
+SATELLITE_VALUED: dict[str, Route] = {
+    "play_video": _play_video,
+    "lock_video": _lock_video,
+    FILTER: _filter,
+    "speed": _speed,
+}

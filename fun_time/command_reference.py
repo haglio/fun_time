@@ -17,15 +17,11 @@ from shared_ui.palette import (
 from shared_ui.spacing import GAP_DIALOG, GAP_SMALL, MARGIN_STANDARD
 from shared_ui.type_scale import FONT_UI, SIZE_BODY, SIZE_HEADING
 
+from fun_time.command_value import say_command
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.voice_commands import (
-    FAVORITES_PHRASE,
-    VOICE_COMMANDS,
-    friendly_voice,
-    say_command,
-)
+from fun_time.voice_commands import FAVORITES_PHRASE, VOICE_COMMANDS, friendly_voice
 
 
 @dataclass(frozen=True)

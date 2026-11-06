@@ -301,8 +301,10 @@ class TestTheLoopInFrontOfTheDispatch:
                 continue
             with patch.object(runner, "_dispatch") as dispatched:
                 runner._handle_command(command)
-            if [call.args for call in dispatched.call_args_list] != [(command, None)]:
-                rewritten[command] = [call.args for call in dispatched.call_args_list]
+            handed = [(said.text, spoken_at) for said, spoken_at in
+                      (call.args for call in dispatched.call_args_list)]
+            if handed != [(command, None)]:
+                rewritten[command] = handed
         assert not rewritten, f"the loop hands the dispatch these as something else: {rewritten}"
 
 

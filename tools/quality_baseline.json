@@ -1,13 +1,11 @@
 {
   "library_patches": {},
   "mutables_imported": {
-    "fun_time/aiming.py": 1,
     "fun_time/event_log.py": 2,
     "fun_time/main_funestra_commands.py": 2,
     "fun_time/origenerator_switches.py": 2,
     "fun_time/osr2_commands.py": 2,
     "fun_time/osr2_section.py": 1,
-    "fun_time/satellite_commands.py": 2,
     "fun_time_vr/controller_bindings.py": 3
   },
   "private_imports": {

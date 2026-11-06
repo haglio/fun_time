@@ -4,7 +4,8 @@ from dataclasses import replace
 from functools import partial
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
-from .bridge_records import BridgeConfig, Handler, WindowOp
+from .bridge_records import BridgeConfig, Handler, Route, WindowOp
+from .command_value import Command
 from .event_log import SOURCE_MAIN
 from .shared_state import BridgeState
 
@@ -57,11 +58,9 @@ def _volume_step(step: int, state: BridgeState, config: BridgeConfig,
     return _dispatch_audio(_step_volume(state, step), config)
 
 
-def _parsed_set_volume(command: str, state: BridgeState, config: BridgeConfig,
-                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    if not command.startswith(f"{SET_VOLUME_COMMAND}|"):
-        return None
-    return _dispatch_set_volume(command.partition("|")[2], state, config)
+def _set_volume(command: Command, state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_set_volume(command.argument, state, config)
 
 
 HANDLERS: dict[str, Handler] = {
@@ -69,4 +68,4 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_volume_step, step) for cmd, step in _VOLUME_STEPS.items()},
 }
 
-PARSED_FORMS = (_parsed_set_volume,)
+VALUED: dict[str, Route] = {SET_VOLUME_COMMAND: _set_volume}

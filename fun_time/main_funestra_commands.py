@@ -17,8 +17,8 @@ from funestra.funestra_verbs import (
 )
 from funestra.hud_controls import why_it_cannot_step
 
-from .aiming import FUNESTRA_SOURCES
 from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
+from .command_value import FUNESTRA_SOURCES
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_buttons import NOUN
 from .funestra_status import read_genau_status, read_main_funestra_status

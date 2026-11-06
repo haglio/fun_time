@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from fun_time.command_value import FILTER, parse_command
 from fun_time.filter_vocab import (
     EXAMPLE_CONTENT,
-    decode_filter_command,
     display_forms,
     filter_voice_commands,
     load_acts,
@@ -21,22 +21,27 @@ ACTS = {
 }
 
 
-def test_set_commands_round_trip_through_decode():
+def _decoded(command: str) -> tuple[str, str] | None:
+    said = parse_command(command)
+    return (said.said_to, said.argument) if said.action == FILTER else None
+
+
+def test_set_commands_round_trip_through_the_command_value():
     for scope in ("both", "portrait", "landscape"):
         for query in ACTS:
-            assert decode_filter_command(set_command(scope, query)) == (scope, query)
+            assert _decoded(set_command(scope, query)) == (scope, query)
 
 
 def test_the_wire_format_is_the_filter_prefix_scope_and_slugged_query():
     assert set_command("both", "beta gamma") == "filter_both_beta_gamma"
     assert set_command("portrait", "alpha") == "filter_portrait_alpha"
     assert set_command("landscape", "delta") == "filter_landscape_delta"
-    assert decode_filter_command("filter_both_beta_gamma") == ("both", "beta gamma")
+    assert _decoded("filter_both_beta_gamma") == ("both", "beta gamma")
 
 
 def test_a_command_that_is_not_about_the_filter_is_left_alone():
     for command in ("fmode_toggle", "portrait_next", "recency_order_refresh", "filterish", ""):
-        assert decode_filter_command(command) is None
+        assert _decoded(command) is None
 
 
 def test_bare_act_filters_both_orientation_prefix_scopes_one():
@@ -55,16 +60,16 @@ def test_spoken_form_can_differ_from_the_matched_query():
     voice = filter_voice_commands(ACTS)
     assert "delta" not in voice
     assert voice["delta form"] == set_command("both", "delta")
-    assert decode_filter_command(voice["delta form"]) == ("both", "delta")
+    assert _decoded(voice["delta form"]) == ("both", "delta")
 
 
 def test_multi_word_query_round_trips():
     voice = filter_voice_commands(ACTS)
-    assert decode_filter_command(voice["portrait beta gamma"]) == ("portrait", "beta gamma")
+    assert _decoded(voice["portrait beta gamma"]) == ("portrait", "beta gamma")
 
 
 def test_an_act_nobody_listed_still_decodes_to_its_scope_and_query():
-    assert decode_filter_command("filter_portrait_never_listed_act") == ("portrait", "never listed act")
+    assert _decoded("filter_portrait_never_listed_act") == ("portrait", "never listed act")
 
 
 def test_clearing_a_filter_is_not_this_module_s_business():
@@ -76,7 +81,7 @@ def test_clearing_a_filter_is_not_this_module_s_business():
 
 def test_every_generated_voice_command_decodes():
     for command in filter_voice_commands(ACTS).values():
-        assert decode_filter_command(command) is not None
+        assert _decoded(command) is not None
 
 
 def test_set_commands_for_scope_lists_every_act():
@@ -98,7 +103,7 @@ def test_the_committed_example_vocabulary_is_loaded_and_usable(tmp_path: Path):
     acts = load_acts(tmp_path / "no_local.json", EXAMPLE_CONTENT)
     voice = filter_voice_commands(acts)
     assert voice
-    assert all(decode_filter_command(cmd) is not None for cmd in voice.values())
+    assert all(_decoded(cmd) is not None for cmd in voice.values())
 
 
 class TestLoadFilterActs:

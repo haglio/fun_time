@@ -9,8 +9,8 @@ from funestra.hud_title import F_MODE_LABEL
 
 from main_funestra.genau_verbs import genau_f_mode
 
-from .aiming import FUNESTRA_SOURCES
 from .bridge_records import BridgeConfig, Handler, WindowOp
+from .command_value import FUNESTRA_SOURCES, say_command
 from .event_log import FAVORITE, MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import show_f_mode
@@ -22,7 +22,7 @@ from .origenerator_switches import hosts
 from .runtime_flow import FMODE_FUNESTRAS, SatelliteFmodeInputs, apply_fmode
 from .satellite_groups import cancel_lock, clear_satellite_grouping
 from .shared_state import BridgeState
-from .voice_commands import FAVORITES_PHRASE, say_command
+from .voice_commands import FAVORITES_PHRASE
 
 logger = logging.getLogger(__name__)
 

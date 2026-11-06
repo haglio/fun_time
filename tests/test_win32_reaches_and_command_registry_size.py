@@ -89,7 +89,7 @@ def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
     )
 
 
-MAX_DISPATCHER_COMPLEXITY = 59
+MAX_DISPATCHER_COMPLEXITY = 57
 MAX_DISPATCH_COMMAND_COMPLEXITY = 9
 
 

@@ -12,11 +12,5 @@ class FunTimeFunestra(IntEnum):
     def label(self) -> str:
         return self.name.lower()
 
-    @classmethod
-    def for_scope(cls, scope: str) -> tuple[FunTimeFunestra, ...]:
-        if scope == "both":
-            return cls.SATELLITES
-        return (cls.PORTRAIT,) if scope == "portrait" else (cls.LANDSCAPE,)
-
 
 FunTimeFunestra.SATELLITES = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)

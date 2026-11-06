@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
-from fun_time.filter_vocab import decode_filter_command, set_command
+from fun_time.command_value import FILTER, parse_command, set_command
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import SAID_AT_FIELD, said_to_the_hosted_app
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
@@ -100,8 +100,8 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
 def _as_published(line: str) -> str:
     if line.startswith(go_to_line("")):
         return go_to_line("{file}")
-    filtered = decode_filter_command(line)
-    return line if filtered is None else set_command(filtered[0], "{row}")
+    said = parse_command(line)
+    return set_command(said.said_to, "{row}") if said.action == FILTER else line
 
 
 def _written_in_a_sweep(app: BridgeConfig) -> list[str]:

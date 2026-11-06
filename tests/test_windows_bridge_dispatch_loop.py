@@ -27,9 +27,9 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import load_config, windows_bridge_dispatch_loop
-from fun_time.aiming import resolve_active_funestra_command
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
+from fun_time.command_value import parse_command
 from fun_time.config import SatelliteChannel, VoiceControlConfig
 from fun_time.content import load_web_providers
 from fun_time.crown import Crown
@@ -72,7 +72,6 @@ from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
     detect_sleep_gap,
-    expand_group_command,
     poll_dashboard_commands,
 )
 from tests.fun_time_window_fakes import (
@@ -387,82 +386,6 @@ class TestPollDashboardCommands:
         assert result == ["main_prev"]
 
 
-class TestResolveActiveSideCommand:
-    def test_group_commands_ride_the_same_active_and_both_plumbing(self):
-        assert resolve_active_funestra_command("active_action_loop", 3) == "landscape_action_loop"
-        assert resolve_active_funestra_command("active_lock_action", 2) == "portrait_lock_action"
-        assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
-
-    def test_rewrites_to_portrait_when_active_funestra_is_portrait(self):
-        assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
-
-    def test_rewrites_to_landscape_when_active_funestra_is_landscape(self):
-        assert resolve_active_funestra_command("active_next", 3) == "landscape_next"
-
-    def test_passes_non_active_commands_through(self):
-        assert resolve_active_funestra_command("main_next", 3) == "main_next"
-        assert resolve_active_funestra_command("portrait_lock", 3) == "portrait_lock"
-
-    def test_active_nav_targets_primary_when_primary_is_active(self):
-        assert resolve_active_funestra_command("active_next", 1) == "main_next"
-        assert resolve_active_funestra_command("active_prev", 1) == "main_prev"
-
-    def test_the_funscript_moves_follow_the_funestra_last_navigated_the_main_under_its_own_ids(self):
-        for action, main in (("funscript_jump", "main_funestra_funscript_jump"),
-                             ("next_funscripted", "main_funestra_next_funscripted")):
-            assert resolve_active_funestra_command(f"active_{action}", 1) == main
-            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
-            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
-            assert expand_group_command(f"both_{action}") == [
-                f"portrait_{action}", f"landscape_{action}"]
-
-    def test_reset_on_the_primary_means_the_main_funestras_own_reset(self):
-        assert resolve_active_funestra_command("active_reset", 1) == "main_reset"
-        assert resolve_active_funestra_command("active_reset", 2) == "portrait_reset"
-        assert resolve_active_funestra_command("active_reset", 3) == "landscape_reset"
-
-    def test_end_loop_on_the_primary_means_main_funestras_own_loop(self):
-        assert resolve_active_funestra_command("active_no_loop", 1) == "main_funestra_loop_cancel"
-        assert resolve_active_funestra_command("active_no_loop", 2) == "portrait_no_loop"
-        assert resolve_active_funestra_command("active_no_loop", 3) == "landscape_no_loop"
-
-    def test_a_bare_lock_reaches_the_primary_too(self):
-        assert resolve_active_funestra_command("active_lock_on", 1) == "main_lock_on"
-        assert resolve_active_funestra_command("active_lock_off", 1) == "main_lock_off"
-        assert resolve_active_funestra_command("active_lock_on", 2) == "portrait_lock_on"
-        assert resolve_active_funestra_command("active_lock_off", 3) == "landscape_lock_off"
-
-    def test_a_bare_f_mode_reaches_whichever_funestra_is_active(self):
-        for suffix in ("", "_on", "_off"):
-            assert resolve_active_funestra_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
-            assert resolve_active_funestra_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
-            assert resolve_active_funestra_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
-
-    def test_a_bare_browse_order_reaches_whichever_funestra_is_active(self):
-        for order in ("latest", "shuffle"):
-            assert resolve_active_funestra_command(f"active_{order}", 1) == f"main_{order}"
-            assert resolve_active_funestra_command(f"active_{order}", 2) == f"portrait_{order}"
-            assert resolve_active_funestra_command(f"active_{order}", 3) == f"landscape_{order}"
-
-    def test_a_bare_skip_or_back_reaches_whichever_funestra_is_active(self):
-        for action in ("nudge_next", "nudge_prev"):
-            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_{action}"
-            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
-            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
-
-    def test_a_bare_playback_speed_reaches_whichever_funestra_is_active(self):
-        for action in ("speed_up", "speed_down", "speed_150"):
-            assert resolve_active_funestra_command(f"active_{action}", 1) == f"main_funestra_{action}"
-            assert resolve_active_funestra_command(f"active_{action}", 2) == f"portrait_{action}"
-            assert resolve_active_funestra_command(f"active_{action}", 3) == f"landscape_{action}"
-
-    def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
-        assert resolve_active_funestra_command("active_cycle_seed", 1) == "active_cycle_seed"
-
-    def test_a_bare_trash_on_the_main_funestra_reaches_genaus_item(self):
-        assert resolve_active_funestra_command("active_trash", FunTimeFunestra.MAIN) == "genau_trash_flick"
-
-
 class TestDispatchLoopRunner:
     def test_dispatches_dashboard_command(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -473,7 +396,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert "portrait_next" in commands
         assert not cmd_file.exists()
 
@@ -486,7 +409,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert "landscape_lock_on" in commands
         assert "portrait_lock_on" not in commands
 
@@ -499,7 +422,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert "portrait_next" in commands
 
     def test_a_spoken_command_carries_the_video_the_sampler_back_dates_it_to(self, tmp_path):
@@ -512,7 +435,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        assert mock_dispatch.call_args[0][0] == "portrait_lock_on"
+        assert mock_dispatch.call_args[0][0].text == "portrait_lock_on"
         assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\meant.mp4"
 
     def test_a_spoken_command_carries_when_it_was_said_to_the_dispatch(self, tmp_path):
@@ -545,7 +468,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert "main_nudge_next" in commands
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
@@ -626,7 +549,7 @@ class TestDispatchLoopRunner:
         suspend_op = WindowOp(op="suspend_hotkeys")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [suspend_op])
-            runner._dispatch("some_command")
+            runner._dispatch(parse_command("some_command"))
 
         assert _mailbox(runner) == ["suspend_hotkeys"]
 
@@ -637,7 +560,7 @@ class TestDispatchLoopRunner:
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
-            runner._dispatch("some_command")
+            runner._dispatch(parse_command("some_command"))
 
         assert not ahk_cmd_file.exists()
 
@@ -647,7 +570,7 @@ class TestDispatchLoopRunner:
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [unsuspend_op])
-            runner._dispatch("some_command")
+            runner._dispatch(parse_command("some_command"))
 
         assert _mailbox(runner) == ["unsuspend_hotkeys"]
 
@@ -659,7 +582,7 @@ class TestDispatchLoopRunner:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.flash_message") as mock_message:
             mock_dispatch.return_value = (runner.state, [message_op])
-            runner._dispatch("some_command")
+            runner._dispatch(parse_command("some_command"))
 
         assert not ahk_cmd_file.exists()
         mock_message.assert_called_once()
@@ -673,7 +596,7 @@ class TestDispatchLoopRunner:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.flash_message") as mock_message:
             mock_dispatch.return_value = (runner.state, [message_op])
-            runner._dispatch("portrait_cycle_seed")
+            runner._dispatch(parse_command("portrait_cycle_seed"))
 
         assert mock_message.call_args[1] == {"source": "portrait", "level": logging.WARNING}
 
@@ -986,7 +909,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         mock_dispatch.assert_called_once()
-        assert mock_dispatch.call_args[0][0] == "portrait_lock"
+        assert mock_dispatch.call_args[0][0].text == "portrait_lock"
 
     def test_voice_off_mutes_voice_controller(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1124,7 +1047,7 @@ class TestDispatchLoopRunner:
             runner.tick()
             runner.tick()
 
-        assert [call.args[0] for call in dispatched.call_args_list] == ["landscape_next"]
+        assert [call.args[0].text for call in dispatched.call_args_list] == ["landscape_next"]
 
     @pytest.mark.parametrize("listening", [True, False])
     def test_enter_with_nothing_voice_was_not_sure_of_says_there_is_nothing_to_accept(
@@ -1393,7 +1316,7 @@ class TestOpenRfbTab:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
-            runner._dispatch("portrait_lock")
+            runner._dispatch(parse_command("portrait_lock"))
 
         assert calls == [
             ("activate", 12345),
@@ -1422,7 +1345,7 @@ class TestOpenRfbTab:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
-            runner._dispatch("portrait_lock")
+            runner._dispatch(parse_command("portrait_lock"))
 
         assert [name for name, _ in calls] == ["activate", "open"]
 
@@ -1442,7 +1365,7 @@ class TestOpenRfbTab:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
-            runner._dispatch("portrait_lock")
+            runner._dispatch(parse_command("portrait_lock"))
 
         assert calls == []
 
@@ -1462,7 +1385,7 @@ class TestOpenRfbTab:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
-            runner._dispatch("portrait_lock")
+            runner._dispatch(parse_command("portrait_lock"))
 
         assert calls == []
 
@@ -1478,7 +1401,7 @@ class TestOpenRfbTab:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              exists, activate, open_tab:
             mock_dispatch.return_value = (runner.state, [rfb_op])
-            runner._dispatch("portrait_lock")
+            runner._dispatch(parse_command("portrait_lock"))
 
         assert calls == []
 
@@ -1494,10 +1417,10 @@ class TestOpenRfbTab:
         runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
-        def fake_dispatch(cmd, state, config, target_path="", spoken_at=None):
-            if cmd == "portrait_lock_on":
+        def fake_dispatch(cmd, state, config, target_path="", spoken_at=None, hosted=None):
+            if cmd.text == "portrait_lock_on":
                 return replace(state, portrait=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
-            if cmd == "landscape_lock_on":
+            if cmd.text == "landscape_lock_on":
                 return replace(state, landscape=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://l")]
             return state, []
 
@@ -1735,7 +1658,7 @@ class TestModeSwitchVisibility:
              patch("fun_time.fun_time_windows.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
              patch("fun_time.fun_time_windows.set_always_on_top"):
-            runner._dispatch(command)
+            runner._dispatch(parse_command(command))
             runner.tick()
 
         assert runner.state.main_mode == {
@@ -1787,7 +1710,7 @@ class TestResolveRole:
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
             assert runner.windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
-            runner._dispatch("main_kino_activate")
+            runner._dispatch(parse_command("main_kino_activate"))
 
         assert shown == [MAIN_FUNESTRA_HWND]
 
@@ -1804,7 +1727,7 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
-        dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
+        dispatched = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert "enter_omnipause" not in dispatched
         assert "omnipause_toggle" not in dispatched
         assert runner.state.omni_paused is False
@@ -1869,7 +1792,7 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.find_window_for_process",
                    return_value=BROWSE_HWND) as lookup, \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
-            runner._dispatch("omnipause_toggle")
+            runner._dispatch(parse_command("omnipause_toggle"))
 
         assert on_top.call_args_list == [((BROWSE_HWND, True), {})]
         assert lookup.call_args_list == [((BROWSE_PID,), {})]
@@ -1881,9 +1804,9 @@ class TestBrowseLibrary:
         with patch.object(runner.windows, "restore_parked"), \
              patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
-            runner._dispatch("omnipause_toggle")
+            runner._dispatch(parse_command("omnipause_toggle"))
             runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": 0})
-            runner._dispatch("omnipause_toggle")
+            runner._dispatch(parse_command("omnipause_toggle"))
 
         assert on_top.call_args_list == []
 
@@ -2181,7 +2104,7 @@ class TestWhatAPausedRoomCarriesOut:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        assert [call.args[0] for call in mock_dispatch.call_args_list] == ["landscape_next"]
+        assert [call.args[0].text for call in mock_dispatch.call_args_list] == ["landscape_next"]
 
     def test_keeps_the_mouse_live_under_omnipause(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2189,7 +2112,7 @@ class TestWhatAPausedRoomCarriesOut:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("portrait_lock_video|C:/clip.mp4")
-        assert mock_dispatch.call_args[0][0] == "portrait_lock_video|C:/clip.mp4"
+        assert mock_dispatch.call_args[0][0].text == "portrait_lock_video|C:/clip.mp4"
 
     def test_a_spoken_resume_still_un_pauses(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2224,7 +2147,7 @@ class TestWhatAPausedRoomCarriesOut:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("landscape_next", spoken_at=123.0)
-        assert mock_dispatch.call_args[0][0] == "landscape_next"
+        assert mock_dispatch.call_args[0][0].text == "landscape_next"
 
 
 class TestWithTheHeadsetOff:
@@ -2273,7 +2196,7 @@ class TestWithTheHeadsetOff:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("landscape_next", spoken_at=123.0)
-        assert mock_dispatch.call_args[0][0] == "landscape_next"
+        assert mock_dispatch.call_args[0][0].text == "landscape_next"
 
     def test_the_microphone_hears_only_the_ways_out_while_the_headset_is_off(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2379,7 +2302,7 @@ class TestIdempotentVoiceCommands:
         with patch.object(runner, "_dispatch") as mock_d:
             runner.tick()
 
-        assert [call.args[0] for call in mock_d.call_args_list] == ["relief_omnipause"]
+        assert [call.args[0].text for call in mock_d.call_args_list] == ["relief_omnipause"]
 
     def test_relief_omnipause_logs_the_topmost_state_like_any_other_entry(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2400,7 +2323,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_fmode_on", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with("portrait_fmode_on", None)
+        mock_d.assert_called_once_with(parse_command("portrait_fmode_on"), None)
 
     def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2408,7 +2331,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("both_fmode", encoding="utf-8")
             runner.tick()
-        assert [call.args[0] for call in mock_d.call_args_list] == [
+        assert [call.args[0].text for call in mock_d.call_args_list] == [
             "portrait_fmode", "landscape_fmode",
         ]
 
@@ -2420,7 +2343,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with("genau_activate", None)
+        mock_d.assert_called_once_with(parse_command("genau_activate"), None)
 
     def test_genau_activate_dispatches_in_kino_mode(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2429,7 +2352,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with("genau_activate", None)
+        mock_d.assert_called_once_with(parse_command("genau_activate"), None)
 
     def test_genau_activate_dispatches_when_already_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2438,7 +2361,7 @@ class TestIdempotentVoiceCommands:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with("genau_activate", None)
+        mock_d.assert_called_once_with(parse_command("genau_activate"), None)
 
 
     def test_a_locked_dashboard_state_file_warns_once_a_minute_not_never(self, tmp_path, caplog):
@@ -2672,7 +2595,7 @@ class TestWatchTracking:
         )
         _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
         runner.tick()
-        runner._dispatch("portrait_next")
+        runner._dispatch(parse_command("portrait_next"))
         fake_now["t"] = 101.1
         _write_satellite_status(runner.config.portrait.status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()
@@ -2692,7 +2615,7 @@ class TestWatchTracking:
         )
         _write_satellite_status(runner.config.portrait.status_file, str(a), fraction=0.2)
         runner.tick()
-        runner._dispatch("portrait_trash")
+        runner._dispatch(parse_command("portrait_trash"))
         fake_now["t"] = 101.1
         _write_satellite_status(runner.config.portrait.status_file, str(tmp_path / "b.mp4"), fraction=0.0)
         runner.tick()
@@ -2711,7 +2634,7 @@ class TestSeededRoleHwnds:
 
         with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0),              patch("fun_time.fun_time_windows.find_window_by_title", return_value=0),              patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("main_funestra") == 2001
-            runner._dispatch("main_kino_activate")
+            runner._dispatch(parse_command("main_kino_activate"))
 
         assert shown == [2001]
 
@@ -2794,42 +2717,16 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
             assert [verb for verb in sent if verb.startswith("SET_SPEED")] == ["SET_SPEED 0.5"], satellite
 
 
-class TestExpandGroupCommand:
-    def test_passes_through_non_both_commands(self):
-        assert expand_group_command("portrait_next") == ["portrait_next"]
-        assert expand_group_command("quit") == ["quit"]
-
-    def test_expands_to_portrait_then_landscape(self):
-        assert expand_group_command("both_next") == ["portrait_next", "landscape_next"]
-        assert expand_group_command("both_prev") == ["portrait_prev", "landscape_prev"]
-        assert expand_group_command("both_trash") == ["portrait_trash", "landscape_trash"]
-
-    def test_expands_multiword_suffixes(self):
-        assert expand_group_command("both_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
-        assert expand_group_command("both_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
-        assert expand_group_command("both_cycle_action") == [
-            "portrait_cycle_action", "landscape_cycle_action",
-        ]
-        assert expand_group_command("both_cycle_seed") == [
-            "portrait_cycle_seed", "landscape_cycle_seed",
-        ]
-
-    def test_reset_all_reaches_the_main_funestra_and_both_satellites(self):
-        assert expand_group_command("all_reset") == [
-            "main_reset", "portrait_reset", "landscape_reset",
-        ]
-
-
 class TestBothSatelliteCommands:
     def test_both_next_dispatches_to_each_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.side_effect = lambda cmd, state, config, target_path="", spoken_at=None: (state, [])
+            mock_dispatch.side_effect = lambda cmd, state, config, target_path="", spoken_at=None, hosted=None: (state, [])
             runner.tick()
 
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
+        commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_next", "landscape_next"]
 
     def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
@@ -2942,7 +2839,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
-        runner._dispatch(press)
+        runner._dispatch(parse_command(press))
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 
@@ -2954,7 +2851,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
-        runner._dispatch("main_lock")
+        runner._dispatch(parse_command("main_lock"))
         runner.tick()
 
         assert _what_the_gallery_heard(tmp_path) == []
@@ -2964,7 +2861,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
-        runner._dispatch("main_lock_on")
+        runner._dispatch(parse_command("main_lock_on"))
         runner.tick()
 
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
@@ -2972,7 +2869,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
     def test_a_status_caught_half_written_is_waited_past(self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
-        runner._dispatch("main_lock")
+        runner._dispatch(parse_command("main_lock"))
 
         (tmp_path / "genau_status.txt").write_text("", encoding="utf-8")
         runner.tick()
@@ -2987,7 +2884,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner.state = replace(runner.state, rfb_mode=RfbMode.RFB)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
-        runner._dispatch("main_lock_on")
+        runner._dispatch(parse_command("main_lock_on"))
         runner.tick()
 
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.FIRST}"]
@@ -2998,7 +2895,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
         with patch("fun_time.lock.mark_favorite") as marked:
-            runner._dispatch("main_lock")
+            runner._dispatch(parse_command("main_lock"))
             _genau_publishes(tmp_path, locked=True, flick=self.NEXT)
             runner.tick()
 
@@ -3025,7 +2922,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         runner = self._kino_beside_origenerator(tmp_path)
         _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
 
-        runner._dispatch("main_lock")
+        runner._dispatch(parse_command("main_lock"))
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == []
 
@@ -3039,7 +2936,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         _the_main_funestra_publishes(tmp_path, locked=False, video=self.MADE_HERE)
 
         with patch("fun_time.lock.mark_favorite") as marked:
-            runner._dispatch("main_lock")
+            runner._dispatch(parse_command("main_lock"))
             runner.tick()
             assert marked.call_count == 0
 
@@ -3065,7 +2962,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         exists, activate, open_tab = TestOpenRfbTab._rfb_patches(calls)
 
         with exists, activate, open_tab:
-            runner._dispatch("main_lock")
+            runner._dispatch(parse_command("main_lock"))
             _the_main_funestra_publishes(tmp_path, locked=True, video=made_by_a_website)
             runner.tick()
 
@@ -3103,7 +3000,7 @@ class TestOrigeneratorWatchGuard:
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
         runner.state = _in_origenerator_mode(runner.state, FunTimeFunestra.PORTRAIT)
         with patch.object(runner.watch, "note_command") as note:
-            runner._dispatch("portrait_next")
+            runner._dispatch(parse_command("portrait_next"))
         note.assert_not_called()
 
     def test_the_satellites_the_app_holds_are_left_out_of_the_watch(self, tmp_path):
@@ -3122,7 +3019,7 @@ class TestOrigeneratorWatchGuard:
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
         with patch.object(runner.watch, "note_command") as note:
-            runner._dispatch("portrait_next")
+            runner._dispatch(parse_command("portrait_next"))
         note.assert_called_once_with("portrait_next")
 
 
@@ -3461,7 +3358,7 @@ class TestTheAppTakesAFunestra:
         channel = config.satellite(FunTimeFunestra.PORTRAIT)
         write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])
         publish_whole(channel.origenerator_hud_file, "")
-        runner._dispatch("portrait_origenerator_activate")
+        runner._dispatch(parse_command("portrait_origenerator_activate"))
         return runner, channel
 
     def test_the_satellite_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
@@ -3552,7 +3449,7 @@ class TestTheFunestrasComeHome:
         runner.state = _in_origenerator_mode(replace(runner.state, origenerator_ready=True))
 
         with patch.object(runner.homecoming, "expect") as expect:
-            runner._dispatch("portrait_kino_activate")
+            runner._dispatch(parse_command("portrait_kino_activate"))
 
         assert expect.call_args.args == ((FunTimeFunestra.PORTRAIT,), runner.config)
 

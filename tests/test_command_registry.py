@@ -1,27 +1,33 @@
 from __future__ import annotations
 
 import itertools
-from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from funestra.drive_layout import MAX_INTENSITY
 from funestra.main_hud import osr2_controls
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
-from fun_time import command_dispatch, dashboard_actions, hud_moves, windows_bridge_dispatch_loop
-from fun_time.aiming import MAIN_EQUIVALENTS, resolve_active_funestra_command
+from fun_time import (
+    command_dispatch,
+    dashboard_actions,
+    satellite_commands,
+    windows_bridge_dispatch_loop,
+)
+from fun_time.command_dispatch import ROUTES, handles
 from fun_time.command_reference import build_reference_sections
+from fun_time.command_value import MAIN_EQUIVALENTS, Scope, parse_command
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
 from fun_time.satellite_buttons import HudState, funestra_rows
 from fun_time.voice_commands import VOICE_COMMANDS
-from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS, expand_group_command
+from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
+    PREFIXED_COMMAND_FORMS,
     _ahk_ids,
     _expected_filter_ids,
     _expected_numeric_ids,
 )
-
-_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _MAIN_HUD_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "genau_flick_seconds_down",
@@ -33,24 +39,23 @@ _MAIN_HUD_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "projection_cycle_back",
 }
 
-_NAV_IDS = frozenset(
-    f"{satellite}_nav_{direction}"
-    for satellite in ("portrait", "landscape")
-    for direction in ("left", "right", "up", "down")
-)
-
-_HUD_PLACE_IDS = (frozenset(hud_moves._HUD_MOVES)
-                  | frozenset(hud_moves.MAIN_HUD_TURNS)
-                  | frozenset(hud_moves._HUD_COLLAPSES))
-
-
-def _handler_ids() -> frozenset[str]:
-    return frozenset(command_dispatch._HANDLERS)
+_HUD_POSTED_WITH_A_VALUE = frozenset(form.rstrip("|") for form in PREFIXED_COMMAND_FORMS) | {
+    MAX_INTENSITY,
+    "portrait_hud_restore_at", "landscape_hud_restore_at", "main_hud_restore_at",
+}
 
 
 def _loop_branch_ids() -> frozenset[str]:
     return (frozenset(windows_bridge_dispatch_loop._LOOP_COMMANDS)
             | dashboard_actions.HEADSET_SIGNALS)
+
+
+def _answered(text: str) -> bool:
+    return handles(text) or text in _loop_branch_ids()
+
+
+def _keys(texts) -> frozenset[tuple[Scope, str]]:
+    return frozenset(parse_command(text).key for text in texts)
 
 
 def _reference_ids() -> frozenset[str]:
@@ -66,14 +71,18 @@ def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     targets: set[str] = set()
     residues: set[str] = set()
     for value in set(VOICE_COMMANDS.values()):
-        for satellite in (1, 2, 3):
-            for command in expand_group_command(resolve_active_funestra_command(value, satellite)):
-                (residues if command.startswith("active_") else targets).add(command)
+        for funestra in (1, 2, 3):
+            for command in parse_command(value).aimed_at_the_active(funestra).each():
+                (residues if command.said_to is Scope.ACTIVE else targets).add(command.text)
     return frozenset(targets), frozenset(residues)
 
 
-def _families() -> frozenset[str]:
-    return frozenset(_expected_numeric_ids()) | frozenset(_expected_filter_ids())
+def _dashboard_ids() -> frozenset[str]:
+    return frozenset(
+        getattr(dashboard_actions, name)
+        for name in dir(dashboard_actions)
+        if isinstance(getattr(dashboard_actions, name), str) and not name.startswith("_")
+    )
 
 
 def _console_verbs() -> frozenset[str]:
@@ -106,107 +115,85 @@ def _satellite_verbs() -> frozenset[str]:
 
 
 def test_every_verb_the_main_hud_posts_lands_on_a_handler():
-    answered = (_handler_ids() | _loop_branch_ids()
-                | frozenset(hud_moves._MINIMIZE_WINDOWS))
     posted = _console_verbs()
     assert posted, "no console button posts anything"
-    assert answered >= posted, sorted(posted - answered)
+    unanswered = {command for command in posted if not _answered(command)}
+    assert not unanswered, sorted(unanswered)
 
 
 def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
-    answered = (_handler_ids() | _loop_branch_ids()
-                | frozenset(hud_moves._MINIMIZE_WINDOWS))
     posted = _satellite_verbs()
     assert posted, "no satellite button posts anything"
-    assert answered >= posted, sorted(posted - answered)
+    unanswered = {command for command in posted if not _answered(command)}
+    assert not unanswered, sorted(unanswered)
 
 
 def test_every_spoken_phrase_lands_on_a_handler():
     targets, _ = _voice_resolutions()
-    handled = (_handler_ids() | _loop_branch_ids() | _families() | _NAV_IDS
-               | _HUD_PLACE_IDS)
-    dead = targets - handled
+    dead = {command for command in targets if not _answered(command)}
     assert not dead, f"spoken commands with no handler: {sorted(dead)}"
 
 
 def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
     _, residues = _voice_resolutions()
+    assert residues
     for residue in residues:
-        action = residue[len("active_"):]
+        action = parse_command(residue).action
         assert action not in MAIN_EQUIVALENTS, residue
-        assert f"portrait_{action}" in _handler_ids(), residue
-        assert f"landscape_{action}" in _handler_ids(), residue
+        assert handles(f"portrait_{action}"), residue
+        assert handles(f"landscape_{action}"), residue
 
 
 def test_every_ahk_binding_lands_on_a_handler():
-    handled = _handler_ids() | _loop_branch_ids() | _NAV_IDS | _HUD_PLACE_IDS
-    dead = _ahk_ids() - handled
+    dead = {command for command in _ahk_ids() if not _answered(command)}
     assert not dead, f"AHK bindings with no handler: {sorted(dead)}"
 
 
-def test_every_handler_is_reachable_from_some_surface():
+def test_every_route_is_reachable_from_some_surface():
     targets, _ = _voice_resolutions()
-    reachable = (
+    reachable = _keys(
         targets
         | _ahk_ids()
-        | frozenset(
-            getattr(dashboard_actions, name)
-            for name in dir(dashboard_actions)
-            if isinstance(getattr(dashboard_actions, name), str) and not name.startswith("_")
-        )
+        | _dashboard_ids()
         | _MAIN_HUD_POSTED
+        | _HUD_POSTED_WITH_A_VALUE
         | _satellite_verbs()
         | {"portrait_lock", "landscape_lock"}
     )
-    unreachable = _handler_ids() - reachable
-    assert not unreachable, f"handlers nothing can reach: {sorted(unreachable)}"
+    unreachable = set(ROUTES) - reachable
+    assert not unreachable, f"routes nothing can reach: {sorted(unreachable)}"
 
 
 def test_every_loop_branch_is_reachable_and_known():
     targets, _ = _voice_resolutions()
-    dashboard = frozenset(
-        getattr(dashboard_actions, name)
-        for name in dir(dashboard_actions)
-        if isinstance(getattr(dashboard_actions, name), str) and not name.startswith("_")
-    )
     told_by_the_hosted_app = frozenset(REQUEST_NEWS)
     for branch in _loop_branch_ids():
-        assert branch in targets | _ahk_ids() | dashboard | told_by_the_hosted_app, (
+        assert branch in targets | _ahk_ids() | _dashboard_ids() | told_by_the_hosted_app, (
             f"loop branch {branch!r} is reachable from no surface"
         )
 
 
-def test_the_reference_and_the_handlers_agree():
+def test_the_reference_and_the_routes_agree():
     reference = _reference_ids()
-    real = (
-        _handler_ids()
-        | _loop_branch_ids()
-        | _families()
-        | _NAV_IDS
-        | _HUD_PLACE_IDS
-        | frozenset(c for c in reference
-                    if c.startswith(("active_", *windows_bridge_dispatch_loop._FUNESTRA_GROUPS)))
-    )
-    ghosts = reference - real
+    ghosts = {command for command in reference
+              if not _answered(command) and parse_command(command).said_to is not Scope.ACTIVE}
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
 
-    undocumented = _handler_ids() - reference - frozenset(HUD_ONLY_COMMAND_IDS)
-    assert not undocumented, f"handled commands the reference omits: {sorted(undocumented)}"
+    documented = _keys(reference | frozenset(HUD_ONLY_COMMAND_IDS) | _HUD_POSTED_WITH_A_VALUE
+                       | _expected_numeric_ids() | _expected_filter_ids())
+    undocumented = set(ROUTES) - documented
+    assert not undocumented, f"routed commands the reference omits: {sorted(undocumented)}"
 
 
 def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode():
-    satellite_commands = {command for command in command_dispatch._HANDLERS
-                     if command.startswith(("portrait_", "landscape_"))}
-    kept = {command for command in satellite_commands
-            if not command_dispatch._about_a_satellite(command)}
+    own = {
+        "minimize", "crown", "take_osr2", "kino_activate", "origenerator_activate",
+        "lock", "lock_on", "lock_off",
+        "speed", "speed_up", "speed_down", "speed_min", "speed_max",
+        "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
+    }
 
-    assert kept == {
-        f"{satellite}_{own}"
-        for satellite in ("portrait", "landscape")
-        for own in ("minimize", "crown", "speed_up", "speed_down", "speed_reset",
-                    "speed_min", "speed_max", "take_osr2", "kino_activate",
-                    "origenerator_activate", "lock", "lock_on", "lock_off")
-    } & satellite_commands, sorted(kept)
+    assert own == satellite_commands.THE_FUNESTRAS_OWN
 
 
 def test_a_command_bound_in_two_domains_is_refused_at_import():
@@ -214,5 +201,5 @@ def test_a_command_bound_in_two_domains_is_refused_at_import():
         return state, []
 
     with pytest.raises(ValueError, match=r"bound twice.*portrait_next"):
-        command_dispatch._bound_once([{"portrait_next": first}, {"portrait_next": first}])
-
+        command_dispatch._bound_once([SimpleNamespace(HANDLERS={"portrait_next": first}),
+                                      SimpleNamespace(SATELLITE_ACTIONS={"next": first})])

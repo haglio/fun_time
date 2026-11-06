@@ -14,7 +14,7 @@ from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, ListenerEvents, ListenerSettings, engines_for
 from voice_core.listening import Heard
 
-from fun_time.aiming import message_source
+from fun_time.command_value import SAY, parse_command
 from fun_time.config import VoiceControlConfig
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
@@ -37,7 +37,6 @@ from fun_time.voice_commands import (
     build_voice_commands,
     format_spoken_command,
     friendly_voice,
-    said_to_a_satellite,
 )
 
 logger = logging.getLogger(__name__)
@@ -277,8 +276,8 @@ class VoiceController:
             said_to_the_hosted_app(satellite, words), heard.spoken_at, self._hosted_said_at_suffix))
 
     def _said_to_a_hosted_satellite(self, phrase: str) -> bool:
-        said = said_to_a_satellite(self.commands.get(phrase, ""))
-        return said is not None and said[0] in self.hosted_satellites()
+        said = parse_command(self.commands.get(phrase, ""))
+        return said.action == SAY and said.said_to in self.hosted_satellites()
 
     @property
     def is_muted(self) -> bool:
@@ -355,7 +354,8 @@ class VoiceController:
         hold = self._holds.when(spoken_at)
         if not written and hold is not None and not self._muted.is_set():
             flash_message(logger, f"ignored {hold.ignored_while}: {friendly_voice(phrase)}",
-                   source=message_source(self.commands[phrase], self.active_funestra()),
+                   source=parse_command(self.commands[phrase]).message_source(
+                       self.active_funestra()),
                    level=logging.WARNING)
 
     def _report_words(self, line: _MissLine, words: str, *, heard_text: str,
