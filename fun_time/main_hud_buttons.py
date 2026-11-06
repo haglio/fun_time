@@ -11,6 +11,7 @@ from funestra.hud_controls import (
     lock_button,
     lock_tooltip,
     next_button,
+    playback_speed_buttons,
     previous_button,
     reset_button,
     transport,
@@ -98,7 +99,8 @@ def main_hud_rows(facts: MainFunestraFacts, *, in_vr: bool = False) -> tuple[tup
             *_file_controls(facts),
         ),
         _transport_row(facts),
-        _playback_speed_row() if kino_shows(facts.main_mode) else _flick_seconds_row(),
+        (playback_speed_buttons("main_funestra") if kino_shows(facts.main_mode)
+         else _flick_seconds_row()),
     )
 
 
@@ -202,16 +204,6 @@ def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
         trash_button_under("genau_trash_flick", "Send to Trash — move it out"),
         *browse_order_buttons("main", latest=facts.latest),
         *_inclusion_buttons(facts, remembered=False, things=flick.many),
-    )
-
-
-def _playback_speed_row() -> tuple[Button, ...]:
-    return (
-        Button("", "Playback speed", "", width=ROW_LABEL_W),
-        Button("main_funestra_speed_down", LESS_ICON, "Play the video slower",
-               group_break=True),
-        Button("", "", "", width=VALUE_W, host_value="playback_speed"),
-        Button("main_funestra_speed_up", MORE_ICON, "Play the video faster"),
     )
 
 
