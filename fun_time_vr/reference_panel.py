@@ -12,16 +12,11 @@ from shared_ui.palette import (
     TEXT_MUTED,
     TEXT_PRIMARY,
 )
+from shared_ui.reference import CONTROLLER_HEADER, HOTKEY_HEADER, VOICE_HEADER, ReferenceSection
 from shared_ui.spacing import BUTTON_FILLING_ICON, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_DIALOG
 from shared_ui.type_scale import SIZE_HEADING, SIZE_SMALL, in_pixels
 
-from fun_time.command_reference import (
-    CONTROLLER_HEADER,
-    HOTKEY_HEADER,
-    VOICE_HEADER,
-    ReferenceSection,
-    build_reference_sections,
-)
+from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_layout import Rect
 
 __all__ = [

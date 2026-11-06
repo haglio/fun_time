@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-import html
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from shared_ui.palette import (
-    BG_KEYCAP,
-    BG_PRIMARY,
-    BG_SECONDARY,
-    BLUE,
-    BORDER_SUBTLE,
-    TEXT_MUTED,
-    TEXT_PRIMARY,
-    as_hex,
+from shared_ui.reference import (
+    HOTKEY_HEADER,
+    CommandRef,
+    ReferenceGroup,
+    ReferenceSection,
 )
-from shared_ui.spacing import GAP_DIALOG, GAP_MEDIUM, GAP_SMALL, HAIRLINE, MARGIN_STANDARD
-from shared_ui.type_scale import FONT_UI, SIZE_BODY, SIZE_HEADING
+from shared_ui.reference import reference_details as _details_of
+from shared_ui.reference import render_reference_html as _render
 
 from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
@@ -28,9 +23,6 @@ from fun_time.voice_commands import (
 )
 
 _DETAIL_DASH = " — "
-HOTKEY_HEADER = "Hotkey"
-CONTROLLER_HEADER = "VR Controller"
-VOICE_HEADER = "Voice command"
 
 
 def _with_the_trigger_held(moved: str) -> str:
@@ -47,58 +39,6 @@ HOLD_TRIGGER_AND_MOVE = _with_the_trigger_held("move")
 HOLD_TRIGGER_AND_STICK_UP_DOWN = _with_the_trigger_held(STICK_UP_DOWN)
 HOLD_TRIGGER_AND_A_OR_X = _with_the_trigger_held(A_OR_X)
 HOLD_TRIGGER_AND_B_OR_Y = _with_the_trigger_held(B_OR_Y)
-
-VOICE_COLUMN_PX = 220
-CONTROLLER_COLUMN_PX = 120
-HOTKEY_BLOCK_PX = 300
-ACTION_COLUMN_AT_LEAST_PX = 150
-NARROWEST_PAGE_PX = (HOTKEY_BLOCK_PX + CONTROLLER_COLUMN_PX + VOICE_COLUMN_PX
-                     + ACTION_COLUMN_AT_LEAST_PX)
-
-
-@dataclass(frozen=True)
-class CommandRef:
-    description: str
-    voice: tuple[str, ...]
-    commands: tuple[str, ...]
-    key_columns: tuple[tuple[str, ...], ...] = ()
-    detail: str = ""
-    controller: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class ReferenceGroup:
-    title: str
-    rows: tuple[CommandRef, ...]
-
-    @property
-    def has_keys(self) -> bool:
-        return any(key for row in self.rows for column in row.key_columns for key in column)
-
-    @property
-    def has_controller(self) -> bool:
-        return any(row.controller for row in self.rows)
-
-
-@dataclass(frozen=True)
-class ReferenceSection:
-    title: str
-    groups: tuple[ReferenceGroup, ...]
-    key_headers: tuple[str, ...] = (HOTKEY_HEADER,)
-    note: str = ""
-
-    @property
-    def rows(self) -> tuple[CommandRef, ...]:
-        return tuple(row for group in self.groups for row in group.rows)
-
-    @property
-    def has_keys(self) -> bool:
-        return any(group.has_keys for group in self.groups)
-
-    @property
-    def has_controller(self) -> bool:
-        return any(group.has_controller for group in self.groups)
-
 
 @dataclass(frozen=True)
 class _Row:
@@ -700,151 +640,9 @@ def build_reference_sections() -> tuple[ReferenceSection, ...]:
     )
 
 
-def _tooltips() -> tuple[str, ...]:
-    return tuple(
-        text
-        for section in build_reference_sections()
-        for text in (section.note, *(row.detail for row in section.rows))
-        if text
-    )
-
-
 def reference_details() -> dict[str, str]:
-    return {f"detail:{index}": text for index, text in enumerate(_tooltips())}
-
-
-_BG = as_hex(BG_PRIMARY)
-_HEADER_BG = as_hex(BG_SECONDARY)
-_TEXT = as_hex(TEXT_PRIMARY)
-_MUTED = as_hex(TEXT_MUTED)
-_ACCENT = as_hex(BLUE)
-_KEYCAP_BG = as_hex(BG_KEYCAP)
-_BORDER = as_hex(BORDER_SUBTLE)
-
-
-_CELL_PADDING = f"padding:{GAP_SMALL}px {MARGIN_STANDARD}px"
-
-
-def _keycap(label: str) -> str:
-    return (
-        f'<span style="background:{_KEYCAP_BG};border:{HAIRLINE}px solid {_BORDER};'
-        f'padding:0 {GAP_SMALL}px;color:{_TEXT};font-family:\'{FONT_UI}\'">'
-        f"{html.escape(label)}</span>"
-    )
-
-
-def _spanning(columns: int) -> str:
-    return f' colspan="{columns}"' if columns > 1 else ""
-
-
-def _cell(content: str, width: int, *, span: str = "") -> str:
-    return (f'<td width="{width}" valign="top"{span} style="{_CELL_PADDING};color:{_TEXT}">'
-            f"{content}</td>")
-
-
-def _head(label: str, width: int, *, span: str = "", underlined: bool = False,
-          align: str = "center") -> str:
-    rule = f";border-bottom:{HAIRLINE}px solid {_BORDER}" if underlined else ""
-    text = f'<b style="color:{_MUTED}">{html.escape(label)}</b>' if label else ""
-    return (f'<td width="{width}" align="{align}" valign="middle"{span} style="{_CELL_PADDING}{rule}">'
-            f"{text}</td>")
-
-
-def _anchored(text: str, anchor: str, *, color: str) -> str:
-    return f'<a href="{anchor}" style="color:{color};text-decoration:none">{html.escape(text)}</a>'
-
-
-def _shared_out(total: int, parts: int) -> tuple[int, ...]:
-    if not parts:
-        return ()
-    each = total // parts
-    return (*(each,) * (parts - 1), total - each * (parts - 1))
-
-
-@dataclass(frozen=True)
-class _Columns:
-    width: int
-    keys: tuple[int, ...]
-    has_controller: bool
-    controller: int = CONTROLLER_COLUMN_PX
-    voice: int = VOICE_COLUMN_PX
-
-    @classmethod
-    def laid_out(cls, width: int, group: ReferenceGroup, section: ReferenceSection) -> _Columns:
-        keys = _shared_out(HOTKEY_BLOCK_PX, len(section.key_headers) if group.has_keys else 0)
-        return cls(width, keys, group.has_controller)
-
-    @property
-    def action(self) -> int:
-        return (self.width - self.controller - self.voice
-                - (HOTKEY_BLOCK_PX if self.keys else 0))
-
-    @property
-    def action_span(self) -> str:
-        return _spanning(1 + (not self.keys))
-
-
-def _no_input() -> str:
-    return f'<span style="color:{_MUTED}">—</span>'
-
-
-def _header_rows(section: ReferenceSection, columns: _Columns) -> str:
-    row = f'<tr style="background:{_HEADER_BG}">'
-    forked = len(columns.keys) > 1
-    rows = ' rowspan="2"' if forked else ""
-    action = _head("Action", columns.action, span=columns.action_span + rows, align="left")
-    controller = _head(CONTROLLER_HEADER if columns.has_controller else "", columns.controller,
-                       span=rows)
-    tail = controller + _head(VOICE_HEADER, columns.voice, span=rows) + "</tr>"
-    if not columns.keys:
-        return row + action + tail
-    if not forked:
-        return row + action + _head(HOTKEY_HEADER, columns.keys[0]) + tail
-    return (
-        row + action
-        + _head(HOTKEY_HEADER, HOTKEY_BLOCK_PX, span=_spanning(len(columns.keys)), underlined=True)
-        + tail
-        + row + "".join(_head(header, width)
-                        for header, width in zip(section.key_headers, columns.keys, strict=True))
-        + "</tr>"
-    )
-
-
-def _input_cells(row: CommandRef, columns: _Columns) -> str:
-    cells = [
-        _cell(" ".join(_keycap(key) for key in column) or _no_input(), width)
-        for column, width in zip(row.key_columns if columns.keys else (), columns.keys, strict=True)
-    ]
-    inputs = (html.escape(", ".join(row.controller)) or _no_input()) if columns.has_controller else ""
-    return "".join(cells) + _cell(inputs, columns.controller)
+    return _details_of(build_reference_sections())
 
 
 def render_reference_html(width: int) -> str:
-    parts: list[str] = [
-        (f'<body style="background:{_BG};color:{_TEXT};'
-        f'font-family:\'{FONT_UI}\';font-size:{SIZE_BODY}pt">'),
-    ]
-    anchors = iter(reference_details())
-    for section in build_reference_sections():
-        title = (_anchored(section.title, next(anchors), color=_ACCENT) if section.note
-                 else html.escape(section.title))
-        parts.append(f'<h3 style="color:{_ACCENT};font-size:{SIZE_HEADING}pt;'
-                     f'margin:{GAP_DIALOG}px 0 {GAP_SMALL}px 0">{title}</h3>')
-        for group in section.groups:
-            if group.title:
-                parts.append(
-                    f'<h4 style="color:{_TEXT};margin:{GAP_MEDIUM}px 0 {GAP_SMALL}px 0">'
-                    f"{html.escape(group.title)}</h4>"
-                )
-            columns = _Columns.laid_out(width, group, section)
-            parts.append(f'<table width="{width}" cellspacing="0" cellpadding="0">')
-            parts.append(_header_rows(section, columns))
-            for row in group.rows:
-                action = (_anchored(row.description, next(anchors), color=_TEXT) if row.detail
-                          else html.escape(row.description))
-                phrases = ", ".join(f'“{html.escape(p)}”' for p in row.voice) or _no_input()
-                parts.append("<tr>" + _cell(action, columns.action, span=columns.action_span)
-                             + _input_cells(row, columns) + _cell(phrases, columns.voice) + "</tr>")
-            parts.append("</table>")
-    parts.append("</body>")
-    return "".join(parts)
+    return _render(build_reference_sections(), width)

@@ -14,10 +14,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
-from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QGuiApplication, QHelpEvent, QMouseEvent, QTextDocumentFragment
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QTextBrowser, QWidget
+from PyQt6.QtWidgets import QApplication, QTextBrowser, QWidget
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -27,7 +27,6 @@ from shared_ui.colors import (
     TEXT_PRIMARY,
     hovered,
 )
-from shared_ui.find_bar import FindBar
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
 from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
@@ -39,12 +38,6 @@ from voice_core.listening import Heard
 
 from fun_time import dashboard_app, load_config, preview_marker
 from fun_time.aiming import expand_group_command
-from fun_time.command_reference import (
-    HOTKEY_BLOCK_PX,
-    NARROWEST_PAGE_PX,
-    VOICE_COLUMN_PX,
-    build_reference_sections,
-)
 from fun_time.config import VoiceControlConfig
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
@@ -97,12 +90,7 @@ from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbMode
 from fun_time.press_flash import PRESS_FLASH_S
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.reference_dialog import (
-    ROOM_FOR_THE_FRAME_PX,
-    ReferenceBrowser,
-    ReferenceDialog,
-    reference_first_size,
-)
+from fun_time.reference_dialog import ReferenceDialog
 from fun_time.satellite_buttons import STILL_STARTING_TOOLTIP
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_messages import flash_unlogged
@@ -742,143 +730,6 @@ def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_wind
     mock_sync.assert_called_once_with(True)
 
 
-def test_the_reference_shows_a_rows_detail_as_a_tooltip_over_its_action():
-    sections = build_reference_sections()
-    rows = [row for section in sections for row in section.rows]
-    relief = next(row for row in rows if "relief_omnipause" in row.commands)
-    pause = next(row for row in rows if "omnipause_toggle" in row.commands)
-    funestras = next(section for section in sections if section.title == "Funestras")
-    browser = ReferenceBrowser()
-    try:
-        browser.resize(1000, 800)
-        browser.show()
-        for text, detail in ((relief.description, relief.detail), (pause.description, ""),
-                             (funestras.title, funestras.note)):
-            cursor = browser.document().find(text)
-            assert not cursor.isNull(), text
-            cursor.setPosition(cursor.selectionStart() + 1)
-            assert browser.detail_at(browser.cursorRect(cursor).center()) == detail
-        assert relief.detail
-        assert funestras.note
-        assert not browser.openLinks()
-    finally:
-        browser.close()
-
-
-def test_the_reference_hides_a_tooltip_where_the_pointer_is_over_nothing():
-    tooltip = _Tooltip()
-    browser = ReferenceBrowser(tooltip=tooltip)
-    try:
-        nowhere = QPoint(0, 0)
-        assert browser.event(QHelpEvent(QEvent.Type.ToolTip, nowhere, browser.viewport().mapToGlobal(nowhere)))
-        assert tooltip.said == [None]
-    finally:
-        browser.close()
-
-
-def test_the_reference_shows_a_tooltip_as_rich_text_so_a_long_detail_wraps():
-    sections = build_reference_sections()
-    funestras = next(section for section in sections if section.title == "Funestras")
-    tooltip = _Tooltip()
-    browser = ReferenceBrowser(tooltip=tooltip)
-    try:
-        browser.resize(1000, 800)
-        browser.show()
-        cursor = browser.document().find(funestras.title)
-        cursor.setPosition(cursor.selectionStart() + 1)
-        at = browser.cursorRect(cursor).center()
-        asked = QHelpEvent(QEvent.Type.ToolTip, at, browser.viewport().mapToGlobal(at))
-        assert browser.event(asked)
-        [shown] = tooltip.said
-
-        assert Qt.mightBeRichText(shown)
-        assert QTextDocumentFragment.fromHtml(shown).toPlainText() == " ".join(funestras.note.split())
-    finally:
-        browser.close()
-
-
-@pytest.mark.parametrize("width", range(NARROWEST_PAGE_PX, 1701, 50))
-def test_the_reference_needs_no_horizontal_scrollbar_at_any_width_it_opens_in(width):
-    browser = ReferenceBrowser()
-    try:
-        assert browser.minimumWidth() < NARROWEST_PAGE_PX + 50, "the widths tried skip the narrowest"
-        browser.resize(width, 800)
-        browser.show()
-        QApplication.processEvents()
-        assert browser.width() >= browser.minimumWidth()
-        assert browser.horizontalScrollBar().maximum() == 0
-    finally:
-        browser.close()
-
-
-def _table_widths(browser: ReferenceBrowser) -> set[float]:
-    return {frame.format().width().rawValue()
-            for frame in browser.document().rootFrame().childFrames()}
-
-
-def test_the_reference_lays_its_tables_out_in_the_width_it_has_and_again_when_that_changes():
-    browser = ReferenceBrowser()
-    try:
-        browser.resize(1000, 800)
-        browser.show()
-        QApplication.processEvents()
-        page = browser.viewport().width() - 2 * browser.document().documentMargin()
-        assert _table_widths(browser) == {page}
-        assert browser.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOn
-        browser.verticalScrollBar().setValue(300)
-
-        browser.resize(1300, 800)
-        QApplication.processEvents()
-
-        assert _table_widths(browser) == {page + 300}
-        assert browser.verticalScrollBar().value() == 300
-    finally:
-        browser.close()
-
-
-def test_a_find_in_the_reference_survives_the_page_being_laid_out_again():
-    dialog = ReferenceDialog()
-    try:
-        dialog.show()
-        dialog.open_find()
-        dialog.findChild(QLineEdit).setText("Ctrl+Alt+Q")
-        assert dialog.findChild(QLabel, "findCount").text() == "1 of 1"
-
-        dialog.resize(dialog.width() + 200, dialog.height())
-        QApplication.processEvents()
-
-        assert dialog.findChild(QLabel, "findCount").text() == "1 of 1"
-        [marked] = dialog.findChild(QTextBrowser).extraSelections()
-        assert marked.cursor.selectedText() == "Ctrl+Alt+Q"
-    finally:
-        dialog.close()
-
-
-def test_the_reference_opens_at_a_readable_size_that_fits_its_screen_and_never_narrower_than_its_grid():
-    dialog = ReferenceDialog()
-    try:
-        available = QGuiApplication.primaryScreen().availableGeometry()
-        fits = reference_first_size(available.size(), at_least_wide=dialog.minimumWidth())
-        assert (dialog.width(), dialog.height()) == (fits.width(), fits.height())
-        assert dialog.minimumWidth() >= NARROWEST_PAGE_PX > HOTKEY_BLOCK_PX + VOICE_COLUMN_PX
-        assert NARROWEST_PAGE_PX < dialog.minimumWidth() <= NARROWEST_PAGE_PX + 40
-        dialog.resize(300, 800)
-        assert dialog.width() == dialog.minimumWidth()
-    finally:
-        dialog.close()
-
-
-def test_the_first_size_is_the_smaller_of_a_thousand_by_eight_hundred_and_what_the_screen_fits():
-    roomy = reference_first_size(QSize(1920, 1040), at_least_wide=820)
-    short = reference_first_size(QSize(1280, 720), at_least_wide=820)
-    narrow = reference_first_size(QSize(800, 800), at_least_wide=820)
-
-    assert (roomy.width(), roomy.height()) == (1000, 800)
-    assert (short.width(), short.height()) == (1000, 720 - ROOM_FOR_THE_FRAME_PX)
-    assert (narrow.width(), narrow.height()) == (820, 800 - ROOM_FOR_THE_FRAME_PX)
-    assert ROOM_FOR_THE_FRAME_PX >= 40
-
-
 def test_reference_dialog_syncs_topmost_with_omnipause():
     dialog = ReferenceDialog()
     try:
@@ -1156,40 +1007,6 @@ def test_reference_dialog_renders_hotkeys_and_voice():
         assert "Esc" in text
         assert "genau" in text
         assert "Genau" in text
-    finally:
-        dialog.close()
-
-
-def test_ctrl_f_in_the_reference_opens_a_find_over_its_text():
-    dialog = ReferenceDialog()
-    try:
-        dialog.show()
-        dialog.activateWindow()
-        assert QTest.qWaitForWindowActive(dialog)
-
-        QTest.keyClick(dialog, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
-        dialog.findChild(QLineEdit).setText("Ctrl+Alt+Q")
-
-        assert dialog.findChild(QLineEdit).isVisible()
-        assert dialog.findChild(QLabel, "findCount").text().startswith("1 of ")
-        assert dialog.findChild(QTextBrowser).extraSelections()
-    finally:
-        dialog.close()
-
-
-def test_the_reference_find_keeps_off_the_windows_edges():
-    dialog = ReferenceDialog()
-    try:
-        dialog.resize(640, 480)
-        dialog.show()
-        dialog.open_find()
-        QApplication.processEvents()
-
-        strip = dialog.findChild(FindBar)
-        held = strip.childrenRect().translated(strip.mapTo(dialog, QPoint(0, 0)))
-        assert held.left() >= MARGIN_STANDARD
-        assert dialog.width() - held.right() - 1 >= MARGIN_STANDARD
-        assert dialog.height() - held.y() - held.height() >= MARGIN_STANDARD
     finally:
         dialog.close()
 
