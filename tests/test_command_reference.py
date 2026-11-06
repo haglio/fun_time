@@ -4,30 +4,33 @@ import re
 import subprocess
 import sys
 
-from fun_time.command_reference import (
-    _BORDER,
-    _SECTIONS,
-    A_OR_X,
+from shared_ui.reference import (
     ACTION_COLUMN_AT_LEAST_PX,
-    ANGLE_BAR,
-    B_OR_Y,
     CONTROLLER_COLUMN_PX,
     CONTROLLER_HEADER,
-    HOLD_TRIGGER_AND_A_OR_X,
-    HOLD_TRIGGER_AND_B_OR_Y,
-    HOLD_TRIGGER_AND_MOVE,
-    HOLD_TRIGGER_AND_STICK_UP_DOWN,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
-    NARROWEST_PAGE_PX,
-    STICK_SIDEWAYS,
-    STICK_UP_DOWN,
-    TRIGGER,
     VOICE_COLUMN_PX,
     VOICE_HEADER,
     CommandRef,
     ReferenceGroup,
     ReferenceSection,
+    narrowest_page_px,
+)
+from shared_ui.reference import BORDER as _BORDER
+
+from fun_time.command_reference import (
+    _SECTIONS,
+    A_OR_X,
+    ANGLE_BAR,
+    B_OR_Y,
+    HOLD_TRIGGER_AND_A_OR_X,
+    HOLD_TRIGGER_AND_B_OR_Y,
+    HOLD_TRIGGER_AND_MOVE,
+    HOLD_TRIGGER_AND_STICK_UP_DOWN,
+    STICK_SIDEWAYS,
+    STICK_UP_DOWN,
+    TRIGGER,
     _collapse_scopes,
     _display_voice,
     build_reference_sections,
@@ -1037,7 +1040,7 @@ def test_every_table_lays_its_columns_on_one_grid_so_the_heads_line_up_down_the_
             head: {x} for head, x in grid.items()}
     assert (HOTKEY_BLOCK_PX, CONTROLLER_COLUMN_PX, VOICE_COLUMN_PX) == (300, 120, 220)
     assert ACTION_COLUMN_AT_LEAST_PX == 150
-    assert NARROWEST_PAGE_PX == 790
+    assert narrowest_page_px(build_reference_sections()) == 790
 
 
 def test_a_forked_hotkey_block_is_three_columns_of_a_hundred_under_one_head():
