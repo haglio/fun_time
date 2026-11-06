@@ -43,6 +43,7 @@ from .session_lock import SingleInstanceLock
 REPO = "haglio/fun_time"
 ONE_COPY = r"Global\fun_time_main_verifier"
 POLL_S = 300
+UNREACHABLE_WARNING_S = 3600
 RESTART_REQUEST_NAME = "main_verifier.restart"
 VERIFIER_VENV = "main_verifier_venv"
 INSTALLED_FROM = "installed_from_pyproject.toml"
@@ -458,13 +459,37 @@ def _mark_passed(ledger: Ledger, bench: Bench, head: str) -> None:
         bench.measure_coverage(head)
 
 
-def keep_verifying(ledger: Ledger, bench: Bench, nap: Callable[[float], None] = time.sleep) -> None:
+class _Reach:
+    def __init__(self, clock: Callable[[], float]) -> None:
+        self.clock = clock
+        self.lost_since: float | None = None
+        self.warned = False
+
+    def regained(self) -> None:
+        self.lost_since, self.warned = None, False
+
+    def lost(self, error: CommandFailed) -> None:
+        now = self.clock()
+        if self.lost_since is None:
+            self.lost_since = now
+        _log.info("could not check main: %s", error)
+        if not self.warned and now - self.lost_since >= UNREACHABLE_WARNING_S:
+            self.warned = True
+            _log.warning("main has not been reachable for %d minutes: %s",
+                         (now - self.lost_since) // 60, error)
+
+
+def keep_verifying(ledger: Ledger, bench: Bench, nap: Callable[[float], None] = time.sleep,
+                   clock: Callable[[], float] = time.monotonic) -> None:
+    reach = _Reach(clock)
     while not bench.take_restart_request():
         try:
-            if cycle(ledger, bench) in _PASSED:
+            outcome = cycle(ledger, bench)
+            reach.regained()
+            if outcome in _PASSED:
                 return
         except CommandFailed as error:
-            _log.warning("could not check main: %s", error)
+            reach.lost(error)
         except RestartRequested:
             continue
         nap(POLL_S)

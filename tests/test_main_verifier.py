@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import sys
@@ -475,17 +476,35 @@ def test_a_run_cut_short_by_a_restart_request_ends_the_runner_without_judging_ma
     assert bench.restart_asked is False
 
 
-def test_a_check_that_could_not_reach_main_is_logged_and_tried_again_next_time(tmp_path, caplog):
-    class OfflineBench(FakeBench):
-        def head(self):
-            raise main_verifier.CommandFailed("git fetch origin main: could not resolve host")
+class OfflineBench(FakeBench):
+    def head(self):
+        raise main_verifier.CommandFailed("git fetch origin main: could not resolve host")
 
+
+def test_a_check_that_could_not_reach_main_is_logged_as_news_and_tried_again_next_time(tmp_path, caplog):
     _naps, nap = stop_after_two_naps()
     with caplog.at_level("INFO"), pytest.raises(KeyboardInterrupt):
         main_verifier.keep_verifying(a_ledger(tmp_path), OfflineBench("c3", ["c3"]), nap=nap)
 
-    assert [record.getMessage() for record in caplog.records] == [
-        "could not check main: git fetch origin main: could not resolve host"] * 2
+    assert [(record.levelno, record.getMessage()) for record in caplog.records] == [
+        (logging.INFO, "could not check main: git fetch origin main: could not resolve host")] * 2
+
+
+def test_main_out_of_reach_for_an_hour_is_warned_of_once(tmp_path, caplog):
+    clock = iter(range(0, 10 * main_verifier.POLL_S, main_verifier.POLL_S))
+    naps = []
+
+    def nap(seconds):
+        naps.append(seconds)
+        if len(naps) == 9:
+            raise KeyboardInterrupt
+
+    with caplog.at_level("INFO"), pytest.raises(KeyboardInterrupt),             patch.object(main_verifier, "UNREACHABLE_WARNING_S", 4 * main_verifier.POLL_S):
+        main_verifier.keep_verifying(a_ledger(tmp_path), OfflineBench("c3", ["c3"]), nap=nap,
+                                     clock=lambda: next(clock))
+
+    warnings = [record.getMessage() for record in caplog.records if record.levelno >= logging.WARNING]
+    assert warnings == ["main has not been reachable for 20 minutes: git fetch origin main: could not resolve host"]
 
 
 def test_a_change_from_before_the_failing_test_existed_is_never_blamed_for_it(tmp_path):
