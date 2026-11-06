@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from shared_ui.palette import BLUE
 
-from fun_time.dashboard_actions import ENTER_VR, EXIT_VR, HELP_REFERENCE, VR_RESET
+from fun_time.dashboard_actions import (
+    ENTER_VR,
+    EXIT_VR,
+    HELP_REFERENCE,
+    OMNIPAUSE_TOGGLE,
+    VR_RESET,
+)
 from fun_time.dashboard_controls import BarState, bar_controls
 from fun_time.dashboard_layout import compute_dashboard_bar_layout
 
@@ -30,6 +36,13 @@ def test_the_vr_reset_is_on_the_bar_in_the_headset_alone():
 def test_the_question_mark_is_lit_blue_exactly_while_the_reference_is_open():
     assert _lit(HELP_REFERENCE, reference_open=True) == BLUE
     assert _lit(HELP_REFERENCE, reference_open=False) is None
+
+
+def test_the_play_pause_button_is_lit_blue_exactly_while_everything_plays():
+    assert _lit(OMNIPAUSE_TOGGLE, omni_paused=False) == BLUE
+    assert _lit(OMNIPAUSE_TOGGLE, omni_paused=True) is None
+
+
 def test_entering_vr_is_offered_only_once_the_headset_is_ready():
     assert _dim(ENTER_VR, headset_ready=False) is True
     assert _dim(ENTER_VR, headset_ready=True) is False
