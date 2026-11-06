@@ -15,8 +15,9 @@ from funestra.funestra_verbs import (
 )
 from funestra.main_hud import HOLD_VERB, OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED
 
-from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, WindowOp, ignored
+from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Route, WindowOp, ignored
 from .broker_control import write_broker_command
+from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
 from .mode_plan import kino_shows
@@ -54,11 +55,9 @@ _GENAU_RATE_ENDS = {
 }
 
 
-def percent_rate(command: str, prefix: str) -> str | None:
-    if not command.startswith(prefix):
-        return None
+def percent_rate(value: str) -> str | None:
     try:
-        pct = int(command[len(prefix):])
+        pct = int(value)
     except ValueError:
         return None
     return f"{SET_SPEED} {pct / 100:g}"
@@ -133,11 +132,11 @@ def _take_the_osr2(funestra: FunTimeFunestra, state: BridgeState, _config: Bridg
     return replace(state, osr2_funestra=funestra), []
 
 
-def _parsed_main_funestra_speed(command: str, state: BridgeState, config: BridgeConfig,
-                      _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    main_funestra_cmd = percent_rate(command, "main_funestra_speed_")
+def _main_funestra_speed(command: Command, state: BridgeState, config: BridgeConfig,
+                         _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    main_funestra_cmd = percent_rate(command.argument)
     if main_funestra_cmd is None:
-        return None
+        return state, []
     return _speed(main_funestra_cmd, None, False, state, config, _target_path)
 
 
@@ -150,4 +149,4 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_take_the_osr2, funestra) for cmd, funestra in TAKE_OSR2_COMMANDS.items()},
 }
 
-PARSED_FORMS = (_parsed_main_funestra_speed,)
+VALUED: dict[str, Route] = {"main_funestra_speed": _main_funestra_speed}

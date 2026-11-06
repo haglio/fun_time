@@ -5,7 +5,7 @@ from pathlib import Path
 
 from funestra.on_screen_history import OnScreenHistory
 
-from .aiming import command_funestra
+from .command_value import Command
 from .funestra_status import read_main_funestra_status
 from .satellite_control import read_satellite_status
 from .watch_stats import WatchTracker, record_watch_event
@@ -72,10 +72,10 @@ class WatchSampler:
         if discard_which is not None:
             self._trackers[discard_which].note_discard()
 
-    def video_at(self, command: str, spoken_at: float | None) -> str:
+    def video_at(self, command: Command, spoken_at: float | None) -> str:
         if spoken_at is None:
             return ""
-        history = self._on_screen.get(command_funestra(command))
+        history = self._on_screen.get(command.funestra)
         if history is None:
             return ""
         return history.path_at(spoken_at)

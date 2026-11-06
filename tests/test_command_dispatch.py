@@ -17,9 +17,9 @@ from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, O
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 
 from fun_time import genaumacher_save
-from fun_time.aiming import resolve_active_funestra_command
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
+from fun_time.command_value import parse_command
 from fun_time.config import SatelliteChannel
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
@@ -4912,9 +4912,9 @@ class TestMinimizingAHud:
         assert state.main_hud_minimized is False
 
     def test_a_bare_minimize_hud_reaches_whichever_funestra_was_addressed_last(self):
-        assert resolve_active_funestra_command("active_hud_minimize", 1) == "main_hud_minimize"
-        assert resolve_active_funestra_command("active_hud_restore", 1) == "main_hud_restore"
-        assert (resolve_active_funestra_command("active_hud_minimize", 3)
+        assert parse_command("active_hud_minimize").aimed_at_the_active(1).text == "main_hud_minimize"
+        assert parse_command("active_hud_restore").aimed_at_the_active(1).text == "main_hud_restore"
+        assert (parse_command("active_hud_minimize").aimed_at_the_active(3).text
                 == "landscape_hud_minimize")
 
 

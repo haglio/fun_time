@@ -10,14 +10,14 @@ from funestra.file_channel import append_command
 from funestra.funestra_verbs import SET_MAX_INTENSITY
 from funestra.robot_hand import FULL_INTENSITY
 
-from .bridge_records import BridgeConfig, WindowOp
+from .bridge_records import BridgeConfig, Route, WindowOp
+from .command_value import Command
 from .event_log import SOURCE_MAIN
 from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
     from .shared_state import BridgeState
 
-MAX_INTENSITY_COMMAND = f"{MAX_INTENSITY}_"
 
 
 def funestras_that_can_drive_the_osr2(config) -> tuple[Path, ...]:
@@ -31,18 +31,12 @@ def publish_max_intensity(command_files: Iterable[Path], *, max_intensity: int) 
         append_command(command_file, verb)
 
 
-def parsed_max_intensity(command: str, state: BridgeState, config: BridgeConfig,
-                        _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    if not command.startswith(MAX_INTENSITY_COMMAND):
-        return None
-    try:
-        asked = int(command[len(MAX_INTENSITY_COMMAND):])
-    except ValueError:
-        return state, []
-    max_intensity = max(0, min(FULL_INTENSITY, asked))
+def set_max_intensity(command: Command, state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    max_intensity = max(0, min(FULL_INTENSITY, int(command.argument)))
     publish_max_intensity(funestras_that_can_drive_the_osr2(config), max_intensity=max_intensity)
     return (replace(state, max_intensity=max_intensity),
             [WindowOp(op="message", key=f"Max intensity {max_intensity}%", source=SOURCE_MAIN)])
 
 
-PARSED_FORMS = (parsed_max_intensity,)
+VALUED: dict[str, Route] = {MAX_INTENSITY: set_max_intensity}

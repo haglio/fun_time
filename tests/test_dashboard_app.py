@@ -38,6 +38,7 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import dashboard_app, load_config, preview_marker
+from fun_time.command_value import parse_command
 from fun_time.config import VoiceControlConfig
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
@@ -100,7 +101,7 @@ from fun_time.window_layout import (
     compute_window_layout,
     secondary_monitor_rects,
 )
-from fun_time.windows_bridge_dispatch_loop import expand_group_command, poll_dashboard_commands
+from fun_time.windows_bridge_dispatch_loop import poll_dashboard_commands
 from tests.held_files import held_by_another_program, let_go_soon
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 from tests.made_up_osr2_parts import a_part, center_of, published
@@ -220,7 +221,7 @@ def test_the_bars_reset_all_resets_every_funestra():
     scene = _scene()
 
     assert (RESET_ALL, layout.reset_all_button) in scene.actions
-    assert expand_group_command(RESET_ALL) == ["main_reset", "portrait_reset", "landscape_reset"]
+    assert [each.text for each in parse_command(RESET_ALL).each()] == ["main_reset", "portrait_reset", "landscape_reset"]
     assert any(item.rect == layout.reset_all_button for item in scene.images)
     assert dict(scene.hover_texts)[
         layout.reset_all_button].startswith("Reset")

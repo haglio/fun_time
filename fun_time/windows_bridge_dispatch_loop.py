@@ -19,11 +19,11 @@ from funestra.funestra_verbs import play_file
 from funestra.main_hud import BROKER_PRESS
 from funestra.playlist import PlaylistItem
 
-from .aiming import message_source, resolve_active_funestra_command
 from .arrivals import keep_looking
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
 from .command_dispatch import app_at_defaults, dispatch_command, routes_to_origenerator
+from .command_value import Command, parse_command
 from .crown import Seating
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -98,19 +98,6 @@ REQUEST_NEWS: dict[str, tuple[str, bool]] = {
     for satellite in ("portrait", "landscape")
     for news, opened in (("open", True), ("closed", False))
 }
-
-
-_FUNESTRA_GROUPS = {
-    "both_": ("portrait_", "landscape_"),
-    "all_": ("main_", "portrait_", "landscape_"),
-}
-
-
-def expand_group_command(command: str) -> list[str]:
-    for group, funestras in _FUNESTRA_GROUPS.items():
-        if command.startswith(group):
-            return [funestra + command[len(group):] for funestra in funestras]
-    return [command]
 
 
 def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:
@@ -202,7 +189,7 @@ class DispatchLoopRunner:
         if owed:
             self.state = self.opening.app_as_it_is(self.state)
         for command in owed:
-            self._dispatch(command)
+            self._dispatch(parse_command(command))
 
     def tick(self) -> None:
         self.messages.flash_new()
@@ -264,11 +251,11 @@ class DispatchLoopRunner:
         self.config = replace(self.config, origenerator_lock_phrases=phrases)
 
     def _handle_line(self, line: CommandLine) -> None:
-        source = message_source(line.command, self.state.active_funestra)
+        said = parse_command(line.command)
+        source = said.message_source(self.state.active_funestra)
         answers_before = self._answers
         self._ignored_because = ""
-        resolved = resolve_active_funestra_command(line.command, self.state.active_funestra)
-        for command in expand_group_command(resolved):
+        for command in said.aimed_at_the_active(self.state.active_funestra).each():
             self._handle_command(command, line.spoken_at)
         if not line.said:
             return
@@ -282,25 +269,28 @@ class DispatchLoopRunner:
         self._answers += 1
         flash_message(logger, message, source=source, level=level)
 
-    def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
-        if cmd in HEADSET_SIGNALS:
-            _headset(self, cmd)
+    def _handle_command(self, command: str | Command, spoken_at: float | None = None) -> None:
+        if isinstance(command, str):
+            command = parse_command(command)
+        if command.text in HEADSET_SIGNALS:
+            _headset(self, command.text)
             return
-        self._send_press(cmd)
-        answer = _LOOP_COMMANDS.get(cmd)
+        self._send_press(command.text)
+        answer = _LOOP_COMMANDS.get(command.text)
         if answer is None:
-            self._dispatch(cmd, spoken_at)
+            self._dispatch(command, spoken_at)
         else:
             answer(self, spoken_at)
 
-    def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
-        logger.info("Dispatching command: %s", command)
-        if not routes_to_origenerator(command, self.state, self.config):
-            self.watch.note_command(command)
+    def _dispatch(self, command: Command, spoken_at: float | None = None) -> None:
+        logger.info("Dispatching command: %s", command.text)
+        hosted = routes_to_origenerator(command, self.state, self.config)
+        if not hosted:
+            self.watch.note_command(command.text)
         self._take(*dispatch_command(
             command, self.state, self.config,
             target_path=self.watch.video_at(command, spoken_at),
-            spoken_at=spoken_at,
+            spoken_at=spoken_at, hosted=hosted,
         ))
 
     def _take(self, new_state: BridgeState, ops: list[WindowOp]) -> None:
@@ -494,12 +484,12 @@ def _omnirestore(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
 
 def _toggle_omnipause(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
     was_paused = runner.state.omni_paused
-    runner._dispatch("omnipause_toggle")
+    runner._dispatch(parse_command("omnipause_toggle"))
     runner._log_topmost_state("post-leave" if was_paused else "post-enter")
 
 
 def _enter_omnipause(command: str, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    runner._dispatch(command)
+    runner._dispatch(parse_command(command))
     runner._log_topmost_state("post-enter")
 
 

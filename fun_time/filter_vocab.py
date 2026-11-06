@@ -4,7 +4,7 @@ import functools
 from collections.abc import Mapping
 from pathlib import Path
 
-from .aiming import named_first_or_last
+from .command_value import set_command
 from .content import EXAMPLE_CONTENT, LOCAL_CONTENT, load_content
 
 Acts = Mapping[str, tuple[str, ...]]
@@ -30,28 +30,8 @@ def load_camera_words(
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
 
 
-def _slug(query: str) -> str:
-    return query.replace(" ", "_")
-
-
-def _unslug(slug: str) -> str:
-    return slug.replace("_", " ")
-
-
-def set_command(scope: str, query: str) -> str:
-    return f"filter_{scope}_{_slug(query)}"
-
-
-def decode_filter_command(command: str) -> tuple[str, str] | None:
-    if not command.startswith("filter_"):
-        return None
-    rest = command[len("filter_"):]
-    for scope in _SCOPE_TOKENS:
-        prefix = f"{scope}_"
-        if not rest.startswith(prefix):
-            continue
-        return scope, _unslug(rest[len(prefix):])
-    return None
+def named_first_or_last(funestra_word: str, words: str, command: str) -> dict[str, str]:
+    return dict.fromkeys((f"{funestra_word} {words}", f"{words} {funestra_word}"), command)
 
 
 def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:

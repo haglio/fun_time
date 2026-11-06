@@ -4,9 +4,9 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from fun_time.filter_vocab import filter_voice_commands
+from fun_time.filter_vocab import filter_voice_commands, named_first_or_last
 
-from .aiming import named_first_or_last, on_the_main_funestra
+from .command_value import main_funestras_own, say_command
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
@@ -44,25 +44,11 @@ _SATELLITE_NAMES = tuple(funestra.label for funestra in FunTimeFunestra.SATELLIT
 FAVORITES_PHRASE = "favorites"
 
 
-_SAY = "_say_"
-
-
-def say_command(satellite: str, phrase: str) -> str:
-    return f"{satellite}{_SAY}{phrase.replace(' ', '_')}"
-
-
-def said_to_a_satellite(command: str) -> tuple[str, str] | None:
-    satellite, said, words = command.partition(_SAY)
-    if not said or satellite not in _SATELLITE_NAMES or not words:
-        return None
-    return satellite, words.replace("_", " ")
-
-
 def _bare_or_named(commands: dict[str, str], words: str, action: str) -> None:
     commands[words] = f"active_{action}"
     for satellite in (*_SATELLITE_NAMES, "both"):
         commands.update(named_first_or_last(satellite, words, f"{satellite}_{action}"))
-    if (on_the_main := on_the_main_funestra(action)) is not None:
+    if (on_the_main := main_funestras_own(action)) is not None:
         commands.update(named_first_or_last("main", words, on_the_main))
 
 

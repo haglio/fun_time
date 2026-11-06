@@ -16,6 +16,7 @@ from .main_list import MainList
 from .main_list_builds import BUILDS_HERE, MainListBuilds
 
 if TYPE_CHECKING:
+    from .command_value import Command
     from .shared_state import BridgeState
 
 
@@ -118,7 +119,10 @@ class WindowOp:
     level: int = MESSAGE
 
 
-Handler = Callable[["BridgeState", "BridgeConfig", str], "tuple[BridgeState, list[WindowOp]]"]
+Result = "tuple[BridgeState, list[WindowOp]]"
+Handler = Callable[["BridgeState", "BridgeConfig", str], Result]
+SatelliteHandler = Callable[[FunTimeFunestra, "BridgeState", "BridgeConfig", str], Result]
+Route = Callable[["Command", "BridgeState", "BridgeConfig", str], Result]
 
 
 IN_KINO_MODE = "in Kino mode"

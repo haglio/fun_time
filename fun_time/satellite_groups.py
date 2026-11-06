@@ -140,8 +140,8 @@ def video_action_label(video_path: str, config: BridgeConfig) -> str:
 
 
 def cycle_variant(
-    funestra: FunTimeFunestra, kind: str, state: BridgeState, config: BridgeConfig,
-    target_path: str = "",
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
+    target_path: str = "", *, kind: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
     source = satellite_source(funestra)
     ops: list[WindowOp] = []
@@ -182,7 +182,7 @@ def more_seeds(
     if wide <= exact:
         return state, [WindowOp(op="message", key="Widening net failed", source=source, level=logging.WARNING)]
     state = state.with_satellite(funestra, widen_video=current)
-    state, _loop_ops = group_loop(funestra, "seed", state, config, target_path=current)
+    state, _loop_ops = group_loop(funestra, state, config, target_path=current, axis="seed")
     return state, [WindowOp(op="message", key="More seeds", source=source)]
 
 
@@ -215,7 +215,8 @@ def _loop_items(
 
 
 def group_loop(
-    funestra: FunTimeFunestra, axis: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = "",
+    *, axis: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
     source = satellite_source(funestra)
     ops: list[WindowOp] = []
@@ -273,7 +274,7 @@ def loop_cycle(
     if stop == LOCK:
         return _locked_by_a_loop_control(funestra, state, config, current)
     if stop:
-        return group_loop(funestra, stop, state, config, current)
+        return group_loop(funestra, state, config, current, axis=stop)
     return _loop_and_lock_off(funestra, state, config)
 
 
@@ -319,8 +320,8 @@ def no_loop(
 
 
 def cycle_version(
-    funestra: FunTimeFunestra, delta: int, state: BridgeState, config: BridgeConfig,
-    target_path: str = "",
+    funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
+    target_path: str = "", *, delta: int,
 ) -> tuple[BridgeState, list[WindowOp]]:
     current = satellite_current(config, funestra)
     video = target_path or current

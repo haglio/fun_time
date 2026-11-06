@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from fun_time.command_value import FILTER, SAY, parse_command, say_command
 from fun_time.content import Noun
 from fun_time.filter_vocab import (
-    decode_filter_command,
     filter_voice_commands,
     load_acts,
     set_command,
@@ -16,15 +16,13 @@ from fun_time.voice_commands import (
     format_spoken_command,
     friendly_voice,
     parse_command_line,
-    said_to_a_satellite,
-    say_command,
 )
 
 
 def test_the_words_said_to_a_satellite_are_read_back_off_the_command_they_were_written_as():
-    assert said_to_a_satellite(say_command("landscape", "fix alpha hands")) == (
-        "landscape", "fix alpha hands")
-    assert said_to_a_satellite("landscape_next") is None
+    said = parse_command(say_command("landscape", "fix alpha hands"))
+    assert (said.action, said.said_to, said.argument) == (SAY, "landscape", "fix alpha hands")
+    assert parse_command("landscape_next").action != SAY
 
 
 class TestCommandLineFormat:
@@ -543,7 +541,7 @@ def test_clearing_a_filter_scopes_like_every_other_satellite_action():
 def test_filter_phrases_do_not_shadow_other_commands():
     for phrase, command in filter_voice_commands().items():
         assert VOICE_COMMANDS[phrase] == command
-        assert decode_filter_command(command) is not None
+        assert parse_command(command).action == FILTER
 
 
 class TestBuildVoiceCommands:
