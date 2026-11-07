@@ -14,7 +14,6 @@ from funestra.playlist import read_playlist
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import SatelliteChannel
-from fun_time.filter_vocab import load_camera_words
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_transport import HudPublisher
 from fun_time.latest_arrivals import LatestArrivals
@@ -235,8 +234,7 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
         # gesture that grows the HUD — a two-cell seed row becomes eight — so the
         # Funestra re-renders it at a new size and hands mpv a differently-shaped
         # overlay while the video under it keeps decoding.
-        publisher = HudPublisher({"portrait": satellite.hud},
-                                 tmp_path / THUMBNAIL_CACHE_DIRNAME, load_camera_words())
+        publisher = HudPublisher({"portrait": satellite.hud}, tmp_path / THUMBNAIL_CACHE_DIRNAME)
 
         def publish(row: list[str], loop: str) -> None:
             publisher.publish("portrait", SatelliteHud(

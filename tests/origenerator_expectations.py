@@ -116,7 +116,7 @@ def _both_shows_hosted() -> BridgeState:
 
 
 def _each_hosted_satellite_told_whether_it_has_the_osr2(app: BridgeConfig) -> None:
-    feed = HudFeed(config=app, publisher=HudPublisher({}, app.state_dir / "thumbs", ()))
+    feed = HudFeed(config=app, publisher=HudPublisher({}, app.state_dir / "thumbs"))
     for funestra in FunTimeFunestra.SATELLITES:
         feed.publish(replace(_both_shows_hosted(), osr2_funestra=funestra.value))
 
