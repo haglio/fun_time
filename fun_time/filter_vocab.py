@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from funestra.video_families import normalized_text
+
 from .command_value import set_command
 
 Acts = Mapping[str, tuple[str, ...]]
@@ -16,10 +18,10 @@ def named_first_or_last(funestra_word: str, words: str, command: str) -> dict[st
 def filter_voice_commands(acts: Acts) -> dict[str, str]:
     out: dict[str, str] = {}
     for query, forms in acts.items():
-        for form in forms:
-            out[form] = set_command("satellites", query)
+        for heard in map(normalized_text, forms):
+            out[heard] = set_command("satellites", query)
             for satellite in _SCOPE_TOKENS:
-                out.update(named_first_or_last(satellite, form, set_command(satellite, query)))
+                out.update(named_first_or_last(satellite, heard, set_command(satellite, query)))
     return out
 
 
