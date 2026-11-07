@@ -12,7 +12,7 @@ from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 from funestra.playback_rate import NORMAL_RATE
 
 from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
-from .command_value import FILTER, Command, parse_command
+from .command_value import FILTER, Command
 from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
@@ -291,13 +291,6 @@ def _lock_video(command: Command, state: BridgeState, config: BridgeConfig,
 
 
 LOCK_HELD = "lock_held"
-
-
-def told_of_a_hosted_lock(text: str) -> str | None:
-    command = parse_command(text)
-    if command.satellite is None or command.action != LOCK_HELD or not command.argument:
-        return None
-    return command.argument
 
 
 def _hosted_lock(command: Command, state: BridgeState, config: BridgeConfig,
