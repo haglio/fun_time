@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+import winsound
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -17,7 +18,7 @@ from app_support import file_channel
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PyQt6.QtGui import QColor, QMouseEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QTextBrowser, QWidget
+from PyQt6.QtWidgets import QApplication, QMessageBox, QTextBrowser, QWidget
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -796,6 +797,37 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
     with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
         window._on_action("help_reference")
     dialog.sync_topmost.assert_called_once_with(True)
+
+
+def _answer_the_quit_question(monkeypatch, button):
+    asked = []
+    monkeypatch.setattr(winsound, "MessageBeep", lambda _kind: None)
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *args: asked.append(args[1:3]) or button))
+    return asked
+
+
+def test_the_power_button_asks_first_and_quits_on_yes(
+        dashboard_window, dashboard_app_config, monkeypatch):
+    commands = dashboard_app_config.dashboard_cmd_file
+    commands.unlink(missing_ok=True)
+    asked = _answer_the_quit_question(monkeypatch, QMessageBox.StandardButton.Yes)
+
+    dashboard_window._on_action(QUIT_BUTTON)
+
+    assert asked == [("Quit Fun Time", "Are you sure you want to quit Fun Time?")]
+    assert commands.read_text(encoding="utf-8").split() == [QUIT_BUTTON]
+
+
+def test_saying_no_to_the_power_button_leaves_fun_time_running(
+        dashboard_window, dashboard_app_config, monkeypatch):
+    commands = dashboard_app_config.dashboard_cmd_file
+    commands.unlink(missing_ok=True)
+    _answer_the_quit_question(monkeypatch, QMessageBox.StandardButton.No)
+
+    dashboard_window._on_action(QUIT_BUTTON)
+
+    assert not commands.exists()
 
 
 def test_help_action_opens_dialog_locally_without_routing_command(dashboard_window, dashboard_app_config):
