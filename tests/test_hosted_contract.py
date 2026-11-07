@@ -10,6 +10,8 @@ import pytest
 from fun_time.hosted_contract import (
     CONTRACT_FILE,
     HostedVocabulary,
+    publish_labels,
+    published_labels,
     said_at_suffix_of,
     the_args_it_declares,
     what_it_answers_by_voice,
@@ -165,3 +167,24 @@ def test_a_line_carries_its_time_in_the_suffix_the_app_publishes(tmp_path):
 def test_an_app_that_publishes_no_suffix_is_sent_no_time(tmp_path):
     assert said_at_suffix_of(_a_checkout_declaring(tmp_path)) == ""
     assert said_at_suffix_of(tmp_path / "no checkout here") == ""
+
+
+def test_every_name_a_videos_labels_can_carry_is_heard_in_the_forms_the_app_names(tmp_path):
+    checkout = _a_checkout_declaring(tmp_path, spoken_phrases_module="fabricated.voice")
+    answer = json.dumps({"phrases": [], "openers": [], "speech_hint": "",
+                         "labels_heard_as": {"alpha": ["alpha"], "beta gamma": ["beta gamma", "bait a"]}})
+
+    heard = what_it_answers_by_voice(checkout, python_exe="fabricated-python.exe",
+                                     launch_kwargs={}, run=_answering(answer, []))
+
+    assert heard.labels_heard_as == (("alpha", ("alpha",)), ("beta gamma", ("beta gamma", "bait a")))
+
+
+def test_the_label_names_a_session_was_told_are_read_back_from_its_state_folder(tmp_path):
+    publish_labels(tmp_path, HostedVocabulary(labels_heard_as=(("alpha", ("alpha", "al fa")),)))
+
+    assert published_labels(tmp_path) == {"alpha": ("alpha", "al fa")}
+
+
+def test_a_state_folder_no_session_has_told_of_label_names_names_none(tmp_path):
+    assert published_labels(tmp_path) == {}

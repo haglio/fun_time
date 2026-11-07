@@ -36,6 +36,14 @@ class TestItIsTheSameReference:
         assert page_of(ReferenceState(page=0)) == 0
         assert len(build_reference_sections()) > 1
 
+    def test_it_paints_the_action_names_its_session_was_told_of(self):
+        pages = build_reference_sections({"alphaname": ("alphaname",)})
+        funestras = next(index for index, page in enumerate(pages) if page.title == "Funestras")
+        told = np.asarray(paint_reference(ReferenceState(open=True, page=funestras), pages))
+        untold = np.asarray(paint_reference(ReferenceState(open=True, page=funestras)))
+
+        assert not np.array_equal(told, untold)
+
     def test_it_paints_what_a_section_says(self):
         first = np.asarray(paint_reference(ReferenceState(open=True, page=0)))
         second = np.asarray(paint_reference(ReferenceState(open=True, page=1)))

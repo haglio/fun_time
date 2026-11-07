@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 from fun_time.command_reference import build_reference_sections
-from fun_time.filter_vocab import load_acts, set_command
 from fun_time.voice_commands import VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -357,14 +356,6 @@ def _expected_numeric_ids() -> set[str]:
     return ids
 
 
-def _expected_filter_ids() -> set[str]:
-    return {
-        set_command(scope, query)
-        for scope in ("satellites", "portrait", "landscape")
-        for query in load_acts()
-    }
-
-
 def _ahk_ids() -> set[str]:
     script = (_REPO_ROOT / "windows_bridge_hotkeys.ahk").read_text(encoding="utf-8")
     return set(re.findall(r'QueueCommand\("([^"]+)"\)', script))
@@ -382,7 +373,7 @@ def _reference_ids() -> set[str]:
 def test_the_command_id_set_is_exactly_the_snapshot():
     surfaced = set(VOICE_COMMANDS.values()) | _ahk_ids() | _reference_ids()
     surfaced |= set(HUD_ONLY_COMMAND_IDS)
-    expected = set(EXPECTED_COMMAND_IDS) | _expected_numeric_ids() | _expected_filter_ids()
+    expected = set(EXPECTED_COMMAND_IDS) | _expected_numeric_ids()
     unexpected = surfaced - expected
     missing = expected - surfaced
     assert not unexpected, f"command ids not in the snapshot: {sorted(unexpected)}"
