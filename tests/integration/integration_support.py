@@ -25,6 +25,7 @@ import pytest
 from app_support import haglio_settings
 from app_support.osr2_slot import Osr2Slot
 from app_support.siblings import primary_checkout_of
+from app_support.state_files import OSR2_SERIAL_RX
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
@@ -488,6 +489,9 @@ def _free_tcp_port() -> int:
     return _free_port(socket.SOCK_STREAM)
 
 
+A_POWERED_OSR2_REPORTS_EVERY_S = 1.0
+
+
 class TheRunsOsr2:
     def __init__(self) -> None:
         self._heard: queue.Queue[tuple[float, str, str]] = queue.Queue()
@@ -497,6 +501,24 @@ class TheRunsOsr2:
             lambda sender, line: self._heard.put((run_clock.now(), sender, line)))
         self._slot.start()
         self.port = self._slot.address[1]
+        self._closed = threading.Event()
+
+    def reports_switched_on_to(self, session_state_dir: Path) -> None:
+        self._report_switched_on(session_state_dir)
+        start_daemon_thread(target=self._keep_reporting_switched_on, args=(session_state_dir,),
+                            name="the-runs-osr2-reports")
+
+    def _report_switched_on(self, state_dir: Path) -> None:
+        stamp = state_dir / OSR2_SERIAL_RX
+        fresh = stamp.with_suffix(".tmp")
+        fresh.write_text(str(time.time()), encoding="utf-8")
+        os.replace(fresh, stamp)
+
+    def _keep_reporting_switched_on(self, state_dir: Path) -> None:
+        while not self._closed.is_set():
+            time.sleep(A_POWERED_OSR2_REPORTS_EVERY_S)
+            with contextlib.suppress(OSError):
+                self._report_switched_on(state_dir)
 
     def take(self) -> list[tuple[float, str, str]]:
         lines = []
@@ -507,6 +529,7 @@ class TheRunsOsr2:
                 return lines
 
     def close(self) -> None:
+        self._closed.set()
         self._slot.close()
 
 
@@ -658,6 +681,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     point_the_main_funestra_at(config, primary_dir)
     config.setdefault("regen", {})["metadata_root"] = str(metadata_root)
     isolate_shared_resources(config)
+    the_runs_osr2(config["osr2_slot_port"]).reports_switched_on_to(state_dir)
 
     config_path = integration_root / INTEGRATION_CONFIG_NAME
     config_path.write_text(json.dumps(config), encoding="utf-8")

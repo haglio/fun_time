@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from app_support import haglio_settings
+from app_support import haglio_settings, osr2_device
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import read_playlist
 
@@ -38,6 +38,7 @@ from tests.integration.integration_support import (
     SESSION_MONITORS,
     FunTimeIntegrationSession,
     ReadProbe,
+    TheRunsOsr2,
     await_window,
     build_integration_config,
     close_the_runs_osr2s,
@@ -511,6 +512,16 @@ def test_the_runs_slot_listens_so_the_runs_senders_have_somewhere_to_connect(iso
 
     with socket.create_connection(("127.0.0.1", config["osr2_slot_port"]), timeout=5.0):
         pass
+
+
+def test_the_runs_osr2_reports_itself_switched_on_to_the_session_as_a_powered_osr2_does(tmp_path):
+    osr2 = TheRunsOsr2()
+    try:
+        osr2.reports_switched_on_to(tmp_path)
+
+        assert osr2_device.switched_on(tmp_path)
+    finally:
+        osr2.close()
 
 
 def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):
