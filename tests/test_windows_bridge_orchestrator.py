@@ -3347,22 +3347,15 @@ class TestStartingVoice:
 
 class TestTheHudPublisherASessionStarts:
     @staticmethod
-    def _started(cfg_factory, tmp_path, *, camera_words=()) -> tuple[MagicMock, Path]:
+    def _started(cfg_factory, tmp_path) -> tuple[MagicMock, Path]:
         manifest_path = write_windows_bridge_manifest(load_config(cfg_factory({})))
         bridge_config = SimpleNamespace(portrait=SimpleNamespace(sources=""),
                                         landscape=SimpleNamespace(sources=""), state_dir=tmp_path)
 
-        with patch("fun_time.windows_bridge_orchestrator.load_camera_words",
-                   return_value=camera_words),              patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
+        with patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
             windows_bridge_orchestrator.start_hud_priming(
                 bridge_config, LaunchManifest.read(manifest_path), enabled=True)
         return publisher, manifest_path
-
-    def test_it_names_the_camera_words_the_content_overlay_lists(self, cfg_factory, tmp_path):
-        publisher, _manifest_path = self._started(cfg_factory, tmp_path,
-                                                  camera_words=("Side", "XYZ"))
-
-        assert publisher.call_args.args[2] == ("Side", "XYZ")
 
     def test_it_publishes_the_osr2_part_where_the_dashboard_reads_it(self, cfg_factory, tmp_path):
         publisher, manifest_path = self._started(cfg_factory, tmp_path)

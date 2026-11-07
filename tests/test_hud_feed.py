@@ -69,7 +69,6 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
          "main_funestra": tmp_path / "main_player_console.json",
          DASHBOARD_OSR2_PART: osr2_part_path(tmp_path)},
         tmp_path / "thumbs",
-        (),
     )
     return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
 

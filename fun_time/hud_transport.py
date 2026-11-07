@@ -39,8 +39,7 @@ def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
                  for path in paths)
 
 
-def hud_model(hud: SatelliteHud, cache_dir: Path,
-              camera_words: tuple[str, ...] = ()) -> HudModel:
+def hud_model(hud: SatelliteHud, cache_dir: Path) -> HudModel:
     listings = FolderListings()
     seeds = (
         _loop_cells(hud.seed_siblings, cache_dir, listings) if hud.active_loop == "seed"
@@ -70,7 +69,6 @@ def hud_model(hud: SatelliteHud, cache_dir: Path,
         is_favorite=hud.is_favorite,
         rows=funestra_rows(hud.funestra, HudState.of(hud)),
         filter_query=hud.filter_query,
-        camera_words=camera_words,
         seed_count=hud.seed_count,
         action_count=hud.action_count,
         active_loop=hud.active_loop,
@@ -98,16 +96,14 @@ def hosted_model(funestra: str, hosted: HudModel | None, held: SatelliteState,
 
 
 class HudPublisher:
-    def __init__(self, files: dict[str, Path], cache_dir: Path,
-                 camera_words: tuple[str, ...]) -> None:
+    def __init__(self, files: dict[str, Path], cache_dir: Path) -> None:
         self._files = files
         self._cache_dir = cache_dir
-        self._camera_words = camera_words
         self._last: dict[str, str] = {}
 
     def publish(self, funestra: str, hud: SatelliteHud,
                 device: DeviceBlock | None = None) -> bool:
-        model = hud_model(hud, self._cache_dir, self._camera_words)
+        model = hud_model(hud, self._cache_dir)
         return self.publish_text(funestra, hud_text(worn(model, device)))
 
     def publish_text(self, name: str, text: str) -> bool:
