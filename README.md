@@ -424,7 +424,7 @@ The Funestra keeps running under it — its lock, loop and playlist are untouche
 
 ### Closing one window closes the session
 
-There is no window of a session you can close on its own. Every Funestra answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing screen, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit".
+There is no window of a session you can close on its own. Every Funestra answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing screen, exactly like `Ctrl+Alt+Q` or a spoken "quit". The dashboard's Quit button does the same once you answer Yes to "Are you sure you want to quit Fun Time?".
 
 However a session ends — any of those, or a crossing into or out of the headset — Fun Time stops before the closing screen goes up: every Funestra pauses, the Robot Hand stops, and the OSR2 parks, the way entering OmniPause parks it, or stays at the far end if Relief Omnipause or Retract had sent it there. From then on nothing said or pressed reaches Fun Time; Esc on the loading screen still calls the quit off.
 
