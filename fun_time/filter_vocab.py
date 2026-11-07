@@ -19,14 +19,6 @@ def load_acts(
     return {query: tuple(forms) for query, forms in data["acts"].items()}
 
 
-@functools.cache
-def load_camera_words(
-    local_path: Path = LOCAL_CONTENT,
-    example_path: Path = EXAMPLE_CONTENT,
-) -> tuple[str, ...]:
-    return tuple(load_content(local_path, example_path)["cameras"])
-
-
 _SCOPE_TOKENS: tuple[str, ...] = ("satellites", "portrait", "landscape")
 
 

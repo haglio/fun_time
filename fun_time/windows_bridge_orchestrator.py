@@ -43,7 +43,6 @@ from .desktop_session import (
     silence_the_funestras,
 )
 from .event_log import THE_LISTENERS_LOGGERS
-from .filter_vocab import load_camera_words
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
@@ -560,7 +559,6 @@ def start_hud_priming(
             DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
         },
         cache_dir,
-        load_camera_words(),
     )
 
     def _warm() -> None:
