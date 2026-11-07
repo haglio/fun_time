@@ -25,7 +25,7 @@ _NOT_BEFORE_THE_LOADING_SCREEN = (
     "tkinter",
 )
 
-_IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "flick_flip_phrases", "acts")
+_IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "flick_flip_phrases")
 
 
 def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:

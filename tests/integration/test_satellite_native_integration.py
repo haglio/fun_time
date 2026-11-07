@@ -10,7 +10,6 @@ from app_support.win32 import process_started
 from funestra.funestra_verbs import LOCK_ON, NEXT, SET_PACE, SET_SPEED, SHOW_FRAME
 from PIL import Image
 
-from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import SatelliteInputs, build_hud
 from fun_time.satellite_control import read_satellite_status
@@ -78,7 +77,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     for video in videos:
         thumbnail_for(video, cache_dir)
     satellite = a_lone_satellite()
-    publisher = HudPublisher({"portrait": satellite.hud}, cache_dir, load_camera_words())
+    publisher = HudPublisher({"portrait": satellite.hud}, cache_dir)
 
     def publish(locked: bool) -> None:
         publisher.publish("portrait", build_hud(

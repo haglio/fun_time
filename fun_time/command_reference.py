@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from types import MappingProxyType
 
 from shared_ui.reference import (
     HOTKEY_HEADER,
@@ -14,7 +15,7 @@ from shared_ui.reference import render_reference_html as _render
 
 from fun_time.command_value import say_command
 from fun_time.content import Noun, genau_flick_noun
-from fun_time.filter_vocab import display_forms, set_commands_for_scope
+from fun_time.filter_vocab import Acts, display_forms, set_commands_for_scope
 from fun_time.voice_commands import FAVORITES_PHRASE, GENAU_SAID, VOICE_COMMANDS, friendly_voice
 
 _DETAIL_DASH = " — "
@@ -44,6 +45,19 @@ class _Row:
     voice_display: tuple[str, ...] | None = None
     columns: tuple[tuple[str, ...], ...] | None = None
     controller: tuple[str, ...] = ()
+
+
+_FILTER_BY_ACTION = _Row("filter by action — say the action on its own")
+
+
+def _named_actions(row: _Row, actions: Acts) -> _Row | None:
+    if row is not _FILTER_BY_ACTION:
+        return row
+    if not actions:
+        return None
+    return replace(row, commands=tuple(command for scope in ("satellites", "portrait", "landscape")
+                                       for command in set_commands_for_scope(scope, actions)),
+                   voice_display=display_forms(actions))
 
 
 @dataclass(frozen=True)
@@ -474,13 +488,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
             )),
             _Group("Filter", (
-                _Row(
-                    "filter by action — say the action on its own",
-                    commands=set_commands_for_scope("satellites")
-                    + set_commands_for_scope("portrait")
-                    + set_commands_for_scope("landscape"),
-                    voice_display=display_forms(),
-                ),
+                _FILTER_BY_ACTION,
                 _Row("filter to the action on screen", commands=_sided("lock_action")),
                 _Row(
                     "drop all filters — keep the order and everything else; in "
@@ -619,12 +627,13 @@ def _reference_row(row: _Row, section: _Section) -> CommandRef:
     )
 
 
-def build_reference_sections() -> tuple[ReferenceSection, ...]:
+def build_reference_sections(actions: Acts = MappingProxyType({})) -> tuple[ReferenceSection, ...]:
     return tuple(
         ReferenceSection(
             title=section.title,
             groups=tuple(
-                ReferenceGroup(group.title, tuple(_reference_row(row, section) for row in group.rows))
+                ReferenceGroup(group.title, tuple(_reference_row(named, section) for row in group.rows
+                                                  if (named := _named_actions(row, actions))))
                 for group in section.groups
             ),
             key_headers=section.key_headers,

@@ -8,14 +8,12 @@ from pathlib import Path
 
 import pytest
 from app_support.json_store import locked_update
-from funestra.satellite_hud import label_is_filtered
 
 from fun_time.media_metadata import (
     EXCERPT,
     GroupIndexCache,
     build_group_index,
     cached_group_index,
-    filter_haystack,
     load_metadata,
     matches_query,
     metadata_path_for,
@@ -342,31 +340,10 @@ def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_
                            metadata_root=metadata_root).entries == {}
 
 
-def test_filter_haystack_is_the_recorded_act_lowercased():
-    meta = {
-        "video": {"action": "Beta Gamma", "prompt": "A Subject LAYING prone"},
-        "source_image": {"positive_prompt": "Subject by the Pool"},
-    }
-    assert filter_haystack(meta) == "beta gamma"
+def test_a_video_with_labels_is_kept_by_a_label_and_never_by_the_sites_word():
+    meta = {"video": {"action": "Gamma", "labels": ["alpha", "XYZ"]}}
 
-
-def test_filter_haystack_excludes_both_prompts():
-    meta = {
-        "video": {"action": "Alpha", "prompt": "delta by the pool"},
-        "source_image": {"positive_prompt": "gamma", "negative_prompt": "epsilon"},
-    }
-    hay = filter_haystack(meta)
-    assert hay == "alpha"
-    assert "delta" not in hay
-    assert "gamma" not in hay
-    assert "epsilon" not in hay
-
-
-def test_filter_haystack_tolerates_missing_blocks():
-    assert filter_haystack({}) == ""
-    assert filter_haystack({"video": {}}) == ""
-    assert filter_haystack({"video": {"prompt": "epsilon"}}) == ""
-    assert "epsilon" in filter_haystack({"video": {"action": "Side Epsilon"}})
+    assert [matches_query(meta, query) for query in ("alpha", "xyz", "gamma")] == [True, True, False]
 
 
 def test_matches_query_is_a_case_insensitive_substring_of_the_act():
@@ -388,6 +365,12 @@ def test_matches_query_drops_a_video_that_has_no_act_recorded():
     }
     assert not matches_query(unlabeled, "epsilon")
     assert matches_query(unlabeled, "")
+
+
+def test_a_query_of_several_labels_keeps_a_video_carrying_all_of_them_in_any_order():
+    meta = {"video": {"labels": ["alpha", "beta", "XYZ"]}}
+
+    assert [matches_query(meta, query) for query in ("xyz, alpha", "alpha, gamma")] == [True, False]
 
 
 def test_matches_query_empty_matches_everything():
@@ -552,8 +535,7 @@ def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
     assert not metadata_path_for(unknown, metadata_root).exists()
 
 
-def test_the_satellite_hud_lights_a_row_for_exactly_the_videos_this_filter_keeps():
-    camera_words = ("Side", "XYZ")
+def test_a_filter_keeps_a_video_by_its_actions_as_the_satellite_hud_lights_its_rows():
     cases = [
         ("Gamma", "gamma", True),
         ("Side Gamma", "gamma", True),
@@ -568,10 +550,8 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_videos_this_filter_keeps
     ]
     for label, query, expected in cases:
         assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
-        assert label_is_filtered(label, query, camera_words) is expected, (label, query)
 
     assert matches_query({"video": {"action": "Gamma"}}, "") is True
-    assert label_is_filtered("Gamma", "", camera_words) is False
 
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):

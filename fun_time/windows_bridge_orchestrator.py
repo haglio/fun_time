@@ -43,7 +43,6 @@ from .desktop_session import (
     silence_the_funestras,
 )
 from .event_log import THE_LISTENERS_LOGGERS
-from .filter_vocab import load_camera_words
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
@@ -52,7 +51,7 @@ from .funestra_deaths import (
     part_closed_message,
     the_part_that_closed,
 )
-from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabulary
+from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabulary, publish_labels
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_flick_sources
@@ -560,7 +559,6 @@ def start_hud_priming(
             DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
         },
         cache_dir,
-        load_camera_words(),
     )
 
     def _warm() -> None:
@@ -686,6 +684,7 @@ def prepare_voice_control(
     config_path: str, *, dashboard_cmd_file: Path, hosted_cmd_file: str | Path | None,
     hosted_said_at_suffix: str = "",
     ask_the_hosted_app: Callable[[], HostedVocabulary] = lambda: NO_HOSTED_VOCABULARY,
+    state_dir: Path,
 ) -> PreparedVoice | None:
     try:
         cfg = load_config(config_path)
@@ -706,12 +705,13 @@ def prepare_voice_control(
 
         def listen() -> None:
             try:
+                vocabulary = _what_it_answers(answer)
+                publish_labels(state_dir, vocabulary)
                 voice_controller = VoiceController(
                     cmd_file=dashboard_cmd_file,
                     settings=settings,
                     verifying_listener=verifying_listener,
-                    hosted=HostedVoice(
-                        _what_it_answers(answer), hosted_cmd_file, hosted_said_at_suffix),
+                    hosted=HostedVoice(vocabulary, hosted_cmd_file, hosted_said_at_suffix),
                 )
                 voice_controller.mute()
             except Exception as error:
@@ -997,7 +997,7 @@ def run_session(
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator_cmd_file,
         hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
-        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir)
 
     progress = loading_screen.progress
 

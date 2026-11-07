@@ -24,6 +24,7 @@ from fun_time.event_log import (
     flash_message,
     list_message,
 )
+from fun_time.filter_vocab import filter_voice_commands
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
     HostedVocabulary,
@@ -33,7 +34,6 @@ from fun_time.hosted_contract import (
 from fun_time.unlogged_messages import flash_unlogged
 from fun_time.voice_commands import (
     GENAU_SAID,
-    VOICE_COMMANDS,
     build_voice_commands,
     format_spoken_command,
     friendly_voice,
@@ -179,8 +179,9 @@ class VoiceController:
     ) -> None:
         self.cmd_file = Path(cmd_file)
         hosted_vocabulary = hosted.vocabulary
-        self.commands = (build_voice_commands(origenerator_phrases=hosted_vocabulary.phrases)
-                         if hosted_vocabulary.phrases else VOICE_COMMANDS)
+        self.commands = build_voice_commands(
+            origenerator_phrases=hosted_vocabulary.phrases,
+            filter_commands=filter_voice_commands(dict(hosted_vocabulary.labels_heard_as)))
         self.hosted = hosted_vocabulary
         self._hosted_cmd_file = hosted.cmd_file
         self._hosted_said_at_suffix = hosted.said_at_suffix

@@ -42,13 +42,6 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
     )
 
 
-def test_hud_payload_names_the_librarys_camera_words():
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
-        model = hud_model(_hud(), Path("C:/t"), ("Side", "XYZ"))
-
-    assert model.camera_words == ("Side", "XYZ")
-
-
 def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
     folder = tmp_path / "vids"
     folder.mkdir()
@@ -193,7 +186,7 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_video():
 
 def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
-    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         assert publisher.publish("portrait", _hud()) is True
@@ -205,7 +198,7 @@ def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
 
 def test_publish_republishes_a_hud_whose_write_never_landed(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
-    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         with patch("fun_time.hud_transport.publish_whole", return_value=False):
@@ -215,18 +208,8 @@ def test_publish_republishes_a_hud_whose_write_never_landed(tmp_path: Path):
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True
 
 
-def test_every_hud_a_publisher_writes_names_the_camera_words_it_was_given(tmp_path: Path):
-    hud_file = tmp_path / "portrait_hud.json"
-    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ("Side", "XYZ"))
-
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
-        publisher.publish("portrait", _hud())
-
-    assert json.loads(hud_file.read_text(encoding="utf-8"))["camera_words"] == ["Side", "XYZ"]
-
-
 def test_publish_ignores_a_satellite_with_no_file(tmp_path: Path):
-    publisher = HudPublisher({}, tmp_path / "thumbs", ())
+    publisher = HudPublisher({}, tmp_path / "thumbs")
 
     assert publisher.publish("portrait", _hud()) is False
 

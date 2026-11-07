@@ -3390,7 +3390,7 @@ class TestTheAppTakesAFunestra:
     def _switched(self, tmp_path):
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
-            {"portrait": tmp_path / "portrait_hud.json"}, tmp_path / "thumbs", ()))
+            {"portrait": tmp_path / "portrait_hud.json"}, tmp_path / "thumbs"))
         runner.state = replace(runner.state, origenerator_ready=True)
         channel = config.satellite(FunTimeFunestra.PORTRAIT)
         write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])

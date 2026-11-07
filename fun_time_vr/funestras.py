@@ -9,6 +9,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from functools import partial
 from pathlib import Path
 from typing import ClassVar
 
@@ -33,6 +34,7 @@ from shared_ui.palette import BLUE, BORDER_DEFAULT, WHITE, as_fractions
 from shared_ui.type_scale import SIZE_SMALL, in_pixels
 
 from fun_time import preview_marker
+from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
     LIBRARY_OPEN_FILENAME,
@@ -41,9 +43,11 @@ from fun_time.dashboard_actions import (
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
+from fun_time.filter_vocab import Acts
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
+from fun_time.hosted_contract import published_labels
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.session_handoff import headset_hold_asked
@@ -160,6 +164,7 @@ from .projection_controls import ProjectionControls
 from .reference_panel import (
     REFERENCE_WIDTH_DEG,
     REFERENCE_WIDTH_PX,
+    Pages,
     ReferencePointer,
     paint_reference,
     reference_height,
@@ -984,10 +989,13 @@ class _DashUnit:
 class _ReferenceUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
-    def __init__(self, dash: _DashUnit, main_hud_unit: _MainHudUnit, *, flag: Path) -> None:
+    def __init__(self, dash: _DashUnit, main_hud_unit: _MainHudUnit, *, flag: Path,
+                 actions: Callable[[], Acts]) -> None:
         self._dash = dash
         self._main_hud = main_hud_unit
         self._flag = flag
+        self._actions = actions
+        self._pages: Pages | None = None
         self._pointer = ReferencePointer()
         self._presses = _Presses(REFERENCE)
         self._lock = threading.Lock()
@@ -1018,7 +1026,7 @@ class _ReferenceUnit:
         self._presses.point(frame)
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        size = (REFERENCE_WIDTH_PX, reference_height())
+        size = (REFERENCE_WIDTH_PX, reference_height(self._pages))
         for event in self._presses.drain():
             if event.kind == PRESS:
                 self._pointer.press(*surface_pixel(event.u, event.v, size))
@@ -1026,7 +1034,9 @@ class _ReferenceUnit:
         state = self._pointer.state
         if not state.open or state == self._key:
             return
-        image = paint_reference(state)
+        if self._pages is None:
+            self._pages = build_reference_sections(self._actions())
+        image = paint_reference(state, self._pages)
         with self._lock:
             self._image = image
         self._key = state
@@ -1725,7 +1735,8 @@ def hang_the_room(
     )
     units = RoomUnits(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
-        reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag), library=library,
+        reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag,
+                                 actions=partial(published_labels, state_dir)), library=library,
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),

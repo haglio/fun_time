@@ -6,7 +6,6 @@ from fun_time.command_value import FILTER, SAY, parse_command, say_command
 from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import (
     filter_voice_commands,
-    load_acts,
     set_command,
 )
 from fun_time.voice_commands import (
@@ -619,13 +618,17 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
     assert VOICE_COMMANDS["filter off"] == "active_no_filter"
 
 
-def test_voice_commands_include_generated_filter_phrases():
-    acts = load_acts()
-    assert acts
+def test_the_filter_phrases_a_session_is_handed_are_heard_in_every_form():
+    acts = {"alpha": ("alpha", "al fa"), "beta gamma": ("beta gamma",)}
+    commands = build_voice_commands(filter_commands=filter_voice_commands(acts))
     for query, forms in acts.items():
         for form in forms:
-            assert VOICE_COMMANDS[f"portrait {form}"] == set_command("portrait", query)
-            assert VOICE_COMMANDS[form] == set_command("satellites", query)
+            assert commands[f"portrait {form}"] == set_command("portrait", query)
+            assert commands[form] == set_command("satellites", query)
+
+
+def test_a_session_handed_no_filter_phrases_hears_none():
+    assert not any(parse_command(command).action == FILTER for command in VOICE_COMMANDS.values())
 
 
 def test_clearing_a_filter_scopes_like_every_other_satellite_action():
@@ -639,8 +642,10 @@ def test_clearing_a_filter_scopes_like_every_other_satellite_action():
 
 
 def test_filter_phrases_do_not_shadow_other_commands():
-    for phrase, command in filter_voice_commands().items():
-        assert VOICE_COMMANDS[phrase] == command
+    told = filter_voice_commands({"alpha": ("alpha", "al fa")})
+    commands = build_voice_commands(filter_commands=told)
+    for phrase, command in told.items():
+        assert commands[phrase] == command
         assert parse_command(command).action == FILTER
 
 
@@ -675,11 +680,14 @@ class TestBuildVoiceCommands:
         assert (built["portrait next"], built["portrait alpha"]) == (
             "portrait_next", "filter_portrait_alpha")
 
-    def test_a_filter_phrase_shadowing_an_existing_command_refuses(self):
-        with pytest.raises(RuntimeError, match="collide with existing voice commands"):
-            build_voice_commands(
-                filter_commands={"pause": "filter_satellites_pause"}, clip_jump_phrases=(),
-            )
+    def test_a_label_name_that_is_already_a_spoken_command_leaves_the_command_as_it_was(self, caplog):
+        built = build_voice_commands(
+            filter_commands={"pause": "filter_satellites_pause", "alpha": "filter_satellites_alpha"},
+            clip_jump_phrases=(),
+        )
+
+        assert (built["pause"], built["alpha"]) == (VOICE_COMMANDS["pause"], "filter_satellites_alpha")
+        assert "pause" in caplog.text
 
 
 _FUNESTRA_WORDS = frozenset(("portrait", "landscape", "main", "all", "satellite", "satellites"))

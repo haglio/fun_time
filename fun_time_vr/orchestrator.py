@@ -440,7 +440,7 @@ def _prepare_the_launch(config, env: SessionEnvironment, *, cancelable: bool) ->
         manifest.runtime.config_path, dashboard_cmd_file=dashboard_cmd_file,
         hosted_cmd_file=bridge_config.origenerator_cmd_file,
         hosted_said_at_suffix=bridge_config.origenerator_said_at_suffix,
-        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest))
+        ask_the_hosted_app=partial(what_it_answers_by_voice_in, manifest), state_dir=state_dir)
     return _Launch(
         state_dir=state_dir, manifest_path=manifest_path, manifest=manifest,
         bridge_config=bridge_config, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file,

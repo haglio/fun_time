@@ -29,15 +29,9 @@ class TestLoadContent:
 
     def test_missing_video_jump_phrases_is_backfilled_from_the_example(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        local.write_text(json.dumps({"flick_flip_phrases": ["zeta"]}), encoding="utf-8")
         result = load_content(local, EXAMPLE_CONTENT)
         assert result["clip_jump_phrases"] == _example()["clip_jump_phrases"]
-
-    def test_missing_acts_are_backfilled_from_the_example(self, tmp_path: Path):
-        local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"clip_jump_phrases": ["skip ahead"]}), encoding="utf-8")
-        result = load_content(local, EXAMPLE_CONTENT)
-        assert result["acts"] == _example()["acts"]
 
     def test_a_present_key_is_not_overwritten_by_the_example(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
@@ -51,13 +45,13 @@ class TestLoadContent:
     def test_missing_web_providers_defaults_to_empty_not_the_example(self, tmp_path: Path):
         assert _example()["web_providers"], "example is expected to define providers"
         local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        local.write_text(json.dumps({"flick_flip_phrases": ["zeta"]}), encoding="utf-8")
         result = load_content(local, EXAMPLE_CONTENT)
         assert result["web_providers"] == []
 
     def test_an_overlay_that_will_not_parse_says_which_file_it_is(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
-        local.write_text('{"acts": [', encoding="utf-8")
+        local.write_text('{"flick_flip_phrases": [', encoding="utf-8")
 
         with pytest.raises(ValueError, match=re.escape(str(local))):
             load_content(local, EXAMPLE_CONTENT)
@@ -88,7 +82,7 @@ class TestLoadWebProviders:
 
     def test_overlay_omitting_web_providers_yields_none(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        local.write_text(json.dumps({"flick_flip_phrases": ["zeta"]}), encoding="utf-8")
         assert load_web_providers(local, EXAMPLE_CONTENT) == ()
 
 
@@ -102,5 +96,5 @@ def test_importing_the_vocabulary_reads_no_overlay():
 
     assert result.stdout.strip() == "0", (
         "importing these parsed the content overlay; have them call "
-        "load_content()/load_acts()/load_web_providers() instead"
+        "load_content()/load_web_providers() instead"
     )

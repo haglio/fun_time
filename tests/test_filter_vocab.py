@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from fun_time.command_value import FILTER, parse_command
 from fun_time.filter_vocab import (
-    EXAMPLE_CONTENT,
     display_forms,
     filter_voice_commands,
-    load_acts,
-    load_camera_words,
     set_command,
     set_commands_for_scope,
 )
@@ -99,34 +93,8 @@ def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
     assert "beta gamma" in forms
 
 
-def test_the_committed_example_vocabulary_is_loaded_and_usable(tmp_path: Path):
-    acts = load_acts(tmp_path / "no_local.json", EXAMPLE_CONTENT)
-    voice = filter_voice_commands(acts)
-    assert voice
-    assert all(_decoded(cmd) is not None for cmd in voice.values())
+def test_a_name_written_in_capitals_is_heard_the_way_the_recognizer_writes_it():
+    voice = filter_voice_commands({"Alpha XYZ": ("Alpha XYZ",)})
 
-
-class TestLoadFilterActs:
-    def test_prefers_local_over_example(self, tmp_path: Path):
-        local = tmp_path / "content.local.json"
-        example = tmp_path / "content.example.json"
-        local.write_text(json.dumps({"acts": {"x": ["x"]}}), encoding="utf-8")
-        example.write_text(json.dumps({"acts": {"y": ["y"]}}), encoding="utf-8")
-        assert load_acts(local, example) == {"x": ("x",)}
-
-    def test_falls_back_to_example_when_local_absent(self, tmp_path: Path):
-        example = tmp_path / "content.example.json"
-        example.write_text(json.dumps({"acts": {"y": ["y", "y two"]}}), encoding="utf-8")
-        acts = load_acts(tmp_path / "missing.json", example)
-        assert acts == {"y": ("y", "y two")}
-
-
-class TestLoadCameraWords:
-    def test_the_words_come_from_the_overlay_written_as_the_library_writes_them(self, tmp_path: Path):
-        local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"cameras": ["North", "QRS"]}), encoding="utf-8")
-
-        assert load_camera_words(local, EXAMPLE_CONTENT) == ("North", "QRS")
-
-    def test_the_committed_example_names_placeholder_words(self, tmp_path: Path):
-        assert load_camera_words(tmp_path / "no_local.json", EXAMPLE_CONTENT) == ("Side", "XYZ")
+    assert (voice.get("alpha xyz"), voice.get("portrait alpha xyz")) == (
+        set_command("satellites", "Alpha XYZ"), set_command("portrait", "Alpha XYZ"))

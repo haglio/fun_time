@@ -40,7 +40,7 @@ from fun_time.command_reference import (
 )
 from fun_time.command_value import parse_command
 from fun_time.content import Noun, genau_flick_noun
-from fun_time.filter_vocab import display_forms, filter_voice_commands, load_acts
+from fun_time.filter_vocab import display_forms, filter_voice_commands
 from fun_time.genau_commands import about_genaus_flick
 from fun_time.main_funestra_commands import MAIN_FUNESTRA_CMD_MAP
 from fun_time.voice_commands import GENAU_SAID, VOICE_COMMANDS, build_voice_commands, friendly_voice
@@ -903,8 +903,10 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
     assert cycle.detail == "seeds, then actions, then off"
     assert [row.description for row in _group("Funestras", "Loops").rows] == [
         "more seeds", "loop actions", "loop seeds", "stop looping"]
-    assert [row.description for row in _group("Funestras", "Filter").rows] == [
+    assert [row.description for row in _filter_rows(_ACTIONS)] == [
         "filter by action", "filter to the action on screen", "drop all filters"]
+    assert [row.description for row in _group("Funestras", "Filter").rows] == [
+        "filter to the action on screen", "drop all filters"]
     assert _group("Funestras", "Other").rows == (crown,)
     assert crown.description == "crown the Main Funestra or the Portrait Funestra"
     assert crown.detail == (
@@ -1277,13 +1279,18 @@ def test_render_reference_html_has_no_heading_or_subtitle():
     assert "Global while Fun Time" not in html
 
 
+_ACTIONS = {"alpha": ("alpha", "al fa"), "beta gamma": ("beta gamma",)}
+
+
+def _filter_rows(actions) -> tuple[CommandRef, ...]:
+    funestras = {s.title: s for s in build_reference_sections(actions)}["Funestras"]
+    return {group.title: group for group in funestras.groups}["Filter"].rows
+
+
 def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
-    rows = _group("Funestras", "Filter").rows
+    rows = _filter_rows(_ACTIONS)
     set_row = next(r for r in rows if r.description.startswith("filter by action"))
-    assert set(set_row.voice) == set(display_forms())
-    spoken = {form for forms in load_acts().values() for form in forms}
-    workarounds = spoken - set(display_forms())
-    assert not workarounds & set(set_row.voice), workarounds
+    assert set_row.voice == display_forms(_ACTIONS) == ("alpha", "beta gamma")
     drop_row = next(r for r in rows if r.description.startswith("drop all filters"))
     assert set(drop_row.voice) == {"no filter", "filter off", "clear filter", "show everything"}
     assert VOICE_COMMANDS["portrait clear filter"] == "portrait_no_filter"
@@ -1294,8 +1301,8 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
 
 
 def test_every_filter_voice_command_is_represented():
-    covered = _covered_commands()
-    missing = {cmd for cmd in filter_voice_commands().values() if cmd not in covered}
+    covered = {cmd for row in _filter_rows(_ACTIONS) for cmd in row.commands}
+    missing = {cmd for cmd in filter_voice_commands(_ACTIONS).values() if cmd not in covered}
     assert not missing, f"filter commands missing from reference: {sorted(missing)}"
 
 
