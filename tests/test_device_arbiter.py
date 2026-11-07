@@ -114,14 +114,26 @@ class TestNobodyDriving:
 
         assert genau(driver) == [TCODE_OFF, "PAUSE", "RETRACT", TCODE_OFF, "RESUME", "RETRACT"]
 
-    def test_a_switched_off_device_keeps_genaus_flick_out_of_every_hold(self, tmp_path):
-        for control in (OSR2_PARKED, OSR2_RETRACTED):
+    def test_a_switched_off_device_stops_genaus_flick_where_it_is_whatever_the_control(self, tmp_path):
+        for control in (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED):
             driver = make_driver(tmp_path / control, device_on=lambda: False)
             publish_main_funestra(driver)
 
             driver.sync("genau", paused=False, control=control)
 
-            assert genau(driver) == [TCODE_OFF, "RESUME"], control
+            assert not the_hand_is_playing(driver), control
+            assert not {"PARK", "RETRACT"} & set(genau(driver)), control
+
+    def test_a_device_switched_on_again_plays_genaus_flick_on(self, tmp_path):
+        device = {"on": False}
+        driver = make_driver(tmp_path, device_on=lambda: device["on"])
+        publish_main_funestra(driver)
+        driver.sync("genau", paused=False)
+
+        device["on"] = True
+        driver.sync("genau", paused=False)
+
+        assert the_hand_is_playing(driver)
 
     def test_a_device_switched_on_under_a_hold_takes_genaus_flick_there_at_once(self, tmp_path):
         device = {"on": False}
@@ -132,7 +144,7 @@ class TestNobodyDriving:
         device["on"] = True
         driver.sync("genau", paused=False, control=OSR2_PARKED)
 
-        assert genau(driver) == [TCODE_OFF, "RESUME", *PARKED]
+        assert genau(driver) == [TCODE_OFF, "PAUSE", *PARKED]
 
     def test_a_hold_is_stated_once_however_long_it_lasts(self, tmp_path):
         clock = FakeClock()

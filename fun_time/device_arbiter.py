@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 
@@ -62,6 +62,8 @@ class DeviceArbiter:
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING, holder: FunTimeFunestra = FunTimeFunestra.MAIN) -> None:
         turn = self._turn(main_mode, paused=paused, control=control, holder=holder)
+        if not self._device_on():
+            turn = replace(turn, hand_playing=False, held_at=None)
         if turn != self._stated and self._state(turn):
             self._stated = turn
 
@@ -74,19 +76,16 @@ class DeviceArbiter:
         if control in HOLD_VERB:
             return self._with_no_handoff(Osr2Turn(
                 hand_playing=not paused, hand_heard=False,
-                held_at=self._held_at(HOLD_VERB[control])))
+                held_at=HOLD_VERB[control]))
         if paused:
             return self._with_no_handoff(Osr2Turn(
-                hand_playing=False, held_at=self._held_at(osr2_hold.PARK)))
+                hand_playing=False, held_at=osr2_hold.PARK))
         if holder is FunTimeFunestra.MAIN and not kino_shows(main_mode):
             return self._with_no_handoff(Osr2Turn())
         self._may_be_sending.add(holder)
         if self._script_takes_it(holder):
             return Osr2Turn(script=holder, hand_playing=False)
         return Osr2Turn()
-
-    def _held_at(self, hold: str) -> str | None:
-        return hold if self._device_on() else None
 
     def _with_no_handoff(self, turn: Osr2Turn) -> Osr2Turn:
         self._hand_has_the_stretch_of = None
