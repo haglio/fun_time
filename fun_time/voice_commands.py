@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from fun_time.filter_vocab import filter_voice_commands, named_first_or_last
+from fun_time.filter_vocab import named_first_or_last
 
 from .command_value import main_funestras_own, say_command
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
 from .origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, mode_command
+
+logger = logging.getLogger(__name__)
 
 _SPOKEN_AT_SEP = " @"
 _SAID_SEP = "\t"
@@ -249,7 +252,7 @@ def _speed_move_and_hud_phrases(commands: dict[str, str]) -> None:
 
 def build_voice_commands(
     *,
-    filter_commands: Mapping[str, str] | None = None,
+    filter_commands: Mapping[str, str] = MappingProxyType({}),
     clip_jump_phrases: tuple[str, ...] | None = None,
     flick_flip_phrases: tuple[str, ...] | None = None,
     origenerator_phrases: Collection[str] = (),
@@ -360,12 +363,12 @@ def build_voice_commands(
                                             say_command(_satellite, FAVORITES_PHRASE)))
     commands[FAVORITES_PHRASE] = say_command("active", FAVORITES_PHRASE)
 
-    if filter_commands is None:
-        filter_commands = filter_voice_commands()
     _shadowed = set(filter_commands) & set(commands)
     if _shadowed:
-        raise RuntimeError(f"filter phrases collide with existing voice commands: {sorted(_shadowed)}")
-    commands.update(filter_commands)
+        logger.warning("These label names are already spoken commands, so saying one keeps its "
+                       "command and filters nothing: %s", sorted(_shadowed))
+    commands.update({phrase: command for phrase, command in filter_commands.items()
+                     if phrase not in _shadowed})
     for _phrase in origenerator_phrases:
         _aimed = {} if _phrase in GENAU_SAID else {_phrase: say_command("active", _phrase)}
         for _satellite in _SATELLITE_WORDS:

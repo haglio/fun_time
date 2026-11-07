@@ -29,6 +29,7 @@ from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
 from shared_ui.palette import BLUE
 
+from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -2979,7 +2980,7 @@ class TestWhatComesForwardTogether:
 
 
 class TestTheReferenceUnderTheDashboard:
-    def _unit(self, tmp_path, *, carrying_the_main_hud=False):
+    def _unit(self, tmp_path, *, carrying_the_main_hud=False, actions=dict):
         dash = SimpleNamespace(screen=SimpleNamespace(placement=SPOTS[DASH]),
                                texture=SimpleNamespace(aspect=_THE_DASHS_SHAPE),
                                carrying_the_main_hud=carrying_the_main_hud)
@@ -2987,7 +2988,8 @@ class TestTheReferenceUnderTheDashboard:
             screen=SimpleNamespace(placement=Placement(0.0, 20.0, HUD_WIDTH_PX * DEG_PER_PX)),
             texture=SimpleNamespace(aspect=1.2))
         with patch("fun_time_vr.funestras.FrameTexture", _FakeMainHudTexture):
-            unit = _ReferenceUnit(dash, main_hud_unit, flag=tmp_path / REFERENCE_OPEN_FILENAME)
+            unit = _ReferenceUnit(dash, main_hud_unit, flag=tmp_path / REFERENCE_OPEN_FILENAME,
+                                  actions=actions)
         return unit, dash, main_hud_unit
 
     @staticmethod
@@ -3001,6 +3003,16 @@ class TestTheReferenceUnderTheDashboard:
         above = surface_vertices(upper, aspect=upper_aspect)
         below = surface_vertices(lower, aspect=_FakeMainHudTexture.aspect)
         return below[:, 1].max() == pytest.approx(above[:, 1].min(), abs=1e-6)
+
+    def test_it_paints_the_action_names_its_session_was_told_of(self, tmp_path):
+        told = {"alphaname": ("alphaname",)}
+        unit, _dash, _main_hud = self._unit(tmp_path, actions=lambda: told)
+        write_flag(tmp_path / REFERENCE_OPEN_FILENAME, True)
+
+        with patch("fun_time_vr.funestras.paint_reference") as painted:
+            unit.pump(threading.Event(), 0.0)
+
+        assert painted.call_args.args[1] == build_reference_sections(told)
 
     def test_it_hangs_from_the_dashboard_wherever_the_dashboard_goes(self, tmp_path):
         unit, dash, _main_hud = self._unit(tmp_path)

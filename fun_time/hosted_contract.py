@@ -8,6 +8,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.file_channel import write_whole
+
 logger = logging.getLogger(__name__)
 
 CONTRACT_FILE = "origenerator_contract.json"
@@ -21,9 +23,23 @@ class HostedVocabulary:
     openers: frozenset[str] = frozenset()
     speech_hint: str = ""
     lock_phrases: frozenset[str] = frozenset()
+    labels_heard_as: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 NO_HOSTED_VOCABULARY = HostedVocabulary()
+LABELS_HEARD_AS_FILE = "labels_heard_as.json"
+
+
+def publish_labels(state_dir: Path, vocabulary: HostedVocabulary) -> None:
+    write_whole(Path(state_dir) / LABELS_HEARD_AS_FILE, json.dumps(dict(vocabulary.labels_heard_as)))
+
+
+def published_labels(state_dir: Path) -> dict[str, tuple[str, ...]]:
+    try:
+        told = json.loads((Path(state_dir) / LABELS_HEARD_AS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {name: tuple(forms) for name, forms in told.items()}
 
 
 def what_it_answers_by_voice(checkout: str | Path, *, python_exe: str | Path,
@@ -40,7 +56,9 @@ def what_it_answers_by_voice(checkout: str | Path, *, python_exe: str | Path,
                                 text=True, timeout=ASKING_BUDGET_S, check=True,
                                 **launch_kwargs).stdout)
         return HostedVocabulary(frozenset(answer["phrases"]), frozenset(answer["openers"]),
-                                answer["speech_hint"], frozenset(answer.get("lock_phrases", ())))
+                                answer["speech_hint"], frozenset(answer.get("lock_phrases", ())),
+                                tuple((name, tuple(forms)) for name, forms
+                                      in answer.get("labels_heard_as", {}).items()))
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as error:
         logger.warning("The Origenerator at %s could not say what it answers by voice (%s), "
                        "so no phrase of its is heard said to a satellite", checkout, error)

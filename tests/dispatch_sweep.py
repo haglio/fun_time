@@ -7,6 +7,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
+from fun_time.filter_vocab import filter_voice_commands
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import LaunchManifest, write_manifest_data, write_windows_bridge_manifest
 from fun_time.mode_plan import MAIN_MODES
@@ -77,14 +78,18 @@ def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
     return with_made_up_genau(load_config(config_file), root)
 
 
+TOLD_ACTIONS = {"alpha": ("alpha",)}
+
+
 def every_command() -> list[str]:
     commands = {
         command
-        for section in build_reference_sections()
+        for section in build_reference_sections(TOLD_ACTIONS)
         for row in section.rows
         for command in row.commands
     }
-    return sorted(commands | set(VOICE_COMMANDS.values()))
+    return sorted(commands | set(VOICE_COMMANDS.values())
+                  | set(filter_voice_commands(TOLD_ACTIONS).values()))
 
 
 def drain(config: BridgeConfig) -> dict[str, list[str]]:

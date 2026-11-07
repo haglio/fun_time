@@ -34,7 +34,6 @@ __all__ = [
     "paint_reference",
     "reference_actions",
     "reference_height",
-    "sections",
 ]
 
 REFERENCE_WIDTH_PX = 760
@@ -54,8 +53,11 @@ _CONTROLLER_X, _SAY_AFTER_CONTROLLER_X, _WHAT_AFTER_BOTH_X = 170, 300, 470
 _NO_KEY = "—"
 
 
-def sections():
-    return build_reference_sections()
+Pages = tuple[ReferenceSection, ...]
+
+
+def _the(pages: Pages | None) -> Pages:
+    return build_reference_sections() if pages is None else pages
 
 
 def note_lines(section: ReferenceSection) -> list[str]:
@@ -65,16 +67,16 @@ def note_lines(section: ReferenceSection) -> list[str]:
                      REFERENCE_WIDTH_PX - 2 * _PAD, max_lines=_NOTE_LINES_AT_MOST)
 
 
-def _note_lines_every_page_keeps() -> int:
-    return max((len(note_lines(section)) for section in sections()), default=0)
+def _note_lines_every_page_keeps(pages: Pages) -> int:
+    return max((len(note_lines(section)) for section in pages), default=0)
 
 
 def header_lines(section: ReferenceSection) -> int:
     return 1 + (len(section.key_headers) > 1 and section.has_keys)
 
 
-def _header_lines_every_page_keeps() -> int:
-    return max((header_lines(section) for section in sections()), default=0)
+def _header_lines_every_page_keeps(pages: Pages) -> int:
+    return max((header_lines(section) for section in pages), default=0)
 
 
 def column_heads(section: ReferenceSection) -> tuple[tuple[int, str], ...]:
@@ -111,8 +113,8 @@ class ReferenceState:
     page: int = 0
 
 
-def page_of(state: ReferenceState) -> int:
-    total = len(sections())
+def page_of(state: ReferenceState, pages: Pages | None = None) -> int:
+    total = len(_the(pages))
     return state.page % total if total else 0
 
 
@@ -120,10 +122,11 @@ def lines_of(section: ReferenceSection) -> int:
     return sum(1 for group in section.groups if group.title) + len(section.rows)
 
 
-def reference_height() -> int:
-    longest = max((lines_of(section) for section in sections()), default=0)
-    return _HEAD_H + _ROW_H * (_header_lines_every_page_keeps() + _note_lines_every_page_keeps()
-                               + longest) + _PAD
+def reference_height(pages: Pages | None = None) -> int:
+    pages = _the(pages)
+    longest = max((lines_of(section) for section in pages), default=0)
+    return _HEAD_H + _ROW_H * (_header_lines_every_page_keeps(pages)
+                               + _note_lines_every_page_keeps(pages) + longest) + _PAD
 
 
 def reference_actions() -> dict[str, Rect]:
@@ -135,12 +138,13 @@ def reference_actions() -> dict[str, Rect]:
     }
 
 
-def paint_reference(state: ReferenceState) -> Image.Image:
-    height = reference_height()
+def paint_reference(state: ReferenceState, pages: Pages | None = None) -> Image.Image:
+    pages = _the(pages)
+    height = reference_height(pages)
     panel = Image.new("RGBA", (REFERENCE_WIDTH_PX, height), (*BG_PRIMARY, 240))
     draw = ImageDraw.Draw(panel)
     title_font, row_font = load_font(_TITLE_PX), load_font(_ROW_PX)
-    section = sections()[page_of(state)]
+    section = pages[page_of(state, pages)]
 
     draw.text((_PAD, _PAD), section.title, font=title_font, fill=(*MAGENTA, 255))
     for action, rect in reference_actions().items():
@@ -163,11 +167,11 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         draw.text((_KEY_X, y), " / ".join(section.key_headers), font=row_font,
                   fill=(*TEXT_MUTED, 255))
         y += _ROW_H
-    y += _ROW_H * (_header_lines_every_page_keeps() - header_lines(section))
+    y += _ROW_H * (_header_lines_every_page_keeps(pages) - header_lines(section))
     for line in note_lines(section):
         draw.text((_PAD, y), line, font=row_font, fill=(*TEXT_MUTED, 255))
         y += _ROW_H
-    y += _ROW_H * (_note_lines_every_page_keeps() - len(note_lines(section)))
+    y += _ROW_H * (_note_lines_every_page_keeps(pages) - len(note_lines(section)))
 
     for group in section.groups:
         if group.title:

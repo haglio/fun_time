@@ -79,6 +79,8 @@ from fun_time.dashboard_layout import (
 )
 from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.filter_vocab import Acts
+from fun_time.hosted_contract import published_labels
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
@@ -392,11 +394,13 @@ class RfbModeSelectorWidget(PressableDrawing):
 class ReferencePopup:
     def __init__(self, parent: QWidget, rfb_rect: Rect | None, *,
                  on_change: Callable[[], None],
-                 on_typing_invited: Callable[[], None]) -> None:
+                 on_typing_invited: Callable[[], None],
+                 actions: Callable[[], Acts]) -> None:
         self._parent = parent
         self._rfb_rect = rfb_rect
         self._on_change = on_change
         self._on_typing_invited = on_typing_invited
+        self._actions = actions
         self.dialog: ReferenceDialog | None = None
 
     @property
@@ -411,7 +415,7 @@ class ReferencePopup:
 
     def open(self, omni_paused: bool) -> None:
         if self.dialog is None:
-            self.dialog = ReferenceDialog(self._parent)
+            self.dialog = ReferenceDialog(self._parent, actions=self._actions())
             self.dialog.finished.connect(lambda _result: self._on_change())
             self.dialog.typing_invited.connect(self._on_typing_invited)
             if self._rfb_rect is not None:
@@ -487,7 +491,8 @@ class DashboardWindow(QMainWindow):
         self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
         self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar,
-                                         on_typing_invited=self._pause_for_typing)
+                                         on_typing_invited=self._pause_for_typing,
+                                         actions=partial(published_labels, app_config.state_dir))
         self._reveal = LoadingReveal(app_config.state_dir)
 
         self._flash = PressFlash()
