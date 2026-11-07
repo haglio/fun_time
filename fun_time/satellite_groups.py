@@ -7,6 +7,7 @@ from app_support.media_renditions import renditions
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file, step_version
 from funestra.loop_cycle import LOCK, next_stop, standing_at
+from funestra.video_families import actions_text
 from funestra.video_groups import (
     GroupIndex,
     action_group_items,
@@ -137,8 +138,7 @@ def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
 
 
 def video_action_label(video_path: str, config: BridgeConfig) -> str:
-    video = recorded_for(video_path, config.regen_metadata_root).get("video") or {}
-    return str(video.get("action") or "").strip()
+    return actions_text(recorded_for(video_path, config.regen_metadata_root))
 
 
 def cycle_variant(
