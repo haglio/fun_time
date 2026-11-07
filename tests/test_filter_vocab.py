@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from fun_time.command_value import FILTER, parse_command
 from fun_time.filter_vocab import (
-    EXAMPLE_CONTENT,
     display_forms,
     filter_voice_commands,
-    load_acts,
     set_command,
     set_commands_for_scope,
 )
@@ -96,25 +91,3 @@ def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
     assert "delta" in forms
     assert "delta form" not in forms
     assert "beta gamma" in forms
-
-
-def test_the_committed_example_vocabulary_is_loaded_and_usable(tmp_path: Path):
-    acts = load_acts(tmp_path / "no_local.json", EXAMPLE_CONTENT)
-    voice = filter_voice_commands(acts)
-    assert voice
-    assert all(_decoded(cmd) is not None for cmd in voice.values())
-
-
-class TestLoadFilterActs:
-    def test_prefers_local_over_example(self, tmp_path: Path):
-        local = tmp_path / "content.local.json"
-        example = tmp_path / "content.example.json"
-        local.write_text(json.dumps({"acts": {"x": ["x"]}}), encoding="utf-8")
-        example.write_text(json.dumps({"acts": {"y": ["y"]}}), encoding="utf-8")
-        assert load_acts(local, example) == {"x": ("x",)}
-
-    def test_falls_back_to_example_when_local_absent(self, tmp_path: Path):
-        example = tmp_path / "content.example.json"
-        example.write_text(json.dumps({"acts": {"y": ["y", "y two"]}}), encoding="utf-8")
-        acts = load_acts(tmp_path / "missing.json", example)
-        assert acts == {"y": ("y", "y two")}

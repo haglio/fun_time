@@ -11,11 +11,12 @@ from voice_core.listening import Heard
 from voice_core.speech import HearsSpeech
 
 from fun_time import voice_control
+from fun_time.command_value import set_command
 from fun_time.config import VoiceControlConfig
 from fun_time.content import genau_flick_noun
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.hosted_contract import HostedVocabulary
-from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
+from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands, parse_command_line
 from fun_time.voice_control import (
     WHILE_NOT_WEARING_HEADSET,
     HostedVoice,
@@ -56,10 +57,12 @@ MISSES = [
 
 class TestCommandRules:
     def test_every_spoken_phrase_is_one_the_listener_is_told_to_hear(self):
-        rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
+        told = filter_voice_commands({"alpha": ("alpha", "al fa")})
+        commands = build_voice_commands(filter_commands=told)
+        rules = command_rules(commands, confidence_threshold=0.7, confirm_commands=True)
 
-        assert rules.phrases == frozenset(VOICE_COMMANDS)
-        assert set(filter_voice_commands()) <= rules.phrases
+        assert rules.phrases == frozenset(commands)
+        assert set(told) <= rules.phrases
 
     def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_app(self):
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
@@ -687,6 +690,19 @@ class TestWriteCommand:
         vc.mute()
         vc._write_spoken("play", spoken_at=1.0)
         assert not cmd_file.exists()
+
+
+def test_the_hosted_apps_label_names_are_the_satellites_filter_words_in_each_form_heard(tmp_path):
+    vc = VoiceController(
+        cmd_file=tmp_path / "cmd.txt",
+        settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        hosted=HostedVoice(vocabulary=HostedVocabulary(
+            labels_heard_as=(("alpha", ("alpha", "al fa")),))),
+    )
+
+    assert {phrase: vc.commands[phrase] for phrase in ("alpha", "al fa", "portrait alpha")} == {
+        "alpha": set_command("satellites", "alpha"), "al fa": set_command("satellites", "alpha"),
+        "portrait alpha": set_command("portrait", "alpha")}
 
 
 def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_satellite(tmp_path):

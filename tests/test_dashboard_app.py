@@ -57,6 +57,7 @@ from fun_time.dashboard_app import (
     DashboardLaunchGeometry,
     DashboardWidget,
     IconCache,
+    ReferencePopup,
     RfbModeSelectorWidget,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
@@ -728,6 +729,27 @@ def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_wind
     with patch.object(window, "_sync_own_topmost") as mock_sync:
         window._do_render(_snapshot(omni_paused=True), frozenset())
     mock_sync.assert_called_once_with(True)
+
+
+def test_the_reference_names_the_actions_its_session_was_told_of():
+    dialog = ReferenceDialog(actions={"alphaname": ("alphaname", "al fa name")})
+    try:
+        shown = dialog.browser.toPlainText()
+    finally:
+        dialog.close()
+
+    assert ("alphaname" in shown, "al fa name" in shown) == (True, False)
+
+
+def test_the_popup_opens_the_reference_on_the_actions_read_as_it_opens():
+    told = {"alphaname": ("alphaname",)}
+    popup = ReferencePopup(None, None, on_change=lambda: None, on_typing_invited=lambda: None,
+                           actions=lambda: told)
+
+    with patch("fun_time.dashboard_app.ReferenceDialog") as dialog,          patch("fun_time.dashboard_app.bring_to_front"):
+        popup.open(omni_paused=False)
+
+    assert dialog.call_args.kwargs["actions"] == told
 
 
 def test_reference_dialog_syncs_topmost_with_omnipause():

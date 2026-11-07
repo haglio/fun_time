@@ -17,15 +17,15 @@ from fun_time import (
 from fun_time.command_dispatch import ROUTES, handles
 from fun_time.command_reference import build_reference_sections
 from fun_time.command_value import MAIN_EQUIVALENTS, Scope, parse_command
+from fun_time.filter_vocab import filter_voice_commands
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
 from fun_time.satellite_buttons import HudState, funestra_rows
-from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time.voice_commands import build_voice_commands
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
     PREFIXED_COMMAND_FORMS,
     _ahk_ids,
-    _expected_filter_ids,
     _expected_numeric_ids,
 )
 
@@ -61,10 +61,13 @@ def _keys(texts) -> frozenset[tuple[Scope, str]]:
     return frozenset(parse_command(text).key for text in texts)
 
 
+_TOLD_ACTIONS = {"alpha": ("alpha",)}
+
+
 def _reference_ids() -> frozenset[str]:
     return frozenset(
         command
-        for section in build_reference_sections()
+        for section in build_reference_sections(_TOLD_ACTIONS)
         for row in section.rows
         for command in row.commands
     )
@@ -73,7 +76,8 @@ def _reference_ids() -> frozenset[str]:
 def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     targets: set[str] = set()
     residues: set[str] = set()
-    for value in set(VOICE_COMMANDS.values()):
+    told = build_voice_commands(filter_commands=filter_voice_commands(_TOLD_ACTIONS))
+    for value in set(told.values()):
         for funestra in (1, 2, 3):
             for command in parse_command(value).aimed_at_the_active(funestra).each():
                 (residues if command.said_to is Scope.ACTIVE else targets).add(command.text)
@@ -184,7 +188,7 @@ def test_the_reference_and_the_routes_agree():
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
 
     documented = _keys(reference | frozenset(HUD_ONLY_COMMAND_IDS) | _HUD_POSTED_WITH_A_VALUE
-                       | _expected_numeric_ids() | _expected_filter_ids() | _TOLD_BY_THE_HOSTED_APP)
+                       | _expected_numeric_ids() | _TOLD_BY_THE_HOSTED_APP)
     undocumented = set(ROUTES) - documented
     assert not undocumented, f"routed commands the reference omits: {sorted(undocumented)}"
 
