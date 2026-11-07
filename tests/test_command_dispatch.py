@@ -3611,6 +3611,19 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
     assert sorted(_playlist(config, 2)) == sorted([meant, sibling])
 
 
+def test_lock_action_filters_to_the_current_videos_labels(tmp_path: Path):
+    labeled = _subject_meta(action="Beta Gamma")
+    labeled["video"]["labels"] = ["alpha", "XYZ"]
+    config, paths = _make_grouped_config(tmp_path, {"clip": labeled})
+
+    _set_current(config, 2, paths["clip"])
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result()
+        new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
+
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha, xyz"
+
+
 def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "meant": _subject_meta(action="Beta Gamma"),
