@@ -475,17 +475,18 @@ class TestWhatARestartBringsBackOfEachFunestra:
     _NO_SETTING = frozenset({
         "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
         "CLEAR_FRAME", "SET_PACE", "HOLD_PICTURE", "PLAY_FILE", "PLAY_NEXT", "NEXT_VERSION",
-        "PREV_VERSION", "LET_GO", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED"})
+        "PREV_VERSION", "FORGET_VERSIONS", "LET_GO", "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED"})
     _RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER = frozenset({"SET_TCODE_ENABLED"})
+    _ANSWERED_FROM_THE_NEXT_FUNESTRA_ON = frozenset({"FORGET_VERSIONS"})
 
     def test_every_verb_a_funestra_answers_comes_back_after_a_restart_or_is_no_setting(self):
         named = (set(self._KEPT_IN_THE_APPS_STATE) | self._NO_SETTING
                  | self._RESENT_EVERY_SECOND_BY_THE_DEVICE_ARBITER)
         verbs = {name for name, spelled in vars(funestra_verbs).items() if spelled == name}
 
-        assert verbs == named, (
-            f"say how a restart brings back {sorted(verbs - named)}; "
-            f"a Funestra no longer answers {sorted(named - verbs)}")
+        assert verbs - named == set(), f"say how a restart brings back {sorted(verbs - named)}"
+        no_longer = named - verbs - self._ANSWERED_FROM_THE_NEXT_FUNESTRA_ON
+        assert no_longer == set(), f"a Funestra no longer answers {sorted(no_longer)}"
 
     def test_what_a_restart_resends_is_what_the_apps_state_keeps(self, tmp_path: Path):
         main_funestra_cmd, portrait_cmd = tmp_path / "main_player_cmd.txt", tmp_path / "portrait_cmd.txt"
