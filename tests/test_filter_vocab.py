@@ -91,3 +91,10 @@ def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
     assert "delta" in forms
     assert "delta form" not in forms
     assert "beta gamma" in forms
+
+
+def test_a_name_written_in_capitals_is_heard_the_way_the_recognizer_writes_it():
+    voice = filter_voice_commands({"Alpha XYZ": ("Alpha XYZ",)})
+
+    assert (voice.get("alpha xyz"), voice.get("portrait alpha xyz")) == (
+        set_command("satellites", "Alpha XYZ"), set_command("portrait", "Alpha XYZ"))
