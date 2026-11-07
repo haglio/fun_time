@@ -8,7 +8,6 @@ import subprocess
 import sys
 import threading
 import time
-import winsound
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -801,7 +800,6 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
 
 def _answer_the_quit_question(monkeypatch, button):
     asked = []
-    monkeypatch.setattr(winsound, "MessageBeep", lambda _kind: None)
     monkeypatch.setattr(QMessageBox, "question",
                         staticmethod(lambda *args: asked.append(args[1:3]) or button))
     return asked
