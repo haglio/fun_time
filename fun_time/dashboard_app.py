@@ -63,6 +63,8 @@ from fun_time.dashboard_actions import (
     OMNIPAUSE_TOGGLE,
     OMNIRESTORE,
     QUIT_BUTTON,
+    QUIT_QUESTION,
+    QUIT_TITLE,
     RESET_ALL,
     VOICE_TOGGLE,
 )
@@ -654,8 +656,7 @@ class DashboardWindow(QMainWindow):
         if action_id == HELP_REFERENCE:
             self._reference.toggle(self._omni_paused)
             return
-        if action_id == QUIT_BUTTON and not sure(
-                self, "Quit Fun Time", "Are you sure you want to quit Fun Time?"):
+        if action_id == QUIT_BUTTON and not sure(self, QUIT_TITLE, QUIT_QUESTION):
             return
         self._flash.press(action_id)
         self._post_command(action_id)

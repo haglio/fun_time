@@ -37,6 +37,7 @@ from fun_time.dashboard_actions import (
     LIBRARY_OPEN_FILENAME,
     QUIT_BUTTON,
     REFERENCE_OPEN_FILENAME,
+    VOICE_TOGGLE,
 )
 from fun_time.event_log import MESSAGE
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -64,6 +65,7 @@ from fun_time_vr.app import build_parser
 from fun_time_vr.dash_panel import (
     DASH_DEG_PER_PX,
     DASH_WIDTH_PX,
+    QUIT_YES,
     DashState,
     dash_actions,
     dash_height,
@@ -2418,20 +2420,34 @@ class TestTheDashUnderThePointer:
         return _a_dash(tmp_path)
 
     @staticmethod
-    def _uv_of(action: str) -> tuple[float, float]:
+    def _uv_of(action: str, *, asking_to_quit: bool = False) -> tuple[float, float]:
         width, height = DASH_WIDTH_PX, dash_height()
-        rect = dash_actions()[action]
+        rect = dash_actions(asking_to_quit=asking_to_quit)[action]
         return ((rect.x + rect.width // 2 + 0.5) / width,
                 1 - (rect.y + rect.height // 2 + 0.5) / height)
 
     def test_a_press_on_a_control_posts_its_command(self, tmp_path):
         unit = self._unit(tmp_path)
 
-        unit.point(Frame(events=[PressEvent(PRESS, DASH, *self._uv_of(QUIT_BUTTON))]))
+        unit.point(Frame(events=[PressEvent(PRESS, DASH, *self._uv_of(VOICE_TOGGLE))]))
         unit.pump(threading.Event(), 0.0)
 
         posted = (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8")
-        assert posted.strip() == QUIT_BUTTON
+        assert posted.strip() == VOICE_TOGGLE
+
+    def test_the_power_button_quits_once_its_question_is_answered_yes(self, tmp_path):
+        unit = self._unit(tmp_path)
+        posted = tmp_path / "dashboard_cmd.txt"
+
+        unit.point(Frame(events=[PressEvent(PRESS, DASH, *self._uv_of(QUIT_BUTTON))]))
+        unit.pump(threading.Event(), 0.0)
+        asked_first = not posted.exists()
+        unit.point(Frame(events=[PressEvent(PRESS, DASH, *self._uv_of(
+            QUIT_YES, asking_to_quit=True))]))
+        unit.pump(threading.Event(), 0.0)
+
+        assert asked_first
+        assert posted.read_text(encoding="utf-8").strip() == QUIT_BUTTON
 
     def test_the_question_mark_lights_while_the_session_has_the_reference_up(self, tmp_path):
         unit = self._unit(tmp_path)

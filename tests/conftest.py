@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import winsound
 from pathlib import Path
 
 import pytest
@@ -69,6 +70,13 @@ def _never_switch_a_real_browsers_tabs(monkeypatch):
         raise RuntimeError("a unit test tried to reach a real browser's tabs")
 
     monkeypatch.setattr(chrome_accessibility, "_Automation", _refuse)
+
+
+@pytest.fixture(autouse=True)
+def alert_sounds(monkeypatch):
+    sounded: list[int] = []
+    monkeypatch.setattr(winsound, "MessageBeep", sounded.append)
+    return sounded
 
 
 @pytest.fixture(autouse=True)

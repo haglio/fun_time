@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 QUIT_BUTTON = "quit"
+QUIT_TITLE = "Quit Fun Time"
+QUIT_QUESTION = "Are you sure you want to quit Fun Time?"
 OMNIMINIMIZE = "omniminimize"
 OMNIRESTORE = "omnirestore"
 OMNIPAUSE_TOGGLE = "omnipause_toggle"

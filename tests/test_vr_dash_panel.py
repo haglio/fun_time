@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import winsound
 from itertools import pairwise
 
 import numpy as np
+import pytest
 from funestra.main_hud_painter import MainHud
 from funestra.osr2_controls_host import Osr2ControlsHost
 from PIL import Image, ImageDraw
@@ -57,6 +59,8 @@ from fun_time_vr.dash_panel import (
     _WORDMARK_PX,
     DASH_WIDTH_PX,
     LOG_ROWS,
+    QUIT_NO,
+    QUIT_YES,
     VERBOSITY_DROPDOWN,
     VERBOSITY_STOP,
     DashPointer,
@@ -124,8 +128,9 @@ def _pointer(**state):
     return DashPointer(post=posted.append, state=DashState(**state)), posted
 
 
-def _middle(action: str, *, dial_open: bool = False) -> tuple[int, int]:
-    rect = dash_actions(dial_open=dial_open)[action]
+def _middle(action: str, *, dial_open: bool = False,
+            asking_to_quit: bool = False) -> tuple[int, int]:
+    rect = dash_actions(dial_open=dial_open, asking_to_quit=asking_to_quit)[action]
     return rect.x + rect.width // 2, rect.y + rect.height // 2
 
 
@@ -347,10 +352,48 @@ class TestWhatAPressDoes:
     def test_a_control_posts_the_command_the_desktop_posts(self):
         pointer, posted = _pointer()
 
-        for action in (QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE):
+        for action in (OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE):
             pointer.press(*_middle(action))
 
-        assert posted == [QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE]
+        assert posted == [OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE]
+
+    def test_the_power_button_asks_first_with_the_desktops_question(self, alert_sounds):
+        pointer, posted = _pointer()
+
+        pointer.press(*_middle(QUIT_BUTTON))
+
+        assert posted == []
+        assert pointer.state.asking_to_quit
+        assert alert_sounds == [winsound.MB_ICONEXCLAMATION]
+
+    def test_yes_quits(self):
+        pointer, posted = _pointer()
+        pointer.press(*_middle(QUIT_BUTTON))
+
+        pointer.press(*_middle(QUIT_YES, asking_to_quit=True))
+
+        assert posted == [QUIT_BUTTON]
+        assert not pointer.state.asking_to_quit
+
+    @pytest.mark.parametrize("answer", ["no", "elsewhere"])
+    def test_no_or_a_press_anywhere_else_leaves_fun_time_running(self, answer):
+        pointer, posted = _pointer()
+        pointer.press(*_middle(QUIT_BUTTON))
+
+        pointer.press(*(_middle(QUIT_NO, asking_to_quit=True) if answer == "no"
+                        else _middle(VOICE_TOGGLE)))
+
+        assert posted == []
+        assert not pointer.state.asking_to_quit
+
+    def test_the_question_is_painted_over_the_dash_while_it_asks(self):
+        rect = dash_actions(asking_to_quit=True)[QUIT_YES]
+        middle = rect.y + rect.height // 2, rect.x + rect.width // 2
+
+        asked = np.asarray(paint_dash(DashState(asking_to_quit=True), []))
+        quiet = np.asarray(paint_dash(DashState(), []))
+
+        assert not np.array_equal(asked[middle], quiet[middle])
 
     def test_reset_all_is_drawn_where_the_desktop_puts_it_and_posts_its_command(self):
         pointer, posted = _pointer()

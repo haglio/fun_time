@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import winsound
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from functools import cache
 
@@ -14,6 +16,7 @@ from shared_ui.palette import (
     BG_BUTTON,
     BG_PRIMARY,
     BG_TERTIARY,
+    BLACK,
     BLUE,
     BORDER_SUBTLE,
     TEXT_PRIMARY,
@@ -30,6 +33,7 @@ from shared_ui.spacing import (
 from shared_ui.type_scale import SIZE_SMALL, SIZE_TINY, in_pixels
 
 from fun_time import preview_marker
+from fun_time.dashboard_actions import QUIT_BUTTON, QUIT_QUESTION
 from fun_time.dashboard_controls import BarControl, BarState, bar_controls, icon_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.dashboard_osr2_model import room_for_a_whole_part
@@ -53,6 +57,10 @@ LOG_ROWS = 8
 
 VERBOSITY_DROPDOWN = "dash_verbosity"
 VERBOSITY_STOP = "dash_verbosity:"
+QUIT_YES = "dash_quit:yes"
+QUIT_NO = "dash_quit:no"
+_ANSWERS = {QUIT_YES: "Yes", QUIT_NO: "No"}
+_DIMMED_BEHIND_THE_QUESTION = 140
 
 
 @dataclass(frozen=True)
@@ -65,6 +73,7 @@ class DashState:
     verbosity: int = LEVELS_BY_NAME["NOTICE"]
     sources: frozenset[str] = frozenset(SOURCES)
     dial_open: bool = False
+    asking_to_quit: bool = False
 
     def accepts(self, record: EventRecord) -> bool:
         return record.level >= self.verbosity and record.source in self.sources
@@ -119,7 +128,32 @@ def dial_stops() -> dict[str, Rect]:
     }
 
 
-def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
+def _answer_width(label: str) -> int:
+    return int(load_font(_LABEL_PX).getlength(label)) + 2 * BUTTON_PAD_H_TIGHT
+
+
+def question_rect() -> Rect:
+    bar = compute_dashboard_bar_layout()
+    answers = sum(_answer_width(label) for label in _ANSWERS.values()) + BUTTON_GAP
+    width = int(load_font(_LABEL_PX).getlength(QUIT_QUESTION)) + BUTTON_GROUP_GAP + answers + 2 * PAD
+    height = BUTTON_SIZE_HUD + 2 * PAD
+    return Rect((bar.width - width) // 2, (dash_height() - height) // 2, width, height)
+
+
+def answer_rects() -> dict[str, Rect]:
+    box = question_rect()
+    x = box.x + box.width - PAD
+    rects: dict[str, Rect] = {}
+    for action, label in reversed(_ANSWERS.items()):
+        x -= _answer_width(label)
+        rects[action] = Rect(x, box.y + PAD, _answer_width(label), BUTTON_SIZE_HUD)
+        x -= BUTTON_GAP
+    return {action: rects[action] for action in _ANSWERS}
+
+
+def dash_actions(*, dial_open: bool = False, asking_to_quit: bool = False) -> dict[str, Rect]:
+    if asking_to_quit:
+        return answer_rects()
     actions = {control.action: control.rect
                for control in bar_controls(compute_dashboard_bar_layout(), BarState(in_vr=True))}
     actions[VERBOSITY_DROPDOWN] = dial_rect()
@@ -229,7 +263,20 @@ def paint_dash(state: DashState, records,
         paint_list(panel, _open_list(state), small)
     if shown_as is not None and _on(bar.app_title, hover):
         _paint_tip(draw, bar.app_title, preview_marker.app_title(shown_as), small)
+    if state.asking_to_quit:
+        _paint_the_quit_question(panel, small, hover)
     return panel
+
+
+def _paint_the_quit_question(panel: Image.Image, font, hover) -> None:
+    panel.alpha_composite(Image.new("RGBA", panel.size, (*BLACK, _DIMMED_BEHIND_THE_QUESTION)))
+    draw = ImageDraw.Draw(panel)
+    box = question_rect()
+    slab(draw, box, BG_TERTIARY, BORDER_SUBTLE)
+    draw.text((box.x + PAD, box.y + PAD + 3), QUIT_QUESTION, font=font, fill=(*TEXT_PRIMARY, 255))
+    for action, rect in answer_rects().items():
+        button(draw, rect, BG_BUTTON, lit=_on(rect, hover))
+        _label(draw, rect, _ANSWERS[action], font, TEXT_PRIMARY)
 
 
 def _within_the_part(px: int, py: int) -> tuple[int, int]:
@@ -249,14 +296,20 @@ def with_the_osr2_part(dash: Image.Image,
 
 
 class DashPointer:
-    def __init__(self, *, post, state: DashState | None = None) -> None:
+    def __init__(self, *, post, state: DashState | None = None,
+                 alert: Callable[[], None] = lambda: winsound.MessageBeep(
+                     winsound.MB_ICONEXCLAMATION)) -> None:
         self._post = post
+        self._alert = alert
         self.state = state or DashState()
         self.part = Osr2ControlsHost(post=post)
         self._held = self._held_on_the_part = False
 
     def press(self, px: int, py: int) -> str | None:
         self._held, self._held_on_the_part = True, _on(osr2_part_rect(), (px, py))
+        if self.state.asking_to_quit:
+            self._answer(px, py)
+            return None
         if self._held_on_the_part:
             self.part.press(*_within_the_part(px, py))
         for action, rect in dash_actions(dial_open=self.state.dial_open).items():
@@ -268,6 +321,11 @@ class DashPointer:
             return action
         self.state = replace(self.state, dial_open=False)
         return None
+
+    def _answer(self, px: int, py: int) -> None:
+        self.state = replace(self.state, asking_to_quit=False)
+        if _on(answer_rects()[QUIT_YES], (px, py)):
+            self._post(QUIT_BUTTON)
 
     def drag(self, px: int, py: int) -> None:
         if self._held_on_the_part:
@@ -298,6 +356,9 @@ class DashPointer:
                 self.state, dial_open=False,
                 sources=frozenset(set(self.state.sources) ^ {action}),
             )
+        elif action == QUIT_BUTTON:
+            self.state = replace(self.state, dial_open=False, asking_to_quit=True)
+            self._alert()
         else:
             self.state = replace(self.state, dial_open=False)
             self._post(action)
