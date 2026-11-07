@@ -41,6 +41,7 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY
 from shared_ui.foreground import bring_to_front
+from shared_ui.hard_to_miss import sure
 from shared_ui.icon_geometry import tooltip_for
 from shared_ui.icons import icon_pixmap
 from shared_ui.pressable_drawing import PressableDrawing
@@ -652,6 +653,9 @@ class DashboardWindow(QMainWindow):
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
             self._reference.toggle(self._omni_paused)
+            return
+        if action_id == QUIT_BUTTON and not sure(
+                self, "Quit Fun Time", "Are you sure you want to quit Fun Time?"):
             return
         self._flash.press(action_id)
         self._post_command(action_id)
