@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import fnmatch
 import os
 import subprocess
 import sys
@@ -16,6 +17,8 @@ from tests.integration.hidden_desktop import (
     require_hidden_desktop,
 )
 from tests.integration.line_record import RUN_RECORD_ENV
+
+TESTS_ROOT = Path(__file__).resolve().parent
 
 
 def test_a_run_on_the_hidden_desktop_is_allowed():
@@ -46,18 +49,26 @@ def test_the_predicate_and_the_refusal_agree():
     assert not on_hidden_desktop(desktop_name=lambda: "Default")
 
 
-def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
-    without_the_exclusion = [
-        directory for directory in pytestconfig.getini("norecursedirs") if directory != "integration"
+def test_the_sweep_imports_no_unit_test_module_on_its_way_to_the_integration_directory(pytestconfig):
+    ignored = [
+        str(TESTS_ROOT.parent / argument.removeprefix("--ignore-glob="))
+        for argument in _a_run_that_sweeps_the_integration_directory_in(pytestconfig)
+        if argument.startswith("--ignore-glob=")
+    ]
+    swept_on_the_way = [
+        module.name
+        for module in TESTS_ROOT.rglob("test_*.py")
+        if "integration" not in module.relative_to(TESTS_ROOT).parts
+        and not any(fnmatch.fnmatch(str(module), pattern) for pattern in ignored)
     ]
 
+    assert swept_on_the_way == []
+
+
+def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
     swept_in = subprocess.run(
-        [
-            sys.executable, "-m", "pytest", "tests",
-            "-o", "norecursedirs=" + " ".join(without_the_exclusion),
-            "--collect-only", "-q",
-        ],
-        cwd=Path(__file__).resolve().parent.parent,
+        _a_run_that_sweeps_the_integration_directory_in(pytestconfig),
+        cwd=TESTS_ROOT.parent,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -72,6 +83,18 @@ def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
 
     assert swept_in.returncode == REFUSED_EXIT_CODE, said
     assert f"must run on the '{HIDDEN_DESKTOP_NAME}' desktop" in said, said
+
+
+def _a_run_that_sweeps_the_integration_directory_in(pytestconfig) -> list[str]:
+    without_the_exclusion = [
+        directory for directory in pytestconfig.getini("norecursedirs") if directory != "integration"
+    ]
+    return [
+        sys.executable, "-m", "pytest", "tests",
+        "-o", "norecursedirs=" + " ".join(without_the_exclusion),
+        "--ignore-glob=tests/test_*.py", "--no-cov",
+        "--collect-only", "-q",
+    ]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="the refusal returns early off Windows")
