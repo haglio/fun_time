@@ -4,8 +4,6 @@ import logging
 from collections.abc import Iterable
 from dataclasses import replace
 
-from funestra.file_channel import append_command
-
 from . import (
     audio_commands,
     crown,
@@ -34,10 +32,11 @@ from .command_value import SAY, Command, Scope, parse_command
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import MainFunestraStatus
 from .genau_commands import about_genaus_flick
-from .hosted_contract import said_to_the_hosted_app, with_when_said
+from .hosted_contract import said_to_the_hosted_app, written_for_the_hosted_app
+from .hosted_words import line_said_bare_to_the_hosted_app
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
-from .origenerator_switches import aimed_at_the_hosted_app, hosts, hosts_a_satellite
+from .origenerator_switches import hosts, hosts_a_satellite
 from .satellite_commands import THE_FUNESTRAS_OWN, is_hud_nav_command, satellite_at_defaults
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
@@ -65,7 +64,6 @@ def dispatch_command(
         command = parse_command(command)
     if command.funestra is not None:
         state = _addressed(command.funestra, command, state)
-    command = aimed_at_the_hosted_app(command, state, config)
     reworded = _a_lock_said_in_the_hosted_apps_words(command, state, config)
     if reworded is not command:
         command, hosted = reworded, None
@@ -92,10 +90,12 @@ def _half_by_half(command: Command, state: BridgeState, config: BridgeConfig,
     return state, ops
 
 
-def _unanswered(command: Command, state: BridgeState, _config: BridgeConfig,
+def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> Result:
     if command.said_to is Scope.ACTIVE:
-        return ignored(state, ON_THE_MAIN_FUNESTRA)
+        bare = line_said_bare_to_the_hosted_app(command, state, config)
+        return ((state, written_for_the_hosted_app([bare], config, None)) if bare
+                else ignored(state, ON_THE_MAIN_FUNESTRA))
     if command.action == SAY:
         return ignored(state, IN_KINO_MODE)
     logger.warning("no handler for command %r", command.text)
@@ -138,12 +138,9 @@ def routes_to_origenerator(command: str | Command, state: BridgeState, config: B
 def _told_to_the_hosted_app(command: Command, config: BridgeConfig,
                             spoken_at: float | None) -> list:
     spoken = _words_for_the_hosted_app(command)
-    lines = ([said_to_the_hosted_app(*spoken)] if spoken is not None
-             else [half.text for half in command.halves()])
-    for line in lines:
-        append_command(config.origenerator_cmd_file,
-                       with_when_said(line, spoken_at, config.origenerator_said_at_suffix))
-    return []
+    return written_for_the_hosted_app(
+        [said_to_the_hosted_app(*spoken)] if spoken is not None
+        else [half.text for half in command.halves()], config, spoken_at)
 
 
 def app_at_defaults(state: BridgeState, config: BridgeConfig, status: MainFunestraStatus) -> bool:

@@ -82,6 +82,7 @@
     "PORTRAIT_SAY:favorites",
     "PORTRAIT_SAY:{words}",
     "RELEASE",
+    "SAY:{words}",
     "TAKE_BACK",
     "filter_landscape_{row}",
     "filter_portrait_{row}",

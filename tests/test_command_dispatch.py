@@ -5110,3 +5110,13 @@ def test_the_hosted_apps_words_said_bare_with_no_satellite_hosting_it_stay_ignor
 
     assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
     assert _origenerator_cmds(config) == []
+
+
+def test_the_hosted_apps_own_words_said_bare_reach_it_in_the_rfbs_place(tmp_path):
+    config = _origenerator_config(tmp_path)
+    state = _up(rfb_mode=RfbMode.ORIGENERATOR)
+
+    _new_state, ops = dispatch_command(say_command("active", "populate on"), state, config)
+
+    assert ops == []
+    assert _origenerator_cmds(config) == ["SAY:populate on"]
