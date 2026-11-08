@@ -667,7 +667,7 @@ def test_hud_map_cells_caps_each_axis_at_the_draw_limit():
 def _i2v(action: str, video_seed: str, image_seed: str = "100") -> dict:
     return {
         "video": {
-            "prompt": "a scene", "model": "Realism", "action": action,
+            "prompt": "a scene", "model": "Realism", "action": action, "labels": [action],
             "resolution": "720x560", "aspect_ratio": "9:7", "quality": "720p",
             "seed": video_seed, "created": "2025-12-05",
         },

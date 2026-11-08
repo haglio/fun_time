@@ -44,6 +44,7 @@ def _i2v_meta(*, action: str, video_seed: str, image_overrides: dict | None = No
             "prompt": f"prompt for {action}",
             "model": "Realism",
             "action": action,
+            "labels": [action],
             "resolution": "720x560",
             "aspect_ratio": "9:7",
             "quality": "720p",
@@ -59,6 +60,7 @@ VIDEO_ONLY_META = {
         "prompt": "JUST A VIDEO",
         "model": "Video v3",
         "action": "Side Epsilon",
+        "labels": ["Side Epsilon"],
         "resolution": "1280x720",
         "aspect_ratio": "16:9",
         "quality": "720p",
@@ -344,7 +346,7 @@ def test_a_video_with_labels_is_kept_by_a_label_and_never_by_the_sites_word():
 
 def test_matches_query_is_a_case_insensitive_substring_of_the_act():
     meta = {
-        "video": {"action": "Side Epsilon", "prompt": "subject subject"},
+        "video": {"labels": ["Side Epsilon"], "prompt": "subject subject"},
         "source_image": {"positive_prompt": "pool party"},
     }
     assert matches_query(meta, "epsilon")
@@ -375,10 +377,10 @@ def test_matches_query_empty_matches_everything():
 
 
 def test_matches_query_multiword_must_be_contiguous():
-    joined = {"video": {"action": "Beta Gamma", "prompt": "x"}}
+    joined = {"video": {"labels": ["Beta Gamma"], "prompt": "x"}}
     assert matches_query(joined, "beta gamma")
     assert matches_query(joined, "gamma")
-    scattered = {"video": {"action": "Beta, Theta Gamma", "prompt": "x"}}
+    scattered = {"video": {"labels": ["Beta", "Theta Gamma"], "prompt": "x"}}
     assert matches_query(scattered, "theta gamma")
     assert not matches_query(scattered, "beta gamma")
 
@@ -391,7 +393,7 @@ def test_path_matches_query_reads_the_sidecar(tmp_path):
     video.write_bytes(b"")
     sidecar = metadata_root / "portrait" / "provider" / "clip.json"
     sidecar.parent.mkdir(parents=True)
-    sidecar.write_text(json.dumps({"video": {"action": "Beta Gamma", "prompt": "x"}}), encoding="utf-8")
+    sidecar.write_text(json.dumps({"video": {"labels": ["Beta Gamma"], "prompt": "x"}}), encoding="utf-8")
 
     assert path_matches_query(str(video), metadata_root, "beta gamma")
     assert not path_matches_query(str(video), metadata_root, "alpha")
@@ -443,9 +445,10 @@ def test_a_filter_keeps_a_video_by_its_actions_as_the_satellite_hud_lights_its_r
         ("Gam", "gamma", False),
     ]
     for label, query, expected in cases:
-        assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
+        labels = [part.strip() for part in label.split(",")]
+        assert matches_query({"video": {"labels": labels}}, query) is expected, (label, query)
 
-    assert matches_query({"video": {"action": "Gamma"}}, "") is True
+    assert matches_query({"video": {"labels": ["Gamma"]}}, "") is True
 
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):

@@ -37,7 +37,7 @@ def _make_action_video(
     sidecar = metadata_path_for(video, metadata_root)
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(
-        json.dumps({"video": {"action": action, "prompt": prompt, "seed": name}}), encoding="utf-8"
+        json.dumps({"video": {"action": action, "labels": [action], "prompt": prompt, "seed": name}}), encoding="utf-8"
     )
     return str(video)
 
@@ -250,7 +250,7 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
     portrait_root = media_root / "portrait"
     portrait_root.mkdir(parents=True)
     meta = {
-        "video": {"prompt": "act", "action": "Alpha", "seed": "1"},
+        "video": {"prompt": "act", "action": "Alpha", "labels": ["Alpha"], "seed": "1"},
         "source_image": {"positive_prompt": "subject", "seed": "111"},
     }
     for name in ("first.mp4", "second.mp4"):
@@ -374,7 +374,7 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
     portrait_root = media_root / "portrait"
     portrait_root.mkdir(parents=True)
     meta = {
-        "video": {"prompt": "act", "action": "Alpha", "seed": "1"},
+        "video": {"prompt": "act", "action": "Alpha", "labels": ["Alpha"], "seed": "1"},
         "source_image": {"positive_prompt": "subject", "seed": "111"},
     }
     older, newer = portrait_root / "older.mp4", portrait_root / "newer.mp4"
