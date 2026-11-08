@@ -32,7 +32,6 @@ from .runtime_flow import SatelliteBuild, SatelliteFilterFlowResult, apply_satel
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_groups import (
     cancel_lock,
-    clear_satellite_grouping,
     cycle_variant,
     cycle_version,
     group_loop,
@@ -51,6 +50,7 @@ from .satellite_groups import (
     send_satellite,
     switch_to_video,
     video_action_label,
+    with_nothing_held_on_the_queue,
     wrong_action,
 )
 from .shared_state import BridgeState, SatelliteState
@@ -163,7 +163,7 @@ def _dispatch_reorder(
     state = state.with_satellite(funestra, latest=recent)
     result = _rebuild_satellite(funestra, state.satellite(funestra).filter, state, config, start_at_top=True)
     state = state.with_satellite(funestra, locked=False)
-    state = clear_satellite_grouping(state, funestra)
+    state = with_nothing_held_on_the_queue(state, funestra)
     funestra_name = FunTimeFunestra(funestra).label
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, funestra_name, result.count)
@@ -193,7 +193,7 @@ def _reset(funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
         state = state.with_satellite(
             funestra, latest=False, filter="", favorites_filter=False,
             enhancement=EnhancementLevel.BOTH, nav_anchor="")
-        state = clear_satellite_grouping(state, funestra)
+        state = with_nothing_held_on_the_queue(state, funestra)
         result = _rebuild_satellite(funestra, "", state, config, start_at_top=True)
         logger.info("Reset %s: %s", satellite_source(funestra), result.log_message)
     send_satellite(config, funestra, set_speed(NORMAL_RATE))
@@ -223,7 +223,7 @@ def _set_filter(query: str, funestra: FunTimeFunestra, state: BridgeState,
     result = _rebuild_satellite(funestra, query, state, config)
     if result.applied:
         state = state.with_satellite(funestra, filter=query)
-        state = clear_satellite_grouping(state, funestra)
+        state = with_nothing_held_on_the_queue(state, funestra)
     logger.info(result.log_message)
     level = MESSAGE if result.applied else logging.WARNING
     return state, [WindowOp(op="message", key=result.log_message,

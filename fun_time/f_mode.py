@@ -20,7 +20,7 @@ from .main_list_commands import on_the_main_funestra
 from .mode_plan import kino_shows
 from .origenerator_switches import hosts
 from .runtime_flow import FMODE_FUNESTRAS, SatelliteFmodeInputs, apply_fmode
-from .satellite_groups import cancel_lock, clear_satellite_grouping
+from .satellite_groups import cancel_lock, with_nothing_held_on_the_queue
 from .shared_state import BridgeState
 from .voice_commands import FAVORITES_PHRASE
 
@@ -122,7 +122,7 @@ def _dispatch_fmode(
     for funestra in FunTimeFunestra.SATELLITES:
         if funestra in result.funestras:
             state = cancel_lock(funestra, state, config)
-            state = clear_satellite_grouping(state, funestra)
+            state = with_nothing_held_on_the_queue(state, funestra)
     source = FUNESTRA_SOURCES[asked_for[0]] if len(asked_for) == 1 else SOURCE_SYSTEM
     message_op = WindowOp(
         op="message",

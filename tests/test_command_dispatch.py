@@ -47,7 +47,7 @@ from fun_time.origenerator_switches import RfbMode, hosted_satellites
 from fun_time.satellite_commands import _discard, _toggle_lock
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock, send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
-from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
+from fun_time.voice_commands import FAVORITES_PHRASE, VOICE_COMMANDS, build_voice_commands
 from fun_time.watch_stats import load_watch_stats
 from main_funestra.genau_verbs import genau_f_mode
 from tests.hosted_shows import publish_the_show
@@ -1161,7 +1161,7 @@ def test_f_mode_on_or_off_misheard_twice_still_lands_where_it_was_asked(tmp_path
     assert stays_off.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is False
 
 
-def test_asserting_the_state_a_funestra_is_already_in_rebuilds_nothing(tmp_path: Path):
+def test_f_mode_on_said_twice_rebuilds_and_so_reshuffles_nothing(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _state, _ops, mock_fmode = _dispatch_fmode(
@@ -1170,12 +1170,18 @@ def test_asserting_the_state_a_funestra_is_already_in_rebuilds_nothing(tmp_path:
     assert mock_fmode.call_args.kwargs["funestras"] == ()
 
 
-def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
+@pytest.mark.parametrize(("way_in", "source"), [
+    ("fmode_toggle", "system"),
+    ("portrait_fmode", "portrait"),
+    (say_command("portrait", FAVORITES_PHRASE), "portrait"),
+])
+def test_key_hud_button_and_spoken_phrase_flash_the_same_f_mode_confirmation(
+        tmp_path: Path, way_in: str, source: str):
     config = _make_config(tmp_path)
 
-    _state, ops, _mock = _dispatch_fmode("fmode_toggle", _make_state(), config)
+    _state, ops, _mock = _dispatch_fmode(way_in, _make_state(), config)
 
-    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source="system",
+    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=source,
                             level=FAVORITE)]
 
 
@@ -1189,7 +1195,7 @@ def test_fmode_flashes_from_fun_time_when_only_one_funestra_was_left_to_narrow(t
     assert [op.source for op in ops] == ["system"]
 
 
-def test_fmode_flashes_a_plain_white_message_when_it_turns_off(tmp_path: Path):
+def test_f_mode_off_is_neither_an_error_nor_a_favoriting_and_flashes_white(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True)
 
@@ -1341,7 +1347,7 @@ def test_a_double_click_on_a_satellite_already_locked_favorites_the_video_it_pic
 
 
 def _nav_config(tmp_path: Path) -> tuple[BridgeConfig, dict[str, str]]:
-    return _make_grouped_config(tmp_path, {
+    return _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
@@ -1362,7 +1368,7 @@ def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: 
 
 
 def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_beta": _cycle_meta("111", "Beta Massage"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
@@ -1377,7 +1383,7 @@ def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
 
 
 def test_nav_past_the_last_action_wraps_round_to_the_anchor(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
     })
@@ -1391,7 +1397,7 @@ def test_nav_past_the_last_action_wraps_round_to_the_anchor(tmp_path: Path):
 
 
 def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
@@ -1407,7 +1413,7 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
 
 
 def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
         "subject_b_zeta": _cycle_meta("222", "Zeta Massage"),
@@ -1422,7 +1428,7 @@ def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
 
 
 def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_b": _cycle_meta("222", "Alpha"),
@@ -1505,15 +1511,17 @@ def test_filter_command_both_scope_messages_each_satellite_under_its_own_source(
     assert [op.source for op in messages] == ["portrait", "landscape"]
 
 
-def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
+def test_a_zero_match_filter_is_not_kept_for_the_next_rebuild_to_apply(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state()
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=0, applied=False)
-        new_state, _ops = dispatch_command("filter_portrait_alpha", state, config)
+        state, _ops = dispatch_command("filter_portrait_alpha", _make_state(), config)
+        mock_filter.return_value = _filter_result(applied=True)
+        dispatch_command("portrait_latest", state, config)
 
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
+    assert state.satellite(FunTimeFunestra.PORTRAIT).filter == ""
+    assert mock_filter.call_args.kwargs["build"].filter_query == ""
 
 
 def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
@@ -1607,7 +1615,7 @@ def test_a_sided_reorder_drops_that_satellites_lock_loop_and_row_widened_for_the
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
 
 
-def test_a_reorder_starts_the_satellite_at_the_top_of_the_new_order(tmp_path: Path):
+def test_latest_starts_the_satellite_at_the_top_where_the_newest_arrivals_sit(tmp_path: Path):
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1649,7 +1657,7 @@ def test_reset_returns_the_satellite_to_every_default(tmp_path: Path):
     assert "LOCK_OFF" in _cmds(config, 2)
 
 
-def test_reset_rebuilds_the_satellite_wide_rather_than_still_in_f_mode(tmp_path: Path):
+def test_reset_drops_f_mode_before_the_rebuild_that_reads_it(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(favorites_filter=True))
 
@@ -1660,7 +1668,7 @@ def test_reset_rebuilds_the_satellite_wide_rather_than_still_in_f_mode(tmp_path:
     assert mock_filter.call_args.kwargs["build"].favorites_filter is False
 
 
-def test_reset_leaves_a_satellite_that_is_already_at_its_defaults_alone(tmp_path: Path):
+def test_reset_on_a_satellite_already_at_its_defaults_reshuffles_nothing(tmp_path: Path):
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -1793,7 +1801,7 @@ def _cycle_meta(image_seed: str, action: str) -> dict:
     }
 
 
-def _make_grouped_config(
+def _a_library_only_one_funestra_sees(
     tmp_path: Path, videos: dict[str, dict | None], funestra: int = 2,
 ) -> tuple[BridgeConfig, dict[str, str]]:
     media_root = tmp_path / "videos" / "videos"
@@ -1829,7 +1837,7 @@ def _subject_meta(*, prompt: str = "x, y, z", image_seed: str = "1",
 
 
 def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
         "other_subject": _cycle_meta("222", "Alpha"),
@@ -1845,7 +1853,7 @@ def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path)
 
 
 def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
         "other_subject": _cycle_meta("222", "Alpha"),
@@ -1858,8 +1866,8 @@ def test_portrait_cycle_action_cycles_the_video_that_was_playing_when_spoken(tmp
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
 
 
-def test_portrait_cycle_action_messages_when_video_has_no_siblings(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+def test_cycle_action_with_no_siblings_dead_ends_in_warning_yellow_not_error_red(tmp_path: Path):
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "loner": _cycle_meta("111", "Alpha"),
     })
     state = _make_state()
@@ -1874,7 +1882,7 @@ def test_portrait_cycle_action_messages_when_video_has_no_siblings(tmp_path: Pat
 
 
 def test_a_successful_cycle_action_message_is_an_ordinary_white_notice(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
     })
@@ -1889,7 +1897,7 @@ def test_a_successful_cycle_action_message_is_an_ordinary_white_notice(tmp_path:
 
 
 def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
     })
@@ -1903,7 +1911,7 @@ def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
 
 
 def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
@@ -1917,7 +1925,7 @@ def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
 
 
 def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
         "subject_a_other_action": _cycle_meta("111", "Zeta Massage"),
@@ -1931,7 +1939,7 @@ def test_portrait_cycle_seed_jumps_to_sister_seed_in_playlist(tmp_path: Path):
 
 
 def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
@@ -1945,7 +1953,7 @@ def test_portrait_cycle_seed_swaps_in_library_sister_when_none_in_playlist(tmp_p
 
 
 def test_portrait_cycle_seed_messages_without_seed_siblings(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
         "no_meta": None,
     })
@@ -1968,7 +1976,7 @@ def _scene_meta(*, image_seed: str, quality: str) -> dict:
 
 
 def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_best": _scene_meta(image_seed="111", quality="Best"),
         "subject_draft": _scene_meta(image_seed="222", quality="Draft"),
     })
@@ -1984,7 +1992,7 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
 
 
 def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "cur": _subject_meta(prompt="a, b", action="Gamma"),
         "other": _subject_meta(prompt="a, c", action="Gamma"),
     })
@@ -2000,7 +2008,7 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
 
 
 def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "cur": _subject_meta(prompt="a", action="Zeta"),
         "other": _subject_meta(prompt="a", image_seed="2", action="Alpha"),
     })
@@ -2016,7 +2024,7 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
 
 
 def test_more_seeds_reports_widening_failed_when_the_library_holds_one_video(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {"only": _subject_meta()})
 
     _set_current(config, 2, paths["only"])
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
@@ -2041,7 +2049,7 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
 
 
 def _other_act_widen_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str, str]:
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "a": _subject_meta(image_seed="1"),
         "a2": _subject_meta(image_seed="2"),
         "b": _subject_meta(image_seed="3", action="Theta"),
@@ -2050,7 +2058,7 @@ def _other_act_widen_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str
     return config, paths["a"], paths["a2"], paths["b"], paths["c"]
 
 
-def test_more_seeds_never_queues_a_video_of_another_action(tmp_path: Path):
+def test_more_seeds_loops_what_it_draws_and_draws_no_video_of_another_act(tmp_path: Path):
     config, a, a2, b, c = _other_act_widen_config(tmp_path)
 
     _set_current(config, 2, a)
@@ -2075,8 +2083,8 @@ def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
     assert [op.key for op in ops if op.op == "message"] == ["More seeds"]
 
 
-def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+def test_next_seed_skips_a_sister_of_another_act_though_the_family_spans_both(tmp_path: Path):
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "a_alpha": _cycle_meta("200", "Alpha"),
         "b_alpha": _cycle_meta("300", "Alpha"),
         "c_gamma": _cycle_meta("250", "Gamma"),
@@ -2091,7 +2099,7 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
 
 
 def test_landscape_cycle_commands_target_the_landscape_funestra(tmp_path: Path):
-    config, _paths = _make_grouped_config(tmp_path, {})
+    config, _paths = _a_library_only_one_funestra_sees(tmp_path, {})
     media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"
     landscape_dir.mkdir(parents=True, exist_ok=True)
@@ -2126,7 +2134,7 @@ def _sending_back(config: BridgeConfig, tmp_path: Path) -> BridgeConfig:
 
 
 def test_portrait_wrong_action_sends_the_video_back_to_the_action_setter_tool(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
     })
     config = _sending_back(config, tmp_path)
@@ -2144,7 +2152,7 @@ def test_portrait_wrong_action_sends_the_video_back_to_the_action_setter_tool(tm
 
 
 def test_wrong_action_judges_the_video_that_was_playing_when_it_was_spoken(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "newcomer": _cycle_meta("222", "Alpha"),
     })
@@ -2158,7 +2166,7 @@ def test_wrong_action_judges_the_video_that_was_playing_when_it_was_spoken(tmp_p
 
 
 def test_landscape_wrong_action_sends_back_the_landscape_video(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "on_portrait": _cycle_meta("111", "Zeta Massage"),
         "on_landscape": _cycle_meta("222", "Alpha"),
     })
@@ -2174,7 +2182,7 @@ def test_landscape_wrong_action_sends_back_the_landscape_video(tmp_path: Path):
 
 
 def test_wrong_action_with_no_satellite_playing_sends_nothing_back(tmp_path: Path):
-    config, _paths = _make_grouped_config(tmp_path, {})
+    config, _paths = _a_library_only_one_funestra_sees(tmp_path, {})
     config = _sending_back(config, tmp_path)
 
     _new_state, ops = dispatch_command("portrait_wrong_action", _make_state(), config)
@@ -2238,7 +2246,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
+def test_the_robot_hand_at_work_in_both_modes_takes_its_rate_keys_in_both(tmp_path: Path):
     for mode in ("kino", "genau"):
         config = _make_config(tmp_path / mode)
         state = _make_state(main_mode=mode)
@@ -3148,12 +3156,12 @@ def _loop_config(tmp_path: Path, *, axis: str, funestra: int = 2) -> tuple[Bridg
         videos = {"a": _subject_meta(action="Alpha"), "b": _subject_meta(action="Twirling")}
     else:
         videos = {"a": _subject_meta(image_seed="1"), "b": _subject_meta(image_seed="2")}
-    config, paths = _make_grouped_config(tmp_path, videos, funestra=funestra)
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"]
 
 
 def _widened_loop_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str]:
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "a": _subject_meta(image_seed="1"),
         "a2": _subject_meta(image_seed="2"),
         "b": _subject_meta(image_seed="3", quality="Draft"),
@@ -3264,7 +3272,7 @@ def test_handing_videos_to_origenerators_trash_until_one_is_left_turns_the_loop_
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
 
     _set_current(config, 2, str(only))
@@ -3279,7 +3287,7 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
 
 
 def test_a_loop_of_one_video_puts_it_in_the_favorites_as_every_lock_does(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {"only": _subject_meta()})
     _set_current(config, 2, paths["only"])
 
     dispatch_command("portrait_action_loop", _make_state(), config)
@@ -3318,7 +3326,7 @@ def test_a_loop_anchors_on_the_video_it_started_on(tmp_path: Path):
 
 
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
 
     _set_current(config, 2, str(only))
@@ -3490,7 +3498,7 @@ def _cycle_config(tmp_path: Path, *, seed_group: bool = True,
               else _subject_meta(prompt="another scene", image_seed="7", action="Beta")),
         "c": _subject_meta(image_seed="2", action="Alpha" if seed_group else "Gamma"),
     }
-    config, paths = _make_grouped_config(tmp_path, videos, funestra=funestra)
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"], paths["c"]
 
 
@@ -3657,7 +3665,7 @@ def test_a_sided_fmode_leaves_the_other_satellites_loop_running(tmp_path: Path):
 
 
 def test_lock_action_filters_to_the_current_videos_action(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "clip": _subject_meta(action="Beta Gamma"),
     })
 
@@ -3683,7 +3691,7 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
 def test_lock_action_filters_to_the_current_videos_actions(tmp_path: Path):
     labeled = _subject_meta(action="Beta Gamma")
     labeled["video"]["labels"] = ["alpha", "XYZ"]
-    config, paths = _make_grouped_config(tmp_path, {"clip": labeled})
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {"clip": labeled})
 
     _set_current(config, 2, paths["clip"])
     with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
@@ -3694,7 +3702,7 @@ def test_lock_action_filters_to_the_current_videos_actions(tmp_path: Path):
 
 
 def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
+    config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "meant": _subject_meta(action="Beta Gamma"),
         "advanced_to": _subject_meta(image_seed="2", action="Other"),
     })
@@ -3934,7 +3942,7 @@ def test_a_narrowing_carries_on_from_the_video_on_screen(tmp_path):
     assert builds.asked[-1].on_screen == on_screen
 
 
-def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path):
+def test_asking_for_the_shapes_already_running_reshuffles_nothing(tmp_path):
     config, builds = _recording(_vr_config(tmp_path))
 
     _state, ops = dispatch_command("main_projection_both", _make_state(), config)
@@ -4151,7 +4159,7 @@ def test_main_reset_makes_the_main_funestra_the_one_a_bare_word_reaches(tmp_path
     assert state.active_funestra == 1
 
 
-def test_reordering_the_main_funestra_starts_it_at_the_top(tmp_path):
+def test_main_latest_starts_at_the_top_where_the_newest_arrivals_sit(tmp_path):
     config, builds = _recording(_make_config(tmp_path))
 
     dispatch_command("main_latest", BridgeState(), config)

@@ -16,7 +16,7 @@ from .shared_state import BridgeState
 logger = logging.getLogger(__name__)
 
 
-_GENAU_CMD_MAP = {
+_SENT_TO_THE_HAND_IN_EITHER_MODE = {
     "robot_hand_amplitude_down": "AMPLITUDE_DOWN",
     "robot_hand_amplitude_up": "AMPLITUDE_UP",
     "robot_hand_center_down": "CENTER_DOWN",
@@ -76,7 +76,7 @@ def _numeric(keyword: str, command: Command, state: BridgeState, config: BridgeC
 
 
 HANDLERS: dict[str, Handler] = {
-    **{cmd: partial(_forward_to_genau, verb) for cmd, verb in _GENAU_CMD_MAP.items()},
+    **{cmd: partial(_forward_to_genau, verb) for cmd, verb in _SENT_TO_THE_HAND_IN_EITHER_MODE.items()},
     "genau_trash_flick": _send_genaus_flick_to_trash,
 }
 
