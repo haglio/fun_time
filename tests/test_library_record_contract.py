@@ -36,7 +36,7 @@ def test_the_act_and_its_rejection_are_where_evolver_says():
 
     assert video_action.WRONG_ACTION_KEY in video["fields"]
     assert video["written_by_the_reader"] == [video_action.WRONG_ACTION_KEY]
-    assert video_action.ACTION_KEY in video["fields"]
+    assert video_action.SITE_ACTION_KEY in video["fields"]
 
 
 def test_every_field_a_videos_identity_is_built_from_is_promised():

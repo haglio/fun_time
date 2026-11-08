@@ -11,7 +11,7 @@ from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, re
 from app_support.video_names import clip_title, version_group_of
 from funestra import video_groups
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
-from funestra.satellite_hud import label_is_filtered
+from funestra.satellite_hud import actions_are_filtered
 from funestra.video_families import actions_text, normalized_text
 from funestra.video_groups import GroupIndex
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
@@ -126,7 +126,7 @@ def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
 
 
 def matches_query(metadata: dict, query: str) -> bool:
-    return not normalized_text(query) or label_is_filtered(actions_text(metadata), query)
+    return not normalized_text(query) or actions_are_filtered(actions_text(metadata), query)
 
 
 def path_matches_query(
