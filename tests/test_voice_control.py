@@ -759,15 +759,15 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
             self, tmp_path):
         vc = self._controller(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}")
         vc.request_opened("landscape")
-        heard = replace(_heard(Recognition(phrase="landscape next")),
-                        spoken_at=time.monotonic() - 2.0)
+        on_the_wall, spoken_at = time.time() - 2.0, time.monotonic() - 2.0
+        heard = replace(_heard(Recognition(phrase="landscape next")), spoken_at=spoken_at)
 
         vc.handle_speech("No feet.", heard)
 
         line = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").strip()
         words, _, stamp = line.partition(" @")
         assert words == "LANDSCAPE_SAY:No feet."
-        assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
+        assert float(stamp) == pytest.approx(on_the_wall, abs=0.1)
 
     @pytest.mark.parametrize(("phrase", "command"), [("stop", "relief_omnipause"), ("quit", "quit")])
     def test_what_a_paused_app_still_hears_is_still_a_command_while_one_is_open(

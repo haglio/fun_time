@@ -141,13 +141,13 @@ def test_an_app_that_cannot_answer_is_heard_saying_nothing(tmp_path, caplog, run
 
 
 def test_a_line_for_something_said_carries_when_it_was_said_by_the_wall_clock():
-    said_two_seconds_ago = time.monotonic() - 2.0
+    on_the_wall, said_two_seconds_ago = time.time() - 2.0, time.monotonic() - 2.0
 
     line = with_when_said("portrait_lock", said_two_seconds_ago, " @{said_at_epoch_seconds}")
 
     command, _, stamp = line.partition(" @")
     assert command == "portrait_lock"
-    assert float(stamp) == pytest.approx(time.time() - 2.0, abs=0.5)
+    assert float(stamp) == pytest.approx(on_the_wall, abs=0.1)
 
 
 @pytest.mark.parametrize(("spoken_at", "suffix"), [
