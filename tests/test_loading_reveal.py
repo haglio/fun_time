@@ -21,8 +21,8 @@ def test_a_minimize_edge_during_startup_is_startups_not_a_gesture(tmp_path: Path
 def test_only_the_first_restore_edge_after_startup_belongs_to_startup(tmp_path: Path):
     reveal = _reveal_during_startup(tmp_path)
 
-    assert reveal.took_the_first_restore() is True
-    assert reveal.took_the_first_restore() is False
+    assert reveal.took_the_reveals_own_restore() is True
+    assert reveal.took_the_reveals_own_restore() is False
     assert reveal.routing_suppressed is False
 
 
@@ -31,4 +31,4 @@ def test_a_session_that_never_waited_has_no_restore_edge_of_startups(tmp_path: P
 
     assert reveal.deferred is False
     assert reveal.routing_suppressed is False
-    assert reveal.took_the_first_restore() is False
+    assert reveal.took_the_reveals_own_restore() is False

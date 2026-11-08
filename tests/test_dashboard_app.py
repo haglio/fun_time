@@ -242,6 +242,11 @@ def test_the_bar_is_only_as_wide_as_its_own_buttons():
     assert _scene().height == layout.height
 
 
+def test_the_log_panel_rides_the_dashboards_window_rather_than_one_of_its_own(dashboard_window):
+    assert not dashboard_window._log_widget.isWindow()
+    assert dashboard_window._log_widget.window() is dashboard_window
+
+
 def test_the_log_filters_sit_in_the_log_panel_under_the_bar(placed_window):
     dial = _at(placed_window, placed_window._log_widget._verbosity)
 
@@ -350,7 +355,7 @@ def test_a_pressed_control_lightens_while_the_press_shows():
     assert pressed == BG_BUTTON_ACTIVE
 
 
-def test_a_control_wearing_a_state_color_lightens_that_color_instead():
+def test_a_pressed_light_stays_its_color_rather_than_going_gray_as_if_off():
     layout = compute_dashboard_bar_layout()
 
     pressed = _fill(_scene(_snapshot(voice_active=True),
@@ -457,7 +462,7 @@ def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_
     window.close()
 
 
-def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_config):
+def test_the_reveals_own_restore_routes_nothing_but_rearms_the_routing(dashboard_app_config):
     window = _window_under_the_loading_screen(dashboard_app_config)
     assert window._reveal.routing_suppressed is True
     cmd_file = dashboard_app_config.dashboard_cmd_file
@@ -518,7 +523,8 @@ def test_do_render_skips_geometry_reapply_while_minimized(dashboard_window, dash
     mock_geo.assert_called_once()
 
 
-def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
+def test_the_dashboard_hides_rather_than_animating_a_minimize_while_fun_time_is_built(
+        dashboard_app_config):
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     show_window = MagicMock()
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
@@ -679,7 +685,7 @@ def test_the_messages_start_held_exactly_when_the_panel_starts_hidden(
         window.close()
 
 
-def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
+def test_the_reveal_a_phase_before_the_screen_goes_releases_no_notice(dashboard_app_config):
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -1625,7 +1631,7 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
         while not window._messages.overlay.flashed and time.monotonic() < deadline:
             window._messages.poll()
             time.sleep(0.02)
-        window._log_widget._poll()
+        window._log_widget._read_the_lines_other_processes_appended()
         listed = [window._log_widget._list.item(row).text()
                   for row in range(window._log_widget._list.count())]
         flashed = [message for message, _target in window._messages.overlay.flashed]

@@ -36,7 +36,7 @@ logger = logging.getLogger("fun_time.orchestrator.loading_screen")
 
 WINDOW_WAIT_S = 5.0
 WINDOW_WAIT_UNDER_A_CROSSING_S = 20.0
-EXIT_WAIT_S = 3.0
+OFF_THE_MONITORS_WAIT_S = 3.0
 
 
 @dataclass(frozen=True)
@@ -54,7 +54,7 @@ class RaisedLoadingScreen:
         self.progress.finish()
         if self.process is not None:
             try:
-                self.process.wait(timeout=EXIT_WAIT_S)
+                self.process.wait(timeout=OFF_THE_MONITORS_WAIT_S)
             except subprocess.TimeoutExpired:
                 self.process.kill()
                 logger.warning("Loading screen did not exit, killed")

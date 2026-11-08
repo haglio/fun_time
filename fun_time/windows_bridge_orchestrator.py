@@ -84,7 +84,7 @@ from .overlay_progress import (
 )
 from .process_identity import NAMER
 from .process_tree import kill_process_tree
-from .raising_the_loading_screen import EXIT_WAIT_S, RaisedLoadingScreen
+from .raising_the_loading_screen import OFF_THE_MONITORS_WAIT_S, RaisedLoadingScreen
 from .rfb_slideshow import rfb_slideshow_on
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -356,7 +356,7 @@ def _closing_screen(
         if crossing is None:
             progress.finish()
             try:
-                wait_until(lambda: proc.poll() is not None, timeout=EXIT_WAIT_S, now=now)
+                wait_until(lambda: proc.poll() is not None, timeout=OFF_THE_MONITORS_WAIT_S, now=now)
             except TimeoutError:
                 proc.kill()
                 logger.warning("Closing screen did not exit, killed")

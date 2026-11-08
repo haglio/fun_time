@@ -608,7 +608,7 @@ class DashboardWindow(QMainWindow):
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
         if not (was_minimized and not now_minimized):
             return
-        if self._reveal.took_the_first_restore():
+        if self._reveal.took_the_reveals_own_restore():
             return
         self._post_to_the_dispatch_loop(OMNIRESTORE)
 
@@ -637,9 +637,12 @@ class DashboardWindow(QMainWindow):
         self._sync_own_topmost(omni_paused)
         self._reference.sync_topmost(omni_paused)
         scene = self._bar_scene(pressed_actions)
-        if not self.isMinimized() and not self._reveal.deferred:
+        if not self._placing_it_now_would_show_or_restore_it():
             apply_dashboard_window_geometry(self, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
+
+    def _placing_it_now_would_show_or_restore_it(self) -> bool:
+        return self.isMinimized() or self._reveal.deferred
 
     def _bar_scene(self, pressed_actions: frozenset[str]) -> DashboardScene:
         return build_dashboard_scene(
