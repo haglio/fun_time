@@ -195,7 +195,7 @@ from .wraps import Wrap, angle_limits, immersive_wrap
 
 logger = logging.getLogger(__name__)
 
-_OV_MESSAGE = 13
+MESSAGE_OVERLAY_ID = 13
 
 
 MAIN_VIDEO_CAP_PX = 8192
@@ -204,7 +204,7 @@ SATELLITE_VIDEO_CAP_PX = 2048
 LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
 PUMP_HZ = 30.0
-MAIN_TICK_HZ = 120.0
+GENAU_TICK_HZ = 120.0
 
 OFF_THE_HUD = (-1, -1)
 
@@ -277,6 +277,8 @@ class _HangingScreen:
 
 class _VideoUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {}
+    screen_name: str
+    screen: _HangingScreen
 
     def put_back(self) -> None:
         self.screen.placement = self.SPOTS[self.screen_name]
@@ -362,13 +364,13 @@ class _VideoUnit:
             return
         self._message_shown = shown
         if shown is None:
-            self.engine.remove_overlay(_OV_MESSAGE)
+            self.engine.remove_overlay(MESSAGE_OVERLAY_ID)
             return
         placed = message_bgra(flashed.message, flashed.level, width=width, height=height)
         if placed is None:
             return
         x, y, bgra = placed
-        self.engine.overlay(_OV_MESSAGE, x, y, bgra)
+        self.engine.overlay(MESSAGE_OVERLAY_ID, x, y, bgra)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         raise NotImplementedError
@@ -1673,7 +1675,7 @@ class TheRoom:
                 target=_pump_channels, args=(self.pumped, self.stop, perf), name="file-channels"),
             start_daemon_thread(
                 target=_pump_channels, args=([self.main_unit], self.stop, perf),
-                kwargs={"hz": MAIN_TICK_HZ}, name="main-funestra"),
+                kwargs={"hz": GENAU_TICK_HZ}, name="main-funestra"),
         )
 
     def note_the_wearer(self, worn: bool, *, now: float) -> None:

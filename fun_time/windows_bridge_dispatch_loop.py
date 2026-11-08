@@ -78,6 +78,8 @@ from .windows_bridge_random_favs_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
 
+DISPATCH_TICK_S = 0.05
+
 
 def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
     if browsing is None or browsing.poll() is not None:
@@ -425,7 +427,7 @@ class DispatchLoopRunner:
                 self.tick()
             except Exception:
                 logger.exception("Dispatch loop error")
-            self._stop.wait(0.05)
+            self._stop.wait(DISPATCH_TICK_S)
 
     def _run_browser(self, command, **kwargs) -> None:
         process = subprocess.Popen(command, **no_child_log(), **kwargs)

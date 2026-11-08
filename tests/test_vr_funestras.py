@@ -16,8 +16,16 @@ import numpy as np
 import pytest
 from app_support import ports
 from app_support.file_channel import write_flag
-from funestra.flick_overlay import FlickFrame
+from funestra.flick_overlay import (
+    BACKDROP_OVERLAY_ID,
+    FIRST_TILE_OVERLAY_ID,
+    LOADING_OVERLAY_ID,
+    FlickFrame,
+)
+from funestra.funestra import Funestra
 from funestra.host_controls import BarHud, HostControlsHud
+from funestra.hud_corners import CORNER_PLUS_OVERLAY_ID
+from funestra.hud_overlay import HUD_OVERLAY_ID
 from funestra.hud_placement import HudEdge
 from funestra.main_hud import ModeHud
 from funestra.main_hud_painter import MainHud
@@ -40,7 +48,7 @@ from fun_time.dashboard_actions import (
     REFERENCE_OPEN_FILENAME,
     VOICE_TOGGLE,
 )
-from fun_time.event_log import MESSAGE
+from fun_time.event_log import MESSAGE, event_log_path
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -61,6 +69,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
+from fun_time.windows_bridge_dispatch_loop import DISPATCH_TICK_S
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
 from fun_time_vr.dash_panel import (
@@ -76,8 +85,11 @@ from fun_time_vr.dash_panel import (
 )
 from fun_time_vr.frame_loop import Headset, draw_eyes
 from fun_time_vr.funestras import (
-    MAIN_TICK_HZ,
+    GENAU_TICK_HZ,
+    MESSAGE_OVERLAY_ID,
     OFF_THE_HUD,
+    PUMP_HZ,
+    SATELLITE_VIDEO_CAP_PX,
     Arranged,
     Arrangement,
     LoadingScreenUnit,
@@ -184,6 +196,24 @@ def test_the_funestra_is_told_its_manifest_and_nothing_else():
 
     with pytest.raises(SystemExit):
         build_parser().parse_args([])
+
+
+def test_only_announcements_reach_the_sessions_event_log(tmp_path):
+    announcer = logging.getLogger("fun_time_vr")
+    before = list(announcer.handlers)
+    a_unit = logging.getLogger("fun_time_vr.a_unit")
+    a_unit.setLevel(logging.INFO)
+    app._announce_into_the_event_log(tmp_path)
+    try:
+        a_unit.info("one frame late")
+        a_unit.log(MESSAGE, "the video stopped advancing")
+    finally:
+        a_unit.setLevel(logging.NOTSET)
+        for handler in announcer.handlers[len(before):]:
+            announcer.removeHandler(handler)
+
+    lines = event_log_path(tmp_path).read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["msg"] for line in lines] == ["the video stopped advancing"]
 
 
 def test_the_vr_section_reads_back_with_its_key_case_intact(tmp_path):
@@ -649,6 +679,47 @@ class TestTheMainFunestrasPass:
         assert unit.video.closed
         assert unit.engine.closed
 
+    def test_the_verbs_close_before_the_funestra_whose_frames_their_looks_read(
+            self, tmp_path, a_fake_engine):
+        unit = _a_main_unit(tmp_path)
+        closed: list[str] = []
+        unit.verbs.close = partial(closed.append, "verbs")
+        unit.funestra.close = partial(closed.append, "funestra")
+
+        unit.close()
+
+        assert closed == ["verbs", "funestra"]
+
+
+class TestAQuadAtItsCopiedSize:
+    def _unit(self, *, shown, size=(640, 360)):
+        unit = _VideoUnit.__new__(_VideoUnit)
+        unit.screen_name = PORTRAIT
+        unit.video = SimpleNamespace(show_newest=shown)
+        unit.target = SimpleNamespace(width=size[0], height=size[1], ready=True,
+                                      aspect=size[0] / size[1])
+        unit.screen = SimpleNamespace(placement=SPOTS[PORTRAIT], rehang_at=lambda *_at: None)
+        unit.layer_dirty = False
+        unit.layer_rect = (640, 360)
+        return unit
+
+    def test_a_frame_of_a_new_size_waits_for_the_next_copy_before_hanging_as_a_quad(self):
+        def resized(target):
+            target.width, target.height = 1280, 720
+            return True
+        unit = self._unit(shown=resized)
+
+        unit.render_latest_frame()
+
+        assert (unit.layer_dirty, unit.layer_rect) == (True, None)
+
+    def test_the_quad_hangs_at_the_aspect_its_swapchain_copied_not_the_frames(self):
+        unit = self._unit(shown=lambda _target: False, size=(1000, 1000))
+
+        _position, _orientation, (width, height) = unit.layer_placement()
+
+        assert width / height == pytest.approx(16 / 9)
+
 
 class TestASqueezeOnAHangingHud:
     def _unit(self):
@@ -695,7 +766,7 @@ class TestASqueezeOnAHangingHud:
 
         assert presses == [("motion", *OFF_THE_HUD, False)] * 2
 
-    def test_a_held_press_is_not_moved_by_the_hover(self):
+    def test_a_held_press_takes_the_pointer_from_its_drags_never_the_hover(self):
         unit, presses = self._unit()
         unit._press_on_the_hud(PressEvent(PRESS, MAIN_HUD, 0.25, 0.5))
 
@@ -773,6 +844,29 @@ def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
 
     assert len(screen.mesh.uploads) == 2
     assert not np.array_equal(screen.mesh.uploads[0], screen.mesh.uploads[1])
+
+
+def test_a_panel_already_uploaded_still_rehangs_where_a_drag_put_it():
+    image = object()
+    rehung: list[float] = []
+    unit = SimpleNamespace(
+        _lock=threading.Lock(), _image=image, _uploaded=image,
+        texture=SimpleNamespace(ready=True, aspect=1.5, upload=lambda _rgba: None),
+        screen=SimpleNamespace(rehang=rehung.append))
+
+    _MessageUnit.render_latest_frame(unit)
+
+    assert rehung == [1.5]
+
+
+def test_the_messages_overlay_id_is_none_the_funestra_draws_with():
+    the_funestras = {
+        BACKDROP_OVERLAY_ID, LOADING_OVERLAY_ID, HUD_OVERLAY_ID, CORNER_PLUS_OVERLAY_ID,
+        Funestra.IN_FRAME_OVERLAY_ID, Funestra.OUT_FRAME_OVERLAY_ID,
+        *range(FIRST_TILE_OVERLAY_ID, LOADING_OVERLAY_ID),
+    }
+
+    assert MESSAGE_OVERLAY_ID not in the_funestras
 
 
 def _a_satellite_unit(tmp_path, funestra, remembered):
@@ -1485,6 +1579,12 @@ class TestHangingTheRoom:
         assert set(the_room.where) == set(room.where_they_hang(the_room.units))
         assert the_room.hangings() == room.what_hangs(the_room.units)
 
+    def test_the_message_board_is_pumped_before_any_screen_asks_for_its_message(
+            self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+
+        assert isinstance(the_room.pumped[0], MessageBoard)
+
     def test_everything_it_closes_when_it_ends_has_a_close(self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
@@ -1514,22 +1614,42 @@ class TestHangingTheRoom:
         assert the_room.loading_screen not in closed
         assert closed == [one for one in the_room.closing if one is not the_room.loading_screen]
 
+    def _workers_started(self, the_room, perf) -> dict[str, dict]:
+        started: list[dict] = []
+        with patch("fun_time_vr.funestras.start_daemon_thread",
+                   side_effect=lambda **how: started.append(how) or SimpleNamespace(**how)):
+            the_room.start_pumping(perf)
+        assert all(one["target"] is funestras._pump_channels for one in started)
+        assert len(the_room.workers) == len(started) == 2
+        return {one["name"]: one for one in started}
+
     def test_the_main_funestra_ticks_on_a_worker_of_its_own_at_genaus_rate(
             self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
         perf = FramePerf(logger=funestras.logger)
-        started: list[dict] = []
 
-        with patch("fun_time_vr.funestras.start_daemon_thread",
-                   side_effect=lambda **how: started.append(how) or SimpleNamespace(**how)):
-            the_room.start_pumping(perf)
+        by_name = self._workers_started(the_room, perf)
 
-        by_name = {one["name"]: one for one in started}
         assert by_name["main-funestra"]["args"] == ([the_room.main_unit], the_room.stop, perf)
-        assert by_name["main-funestra"]["kwargs"] == {"hz": MAIN_TICK_HZ}
+        assert by_name["main-funestra"]["kwargs"] == {"hz": GENAU_TICK_HZ}
+
+    def test_file_channels_a_sync_drive_may_stall_pump_on_a_worker_of_their_own(
+            self, tmp_path, faked_collaborators):
+        the_room = _hang_a_room(tmp_path)
+        perf = FramePerf(logger=funestras.logger)
+
+        by_name = self._workers_started(the_room, perf)
+
         assert by_name["file-channels"]["args"] == (the_room.pumped, the_room.stop, perf)
-        assert all(one["target"] is funestras._pump_channels for one in started)
-        assert len(the_room.workers) == len(started) == 2
+
+    def test_the_file_worker_polls_no_slower_than_the_desktops_dispatch_loop(self):
+        assert PUMP_HZ >= 1 / DISPATCH_TICK_S
+
+    def test_a_satellites_texture_outresolves_the_headset_across_its_width(self):
+        a_headsets_pixels_per_degree = 25
+
+        assert (
+            2 * _SatelliteUnit.SPOTS[PORTRAIT].width_deg * a_headsets_pixels_per_degree) <= SATELLITE_VIDEO_CAP_PX
 
     def test_the_browse_asks_whether_genau_has_the_main_funestra(self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
@@ -2043,7 +2163,7 @@ class TestTheBannerOverAWrappedFrame:
     def test_a_flat_frame_takes_its_banner_into_itself(self):
         assert _MainUnit.message_into_the_frame(self._main_unit(wraps=False)) == "a banner"
 
-    def test_a_wrapped_frame_takes_none_into_itself(self):
+    def test_a_wrapped_frames_banner_would_sit_on_the_seam_between_the_eyes(self):
         assert _MainUnit.message_into_the_frame(self._main_unit(wraps=True)) is None
 
     def _floating(self, *, wraps, flashed):
@@ -2271,7 +2391,7 @@ class TestEveryHangingScreenIsDrawn:
         return [SimpleNamespace(fov=fov, pose=pose)]
 
     def _draw(self, *, showing: bool = False, browsing: bool = False, projection=None,
-              stacking=None):
+              stacking=None, pointing=None):
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
@@ -2292,7 +2412,7 @@ class TestEveryHangingScreenIsDrawn:
         draw_eyes(
             Headset(session, renderer, None),
             Arranged(hangings, screens, np.eye(4, dtype=np.float64), 0.0, 0.0),
-            SimpleNamespace(draw=lambda *_a: None), self._views(), as_quads=set(),
+            pointing or SimpleNamespace(draw=lambda *_a: None), self._views(), as_quads=set(),
         )
         return renderer
 
@@ -2331,6 +2451,14 @@ class TestEveryHangingScreenIsDrawn:
 
         assert drawn.index(DASH) < drawn.index(MAIN) < drawn.index(MAIN_HUD)
 
+    def test_the_pointer_is_drawn_over_every_screen(self):
+        pointing = SimpleNamespace(draw=lambda renderer, _view_proj: renderer.screens.append("pointer"))
+
+        drawn = self._draw(projection=FLAT, browsing=True, pointing=pointing).screens
+
+        assert drawn[-1] == "pointer"
+        assert drawn.count("pointer") == 1
+
     def test_a_video_wrapped_round_the_viewer_is_drawn_first_however_it_was_taken(self):
         stacking = Stacking()
         stacking.take(MAIN)
@@ -2367,7 +2495,7 @@ class TestWhatThePointerDraws:
             pointing.draw(renderer, np.eye(4, dtype=np.float32))
         return renderer.drawn
 
-    def test_the_controller_is_drawn_over_the_laser_that_leaves_it(self):
+    def test_the_controller_in_the_hand_is_drawn_last_being_nearest_of_all(self):
         laser = Ray(origin=(0.2, -0.3, -0.4), direction=(0.0, 0.0, -1.0))
 
         assert self._drawn((Frame(ray=laser), [_IN_HAND])) == ["flat", "solid"]

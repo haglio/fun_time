@@ -77,6 +77,10 @@ def refresh_quad_layer(headset: Headset, index: int, unit, arranged: Arranged) -
     )
 
 
+def _view_from_the_spheres_center(view) -> np.ndarray:
+    return pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
+
+
 def draw_eyes(
     headset: Headset,
     arranged: Arranged,
@@ -93,8 +97,7 @@ def draw_eyes(
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
         projection_matrix = fov_to_projection_matrix(view.fov, 0.05, 100.0)
-        view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
-        view_proj = projection_matrix @ view_matrix @ scene_rotation
+        view_proj = projection_matrix @ _view_from_the_spheres_center(view) @ scene_rotation
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
         if wrap is not None:
             inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
@@ -117,10 +120,10 @@ def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, vie
         headset.renderer.begin_eye(LOADING_SCREEN_CLEAR)
         if loading_screen.screen.ready:
             projection = fov_to_projection_matrix(view.fov, 0.05, 100.0)
-            view_matrix = pose_to_view_matrix((0.0, 0.0, 0.0), orientation_of(view))
             headset.renderer.draw_screen(
                 loading_screen.screen.mesh, loading_screen.texture.texture,
-                np.ascontiguousarray(projection @ view_matrix @ hanging, dtype=np.float32),
+                np.ascontiguousarray(
+                    projection @ _view_from_the_spheres_center(view) @ hanging, dtype=np.float32),
             )
         headset.session.release_eye_framebuffer(eye_index)
 

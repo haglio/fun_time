@@ -51,7 +51,7 @@ class VRSession(SessionStates):
         self._views = views
         self._views_to_draw = views.to_draw
         self.swapchains: list[SwapchainInfo] = []
-        quads = QuadSwapchains(make=self._make_swapchain, destroy=xr.destroy_swapchain)
+        quads = QuadSwapchains(make=self._make_color_swapchain, destroy=xr.destroy_swapchain)
         self._quads = quads
         self._ensure_quad = quads.ensure
         self._quads_frame_ended = quads.frame_ended
@@ -70,7 +70,7 @@ class VRSession(SessionStates):
         try:
             self._init_openxr(app_name)
             self._init_actions()
-            self._create_swapchains()
+            self._create_color_swapchains()
             self._fbo = GL.glGenFramebuffers(1)
         except Exception:
             try:
@@ -213,7 +213,7 @@ class VRSession(SessionStates):
             ),
         )
 
-    def _make_swapchain(self, width: int, height: int) -> SwapchainInfo:
+    def _make_color_swapchain(self, width: int, height: int) -> SwapchainInfo:
         swapchain = xr.create_swapchain(
             self._session,
             xr.SwapchainCreateInfo(
@@ -233,9 +233,9 @@ class VRSession(SessionStates):
             images=[image.image for image in images],
         )
 
-    def _create_swapchains(self) -> None:
+    def _create_color_swapchains(self) -> None:
         for view_cfg in self.view_config_views:
-            info = self._make_swapchain(
+            info = self._make_color_swapchain(
                 view_cfg.recommended_image_rect_width,
                 view_cfg.recommended_image_rect_height,
             )

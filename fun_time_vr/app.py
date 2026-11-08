@@ -32,7 +32,7 @@ from .scheduling import ahead_of_background_work
 logger = logging.getLogger(__name__)
 
 
-def _show_error_popup(message: str) -> None:
+def _say_why_the_headset_never_lit_up(message: str) -> None:
     # Qt loads only for this: a headset session draws through OpenXR.
     from shared_ui.alert import show_alert  # noqa: PLC0415
 
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = build_parser().parse_args(argv)
     manifest = LaunchManifest.read(args.manifest)
-    _log_into_the_event_log(Path(manifest.commands.dashboard_cmd_file).parent)
+    _announce_into_the_event_log(Path(manifest.commands.dashboard_cmd_file).parent)
     vr = VrSettings.read(args.manifest)
     try:
         set_app_user_model_id(preview_marker.session_identity(preview_marker.shown_as()))
@@ -67,13 +67,13 @@ def main(argv: list[str] | None = None) -> int:
     ready = vr_runtime.ensure_ready()
     if ready.readiness is not vr_runtime.Readiness.READY:
         logger.error("VR not available: %s", ready.readiness.value)
-        _show_error_popup(vr_runtime.explain(ready))
+        _say_why_the_headset_never_lit_up(vr_runtime.explain(ready))
         return 1
     with ahead_of_background_work():
         return _run(manifest, vr, args.manifest)
 
 
-def _log_into_the_event_log(state_dir: Path) -> None:
+def _announce_into_the_event_log(state_dir: Path) -> None:
     handler = EventLogHandler(event_log_path(state_dir))
     handler.setLevel(MESSAGE)
     logging.getLogger("fun_time_vr").addHandler(handler)
@@ -88,7 +88,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     opened = open_vr_session(
         VRSession, device_not_ready=xr.exception.GraphicsDeviceInvalidError)
     if opened.session is None:
-        _show_error_popup(opened.message)
+        _say_why_the_headset_never_lit_up(opened.message)
         return 1
     session = opened.session
     headset = Headset(session, SceneRenderer(), FramePerf(logger=logger))
