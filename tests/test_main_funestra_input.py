@@ -116,3 +116,13 @@ class TestAFrameOfEvents:
               SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=1))
 
         assert [call[0] for call in funestra.calls] == ["press", "motion", "release"]
+
+    def test_every_event_of_one_frame_is_answered_against_its_viewport(self):
+        window_input, funestra = _input()
+
+        window_input.deal([
+            SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(10, 20)),
+            SimpleNamespace(type=pygame.MOUSEMOTION, pos=(11, 20), buttons=(1, 0, 0)),
+        ], (640, 480))
+
+        assert [call[-1] for call in funestra.calls] == [(640, 480), (640, 480)]

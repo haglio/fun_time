@@ -28,7 +28,7 @@ _STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", 
 _LONGEST_FRAGMENT = 2
 
 
-def _distinctive(source: str, performer: str) -> set[str]:
+def _source_words_beyond_the_performer(source: str, performer: str) -> set[str]:
     perf = _tokens(performer)
     return {t for t in _tokens(source) - perf if len(t) > _LONGEST_FRAGMENT and t not in _STOPWORDS}
 
@@ -37,15 +37,15 @@ def _matches(meta: dict, text: set[str]) -> bool:
     perf = _tokens(str(meta.get("performer", "")))
     if not perf or not perf <= text:
         return False
-    distinctive = _distinctive(str(meta.get("source", "")), str(meta.get("performer", "")))
-    return bool(distinctive) and bool(distinctive & text)
+    words = _source_words_beyond_the_performer(str(meta.get("source", "")), str(meta.get("performer", "")))
+    return bool(words) and bool(words & text)
 
 
 @dataclass(frozen=True)
 class ClipNav:
     _clips: dict[Path, dict]
     _non_clips: tuple[Path, ...]
-    _groups: dict[Path, str]
+    _evolver_families: dict[Path, str]
     _titles: dict[Path, str]
     _by_id: dict[str, Path]
 
@@ -53,7 +53,7 @@ class ClipNav:
     def build(cls, videos: Iterable[Path], metadata_root: Path | None) -> ClipNav:
         clips: dict[Path, dict] = {}
         non_clips: list[Path] = []
-        groups: dict[Path, str] = {}
+        evolver_families: dict[Path, str] = {}
         titles: dict[Path, str] = {}
         by_id: dict[str, Path] = {}
         for video in videos:
@@ -67,18 +67,18 @@ class ClipNav:
                 clips[video] = meta
             else:
                 non_clips.append(video)
-                groups[video] = version_group_of(payload)
-        return cls(clips, tuple(non_clips), groups, titles, by_id)
+                evolver_families[video] = version_group_of(payload)
+        return cls(clips, tuple(non_clips), evolver_families, titles, by_id)
 
     def _family(self, scene: Path) -> str:
-        return self._groups.get(scene) or stable_title(scene.stem)
+        return self._evolver_families.get(scene) or stable_title(scene.stem)
 
     def title_of(self, video: Path) -> str:
         meta = self._clips.get(video)
         return (
             self._titles.get(video)
             or (clip_title({"clip": meta}) if meta is not None else "")
-            or self._groups.get(video)
+            or self._evolver_families.get(video)
             or video.stem
         )
 

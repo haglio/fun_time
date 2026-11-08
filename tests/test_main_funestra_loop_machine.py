@@ -255,6 +255,15 @@ class TestWhatEachTickOfThePlayheadDoes:
         assert loops.observe(20_000) is False
         assert (loops.marking, playback.ab_loop) == (True, None)
 
+    def test_a_running_loop_wraps_in_mpv_with_no_seek_from_here(self):
+        loops, _playback, seeks, _takeovers, _marks = _loops()
+        loops.restore(2000, 4000)
+        seeks.clear()
+
+        assert loops.observe(3900) is False
+        assert loops.observe(4100) is False
+        assert seeks == []
+
     def test_a_rewound_clock_is_not_the_loops_to_answer(self):
         loops, _playback, _seeks, takeovers, _marks = _loops()
         loops.restore(2000, 4000)
