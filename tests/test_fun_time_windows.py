@@ -54,6 +54,25 @@ def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
     assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
 
+def test_with_no_pids_and_no_window_found_every_window_op_is_a_no_op():
+    windows = FunTimeWindows(pids=ChildPids())
+
+    with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+         patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+         patch("fun_time.fun_time_windows.find_window_for_process", return_value=0), \
+         patch("fun_time.fun_time_windows.restore_window") as restore, \
+         patch("fun_time.fun_time_windows.activate_window") as activate, \
+         patch("fun_time.fun_time_windows.minimize_window") as minimize, \
+         patch("fun_time.fun_time_windows.set_always_on_top") as topmost:
+        windows.show("main_funestra")
+        windows.activate("portrait")
+        windows.minimize("landscape")
+        windows.park("dashboard")
+        windows.remove_all_topmost()
+
+    assert [op.call_count for op in (restore, activate, minimize, topmost)] == [0, 0, 0, 0]
+
+
 class TestResolveRole:
     def test_main_funestra_falls_back_to_exact_title_when_pid_fails(self):
         windows = make_windows()

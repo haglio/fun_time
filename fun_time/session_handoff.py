@@ -12,7 +12,6 @@ from typing import NamedTuple
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import mutex_name
 
 from fun_time import preview_marker
 from fun_time.checkout_overrides import sibling_checkouts_kwargs
@@ -32,9 +31,9 @@ from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.session_end import session_end_asked
 from fun_time.single_instance import (
-    MUTEX_ORCHESTRATOR,
     claim_the_session,
     let_the_session_go,
+    the_one_sessions_mutex,
 )
 
 logger = logging.getLogger("fun_time.session_handoff")
@@ -395,9 +394,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     state_dir = config.paths.state_dir
     keep_the_transition_screen(state_dir)
     log_file = state_dir / target.launcher_log
-    if not wait_for_the_session_to_let_go(
-        mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)
-    ):
+    if not wait_for_the_session_to_let_go(the_one_sessions_mutex(config)):
         return _take_everything_down_leaving_only_a_dialog(
             "The session that was running never finished shutting down, so "
             f"{target.app_name} could not take over.",
