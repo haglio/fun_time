@@ -99,9 +99,8 @@ from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 
 logger = logging.getLogger(__name__)
 
-COLOR_BG = BG_PRIMARY
-COLOR_PANEL = BG_BUTTON
-COLOR_TEXT = TEXT_PRIMARY
+BAR_REFRESH_MS = 500
+MESSAGE_POLL_MS = 250
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -209,7 +208,7 @@ class IconCache:
         return self._icons[key]
 
     def family_icon(self, name: str, rect, color: QColor | None = None) -> QPixmap:
-        ink = color or COLOR_TEXT
+        ink = color or TEXT_PRIMARY
         key = (name, rect.width, rect.height, ink.rgba())
         if key not in self._family_icons:
             self._family_icons[key] = icon_pixmap(name, icon_side(rect), ink)
@@ -246,7 +245,7 @@ def build_dashboard_scene(
 
     def _rect(control: BarControl) -> DashboardRectItem:
         if control.lit is None:
-            fill, outline = COLOR_PANEL, TEXT_MUTED
+            fill, outline = BG_BUTTON, TEXT_MUTED
             pressed = BG_BUTTON_ACTIVE
         else:
             fill = outline = QColor(*control.lit)
@@ -324,7 +323,7 @@ class DashboardWidget(QWidget):
         scene = self._scene
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QBrush(COLOR_BG))
+        p.fillRect(self.rect(), QBrush(BG_PRIMARY))
 
         for item in scene.rects:
             p.setPen(QPen(item.outline, 1))
@@ -565,8 +564,8 @@ class DashboardWindow(QMainWindow):
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,
         )
-        self._timer_calling(self._messages.poll).start(250)
-        self._timer_calling(self._refresh).start(500)
+        self._timer_calling(self._messages.poll).start(MESSAGE_POLL_MS)
+        self._timer_calling(self._refresh).start(BAR_REFRESH_MS)
         self._refresh()
 
     def _timer_calling(self, slot: Callable[[], None]) -> QTimer:
@@ -574,7 +573,7 @@ class DashboardWindow(QMainWindow):
         timer.timeout.connect(slot)
         return timer
 
-    def _post_command(self, action: str) -> None:
+    def _post_to_the_dispatch_loop(self, action: str) -> None:
         write_dashboard_command(self._app_config.dashboard_cmd_file, action)
 
     def closeEvent(self, event: object) -> None:
@@ -604,14 +603,14 @@ class DashboardWindow(QMainWindow):
         if self._reveal.routing_suppressed:
             return
         if now_minimized and not was_minimized:
-            self._post_command(OMNIMINIMIZE)
+            self._post_to_the_dispatch_loop(OMNIMINIMIZE)
 
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
         if not (was_minimized and not now_minimized):
             return
         if self._reveal.took_the_first_restore():
             return
-        self._post_command(OMNIRESTORE)
+        self._post_to_the_dispatch_loop(OMNIRESTORE)
 
     def _show_presses(self) -> None:
         self._do_render(self._last_snapshot, self._flash.lit())
@@ -655,7 +654,7 @@ class DashboardWindow(QMainWindow):
         self._widget.set_scene(self._bar_scene(self._flash.lit()))
 
     def _pause_for_typing(self) -> None:
-        self._post_command(ENTER_OMNIPAUSE)
+        self._post_to_the_dispatch_loop(ENTER_OMNIPAUSE)
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
@@ -664,7 +663,7 @@ class DashboardWindow(QMainWindow):
         if action_id == QUIT_BUTTON and not sure(self, QUIT_TITLE, QUIT_QUESTION):
             return
         self._flash.press(action_id)
-        self._post_command(action_id)
+        self._post_to_the_dispatch_loop(action_id)
         self._show_presses()
 
     def _handle_press_event(self) -> None:
@@ -687,17 +686,17 @@ class DashboardWindow(QMainWindow):
         )
 
 
-SOURCE_CHECKOUT_FILENAME = "dashboard_source.txt"
+IMPORTED_CHECKOUT_FILENAME = "dashboard_source.txt"
 
 
-def source_checkout() -> Path:
+def imported_checkout() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def record_source_checkout(state_dir: Path) -> Path:
-    destination = Path(state_dir) / SOURCE_CHECKOUT_FILENAME
+def record_imported_checkout(state_dir: Path) -> Path:
+    destination = Path(state_dir) / IMPORTED_CHECKOUT_FILENAME
     with contextlib.suppress(OSError):
-        destination.write_text(f"{source_checkout()}\n", encoding="utf-8")
+        destination.write_text(f"{imported_checkout()}\n", encoding="utf-8")
     return destination
 
 
@@ -752,7 +751,7 @@ def main(argv: list[str] | None = None) -> int:
         dress_application(app)
 
         app_config = load_dashboard_app_config(Path(args.manifest_path))
-        record_source_checkout(app_config.state_dir)
+        record_imported_checkout(app_config.state_dir)
         launch_geometry = rect_from_arguments(args)
         rfb_rect = rect_from_arguments(args, prefix="rfb_")
         _window = build_dashboard_window(

@@ -51,9 +51,8 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_app import (
     _BUTTON_RADIUS,
-    COLOR_PANEL,
+    IMPORTED_CHECKOUT_FILENAME,
     OMNIPAUSE_RESUME_TOOLTIP,
-    SOURCE_CHECKOUT_FILENAME,
     DashboardLaunchGeometry,
     DashboardWidget,
     IconCache,
@@ -62,10 +61,10 @@ from fun_time.dashboard_app import (
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
+    imported_checkout,
     lighten_color,
     load_dashboard_app_config,
-    record_source_checkout,
-    source_checkout,
+    record_imported_checkout,
     write_dashboard_command,
 )
 from fun_time.dashboard_controls import BarState
@@ -301,15 +300,15 @@ def test_the_pause_button_says_which_way_it_will_go():
 def test_pausing_everything_does_not_paint_the_button_a_state_color():
     layout = compute_dashboard_bar_layout()
 
-    assert _fill(_scene(_snapshot(omni_paused=True)), layout.omnipause_button) == COLOR_PANEL
-    assert _fill(_scene(), layout.quit_button) == COLOR_PANEL
+    assert _fill(_scene(_snapshot(omni_paused=True)), layout.omnipause_button) == BG_BUTTON
+    assert _fill(_scene(), layout.quit_button) == BG_BUTTON
 
 
 def test_the_microphone_comes_on_with_what_it_reports():
     layout = compute_dashboard_bar_layout()
 
     assert _fill(_scene(_snapshot(voice_active=True)), layout.voice_panel) == BLUE
-    assert _fill(_scene(_snapshot(voice_active=False)), layout.voice_panel) == COLOR_PANEL
+    assert _fill(_scene(_snapshot(voice_active=False)), layout.voice_panel) == BG_BUTTON
 
 
 def test_the_microphone_carries_its_own_mark():
@@ -1641,11 +1640,11 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
 
 
 def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
-    written = record_source_checkout(tmp_path)
+    written = record_imported_checkout(tmp_path)
 
-    assert written.name == SOURCE_CHECKOUT_FILENAME
-    assert written.read_text(encoding="utf-8").strip() == str(source_checkout())
-    assert (source_checkout() / "fun_time" / "dashboard_app.py").exists()
+    assert written.name == IMPORTED_CHECKOUT_FILENAME
+    assert written.read_text(encoding="utf-8").strip() == str(imported_checkout())
+    assert (imported_checkout() / "fun_time" / "dashboard_app.py").exists()
 
 
 def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
@@ -1812,4 +1811,77 @@ def test_the_osr2_part_stands_at_the_windows_right_end_from_its_top(placed_windo
 def test_a_dashboard_that_cannot_leave_its_note_about_the_checkout_still_runs(tmp_path):
     no_such_folder = tmp_path / "gone"
 
-    assert record_source_checkout(no_such_folder) == no_such_folder / SOURCE_CHECKOUT_FILENAME
+    assert record_imported_checkout(no_such_folder) == no_such_folder / IMPORTED_CHECKOUT_FILENAME
+
+
+def test_the_reference_is_not_built_until_it_is_first_asked_for(dashboard_window):
+    assert dashboard_window._reference.dialog is None
+
+    with patch("fun_time.dashboard_app.ReferenceDialog") as dialog_class:
+        dashboard_window._reference.open(omni_paused=False)
+
+    assert dashboard_window._reference.dialog is dialog_class.return_value
+
+
+def test_the_popups_frame_is_measured_only_after_it_is_shown(cfg_path: Path):
+    config = load_config(cfg_path)
+    app_config = load_dashboard_app_config(write_windows_bridge_manifest(config))
+    window = build_dashboard_window(app_config, rfb_rect=Rect(7, 408, 640, 984))
+    try:
+        dialog = MagicMock()
+        dialog.geometry.return_value = QRect(7, 408, 640, 984)
+        dialog.frameGeometry.return_value = QRect(7, 408, 640, 984)
+        with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
+            window._reference.open(omni_paused=False)
+
+        names = [name for name, _args, _kwargs in dialog.mock_calls]
+        assert names.index("show") < names.index("frameGeometry")
+    finally:
+        window.close()
+
+
+def test_a_burst_of_presses_is_one_render(dashboard_window):
+    with patch.object(dashboard_window, "_do_render") as render:
+        dashboard_window._apply_presses([VOICE_TOGGLE, FMODE_TOGGLE, RESET_ALL])
+
+    render.assert_called_once()
+    assert dashboard_window._flash.lit() == {VOICE_TOGGLE, FMODE_TOGGLE, RESET_ALL}
+
+
+class _InboxThatHearsAPressAtOnce:
+    def __init__(self, _port_file, *, listener_name, on_arrival) -> None:
+        self.port = 0
+        heard = threading.Thread(target=on_arrival, name=listener_name)
+        heard.start()
+        heard.join()
+
+    def take_all(self) -> list[str]:
+        return [VOICE_TOGGLE]
+
+    def stop(self) -> None:
+        pass
+
+
+def test_a_press_heard_the_moment_the_listener_exists_is_not_lost(dashboard_app_config, monkeypatch):
+    monkeypatch.setattr(dashboard_app, "LoopbackInbox", _InboxThatHearsAPressAtOnce)
+    window = build_dashboard_window(
+        dashboard_app_config,
+        launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400))
+    try:
+        QApplication.processEvents()
+
+        assert VOICE_TOGGLE in window._flash.lit()
+    finally:
+        window.close()
+
+
+def test_moving_within_one_control_does_not_repaint_it_again(bar):
+    rect = bar._scene.rects[0].rect
+    x, y = _center(rect)
+
+    with patch.object(bar, "update") as repaint:
+        _point_at(bar, x, y)
+        _point_at(bar, x + 1, y)
+        _point_at(bar, x + 2, y + 1)
+
+    repaint.assert_called_once()

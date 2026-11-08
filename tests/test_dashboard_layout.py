@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import dataclass, fields
 
 import pytest
 from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
@@ -11,6 +11,7 @@ from fun_time.dashboard_layout import (
     GAP,
     GROUP_GAP,
     PAD,
+    DashboardBarLayout,
     Rect,
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
@@ -125,3 +126,17 @@ class TestARectOnACommandLine:
 
         assert rect_from_arguments(args, prefix="rfb_") == Rect(1, 2, 3, 4)
         assert rect_from_arguments(args) is None
+
+
+def test_a_control_declared_as_a_field_is_counted_in_the_bars_width():
+    @dataclass(frozen=True)
+    class WithOneMore(DashboardBarLayout):
+        one_more: Rect
+
+    bar = compute_dashboard_bar_layout()
+    far_right = Rect(10_000, PAD, BUTTON, BUTTON)
+    layout = WithOneMore(**{field.name: getattr(bar, field.name) for field in fields(bar)},
+                         one_more=far_right)
+
+    assert layout.every_rect[-1] == far_right
+    assert layout.width == 10_000 + BUTTON + GROUP_GAP

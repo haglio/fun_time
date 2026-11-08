@@ -359,7 +359,7 @@ class DispatchLoopRunner:
             return
         self.windows.converge_origenerator_window(self.state.rfb_mode)
 
-    def _publish_panel(self, filename: str, *, toggling: bool) -> None:
+    def _flag_the_panel_for_the_headset(self, filename: str, *, toggling: bool) -> None:
         path = Path(self.config.state_dir) / filename
         write_flag_file(path, toggling and not read_flag(path, default=False))
 
@@ -467,7 +467,7 @@ def _cross(target: HandoffTarget, runner: DispatchLoopRunner, _spoken_at: float 
 
 def _show_the_reference(toggling: bool, runner: DispatchLoopRunner,
                         _spoken_at: float | None) -> None:
-    runner._publish_panel(REFERENCE_OPEN_FILENAME, toggling=toggling)
+    runner._flag_the_panel_for_the_headset(REFERENCE_OPEN_FILENAME, toggling=toggling)
 
 
 def _omniminimize(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
@@ -506,7 +506,7 @@ def _play(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
 
 def _browse_the_library(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
     if runner.config.vr_main_funestra:
-        runner._publish_panel(LIBRARY_OPEN_FILENAME, toggling=True)
+        runner._flag_the_panel_for_the_headset(LIBRARY_OPEN_FILENAME, toggling=True)
     else:
         threading.Thread(
             target=runner._handle_browse_library,
@@ -516,7 +516,7 @@ def _browse_the_library(runner: DispatchLoopRunner, _spoken_at: float | None) ->
 
 
 def _close_the_browse(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    runner._publish_panel(LIBRARY_OPEN_FILENAME, toggling=False)
+    runner._flag_the_panel_for_the_headset(LIBRARY_OPEN_FILENAME, toggling=False)
 
 
 def _press_the_broker(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:

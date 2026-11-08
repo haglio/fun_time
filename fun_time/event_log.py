@@ -27,9 +27,10 @@ SOURCE_PORTRAIT = "portrait"
 SOURCE_LANDSCAPE = "landscape"
 SOURCE_DASH = "dash"
 SOURCE_SYSTEM = "system"
+HIS_WORD_FOR_THE_PORTRAIT_SATELLITE = "Sat"
 SOURCE_LABELS: dict[str, str] = {
     "main": "Main",
-    "portrait": "Sat",
+    "portrait": HIS_WORD_FOR_THE_PORTRAIT_SATELLITE,
     "landscape": "Land",
     "dash": "Dash",
     "system": "Sys",
