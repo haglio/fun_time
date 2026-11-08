@@ -171,6 +171,16 @@ class TestRecordedMatch:
         assert nav.clip_of(upscale) == clip
         assert nav.full_vid_of(clip) == upscale
 
+    def test_a_recorded_scene_since_moved_out_is_found_by_its_name(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        moved_out = lib / "other" / "Beta-Scene_540-pacI21CK.mp4"
+        upscale = _sidecar(lib, meta, "other/Beta-Scene_540-pacI21CK_apo8_iris2.mp4", {})
+        clip = _clip(lib, meta, "w/Jane Doe - Nights of Nonsense 8.mp4", ClipRecord("Vol1", 9, "Nights of Nonsense 8", "Jane Doe", full_video=str(moved_out), scene_offset=808.2))
+        nav = ClipNav.build([clip, upscale], meta)
+
+        assert nav.full_vid_of(clip) == upscale
+        assert nav.clip_of(upscale) == clip
+
     def test_full_vid_goes_to_the_best_version_evolver_families_together(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         family = {"version": {"group": "redacted_540-pacI21CK"}}
@@ -182,6 +192,39 @@ class TestRecordedMatch:
 
         assert nav.full_vid_of(clip) == upscale
         assert nav.clip_of(upscale) == clip
+
+
+class TestMatchingOnNames:
+    def test_a_performers_name_inside_a_title_is_no_title_word(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        named_for_her = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill"))
+        named_for_her.write_bytes(b"x" * 400)
+        cockeyed = _clip(lib, meta, "w/Nora Quill - Cockeyed.mp4", ClipRecord("Vol2", 3, "Cockeyed", "Nora Quill"))
+        scene = _sidecar(lib, meta, "other/Nora Quill - Cockeyed 1080p.mp4", {})
+        nav = ClipNav.build([named_for_her, cockeyed, scene], meta)
+
+        assert nav.clip_of(scene) == cockeyed
+
+    def test_a_file_sharing_only_the_performer_is_not_the_clips_scene(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", ClipRecord("Vol6", 9, "Alpha Scene 2", "Ann Bly"))
+        scene = _sidecar(lib, meta, "other/Alpha Scene 2 - Ann Bly 1080p.mp4", {})
+        hers_too = _sidecar(lib, meta, "other/Ann Bly - 7781-720p.mp4", {})
+        hers_too.write_bytes(b"x" * 400)
+        nav = ClipNav.build([clip, scene, hers_too], meta)
+
+        assert nav.full_vid_of(clip) == scene
+        assert nav.clip_of(hers_too) is None
+
+    def test_a_scene_whose_title_begins_anothers_is_a_second_scene(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Jane Doe - Scene Five 3.mp4", ClipRecord("Vol4", 4, "Scene Five 3", "Jane Doe"))
+        alpha = _sidecar(lib, meta, "other/Jane-Doe-Alpha_540-aa11bb22.mp4", {})
+        alpha_beta = _sidecar(lib, meta, "other/Jane-Doe-Alpha-Beta_540-cc33dd44.mp4", {})
+        nav = ClipNav.build([clip, alpha, alpha_beta], meta)
+
+        assert nav.full_vid_of(clip) is None
+        assert nav.clip_of(alpha) is None
 
 
 def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
