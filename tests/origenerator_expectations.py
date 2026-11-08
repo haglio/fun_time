@@ -34,7 +34,10 @@ from fun_time_vr.pointer import DRAG, PRESS, RIGHT_CLICK
 from tests.dispatch_sweep import desktop_manifest, drain, headset_config, sweep
 from tests.hosted_shows import publish_the_show
 
-EXPECTATIONS = Path(__file__).with_suffix(".json")
+PUBLISHED_FOR_ORIGENERATORS_SUITE = Path(__file__).with_suffix(".json")
+
+_A_VIDEO_OF_HIS_LIBRARY = "{file}"
+_AN_ACT_OF_HIS_CONTENT_OVERLAY = "{row}"
 
 
 def published_text(scratch: Path) -> str:
@@ -83,14 +86,14 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         said_to_core("{words}"),
         trash_file_line("C:/v/scene one.mp4", "C:/t/scene one.mp4"),
     ]
-    return {_as_published(line) for line in written}
+    return {_with_his_video_or_act_blanked(line) for line in written}
 
 
-def _as_published(line: str) -> str:
+def _with_his_video_or_act_blanked(line: str) -> str:
     if line.startswith(go_to_line("")):
-        return go_to_line("{file}")
+        return go_to_line(_A_VIDEO_OF_HIS_LIBRARY)
     said = parse_command(line)
-    return set_command(said.said_to, "{row}") if said.action == FILTER else line
+    return set_command(said.said_to, _AN_ACT_OF_HIS_CONTENT_OVERLAY) if said.action == FILTER else line
 
 
 def _written_in_a_sweep(app: BridgeConfig) -> list[str]:
