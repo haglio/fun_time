@@ -97,7 +97,7 @@ def _is_in_the_suite(arg: str) -> bool:
     return _repo_root() / INTEGRATION_DIR in (_repo_root() / arg.partition("::")[0]).parents
 
 
-def _venv_environment(venv_python: str | Path) -> dict[str, str]:
+def _environment_as_the_venvs_launcher_sets_it(venv_python: str | Path) -> dict[str, str]:
     return {**os.environ, "__PYVENV_LAUNCHER__": str(venv_python)}
 
 
@@ -262,6 +262,11 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: JobObje
                                   ctypes.byref(si), ctypes.byref(pi))
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())
+    _join_the_job_before_running(pi, job)
+    return pi
+
+
+def _join_the_job_before_running(pi: _PROCESS_INFORMATION, job: JobObject) -> None:
     try:
         job.hold(pi.hProcess)
     except OSError:
@@ -269,7 +274,6 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: JobObje
         _close_process_handles(pi)
         raise
     _kernel32.ResumeThread(pi.hThread)
-    return pi
 
 
 def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0) -> int:
@@ -480,7 +484,7 @@ def _run_the_suite(argv: list[str], venv_python: str | Path, ceiling_s: float,
         cmdline = subprocess.list2cmdline(argv)
         with create_run_job() as job:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
-                                    environment={**_venv_environment(venv_python), PULSE_ENV: str(pulse)})
+                                    environment={**_environment_as_the_venvs_launcher_sets_it(venv_python), PULSE_ENV: str(pulse)})
             try:
                 with _the_runs_own_time(job):
                     return _wait_for_the_run(pi.hProcess, ceiling_s, PulseWatch(pulse, stopped_after_s))

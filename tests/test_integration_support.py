@@ -43,7 +43,6 @@ from tests.integration.integration_support import (
     close_the_runs_osr2s,
     ended_within,
     genau_where_this_machine_keeps_it,
-    isolate_shared_resources,
     joined_within,
     let_seconds_pass,
     library_videos,
@@ -55,6 +54,7 @@ from tests.integration.integration_support import (
     run_within,
     sample_library_videos,
     stall_per_transition,
+    strip_what_the_desktop_does_not_isolate,
     tcode_heard,
     wait_for,
     window_is_quiet,
@@ -83,7 +83,7 @@ def _the_users_config() -> dict:
 @pytest.fixture
 def isolated_ports():
     config = _the_users_config()
-    isolate_shared_resources(config)
+    strip_what_the_desktop_does_not_isolate(config)
     try:
         yield config
     finally:

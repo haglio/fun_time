@@ -113,6 +113,26 @@ def test_the_unit_suite_never_inherits_the_integration_flag():
     assert os.environ.get("FUN_TIME_RUN_INTEGRATION") is None
 
 
+OFFSCREEN = {"QT_QPA_PLATFORM": "offscreen", "SDL_VIDEODRIVER": "dummy"}
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="off Windows there is no hidden desktop to wait for")
+def test_a_unit_run_importing_the_integration_conftest_stays_offscreen():
+    environ = dict(OFFSCREEN)
+
+    integration_conftest.draw_real_windows_only_on_the_hidden_desktop(environ, hidden=lambda: False)
+
+    assert environ == OFFSCREEN
+
+
+def test_an_integration_run_on_the_hidden_desktop_draws_real_windows():
+    environ = dict(OFFSCREEN)
+
+    integration_conftest.draw_real_windows_only_on_the_hidden_desktop(environ, hidden=lambda: True)
+
+    assert environ == {}
+
+
 @pytest.mark.repo_check
 def test_every_integration_module_stays_off_a_machine_that_is_not_windows():
     integration = Path(__file__).resolve().parent / "integration"
