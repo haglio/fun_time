@@ -616,7 +616,7 @@ def load_the_machines_config():
         return load_config(real_config_path())
 
 
-def isolate_shared_resources(config: dict) -> None:
+def strip_what_the_desktop_does_not_isolate(config: dict) -> None:
     _isolate_shared_ports(config)
 
     config["loopback_port"] = _free_tcp_port()
@@ -701,7 +701,7 @@ def build_integration_config(tmp_path: Path) -> Path:
 
     point_the_main_funestra_at(config, primary_dir)
     config.setdefault("regen", {})["metadata_root"] = str(metadata_root)
-    isolate_shared_resources(config)
+    strip_what_the_desktop_does_not_isolate(config)
     the_runs_osr2(config["osr2_slot_port"]).reports_switched_on_to(state_dir)
 
     config_path = integration_root / INTEGRATION_CONFIG_NAME
@@ -852,14 +852,14 @@ def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read
     read = _read_head if read is None else read
     arrived = threading.Event()
 
-    def attempt() -> None:
+    def read_however_long_the_drive_takes() -> None:
         try:
             read(path, size)
         except OSError:
             return
         arrived.set()
 
-    threading.Thread(target=attempt, daemon=True).start()
+    threading.Thread(target=read_however_long_the_drive_takes, daemon=True).start()
     budget = Budget(budget_s)
     while not arrived.wait(min(0.1, budget.left())):
         if budget.expired():

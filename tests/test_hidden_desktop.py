@@ -37,9 +37,9 @@ from tests.integration.coverage_map import Picked
 from tests.integration.hidden_desktop import (
     _child_environment,
     _close_process_handles,
+    _environment_as_the_venvs_launcher_sets_it,
     _launch_on_desktop,
     _repo_root,
-    _venv_environment,
     build_gate_argv,
     build_run_argv,
     create_run_job,
@@ -462,7 +462,7 @@ def test_the_waiting_message_reads_what_the_line_reports():
         waiter.join(timeout=10)
 
 
-def test_the_queue_is_waited_out_before_pytest_is_started():
+def test_the_wait_in_line_is_never_charged_to_a_tests_time_limit():
     events: list[str] = []
 
     class _Lock:
@@ -527,6 +527,53 @@ def test_a_script_run_where_nothing_is_focused_is_waited_on_in_the_seconds_the_r
                 ["AutoHotkey64.exe", "made_up.ahk"], timeout_seconds=0.01) == 0
     finally:
         keep_time_by(run_clock.WALL)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops")
+def test_nothing_has_the_focus_on_the_desktop_the_script_runs_on():
+    asks_which_window_has_the_focus = ("import ctypes; raise SystemExit(0 if "
+                                       "ctypes.windll.user32.GetForegroundWindow() == 0 else 1)")
+
+    assert hidden_desktop.run_where_nothing_is_focused([sys.executable, "-c", asks_which_window_has_the_focus]) == 0
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_script_that_stops_on_that_desktop_is_ended_at_its_timeout_with_its_job():
+    with _launches_recorded() as launched, pytest.raises(TimeoutError):
+        hidden_desktop.run_where_nothing_is_focused(_python("-c", "import time; time.sleep(60)"),
+                                                    timeout_seconds=1)
+
+    assert _wait_until_dead(launched[0])
+
+
+@contextlib.contextmanager
+def _a_window_of_this_process(title: str):
+    user32 = load_dll("user32", use_last_error=True)
+    user32.CreateWindowExW.restype = wt.HWND
+    user32.CreateWindowExW.argtypes = [wt.DWORD, wt.LPCWSTR, wt.LPCWSTR, wt.DWORD, ctypes.c_int, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_int, wt.HWND, wt.HMENU, wt.HINSTANCE, wt.LPVOID]
+    user32.DestroyWindow.argtypes = [wt.HWND]
+    hwnd = user32.CreateWindowExW(0, "STATIC", title, 0, 0, 0, 0, 0, None, None, None, None)
+    if not hwnd:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        yield
+    finally:
+        user32.DestroyWindow(hwnd)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops")
+def test_a_window_lookup_sees_only_the_desktop_it_is_made_from():
+    title = f"made up window {uuid.uuid4()}"
+    looks_it_up = (f"from fun_time.win32 import find_window_by_title; raise SystemExit(0 if "
+                   f"find_window_by_title({title!r}, exact=True, include_hidden=True) == 0 else 1)")
+
+    with _a_window_of_this_process(title):
+        from_this_desktop = subprocess.run([sys.executable, "-c", looks_it_up], cwd=_repo_root(), check=False,
+                                           **hidden_subprocess_kwargs()).returncode
+        from_another = hidden_desktop.run_where_nothing_is_focused([sys.executable, "-c", looks_it_up])
+
+    assert (from_this_desktop, from_another) == (1, 0)
 
 
 def test_the_runner_counts_the_runs_job_as_the_run_and_everything_else_as_other_work():
@@ -720,7 +767,7 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     )
     with create_run_job() as job:
         pi = _launch_on_desktop(subprocess.list2cmdline(_python("-c", spawn_broker)), None,
-                                str(_repo_root()), job, _venv_environment(sys.executable))
+                                str(_repo_root()), job, _environment_as_the_venvs_launcher_sets_it(sys.executable))
         try:
             run = StartedProcess.of(pi.dwProcessId)
             broker = StartedProcess.of(pid_written_to(pid_file))

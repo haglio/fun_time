@@ -48,6 +48,23 @@ def test_a_pause_in_the_sampling_is_not_counted_into_a_stay():
     assert [round(stay.ms) for stay in stays_from(samples)] == [2, 2]
 
 
+WIDEST_GAP_MEASURED_ON_A_BUSY_MACHINE_MS = 3.5
+
+
+def test_the_widest_measured_sample_gap_is_still_one_stay():
+    gap_s = WIDEST_GAP_MEASURED_ON_A_BUSY_MACHINE_MS / 1000
+    samples = [(gap_s * nth, PANEL, "panel") for nth in range(4)]
+
+    assert [round(stay.ms, 1) for stay in stays_from(samples)] == [10.5]
+
+
+def test_a_window_put_back_after_one_sample_is_within_the_budget():
+    watcher = AboveTheLoadingScreen()
+    watcher.samples = _walk((2 * POLL_MS, PANEL), (20, NOTHING))
+
+    assert watcher.too_long() == []
+
+
 def test_only_a_stay_past_the_budget_is_named():
     watcher = AboveTheLoadingScreen()
     watcher.samples = _walk((VISIBLE_MS + 10, PANEL), (20, NOTHING), (10, PANEL))

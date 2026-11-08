@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from collections.abc import Callable, MutableMapping
 from functools import partial
 from pathlib import Path
 
@@ -23,9 +24,16 @@ from .line_record import require_a_run_that_holds_the_machine
 from .run_pulse import PULSE_ENV, Pulse
 from .throwaway_chrome import ThrowawayChrome
 
-if sys.platform != "win32" or on_hidden_desktop():
-    os.environ.pop("QT_QPA_PLATFORM", None)
-    os.environ.pop("SDL_VIDEODRIVER", None)
+
+def draw_real_windows_only_on_the_hidden_desktop(environ: MutableMapping[str, str] = os.environ,
+                                                hidden: Callable[[], bool] = on_hidden_desktop) -> None:
+    if sys.platform == "win32" and not hidden():
+        return
+    environ.pop("QT_QPA_PLATFORM", None)
+    environ.pop("SDL_VIDEODRIVER", None)
+
+
+draw_real_windows_only_on_the_hidden_desktop()
 
 
 def refuse_a_run_that_may_not_start() -> None:
@@ -134,7 +142,7 @@ def _no_thread_outlives_its_test():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _release_the_runs_udp_sinks():
+def _the_runs_udp_sinks_stay_bound_until_the_run_ends():
     yield
     close_the_runs_osr2s()
 
