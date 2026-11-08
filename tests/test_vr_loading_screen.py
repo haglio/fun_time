@@ -76,6 +76,15 @@ def _shutdown_writer(state_dir: Path) -> PhaseProgress:
     return PhaseProgress(state_dir / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES)
 
 
+def test_it_is_drawn_into_the_eyes_which_no_desktop_window_reaches():
+    headset = Path(__file__).resolve().parents[1] / "fun_time_vr"
+
+    for module in ("loading_screen.py", "frame_loop.py"):
+        source = (headset / module).read_text(encoding="utf-8")
+        assert "overlay_window" not in source, module
+        assert "tkinter" not in source, module
+
+
 class TestThePhases:
     def _advanced_keys(self, pattern: str) -> set[str]:
         orchestrator = Path(__file__).resolve().parents[1] / "fun_time_vr" / "orchestrator.py"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fun_time_vr.bringup import open_vr_session
+from fun_time_vr.bringup import SESSION_BRINGUP_TIMEOUT_S, open_vr_session
+from fun_time_vr.orchestrator import FUNESTRA_READY_TIMEOUT_S
 
 
 class _DeviceNotReady(Exception):
@@ -97,3 +98,7 @@ def test_the_deadline_is_measured_from_the_first_attempt():
     )
 
     assert tried == [0.0, 2.0, 4.0, 6.0]
+
+
+def test_bring_up_gives_up_inside_the_orchestrators_wait_for_the_headset():
+    assert SESSION_BRINGUP_TIMEOUT_S < FUNESTRA_READY_TIMEOUT_S

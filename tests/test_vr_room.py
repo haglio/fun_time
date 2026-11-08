@@ -90,7 +90,7 @@ class TestWhatReachesTheEyes:
         assert self._drawn(_hanging("notes"), _hanging("clock", blend=True)) == [
             ("notes", "notes", False), ("clock", "clock", True)]
 
-    def test_they_are_drawn_in_the_order_they_stand(self):
+    def test_they_are_drawn_back_to_front_nothing_sorting_them_by_depth(self):
         one, other = _hanging("notes"), _hanging("clock")
 
         drawn = room.drawn([one, other], screens=[other.screen, one.screen], as_quads=set())
