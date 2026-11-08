@@ -67,13 +67,13 @@ def percent_rate(value: str) -> str | None:
 def _speed_target(state: BridgeState, config: BridgeConfig, *,
                   by_driver: bool) -> FunTimeFunestra | None:
     holder = funestra_with_the_osr2(state)
-    driving = by_driver and state.osr2_control == OSR2_DRIVING
-    if driving and holder is not FunTimeFunestra.MAIN:
+    the_motion_can_take_it = by_driver and state.osr2_control == OSR2_DRIVING
+    if the_motion_can_take_it and holder is not FunTimeFunestra.MAIN:
         status = read_satellite_status(config.satellite(holder).status_file)
         return holder if status.funscript_driving else None
     if not kino_shows(state.main_mode):
         return None
-    if not driving:
+    if not the_motion_can_take_it:
         return FunTimeFunestra.MAIN
     if (holder is FunTimeFunestra.MAIN
             and read_main_funestra_status(config.main_funestra_status_file).funscript_driving):

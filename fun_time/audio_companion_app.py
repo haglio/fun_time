@@ -41,18 +41,18 @@ def build_parser(config) -> argparse.ArgumentParser:
     return ap
 
 
-def init_mixer(wanted: str | None) -> str | None:
-    if not wanted:
-        pygame.mixer.init(devicename=None)
-        return None
-
+def _the_output_the_funestras_pick(wanted: str) -> str | None:
     pygame.mixer.init(devicename=None)
     try:
         outputs = [Output(str(name), str(name)) for name in get_audio_device_names(False)]
     finally:
         pygame.mixer.quit()
     picked = pick_output(outputs, wanted)
-    device = picked.handle if picked else None
+    return picked.handle if picked else None
+
+
+def init_mixer(wanted: str | None) -> str | None:
+    device = _the_output_the_funestras_pick(wanted) if wanted else None
     pygame.mixer.init(devicename=device)
     return device
 

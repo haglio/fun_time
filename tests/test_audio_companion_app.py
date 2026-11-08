@@ -281,6 +281,19 @@ class TestAudioPlaybackController:
         assert controller.normalize_position(clip, 12.5) == pytest.approx(2.5)
 
 
+def test_the_controller_runs_on_a_handed_in_sound_with_no_mixer_open(tmp_path: Path):
+    music = _FakeMusic()
+    controller = AudioPlaybackController(
+        audio_folder=tmp_path, logger=logging.getLogger("test.audio"),
+        music=music, sound_length=lambda _path: None, visible=True, mode_active=True)
+
+    with patch.object(audio_companion_app.pygame.mixer, "music") as the_global_one:
+        controller.switch_clip(tmp_path / "alpha.mp3")
+
+    assert music.events == ["load", "play"]
+    assert the_global_one.mock_calls == []
+
+
 class TestWhenTheSoundWillNotDoWhatItIsAsked:
     @staticmethod
     def _controller(tmp_path, music, **overrides):

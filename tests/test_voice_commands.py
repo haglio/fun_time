@@ -80,9 +80,19 @@ class TestTheVrReset:
 
 
 class TestVoiceCommands:
-    def test_quit_is_the_word_that_quits(self):
+    def test_quit_quits_and_no_bare_exit_shadows_exit_vr(self):
         assert VOICE_COMMANDS["quit"] == "quit"
         assert "exit" not in VOICE_COMMANDS
+        assert VOICE_COMMANDS["exit vr"] == "exit_vr"
+
+    def test_omni_pause_gives_the_recognizer_three_syllables_for_pause(self):
+        assert VOICE_COMMANDS["pause"] == "pause"
+        assert VOICE_COMMANDS["omni pause"] == "pause"
+        assert VOICE_COMMANDS["omni play"] == "play"
+
+    def test_nothing_said_to_a_muted_recognizer_turns_voice_back_on(self):
+        assert VOICE_COMMANDS["voice off"] == VOICE_COMMANDS["mic off"] == "voice_off"
+        assert not {"voice_on", "voice_toggle"} & set(VOICE_COMMANDS.values())
 
     def test_contains_all_static_phrases(self):
         static_phrases = {
@@ -177,7 +187,7 @@ class TestVoiceCommands:
             assert said[f"pip seconds {word}"] == f"genau_flick_seconds_{seconds}"
         assert not any(p.startswith("auto advance") for p in said)
 
-    def test_no_spoken_clip_interval_is_zero_seconds(self):
+    def test_zero_seconds_would_step_the_flick_every_frame_and_is_unsayable(self):
         assert not any(cmd == "genau_flick_seconds_0" for cmd in VOICE_COMMANDS.values())
 
     def test_the_sound_is_said_of_the_funestra_last_addressed_or_of_the_one_named(self):
