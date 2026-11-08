@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import MISSING, fields, replace
 from pathlib import Path
 
+from funestra.funestra import Channels
+
 from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import CommandFiles
@@ -29,6 +31,10 @@ _FILLED = SatelliteChannels(
     osr2_port=50558,
     osr2_readout=Path("state/portrait_osr2_readout.txt"),
 )
+
+CHANNELS_ONLY_THE_MAIN_FUNESTRA_HAS = ("console",)
+CHANNELS_ONLY_THE_BROKER_HAD = ("tcode_host", "tcode_port")
+_NEVER_A_SATELLITES = {*CHANNELS_ONLY_THE_MAIN_FUNESTRA_HAS, *CHANNELS_ONLY_THE_BROKER_HAD}
 
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
                           title="Portrait AI Funestra", taskbar_identity="Example.App")
@@ -62,9 +68,15 @@ class TestTheRoundTrip:
 class TestNothingHasDrifted:
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
         assert tuple(field for field, _flag, _kind in CHANNELS) == tuple(
-            field.name for field in fields(SatelliteChannels))
+            field.name for field in fields(SatelliteChannels) if field.name not in _NEVER_A_SATELLITES)
         assert tuple(field for field, _flag in PLACEMENT) == tuple(
             field.name for field in fields(WindowPlacement))
+
+    def test_every_channel_a_funestra_has_is_given_to_a_satellite_or_named_as_not(self):
+        given = {field for field, _flag, _kind in CHANNELS}
+
+        assert not given & _NEVER_A_SATELLITES
+        assert given | _NEVER_A_SATELLITES == {field.name for field in fields(Channels)}
 
     def test_every_flag_declared_here_is_one_the_satellite_accepts(self):
         accepted = {action.option_strings[0]

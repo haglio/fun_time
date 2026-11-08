@@ -27,7 +27,7 @@ def _thumb(path: str) -> Path:
     return Path(path).with_suffix(".jpg")
 
 
-def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
+def test_the_map_draws_only_thumbnails_made_already_a_grab_takes_seconds_on_hevc():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         model = hud_model(_hud(), Path("C:/state/thumbs"))
 
@@ -166,7 +166,7 @@ def test_a_running_loop_publishes_every_item_it_cycles():
     assert payload.playing == ("seed", 9)
 
 
-def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
+def test_a_loop_item_with_no_thumbnail_yet_keeps_its_cell_and_those_after_it():
     seeds = ["C:/v/s0.mp4", "C:/v/s1.mp4", "C:/v/s2.mp4"]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[2])
 
@@ -218,6 +218,26 @@ def test_publish_republishes_a_hud_whose_write_never_landed(tmp_path: Path):
             assert publisher.publish("portrait", _hud()) is False
         assert publisher.publish("portrait", _hud()) is True
 
+    assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True
+
+
+def test_a_hud_polled_every_frame_is_swapped_in_whole_never_written_in_place(tmp_path: Path):
+    hud_file = tmp_path / "portrait_hud.json"
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
+    opened_to_write: list[Path] = []
+    real_open = Path.open
+
+    def noting(path, mode="r", *args, **kwargs):
+        if "w" in mode:
+            opened_to_write.append(path)
+        return real_open(path, mode, *args, **kwargs)
+
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)), \
+            patch.object(Path, "open", noting):
+        assert publisher.publish("portrait", _hud()) is True
+
+    assert opened_to_write
+    assert hud_file not in opened_to_write
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True
 
 
