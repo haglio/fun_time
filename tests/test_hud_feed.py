@@ -172,7 +172,7 @@ class TestHudPublishing:
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
-    def test_the_job_queue_the_hosted_app_painted_reaches_that_satellites_hud(self, tmp_path):
+    def test_core_hidden_behind_the_browser_shows_its_job_queue_on_the_satellites_hud(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         foot = PaintedFoot(file=str(tmp_path / "origenerator_portrait_hud_foot_a1.png"),
                            width=200, height=40, stamp="a1",
@@ -310,9 +310,7 @@ class TestHudPublishing:
 
         assert hud(tmp_path, "portrait")["item_note"] == "Enhancing…"
 
-    def test_a_hosted_app_still_booting_is_published_so_the_button_can_dim(
-        self, tmp_path,
-    ):
+    def test_the_loop_alone_reads_whether_the_app_is_up_and_dims_its_button(self, tmp_path):
         feed = make_feed(tmp_path, config=make_config(
             tmp_path, origenerator_enabled=True,
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
@@ -330,7 +328,7 @@ class TestHudPublishing:
         feed.publish(BridgeState(origenerator_ready=True))
         assert not origenerator_button().get("dim")
 
-    def test_the_published_hud_says_when_that_satellites_f_mode_is_on(self, tmp_path):
+    def test_f_mode_reaches_a_satellite_only_on_its_hud_from_the_sessions_state(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         for funestra in ("portrait", "landscape"):
             publish_satellite_status(tmp_path / f"{funestra}_status.txt",
@@ -660,7 +658,7 @@ class TestHudPublishing:
 
         assert publish.call_count == 4
 
-    def test_a_status_that_cannot_be_read_keeps_the_video_it_last_named(self, tmp_path):
+    def test_a_blank_status_is_a_read_that_lost_a_race_not_an_empty_satellite(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         status = tmp_path / "portrait_status.txt"
         publish_satellite_status(status, "C:/v/p.mp4")
@@ -682,6 +680,14 @@ class TestHudPublishing:
         feed.publish(state)
 
         assert not reset_button(hud(tmp_path, "portrait")).get("dim")
+
+    def test_the_map_stays_up_under_omnipause_to_be_seen_and_clicked(self, tmp_path):
+        feed = make_feed(tmp_path)
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
+
+        feed.publish(BridgeState(omni_paused=True))
+
+        assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_hud(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
@@ -828,8 +834,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert _published(tmp_path, "portrait").osr2_rows == (
             (osr2_button(FunTimeFunestra.PORTRAIT, has_it=False),),)
 
-    def test_a_satellite_the_hosted_app_holds_is_told_whether_it_has_the_osr2_as_that_changes(
-            self, tmp_path):
+    def test_the_hosted_apps_skip_ahead_is_told_the_osr2_holder_once_per_change(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
@@ -839,7 +844,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_osr2|0", "landscape_osr2|1", "portrait_osr2|1", "landscape_osr2|0"]
 
-    def test_a_satellite_back_in_origenerator_mode_is_told_again(self, tmp_path):
+    def test_an_app_that_restarted_while_its_satellite_was_kinos_is_told_again(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=2), "portrait"))

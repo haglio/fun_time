@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from funestra.hud_title import F_MODE_LABEL
 from funestra.video_groups import (
@@ -503,6 +504,29 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
     assert set(hud.seed_siblings) == {x2, y, z}
 
 
+def test_a_nav_frozen_map_shows_the_exact_family_the_keys_walk():
+    other = "C:/vids/other.mp4"
+    index = GroupIndex(
+        entries=_entries(
+            VideoEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
+                      scene_tags=frozenset({"a", "b", "c"})),
+            VideoEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1"),
+                      scene_tags=frozenset({"a", "b", "c"})),
+            VideoEntry(other, action="Alpha", action_key="g2",
+                      scene_tags=frozenset({"a", "b", "d"})),
+        ),
+        action_items={"g1": sorted([CUR, S1]), "g2": [other]},
+        seed_items={"S": sorted([CUR, S1])},
+    )
+
+    hud = _hud("portrait", locked=False, current=S1, index=index, nav_anchor=CUR, widen_video=S1)
+
+    assert hud.current == CUR
+    assert hud.playing == S1
+    assert hud.seed_siblings == [S1]
+    assert nav_map_cells(index, CUR)[0] == hud.seed_siblings
+
+
 def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
     x, x2, y = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4"
     seeds = {x: ("F1", "0"), x2: ("F1", "1"), y: ("F2", "0")}
@@ -698,6 +722,19 @@ def test_prime_group_indexes_builds_both_satellites_up_front(tmp_path: Path):
 
     index = cached_group_index(sources, paths_supplier=list, metadata_root=metadata_root, must_contain=None)
     assert index.entries
+
+
+def test_the_first_hud_after_priming_lists_no_folder(tmp_path: Path):
+    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    current = _video(media_root, metadata_root, "a", _i2v("Alpha", "1"))
+    sources = str(media_root / "portrait")
+    prime_group_indexes((sources, ""), metadata_root)
+
+    with patch("fun_time.lock_hud.collect_video_files") as listed:
+        hud = build_satellite_hud(SatelliteInputs("portrait", sources=sources, current=current), metadata_root)
+
+    listed.assert_not_called()
+    assert hud.current == current
 
 
 def test_a_satellites_hud_indexes_its_own_satellite_and_carries_the_lock(tmp_path: Path):

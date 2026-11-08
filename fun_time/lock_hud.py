@@ -25,7 +25,7 @@ from fun_time.media_metadata import cached_group_index
 from fun_time.modes import collect_video_files
 
 
-def _title(
+def _title_in_every_funestras_grammar(
     locked: bool, loop_axis: str, latest: bool, filter_query: str, favorites_filter: bool
 ) -> str:
     return hud_title(HudTitleFacts(
@@ -328,7 +328,8 @@ def build_hud(inputs: SatelliteInputs, *, index: GroupIndex | None) -> Satellite
         hud_corner=inputs.hud_corner,
         hud_edge=inputs.hud_edge,
         hud_minimized=inputs.hud_minimized,
-        title=_title(inputs.locked, hold.active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
+        title=_title_in_every_funestras_grammar(
+            inputs.locked, hold.active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
         is_favorite=inputs.is_favorite,
         favorites_filter=inputs.favorites_filter,
         latest=inputs.latest,

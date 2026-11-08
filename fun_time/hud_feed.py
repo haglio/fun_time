@@ -46,6 +46,10 @@ from .shared_state import BridgeState
 PUBLISH_INTERVAL_S = 0.15
 
 
+def _read_lost_a_race_with_the_republish(status: SatelliteStatus) -> bool:
+    return not status.video
+
+
 class _RecordedFavorites:
     def __init__(self) -> None:
         self._read: dict[Path, tuple[tuple[int, int], bool]] = {}
@@ -227,11 +231,12 @@ class HudFeed:
 
     def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
         status = read_satellite_status(status_file)
-        if status.video and status.video != self._the_apps_on_screen.get(funestra):
-            self._the_apps_on_screen.pop(funestra, None)
-            self._last_satellite_status[funestra] = status
-            return status
-        return self._last_satellite_status.get(funestra, status)
+        if (_read_lost_a_race_with_the_republish(status)
+                or status.video == self._the_apps_on_screen.get(funestra)):
+            return self._last_satellite_status.get(funestra, status)
+        self._the_apps_on_screen.pop(funestra, None)
+        self._last_satellite_status[funestra] = status
+        return status
 
     def osr2_mode(self) -> Osr2Mode:
         return osr2_device.mode(self.config.broker_state)
