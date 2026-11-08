@@ -45,7 +45,7 @@ from fun_time.fun_time_windows import (
     ChildPids,
     FunTimeWindows,
 )
-from fun_time.funestra_handover import LET_GO_TIMEOUT_S, keep_aside
+from fun_time.funestra_handover import STALLED_APP_LET_GO_CEILING_S, keep_aside
 from fun_time.hud_transport import HudPublisher
 from fun_time.library_browser import BrowseOpening
 from fun_time.manifest import (
@@ -3492,7 +3492,7 @@ class TestTheFunestrasComeHome:
         cmd_file = config.satellite(funestra).cmd_file
         return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
-    def test_a_satellite_the_app_has_let_go_of_comes_home(self, tmp_path):
+    def test_a_satellite_let_go_of_comes_home_locked_as_the_session_holds_it(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path, locked=True)
         self._lets_go_of(config, FunTimeFunestra.PORTRAIT)
 
@@ -3504,7 +3504,7 @@ class TestTheFunestrasComeHome:
     def test_a_satellite_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path)
 
-        _follow_the_satellites(runner, now=100.0 + LET_GO_TIMEOUT_S + 0.1)
+        _follow_the_satellites(runner, now=100.0 + STALLED_APP_LET_GO_CEILING_S + 0.1)
 
         assert self._queued(config, FunTimeFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
         assert self._queued(config, FunTimeFunestra.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
