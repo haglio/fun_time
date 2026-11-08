@@ -7,6 +7,12 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from funestra.file_channel import append_command
+
+if TYPE_CHECKING:
+    from .bridge_records import BridgeConfig
 
 from app_support.file_channel import write_whole
 
@@ -112,8 +118,20 @@ def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
     return line + suffix.replace(placeholder, f"{said_at:.3f}")
 
 
+def written_for_the_hosted_app(lines: list[str], config: BridgeConfig,
+                               spoken_at: float | None) -> list:
+    for line in lines:
+        append_command(config.origenerator_cmd_file,
+                       with_when_said(line, spoken_at, config.origenerator_said_at_suffix))
+    return []
+
+
 def said_to_the_hosted_app(satellite: str, words: str) -> str:
     return f"{satellite.upper()}_SAY:{words}"
+
+
+def said_to_core(words: str) -> str:
+    return f"SAY:{words}"
 
 
 ENHANCED_ONLY = "enhanced only"
