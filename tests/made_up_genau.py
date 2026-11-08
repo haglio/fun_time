@@ -4,7 +4,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from app_support import haglio_settings, kino_folder
+from app_support import haglio_settings
 from app_support.flick_folder import flat_flicks_in
 
 from fun_time.config import ProjectConfig
@@ -29,33 +29,14 @@ def with_made_up_genau(config: ProjectConfig, root: Path) -> ProjectConfig:
         config.paths, genau_dir=genau, genau_audio_dir=genau_audio_beside(genau)))
 
 
-def write_settings_naming_genau(folder: Path, genau: Path, audio: Path, *,
-                                kino: Path | None = None) -> Path:
+def write_settings_naming_genau(folder: Path, genau: Path, audio: Path) -> Path:
     settings = folder / SETTINGS_NAME
     settings.write_text(json.dumps({
         **haglio_settings.EXAMPLE, "genau_dir": str(genau), "genau_audio_dir": str(audio),
-        **({} if kino is None else {"kino_dir": str(kino)}),
     }), encoding="utf-8")
     return settings
 
 
-def made_up_kino(root: Path) -> Path:
-    kino = root / "kino"
-    for orientation in ("portrait", "landscape"):
-        (kino_folder.upscales_in(kino) / orientation).mkdir(parents=True, exist_ok=True)
-    kino_folder.trash_folder_in(kino).mkdir(parents=True, exist_ok=True)
-    return kino
-
-
-def kino_upscales_at(monkeypatch, root: Path) -> Path:
-    kino = made_up_kino(root)
-    settings = root / "kino_settings.json"
-    settings.write_text(json.dumps({**haglio_settings.load(), "kino_dir": str(kino)}), encoding="utf-8")
-    monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
-    return kino_folder.upscales_in(kino)
-
-
 def point_the_shared_settings_at(monkeypatch, genau: Path, audio: Path | None = None) -> None:
-    settings = write_settings_naming_genau(genau.parent, genau, audio or genau_audio_beside(genau),
-                                           kino=made_up_kino(genau.parent / "videos" / "videos"))
+    settings = write_settings_naming_genau(genau.parent, genau, audio or genau_audio_beside(genau))
     monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))

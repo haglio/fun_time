@@ -66,7 +66,12 @@ Every section `fun_time/config.py` reads. The first three are required and the r
 - `regen`
 - `vr`
 
-The Satellite Funestras play Kino's upscales, from the folder `kino_dir` names in the settings all of Haglio shares (`~/.haglio/settings.json`): the Portrait Satellite plays `2D/AI/portrait` in it and the Landscape Satellite `2D/AI/landscape`, and a video sent to Trash goes to the `trash` folder in it, the way Genau's go to the one in Genau's folder.
+For the satellite AI libraries, Fun Time can now read either a single folder or multiple folders:
+
+- `paths.portrait_dir` or `paths.portrait_dirs`
+- `paths.landscape_dir` or `paths.landscape_dirs`
+
+If the list form is used, the portrait or landscape satellite gets all listed folders joined into one rotating source set.
 
 The Main Funestra's video library folders are configured with `paths.main_player_library_dirs` (a list of one or more folders):
 

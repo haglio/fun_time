@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
-from app_support import haglio_settings, ports
+from app_support import ports
 from app_support.flick_folder import flat_flicks_in
 
 from fun_time import config
@@ -231,6 +231,11 @@ class TestRegenConfig:
         cfg = load_config(path)
         assert cfg.random_favs_browser.lazy_load is True
 
+    def test_a_singular_dir_key_is_read_as_a_one_folder_list(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.paths.portrait_dirs == ((tmp_path / "videos" / "videos" / "portrait").resolve(),)
+        assert cfg.paths.landscape_dirs == ((tmp_path / "videos" / "videos" / "landscape").resolve(),)
+
     def test_multiple_main_funestra_library_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
         extra.mkdir()
@@ -241,26 +246,20 @@ class TestRegenConfig:
         cfg = load_config(path)
         assert len(cfg.paths.main_funestra_library_dirs) == 2
 
-
-class TestKinosFolder:
-    def test_the_satellites_play_and_trash_into_the_kino_folder_all_of_haglio_shares(
-            self, cfg_path: Path, tmp_path: Path, monkeypatch):
-        kino = tmp_path / "kino"
-        settings = tmp_path / "kino_settings.json"
-        settings.write_text(json.dumps({**haglio_settings.load(), "kino_dir": str(kino)}), encoding="utf-8")
-        monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
-
-        cfg = load_config(cfg_path)
-
-        assert (cfg.paths.portrait_dirs, cfg.paths.landscape_dirs, cfg.paths.trash_dir) == (
-            (kino / "2D" / "AI" / "portrait",), (kino / "2D" / "AI" / "landscape",), kino / "trash")
-
-    def test_folders_left_in_the_config_file_are_not_where_kino_is(self, cfg_factory, tmp_path: Path):
-        cfg = load_config(cfg_factory({"paths": {
-            "portrait_dirs": [str(tmp_path / "old portrait")], "trash_dir": str(tmp_path / "old trash")}}))
-
-        assert tmp_path / "old portrait" not in cfg.paths.portrait_dirs
-        assert cfg.paths.trash_dir != tmp_path / "old trash"
+    def test_multiple_portrait_and_landscape_dirs(self, tmp_path: Path, cfg_factory):
+        portrait_extra = tmp_path / "portrait_extra"
+        landscape_extra = tmp_path / "landscape_extra"
+        portrait_extra.mkdir()
+        landscape_extra.mkdir()
+        path = cfg_factory({"paths": {
+            "portrait_dirs": [str(tmp_path / "portrait"), str(portrait_extra)],
+            "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
+        }})
+        cfg = load_config(path)
+        assert len(cfg.paths.portrait_dirs) == 2
+        assert len(cfg.paths.landscape_dirs) == 2
+        assert cfg.paths.portrait_dirs[0] == (tmp_path / "portrait").resolve()
+        assert cfg.paths.landscape_dirs[0] == (tmp_path / "landscape").resolve()
 
 
 class TestGenausFolders:

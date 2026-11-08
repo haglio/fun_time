@@ -49,7 +49,6 @@ from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
 from fun_time.watch_stats import load_watch_stats
 from main_funestra.genau_verbs import genau_f_mode
 from tests.hosted_shows import publish_the_show
-from tests.made_up_genau import kino_upscales_at
 
 
 def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
@@ -660,9 +659,10 @@ def test_main_funestra_cycle_version_back_writes_the_other_way(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
 
 
-def _upscaled_with_an_original(tmp_path: Path, monkeypatch) -> tuple[Path, Path, Path]:
+def _upscaled_with_an_original(tmp_path: Path) -> tuple[Path, Path, Path]:
     media_root = tmp_path / "videos" / "2D" / "AI"
-    upscale = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "provider" / "clip_topaz.mp4"
+    upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
+               / "provider" / "clip_topaz.mp4")
     original = media_root / "1_sorted" / "provider" / "portrait" / "clip.mp4"
     for path in (upscale, original):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -670,8 +670,8 @@ def _upscaled_with_an_original(tmp_path: Path, monkeypatch) -> tuple[Path, Path,
     return media_root, upscale, original
 
 
-def test_a_satellite_version_step_sends_the_videos_renditions_to_that_funestra(tmp_path: Path, monkeypatch):
-    media_root, upscale, original = _upscaled_with_an_original(tmp_path, monkeypatch)
+def test_a_satellite_version_step_sends_the_videos_renditions_to_that_funestra(tmp_path: Path):
+    media_root, upscale, original = _upscaled_with_an_original(tmp_path)
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
     _set_current(config, FunTimeFunestra.PORTRAIT, str(upscale))
@@ -685,8 +685,8 @@ def test_a_satellite_version_step_sends_the_videos_renditions_to_that_funestra(t
     ]
 
 
-def test_a_spoken_version_step_goes_back_to_the_video_the_speaker_saw(tmp_path: Path, monkeypatch):
-    media_root, upscale, original = _upscaled_with_an_original(tmp_path, monkeypatch)
+def test_a_spoken_version_step_goes_back_to_the_video_the_speaker_saw(tmp_path: Path):
+    media_root, upscale, original = _upscaled_with_an_original(tmp_path)
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
     _set_current(config, FunTimeFunestra.PORTRAIT, str(tmp_path / "moved on.mp4"))
@@ -699,8 +699,8 @@ def test_a_spoken_version_step_goes_back_to_the_video_the_speaker_saw(tmp_path: 
     ]
 
 
-def test_a_satellite_version_step_says_so_when_the_video_has_only_itself(tmp_path: Path, monkeypatch):
-    media_root, upscale, original = _upscaled_with_an_original(tmp_path, monkeypatch)
+def test_a_satellite_version_step_says_so_when_the_video_has_only_itself(tmp_path: Path):
+    media_root, upscale, original = _upscaled_with_an_original(tmp_path)
     original.unlink()
     config = _make_config(tmp_path)
     config.regen_media_root = media_root

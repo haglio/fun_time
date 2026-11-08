@@ -188,7 +188,7 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
         encoding="utf-8",
     )
     favorite = tmp_path / "videos" / "videos" / "scene one.mp4"
-    favorite.parent.mkdir(parents=True, exist_ok=True)
+    favorite.parent.mkdir(parents=True)
     favorite.write_bytes(b"")
     records = tmp_path / "videos" / "metadata"
     mark_favorite(favorite, records, True, page="https://example.com/image/abc")

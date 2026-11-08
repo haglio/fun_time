@@ -26,7 +26,6 @@ from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import load_metadata, mark_favorite, metadata_path_for
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
-from tests.made_up_genau import kino_upscales_at
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -412,9 +411,10 @@ class TestHudPublishing:
         assert [step.get("dim") for step in ten_second_steps(hud(tmp_path, "landscape"))] == [
             None, None]
 
-    def test_the_versions_button_lights_for_a_video_the_library_has_twice(self, tmp_path, monkeypatch):
+    def test_the_versions_button_lights_for_a_video_the_library_has_twice(self, tmp_path):
         media_root = tmp_path / "AI"
-        upscale = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "provider" / "clip_topaz.mp4"
+        upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
+                   / "provider" / "clip_topaz.mp4")
         original = media_root / "1_sorted" / "provider" / "portrait" / "clip.mp4"
         for path in (upscale, original):
             path.parent.mkdir(parents=True, exist_ok=True)
