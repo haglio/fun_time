@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from app_support import favorites, video_action, watch_weights
+from app_support import favorites, video_action, video_ids, watch_weights
 from funestra import video_families
 from shared_ui.orientation import ORIENTATIONS
 
@@ -67,3 +67,11 @@ def test_the_playback_weight_this_app_draws_by_is_promised():
 
 def test_the_favorite_f_mode_keeps_is_the_mark_evolver_promises():
     assert favorites.FAVORITE_KEY in _record()["top_level_keys"]
+
+
+def test_the_id_this_app_counts_by_and_writes_and_the_scene_a_clip_names_are_promised():
+    record = _record()
+
+    assert video_ids.ID_KEY in record["top_level_keys"]
+    assert video_ids.ID_KEY in record["top_level_written_by_the_reader"]
+    assert "full_video_id" in _fields("clip")
