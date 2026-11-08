@@ -2477,6 +2477,15 @@ class TestIdempotentVoiceCommands:
 
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).f_mode is True
 
+    def test_the_bars_one_f_mode_light_stays_dark_while_any_funestra_is_out_of_it(self, tmp_path):
+        runner = make_runner(tmp_path, dashboard_enabled=True)
+        runner.state = replace(runner.state, main_scripted_filter=True).with_satellite(
+            FunTimeFunestra.PORTRAIT, favorites_filter=True)
+
+        runner._update_dashboard()
+
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).f_mode is False
+
 
     def test_an_unknown_op_is_an_error_not_an_ahk_verb(self, tmp_path, caplog):
         runner = make_runner(tmp_path)
