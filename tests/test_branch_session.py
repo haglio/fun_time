@@ -19,6 +19,7 @@ from shared_ui.preview import Preview
 from fun_time import branch_session, preview_marker
 from fun_time.config import ProjectConfig, load_config
 from fun_time.genau_config import GenauSettings
+from fun_time.project_paths import HOTKEY_SCRIPT_NAME
 from fun_time.shortcuts import Shortcut, read_shortcuts
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
@@ -30,6 +31,8 @@ def _shortcut_at(primary, path) -> Shortcut:
     return read_shortcuts(primary, pattern=pattern)[path]
 
 REPO_DIR = Path(__file__).resolve().parent.parent
+
+SIBLINGS_BESIDE_THE_PRIMARY_NOT_THE_WORKTREE = ["../funestra", "../shared_ui"]
 
 
 def _write_config(path: Path, **paths: str) -> Path:
@@ -43,7 +46,7 @@ def _write_config(path: Path, **paths: str) -> Path:
             "state_dir": "state",
             "genau_config_path": "C:/genau/genau_config.json",
             "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
-            "sibling_checkouts": ["../funestra", "../shared_ui"],
+            "sibling_checkouts": SIBLINGS_BESIDE_THE_PRIMARY_NOT_THE_WORKTREE,
             "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
         },
         "layout": {
@@ -119,6 +122,7 @@ def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
     assert "the shared code its venv installs" in line
+    assert "would show nothing here" in line
 
 
 def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
@@ -207,9 +211,13 @@ def test_an_unset_optional_is_not_written_as_a_file_called_none(checkouts):
     assert "origenerator_dir" not in json.loads(written.read_text(encoding="utf-8"))["paths"]
 
 
-def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
+def test_a_branch_shares_the_live_sessions_ports_and_hotkey_shell_and_its_mutex(checkouts):
     live, branch = _live_and_branch(checkouts)
 
+    assert "#SingleInstance Force" in (REPO_DIR / HOTKEY_SCRIPT_NAME).read_text(encoding="utf-8")
+    assert branch.paths.ahk_exe == live.paths.ahk_exe
+    assert (branch.audio_companion.port, branch.loopback_port, branch.osr2_slot_port) == (
+        live.audio_companion.port, live.loopback_port, live.osr2_slot_port)
     assert branch.instance_id == live.instance_id
     assert mutex_name(MUTEX_ORCHESTRATOR, branch.instance_id) == mutex_name(
         MUTEX_ORCHESTRATOR, live.instance_id
@@ -263,7 +271,7 @@ def test_one_worktrees_sibling_checkouts_reach_no_other_session(checkouts):
 
 
 @pytest.mark.parametrize("override", ["C:/funestra/.claude/worktrees/mine\n", None])
-def test_a_branch_from_before_the_rename_is_handed_the_same_checkouts(checkouts, override):
+def test_a_branch_that_still_reads_the_old_key_gets_its_checkouts_there_too(checkouts, override):
     if override is not None:
         _name_sibling_checkouts(checkouts.worktree, override)
 
@@ -275,10 +283,13 @@ def test_a_branch_from_before_the_rename_is_handed_the_same_checkouts(checkouts,
     assert paths["sibling_checkouts"]
 
 
-def test_the_override_lands_where_git_ignores_it(checkouts):
-    assert branch_session.SIBLING_CHECKOUTS_OVERRIDE_NAME
+def test_the_override_full_of_this_machines_paths_is_kept_where_git_ignores_it(checkouts):
+    _name_sibling_checkouts(checkouts.worktree, "C:/funestra/.claude/worktrees/mine\n")
+
+    assert branch_session._named_checkouts(checkouts.worktree) == [
+        "C:/funestra/.claude/worktrees/mine"]
     ignored = (REPO_DIR / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert "state/" in ignored
+    assert f"{branch_session.STATE_DIRNAME}/" in ignored
 
 
 def test_the_generated_config_lands_where_git_ignores_it(checkouts):
@@ -451,7 +462,8 @@ def test_one_the_old_placement_left_in_his_folder_is_swept_when_its_branch_goes(
 
 
 @pytestmark_shortcut
-def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_launcher, tmp_path):
+def test_the_sweep_among_his_own_files_deletes_only_what_names_the_branch_launcher(
+        primary_with_launcher, tmp_path):
     decoy = primary_with_launcher.primary / "Verify something of his own.lnk"
     write_shortcut(str(decoy), ShortcutToWrite(
         target=str(tmp_path / "nothing.exe"),
@@ -492,7 +504,7 @@ def test_a_vr_branch_says_so_in_its_own_filename():
     )
 
 
-def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktrees):
+def test_no_shortcut_is_written_to_a_launcher_a_click_would_find_missing(repo_with_worktrees):
     with pytest.raises(FileNotFoundError, match=branch_session.LAUNCHER_NAME):
         branch_session.write_launch_shortcut(
             repo_with_worktrees.newer, primary=repo_with_worktrees.primary
@@ -989,6 +1001,21 @@ def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
 
     assert returncode == 1
     assert "v0.1.9" in capsys.readouterr().err
+
+
+@pytestmark_shortcut
+def test_the_shortcut_command_prints_the_chain_for_the_agent_to_read_first(
+        primary_with_launcher, monkeypatch, capsys):
+    _write_config(primary_with_launcher.primary / "fun_time_config.json")
+    monkeypatch.setattr(branch_session, "primary_checkout",
+                        lambda start=None: primary_with_launcher.primary)
+
+    returncode = branch_session.main(["--shortcut", str(primary_with_launcher.newer)])
+
+    shortcut, chain, *_ = capsys.readouterr().out.splitlines()
+    assert returncode == 0
+    assert shortcut.endswith(".lnk")
+    assert chain.startswith("sibling_checkouts: ")
 
 
 def test_a_pinned_checkout_carrying_the_branchs_pin_is_current(

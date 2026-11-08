@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import ast
 import ctypes
+import importlib
+import inspect
+import re
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -9,10 +14,11 @@ from uuid import uuid4
 import pytest
 from shared_ui.testing import alert_shown
 
-from fun_time import session_handoff
+from fun_time import session_handoff, windows_bridge_dispatch_loop
 from fun_time.config import load_config
 from fun_time.orchestrator import STARTUP_MARKER_NAME
 from fun_time.overlay_progress import CANCEL_FILENAME, CANCELING, parse_progress
+from fun_time.process_identity import NAMER
 from fun_time.session_handoff import (
     DESKTOP,
     STARTUP_TIMEOUT_S,
@@ -50,10 +56,65 @@ from fun_time.single_instance import let_the_session_go
 from fun_time_vr.orchestrator import VR_STARTUP_MARKER_NAME
 from tests.test_launch_smoke import LAUNCHED
 
+REPO = Path(__file__).resolve().parents[1]
+LAUNCHERS = ("launch.vbs", "launch_vr.vbs")
+
 
 @pytest.fixture
 def config(cfg_factory):
     return load_config(cfg_factory())
+
+
+def _fun_time_modules_imported_by(module, *, top_level_only: bool = False) -> set[str]:
+    tree = ast.parse(inspect.getsource(module))
+    nodes = tree.body if top_level_only else list(ast.walk(tree))
+    imported: set[str] = set()
+    for node in nodes:
+        if isinstance(node, ast.ImportFrom):
+            named = node.module or ""
+            if node.level or named.startswith("fun_time."):
+                imported.add(named.rsplit(".", 1)[-1])
+            elif named == "fun_time":
+                imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.Import):
+            imported.update(alias.name.rsplit(".", 1)[-1] for alias in node.names
+                            if alias.name.startswith("fun_time."))
+    return imported
+
+
+class TestTheRelayAsAModuleOfTheSession:
+    def test_the_relay_the_dispatch_loop_imports_touches_no_import_path(self):
+        assert "session_handoff" in _fun_time_modules_imported_by(windows_bridge_dispatch_loop)
+
+        source = inspect.getsource(session_handoff)
+
+        assert "sys.path" not in source
+        assert "apply_sibling_checkouts_to_sys_path" not in source
+
+    def test_the_relay_imports_at_top_level_nothing_that_imports_it(self):
+        top_level = _fun_time_modules_imported_by(session_handoff, top_level_only=True)
+        assert "windows_bridge_orchestrator" in (
+            _fun_time_modules_imported_by(session_handoff) - top_level)
+
+        for name in sorted(top_level):
+            module = importlib.import_module(f"fun_time.{name}")
+            assert "session_handoff" not in _fun_time_modules_imported_by(module), name
+
+    def test_run_with_dash_m_the_relay_still_logs_under_its_module_name(self, monkeypatch, capsys):
+        monkeypatch.setattr(sys, "argv", ["session_handoff.py", "--target", "nowhere"])
+        as_main = {"__name__": "__main__", "__file__": session_handoff.__file__}
+        source = Path(session_handoff.__file__).read_text(encoding="utf-8")
+
+        with pytest.raises(SystemExit):
+            exec(compile(source, session_handoff.__file__, "exec"), as_main)  # noqa: S102
+
+        assert as_main["logger"].name == session_handoff.logger.name == "fun_time.session_handoff"
+
+    def test_the_relay_allows_a_session_the_time_both_launchers_do(self):
+        for launcher in LAUNCHERS:
+            allowed = re.search(r"waited >= (\d+) Then Exit Function",
+                                (REPO / launcher).read_text(encoding="utf-8"))
+            assert int(allowed.group(1)) == STARTUP_TIMEOUT_S * 1000, launcher
 
 
 class TestTheRequestFile:
@@ -313,6 +374,25 @@ class TestStartingTheIncomingSession:
 
         popen.assert_called_once()
 
+    def test_the_session_is_started_under_the_task_list_name_launch_vbs_gives_it(
+        self, tmp_path: Path
+    ):
+        roles: list[str] = []
+
+        def named_exe(python_exe, role):
+            roles.append(role)
+            return f"named for {role}"
+
+        with patch.object(session_handoff.NAMER, "named_exe", named_exe), \
+             patch.object(session_handoff.subprocess, "Popen") as popen:
+            start_the_session(
+                DESKTOP, SessionLaunch("py.exe", tmp_path, tmp_path, tmp_path / "c.json"),
+            )
+
+        assert popen.call_args.args[0][0] == "named for Orchestrator"
+        assert NAMER.exe_name("python.exe", roles[0]) in (REPO / "launch.vbs").read_text(
+            encoding="utf-8")
+
 
 class TestWatchingItComeUp:
     def _session(self, *, returncode=None):
@@ -382,6 +462,15 @@ class TestHandingOver:
         assert popen.call_args.kwargs["cwd"] == str(config.project_dir)
         flags = popen.call_args.kwargs["creationflags"]
         assert flags & subprocess.DETACHED_PROCESS
+
+    def test_a_relay_that_dies_on_import_is_still_heard_in_a_log_of_its_own(self, config):
+        request_handoff(config.paths.state_dir, VR)
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            hand_over_if_asked(config, MagicMock())
+
+        log = popen.call_args.kwargs["stdout"]
+        assert Path(log.name) == config.paths.state_dir / "session_handoff.log"
+        assert popen.call_args.kwargs["stderr"] is log
 
     def test_a_way_back_spawns_the_relay_offering_no_esc(self, config):
         request_handoff(config.paths.state_dir, DESKTOP, cancelable=False)

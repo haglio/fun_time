@@ -24,7 +24,7 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     return copied
 
 
-def seed_derived_caches(live_state: Path, branch_state: Path) -> list[Path]:
+def seed_what_is_costly_to_rebuild(live_state: Path, branch_state: Path) -> list[Path]:
     seeded: list[Path] = []
     source = live_state / WATCH_STATS_NAME
     if source.is_file() and _seed_file(source, branch_state / WATCH_STATS_NAME):

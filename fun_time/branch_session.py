@@ -20,7 +20,11 @@ from app_support.win32 import Shortcut, TaskbarApp, describe_taskbar_app, write_
 
 from . import config as config_module
 from . import preview_marker
-from .branch_seeding import mirror_private_overlays, seed_derived_caches, top_up_thumbnails
+from .branch_seeding import (
+    mirror_private_overlays,
+    seed_what_is_costly_to_rebuild,
+    top_up_thumbnails,
+)
 from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME
 from .child_launch import no_console_window
 from .config import (
@@ -189,7 +193,7 @@ def build_branch_config(
     mirror_private_overlays(primary, worktree)
 
     state_dir.mkdir(parents=True, exist_ok=True)
-    seed_derived_caches(real.paths.state_dir, state_dir)
+    seed_what_is_costly_to_rebuild(real.paths.state_dir, state_dir)
 
     destination = state_dir / BRANCH_CONFIG_NAME
     destination.write_text(json.dumps(raw, indent=2), encoding="utf-8")
@@ -465,7 +469,7 @@ def sibling_checkouts_line(
     dirs = checkouts[SIBLING_CHECKOUTS_KEY]
     siblings_line = (
         f"{SIBLING_CHECKOUTS_KEY}: (empty — every program of the session runs the "
-        "shared code its venv installs)"
+        "shared code its venv installs, so a branch of that code would show nothing here)"
         if not dirs else f"{SIBLING_CHECKOUTS_KEY}: " + os.pathsep.join(dirs)
     )
     origenerator = checkouts["origenerator_dir"]
@@ -654,8 +658,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.remove_shortcut:
         target = (_the_checkout_fun_time_was_imported_from() if args.remove_shortcut == "."
                   else Path(args.remove_shortcut))
-
-
         removed = remove_launch_shortcut(target)
         for path in removed:
             print(path)
