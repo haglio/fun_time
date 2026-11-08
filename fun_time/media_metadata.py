@@ -119,8 +119,13 @@ def recorded_for(
     return {} if record is None else load_metadata(record)
 
 
+def favorite_recorded_in(record: Path) -> bool:
+    return favorites.is_favorite(load_metadata(record))
+
+
 def is_favorite(video_path: str | Path, metadata_root: str | Path | None) -> bool:
-    return favorites.is_favorite(recorded_for(video_path, metadata_root))
+    record = metadata_path_for(video_path, metadata_root)
+    return record is not None and favorite_recorded_in(record)
 
 
 def mark_favorite(video_path: str | Path, metadata_root: str | Path | None, favorite: bool, *,

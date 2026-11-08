@@ -196,7 +196,7 @@ class TestBackDating:
                  video, fraction=0.1)
         sampler.sample_due(now=at, omni_paused=False)
 
-    def test_a_spoken_command_names_the_video_the_speaker_was_looking_at(self, tmp_path):
+    def test_a_spoken_command_is_about_the_video_on_screen_when_the_words_began(self, tmp_path):
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\meant.mp4", at=100.0)
         self._observe(sampler, "portrait", "C:\\clips\\advanced_to.mp4", at=101.0)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app_support import favorites, osr2_device
+from app_support import osr2_device
 from app_support.media_renditions import renditions
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
@@ -29,7 +29,7 @@ from .main_list_commands import (
     main_funestra_at_defaults,
     main_video_shapes,
 )
-from .media_metadata import load_metadata, metadata_path_for
+from .media_metadata import favorite_recorded_in, metadata_path_for
 from .origenerator_switches import hosts, origenerator_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
@@ -71,7 +71,7 @@ class _FavoritesReadOnceUntilTheRecordMoves:
         stamp = (stat.st_mtime_ns, stat.st_size)
         read = self._read.get(record)
         if read is None or read[0] != stamp:
-            read = self._read[record] = (stamp, favorites.is_favorite(load_metadata(record)))
+            read = self._read[record] = (stamp, favorite_recorded_in(record))
         return read[1]
 
 

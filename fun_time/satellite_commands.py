@@ -170,10 +170,12 @@ def _dispatch_reorder(
     return state, [WindowOp(op="message", key=label, source=satellite_source(funestra))]
 
 
+_NOT_A_NARROWING = ("nav_anchor", "speed", "volume", "muted")
+
+
 def _browse_at_defaults(satellite: SatelliteState) -> bool:
     fresh = SatelliteState()
-    return replace(satellite, nav_anchor="", speed=fresh.speed, volume=fresh.volume,
-                   muted=fresh.muted) == fresh
+    return replace(satellite, **{field: getattr(fresh, field) for field in _NOT_A_NARROWING}) == fresh
 
 
 def satellite_at_defaults(satellite: SatelliteState, status: SatelliteStatus) -> bool:
