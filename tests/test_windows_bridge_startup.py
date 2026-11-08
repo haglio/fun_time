@@ -295,6 +295,12 @@ def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path:
     assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
+def test_startup_seeds_the_main_funestra_with_several_verbs_and_loses_none(tmp_path: Path):
+    _seed_startup_states(tmp_path, volume=70, muted=True)
+
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 70 1", "SET_F_MODE 0"]
+
+
 def _main_funestra_verbs(tmp_path: Path) -> list[str]:
     return (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
 

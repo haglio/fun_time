@@ -1199,6 +1199,19 @@ def test_omnipause_row_uses_esc_and_pause_play_voice():
     assert "play" in row.voice
 
 
+def test_both_ways_into_omnipause_show_on_the_space_row():
+    [space_row] = [r for r in _all_rows() if "Space" in _keys(r)]
+
+    assert space_row.commands == ("enter_omnipause",)
+    assert "pause" in space_row.voice
+
+
+def test_the_nav_map_columns_line_up_each_running_up_then_down():
+    row = _the_row_of("portrait_nav_up")
+
+    assert row.key_columns == (("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S"), ())
+
+
 def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
     assert VOICE_COMMANDS["relief omni pause"] == "relief_omnipause"
     assert "relief omnipause" not in VOICE_COMMANDS

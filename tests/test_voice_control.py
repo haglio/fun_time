@@ -594,6 +594,17 @@ class TestWriteCommand:
         lines = cmd_file.read_text(encoding="utf-8").strip().splitlines()
         assert lines == ["landscape_next @1.000\tlandscape next", "pause @2.000\tpause"]
 
+    def test_a_stamp_and_a_hold_are_judged_on_one_in_process_clock(self, tmp_path: Path):
+        cmd_file = tmp_path / "cmd.txt"
+        vc = VoiceController(
+            cmd_file=cmd_file,
+            settings=VoiceControlConfig(enabled=True, model_path="unused"),
+        )
+        vc.suspend()
+
+        assert vc._write_spoken("landscape next", spoken_at=time.monotonic()) is False
+        assert not cmd_file.exists()
+
     def test_mute_prevents_writing(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(

@@ -587,17 +587,17 @@ def _collapse_scopes(phrase: str) -> str:
 def _voice_for(
     commands: tuple[str, ...], *, fold: Callable[[str], str] | None = None
 ) -> tuple[str, ...]:
-    by_command: dict[str, set[str]] = {}
+    shown_by_command: dict[str, set[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
         if cmd in commands:
             shown = friendly_voice(phrase)
             if fold is not None:
                 shown = fold(shown)
             if shown:
-                by_command.setdefault(cmd, set()).add(shown)
+                shown_by_command.setdefault(cmd, set()).add(shown)
     result: list[str] = []
     for cmd in commands:
-        for phrase in sorted(by_command.get(cmd, ())):
+        for phrase in sorted(shown_by_command.get(cmd, ())):
             if phrase not in result:
                 result.append(phrase)
     return tuple(result)
