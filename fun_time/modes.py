@@ -185,13 +185,13 @@ class VideoShapes:
                            plays_vr=self.plays_vr, plays_flat=self.plays_flat)
 
 
-def _group_of(index: GroupIndex, by_seed_family: bool) -> Callable[[str], str | None]:
-    if by_seed_family:
-        def seed_family_of(path: str) -> str | None:
+def _group_of(index: GroupIndex, by_seed_group: bool) -> Callable[[str], str | None]:
+    if by_seed_group:
+        def seed_group_of(path: str) -> str | None:
             seed_key = index.entry(path).seed_key
             return seed_key[0] if seed_key is not None else None
 
-        return seed_family_of
+        return seed_group_of
     return lambda path: index.entry(path).action_key
 
 
@@ -200,24 +200,24 @@ def _collapse_and_weigh(
     metadata_root: Path | None,
     rng: random.Random | None,
     *,
-    by_seed_family: bool = False,
+    by_seed_group: bool = False,
 ) -> list[str]:
     index = build_group_index(paths, metadata_root)
     return dealt_by_weight(paths, weight_of=index.weight_of,
-                           group_of=_group_of(index, by_seed_family), rng=rng or random.Random())
+                           group_of=_group_of(index, by_seed_group), rng=rng or random.Random())
 
 
 def _collapse_recent(
     paths: list[str],
     metadata_root: Path | None,
     *,
-    by_seed_family: bool = False,
+    by_seed_group: bool = False,
 ) -> list[str]:
     dates = FolderListings()
     ordered = sort_paths_by_recency(paths, dates)
     index = build_group_index(ordered, metadata_root)
     return newest_of_each_group(
-        ordered, _group_of(index, by_seed_family),
+        ordered, _group_of(index, by_seed_group),
         newest=lambda group: max(sorted(group), key=dates.modified))
 
 
@@ -258,8 +258,8 @@ def build_satellite_playlist_paths(
     if metadata_root is None:
         return order_paths(files, recent=build.recent, rng=rng)
     if build.recent:
-        return _collapse_recent(files, metadata_root, by_seed_family=filtered)
-    return _collapse_and_weigh(files, metadata_root, rng, by_seed_family=filtered)
+        return _collapse_recent(files, metadata_root, by_seed_group=filtered)
+    return _collapse_and_weigh(files, metadata_root, rng, by_seed_group=filtered)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:

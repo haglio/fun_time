@@ -207,8 +207,8 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
     assert sorted(index.action_items[subject1_key]) == sorted(
         [paths["subject1_zeta"], paths["subject1_alpha"]]
     )
-    family, seed = index.entry(paths["subject1_alpha"]).seed_key
-    assert set(index.seed_items[family]) == {
+    group, seed = index.entry(paths["subject1_alpha"]).seed_key
+    assert set(index.seed_items[group]) == {
         paths["subject1_zeta"], paths["subject1_alpha"], paths["subject2_alpha"]
     }
     assert seed != index.entry(paths["subject2_alpha"]).seed_key[1]

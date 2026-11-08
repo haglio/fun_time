@@ -12,7 +12,7 @@ from funestra.video_groups import (
     action_group_items,
     action_label,
     normalize_path_key,
-    seed_family_items,
+    seed_group_items,
     widened_seed_items,
 )
 
@@ -115,14 +115,14 @@ def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
     current_action = current_entry.action
     if current_entry.seed_key is None:
         return None
-    family, current_seed = current_entry.seed_key
+    group, current_seed = current_entry.seed_key
     found: list[tuple[str, str]] = []
-    for path in (m for m in index.seed_items.get(family, []) if Path(m).exists()):
+    for path in (m for m in index.seed_items.get(group, []) if Path(m).exists()):
         sibling = index.entry(path)
         candidate = sibling.seed_key
         if (
             candidate
-            and candidate[0] == family
+            and candidate[0] == group
             and sibling.action == current_action
             and candidate[1] != current_seed
         ):
@@ -179,7 +179,7 @@ def more_seeds(
         return state, []
     index = _satellite_group_index(funestra, config, current)
     current_key = normalize_path_key(current)
-    exact = {normalize_path_key(m) for m in seed_family_items(index, current)} - {current_key}
+    exact = {normalize_path_key(m) for m in seed_group_items(index, current)} - {current_key}
     wide = {normalize_path_key(m) for m in widened_seed_items(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="message", key="Widening net failed", source=source, level=logging.WARNING)]
@@ -211,7 +211,7 @@ def _loop_items(
     index = _satellite_group_index(funestra, config, current)
     widened = axis == "seed" and same_video(state.satellite(funestra).widen_video, current)
     gather = widened_seed_items if widened else (
-        action_group_items if axis == "action" else seed_family_items
+        action_group_items if axis == "action" else seed_group_items
     )
     return [item for item in gather(index, current) if Path(item).exists()], widened
 

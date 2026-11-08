@@ -3136,7 +3136,7 @@ def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: P
     assert any(op.op == "message" and op.source == "portrait" for op in ops)
 
 
-def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: Path):
+def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_group(tmp_path: Path):
     config, a, b = _loop_config(tmp_path, axis="seed", funestra=3)
 
     _set_current(config, 3, a)
@@ -3413,13 +3413,13 @@ def test_next_in_a_loop_of_several_videos_moves_on_within_the_loop(tmp_path: Pat
     assert state.portrait.loop == "seed"
 
 
-def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
+def _cycle_config(tmp_path: Path, *, seed_group: bool = True,
                   action_group: bool = True, funestra: int = 2) -> tuple[BridgeConfig, str, str, str]:
     videos = {
         "a": _subject_meta(image_seed="1", action="Alpha"),
         "b": (_subject_meta(image_seed="1", action="Beta") if action_group
               else _subject_meta(prompt="another scene", image_seed="7", action="Beta")),
-        "c": _subject_meta(image_seed="2", action="Alpha" if seed_family else "Gamma"),
+        "c": _subject_meta(image_seed="2", action="Alpha" if seed_group else "Gamma"),
     }
     config, paths = _make_grouped_config(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"], paths["c"]
@@ -3475,7 +3475,7 @@ def test_four_presses_of_the_loop_key_come_back_round_to_off(tmp_path: Path):
 
 
 def test_the_loop_key_steps_from_the_lock_over_a_seed_row_of_one_to_the_actions(tmp_path: Path):
-    config, a, b, _c = _cycle_config(tmp_path, seed_family=False)
+    config, a, b, _c = _cycle_config(tmp_path, seed_group=False)
 
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_loop", _make_state(portrait=SatelliteState(locked=True)),
@@ -3487,7 +3487,7 @@ def test_the_loop_key_steps_from_the_lock_over_a_seed_row_of_one_to_the_actions(
 
 
 def test_with_nothing_to_loop_the_loop_key_locks_then_lets_go_without_moving_on(tmp_path: Path):
-    config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
+    config, a, _b, _c = _cycle_config(tmp_path, seed_group=False, action_group=False)
 
     _set_current(config, 2, a)
     with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
@@ -3515,7 +3515,7 @@ def test_the_loop_keys_off_stop_lets_go_of_a_lock_taken_inside_the_loop(tmp_path
 
 
 def test_the_loop_key_ends_a_loop_the_video_has_drifted_out_of(tmp_path: Path):
-    config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
+    config, a, _b, _c = _cycle_config(tmp_path, seed_group=False, action_group=False)
 
     _set_current(config, 2, a)
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
