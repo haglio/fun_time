@@ -32,7 +32,11 @@ from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed_message
-from fun_time.hosted_contract import NO_HOSTED_VOCABULARY, HostedVocabulary, published_labels
+from fun_time.hosted_contract import (
+    NO_HOSTED_VOCABULARY,
+    HostedVocabulary,
+    published_actions_heard_as,
+)
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME
@@ -3184,14 +3188,14 @@ class TestStartingVoice:
         assert controller.call_args.kwargs["hosted"].vocabulary == hosted
         assert controller.call_args.kwargs["hosted"].cmd_file == tmp_path / "origenerator_cmd.txt"
 
-    def test_the_label_names_the_hosted_app_answers_with_are_kept_for_the_reference(
+    def test_the_action_names_the_hosted_app_answers_with_are_kept_for_the_reference(
             self, cfg_factory, tmp_path):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
-        told = HostedVocabulary(labels_heard_as=(("alpha", ("alpha", "al fa")),))
+        told = HostedVocabulary(actions_heard_as=(("alpha", ("alpha", "al fa")),))
 
         self._prepared(config_path, tmp_path, hosting=Hosting(vocabulary=told))
 
-        assert published_labels(tmp_path) == {"alpha": ("alpha", "al fa")}
+        assert published_actions_heard_as(tmp_path) == {"alpha": ("alpha", "al fa")}
 
     def test_the_voice_ends_a_line_said_to_the_hosted_app_the_way_the_app_publishes(
         self, cfg_factory, tmp_path,

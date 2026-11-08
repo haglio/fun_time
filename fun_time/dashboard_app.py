@@ -83,7 +83,7 @@ from fun_time.dashboard_layout import (
 from fun_time.dashboard_osr2 import Osr2PartWidget
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.filter_vocab import Acts
-from fun_time.hosted_contract import published_labels
+from fun_time.hosted_contract import published_actions_heard_as
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
@@ -495,7 +495,7 @@ class DashboardWindow(QMainWindow):
         self._launch_geometry = launch_geometry
         self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar,
                                          on_typing_invited=self._pause_for_typing,
-                                         actions=partial(published_labels, app_config.state_dir))
+                                         actions=partial(published_actions_heard_as, app_config.state_dir))
         self._reveal = LoadingReveal(app_config.state_dir)
 
         self._flash = PressFlash()

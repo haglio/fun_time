@@ -3596,7 +3596,7 @@ def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Pat
     assert sorted(_playlist(config, 2)) == sorted([meant, sibling])
 
 
-def test_lock_action_filters_to_the_current_videos_labels(tmp_path: Path):
+def test_lock_action_filters_to_the_current_videos_actions(tmp_path: Path):
     labeled = _subject_meta(action="Beta Gamma")
     labeled["video"]["labels"] = ["alpha", "XYZ"]
     config, paths = _make_grouped_config(tmp_path, {"clip": labeled})

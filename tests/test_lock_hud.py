@@ -76,8 +76,8 @@ def test_hud_carries_axis_labels_for_the_map():
     hud = _hud("portrait", locked=True, current=CUR, index=index)
 
     assert hud.current_action == "Alpha"
-    assert hud.action_labels == ("Act0", "Act1")
-    assert len(hud.action_labels) == len(hud.action_siblings)
+    assert hud.action_lines == ("Act0", "Act1")
+    assert len(hud.action_lines) == len(hud.action_siblings)
 
 
 def test_hud_labels_an_unlocked_satellite():
@@ -174,7 +174,7 @@ def test_a_seed_loops_column_belongs_to_the_playing_seed():
     assert hud.current == A
     assert hud.playing == N
     assert hud.action_siblings == [NX]
-    assert hud.action_labels == ("Zeta",)
+    assert hud.action_lines == ("Zeta",)
 
 
 def test_at_the_loops_head_the_column_is_the_corners_own():
@@ -185,7 +185,7 @@ def test_at_the_loops_head_the_column_is_the_corners_own():
     )
 
     assert hud.action_siblings == [AY]
-    assert hud.action_labels == ("Beta",)
+    assert hud.action_lines == ("Beta",)
 
 
 def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
@@ -823,7 +823,7 @@ def test_a_video_with_no_action_has_a_row_in_the_column_with_no_action_name():
     hud = _hud("portrait", locked=False, current="C:/vids/words.mp4", index=index)
 
     assert hud.action_siblings == ["C:/vids/made.mp4"]
-    assert hud.action_labels == ("",)
+    assert hud.action_lines == ("",)
 
 
 def test_a_video_with_no_action_sees_the_others_in_its_column():
@@ -832,7 +832,7 @@ def test_a_video_with_no_action_sees_the_others_in_its_column():
     hud = _hud("portrait", locked=False, current="C:/vids/made.mp4", index=index)
 
     assert hud.action_siblings == ["C:/vids/words.mp4"]
-    assert hud.action_labels == ("Alpha",)
+    assert hud.action_lines == ("Alpha",)
 
 
 def test_several_videos_with_no_action_share_one_row_as_any_action_does():

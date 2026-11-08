@@ -22,8 +22,8 @@ def _cell(path: str, thumb: object, label: str = "") -> HudCell:
 
 
 def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit: int,
-           labels: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
-    by_path = dict(zip(paths, labels, strict=False))
+           lines: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
+    by_path = dict(zip(paths, lines, strict=False))
     return tuple(
         _cell(path, thumb, by_path.get(path, ""))
         for path, thumb in hud_thumbnails(
@@ -33,8 +33,8 @@ def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit
 
 
 def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
-                labels: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
-    by_path = dict(zip(paths, labels, strict=False))
+                lines: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
+    by_path = dict(zip(paths, lines, strict=False))
     return tuple(_cell(path, cached_thumbnail(path, cache_dir, listings), by_path.get(path, ""))
                  for path in paths)
 
@@ -46,10 +46,10 @@ def hud_model(hud: SatelliteHud, cache_dir: Path) -> HudModel:
         else _cells(hud.seed_siblings, cache_dir, listings, limit=SEED_LIMIT)
     )
     actions = (
-        _loop_cells(hud.action_siblings, cache_dir, listings, hud.action_labels)
+        _loop_cells(hud.action_siblings, cache_dir, listings, hud.action_lines)
         if hud.active_loop == "action"
         else _cells(hud.action_siblings, cache_dir, listings, limit=ACTION_LIMIT,
-                    labels=hud.action_labels)
+                    lines=hud.action_lines)
     )
     corner = None
     if hud.current:

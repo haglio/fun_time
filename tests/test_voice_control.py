@@ -692,12 +692,12 @@ class TestWriteCommand:
         assert not cmd_file.exists()
 
 
-def test_the_hosted_apps_label_names_are_the_satellites_filter_words_in_each_form_heard(tmp_path):
+def test_the_hosted_apps_action_names_are_the_satellites_filter_words_in_each_form_heard(tmp_path):
     vc = VoiceController(
         cmd_file=tmp_path / "cmd.txt",
         settings=VoiceControlConfig(enabled=True, model_path="unused"),
         hosted=HostedVoice(vocabulary=HostedVocabulary(
-            labels_heard_as=(("alpha", ("alpha", "al fa")),))),
+            actions_heard_as=(("alpha", ("alpha", "al fa")),))),
     )
 
     assert {phrase: vc.commands[phrase] for phrase in ("alpha", "al fa", "portrait alpha")} == {

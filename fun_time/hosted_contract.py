@@ -23,20 +23,20 @@ class HostedVocabulary:
     openers: frozenset[str] = frozenset()
     speech_hint: str = ""
     lock_phrases: frozenset[str] = frozenset()
-    labels_heard_as: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    actions_heard_as: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 NO_HOSTED_VOCABULARY = HostedVocabulary()
-LABELS_HEARD_AS_FILE = "labels_heard_as.json"
+ACTIONS_HEARD_AS_FILE = "labels_heard_as.json"
 
 
-def publish_labels(state_dir: Path, vocabulary: HostedVocabulary) -> None:
-    write_whole(Path(state_dir) / LABELS_HEARD_AS_FILE, json.dumps(dict(vocabulary.labels_heard_as)))
+def publish_actions_heard_as(state_dir: Path, vocabulary: HostedVocabulary) -> None:
+    write_whole(Path(state_dir) / ACTIONS_HEARD_AS_FILE, json.dumps(dict(vocabulary.actions_heard_as)))
 
 
-def published_labels(state_dir: Path) -> dict[str, tuple[str, ...]]:
+def published_actions_heard_as(state_dir: Path) -> dict[str, tuple[str, ...]]:
     try:
-        told = json.loads((Path(state_dir) / LABELS_HEARD_AS_FILE).read_text(encoding="utf-8"))
+        told = json.loads((Path(state_dir) / ACTIONS_HEARD_AS_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return {name: tuple(forms) for name, forms in told.items()}

@@ -47,7 +47,7 @@ from fun_time.filter_vocab import Acts
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
-from fun_time.hosted_contract import published_labels
+from fun_time.hosted_contract import published_actions_heard_as
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.session_handoff import headset_hold_asked
@@ -1736,7 +1736,7 @@ def hang_the_room(
     units = RoomUnits(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag,
-                                 actions=partial(published_labels, state_dir)), library=library,
+                                 actions=partial(published_actions_heard_as, state_dir)), library=library,
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),
