@@ -17,7 +17,7 @@ from funestra.video_groups import (
     GroupIndex,
     action_group_items,
     normalize_path_key,
-    seed_family_items,
+    seed_group_items,
     widened_seed_items,
 )
 
@@ -134,7 +134,7 @@ def cell_path(cell: Cell, corner: str, seeds: list[str], actions: list[str]) -> 
 def nav_map_cells(
     index: GroupIndex, anchor: str, *, seed_limit: int = SEED_LIMIT, action_limit: int = ACTION_LIMIT
 ) -> tuple[list[str], list[str]]:
-    seeds = _others(seed_family_items(index, anchor), anchor)[:seed_limit]
+    seeds = _others(seed_group_items(index, anchor), anchor)[:seed_limit]
     actions = _distinct_action_siblings(index, anchor)[:action_limit]
     return seeds, actions
 
@@ -169,7 +169,7 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
     key = normalize_path_key(current)
     if key == normalize_path_key(anchor):
         return "seed"
-    row = widened_pool or seed_family_items(index, anchor)
+    row = widened_pool or seed_group_items(index, anchor)
     if any(normalize_path_key(item) == key for item in row):
         return "seed"
     if any(normalize_path_key(item) == key for item in action_group_items(index, anchor)):
@@ -240,7 +240,7 @@ def _looping_group(
         return action_group_items(index, inputs.current)
     if normalize_path_key(inputs.current) in pool_keys:
         return widened_pool
-    return seed_family_items(index, inputs.current)
+    return seed_group_items(index, inputs.current)
 
 
 def _resolve_anchor(
@@ -281,7 +281,7 @@ def _row_is_widened(
 def _seed_row(index: GroupIndex, hold: _NavMapHold, widened_pool: list[str], *, widen: bool) -> list[str]:
     if widen and not hold.nav_frozen:
         return _others(widened_pool, hold.anchor)
-    return _others(seed_family_items(index, hold.anchor), hold.anchor)
+    return _others(seed_group_items(index, hold.anchor), hold.anchor)
 
 
 def _action_column(index: GroupIndex, hold: _NavMapHold, current: str, axis: str) -> list[str]:

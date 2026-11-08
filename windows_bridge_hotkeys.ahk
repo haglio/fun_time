@@ -114,7 +114,7 @@ Left::QueueCommand("portrait_prev")
 Right::QueueCommand("portrait_next")
 Up::QueueCommand("portrait_trash")
 Down::QueueCommand("portrait_lock")
-; Step portrait's loop on: the lock, then the seed family, then the action group,
+; Step portrait's loop on: the lock, then the seed group, then the action group,
 ; then off (back to its browse, filter kept), then round again.  This and
 ; landscape's E below are the only way into or out of a group loop at the
 ; keyboard.  E was cycle action until cycling a clip's action and seed went

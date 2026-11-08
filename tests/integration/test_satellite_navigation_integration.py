@@ -229,7 +229,7 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
         config = _bridge_config(satellite)
         playing = satellite.video()
         others = [v for v in videos if v != playing]
-        family, widened = [playing, others[0]], [playing, *others]
+        seed_group, widened = [playing, others[0]], [playing, *others]
 
         # The HUD is up throughout, as in a real session: widening is the one
         # gesture that grows the HUD — a two-cell seed row becomes eight — so the
@@ -246,10 +246,10 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
             ))
 
         state = BridgeState(portrait=SatelliteState(loop="", locked=True))
-        with patch("fun_time.satellite_groups.seed_family_items", return_value=family), \
+        with patch("fun_time.satellite_groups.seed_group_items", return_value=seed_group), \
                 patch("fun_time.satellite_groups.widened_seed_items", return_value=widened):
             state, _ = dispatch_command("portrait_loop", state, config)
-            publish(family, "seed")
+            publish(seed_group, "seed")
             _drained(satellite)
             assert _decoding(satellite), "the seed loop's own reload stopped the video"
             state, _ = dispatch_command("portrait_more_seeds", state, config)
