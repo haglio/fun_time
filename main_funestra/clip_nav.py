@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support import video_ids
 from app_support.video_names import clip_title, stable_title, version_group_of
 
 from fun_time.media_metadata import recorded_for
@@ -46,6 +47,7 @@ class ClipNav:
     _non_clips: tuple[Path, ...]
     _groups: dict[Path, str]
     _titles: dict[Path, str]
+    _by_id: dict[str, Path]
 
     @classmethod
     def build(cls, videos: Iterable[Path], metadata_root: Path | None) -> ClipNav:
@@ -53,8 +55,12 @@ class ClipNav:
         non_clips: list[Path] = []
         groups: dict[Path, str] = {}
         titles: dict[Path, str] = {}
+        by_id: dict[str, Path] = {}
         for video in videos:
             payload = recorded_for(video, metadata_root)
+            given = video_ids.recorded_id(payload)
+            if given is not None:
+                by_id[given] = video
             titles[video] = str(payload.get("title", "") or "").strip()
             meta = payload.get("clip")
             if isinstance(meta, dict):
@@ -62,7 +68,7 @@ class ClipNav:
             else:
                 non_clips.append(video)
                 groups[video] = version_group_of(payload)
-        return cls(clips, tuple(non_clips), groups, titles)
+        return cls(clips, tuple(non_clips), groups, titles, by_id)
 
     def _family(self, scene: Path) -> str:
         return self._groups.get(scene) or stable_title(scene.stem)
@@ -105,8 +111,8 @@ class ClipNav:
         return _resolve(meta, [c for c in self._non_clips if c != video])
 
     def _recorded_family(self, meta: dict) -> str | None:
-        recorded = meta.get("full_video")
-        return self._family(Path(str(recorded))) if recorded else None
+        scene = self._by_id.get(str(meta.get("full_video_id", "")))
+        return self._family(scene) if scene is not None else None
 
     def clip_of(self, video: Path) -> Path | None:
         if video in self._clips:

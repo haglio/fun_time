@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
+import pytest
+from app_support import haglio_settings, video_ids
 from funestra.video_groups import normalize_path_key
 
 from fun_time.watch_stats import (
@@ -151,7 +154,7 @@ def test_tracker_discard_suppresses_classifying_the_departed_video():
     assert tracker.observe("c.mp4", 0.0) == [("completion", "b.mp4")]
 
 
-class TestTheShapeAnotherAppRewrites:
+class TestARowOfAVideoOutsideTheLibrary:
     def test_a_row_is_keyed_by_the_path_as_this_app_normalizes_it(self, tmp_path: Path):
         video = tmp_path / "Portrait" / "Example Clip.mp4"
         video.parent.mkdir(parents=True)
@@ -171,3 +174,38 @@ class TestTheShapeAnotherAppRewrites:
 
         row = load_watch_stats(stats_file)[normalize_path_key(str(video))]
         assert sorted(row) == ["completions", "locks", "skips"]
+
+
+class TestARowOfALibraryVideo:
+    @pytest.fixture
+    def video(self, tmp_path: Path, monkeypatch) -> Path:
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"library_root": str(tmp_path / "library")}),
+                            encoding="utf-8")
+        monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
+        video = tmp_path / "library" / "videos" / "videos" / "2D" / "Example Clip.mp4"
+        video.parent.mkdir(parents=True)
+        video.write_text("v", encoding="utf-8")
+        return video
+
+    def test_is_keyed_by_the_id_its_record_carries_so_it_follows_the_video_when_it_moves(
+        self, tmp_path: Path, video: Path,
+    ):
+        stats_file = tmp_path / "watch_stats.json"
+
+        record_watch_event(stats_file, str(video), "completion")
+
+        assert load_watch_stats(stats_file) == {
+            video_ids.id_of(video_ids.record_of(video)): {"completions": 1, "skips": 0, "locks": 0}}
+
+    def test_counted_under_its_path_before_ids_is_moved_to_its_id_with_its_counts_kept(
+        self, tmp_path: Path, video: Path,
+    ):
+        stats_file = tmp_path / "watch_stats.json"
+        stats_file.write_text(json.dumps({normalize_path_key(str(video)): {
+            "completions": 4, "skips": 1, "locks": 2}}), encoding="utf-8")
+
+        record_watch_event(stats_file, str(video), "skip")
+
+        assert load_watch_stats(stats_file) == {
+            video_ids.id_of(video_ids.record_of(video)): {"completions": 4, "skips": 2, "locks": 2}}

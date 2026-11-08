@@ -4,6 +4,7 @@ import json
 import time
 from pathlib import Path
 
+from app_support import video_ids
 from funestra.video_groups import normalize_path_key
 
 _EVENT_FIELDS = {
@@ -64,18 +65,38 @@ class WatchTracker:
         return events
 
 
-def _still_wanted(video: Path) -> bool:
+def _still_wanted(key: str) -> bool:
+    if not _is_a_path(key):
+        return True
+    video = Path(key)
     return video.exists() or not video.parent.exists()
+
+
+def _is_a_path(key: str) -> bool:
+    return Path(key).is_absolute()
+
+
+def _key_of(video_path: str) -> str:
+    record = video_ids.record_of(Path(video_path)) if Path(video_path).is_file() else None
+    return video_ids.id_of(record) if record is not None else normalize_path_key(video_path)
+
+
+def _keyed_by_id(stats: dict[str, dict[str, int]]) -> dict[str, dict[str, int]]:
+    keyed: dict[str, dict[str, int]] = {}
+    for key, counts in stats.items():
+        entry = keyed.setdefault(_key_of(key) if _is_a_path(key) else key,
+                                 {"completions": 0, "skips": 0, "locks": 0})
+        for field, count in counts.items():
+            entry[field] = entry.get(field, 0) + count
+    return keyed
 
 
 def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> None:
     field = _EVENT_FIELDS[event]
-    stats = load_watch_stats(stats_file)
-    entry = stats.setdefault(
-        normalize_path_key(video_path), {"completions": 0, "skips": 0, "locks": 0}
-    )
+    stats = _keyed_by_id(load_watch_stats(stats_file))
+    entry = stats.setdefault(_key_of(video_path), {"completions": 0, "skips": 0, "locks": 0})
     entry[field] = entry.get(field, 0) + 1
-    stats = {key: value for key, value in stats.items() if _still_wanted(Path(key))}
+    stats = {key: value for key, value in stats.items() if _still_wanted(key)}
     target = Path(stats_file)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
