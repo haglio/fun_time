@@ -84,12 +84,12 @@ def _set_the_hosted_shows_f_mode(funestras: tuple[FunTimeFunestra, ...], enabled
 
 
 def _dispatch_fmode(
-    funestras: tuple[FunTimeFunestra, ...], target: bool | None,
+    asked_for: tuple[FunTimeFunestra, ...], target: bool | None,
     state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
-    enabled = _next_f_mode(state, config, funestras) if target is None else target
-    hosted = tuple(funestra for funestra in funestras if hosts(funestra, state, config))
-    changed = tuple(funestra for funestra in funestras
+    enabled = _next_f_mode(state, config, asked_for) if target is None else target
+    hosted = tuple(funestra for funestra in asked_for if hosts(funestra, state, config))
+    changed = tuple(funestra for funestra in asked_for
                     if funestra not in hosted and _funestra_f_mode(state, config, funestra) != enabled)
     _set_the_hosted_shows_f_mode(hosted, enabled, config)
     genau = _genau_among(changed, state)
@@ -123,7 +123,7 @@ def _dispatch_fmode(
         if funestra in result.funestras:
             state = cancel_lock(funestra, state, config)
             state = clear_satellite_grouping(state, funestra)
-    source = FUNESTRA_SOURCES[funestras[0]] if len(funestras) == 1 else SOURCE_SYSTEM
+    source = FUNESTRA_SOURCES[asked_for[0]] if len(asked_for) == 1 else SOURCE_SYSTEM
     message_op = WindowOp(
         op="message",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
