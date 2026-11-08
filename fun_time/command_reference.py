@@ -473,8 +473,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("cycle seed — same settings, another seed",
                      commands=_sided("cycle_seed")),
                 _Row(
-                    "wrong action — the item's action is mislabeled; strike "
-                    "it so Evolver's backfill tool asks about it again",
+                    "wrong action — the item's actions are wrong; send it back "
+                    "to Origenerator's action setter tool to be set again",
                     commands=_sided("wrong_action"),
                 ),
             )),

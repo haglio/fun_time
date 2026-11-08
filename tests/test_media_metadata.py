@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import _winapi
 import json
-import os
-import threading
 from pathlib import Path
 
 import pytest
-from app_support.json_store import locked_update
 
 from fun_time.media_metadata import (
     EXCERPT,
@@ -20,7 +17,6 @@ from fun_time.media_metadata import (
     path_matches_query,
     recorded_for,
     recorded_orientation,
-    reject_action,
     video_title,
     video_type_of,
 )
@@ -431,108 +427,6 @@ def test_path_matches_query_excludes_a_sidecar_that_records_no_act(tmp_path):
 
     assert not path_matches_query(str(video), metadata_root, "alpha")
     assert path_matches_query(str(video), metadata_root, "")
-
-
-def _t2v(action: str, seed: str, prompt: str = "scene") -> dict:
-    return {"video": {"prompt": prompt, "action": action, "seed": seed}}
-
-
-def _write_library(tmp_path, videos: dict[str, dict]) -> tuple[Path, Path, dict[str, str]]:
-    media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    paths: dict[str, str] = {}
-    for name, meta in videos.items():
-        video = media_root / f"{name}.mp4"
-        video.parent.mkdir(parents=True, exist_ok=True)
-        video.write_text("x", encoding="utf-8")
-        sidecar = metadata_path_for(video, metadata_root)
-        sidecar.parent.mkdir(parents=True, exist_ok=True)
-        sidecar.write_text(json.dumps(meta), encoding="utf-8")
-        paths[name] = str(video)
-    return media_root, metadata_root, paths
-
-
-def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
-
-    struck = reject_action(paths["clip"], metadata_root)
-
-    assert struck == "Alpha"
-    payload = load_metadata(metadata_path_for(paths["clip"], metadata_root))
-    assert "action" not in payload["video"]
-    assert payload["video"]["wrong_action"] == "Alpha"
-    assert payload["video"]["prompt"], "the rest of the sidecar survives"
-
-
-def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
-    sidecar = metadata_path_for(paths["clip"], metadata_root)
-    before = sidecar.read_text(encoding="utf-8")
-
-    def refuse(_src, _dst):
-        raise OSError("the rename was refused")
-
-    monkeypatch.setattr(os, "replace", refuse)
-    with pytest.raises(OSError, match="could not replace"):
-        reject_action(paths["clip"], metadata_root)
-    assert sidecar.read_text(encoding="utf-8") == before
-
-    monkeypatch.undo()
-    assert reject_action(paths["clip"], metadata_root) == "Alpha"
-    assert [p.name for p in sidecar.parent.iterdir()] == [sidecar.name]
-
-
-def test_reject_action_waits_for_evolvers_writer_and_strikes_what_it_left(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
-    sidecar = metadata_path_for(paths["clip"], metadata_root)
-    inside = threading.Event()
-    let_go = threading.Event()
-
-    def stamp_a_watch(payload: dict) -> dict:
-        inside.set()
-        let_go.wait(5)
-        return {**payload, "watch": {"weight": 2.0}}
-
-    pipeline = threading.Thread(
-        target=locked_update, args=(sidecar, stamp_a_watch), daemon=True)
-    pipeline.start()
-    assert inside.wait(5)
-    struck: list[str] = []
-    viewer = threading.Thread(
-        target=lambda: struck.append(reject_action(paths["clip"], metadata_root)),
-        daemon=True)
-    viewer.start()
-    let_go.set()
-    pipeline.join(5)
-    viewer.join(5)
-
-    payload = load_metadata(sidecar)
-    assert struck == ["Alpha"]
-    assert payload["video"]["wrong_action"] == "Alpha"
-    assert "action" not in payload["video"]
-    assert payload["watch"] == {"weight": 2.0}, "the pass's stamp survives the rejection"
-
-
-def test_reject_action_leaves_a_sidecar_it_cannot_read_as_a_document(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
-    sidecar = metadata_path_for(paths["clip"], metadata_root)
-    sidecar.write_text("[not a document]", encoding="utf-8")
-
-    assert reject_action(paths["clip"], metadata_root) == ""
-    assert sidecar.read_text(encoding="utf-8") == "[not a document]"
-
-
-def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
-    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
-    sidecar = metadata_path_for(paths["clip"], metadata_root)
-    sidecar.write_text(json.dumps({"video": {"prompt": "unlabeled"}}), encoding="utf-8")
-    before = sidecar.read_text(encoding="utf-8")
-    unknown = str(tmp_path / "videos" / "videos" / "never_seen.mp4")
-
-    assert reject_action(paths["clip"], metadata_root) == ""
-    assert reject_action(unknown, metadata_root) == ""
-
-    assert sidecar.read_text(encoding="utf-8") == before
-    assert not metadata_path_for(unknown, metadata_root).exists()
 
 
 def test_a_filter_keeps_a_video_by_its_actions_as_the_satellite_hud_lights_its_rows():

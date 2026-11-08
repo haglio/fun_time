@@ -1374,6 +1374,6 @@ def test_the_satellites_loops_cycles_and_more_seeds_read_in_his_words():
             "cycle seed — same settings, another seed",
             "loop actions — same seed or initial image, all of its actions",
             "loop seeds — same settings, all of their seeds",
-            "wrong action — the item's action is mislabeled; strike it so "
-            "Evolver's backfill tool asks about it again",
+            "wrong action — the item's actions are wrong; send it back "
+            "to Origenerator's action setter tool to be set again",
             "more seeds — widen the net to include seeds from very similar settings"} <= rows

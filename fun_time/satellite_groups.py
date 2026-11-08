@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from app_support import wrong_actions
 from app_support.media_renditions import renditions
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file, step_version
@@ -25,8 +26,6 @@ from .lock_hud import cell_path, locate_cell, nav_map_cells, navigate_cell
 from .media_metadata import (
     cached_group_index,
     recorded_for,
-    reject_action,
-    reset_group_index_cache,
 )
 from .modes import SatelliteBuild, collect_video_files, scripted_item, write_playlist_file
 from .runtime_flow import satellite_browse_paths
@@ -191,18 +190,13 @@ def more_seeds(
 def wrong_action(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    source = satellite_source(funestra)
     current = target_path or satellite_current(config, funestra)
-    if not current:
+    if not current or config.wrong_actions_said_in is None:
         return state, []
-    action = reject_action(current, config.regen_metadata_root)
-    if not action:
-        return state, [WindowOp(
-            op="message", key="No action to remove", source=source, level=logging.WARNING
-        )]
-    reset_group_index_cache()
-    logger.info("Wrong action on %s: removed %r", current, action)
-    return state, [WindowOp(op="message", key=f"Action removed: {action}", source=source)]
+    wrong_actions.say(config.wrong_actions_said_in, current)
+    logger.info("Wrong action on %s: sent back to the action setter tool", current)
+    return state, [WindowOp(op="message", key="Sent back to the action setter tool",
+                            source=satellite_source(funestra))]
 
 
 def _loop_items(

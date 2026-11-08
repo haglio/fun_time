@@ -25,7 +25,7 @@ from fun_time import (
     windows_bridge_orchestrator,
 )
 from fun_time.config import DEFAULT_CONFIG_PATH
-from fun_time.media_metadata import reset_group_index_cache
+from fun_time.media_metadata import SESSION_INDEXES
 from fun_time_vr import orchestrator as vr_orchestrator
 from fun_time_vr import vr_runtime, windows_sound
 from tests.logging_state import logging_given_back
@@ -151,7 +151,7 @@ def _never_leave_a_loading_screen_heartbeat_running(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _fresh_group_index_cache():
-    reset_group_index_cache()
+    SESSION_INDEXES.clear()
 
 
 @pytest.fixture(autouse=True)

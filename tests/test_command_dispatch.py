@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
-from app_support import osr2_hold
+from app_support import osr2_hold, wrong_actions
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
@@ -2081,35 +2081,26 @@ def _sidecar_video(config: BridgeConfig, path: str) -> dict:
     return load_metadata(metadata_path_for(path, config.regen_metadata_root)).get("video", {})
 
 
-def test_portrait_wrong_action_strikes_the_act_out_of_the_sidecar(tmp_path: Path):
+def _sending_back(config: BridgeConfig, tmp_path: Path) -> BridgeConfig:
+    return replace(config, wrong_actions_said_in=tmp_path / "origenerator state")
+
+
+def test_portrait_wrong_action_sends_the_video_back_to_the_action_setter_tool(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
     })
+    config = _sending_back(config, tmp_path)
     state = _make_state()
 
     _set_current(config, 2, paths["subject_zeta"])
     _new_state, ops = dispatch_command("portrait_wrong_action", state, config)
 
-    video = _sidecar_video(config, paths["subject_zeta"])
-    assert "action" not in video
-    assert video["wrong_action"] == "Zeta Massage"
+    assert wrong_actions.take(config.wrong_actions_said_in) == (paths["subject_zeta"],)
+    assert _sidecar_video(config, paths["subject_zeta"])["action"] == "Zeta Massage"
     assert [(op.key, op.source, op.level) for op in ops if op.op == "message"] == [
-        ("Action removed: Zeta Massage", "portrait", MESSAGE)
+        ("Sent back to the action setter tool", "portrait", MESSAGE)
     ]
-    assert _cmds(config, 2) == [], "the clip keeps playing — only its metadata changed"
-
-
-def test_wrong_action_reports_a_dead_end_when_the_video_has_no_act(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {"unlabeled": {"video": {"prompt": "p"}}})
-    state = _make_state()
-
-    _set_current(config, 2, paths["unlabeled"])
-    _new_state, ops = dispatch_command("portrait_wrong_action", state, config)
-
-    assert [(op.key, op.level) for op in ops if op.op == "message"] == [
-        ("No action to remove", logging.WARNING)
-    ]
-    assert "wrong_action" not in _sidecar_video(config, paths["unlabeled"])
+    assert _cmds(config, 2) == [], "the clip keeps playing"
 
 
 def test_wrong_action_judges_the_video_that_was_playing_when_it_was_spoken(tmp_path: Path):
@@ -2117,45 +2108,38 @@ def test_wrong_action_judges_the_video_that_was_playing_when_it_was_spoken(tmp_p
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "newcomer": _cycle_meta("222", "Alpha"),
     })
+    config = _sending_back(config, tmp_path)
     state = _make_state()
 
     _set_current(config, 2, paths["newcomer"])
     dispatch_command("portrait_wrong_action", state, config, target_path=paths["subject_zeta"])
 
-    assert "action" not in _sidecar_video(config, paths["subject_zeta"])
-    assert _sidecar_video(config, paths["newcomer"])["action"] == "Alpha"
+    assert wrong_actions.take(config.wrong_actions_said_in) == (paths["subject_zeta"],)
 
 
-def test_landscape_wrong_action_strikes_the_landscape_video(tmp_path: Path):
+def test_landscape_wrong_action_sends_back_the_landscape_video(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "on_portrait": _cycle_meta("111", "Zeta Massage"),
         "on_landscape": _cycle_meta("222", "Alpha"),
     })
+    config = _sending_back(config, tmp_path)
     state = _make_state()
 
     _set_current(config, 2, paths["on_portrait"])
     _set_current(config, 3, paths["on_landscape"])
     _new_state, ops = dispatch_command("landscape_wrong_action", state, config)
 
-    assert "action" not in _sidecar_video(config, paths["on_landscape"])
-    assert _sidecar_video(config, paths["on_portrait"])["action"] == "Zeta Massage"
+    assert wrong_actions.take(config.wrong_actions_said_in) == (paths["on_landscape"],)
     assert [op.source for op in ops if op.op == "message"] == ["landscape"]
 
 
-def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: Path):
-    config, paths = _make_grouped_config(tmp_path, {
-        "subject_zeta": _cycle_meta("111", "Zeta Massage"),
-        "subject_alpha": _cycle_meta("111", "Alpha"),
-    })
-    state = _make_state()
+def test_wrong_action_with_no_satellite_playing_sends_nothing_back(tmp_path: Path):
+    config, _paths = _make_grouped_config(tmp_path, {})
+    config = _sending_back(config, tmp_path)
 
-    _set_current(config, 2, paths["subject_zeta"])
-    dispatch_command("portrait_cycle_action", state, config)
-    dispatch_command("portrait_wrong_action", state, config)
+    _new_state, ops = dispatch_command("portrait_wrong_action", _make_state(), config)
 
-
-    index = _satellite_group_index(2, config, paths["subject_zeta"])
-    assert index.act_of(paths["subject_zeta"]) == ""
+    assert (wrong_actions.take(config.wrong_actions_said_in), ops) == ((), [])
 
 
 def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
