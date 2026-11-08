@@ -208,18 +208,19 @@ class TestSharedState:
         assert loaded.satellite(FunTimeFunestra.LANDSCAPE).filter == ""
 
 
-def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
+def test_the_state_file_sits_under_both_startup_and_the_dispatch_loop():
+    both_write_it = ("fun_time.session_resume", "fun_time.windows_bridge_dispatch_loop",
+                     "fun_time.command_dispatch")
     probe = (
         "import sys, fun_time.shared_state; "
-        "print('fun_time.command_dispatch' in sys.modules); "
+        f"print(','.join(m for m in {both_write_it!r} if m in sys.modules) or '-'); "
         "print(len([m for m in sys.modules if m.startswith('fun_time.')]))"
     )
     result = subprocess.run([sys.executable, "-c", probe],
                             capture_output=True, text=True, check=True)
-    pulls_dispatcher, count = result.stdout.split()
+    pulled_in, count = result.stdout.split()
 
-    assert pulls_dispatcher == "False", (
-        "fun_time.shared_state imports the dispatcher again")
+    assert pulled_in == "-", f"fun_time.shared_state imports what writes it: {pulled_in}"
     assert int(count) <= 10, (
         f"reading the shared state file now imports {count} fun_time modules; "
         "lower this ceiling when it drops, never raise it")

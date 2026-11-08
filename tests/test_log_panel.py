@@ -24,7 +24,7 @@ from shared_ui.spacing import (
     MARGIN_STANDARD,
 )
 
-from fun_time.event_log import FAVORITE, MESSAGE, EventRecord, event_line
+from fun_time.event_log import FAVORITE, LEVELS_BY_NAME, MESSAGE, EventRecord, event_line
 from fun_time.log_panel import (
     _COPY_BUTTON_MARGIN,
     _COPY_ICON_SIZE,
@@ -67,6 +67,11 @@ class TestLogFilter:
     def test_accepts_a_record_from_an_enabled_source(self):
         f = LogFilter(verbosity=logging.DEBUG, sources=frozenset({"landscape"}))
         assert f.accepts(_record(source="landscape"))
+
+    def test_a_favorite_passes_exactly_the_stops_a_plain_message_passes(self):
+        for stop in LEVELS_BY_NAME.values():
+            f = LogFilter(verbosity=stop, sources=ALL_SOURCES)
+            assert f.accepts(_record(level=FAVORITE)) == f.accepts(_record(level=MESSAGE))
 
 
 class TestVisibleRecords:

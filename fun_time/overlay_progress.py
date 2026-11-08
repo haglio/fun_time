@@ -128,11 +128,13 @@ APP_PHASES: tuple[Phase, ...] = (
 
 STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)
 
+A_CLOSING_STEP = 1.0
+
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
-    Phase("controls", "Closing...", seconds=1.0),
-    Phase("browser", "Closing browser...", seconds=1.0),
-    Phase("funestras", "Closing Funestras...", seconds=1.0),
-    Phase("companions", "Closing companions...", seconds=1.0),
+    Phase("controls", "Closing...", seconds=A_CLOSING_STEP),
+    Phase("browser", "Closing browser...", seconds=A_CLOSING_STEP),
+    Phase("funestras", "Closing Funestras...", seconds=A_CLOSING_STEP),
+    Phase("companions", "Closing companions...", seconds=A_CLOSING_STEP),
 )
 
 

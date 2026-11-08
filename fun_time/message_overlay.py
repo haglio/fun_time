@@ -29,13 +29,16 @@ class MessageOverlay(QLabel):
             | Qt.WindowType.Tool
             | Qt.WindowType.WindowDoesNotAcceptFocus
         )
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self._leave_focus_and_clicks_to_the_funestra_beneath()
         self.setFont(make_font(FONT_UI, MESSAGE_TYPE_SIZE, bold=True))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self.hide)
+
+    def _leave_focus_and_clicks_to_the_funestra_beneath(self) -> None:
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
     def flash(self, record: EventRecord, target: Rect) -> None:
         self.setText(record.message)

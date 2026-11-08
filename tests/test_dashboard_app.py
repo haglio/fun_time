@@ -82,9 +82,11 @@ from fun_time.event_log import (
     EVENT_LOG_FILENAME,
     MESSAGE,
     SOURCE_DASH,
+    SOURCES,
     EventLogHandler,
     event_log_path,
 )
+from fun_time.log_panel_model import LogPanelState, save_ui_state, ui_state_path
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
 from fun_time.origenerator_switches import RfbMode
@@ -1599,6 +1601,20 @@ def test_a_window_that_never_waited_asks_about_the_loading_screen_at_all(dashboa
             window._messages.poll()
 
         is_up.assert_not_called()
+    finally:
+        window.close()
+
+
+def test_the_panels_verbosity_decides_what_it_lists_never_what_flashes(dashboard_app_config):
+    save_ui_state(ui_state_path(dashboard_app_config.state_dir),
+                  LogPanelState(verbosity=logging.ERROR, sources=frozenset(SOURCES)))
+    window = _message_window(dashboard_app_config, held=False)
+    try:
+        _write_event(dashboard_app_config, "Clip saved", level=MESSAGE)
+
+        window._messages.poll()
+
+        assert [message for message, _ in window._messages.overlay.flashed] == ["Clip saved"]
     finally:
         window.close()
 

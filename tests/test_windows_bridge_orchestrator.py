@@ -100,8 +100,8 @@ from fun_time.windows_bridge_orchestrator import (
     HotkeyScriptLaunch,
     SessionOver,
     _AppendOnWriteHandler,
-    _close_origenerator_gracefully,
     _fix_post_loading_windows,
+    _let_origenerator_save_and_close,
     _log_window_obstruction,
     _shutdown_children,
     add_dispatch_file_handler,
@@ -1199,7 +1199,7 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=4242), \
              patch("fun_time.windows_bridge_orchestrator.hide_window") as parked, \
-             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+             patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
             children = _recorded_children(
                 origenerator_pid=ChildProcess(pid=7071, created_at=90),
@@ -1269,7 +1269,7 @@ class TestKeepingTheHostedApp:
     def test_an_ordinary_quit_closes_it_and_leaves_no_record(self, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+             patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
             _shutdown_children(0, _recorded_children(), NullProgress(), state_dir=tmp_path)
 
@@ -1282,7 +1282,7 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
                    side_effect=lambda child: killed.append(child.pid)), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+             patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
             _shutdown_children(
                 0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
@@ -1340,7 +1340,7 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.find_origenerators_window",
                    return_value=0), \
-             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+             patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed:
             _shutdown_children(
                 0,
@@ -1367,7 +1367,7 @@ class TestKeepingTheHostedApp:
         keep_the_origenerator(tmp_path, pid=999999, created_at=1)
         with patch("fun_time.windows_bridge_orchestrator.process_started",
                    return_value=1), \
-             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+             patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed, \
              patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
             windows_bridge_orchestrator.let_go_of_a_kept_origenerator(
@@ -1382,7 +1382,7 @@ class TestKeepingTheHostedApp:
         keep_the_origenerator(tmp_path, pid=999999, created_at=1, taken_over=True)
         with patch("fun_time.windows_bridge_orchestrator.process_started",
                    return_value=1), \
-             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+             patch("fun_time.windows_bridge_orchestrator._let_origenerator_save_and_close"
                    ) as closed, \
              patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
             windows_bridge_orchestrator.let_go_of_a_kept_origenerator(tmp_path, channel)
@@ -2798,7 +2798,7 @@ class TestOrigeneratorGracefulClose:
         ), patch("fun_time.windows_bridge_orchestrator.close_window",
                  side_effect=closed.append):
             child = ChildProcess(pid=800, created_at=8000)
-            _close_origenerator_gracefully(child)
+            _let_origenerator_save_and_close(child)
         assert closed == [4242]
 
     def test_no_window_means_nothing_to_close(self):
@@ -2806,13 +2806,13 @@ class TestOrigeneratorGracefulClose:
             "fun_time.windows_bridge_orchestrator.find_origenerators_window",
             return_value=0,
         ), patch("fun_time.windows_bridge_orchestrator.close_window") as close:
-            _close_origenerator_gracefully(ChildProcess(pid=800, created_at=8000))
+            _let_origenerator_save_and_close(ChildProcess(pid=800, created_at=8000))
         close.assert_not_called()
 
     def test_a_session_without_origenerator_skips_the_close(self):
         with patch("fun_time.windows_bridge_orchestrator.close_window") as close:
-            _close_origenerator_gracefully(ChildProcess(pid=0, created_at=0))
-            _close_origenerator_gracefully(None)
+            _let_origenerator_save_and_close(ChildProcess(pid=0, created_at=0))
+            _let_origenerator_save_and_close(None)
         close.assert_not_called()
 
 

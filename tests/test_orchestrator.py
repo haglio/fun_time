@@ -328,6 +328,21 @@ class TestValidateConfig:
             validate_config(cfg)
 
 
+class TestTheEventLog:
+    def test_the_log_is_emptied_before_any_tail_of_it_can_start(self, cfg_path: Path):
+        order: list[str] = []
+
+        def session(*_args, **_kwargs) -> SessionOver:
+            order.append("session")
+            return SessionOver(0)
+
+        with _a_launch(open_event_log=MagicMock(side_effect=lambda *_: order.append("emptied")),
+                       run_windows_bridge=MagicMock(side_effect=session)):
+            main(["--config", str(cfg_path)])
+
+        assert order == ["emptied", "session"]
+
+
 class TestBrokerHelpers:
     def test_the_broker_is_left_to_the_one_policy_inside_the_launch(self, cfg_path: Path):
         with _a_launch_with_the_machine_held_off() as launch:
