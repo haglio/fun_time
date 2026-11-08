@@ -24,7 +24,7 @@ from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.media_metadata import load_metadata, mark_favorite, metadata_path_for
+from fun_time.media_metadata import favorite_recorded_in, mark_favorite, metadata_path_for
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
 from tests.made_up_genau import kino_upscales_at
@@ -637,7 +637,7 @@ class TestHudPublishing:
         record.parent.mkdir(parents=True)
         record.write_text('{"video": {}}', encoding="utf-8")
 
-        with patch("fun_time.hud_feed.load_metadata", side_effect=load_metadata) as read:
+        with patch("fun_time.hud_feed.favorite_recorded_in", side_effect=favorite_recorded_in) as read:
             feed.publish(state)
             feed.publish(state)
             assert read.call_count == 1, "an unmoved record is not read again"

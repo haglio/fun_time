@@ -13,7 +13,7 @@ from urllib.request import url2pathname
 import pytest
 from app_support import osr2_hold, wrong_actions
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.hud_title import F_MODE_LABEL
+from funestra.hud_title import F_MODE_LABEL, LATEST_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 from funestra.video_groups import normalize_path_key
@@ -1548,6 +1548,16 @@ def test_recents_reorders_only_the_satellite_it_names(tmp_path: Path):
     assert state.satellite(FunTimeFunestra.PORTRAIT).latest is True
     assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is False
     assert [op.source for op in ops if op.op == "message"] == ["portrait"]
+
+
+def test_a_reorder_flashes_the_huds_own_word_for_the_order_and_nothing_else(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.satellite_commands.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=12, applied=True)
+        _state, ops = dispatch_command("portrait_latest", _make_state(), config)
+
+    assert ops == [WindowOp(op="message", key=LATEST_LABEL, source="portrait")]
 
 
 def test_shuffle_puts_one_satellite_back_without_touching_the_other(tmp_path: Path):
@@ -4692,7 +4702,7 @@ def _favorite_video(tmp_path: Path, config, name: str) -> Path:
     return video
 
 
-def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path, caplog):
+def test_a_demoted_favorite_is_only_stepped_past_and_prev_comes_back_to_it(tmp_path: Path, caplog):
     config = _make_config(tmp_path)
     video = _favorite_video(tmp_path, config, "kept.mp4")
     _set_current(config, 3, str(video))
