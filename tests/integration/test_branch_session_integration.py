@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 from fun_time.branch_session import build_branch_config
+from fun_time.content import EXAMPLE_CONTENT
 from fun_time.project_paths import (
+    HOTKEY_SCRIPT_NAME,
     SIBLING_CHECKOUTS_OVERRIDE_NAME,
     STATE_DIRNAME,
     sibling_checkouts_named_in,
@@ -28,10 +30,11 @@ pytestmark = pytest.mark.skipif(
 CHECKOUT_DIR = Path(__file__).resolve().parents[2]
 
 _COPIED_TREES = ("fun_time", "main_funestra", "satellite")
-_COPIED_FILES = ("windows_bridge_hotkeys.ahk", "content.example.json")
+_THE_FILE_IMPORTING_FUN_TIME_READS = EXAMPLE_CONTENT.name
+_COPIED_FILES = (HOTKEY_SCRIPT_NAME, _THE_FILE_IMPORTING_FUN_TIME_READS)
 
 
-def _copy_checkout(destination: Path) -> Path:
+def _a_copied_checkout_registered_in_no_repo(destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     for tree in _COPIED_TREES:
         shutil.copytree(
@@ -49,10 +52,7 @@ def _copy_checkout(destination: Path) -> Path:
     return destination
 
 
-@pytest.fixture
-def branch_checkout_session():
-    temp_root = build_integration_temp_root()
-    branch_checkout = _copy_checkout(temp_root / "branch_checkout")
+def _a_branch_config_as_stripped_as_the_runs(branch_checkout: Path, temp_root: Path) -> Path:
     primary_config = build_integration_config(temp_root)
     branch_config = build_branch_config(
         branch_checkout,
@@ -60,7 +60,19 @@ def branch_checkout_session():
         primary=CHECKOUT_DIR,
     )
     shutil.copyfile(settings_of_the_run_at(primary_config), settings_of_the_run_at(branch_config))
-    session = FunTimeIntegrationSession(branch_config)
+    return branch_config
+
+
+def _the_one_path_the_imported_code_places_not_the_config(checkout: Path) -> Path:
+    return checkout / HOTKEY_SCRIPT_NAME
+
+
+@pytest.fixture
+def branch_checkout_session():
+    temp_root = build_integration_temp_root()
+    branch_checkout = _a_copied_checkout_registered_in_no_repo(temp_root / "branch_checkout")
+    session = FunTimeIntegrationSession(
+        _a_branch_config_as_stripped_as_the_runs(branch_checkout, temp_root))
     try:
         session.start(project_dir=branch_checkout)
         yield session, branch_checkout
@@ -73,7 +85,7 @@ def test_a_branch_session_runs_the_branch_checkouts_code(branch_checkout_session
 
     logged = session.wait_for_log("Launching AHK hotkey script")
 
-    assert str(branch_checkout / "windows_bridge_hotkeys.ahk") in logged
+    assert str(_the_one_path_the_imported_code_places_not_the_config(branch_checkout)) in logged
 
 
 def test_a_branch_session_brings_up_a_whole_session_in_the_worktrees_state(

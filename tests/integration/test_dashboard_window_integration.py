@@ -25,7 +25,17 @@ from fun_time.dashboard_runtime import DashboardSnapshot
 from fun_time.event_log import MESSAGE, EventLogHandler, event_log_path, flash_message
 from fun_time.log_panel import level_color
 from fun_time.manifest import write_windows_bridge_manifest
-from fun_time.win32 import find_window_by_title, is_window_topmost
+from fun_time.win32 import (
+    GWL_EXSTYLE,
+    GWL_STYLE,
+    WS_EX_APPWINDOW,
+    WS_EX_TOOLWINDOW,
+    WS_MAXIMIZEBOX,
+    WS_MINIMIZEBOX,
+    WS_SYSMENU,
+    find_window_by_title,
+    is_window_topmost,
+)
 from fun_time.window_layout import MonitorRect, compute_window_layout
 
 pytestmark = [
@@ -47,9 +57,9 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
 
     try:
         hwnd = int(window.winId())
-        ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
-        assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
-        assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
+        ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        assert not (ex_style & WS_EX_TOOLWINDOW), "WS_EX_TOOLWINDOW should NOT be set"
+        assert ex_style & WS_EX_APPWINDOW, "WS_EX_APPWINDOW should be set"
 
         ahk_cmd_file = manifest_path.parent / "ahk_cmd.txt"
         assert not ahk_cmd_file.exists(), "ahk_cmd.txt should not exist before close"
@@ -70,10 +80,10 @@ def test_dashboard_window_shows_native_minimize_and_close_buttons(cfg_path: Path
 
     try:
         hwnd = int(window.winId())
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)
-        assert style & 0x00080000, "WS_SYSMENU must be set (enables the close button)"
-        assert style & 0x00020000, "WS_MINIMIZEBOX must be set (enables minimize)"
-        assert not (style & 0x00010000), "WS_MAXIMIZEBOX must NOT be set (no maximize)"
+        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
+        assert style & WS_SYSMENU, "WS_SYSMENU must be set (enables the close button)"
+        assert style & WS_MINIMIZEBOX, "WS_MINIMIZEBOX must be set (enables minimize)"
+        assert not (style & WS_MAXIMIZEBOX), "WS_MAXIMIZEBOX must NOT be set (no maximize)"
     finally:
         window.close()
 
@@ -92,9 +102,13 @@ def _build_merged_dashboard(cfg_path: Path):
     launch_geo = DashboardLaunchGeometry(
         plan.dashboard.x, plan.dashboard.y, plan.dashboard.width, plan.dashboard.height,
     )
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-    QApplication.processEvents()
+    window = _with_its_layout_applied(build_dashboard_window(app_config, launch_geometry=launch_geo))
     return window, manifest_path.parent
+
+
+def _with_its_layout_applied(window):
+    QApplication.processEvents()
+    return window
 
 
 def test_log_stream_fills_the_column_under_the_control_bar(cfg_path: Path):
@@ -172,7 +186,7 @@ def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
     return DashboardSnapshot(omni_paused=omni_paused)
 
 
-def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Path):
+def test_the_dashboard_bands_the_reference_popup_the_orchestrator_never_manages(cfg_path: Path):
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         window._on_action(HELP_REFERENCE)
@@ -204,7 +218,7 @@ def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
         window.close()
 
 
-def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path):
+def test_a_closed_dashboard_neither_polls_the_status_files_nor_holds_its_socket(cfg_path: Path):
     window, _state_dir = _build_merged_dashboard(cfg_path)
     log = window._log_widget
     overlay = window._messages.overlay

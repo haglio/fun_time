@@ -25,7 +25,6 @@ from fun_time.funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from fun_time.media_metadata import mark_favorite
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.voice_commands import format_spoken_command
@@ -47,6 +46,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     let_seconds_pass,
+    no_longer_the_favorite_every_satellite_sample_starts_as,
     published_status,
     seen_within,
     senders,
@@ -804,18 +804,24 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     )
 
 
+def _locked_so_the_clip_read_is_the_clip_trashed(session: FunTimeIntegrationSession,
+                                                 status_file: Path) -> str:
+    session.wait_until(
+        lambda: bool(read_satellite_status(status_file).video),
+        description="portrait satellite to publish the clip it is playing",
+    )
+    session.write_dashboard_command("portrait_lock_on")
+    session.wait_for_new_log("Locked portrait satellite")
+    return published_status(read_satellite_status, status_file).video
+
+
 def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_trash(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
-    isolated_integration_session.wait_until(
-        lambda: bool(read_satellite_status(status_file).video),
-        description="portrait satellite to publish the clip it is playing",
-    )
-    isolated_integration_session.write_dashboard_command("portrait_lock_on")
-    isolated_integration_session.wait_for_new_log("Locked portrait satellite")
-    held = published_status(read_satellite_status, status_file).video
-    mark_favorite(held, isolated_integration_session.config.regen.metadata_root, False)
+    held = _locked_so_the_clip_read_is_the_clip_trashed(isolated_integration_session, status_file)
+    no_longer_the_favorite_every_satellite_sample_starts_as(
+        held, isolated_integration_session.config.regen.metadata_root)
 
     isolated_integration_session.write_dashboard_command("portrait_trash")
     chunk = isolated_integration_session.wait_for_new_log("Discarding from Funestra 2:")
@@ -877,6 +883,23 @@ def _videos(playlist: Path) -> list[str]:
 TWO_SESSIONS_BUDGET_S = 2 * START_BUDGET_S + QUIT_BUDGET_S + 5 * COMMAND_BUDGET_S
 
 
+def _stepped_off_the_video_every_fresh_start_lands_on(session: FunTimeIntegrationSession,
+                                                       opened_with: list[str]) -> None:
+    session.write_dashboard_command("main_next")
+    session.wait_until(
+        lambda: session.read_main_funestra_status().video not in ("", opened_with[0]),
+        description="the Main Funestra to navigate off the first video",
+    )
+
+
+def _frozen_so_nothing_advances_while_the_session_closes(session: FunTimeIntegrationSession) -> None:
+    session.write_dashboard_command("omnipause_toggle")
+    session.wait_until(
+        lambda: session.read_main_funestra_status().paused,
+        description="the Main Funestra to freeze under OmniPause",
+    )
+
+
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
 def test_fun_time_reopens_on_the_video_it_was_closed_on():
     temp_root = build_integration_temp_root()
@@ -887,16 +910,8 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
     try:
         first.start()
         opened_with = _videos(playlist)
-        first.write_dashboard_command("main_next")
-        first.wait_until(
-            lambda: first.read_main_funestra_status().video not in ("", opened_with[0]),
-            description="the Main Funestra to navigate off the first video",
-        )
-        first.write_dashboard_command("omnipause_toggle")
-        first.wait_until(
-            lambda: first.read_main_funestra_status().paused,
-            description="the Main Funestra to freeze under OmniPause",
-        )
+        _stepped_off_the_video_every_fresh_start_lands_on(first, opened_with)
+        _frozen_so_nothing_advances_while_the_session_closes(first)
         left_on = first.read_main_funestra_status().video
         assert left_on != opened_with[0], "the session must close off the top of its playlist"
         first.quit_gracefully()
@@ -986,13 +1001,14 @@ def _wait_for_genau_on(session: FunTimeIntegrationSession, flick: Path, waiting_
 
 
 @pytest.mark.timeout(TWO_SESSIONS_BUDGET_S)
-def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing(monkeypatch):
+def test_fun_time_reopens_genau_with_its_order_and_its_flick_arriving_together(monkeypatch):
     temp_root = build_integration_temp_root()
     genau = made_up_genau(temp_root)
     point_the_shared_settings_at(monkeypatch, genau)
     played_from = flat_flicks_in(flicks_folder_in(genau)) / "AI"
     played_from.mkdir()
     alpha, beta, gamma = _flicks_oldest_to_newest(played_from, "alpha.mp4", "beta.mp4", "gamma.mp4")
+    closed_on, next_in_latest, next_in_folder_order = beta, alpha, gamma
     config_path = _config_whose_genau_browses_in_folder_order(temp_root)
 
     first = FunTimeIntegrationSession(config_path)
@@ -1003,7 +1019,7 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing(monkeypatch):
         first.write_dashboard_command("main_latest")
         _wait_for_genau_on(first, gamma, "Latest to put the newest flick on screen")
         first.write_dashboard_command("genau_next_flick")
-        _wait_for_genau_on(first, beta, "Genau to step on to the next-newest flick")
+        _wait_for_genau_on(first, closed_on, "Genau to step on to the next-newest flick")
         first.quit_gracefully()
     finally:
         first.stop()
@@ -1012,12 +1028,14 @@ def test_fun_time_reopens_genau_in_the_order_it_was_left_browsing(monkeypatch):
     try:
         second.start()
         _wait_for_genau_on(
-            second, beta, "Genau to come back up on the flick the last session ended on")
+            second, closed_on, "Genau to come back up on the flick the last session ended on")
         assert read_shared_state(shared_state_path(second.config.paths.state_dir)).genau_latest, (
             "the reopened session must still say Genau is browsing Latest")
         second.write_dashboard_command("genau_next_flick")
         _wait_for_genau_on(
-            second, alpha, "the reopened Genau to step on in the order the last session left")
+            second, next_in_latest,
+            f"the reopened Genau to step on to {next_in_latest.name} in the order the last "
+            f"session left, not to {next_in_folder_order.name} in the folder's")
     finally:
         second.stop()
 

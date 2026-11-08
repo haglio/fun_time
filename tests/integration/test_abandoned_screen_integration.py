@@ -14,12 +14,11 @@ from fun_time.win32 import find_window_for_process
 from fun_time.win32_process import is_process_alive
 from tests.child_reports import all_gone_within, pid_written_to, with_what_it_started
 from tests.integration.integration_support import (
-    RELEASE_BUDGET_S,
     ended_within,
+    remove_once_windows_has_closed_what_the_dead_process_held,
     this_checkouts_siblings,
 )
 from tests.integration.run_clock import Budget
-from tests.scratch import remove_scratch
 
 pytestmark = [
     pytest.mark.real_startup_waits,
@@ -42,7 +41,7 @@ time.sleep(3600)
 """
 
 
-def _its_window_came_up(pid: int, title: str, *, within_s: float) -> bool:
+def _its_own_window_came_up_not_an_earlier_tests(pid: int, title: str, *, within_s: float) -> bool:
     budget = Budget(within_s)
     while not budget.expired() and is_process_alive(pid):
         if find_window_for_process(pid, title):
@@ -51,26 +50,20 @@ def _its_window_came_up(pid: int, title: str, *, within_s: float) -> bool:
     return False
 
 
-def _removed_once_released(folder: Path) -> None:
-    budget = Budget(RELEASE_BUDGET_S)
-    while folder.exists():
-        try:
-            remove_scratch(folder)
-        except PermissionError:
-            if budget.expired():
-                raise
-            time.sleep(0.5)
+def _the_sooner_to_give_up_of_the_two_screens(state_dir: Path) -> subprocess.Popen:
+    assert transition_screen.STALE_TIMEOUT_S < loading_screen.STALE_TIMEOUT_S
+    return launch_transition_screen(state_dir, VR, sibling_checkouts=this_checkouts_siblings())
 
 
 def test_a_screen_whose_progress_file_goes_before_its_first_look_takes_itself_down(
         tmp_path: Path):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    screen = launch_transition_screen(state_dir, VR, sibling_checkouts=this_checkouts_siblings())
+    screen = _the_sooner_to_give_up_of_the_two_screens(state_dir)
     crossing_progress_path(state_dir).unlink()
     try:
-        assert _its_window_came_up(screen.pid, transition_screen.WINDOW_TITLE, within_s=60.0), (
-            "the screen never came up")
+        assert _its_own_window_came_up_not_an_earlier_tests(
+            screen.pid, transition_screen.WINDOW_TITLE, within_s=60.0), "the screen never came up"
 
         budget_s = transition_screen.STALE_TIMEOUT_S + A_STARVED_SCREENS_SLACK_S
         assert ended_within(screen, budget_s), (
@@ -93,8 +86,8 @@ def test_a_loading_screen_goes_the_moment_the_fun_time_that_raised_it_dies(tmp_p
     )
     try:
         screen = pid_written_to(report, by=fun_time)
-        assert _its_window_came_up(screen, loading_screen.WINDOW_TITLE, within_s=60.0), (
-            "the loading screen never came up")
+        assert _its_own_window_came_up_not_an_earlier_tests(
+            screen, loading_screen.WINDOW_TITLE, within_s=60.0), "the loading screen never came up"
         screen_and_its_own = with_what_it_started(screen)
 
         fun_time.kill()
@@ -106,4 +99,4 @@ def test_a_loading_screen_goes_the_moment_the_fun_time_that_raised_it_dies(tmp_p
         if fun_time.poll() is None:
             fun_time.kill()
             fun_time.wait()
-        _removed_once_released(tmp_path / "state")
+        remove_once_windows_has_closed_what_the_dead_process_held(tmp_path / "state")

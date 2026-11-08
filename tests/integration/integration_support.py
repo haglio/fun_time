@@ -687,8 +687,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     portrait_paths = _link_sample_files(real.paths.portrait_dirs, portrait_dir, count=2)
     landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
 
-    for path in [*portrait_paths, *landscape_paths]:
-        mark_favorite(path.resolve(), metadata_root, True)
+    _every_satellite_sample_starts_as_a_favorite([*portrait_paths, *landscape_paths], metadata_root)
 
     config = json.loads(real.config_path.read_text(encoding="utf-8"))
     config["paths"]["main_player_library_dirs"] = [str(primary_dir)]
@@ -769,16 +768,29 @@ RELEASE_BUDGET_S = 180.0
 
 
 def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:
-    budget = Budget(budget_s)
-    refused = _remove_each(RUN_ROOTS)
-    while refused and not budget.expired():
-        sleep(0.5)
-        refused = _remove_each(root for root, _refusal in refused)
+    refused = _removed_once_windows_has_closed_what_the_dead_processes_held(
+        RUN_ROOTS, budget_s=budget_s, sleep=sleep)
     RUN_ROOTS.clear()
     if refused:
         raise RootsLeftBehind(
             "this run's temp roots are still in the system temp dir:\n"
             + "\n".join(f"{root}: {refusal}" for root, refusal in refused))
+
+
+def remove_once_windows_has_closed_what_the_dead_process_held(folder: Path) -> None:
+    for _folder, refusal in _removed_once_windows_has_closed_what_the_dead_processes_held(
+            [folder], budget_s=RELEASE_BUDGET_S, sleep=time.sleep):
+        raise refusal
+
+
+def _removed_once_windows_has_closed_what_the_dead_processes_held(
+        roots, *, budget_s: float, sleep) -> list[tuple[Path, OSError]]:
+    budget = Budget(budget_s)
+    refused = _remove_each(roots)
+    while refused and not budget.expired():
+        sleep(0.5)
+        refused = _remove_each(root for root, _refusal in refused)
+    return refused
 
 
 def _remove_each(roots) -> list[tuple[Path, OSError]]:
@@ -869,6 +881,15 @@ def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read
 def _read_head(path, size: int) -> None:
     with open(path, "rb") as fh:
         fh.read(size)
+
+
+def _every_satellite_sample_starts_as_a_favorite(samples: list[Path], metadata_root: Path) -> None:
+    for path in samples:
+        mark_favorite(path.resolve(), metadata_root, True)
+
+
+def no_longer_the_favorite_every_satellite_sample_starts_as(video: str, metadata_root: Path) -> None:
+    mark_favorite(video, metadata_root, False)
 
 
 def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,

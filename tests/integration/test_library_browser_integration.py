@@ -26,6 +26,9 @@ from fun_time.library_handles import LibraryHandle
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from fun_time.win32 import (
+    GWL_EXSTYLE,
+    WS_EX_APPWINDOW,
+    WS_EX_TOOLWINDOW,
     close_window,
     iter_zorder,
     set_always_on_top,
@@ -98,10 +101,10 @@ def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
     )
     try:
         window.show()
-        ex_style = ctypes.windll.user32.GetWindowLongW(int(window.winId()), -20)
+        ex_style = ctypes.windll.user32.GetWindowLongW(int(window.winId()), GWL_EXSTYLE)
 
-        assert ex_style & 0x00000080, "WS_EX_TOOLWINDOW should be set"
-        assert not (ex_style & 0x00040000), "WS_EX_APPWINDOW should NOT be set"
+        assert ex_style & WS_EX_TOOLWINDOW, "WS_EX_TOOLWINDOW should be set"
+        assert not (ex_style & WS_EX_APPWINDOW), "WS_EX_APPWINDOW should NOT be set"
     finally:
         window.close()
 
