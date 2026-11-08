@@ -8,6 +8,9 @@ from pathlib import Path
 import pytest
 
 from fun_time import branch_seeding
+from fun_time.config import DEFAULT_CONFIG_PATH
+
+REPO = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture
@@ -33,12 +36,12 @@ def test_a_branch_sessions_own_watch_stats_are_not_rolled_back_by_older_ones(liv
     stale = (live / "watch_stats.json").stat().st_mtime - 60
     os.utime(live / "watch_stats.json", (stale, stale))
 
-    branch_seeding.seed_derived_caches(live, branch_state)
+    branch_seeding.seed_what_is_costly_to_rebuild(live, branch_state)
 
     assert json.loads((branch_state / "watch_stats.json").read_text(encoding="utf-8")) == {"newer": {}}
 
 
-def test_the_thumbnail_cache_is_only_ever_topped_up(live, branch_state):
+def test_a_thumbnail_already_there_is_never_stale_and_never_replaced(live, branch_state):
     (branch_state / "hud_thumbnails").mkdir(parents=True)
     (branch_state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"already here")
     (live / "hud_thumbnails" / "def456.jpg").write_bytes(b"new one")
@@ -89,13 +92,15 @@ def test_nothing_describing_the_session_itself_is_seeded(live, branch_state):
     for name in ("main_player_playlist.tsv", "dashboard_cmd.txt", "shared_state.ini"):
         (live / name).write_text("live session's own", encoding="utf-8")
 
-    branch_seeding.seed_derived_caches(live, branch_state)
+    branch_seeding.seed_what_is_costly_to_rebuild(live, branch_state)
 
     for name in ("main_player_playlist.tsv", "dashboard_cmd.txt", "shared_state.ini"):
         assert not (branch_state / name).exists()
 
 
-def test_the_private_overlays_are_copied_into_the_worktree(tmp_path):
+def test_the_overlays_git_keeps_out_of_a_worktree_are_copied_in(tmp_path):
+    ignored = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert all(f"/{overlay.as_posix()}" in ignored for overlay in branch_seeding.PRIVATE_OVERLAYS)
     primary, worktree = tmp_path / "primary", tmp_path / "worktree"
     (primary / "fun_time" / "static").mkdir(parents=True)
     (primary / "content.local.json").write_text(
@@ -125,5 +130,12 @@ def test_an_overlay_the_primary_does_not_have_is_simply_not_copied(tmp_path):
     assert branch_seeding.mirror_private_overlays(primary, worktree) == []
 
 
-def test_the_real_config_is_never_one_of_the_overlays_carried_over():
-    assert not any("fun_time_config" in str(path) for path in branch_seeding.PRIVATE_OVERLAYS)
+def test_no_real_config_lands_where_a_session_given_no_config_would_read_it(tmp_path):
+    primary, worktree = tmp_path / "primary", tmp_path / "worktree"
+    primary.mkdir()
+    worktree.mkdir()
+    (primary / DEFAULT_CONFIG_PATH.name).write_text("{}", encoding="utf-8")
+
+    branch_seeding.mirror_private_overlays(primary, worktree)
+
+    assert not (worktree / DEFAULT_CONFIG_PATH.name).exists()
