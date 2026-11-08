@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from functools import partial
+from pathlib import Path
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import (
@@ -88,11 +89,20 @@ def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, conf
     return state, []
 
 
+def _cmd_file_of_whatever_is_on_the_main_screen(state: BridgeState, config: BridgeConfig) -> Path:
+    return config.main_funestra_cmd_file if kino_shows(state.main_mode) else config.genau_cmd_file
+
+
+def _locked_as_whatever_is_on_the_main_screen_reports(state: BridgeState, config: BridgeConfig) -> bool:
+    if kino_shows(state.main_mode):
+        return read_main_funestra_status(config.main_funestra_status_file).locked
+    return read_genau_status(config.genau_status_file).locked
+
+
 def _forward_to_whatever_is_on_the_main_funestra(
     verb: str, state: BridgeState, config: BridgeConfig, _target_path: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
-    append_command(config.main_funestra_cmd_file if kino_shows(state.main_mode)
-                   else config.genau_cmd_file, verb)
+    append_command(_cmd_file_of_whatever_is_on_the_main_screen(state, config), verb)
     return state, []
 
 
@@ -124,13 +134,8 @@ def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: Brid
 
 def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if kino_shows(state.main_mode):
-        cmd_file = config.main_funestra_cmd_file
-        locked = read_main_funestra_status(config.main_funestra_status_file).locked
-    else:
-        cmd_file = config.genau_cmd_file
-        locked = read_genau_status(config.genau_status_file).locked
-    append_command(cmd_file, verb)
+    locked = _locked_as_whatever_is_on_the_main_screen_reports(state, config)
+    append_command(_cmd_file_of_whatever_is_on_the_main_screen(state, config), verb)
     if verb == LOCK_ON or (verb == TOGGLE_LOCK and not locked):
         return state, [WindowOp(op=Op.FOLLOW_THE_LOCK, key=state.main_mode)]
     return state, []

@@ -12,6 +12,7 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support import osr2_hold, wrong_actions
+from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.hud_title import F_MODE_LABEL, LATEST_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
@@ -25,6 +26,7 @@ from fun_time.command_value import parse_command, say_command
 from fun_time.config import SatelliteChannel
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
+from fun_time.device_arbiter import TCODE_OFF
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genaumacher_save import _genaumacher_project_dir
@@ -43,7 +45,7 @@ from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import write_playlist_file
 from fun_time.origenerator_switches import RfbMode, hosted_satellites
 from fun_time.satellite_commands import _discard, _toggle_lock
-from fun_time.satellite_groups import _satellite_group_index, cancel_lock
+from fun_time.satellite_groups import _satellite_group_index, cancel_lock, send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
 from fun_time.watch_stats import load_watch_stats
@@ -167,7 +169,7 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
     assert len(list((config.state_dir / "rfb_tabs").glob("*.html"))) == 1
 
 
-def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
+def test_a_lock_is_a_watch_that_weighs_how_often_the_video_comes_up(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
     video = tmp_path / "clip.mp4"
@@ -533,6 +535,15 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
 
 
+def test_a_main_lock_queues_behind_the_osr2_handoff_verb_in_the_same_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+    append_command(config.main_funestra_cmd_file, TCODE_OFF)
+
+    dispatch_command("main_lock_on", _make_state(main_mode=MainMode.KINO), config)
+
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{TCODE_OFF}\nLOCK_ON\n"
+
+
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.GENAU)
@@ -765,7 +776,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
 
-def test_a_length_button_is_ignored_in_genau_mode(tmp_path: Path):
+def test_a_length_button_is_ignored_while_the_main_funestra_is_off_screen(tmp_path: Path):
     config, builds = _recording(_make_config(tmp_path))
 
     state, ops = dispatch_command("main_funestra_length_clips", _make_state(main_mode=MainMode.GENAU),
@@ -844,7 +855,7 @@ def test_video_nav_inert_in_genau_mode(tmp_path: Path):
     assert not config.main_funestra_cmd_file.exists()
 
 
-def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
+def test_a_funscript_jump_is_ignored_while_the_main_funestra_is_off_screen(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_funestra_next_funscripted", _make_state(main_mode=MainMode.GENAU), config)
     assert not config.main_funestra_cmd_file.exists()
@@ -939,8 +950,8 @@ def test_a_satellite_with_no_video_on_screen_ignores_video_scoped_commands(
     assert _cmds(config, 3) == []
 
 
-def test_a_fresh_session_starts_with_the_primary_active():
-    assert BridgeState().active_funestra == 1
+def test_a_fresh_session_addresses_the_main_funestra_on_the_screen_he_looks_at_first():
+    assert BridgeState().active_funestra == FunTimeFunestra.MAIN
 
 
 def test_portrait_command_sets_active_funestra_to_portrait(tmp_path: Path):
@@ -1296,6 +1307,15 @@ def test_a_video_sent_to_a_satellite_screen_carries_its_funscript(tmp_path: Path
     assert _cmds(config, 2) == [f"PLAY_FILE {video}\t{script}"]
 
 
+def test_verbs_sent_to_a_satellite_in_one_burst_all_wait_in_its_file(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    send_satellite(config, FunTimeFunestra.PORTRAIT, "LOCK_OFF")
+    send_satellite(config, FunTimeFunestra.PORTRAIT, "NEXT")
+
+    assert _cmds(config, FunTimeFunestra.PORTRAIT) == ["LOCK_OFF", "NEXT"]
+
+
 def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
@@ -1573,7 +1593,7 @@ def test_shuffle_puts_one_satellite_back_without_touching_the_other(tmp_path: Pa
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).latest is True
 
 
-def test_a_sided_reorder_drops_that_satellites_lock_and_loop(tmp_path: Path):
+def test_a_sided_reorder_drops_that_satellites_lock_loop_and_row_widened_for_the_loop(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True, loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4"))
 
@@ -3421,11 +3441,12 @@ def test_no_loop_leaves_a_browse_that_already_holds_the_video_untouched(tmp_path
     assert _playlist(config, 2) == browse
 
 
-def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path):
+def test_no_loop_under_a_filter_matching_nothing_keeps_the_loops_queue_playing(tmp_path: Path):
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[]):
-        state, ops = dispatch_command("portrait_no_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
+        state, ops = dispatch_command(
+            "portrait_no_loop", _make_state(portrait=SatelliteState(loop="seed", filter="alpha")), config)
 
     assert _playlist(config, 2) == []
     assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
