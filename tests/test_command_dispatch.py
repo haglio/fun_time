@@ -1138,7 +1138,7 @@ def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_pat
     assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=SOURCE_MAIN, level=FAVORITE)]
 
 
-def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
+def test_f_mode_on_or_off_misheard_twice_still_lands_where_it_was_asked(tmp_path: Path):
     config = _make_config(tmp_path)
 
     stays_on, _ops, _mock = _dispatch_fmode(
@@ -1166,6 +1166,16 @@ def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
 
     assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source="system",
                             level=FAVORITE)]
+
+
+def test_fmode_flashes_from_fun_time_when_only_one_funestra_was_left_to_narrow(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True)
+
+    _state, ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
+
+    assert mock_fmode.call_args.kwargs["funestras"] == (FunTimeFunestra.LANDSCAPE,)
+    assert [op.source for op in ops] == ["system"]
 
 
 def test_fmode_flashes_a_plain_white_message_when_it_turns_off(tmp_path: Path):
@@ -2484,7 +2494,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
     assert ops == [WindowOp(op="message", key="Volume 70%", source="main")]
 
 
-def test_mute_and_unmute_are_idempotent_not_a_toggle(tmp_path: Path):
+def test_mute_or_unmute_misheard_twice_still_lands_where_it_was_asked(tmp_path: Path):
     config = _make_config(tmp_path)
 
     still_muted, _ops = dispatch_command("audio_mute", _make_state(muted=True), config)

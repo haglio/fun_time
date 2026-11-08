@@ -2384,7 +2384,7 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with(parse_command("portrait_fmode_on"), None)
 
-    def test_satellites_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
+    def test_satellites_fmode_reaches_the_f_mode_table_as_its_portrait_and_landscape_halves(self, tmp_path):
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"

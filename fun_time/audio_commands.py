@@ -24,14 +24,20 @@ def _level_moved(volume: int, step: int) -> int:
     return max(MIN_VOLUME, min(MAX_VOLUME, volume + step))
 
 
+def _level_another_process_wrote(argument: str) -> int | None:
+    try:
+        return _level_moved(int(argument), 0)
+    except ValueError:
+        return None
+
+
 def _dispatch_set_volume(
     argument: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    try:
-        level = int(argument)
-    except ValueError:
+    level = _level_another_process_wrote(argument)
+    if level is None:
         return state, []
-    return _dispatch_audio(replace(state, volume=_level_moved(level, 0), muted=False), config)
+    return _dispatch_audio(replace(state, volume=level, muted=False), config)
 
 
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
