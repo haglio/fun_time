@@ -49,7 +49,7 @@ class LoadingReveal:
         self.deferred = False
         self._routing_suppressed = False
         assert self._window is not None
-        loading_screen = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
+        loading_screen = _the_loading_screen_found_before_anything_moves()
         if loading_screen:
             self._reveal_beneath(loading_screen)
         else:
@@ -67,3 +67,7 @@ class LoadingReveal:
         assert self._window is not None
         self._window.show()
         show_own_window(self._hwnd)
+
+
+def _the_loading_screen_found_before_anything_moves() -> int:
+    return find_window_by_title(LOADING_SCREEN_TITLE, exact=True)

@@ -27,7 +27,7 @@ def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     assert load_dashboard_snapshot(path) == snapshot
 
 
-def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
+def test_the_snapshot_published_each_tick_carries_only_what_the_dashboard_reads():
     parser = configparser.ConfigParser()
     parser.read_string(build_dashboard_snapshot_text())
 
@@ -114,7 +114,7 @@ class TestTheSnapshotsEncoding:
         assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is True
 
 
-class TestTheWriterSkipsAnUnchangedSnapshot:
+class TestTheWriterSparesTheLocklessReaderARewrite:
     def _write_as_windows_would(self, path: Path, text: str) -> None:
         with open(path, "w", encoding="utf-16", newline="\r\n") as handle:
             handle.write(text)

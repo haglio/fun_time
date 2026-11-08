@@ -10,7 +10,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from app_support import file_channel
@@ -135,6 +135,18 @@ def dashboard_window(dashboard_app_config):
         yield window
     finally:
         window.close()
+
+
+def _press_listeners() -> list[threading.Thread]:
+    return [thread for thread in threading.enumerate() if thread.name == "press-listener"]
+
+
+@pytest.fixture(autouse=True)
+def no_dashboard_outlives_the_test_that_built_it():
+    yield
+    for listener in _press_listeners():
+        listener.join(2.0)
+    assert not _press_listeners(), "a dashboard was built and never closed"
 
 
 def _lay_out(widget: QWidget) -> None:
@@ -375,7 +387,7 @@ def test_the_config_reads_only_what_the_bar_needs(cfg_path: Path, tmp_path: Path
     assert app_config.dashboard_cmd_file.name == "dashboard_cmd.txt"
 
 
-def test_write_dashboard_command_retries_past_a_transient_file_lock(tmp_path: Path):
+def test_a_click_written_as_the_dispatch_loop_drains_the_file_still_lands(tmp_path: Path):
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
     command_file.parent.mkdir(parents=True)
 
@@ -419,7 +431,7 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided():
     assert (geo.x(), geo.y(), geo.width(), geo.height()) == (11, 22, 333, 444)
 
 
-def _window_under_the_loading_screen(app_config, **placed):
+def _window_built_while_startup_is_still_building(app_config, **placed):
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         return build_dashboard_window(app_config, **placed)
 
@@ -451,7 +463,7 @@ def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboar
 
 
 def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_config):
-    window = _window_under_the_loading_screen(dashboard_app_config)
+    window = _window_built_while_startup_is_still_building(dashboard_app_config)
     cmd_file = dashboard_app_config.dashboard_cmd_file
     if cmd_file.exists():
         cmd_file.unlink()
@@ -463,7 +475,7 @@ def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_
 
 
 def test_the_reveals_own_restore_routes_nothing_but_rearms_the_routing(dashboard_app_config):
-    window = _window_under_the_loading_screen(dashboard_app_config)
+    window = _window_built_while_startup_is_still_building(dashboard_app_config)
     assert window._reveal.routing_suppressed is True
     cmd_file = dashboard_app_config.dashboard_cmd_file
     if cmd_file.exists():
@@ -482,7 +494,8 @@ def test_the_reveals_own_restore_routes_nothing_but_rearms_the_routing(dashboard
 
 def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_config):
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-    window = _window_under_the_loading_screen(dashboard_app_config, launch_geometry=launch_geo)
+    window = _window_built_while_startup_is_still_building(
+        dashboard_app_config, launch_geometry=launch_geo)
 
     try:
         with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as apply_geo:
@@ -527,9 +540,9 @@ def test_the_dashboard_hides_rather_than_animating_a_minimize_while_fun_time_is_
         dashboard_app_config):
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     show_window = MagicMock()
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
-         patch.object(ctypes.windll.user32, "ShowWindow", show_window):
-        window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
+    with patch.object(ctypes.windll.user32, "ShowWindow", show_window):
+        window = _window_built_while_startup_is_still_building(
+            dashboard_app_config, launch_geometry=launch_geo)
 
     try:
         assert window._reveal.deferred is True
@@ -544,8 +557,8 @@ def test_the_dashboard_hides_rather_than_animating_a_minimize_while_fun_time_is_
 
 def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
-        window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
+    window = _window_built_while_startup_is_still_building(
+        dashboard_app_config, launch_geometry=launch_geo)
 
     try:
         assert window._reveal.deferred is True
@@ -605,7 +618,7 @@ def test_dashboard_reveals_itself_underneath_the_loading_screen(cfg_path: Path):
         window.close()
 
 
-def test_dashboard_leaves_the_band_alone_when_there_is_no_loading_screen(cfg_path: Path):
+def test_with_no_loading_screen_to_duck_the_panel_stays_in_the_funestras_band(cfg_path: Path):
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -728,12 +741,15 @@ def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_
     mock_set.assert_not_called()
 
 
-def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_window, dashboard_app_config):
+@pytest.mark.parametrize("paused", [True, False])
+def test_every_render_bands_the_dashboard_off_its_snapshot_changed_or_not(
+        paused, dashboard_window):
     window = dashboard_window
 
     with patch.object(window, "_sync_own_topmost") as mock_sync:
-        window._do_render(_snapshot(omni_paused=True), frozenset())
-    mock_sync.assert_called_once_with(True)
+        window._do_render(_snapshot(omni_paused=paused), frozenset())
+        window._do_render(_snapshot(omni_paused=paused), frozenset())
+    assert mock_sync.call_args_list == [call(paused), call(paused)]
 
 
 def test_the_reference_names_the_actions_its_session_was_told_of():
@@ -757,7 +773,7 @@ def test_the_popup_opens_the_reference_on_the_actions_read_as_it_opens():
     assert dialog.call_args.kwargs["actions"] == told
 
 
-def test_reference_dialog_syncs_topmost_with_omnipause():
+def test_the_popup_outside_the_orchestrators_windows_bands_itself_through_omnipause():
     dialog = ReferenceDialog()
     try:
         hwnd = int(dialog.winId())
@@ -906,7 +922,7 @@ def test_a_closed_window_is_not_drawn_again_when_its_last_press_goes_out(dashboa
     assert window._widget._scene is drawn_last
 
 
-def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboard_app_config):
+def test_a_voice_help_press_puts_a_real_popup_up(dashboard_window, dashboard_app_config):
     window = dashboard_window
 
     window._apply_presses(["help_reference"])
@@ -990,6 +1006,9 @@ def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_a
         dialog.close.assert_called_once()
 
 
+A_WINDOWS_FRAMES_BORDER_PX, A_WINDOWS_FRAMES_TITLE_BAR_PX = 8, 31
+
+
 def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
@@ -1000,14 +1019,16 @@ def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
     window = build_dashboard_window(app_config, launch_geometry=launch_geo, rfb_rect=rfb_rect)
 
     try:
+        border, title_bar = A_WINDOWS_FRAMES_BORDER_PX, A_WINDOWS_FRAMES_TITLE_BAR_PX
         dialog = MagicMock()
         dialog.geometry.return_value = QRect(7, 408, 640, 984)
-        dialog.frameGeometry.return_value = QRect(7 - 8, 408 - 31, 640 + 16, 984 + 39)
+        dialog.frameGeometry.return_value = QRect(
+            7 - border, 408 - title_bar, 640 + 2 * border, 984 + title_bar + border)
         with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
             window._reference.open(omni_paused=False)
         calls = [c.args for c in dialog.setGeometry.call_args_list]
         assert calls[0] == (7, 408, 640, 984), "first placed at the rect"
-        assert calls[-1] == (15, 439, 624, 945)
+        assert calls[-1] == (7 + border, 408 + title_bar, 640 - 2 * border, 984 - title_bar - border)
     finally:
         window.close()
 
@@ -1645,7 +1666,7 @@ def test_speech_that_is_no_command_is_flashed_and_listed_in_its_words_and_saved_
     assert "kettle" not in event_log_path(state_dir).read_text(encoding="utf-8")
 
 
-def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
+def test_the_dashboards_note_names_the_checkout_whose_code_is_on_the_screen(tmp_path: Path):
     written = record_imported_checkout(tmp_path)
 
     assert written.name == IMPORTED_CHECKOUT_FILENAME
