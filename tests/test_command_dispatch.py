@@ -1748,7 +1748,7 @@ def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
 
 def _cycle_meta(image_seed: str, action: str) -> dict:
     return {
-        "video": {"prompt": f"do {action}", "action": action, "seed": "5"},
+        "video": {"prompt": f"do {action}", "action": action, "labels": [action], "seed": "5"},
         "source_image": {"positive_prompt": "subject at the beach", "seed": image_seed},
     }
 
@@ -1783,7 +1783,7 @@ def _make_grouped_config(
 def _subject_meta(*, prompt: str = "x, y, z", image_seed: str = "1",
                   action: str = "Alpha", quality: str = "Best") -> dict:
     return {
-        "video": {"prompt": f"do {action}", "action": action, "seed": "9"},
+        "video": {"prompt": f"do {action}", "action": action, "labels": [action], "seed": "9"},
         "source_image": {"positive_prompt": prompt, "seed": image_seed, "quality": quality},
     }
 
@@ -1922,7 +1922,7 @@ def test_portrait_cycle_seed_messages_without_seed_siblings(tmp_path: Path):
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
     return {
-        "video": {"prompt": "beach", "action": "Alpha", "seed": "5"},
+        "video": {"prompt": "beach", "action": "Alpha", "labels": ["Alpha"], "seed": "5"},
         "source_image": {"positive_prompt": "subject at the beach", "seed": image_seed, "quality": quality},
     }
 

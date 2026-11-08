@@ -45,7 +45,7 @@ def _touch_with_mtime(path: Path, mtime: float) -> None:
 
 def _i2v_meta(image_seed: str, action: str) -> dict:
     return {
-        "video": {"prompt": f"do {action}", "action": action, "seed": "77"},
+        "video": {"prompt": f"do {action}", "action": action, "labels": [action], "seed": "77"},
         "source_image": {
             "positive_prompt": "cute subject, cafe",
             "negative_prompt": "bad",
@@ -566,7 +566,7 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
         sidecar = metadata_path_for(video, metadata_root)
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(
-            json.dumps({"video": {"action": action, "prompt": "x", "seed": name}}),
+            json.dumps({"video": {"action": action, "labels": [action], "prompt": "x", "seed": name}}),
             encoding="utf-8",
         )
         return str(video)
@@ -592,7 +592,7 @@ def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
     return {
         "video": {
             "prompt": prompt,
-            "action": action,
+            "action": action, "labels": [action],
             "seed": seed,
             "model": "Realism",
             "resolution": "720x560",
