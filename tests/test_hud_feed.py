@@ -11,6 +11,7 @@ from app_support.osr2_device import Osr2Mode
 from app_support.testing import file_channel_clock_at
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
+from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_PARKED, MainHudModel, read_main_hud
 from funestra.modes import MainMode, Osr2State, SatellitesMode
 from funestra.osr2_visualizer import DriveHud, publish_drive
@@ -339,7 +340,7 @@ class TestHudPublishing:
 
         portrait = hud(tmp_path, "portrait")
         landscape = hud(tmp_path, "landscape")
-        assert portrait["title"] == "Unlocked · Shuffle · F-Mode"
+        assert portrait["title"] == f"Unlocked · Shuffle · {F_MODE_LABEL}"
         assert f_mode_button(portrait)["lit"] is True
         assert landscape["title"] == "Unlocked · Shuffle"
         assert not f_mode_button(landscape).get("lit")

@@ -13,6 +13,7 @@ from urllib.request import url2pathname
 import pytest
 from app_support import osr2_hold
 from funestra.hud_placement import HudCorner, HudEdge
+from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode, SatellitesMode
 from funestra.video_groups import normalize_path_key
@@ -1134,7 +1135,7 @@ def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_pat
     assert (state.genau_favorites_filter, state.main_scripted_filter) == (True, False)
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == f"{genau_f_mode(True)}\n"
     assert mock_fmode.call_args.kwargs["funestras"] == ()
-    assert ops == [WindowOp(op="message", key="F-Mode enabled", source=SOURCE_MAIN, level=FAVORITE)]
+    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=SOURCE_MAIN, level=FAVORITE)]
 
 
 def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
@@ -1163,7 +1164,7 @@ def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
 
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    assert ops == [WindowOp(op="message", key="F-Mode enabled", source="system",
+    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source="system",
                             level=FAVORITE)]
 
 
@@ -1174,7 +1175,7 @@ def test_fmode_flashes_a_plain_white_message_when_it_turns_off(tmp_path: Path):
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
     assert ops == [
-        WindowOp(op="message", key="F-Mode disabled", source="system", level=MESSAGE),
+        WindowOp(op="message", key=f"{F_MODE_LABEL} disabled", source="system", level=MESSAGE),
     ]
 
 
@@ -1183,7 +1184,7 @@ def test_a_sided_fmode_flashes_on_that_funestras_own_display(tmp_path: Path):
 
     _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
 
-    assert ops == [WindowOp(op="message", key="F-Mode enabled", source="landscape",
+    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source="landscape",
                             level=FAVORITE)]
 
 
@@ -1198,7 +1199,7 @@ def test_favorites_said_to_a_satellite_in_kino_mode_flips_its_f_mode_as_a_show_d
     assert mock_fmode.call_args.kwargs["funestras"] == (funestra,)
     assert (on.satellite(funestra).favorites_filter, off.satellite(funestra).favorites_filter) == (
         True, False)
-    assert ops == [WindowOp(op="message", key="F-Mode enabled", source=funestra.label,
+    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=funestra.label,
                             level=FAVORITE)]
 
 

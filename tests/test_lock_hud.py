@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from funestra.hud_title import F_MODE_LABEL
 from funestra.video_groups import (
     GroupIndex,
     VideoEntry,
@@ -344,8 +345,8 @@ def test_the_title_says_when_f_mode_is_narrowing_the_library():
     on = _hud("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
     off = _hud("portrait", locked=False, current=CUR, index=index)
 
-    assert on.title == "Unlocked · Shuffle · F-Mode"
-    assert "F-Mode" not in off.title
+    assert on.title == f"Unlocked · Shuffle · {F_MODE_LABEL}"
+    assert F_MODE_LABEL not in off.title
 
 
 def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
@@ -356,7 +357,7 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
         favorites_filter=True, filter_query="beta gamma",
     )
 
-    assert hud.title == "Unlocked · Shuffle · F-Mode · beta gamma"
+    assert hud.title == f"Unlocked · Shuffle · {F_MODE_LABEL} · beta gamma"
 
 
 def test_the_title_names_the_axis_that_is_looping():
@@ -732,8 +733,8 @@ def test_a_satellites_hud_says_f_mode_only_when_that_satellite_is_in_it(tmp_path
     landscape = build_satellite_hud(
         SatelliteInputs("landscape", sources=sources, current=current), metadata_root)
 
-    assert "F-Mode" in portrait.title
-    assert "F-Mode" not in landscape.title
+    assert F_MODE_LABEL in portrait.title
+    assert F_MODE_LABEL not in landscape.title
     assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 
 

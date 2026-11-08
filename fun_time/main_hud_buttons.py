@@ -19,6 +19,7 @@ from funestra.hud_controls import (
     versions_button,
 )
 from funestra.hud_icons import shared_icon
+from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import ROW_LABEL_W, VALUE_W
 from funestra.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
@@ -178,7 +179,7 @@ def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
             funscript_jump_button("main_funestra_funscript_jump", noun=NOUN,
                                   has_osr2=facts.has_osr2, has_funscript=facts.has_funscript),
             lock_button("main", locked=facts.locked, tooltip=lock_tooltip(facts.locked, NOUN)),
-            fmode_button("main", "F-Mode — play only the well funscripted videos", lit=facts.f_mode),
+            fmode_button("main", f"{F_MODE_LABEL} — play only the well funscripted videos", lit=facts.f_mode),
             reset_button("main", nothing_to_reset=facts.nothing_to_reset, tooltip=RESET_TOOLTIP),
             *browse_order_buttons("main", latest=facts.latest, remembered=remembered),
             *_inclusion_buttons(facts, remembered=remembered, things="videos"),
@@ -196,7 +197,7 @@ def _transport_row(facts: MainFunestraFacts) -> tuple[Button, ...]:
             if facts.locked
             else f"Unlocked — moving on every {facts.pace_s}s; press to hold this {flick.one}")),
         fmode_button("main", "Showing the favorites only — press for all of them" if facts.f_mode
-                     else "F-Mode — play only the favorites", lit=facts.f_mode),
+                     else f"{F_MODE_LABEL} — play only the favorites", lit=facts.f_mode),
         Button("genau_flip_ends", FLIP_ENDS_ICON,
                f"Flipped — this {flick.one} stays that way; press to put it back" if facts.flipped
                else f"Flip this {flick.one}, for one running opposite the OSR2 — it stays flipped",

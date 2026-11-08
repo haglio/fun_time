@@ -9,6 +9,7 @@ from funestra.hud_icons import (
     shared_icon,
     shared_icon_name,
 )
+from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import GAP, GROUP_GAP, OSR2_DRIVING, hit_test, place_rows, tooltip_at
 from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
 from funestra.satellite_hud import HudModel
@@ -131,7 +132,7 @@ class TestKinosFMode:
     def test_it_plays_only_the_well_funscripted_videos(self):
         button = _button(MainFunestraFacts(main_mode=MainMode.KINO), "main_fmode")
 
-        assert button.tooltip == "F-Mode — play only the well funscripted videos"
+        assert button.tooltip == f"{F_MODE_LABEL} — play only the well funscripted videos"
 
 
 class TestGenausFMode:
@@ -140,7 +141,7 @@ class TestGenausFMode:
         on = _button(MainFunestraFacts(main_mode=MainMode.GENAU, f_mode=True), "main_fmode")
 
         assert (off.lit, on.lit) == (False, True)
-        assert off.tooltip == "F-Mode — play only the favorites"
+        assert off.tooltip == f"{F_MODE_LABEL} — play only the favorites"
         assert on.tooltip == "Showing the favorites only — press for all of them"
         assert on.favorite is True
 
