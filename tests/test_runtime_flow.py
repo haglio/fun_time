@@ -133,6 +133,14 @@ def test_a_mode_switch_during_omnipause_hands_over_the_window_and_resumes_nothin
     assert not flow_files["main_funestra_paused_file"].exists()
 
 
+def test_a_mode_switch_queues_its_verb_behind_what_the_file_already_holds(flow_files):
+    flow_files["main_funestra_cmd_file"].write_text("SET_VOLUME 1\n", encoding="utf-8")
+
+    _mode_switch(flow_files, current="kino", target="genau")
+
+    assert _main_funestra_cmds(flow_files) == ["SET_VOLUME 1", "SHOW genau"]
+
+
 def test_toggle_fmode_replaces_playlists_and_reloads_main_funestra(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
@@ -275,7 +283,7 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
     assert len(entries) == 1
 
 
-def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
+def test_an_f_mode_rebuild_does_not_undo_a_satellites_own_order(tmp_path: Path):
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)
     p_old, p_new = portrait_root / "p_old.mp4", portrait_root / "p_new.mp4"
@@ -393,7 +401,7 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
     assert entries == [str(newer)], "the two-action group collapses to its newest item"
 
 
-def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
+def test_an_f_mode_rebuild_does_not_undo_a_satellites_own_filter(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
     p_video = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")

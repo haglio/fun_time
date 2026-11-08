@@ -81,8 +81,12 @@ def _git(args: list[str], cwd: Path, *, stdin: str | None = None) -> str:
     return result.stdout
 
 
+def _the_checkout_fun_time_was_imported_from() -> Path:
+    return config_module.PROJECT_DIR
+
+
 def primary_checkout() -> Path:
-    return primary_checkout_of(config_module.PROJECT_DIR)
+    return primary_checkout_of(_the_checkout_fun_time_was_imported_from())
 
 
 def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]]:
@@ -92,8 +96,6 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "ahk_exe": paths.ahk_exe,
             "python_exe": paths.python_exe,
             "main_player_library_dirs": paths.main_funestra_library_dirs,
-            "state_dir": paths.state_dir,
-            "broker_state_dir": paths.broker_state_dir,
             SIBLING_CHECKOUTS_KEY: paths.sibling_checkouts,
             "broker_tray_launcher": paths.broker_tray_launcher,
             "origenerator_dir": paths.origenerator_dir,
@@ -126,6 +128,18 @@ def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
         raw.get("paths", {}).pop(key, None)
 
 
+def _give_the_branch_its_own_state(raw: dict, state_dir: Path) -> None:
+    raw["paths"]["state_dir"] = str(state_dir)
+
+
+def _the_machines_one_broker_keeps_its_files(raw: dict, real: ProjectConfig) -> None:
+    raw["paths"]["broker_state_dir"] = str(real.paths.broker_state_dir)
+
+
+def _one_session_per_machine(raw: dict, real: ProjectConfig) -> None:
+    raw["instance_id"] = real.instance_id
+
+
 def _apply_sibling_checkouts_override(raw: dict, state_dir: Path) -> None:
     lines = sibling_checkouts_named_in(state_dir)
     if lines is not None:
@@ -150,7 +164,7 @@ def build_branch_config(
     primary: Path | None = None,
 ) -> Path:
     worktree = worktree.resolve()
-    primary = (primary or config_module.PROJECT_DIR).resolve()
+    primary = (primary or _the_checkout_fun_time_was_imported_from()).resolve()
     if worktree == primary:
         raise ValueError(
             f"{worktree} is the checkout Fun Time already runs from — launch that one "
@@ -165,8 +179,9 @@ def build_branch_config(
     _pin_paths_to_the_primary(raw, real)
 
     state_dir = worktree / STATE_DIRNAME
-    raw["paths"]["state_dir"] = str(state_dir)
-    raw["instance_id"] = real.instance_id
+    _give_the_branch_its_own_state(raw, state_dir)
+    _the_machines_one_broker_keeps_its_files(raw, real)
+    _one_session_per_machine(raw, real)
     _apply_sibling_checkouts_override(raw, state_dir)
     _for_a_branch_from_before_the_rename(raw)
     _apply_origenerator_checkout_override(raw, state_dir)
@@ -617,13 +632,18 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _mark_what_the_console_cannot_print() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(errors="replace")
+    _mark_what_the_console_cannot_print()
     if args.shortcut:
-        target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
+        target = (_the_checkout_fun_time_was_imported_from() if args.shortcut == "."
+                  else Path(args.shortcut))
         try:
             print(write_launch_shortcut(target, vr=args.vr))
         except (OutOfDateWorktree, AppWouldNotStart) as refused:
@@ -632,9 +652,10 @@ def main(argv: list[str] | None = None) -> int:
         print(sibling_checkouts_line(target, primary_checkout()))
         return 0
     if args.remove_shortcut:
-        target = (
-            config_module.PROJECT_DIR if args.remove_shortcut == "." else Path(args.remove_shortcut)
-        )
+        target = (_the_checkout_fun_time_was_imported_from() if args.remove_shortcut == "."
+                  else Path(args.remove_shortcut))
+
+
         removed = remove_launch_shortcut(target)
         for path in removed:
             print(path)

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fun_time import checkout_overrides, project_paths
 from fun_time.checkout_overrides import (
     ORIGENERATOR_DIR_OVERRIDE_NAME,
     apply_this_checkouts_overrides,
+    sibling_checkouts_kwargs,
 )
 from fun_time.config import load_config
 from fun_time.project_paths import (
@@ -57,6 +59,16 @@ def test_the_sys_path_override_only_adds_directories_that_exist(tmp_path, monkey
     monkeypatch.setattr(project_paths, "sys", type("s", (), {"path": []})())
 
     assert apply_sibling_checkouts_to_sys_path() == [str(real)]
+
+
+def test_a_checkout_named_but_gone_is_skipped_not_fatal(tmp_path, monkeypatch):
+    real = tmp_path / "real_checkout"
+    real.mkdir()
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+
+    kwargs = sibling_checkouts_kwargs(os.pathsep.join([str(real), str(tmp_path / "gone")]))
+
+    assert kwargs["env"]["PYTHONPATH"] == str(real)
 
 
 def test_this_checkouts_own_packages_still_come_before_a_siblings(tmp_path, monkeypatch):
