@@ -16,7 +16,6 @@ from funestra.modes import LoopState
 from OpenGL import GL, _configflags
 
 import fun_time_vr.funestras as vrp
-from fun_time.config import load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.manifest import LaunchManifest, write_manifest_data
@@ -44,6 +43,7 @@ from .integration_support import (
     joined_within,
     let_seconds_pass,
     library_videos,
+    load_integration_config,
     one_video_per_video,
     published_status,
     readable_at_speed,
@@ -278,7 +278,7 @@ def _assert_a_paused_satellite_holds_still(pipeline: _Pipeline) -> None:
 
 
 def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
-    config = load_config(build_integration_config(build_integration_temp_root()))
+    config = load_integration_config(build_integration_config(build_integration_temp_root()))
     manifest_path = write_manifest_data(
         build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
@@ -361,7 +361,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
 def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
     temp_root = build_integration_temp_root()
-    config = load_config(build_integration_config(temp_root))
+    config = load_integration_config(build_integration_config(temp_root))
     manifest_path = write_manifest_data(
         build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
@@ -423,7 +423,7 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         glfw.terminate()
 def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
     temp_root = build_integration_temp_root()
-    config = load_config(build_integration_config(temp_root))
+    config = load_integration_config(build_integration_config(temp_root))
     manifest_path = write_manifest_data(
         build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
