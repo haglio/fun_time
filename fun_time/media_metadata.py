@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 from functools import partial
 from pathlib import Path
 
-from app_support import favorites, video_action
+from app_support import favorites
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, record_path
 from app_support.video_names import clip_title, version_group_of
 from funestra import video_groups
@@ -125,11 +125,6 @@ def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
         video_suffixes=sorted(SUPPORTED_VIDEO_EXTS))
 
 
-def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> str:
-    record = metadata_path_for(video_path, metadata_root)
-    return "" if record is None else video_action.strike(record)
-
-
 def matches_query(metadata: dict, query: str) -> bool:
     return not normalized_text(query) or label_is_filtered(actions_text(metadata), query)
 
@@ -189,6 +184,5 @@ class GroupIndexCache:
 SESSION_INDEXES = GroupIndexCache()
 
 cached_group_index = SESSION_INDEXES.index_for
-reset_group_index_cache = SESSION_INDEXES.clear
 learn_indexed_video = SESSION_INDEXES.learn
 forget_indexed_video = SESSION_INDEXES.forget
