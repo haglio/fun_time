@@ -31,7 +31,7 @@ __path__.append(next(real for real in _where_the_real_modules_could_be
 """
 
 
-def _a_funestra_whose_flick_folder_dies_importing(root: Path) -> Path:
+def _a_funestra_dying_in_a_module_only_the_main_funestra_imports(root: Path) -> Path:
     package = root / "a_checkout_whose_flick_folder_dies_importing" / "funestra"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text(_THE_REAL_PACKAGE_UNDER_IT, encoding="utf-8")
@@ -50,7 +50,7 @@ def _start_the_funestras_with(config_path: Path, checkout: Path) -> None:
 def test_a_funestra_that_dies_importing_stops_the_startup_saying_what_it_said():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
-    _start_the_funestras_with(config_path, _a_funestra_whose_flick_folder_dies_importing(temp_root))
+    _start_the_funestras_with(config_path, _a_funestra_dying_in_a_module_only_the_main_funestra_imports(temp_root))
     session = FunTimeIntegrationSession(config_path)
     try:
         logged = session.start_one_that_stops_starting_up(

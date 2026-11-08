@@ -143,6 +143,7 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
 QUIT_BUDGET_S = 60.0
 START_BUDGET_S = 120.0
 
+STARTUP_FINISHED = "Session up; startup hold released"
 STARTUP_STOPPED = "Fun Time stopped starting up"
 
 CHILDREN_GONE_TIMEOUT_S = 20.0
@@ -300,9 +301,7 @@ class FunTimeIntegrationSession:
     def start(self, wait_seconds: float = START_BUDGET_S, project_dir: Path | None = None,
               env_overrides: dict[str, str] | None = None) -> None:
         already_logged = self._launch(project_dir=project_dir, env_overrides=env_overrides)
-        self._wait_for_own_log(
-            "Session up; startup hold released", after=already_logged, timeout=wait_seconds
-        )
+        self._wait_for_own_log(STARTUP_FINISHED, after=already_logged, timeout=wait_seconds)
         let_seconds_pass(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 
@@ -353,7 +352,7 @@ class FunTimeIntegrationSession:
                 self._proc.kill()
         if hasattr(self, "_stderr_fh") and self._stderr_fh:
             self._stderr_fh.close()
-        self._kill_recorded_children()
+        self._kill_the_children_the_terminated_orchestrator_orphaned()
         self._reap_leftover_runtime_processes()
 
     def write_dashboard_command(self, action: str) -> None:
@@ -362,7 +361,7 @@ class FunTimeIntegrationSession:
     def is_favorite(self, path: Path) -> bool:
         return is_favorite(path, self.config.regen.metadata_root)
 
-    def messages(self) -> list[EventRecord]:
+    def messages_flashed_from_the_log(self) -> list[EventRecord]:
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))
         return [record for record in records if is_announcement(record)]
 
@@ -457,7 +456,7 @@ class FunTimeIntegrationSession:
         except OSError:
             return ""
 
-    def _kill_recorded_children(self) -> None:
+    def _kill_the_children_the_terminated_orchestrator_orphaned(self) -> None:
         try:
             children = self.read_child_processes()
         except (KeyError, OSError, ValueError):
@@ -604,7 +603,7 @@ def _isolate_shared_ports(config: dict) -> None:
     config["osr2_slot_port"] = _a_slot_of_the_runs_own()
 
 
-def real_config_path() -> Path:
+def the_machines_config_path() -> Path:
     if DEFAULT_CONFIG_PATH.exists():
         return DEFAULT_CONFIG_PATH
     return primary_checkout_of(PROJECT_DIR) / DEFAULT_CONFIG_PATH.name
@@ -613,7 +612,7 @@ def real_config_path() -> Path:
 def load_the_machines_config():
     machines = os.environ.get(MACHINES_SETTINGS_ENV)
     with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: machines} if machines else {}):
-        return load_config(real_config_path())
+        return load_config(the_machines_config_path())
 
 
 def strip_what_the_desktop_does_not_isolate(config: dict) -> None:

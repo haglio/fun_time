@@ -67,7 +67,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_trash_s
 
         session.wait_until(
             lambda: _condemned(trash) and any(
-                n.message == SENT_TO_TRASH and n.source == "main" for n in session.messages()),
+                n.message == SENT_TO_TRASH and n.source == "main" for n in session.messages_flashed_from_the_log()),
             timeout=15, description='the flick on screen sent to Trash, and "Sent to Trash" flashed')
         let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
