@@ -19,6 +19,7 @@ from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import read_playlist
 
 from fun_time import funestra_status, windows_bridge_orchestrator
+from fun_time.branch_session import build_branch_config
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.genau_config import GenauSettings
 from fun_time.loopback_server import LOOPBACK_PORT
@@ -588,17 +589,38 @@ def _every_value(node) -> list:
     return [node]
 
 
-def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated_ports):
-    config = isolated_ports
+def _the_machines_endpoints_surviving_in(config: dict) -> list:
     machines_own = {AUDIO_COMPANION_PORT, GENAU_INBOUND_PORT, OSR2_SLOT_PORT, LOOPBACK_PORT}
-
-    survivors = [
+    return [
         value
         for value in _every_value(config)
         if value in machines_own or str(value) in {str(port) for port in machines_own}
     ]
 
-    assert survivors == []
+
+def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated_ports):
+    assert _the_machines_endpoints_surviving_in(isolated_ports) == []
+
+
+def _a_fun_time_checkout(root: Path) -> Path:
+    (root / "fun_time").mkdir(parents=True)
+    (root / "fun_time" / "orchestrator.py").write_text("", encoding="utf-8")
+    return root
+
+
+def test_a_branch_session_built_on_a_runs_config_is_as_stripped_as_the_run(isolated_ports, tmp_path):
+    runs_config = tmp_path / "run" / INTEGRATION_CONFIG_NAME
+    runs_config.parent.mkdir()
+    runs_config.write_text(json.dumps(isolated_ports), encoding="utf-8")
+    primary = _a_fun_time_checkout(tmp_path / "fun_time")
+    worktree = _a_fun_time_checkout(primary / ".claude" / "worktrees" / "branch")
+
+    written = build_branch_config(worktree, primary_config_path=runs_config, primary=primary)
+    branch = json.loads(written.read_text(encoding="utf-8"))
+
+    assert _the_machines_endpoints_surviving_in(branch) == []
+    assert branch["voice_control"]["enabled"] is False
+    assert not branch["paths"].get("broker_tray_launcher")
 
 
 def test_a_runs_sessions_start_their_programs_from_the_installation_the_run_runs_from():
