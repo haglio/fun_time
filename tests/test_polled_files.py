@@ -50,10 +50,11 @@ def test_a_flag_a_funestra_keeps_open_past_the_budget_is_reported(tmp_path: Path
     flag.write_text("0", encoding="utf-8")
     monkeypatch.setattr(polled_files, "READER_HOLD_BUDGET_S", 0.05)
 
-    with _held_open_for(flag, 0.5), caplog.at_level(logging.WARNING, logger="fun_time.runtime_flow"):
+    with flag.open(encoding="utf-8"), caplog.at_level(logging.WARNING, logger="fun_time.runtime_flow"):
         write_flag_file(flag, True)
 
     assert "landscape_paused.txt" in caplog.text
+    assert flag.read_text(encoding="utf-8") == "0"
 
 
 def test_the_room_state_lands_though_a_reader_is_partway_through_reading_it(tmp_path: Path):
