@@ -329,6 +329,12 @@ class TestPollDashboardCommands:
         assert result == ["portrait_next"]
         assert not cmd_file.exists()
 
+    def test_a_verb_carrying_a_path_keeps_the_paths_case(self, tmp_path):
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        cmd_file.write_text("play_file C:/Videos/Alpha/Scene One.MP4", encoding="utf-8")
+
+        assert poll_dashboard_commands(cmd_file) == ["play_file C:/Videos/Alpha/Scene One.MP4"]
+
     def test_a_command_file_that_is_not_there_holds_no_commands(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
@@ -623,7 +629,7 @@ class TestDispatchLoopRunner:
 
         assert runner.state.omni_paused is True
 
-    def test_writes_shared_state_after_dispatch(self, tmp_path):
+    def test_a_command_reaches_the_file_the_dashboard_and_satellite_huds_draw_from(self, tmp_path):
         runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("landscape_lock", encoding="utf-8")
@@ -802,7 +808,7 @@ class TestDispatchLoopRunner:
         assert [h for h, _ in minimized] == [PORTRAIT_HWND]
         assert all(kw.get("activate") is False for _, kw in minimized)
 
-    def test_a_huds_minimize_button_takes_effect_without_a_settle(self, tmp_path):
+    def test_a_huds_minimize_button_parks_the_window_still_showing_its_video(self, tmp_path):
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2846,7 +2852,7 @@ class TestHudPublishing:
 
 
 class TestBrowserOutlivesNothing:
-    def test_quitting_the_session_kills_a_browser_still_open(self, tmp_path):
+    def test_quitting_ends_a_browse_launched_after_the_startup_children(self, tmp_path):
         runner = make_runner(tmp_path)
         opened = threading.Event()
         terminated = threading.Event()
@@ -3176,6 +3182,15 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
 
         assert runner.state.origenerator_ready is False
 
+    def test_the_apps_boot_is_noticed_on_a_tick_that_read_no_state_file(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        assert not (tmp_path / "shared_state.ini").exists()
+
+        runner.tick()
+
+        assert runner.state.origenerator_ready is True
+
     def test_the_answer_is_written_back_to_the_file_the_moment_it_changes(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
@@ -3394,6 +3409,19 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
         assert config.satellite(FunTimeFunestra.PORTRAIT).notice_file == (
             tmp_path / "elsewhere" / "portrait_notice.txt")
         assert config.landscape.cmd_file == tmp_path / "elsewhere" / "landscape_cmd.txt"
+
+    def test_whether_the_main_funestra_is_the_headsets_is_the_orchestrators_word(
+            self, cfg_factory, tmp_path):
+        data = build_windows_bridge_manifest(load_config(cfg_factory()))
+        data["media"]["vr_library_dirs"] = str(tmp_path / "vr")
+        manifest = LaunchManifest.read(write_manifest_data(data, tmp_path / "manifest.ini"))
+
+        desktop = build_bridge_config_from_manifest(manifest)
+        headset = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)
+
+        assert (desktop.vr_main_funestra, headset.vr_main_funestra) == (False, True)
+        assert replace(headset, vr_main_funestra=False,
+                       main_list_builds=desktop.main_list_builds) == desktop
 
 
 class TestTheAppTakesAFunestra:

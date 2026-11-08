@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.bridge_records import BridgeConfig
+from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
 
@@ -54,3 +54,8 @@ def test_a_satellites_channel_is_spelled_once_from_its_state_dir(tmp_path: Path)
         origenerator_hud_file=state_dir / "origenerator_landscape_hud.json",
         sources="D:/clips|E:/more",
     )
+
+
+def test_a_window_op_written_as_its_plain_string_is_the_op_itself():
+    assert WindowOp(op="message").op == Op.MESSAGE
+    assert {Op.MESSAGE: "handled"}["message"] == "handled"
