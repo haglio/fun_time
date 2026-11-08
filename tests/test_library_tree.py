@@ -75,7 +75,7 @@ def test_a_folder_thumbnails_itself_with_four_of_its_videos():
     assert len(child.previews) == 4
     assert len(set(child.previews)) == 4, "the same video must not fill two cells"
     assert set(child.previews) <= {handle.preview for handle in handles}
-    assert child.previews != other.previews, "a different browse picks differently"
+    assert child.previews != other.previews, "a test's own rng makes its own pick"
 
 
 def test_a_folder_with_less_than_four_thumbnails_itself_with_what_it_has():
@@ -91,14 +91,15 @@ class TestAFolderTileHoldsStill:
     def _handles(folder: str = "big_batch", count: int = 12):
         return [_handle(f"scene {n}", f"{folder}/whole") for n in range(count)]
 
-    def test_the_same_folder_draws_the_same_stills_every_visit(self):
+    def test_walking_into_a_folder_and_back_up_finds_its_tile_as_it_was(self):
         handles = self._handles()
 
-        first = folder_at(handles, ())
-        second = folder_at(handles, ())
+        before = folder_at(handles, ())
+        folder_at(handles, ("big_batch",))
+        after = folder_at(handles, ())
 
-        assert [child.previews for child in first.children] == [
-            child.previews for child in second.children]
+        assert [child.previews for child in before.children] == [
+            child.previews for child in after.children]
 
     def test_two_folders_do_not_all_draw_the_same_four(self):
         handles = self._handles("one") + self._handles("two")

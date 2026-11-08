@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from .library_handles import LibraryHandle
 
-FOLDER_PREVIEWS = 4
+STILLS_ON_A_FOLDER_TILE = 4
 
 
 @dataclass(frozen=True)
@@ -52,18 +52,18 @@ def folder_at(
         return Folder(
             path=path,
             children=tuple(
-                SubFolder(
-                    name=name,
-                    count=len(grouped),
-                    previews=tuple(
-                        handle.preview
-                        for handle in (rng or random.Random(name)).sample(
-                            grouped, min(FOLDER_PREVIEWS, len(grouped))
-                        )
-                    ),
-                )
+                SubFolder(name=name, count=len(grouped),
+                          previews=_stills_fixed_by_the_folders_name(name, grouped, rng))
                 for name, grouped in names.items()
             ),
             handles=(),
         )
     return Folder(path=path, children=(), handles=tuple(inside))
+
+
+def _stills_fixed_by_the_folders_name(
+    name: str, grouped: list[LibraryHandle], rng: random.Random | None,
+) -> tuple[str, ...]:
+    chooser = rng or random.Random(name)
+    return tuple(handle.preview
+                 for handle in chooser.sample(grouped, min(STILLS_ON_A_FOLDER_TILE, len(grouped))))

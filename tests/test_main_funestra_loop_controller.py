@@ -57,7 +57,7 @@ class TestLoopController:
         assert lc.in_ms == 2500
         assert lc.out_ms == 3500
 
-    def test_release_before_start_floors_out_to_the_start(self):
+    def test_a_release_behind_the_start_floors_to_it_rather_than_flipping_the_loop(self):
         lc = LoopController(None)
         lc.on_record_down(5000)
 

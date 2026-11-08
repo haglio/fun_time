@@ -66,6 +66,7 @@ from fun_time.windows_bridge_startup import (
     start_core_session,
     taskbar_identity_args,
 )
+from main_funestra.cli import build_parser as main_funestra_parser
 from satellite.contract import SatelliteChannels, WindowPlacement
 from tests.dispatch_sweep import desktop_manifest
 from tests.made_up_machine import running
@@ -982,6 +983,15 @@ def _launched_main_funestra(tmp_path: Path, **overrides) -> list[str]:
     ):
         launch_main_funestra(**_a_main_funestra_launch(tmp_path, **overrides))
     return popen.call_args.args[0]
+
+
+@pytest.mark.parametrize("metadata_dir", ["", "C:/example/library/metadata"])
+def test_the_line_it_builds_parses_in_the_main_funestras_own_parser(tmp_path: Path, metadata_dir: str):
+    command = _launched_main_funestra(tmp_path, metadata_dir=metadata_dir)
+
+    args = main_funestra_parser({}).parse_args(command[command.index("-m") + 2:])
+
+    assert args.metadata_dir == (Path(metadata_dir) if metadata_dir else None)
 
 
 def test_the_main_funestra_is_handed_genaus_own_files(tmp_path: Path):

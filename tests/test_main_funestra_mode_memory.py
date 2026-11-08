@@ -85,9 +85,9 @@ class TestCompilation:
 
         assert ModeMemory(path).read() == INSIDE
 
-    def test_a_title_with_separators_in_it_survives(self, tmp_path):
+    def test_a_title_may_hold_anything_but_a_newline_the_separator_included(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
-        title = "various - Ultimate Example Studio Alpha Collection - Volume 6 (v1)"
+        title = "various - Example Studio Alpha Collection = Volume 6 (v1) = remastered"
 
         ModeMemory(path).write(RememberedMode(compilation=title))
 

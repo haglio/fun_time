@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import pygame
+from app_support.cli import preparse_config_path
 from app_support.osr2_slot import Osr2Sender
 from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
@@ -42,11 +43,14 @@ logger = logging.getLogger(__name__)
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    args = build_parser({}).parse_args(argv)
-    if args.config is not None:
-        args = build_parser(load_config(args.config)).parse_args(argv)
+    args = build_parser(_defaults_from_the_config_the_line_names(argv)).parse_args(argv)
     with ahead_on_the_processor():
         return _run(args)
+
+
+def _defaults_from_the_config_the_line_names(argv: list[str] | None) -> dict:
+    named = preparse_config_path(argv)
+    return load_config(Path(named)) if named else {}
 
 
 def _genau(args):
