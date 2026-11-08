@@ -153,7 +153,7 @@ class TestRecordedFamiliesSplitByCopyIndex:
 
 
 class TestVersionIndex:
-    def test_maps_every_member_to_ordered_group_pairs(self):
+    def test_every_version_points_at_its_familys_one_ordered_list(self):
         big = _entry("Jane-1080p.mp4", 900)
         mid = _entry("Jane-720p.mp4", 400, funscript="Jane.funscript")
         solo = _entry("John-1080p.mp4", 100)

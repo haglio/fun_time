@@ -32,6 +32,10 @@ class TestProgressText:
     def test_the_walk_is_said_in_words(self):
         assert progress_text(PHASE_DISCOVER) == "Finding videos..."
 
+    def test_the_build_names_its_phase_and_only_the_screen_puts_words_to_it(self):
+        assert PHASE_DISCOVER.isidentifier()
+        assert progress_text(PHASE_DISCOVER) != PHASE_DISCOVER
+
 
 class TestGivingUpOnTheWait:
     def test_the_close_button_ends_the_wait(self, monkeypatch):

@@ -57,6 +57,16 @@ def test_each_pass_measures_the_window_deals_the_events_then_ticks_then_paces():
                             ("paced",), ("closed",)]
 
 
+def test_each_pass_deals_its_events_against_the_window_as_fun_time_left_it_for_that_pass():
+    spy = _Spy(passes=2)
+    sizes = iter([(640, 480), (1280, 1024)])
+
+    run_until_stopped(spy, window_size=lambda: next(sizes), events=spy.events, deal=spy.deal, pace=spy.pace)
+
+    assert [step for step in spy.happened if step[0] == "dealt"] == [
+        ("dealt", BATCH, (640, 480)), ("dealt", BATCH, (1280, 1024))]
+
+
 def test_it_goes_round_until_the_funestra_has_stopped():
     spy = _Spy(passes=3)
 

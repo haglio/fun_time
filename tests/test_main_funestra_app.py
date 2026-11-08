@@ -9,13 +9,13 @@ from main_funestra import app
 from main_funestra.window import wear_the_icon
 
 
-def _source() -> ast.Module:
+def _the_app_source_a_test_cannot_run() -> ast.Module:
     return ast.parse((Path(__file__).resolve().parents[1] / "main_funestra" / "app.py")
                      .read_text(encoding="utf-8"))
 
 
 def _function(name: str) -> ast.FunctionDef:
-    return next(n for n in ast.walk(_source())
+    return next(n for n in ast.walk(_the_app_source_a_test_cannot_run())
                 if isinstance(n, ast.FunctionDef) and n.name == name)
 
 
@@ -57,6 +57,12 @@ class TestWhatTheFunestraIsHanded:
         call = _call(_function("_run"), "run_the_window")
 
         assert [_said(a) for a in call.args] == ["pygame", "funestra", "Input(funestra).deal"]
+
+    def test_the_library_is_read_under_the_loading_screen_of_the_window_already_open(self):
+        run = _function("_run")
+
+        assert _call(run, "_open_window").lineno < _call(run, "library_source").lineno
+        assert _keywords(_call(run, "library_source"))["on_progress"] == "loading.update"
 
 
 class TestGenauRunsOnItToo:
@@ -104,6 +110,13 @@ class TestGenauRunsOnItToo:
 class TestAWindowFunTimeResizes:
     def test_the_window_takes_the_size_fun_time_gives_it_from_outside(self):
         assert _said(_call(_function("_open_window"), "take_outside_resizes").args[0]) == "pygame"
+
+
+class TestTheWindowsIcon:
+    def test_the_icon_is_worn_before_sdl_makes_the_window(self):
+        opening = _function("_open_window")
+
+        assert _call(opening, "wear_the_icon").lineno < _call(opening, "pygame.display.set_mode").lineno
 
 
 class TestWhenSomethingCosmeticFails:

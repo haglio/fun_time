@@ -51,7 +51,7 @@ class ClipJumps:
     def _item(self, video: Path) -> PlaylistItem:
         return PlaylistItem(video, self._funscripts.get(video))
 
-    def _take_up(self, items: list[PlaylistItem]) -> None:
+    def _swap_the_list_in_memory(self, items: list[PlaylistItem]) -> None:
         self._playback.replace_playlist([item.path for item in items], funscripts_of(items))
 
     def resume(self, compilation: str, video: Path | None) -> None:
@@ -72,7 +72,7 @@ class ClipJumps:
         current = self._playback.current_video
         if current not in {item.path for item in playlist}:
             playlist = [self._item(current), *playlist]
-        self._take_up(playlist)
+        self._swap_the_list_in_memory(playlist)
 
     def play_compilation(self) -> None:
         current = self._playback.current_video
@@ -86,7 +86,7 @@ class ClipJumps:
         siblings = self._nav.compilation_playlist(current)
         if not siblings:
             return False
-        self._take_up([self._item(video) for video in siblings])
+        self._swap_the_list_in_memory([self._item(video) for video in siblings])
         self._compilation = self._nav.compilation_of(current)
         return True
 

@@ -151,7 +151,7 @@ def version_index_from_groups(
     index: dict[Path, list[PlaylistItem]] = {}
     for group in groups:
         versions = [group.canonical, *group.alternates]
-        items = entries_to_items(versions)
+        family = entries_to_items(versions)
         for entry in versions:
-            index[entry.video] = items
+            index[entry.video] = family
     return index

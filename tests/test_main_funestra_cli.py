@@ -42,7 +42,7 @@ class TestResolvePlaylist:
 
         assert pairs == [(a, None), (b, None)]
 
-    def test_playlist_file_collapses_versions_with_a_source(self, tmp_path):
+    def test_an_original_and_its_upscale_fold_to_one_slot_the_larger(self, tmp_path):
         vids = tmp_path / "videos"
         vids.mkdir()
         original = vids / "Jane-540.mp4"
@@ -76,7 +76,7 @@ class TestLibrarySource:
         ])
         assert library_source(args) is not None
 
-    def test_built_even_when_playlist_given(self, tmp_path):
+    def test_the_source_is_built_beside_a_playlist_for_versions_and_compilations(self, tmp_path):
         vids = tmp_path / "videos"
         vids.mkdir()
         vid = vids / "a-1080p.mp4"
@@ -89,7 +89,7 @@ class TestLibrarySource:
         ])
         assert library_source(args) is not None
 
-    def test_forwards_progress_to_the_build(self, tmp_path):
+    def test_on_progress_reaches_the_build_whose_wait_the_loading_screen_paints(self, tmp_path):
         vids = tmp_path / "videos"
         vids.mkdir()
         vid = vids / "a-1080p.mp4"
@@ -134,7 +134,7 @@ class TestAudioMuted:
         assert audio_muted(args) is True
 
 
-FUN_TIME_ARGV = [
+FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND = [
     "--config", "C:/example/fun_time_config.json",
     "--playlist", "C:/example/state/main_player_playlist.tsv",
     "--command-file", "C:/example/state/main_player_cmd.txt",
@@ -194,18 +194,20 @@ LANDS_AS = {
 class TestTheCommandLineFunTimeLaunchesMainFunestraWith:
     @pytest.mark.parametrize(("name", "expected"), sorted(LANDS_AS.items()))
     def test_each_flag_lands_on_the_namespace_as_itself(self, name, expected):
-        args = build_parser({}).parse_args(FUN_TIME_ARGV)
+        args = build_parser({}).parse_args(FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND)
 
         landed = getattr(args, name)
 
         assert landed == expected
-        assert type(landed) is type(expected), f"--{name.replace('_', '-')} changed type"
+        assert type(landed) is type(expected), (
+            f"--{name.replace('_', '-')} changed type: a str reaches Path() later, "
+            "a Path reaches an argparse default nobody set")
 
-    def test_the_whole_line_parses_without_argparse_walking_out(self):
-        assert build_parser({}).parse_args(FUN_TIME_ARGV) is not None
+    def test_the_whole_line_parses_or_the_funestra_never_opens_under_fun_time(self):
+        assert build_parser({}).parse_args(FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND) is not None
 
-    def test_metadata_dir_is_optional_and_the_rest_still_parses(self):
-        without = [a for a in FUN_TIME_ARGV
+    def test_metadata_dir_may_be_absent_as_it_is_without_a_sidecar_root(self):
+        without = [a for a in FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND
                    if a not in ("--metadata-dir", "C:/example/library/metadata")]
 
         args = build_parser({}).parse_args(without)
@@ -215,7 +217,7 @@ class TestTheCommandLineFunTimeLaunchesMainFunestraWith:
 
 class TestTheRestOfTheFlags:
     @pytest.mark.parametrize("option", ["taskbar_identity", "notice_file"])
-    def test_the_parser_always_defines_what_the_app_reads_off_it(self, option):
+    def test_what_the_app_reads_as_a_plain_attribute_the_parser_always_defines(self, option):
         args = build_parser({}).parse_args([])
 
         assert hasattr(args, option)
@@ -394,7 +396,7 @@ class TestWhereMainFunestraKeepsItsState:
 
         assert play_points_path(args) == tmp_path / "main_player_play_points.json"
 
-    def test_with_no_state_dir_it_falls_back_beside_its_config(self, tmp_path):
+    def test_run_by_hand_it_keeps_its_state_beside_its_config_not_where_it_started(self, tmp_path):
         config = tmp_path / "fun_time_config.json"
         config.write_text("{}", encoding="utf-8")
         args = build_parser({}).parse_args(["--config", str(config)])

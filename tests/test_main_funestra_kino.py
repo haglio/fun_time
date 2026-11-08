@@ -46,7 +46,7 @@ def _video(lib: Path, meta: Path, rel: str, comp: str, index: int) -> Path:
 
 class World:
     def __init__(self, tmp_path: Path, *, remembered: RememberedMode | None = None,
-                 scripted: bool = True) -> None:
+                 scripted: bool = True, fun_times_list: tuple[str, ...] = ("first", "second")) -> None:
         lib, meta = tmp_path / "videos", tmp_path / "metadata"
         self.first = _video(lib, meta, "w/Jane Doe - Scene One.mp4", "Vol6", 1)
         self.second = _video(lib, meta, "w/Ann Bly - Scene Two.mp4", "Vol6", 2)
@@ -61,7 +61,7 @@ class World:
         entries = [LibraryEntry(video, self.scripts.get(video), 1) for video in (self.first, self.second)]
         self.source = FakeSource(entries, metadata_root=meta)
         self.engine = FakeEngine(duration_ms=60_000.0)
-        self.playback = Playback([self.first, self.second], engine=self.engine,
+        self.playback = Playback([getattr(self, name) for name in fun_times_list], engine=self.engine,
                                  setup=PlaybackSetup(locked=True,
                                                      funscripts=dict(self.scripts)))
         self.memory = ModeMemory(tmp_path / "main_player_mode.txt")
@@ -148,6 +148,14 @@ class TestItsVerbs:
 
 
 class TestItsPassEachFrame:
+    def test_each_frame_tells_the_memory_the_mode_however_it_was_moved(self, tmp_path):
+        world = World(tmp_path)
+        world.kino.apply_command("PLAY_COMPILATION")
+
+        world.kino.tick()
+
+        assert ModeMemory(tmp_path / "main_player_mode.txt").read().compilation == "Vol6"
+
     def test_a_mark_that_reaches_the_end_of_the_item_closes_into_a_running_loop(self, tmp_path):
         world = World(tmp_path, scripted=False)
         world.engine.position_ms = 59_000.0
@@ -209,6 +217,13 @@ class TestWhatItSays:
 
     def test_a_remembered_compilation_is_re_entered_around_its_video(self, tmp_path):
         world = World(tmp_path, remembered=RememberedMode(
+            compilation="Vol6", video=str(World(tmp_path).second)))
+
+        assert world.kino.status_fields()["compilation"] == "Vol6"
+        assert world.playback.current_video == world.second
+
+    def test_it_comes_back_around_its_video_even_when_fun_times_list_lacks_that_video(self, tmp_path):
+        world = World(tmp_path, fun_times_list=("first",), remembered=RememberedMode(
             compilation="Vol6", video=str(World(tmp_path).second)))
 
         assert world.kino.status_fields()["compilation"] == "Vol6"
