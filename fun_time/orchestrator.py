@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app_support.logging_utils import configure_logging, install_exception_logging
-from app_support.win32 import mutex_name, stamp_pinned_shortcuts
+from app_support.win32 import stamp_pinned_shortcuts
 
 from .branch_session import describe_the_session_on_the_taskbar
 from .checkout_overrides import apply_this_checkouts_overrides
@@ -29,9 +29,9 @@ from .session_handoff import (
     pending_handoff,
 )
 from .single_instance import (
-    MUTEX_ORCHESTRATOR,
     claim_the_session,
     show_already_running_message,
+    the_one_sessions_mutex,
 )
 from .win32_taskbar import APP_USER_MODEL_ID
 
@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     state_dir = config.paths.state_dir
     logger = set_up_logging(config)
 
-    _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
+    _mutex_handle = claim_the_session(the_one_sessions_mutex(config))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
         tell_the_hidden_launcher_startup_resolved(config)

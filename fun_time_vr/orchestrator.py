@@ -15,7 +15,7 @@ from pathlib import Path
 from app_support import osr2_hold
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import mutex_name, process_started
+from app_support.win32 import process_started
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 
@@ -110,9 +110,9 @@ from fun_time.session_resume import (
 )
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time.single_instance import (
-    MUTEX_ORCHESTRATOR,
     claim_the_session,
     show_already_running_message,
+    the_one_sessions_mutex,
 )
 from fun_time.state_file_names import take_up_the_retired_state_file_names
 from fun_time.voice_control import VoiceController
@@ -300,7 +300,7 @@ def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
 
 CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
 
-HEADSET_HOLD_ACK_TIMEOUT_S = 15.0
+HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S = 15.0
 
 
 class _LoadingScreen:
@@ -318,6 +318,10 @@ class _LoadingScreen:
             self.progress_file, phases=VR_STARTUP_PHASES, cancel_file=self.cancel_file,
             hint=esc_cancels,
         )
+
+    def where_esc_hands_back_to(self):
+        return (self.turns_back_to
+                if what_the_flag_asks(self.cancel_file) == CANCEL_WORD else None)
 
     def clear(self) -> None:
         self.progress_file.unlink(missing_ok=True)
@@ -345,8 +349,7 @@ def _cancel_vr_startup(
 ) -> int:
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)",
                 len(launched.children))
-    back_to = (launch.loading_screen.turns_back_to
-               if what_the_flag_asks(launch.loading_screen.cancel_file) == CANCEL_WORD else None)
+    back_to = launch.loading_screen.where_esc_hands_back_to()
     if (app := launched.children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
             launch.state_dir, app, Path(launch.commands.origenerator_cmd_file),
             keep=back_to is not None, taken_over=launched.hosted_taken_over):
@@ -595,11 +598,17 @@ def _end_a_launch_the_headset_never_joined(
     return 1
 
 
+def _no_windows_on_the_desktop() -> FunTimeWindows:
+    return FunTimeWindows(pids=ChildPids())
+
+
 def _open_the_room(
     launch: _Launch, launched: _Launched, carried: BridgeState, hud_publisher,
 ) -> _Running:
     manifest, state_dir, progress = launch.manifest, launch.state_dir, launch.progress
     hosted = launched.hosted
+    publishing_to_the_dashboard_in_the_room = Publishing(
+        dashboard_enabled=True, hud_publisher=hud_publisher)
     dispatch_runner = DispatchLoopRunner(
         launch.bridge_config,
         SessionFiles(
@@ -607,9 +616,9 @@ def _open_the_room(
             shared_state=shared_state_path(state_dir),
             ahk_cmd=launch.ahk_cmd_file),
         SessionStart(
-            windows=FunTimeWindows(pids=ChildPids()),
+            windows=_no_windows_on_the_desktop(),
             origenerator_slideshow_on=hosted.slideshow_on if hosted is not None else ()),
-        Publishing(dashboard_enabled=True, hud_publisher=hud_publisher),
+        publishing_to_the_dashboard_in_the_room,
     )
     voice_controller, voice_thread = start_voice_control(
         launch.prepared_voice, dispatch_runner=dispatch_runner)
@@ -684,8 +693,9 @@ def _close_the_session(
                               sibling_checkouts=manifest.runtime.sibling_checkouts)
     esc_cancels = (crossing.crossing_hint if crossing is not None
                    else CANCEL_CLOSING_FUN_TIME_VR if asked else "")
+    the_funestra_can_still_draw_it = funestra.poll() is None
     with _closing_screen(
-        state_dir, funestra, enabled=funestra.poll() is None, esc_cancels=esc_cancels,
+        state_dir, funestra, enabled=the_funestra_can_still_draw_it, esc_cancels=esc_cancels,
     ) as shutdown:
         if crossing is not None:
             hold_the_headset(state_dir, stop_runtime=not launched.runtime_was_up)
@@ -730,7 +740,7 @@ def _stop_the_controls(running: _Running) -> None:
     running.dispatch_runner.close()
 
 def _wait_for_the_headset_hold(state_dir: Path, funestra: subprocess.Popen) -> bool:
-    deadline = time.monotonic() + HEADSET_HOLD_ACK_TIMEOUT_S
+    deadline = time.monotonic() + HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S
     while time.monotonic() < deadline:
         if headset_is_held(state_dir):
             logger.info("The headset is holding the headset covered")
@@ -768,7 +778,7 @@ def main(argv: list[str] | None = None) -> int:
     config = apply_this_checkouts_overrides(load_config(args.config), integration=env.integration)
     set_up_logging(config)
 
-    _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
+    _mutex_handle = claim_the_session(the_one_sessions_mutex(config))
     if _mutex_handle is None:
         logger.warning("Another Fun Time session (desktop or VR) is already running; exiting")
         tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)

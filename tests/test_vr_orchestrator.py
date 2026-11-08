@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import dataclasses
 import inspect
 import json
@@ -19,6 +20,7 @@ from app_support.testing import mutex_free
 from funestra.modes import MainMode
 
 from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows_bridge_startup
+from fun_time import orchestrator as desktop_orchestrator
 from fun_time.config import load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genau_config import GenauSettings
@@ -34,6 +36,8 @@ from fun_time.overlay_progress import (
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
     STARTING_VOICE_COMMANDS,
+    NullProgress,
+    PhaseProgress,
     StartupCancelled,
     parse_progress,
 )
@@ -65,6 +69,7 @@ from fun_time.shared_state import (
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time_vr import app, orchestrator, vr_runtime
+from fun_time_vr.bringup import SESSION_BRINGUP_TIMEOUT_S
 from fun_time_vr.funestras import VrSettings
 from fun_time_vr.loading_screen import (
     CLOSING_STATUS,
@@ -165,10 +170,20 @@ class TestVrManifest:
             str(tmp_path / "library" / "2D"),
         ]
 
-    def test_manifest_overrides_primary_sources_and_adds_the_vr_section(self, config):
+    def test_every_reader_of_the_manifest_sees_the_vr_rotation_as_the_main_sources(self, config):
         manifest = build_vr_manifest(config)
+
         assert manifest["media"]["main_funestra_library_sources"] == vr_main_sources(config)
-        vr = manifest["vr"]
+
+    def test_the_manifest_marks_the_vr_half_of_those_sources_for_narrowing_by_shape(self, config):
+        media = build_vr_manifest(config)["media"]
+
+        vr_half = media["vr_library_dirs"].split("|")
+        assert vr_half == [str(config.vr.library_dirs[0])]
+        assert set(vr_half) < set(media["main_funestra_library_sources"].split("|"))
+
+    def test_the_manifest_adds_the_vr_section(self, config):
+        vr = build_vr_manifest(config)["vr"]
         assert vr["funestra_module"] == VR_FUNESTRAS_MODULE
         assert vr["library_dirs"] == str(config.vr.library_dirs[0])
         assert vr["audio_device"] == "Example Headset"
@@ -490,6 +505,10 @@ class TestWaitForFunestra:
         assert ready is False
         assert "published no status" in caplog.text
 
+    def test_the_first_status_is_waited_past_a_cold_runtime_start_and_the_bring_up(self):
+        assert orchestrator.FUNESTRA_READY_TIMEOUT_S > (
+            vr_runtime.STARTUP_TIMEOUT_S + SESSION_BRINGUP_TIMEOUT_S)
+
 
 class TestTheCheckRun:
     def test_a_valid_config_checks_out(self, config, monkeypatch, tmp_path):
@@ -711,6 +730,23 @@ def _the_session_main_starts(config, argv: list[str]) -> MagicMock:
     return run_bridge
 
 
+def test_a_vr_session_claims_the_desktops_mutex_both_drive_the_same_state_files(config):
+    claimed: dict[str, str] = {}
+
+    def main_of(module) -> None:
+        with patch.object(module, "configure_logging", return_value=MagicMock()), \
+             patch.object(module, "install_exception_logging"), \
+             patch.object(module, "show_already_running_message"), \
+             patch.object(module, "claim_the_session",
+                          side_effect=lambda name: claimed.__setitem__(module.__name__, name)):
+            assert module.main(["--config", str(config.config_path)]) == 1
+
+    main_of(desktop_orchestrator)
+    main_of(orchestrator)
+
+    assert claimed["fun_time_vr.orchestrator"] == claimed["fun_time.orchestrator"] != ""
+
+
 class TestTheCheckoutsItsOwnCheckoutNames:
     def test_the_session_runs_the_sibling_checkouts_this_checkout_names(
             self, config, tmp_path, monkeypatch):
@@ -835,7 +871,7 @@ class TestHandingTheHeadsetOver:
     def test_a_funestra_that_never_answers_is_closed_as_before(self, tmp_path: Path):
         hold_the_headset(tmp_path, stop_runtime=False)
 
-        with patch.object(orchestrator, "HEADSET_HOLD_ACK_TIMEOUT_S", 0.0):
+        with patch.object(orchestrator, "HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S", 0.0):
             assert orchestrator._wait_for_the_headset_hold(
                 tmp_path, self._Alive()) is False
 
@@ -1038,6 +1074,18 @@ class TestTheAudioCompanionInVr:
         assert "for child in launched.children.values():" in _the_session_as_one_source()
 
 
+def _every_done_said(monkeypatch) -> list[str]:
+    said: list[str] = []
+
+    class Recording(PhaseProgress):
+        def finish(self) -> None:
+            said.append("DONE")
+            super().finish()
+
+    monkeypatch.setattr(orchestrator, "PhaseProgress", Recording)
+    return said
+
+
 class TestTheHeadsetsLoadingScreen:
     def test_a_stale_cancel_flag_cannot_abort_the_next_launch(self, tmp_path):
         stale = tmp_path / CANCEL_FILENAME
@@ -1076,12 +1124,15 @@ class TestTheHeadsetsLoadingScreen:
 
         assert parse_progress(loading_screen.progress_file.read_text(encoding="utf-8")).hint == ""
 
-    def test_clearing_writes_no_done(self, tmp_path):
+    def test_clearing_writes_no_done_the_loading_screen_goes_with_the_funestra(
+            self, tmp_path, monkeypatch):
+        said = _every_done_said(monkeypatch)
         loading_screen = _LoadingScreen(tmp_path)
         loading_screen.progress.advance("funestras")
 
         loading_screen.clear()
 
+        assert said == []
         assert not loading_screen.progress_file.exists()
         assert not loading_screen.cancel_file.exists()
 
@@ -1181,6 +1232,13 @@ class TestCancellingALaunch:
 
         assert pending_handoff(tmp_path) == DESKTOP
         assert "DONE" not in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
+
+    def test_where_esc_hands_back_to_is_read_before_the_teardown_takes_the_flag(
+            self, tmp_path, monkeypatch):
+        _code, _order, loading_screen = self._cancel(tmp_path, monkeypatch)
+
+        assert not loading_screen.cancel_file.exists()
+        assert pending_handoff(tmp_path) == DESKTOP
 
     def test_the_quit_chord_closes_the_hosted_app_fun_time_left_waiting(
             self, tmp_path, monkeypatch):
@@ -1295,6 +1353,45 @@ class TestTheClosingScreen:
             shutdown.advance("funestras")
 
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_no_closing_screen_when_the_funestra_that_would_draw_it_has_gone(self, config):
+        died = MagicMock(pid=202)
+        died.poll.return_value = 1
+        offered_to: list[bool] = []
+
+        @contextlib.contextmanager
+        def closing_screen(*_args, enabled, **_kwargs):
+            offered_to.append(enabled)
+            yield NullProgress()
+
+        _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "funestras",
+                          launch_vr_funestras=MagicMock(return_value=died),
+                          _closing_screen=closing_screen)
+
+        assert offered_to == [False]
+
+    def test_no_done_ends_the_closing_screen_it_goes_with_the_funestra(self, tmp_path, monkeypatch):
+        said = _every_done_said(monkeypatch)
+        (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
+
+        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True) as shutdown:
+            shutdown.advance("funestras")
+
+        assert said == []
+        assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_the_closing_line_is_there_before_the_funestra_is_asked_to_paint_it(
+            self, tmp_path, monkeypatch):
+        on_disk_when_asked: list[bool] = []
+        monkeypatch.setattr(
+            orchestrator, "wait_for_loading_screen_painted",
+            lambda _ready_file, **_k: on_disk_when_asked.append(
+                (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()) or True)
+
+        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True):
+            pass
+
+        assert on_disk_when_asked == [True]
 
     def test_the_funestra_is_the_last_child_teardown_kills(self):
         tree = ast.parse(_the_session_as_one_source())
@@ -1575,6 +1672,39 @@ class TestOpeningAVrSession:
 
         remembered.assert_not_called()
 
+    def test_whether_the_runtime_was_up_is_read_before_the_headset_process_wakes_it(self):
+        calls = _call_lines_in_run_vr_bridge()
+
+        assert calls["vr_runtime.runtime_was_running"] < calls["launch_vr_funestras"]
+        assert "vr_runtime.ensure_ready()" in inspect.getsource(app.main)
+
+    def test_a_launch_cancelled_before_the_headsets_phase_stops_no_runtime(self, config):
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        stopped: list = []
+
+        with _launch_stand_ins(
+            orchestrator, [],
+            launch_audio_companion=MagicMock(side_effect=StartupCancelled()),
+            _release_vr_runtime=orchestrator._release_vr_runtime,
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=False), \
+             patch.object(orchestrator.vr_runtime, "stop_the_runtime_a_session_started",
+                          stopped.append), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert stopped == []
+
+    def test_the_runtime_goes_after_the_funestra_whose_xr_session_it_held(self, config):
+        order: list = []
+
+        _end_a_vr_session(
+            orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+            kill_recorded_child=MagicMock(side_effect=lambda child: order.append(child.pid)),
+            _release_vr_runtime=MagicMock(side_effect=lambda *_a, **_k: order.append("runtime")),
+        )
+
+        assert order[-2:] == [202, "runtime"]
+
     def test_a_session_crossing_to_fun_time_says_esc_cancels_exiting_vr(self, config):
         def asked_to_cross(*_args, **_kwargs):
             request_handoff(config.paths.state_dir, DESKTOP)
@@ -1587,7 +1717,7 @@ class TestOpeningAVrSession:
 
         assert offered == ["Press Esc to cancel exiting VR"]
 
-    def test_a_session_crossing_to_fun_time_leaves_the_hotkey_script_listening(self, config):
+    def test_over_a_crossing_the_hotkey_script_stays_to_hear_esc_for_the_relay(self, config):
         def asked_to_cross(*_args, **_kwargs):
             request_handoff(config.paths.state_dir, DESKTOP)
             return "asked"

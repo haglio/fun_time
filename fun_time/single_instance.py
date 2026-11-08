@@ -3,12 +3,17 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
+from app_support.win32 import mutex_name
 from app_support.win32_loader import load_dll
 
 from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_ICON
 
 MUTEX_ORCHESTRATOR = "Global\\FunTime.Orchestrator"
+
+
+def the_one_sessions_mutex(config) -> str:
+    return mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)
 
 
 _WAIT_TIMEOUT = 0x00000102
