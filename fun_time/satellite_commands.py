@@ -16,7 +16,7 @@ from .command_value import FILTER, Command
 from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
-from .lock import a_hosted_lock_holds, build_discard_plan, unfavorite
+from .lock import a_hosted_lock_holds, build_discard_plan, trash_file_line, unfavorite
 from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
 from .mode_plan import EnhancementLevel
@@ -123,13 +123,20 @@ def _discard(
     state = state.with_satellite(funestra, locked=False)
     lock_ops: list[WindowOp] = []
     if plan.condemns:
-        move_to_trash(config.trash_dir, Path(condemned))
+        _send_to_trash(config, condemned)
         state, lock_ops = lock_a_loop_left_with_one_video(funestra, state, config, condemned)
         forget_indexed_video(condemned)
     logger.info(plan.log_message)
     flashed = WindowOp(op="message", key=plan.message_text, source=satellite_source(funestra),
                       level=MESSAGE if plan.condemns else FAVORITE)
     return state, [flashed, *lock_ops]
+
+
+def _send_to_trash(config: BridgeConfig, video: str) -> None:
+    if config.hosts_origenerator:
+        append_command(config.origenerator_cmd_file, trash_file_line(video))
+    else:
+        move_to_trash(config.trash_dir, Path(video))
 
 
 def lock_said(funestra: FunTimeFunestra, locked: bool) -> str:

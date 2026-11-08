@@ -19,6 +19,7 @@ from shared_ui.preview import Preview, window_title
 from fun_time.event_log import event_log_path
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import find_origenerators_window
+from fun_time.media_metadata import mark_favorite
 from fun_time.origenerator_switches import RfbMode
 from fun_time.process_tree import kill_process_tree
 from fun_time.satellite_control import read_satellite_status
@@ -251,6 +252,8 @@ _STUB_MAIN = textwrap.dedent(
             # a verb the session appends between the two, and an open slideshow lost
             # that way reads as a Funestra that never took the app's list.
             verbs = consume_command_file(command_file)
+            for verb in verbs:
+                note(f"told {verb}")
             if "QUIT" in verbs:
                 root.destroy()
                 return
@@ -639,6 +642,40 @@ def _hud_of(hud_file: Path, funestra: FunTimeFunestra):
     if hud is None or hud.title != f"Stub {funestra.label} slideshow":
         return None
     return hud
+
+
+def _told_the_stub(session) -> str:
+    log = session.config.paths.state_dir / "origenerator_stub.log"
+    return log.read_text(encoding="utf-8").upper() if log.exists() else ""
+
+
+@pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
+def test_a_trash_press_in_kino_hands_the_video_to_the_hosted_apps_trash():
+    portrait = FunTimeFunestra.PORTRAIT
+    temp_root = build_integration_temp_root()
+    stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
+    config_path = build_integration_config(temp_root)
+    _host_stub(config_path, stub_root)
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        session.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
+        wait_for(lambda: _own_videos(session, portrait) and Path(_playing(session, portrait))
+                 in _own_videos(session, portrait),
+                 desc="the Portrait Funestra to play one of its own clips")
+        session.write_dashboard_command("portrait_lock_on")
+        session.wait_for_new_log("Locked portrait satellite")
+        held = Path(_playing(session, portrait))
+        mark_favorite(held, session.config.regen.metadata_root, False)
+
+        session.write_dashboard_command("portrait_trash")
+        session.wait_for_new_log("Discarding from Funestra 2:")
+
+        wait_for(lambda: f"TOLD TRASH_FILE|{held}".upper() in _told_the_stub(session),
+                 desc="the hosted app to be told to send the clip to its Trash")
+        assert held.exists(), "Fun Time leaves the clip for the hosted app to move"
+        assert not any(session.trash_dir.iterdir())
+    finally:
+        session.stop()
 
 
 @pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
