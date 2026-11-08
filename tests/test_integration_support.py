@@ -120,7 +120,7 @@ def _hermetic_stop(session, monkeypatch):
     monkeypatch.setattr(session, "_reap_leftover_runtime_processes", lambda: None)
 
 
-def test_stop_taskkills_every_recorded_child(session):
+def test_stop_kills_every_child_the_terminated_orchestrator_orphaned(session):
     _write_bridge_pids(
         session,
         {
@@ -478,7 +478,7 @@ def test_a_runs_genau_plays_on_the_machines_numbers_off_a_port_of_its_own(tmp_pa
     raw = json.loads(machine.read_text(encoding="utf-8"))
     raw["genau"] = {"beats_per_loop": 2.0, "udp_port": GENAU_INBOUND_PORT}
     machine.write_text(json.dumps(raw), encoding="utf-8")
-    monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
+    monkeypatch.setattr(integration_support, "the_machines_config_path", lambda: machine)
     try:
         run = GenauSettings.read(build_integration_config(tmp_path / "run"))
     finally:
@@ -491,7 +491,7 @@ def test_a_runs_genau_plays_on_the_machines_numbers_off_a_port_of_its_own(tmp_pa
 def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for_it(
         tmp_path, monkeypatch):
     machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine", monkeypatch)
-    monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
+    monkeypatch.setattr(integration_support, "the_machines_config_path", lambda: machine)
     run = tmp_path / "run"
     try:
         config = load_integration_config(build_integration_config(run))
@@ -510,7 +510,7 @@ def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for
 
 def test_a_run_that_points_genau_at_a_made_up_folder_still_plays_the_machines_kino(tmp_path, monkeypatch):
     machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine", monkeypatch)
-    monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
+    monkeypatch.setattr(integration_support, "the_machines_config_path", lambda: machine)
     monkeypatch.setenv(integration_support.MACHINES_SETTINGS_ENV, os.environ[haglio_settings.SETTINGS_ENV])
     point_the_shared_settings_at(monkeypatch, made_up_genau(tmp_path / "test"))
     try:
@@ -563,6 +563,21 @@ def test_a_run_never_opens_the_microphone(isolated_ports):
 
 def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_ports):
     assert isolated_ports["genau"]["udp_port"] != GENAU_INBOUND_PORT
+
+
+def _bound_the_way_genau_binds(port: int) -> socket.socket:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("127.0.0.1", port))
+    return sock
+
+
+def test_windows_lets_a_second_genau_bind_the_port_a_first_one_holds():
+    first = _bound_the_way_genau_binds(0)
+    try:
+        _bound_the_way_genau_binds(first.getsockname()[1]).close()
+    finally:
+        first.close()
 
 
 def _every_value(node) -> list:
@@ -674,10 +689,37 @@ def test_a_sample_skips_the_videos_the_drive_cannot_serve_at_speed(monkeypatch, 
         probe=ReadProbe(lambda video: video != "b.mp4"),
     )
 
+    printed = capsys.readouterr().out
     assert len(chosen) == 2
     assert "b.mp4" not in chosen
-    assert "skipped one not readable at speed" in capsys.readouterr().out
-    assert "b.mp4" not in capsys.readouterr().out
+    assert "skipped one not readable at speed" in printed
+    assert "b.mp4" not in printed
+
+
+def test_a_draw_prints_its_seed_and_never_a_videos_name(monkeypatch, capsys):
+    monkeypatch.setenv("FUN_TIME_INTEGRATION_SEED", "7")
+
+    chosen = sample_library_videos(["video one.mp4", "video two.mp4", "video three.mp4"], 2, desc="clips")
+
+    printed = capsys.readouterr().out
+    assert "seed 7" in printed
+    assert not any(video in printed for video in chosen)
+
+
+def test_no_two_runs_without_a_seed_play_the_same_videos(monkeypatch):
+    monkeypatch.delenv("FUN_TIME_INTEGRATION_SEED", raising=False)
+    seeds = iter([11, 22])
+    monkeypatch.setattr(integration_support.random, "randrange", lambda _stop: next(seeds))
+    listed = [f"video {n}.mp4" for n in range(40)]
+
+    assert sample_library_videos(listed, 3, desc="clips") != sample_library_videos(listed, 3, desc="clips")
+
+
+def test_one_seed_draws_the_same_videos_whatever_order_the_folder_lists_them(monkeypatch):
+    monkeypatch.setenv("FUN_TIME_INTEGRATION_SEED", "7")
+    listed = [f"video {n}.mp4" for n in range(12)]
+
+    assert sample_library_videos(listed, 3, desc="clips") == sample_library_videos(listed[::-1], 3, desc="clips")
 
 
 def test_two_versions_of_one_video_count_once_towards_a_draw():
@@ -1043,7 +1085,15 @@ def test_no_check_links_a_file_or_dates_any_but_a_video_it_made():
         f"{reaches}")
 
 
-def test_a_run_takes_a_free_port_the_os_offers_only_if_it_is_none_of_the_machines():
+def test_a_worktree_without_the_machines_config_borrows_the_primary_checkouts(tmp_path, monkeypatch):
+    monkeypatch.setattr(integration_support, "DEFAULT_CONFIG_PATH",
+                        tmp_path / "worktree" / "fun_time_config.json")
+    monkeypatch.setattr(integration_support, "primary_checkout_of", lambda _checkout: tmp_path / "primary")
+
+    assert integration_support.the_machines_config_path() == tmp_path / "primary" / "fun_time_config.json"
+
+
+def test_a_port_of_the_machines_is_never_taken_however_free_it_is_right_now():
     offered = iter([OSR2_SLOT_PORT, 49999])
 
     class Probe:

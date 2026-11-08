@@ -534,12 +534,12 @@ def test_fun_time_main_funestra_nudge_seeks_playback(shared_integration_session:
 
 
 def _flashed_since(session: FunTimeIntegrationSession, count: int) -> list[tuple[str, str]]:
-    return [(flashed.message, flashed.source) for flashed in session.messages()[count:]]
+    return [(flashed.message, flashed.source) for flashed in session.messages_flashed_from_the_log()[count:]]
 
 
 def _said_to_the_portrait_funestra(session: FunTimeIntegrationSession, command: str,
                                    said: str) -> int:
-    flashed_before = len(session.messages())
+    flashed_before = len(session.messages_flashed_from_the_log())
     session.write_dashboard_command(
         format_spoken_command(command, spoken_at=time.monotonic(), said=said))
     return flashed_before
@@ -786,7 +786,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     assert not any(p.name == demoted_path.name for p in s.trash_dir.iterdir())
 
     s.wait_until(
-        lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.messages()),
+        lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.messages_flashed_from_the_log()),
         description="an \"Unfavorited\" notice over the Landscape Funestra",
     )
 
@@ -834,7 +834,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_trash(
     isolated_integration_session.wait_until(
         lambda: any(
             n.message == "Sent to Trash" and n.source == "portrait"
-            for n in isolated_integration_session.messages()
+            for n in isolated_integration_session.messages_flashed_from_the_log()
         ),
         description='a "Sent to Trash" notice over the Portrait Funestra',
     )

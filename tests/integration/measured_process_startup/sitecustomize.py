@@ -30,7 +30,11 @@ def started_by_coverage_process_start():
     return getattr(getattr(sys.modules.get("coverage"), "process_startup", None), "coverage", None)
 
 
+def stopped_before_coverages_own_final_save(saver: Saver) -> None:
+    atexit.register(saver.stop)
+
+
 if (measurement := started_by_coverage_process_start()) is not None:
     saver = Saver(measurement)
-    atexit.register(saver.stop)
+    stopped_before_coverages_own_final_save(saver)
     threading.Thread(target=saver.save_until_stopped, name="saves coverage", daemon=True).start()

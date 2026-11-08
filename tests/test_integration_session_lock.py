@@ -84,7 +84,7 @@ time.sleep(120)
 """
 
 
-def test_dead_holder_does_not_deadlock_the_queue(tmp_path):
+def test_windows_hands_a_dead_holders_mutex_to_the_next_waiter(tmp_path):
     name = _unique_name()
     sentinel = tmp_path / "held.flag"
     root = str(Path(__file__).resolve().parents[1])
@@ -141,6 +141,20 @@ def test_a_run_waiting_its_turn_gets_the_lock_when_the_run_holding_it_dies(tmp_p
             holder_proc.kill()
             holder_proc.wait(timeout=10)
         waiter.join(timeout=10)
+
+
+def test_a_lane_numbers_from_0_again_once_every_run_has_left_it():
+    name = _unique_name()
+    first, second = session_lock._Numbers(name), session_lock._Numbers(name)
+    assert (first.take(), second.take()) == (0, 1)
+    first.close()
+    second.close()
+
+    after = session_lock._Numbers(name)
+    try:
+        assert after.take() == 0
+    finally:
+        after.close()
 
 
 def test_runs_waiting_for_the_lock_get_it_in_the_order_they_started_waiting():

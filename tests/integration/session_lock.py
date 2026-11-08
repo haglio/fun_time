@@ -12,7 +12,8 @@ from typing import NamedTuple
 
 from app_support.win32_loader import load_dll
 
-INTEGRATION_LOCK_NAME = r"Global\fun_time_integration_run"
+_THE_NAMESPACE_EVERY_LOGIN_SESSION_SHARES = "Global\\"
+INTEGRATION_LOCK_NAME = f"{_THE_NAMESPACE_EVERY_LOGIN_SESSION_SHARES}fun_time_integration_run"
 
 FULL_RUN_GIVES_WAY_S = 20 * 60
 
@@ -54,7 +55,7 @@ _kernel32.CreateSemaphoreW.argtypes = [wintypes.LPVOID, wintypes.LONG, wintypes.
 _kernel32.ReleaseSemaphore.restype = wintypes.BOOL
 _kernel32.ReleaseSemaphore.argtypes = [wintypes.HANDLE, wintypes.LONG, ctypes.POINTER(wintypes.LONG)]
 
-_MOST_NUMBERS = 0x7FFFFFFF
+_MOST_NUMBERS = 2 ** (8 * ctypes.sizeof(wintypes.LONG) - 1) - 1
 
 
 class SingleInstanceLock:

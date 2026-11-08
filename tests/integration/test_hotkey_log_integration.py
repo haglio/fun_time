@@ -18,7 +18,7 @@ from fun_time.windows_bridge_orchestrator import _AppendOnWriteHandler
 from tests.ahk_script import function_source
 
 from .hidden_desktop import run_where_nothing_is_focused
-from .integration_support import ended_within, real_config_path, seen_within
+from .integration_support import ended_within, seen_within, the_machines_config_path
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -57,7 +57,7 @@ def _logging_script(tmp_path: Path, body: str) -> Path:
 
 
 def _ahk_exe() -> str:
-    return str(load_config(real_config_path()).paths.ahk_exe)
+    return str(load_config(the_machines_config_path()).paths.ahk_exe)
 
 
 @pytest.mark.parametrize("mode", ["r", "a"], ids=["while_polled", "while_appended_to"])

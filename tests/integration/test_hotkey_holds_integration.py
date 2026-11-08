@@ -9,7 +9,7 @@ from fun_time.config import load_config
 from tests.ahk_script import function_source
 
 from .hidden_desktop import run_where_nothing_is_focused
-from .integration_support import real_config_path
+from .integration_support import the_machines_config_path
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -55,7 +55,7 @@ def _holds_script(tmp_path: Path, steps: tuple[str, ...]) -> Path:
 def _suspended_after_each(tmp_path: Path, *steps: str) -> list[str]:
     mailbox = tmp_path / "ahk_cmd.txt"
     report = tmp_path / "suspended.txt"
-    ahk_exe = str(load_config(real_config_path()).paths.ahk_exe)
+    ahk_exe = str(load_config(the_machines_config_path()).paths.ahk_exe)
 
     exit_code = run_where_nothing_is_focused(
         [ahk_exe, "/ErrorStdOut", str(_holds_script(tmp_path, steps)), str(mailbox), str(report)])

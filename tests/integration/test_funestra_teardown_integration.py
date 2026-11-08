@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,9 +28,8 @@ TEARDOWNS = 30
 PROBE_TIMEOUT_S = 180.0
 
 
-def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: Path):
-    log = tmp_path / "faulthandler.log"
-    probe = run_within(
+def _closing_funestras_in_a_process_the_crash_may_take(log: Path) -> subprocess.CompletedProcess:
+    return run_within(
         [sys.executable, "-m", "tests.integration.teardown_probe", str(log), str(TEARDOWNS)],
         PROBE_TIMEOUT_S,
         cwd=Path(__file__).resolve().parents[2],
@@ -37,6 +37,11 @@ def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: P
         capture_output=True, text=True,
         **hidden_subprocess_kwargs(),
     )
+
+
+def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: Path):
+    log = tmp_path / "faulthandler.log"
+    probe = _closing_funestras_in_a_process_the_crash_may_take(log)
     caught = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
 
     assert probe.returncode == 0, (
