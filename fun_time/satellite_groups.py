@@ -243,7 +243,7 @@ def lock_a_loop_left_with_one_video(
     if not axis:
         return state, []
     items, _widened = _loop_items(funestra, axis, state, config, video_that_left)
-    if len(items) > 1:
+    if len([item for item in items if not same_video(item, video_that_left)]) > 1:
         return state, []
     send_satellite(config, funestra, LOCK_ON)
     state = clear_satellite_grouping(state.with_satellite(funestra, locked=True), funestra)

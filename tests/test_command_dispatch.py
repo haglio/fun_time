@@ -3180,6 +3180,38 @@ def test_marking_videos_trash_until_one_is_left_turns_the_loop_into_a_lock(tmp_p
             if op.key == "Locked"] == [("message", "Locked", "portrait", MESSAGE)]
 
 
+def _hosting_origenerator(config: BridgeConfig) -> BridgeConfig:
+    return replace(config, origenerator_enabled=True,
+                   origenerator_cmd_file=config.state_dir / "origenerator_cmd.txt")
+
+
+def test_a_video_handed_to_origenerators_trash_stops_being_drawn_on_the_map(tmp_path: Path):
+    config, a, b = _loop_config(tmp_path, axis="seed")
+    config = _hosting_origenerator(config)
+    _set_current(config, 2, a)
+    assert nav_map_cells(_satellite_group_index(FunTimeFunestra.PORTRAIT, config, b), b)[0] == [a]
+
+    _discard(2, _up(), config)
+
+    index = _satellite_group_index(FunTimeFunestra.PORTRAIT, config, b)
+    assert Path(a).exists()
+    assert nav_map_cells(index, b)[0] == []
+
+
+def test_handing_videos_to_origenerators_trash_until_one_is_left_turns_the_loop_into_a_lock(
+        tmp_path: Path):
+    config, a, _b = _loop_config(tmp_path, axis="seed")
+    config = _hosting_origenerator(config)
+    _set_current(config, 2, a)
+    state, _ops = dispatch_command("portrait_seed_loop", _up(), config)
+
+    state, _ops = _discard(2, state, config)
+
+    assert Path(a).exists()
+    assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "TRASH", "LOCK_ON"]
+    assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
+
+
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
@@ -4735,6 +4767,38 @@ def test_discarding_a_demoted_video_again_marks_it_trash(tmp_path: Path):
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()
     assert [p.name for p in config.trash_dir.iterdir()] == ["twice.mp4"]
+
+
+def _a_kino_video(tmp_path: Path, name: str = "scene one.mp4") -> Path:
+    video = tmp_path / "portrait" / "sample site" / name
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"video")
+    return video
+
+
+def test_a_kino_trash_press_hands_the_video_to_origenerators_trash(tmp_path):
+    config = _origenerator_config(tmp_path)
+    video = _a_kino_video(tmp_path)
+    _set_current(config, 2, str(video))
+
+    _state, ops = dispatch_command("portrait_trash", _up(), config)
+
+    assert _origenerator_cmds(config) == [f"TRASH_FILE|{video}"]
+    assert _cmds(config, 2) == ["TRASH"]
+    assert video.exists()
+    assert list(config.trash_dir.iterdir()) == []
+    assert [op.key for op in ops] == ["Sent to Trash"]
+
+
+def test_a_kino_favorite_unfavorited_is_never_handed_to_origenerators_trash(tmp_path):
+    config = _origenerator_config(tmp_path)
+    video = _favorite_video(tmp_path, config, "kept.mp4")
+    _set_current(config, 2, str(video))
+
+    _state, ops = dispatch_command("portrait_trash", _up(), config)
+
+    assert _origenerator_cmds(config) == []
+    assert [op.key for op in ops] == ["Unfavorited"]
 
 
 class TestASessionThatHostsNoOrigenerator:
