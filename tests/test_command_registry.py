@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import ast
+import inspect
 import itertools
+import textwrap
+from functools import partial
 from types import SimpleNamespace
 
 import pytest
@@ -179,6 +183,37 @@ def test_every_loop_branch_is_reachable_and_known():
         assert branch in targets | _ahk_ids() | _dashboard_ids() | told_by_the_hosted_app, (
             f"loop branch {branch!r} is reachable from no surface"
         )
+
+
+_THE_LOOPS_LIVE_OBJECTS = frozenset({
+    "windows", "voice", "ahk_cmd_file", "broker",
+    "_publish_panel", "_handle_browse_library", "_log_topmost_state",
+})
+
+
+def _what_a_loop_command_reaches(handler, followed: frozenset[str] = frozenset()) -> set[str]:
+    function = handler.func if isinstance(handler, partial) else handler
+    reached: set[str] = set()
+    for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(function)))):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            if node.value.id in ("runner", "broker"):
+                reached.add(node.attr if node.value.id == "runner" else "broker")
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+              and node.func.id.startswith("_") and node.func.id not in followed):
+            helper = getattr(windows_bridge_dispatch_loop, node.func.id, None)
+            if callable(helper):
+                reached |= _what_a_loop_command_reaches(helper, followed | {node.func.id})
+    return reached
+
+
+def test_each_of_the_loops_own_commands_needs_one_of_its_live_objects():
+    stateless = sorted(
+        command for command, handler in windows_bridge_dispatch_loop._LOOP_COMMANDS.items()
+        if not _what_a_loop_command_reaches(handler) & _THE_LOOPS_LIVE_OBJECTS)
+
+    assert stateless == [], (
+        "these loop commands touch none of the loop's live objects, so they are"
+        f" command_dispatch's, a state in and window ops out: {stateless}")
 
 
 def test_the_reference_and_the_routes_agree():

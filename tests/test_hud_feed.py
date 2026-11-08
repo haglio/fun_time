@@ -569,9 +569,12 @@ class TestHudPublishing:
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, main_scripted_filter=True)) is False
 
-    def test_the_main_hud_offers_genaus_shapes_only_where_it_has_vr_videos(self, tmp_path):
-        state = BridgeState(main_mode=MainMode.GENAU, genau_plays_vr=False)
-
+    @pytest.mark.parametrize(("state", "vr_folders"), [
+        (BridgeState(main_plays_vr=False), "vr_library_dirs"),
+        (BridgeState(main_mode=MainMode.GENAU, genau_plays_vr=False), "genau_vr_flicks"),
+    ], ids=["kino", "genau"])
+    def test_the_main_hud_offers_shapes_only_where_its_mode_has_vr_videos(
+            self, tmp_path, state, vr_folders):
         def shape_buttons(config) -> set[tuple[str, bool]]:
             make_feed(tmp_path, config=config).publish(state)
             return {(button["command"], bool(button.get("lit")))
@@ -579,7 +582,7 @@ class TestHudPublishing:
                     if button.get("command", "").startswith("main_projection")}
 
         assert shape_buttons(make_config(tmp_path)) == set()
-        assert shape_buttons(make_config(tmp_path, genau_vr_flicks=str(tmp_path / "vr_flicks"))) == {
+        assert shape_buttons(make_config(tmp_path, **{vr_folders: str(tmp_path / "vr")})) == {
             ("main_projection_both", False), ("main_projection_none", True)}
 
     def test_the_main_huds_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
