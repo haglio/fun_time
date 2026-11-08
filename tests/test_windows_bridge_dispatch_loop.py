@@ -18,6 +18,7 @@ from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
+from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_PARKED
 from funestra.modes import MainMode, SatellitesMode
 from funestra.playlist import PlaylistItem, write_playlist
@@ -1188,7 +1189,7 @@ class TestWhatASpokenCommandFlashes:
     def test_favorites_said_to_a_satellite_in_kino_mode_flashes_its_f_mode_going_on(self, tmp_path):
         flashed = self._run_for_real(tmp_path, "landscape_say_favorites", "landscape favorites")
 
-        assert flashed == [("F-Mode enabled", "landscape", FAVORITE)]
+        assert flashed == [(f"{F_MODE_LABEL} enabled", "landscape", FAVORITE)]
 
     def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(self, tmp_path):
         flashed = self._run_for_real(
