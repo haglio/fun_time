@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
+from fun_time import overlay_progress
 from fun_time.overlay_progress import (
     ACTIVATING_ORIGENERATOR,
     APP_PHASES,
@@ -24,6 +27,7 @@ from fun_time.overlay_progress import (
     Progress,
     StartupCancelled,
     cancel_file_for,
+    keep_the_loading_screen_up,
     parse_progress,
     progress_file_argument,
     ready_file_for,
@@ -285,6 +289,35 @@ class TestNullProgressCancellation:
         progress = NullProgress()
         progress.advance("anything")
         assert progress.cancelled is False
+
+
+class TestKeepingTheLoadingScreenUp:
+    def test_a_done_file_left_behind_is_not_made_to_look_like_work_going_on(
+            self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(overlay_progress, "LOADING_SCREEN_HEARTBEAT_S", 0.01)
+        progress_file = tmp_path / PROGRESS_FILENAME
+        progress_file.write_text("DONE", encoding="utf-8")
+        long_ago = time.time() - 100
+        os.utime(progress_file, (long_ago, long_ago))
+
+        stop = keep_the_loading_screen_up(progress_file, name="test-heartbeat")
+        time.sleep(0.1)
+        stop()
+
+        assert progress_file.stat().st_mtime == pytest.approx(long_ago, abs=0.01)
+
+    def test_a_phase_still_in_flight_is_touched_each_beat(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(overlay_progress, "LOADING_SCREEN_HEARTBEAT_S", 0.01)
+        progress_file = tmp_path / PROGRESS_FILENAME
+        progress_file.write_text("70/340|Launching companions...", encoding="utf-8")
+        long_ago = time.time() - 100
+        os.utime(progress_file, (long_ago, long_ago))
+
+        stop = keep_the_loading_screen_up(progress_file, name="test-heartbeat")
+        time.sleep(0.1)
+        stop()
+
+        assert progress_file.stat().st_mtime > long_ago + 50
 
 
 class TestStartupStillBuilding:

@@ -164,6 +164,17 @@ def test_the_two_wordmarks_take_their_tone_from_one_place():
     assert overlay_window.opening_panel("Starting...").wordmark == preview_marker.APP_TITLE
 
 
+def test_the_label_holds_the_picture_it_shows():
+    label = MagicMock()
+    picture = object()
+
+    with patch("fun_time.overlay_window.ImageTk.PhotoImage", return_value=picture):
+        overlay_window._LabelCanvas(label).show(LoadingPanel(wordmark="Fun Time", status="Starting..."))
+
+    assert label.image is picture
+    label.configure.assert_called_once_with(image=picture)
+
+
 def test_a_loading_screen_process_loads_no_qt():
     loaded = subprocess.run(
         [sys.executable, "-c",
@@ -190,6 +201,17 @@ class TestTheLoadingScreenKeepsTheTopOfItsBand:
 
         assert looked_up == [(("Fun Time Loading",), {"exact": True})]
         assert banded.call_args_list == [call(4242, True), call(4242, True)]
+
+    def test_the_top_is_taken_back_through_windows_not_tks_topmost_flag(self, tmp_path: Path):
+        window = _loading_screen(tmp_path)
+        window._root.attributes = MagicMock()
+
+        with patch("fun_time.overlay_window.find_window_by_title", return_value=4242), \
+             patch("fun_time.overlay_window.set_always_on_top") as banded:
+            window._stay_on_top()
+
+        window._root.attributes.assert_not_called()
+        banded.assert_called_once_with(4242, True)
 
     def test_nothing_is_banded_before_the_window_can_be_found(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
@@ -226,7 +248,7 @@ class TestWhatEscWouldCancel:
 
         assert window.panel.hint == "Press Esc to cancel opening Fun Time"
 
-    def test_while_it_offers_esc_the_flag_turns_it_to_canceling(self, tmp_path: Path):
+    def test_an_esc_the_screen_never_saw_still_turns_it_to_canceling(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -409,6 +431,14 @@ class TestTakingOverFromTheLaunchersLoadingScreen:
 
         assert loading_screen._canvas.shown[-1].hint == "Press Esc to cancel opening Fun Time"
         assert loading_screen._root.painted == 1
+
+    def test_the_screen_reports_itself_shown_only_after_its_first_paint(self, tmp_path: Path):
+        loading_screen = _loading_screen(tmp_path)
+        painted_when_shown: list[int] = []
+
+        loading_screen.run(on_shown=lambda: painted_when_shown.append(loading_screen._root.painted))
+
+        assert painted_when_shown == [1]
 
     def test_once_up_it_tells_the_launchers_screen_to_go_and_leaves_it_this_panel(self, tmp_path: Path, place):
         place.stand(shared_loading_screen.Shown(left=0, top=0, fraction=0.5))

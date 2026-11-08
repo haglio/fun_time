@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -84,6 +85,29 @@ class TestTheLaunchersLoadingScreen:
         environment = popen.call_args.kwargs["env"]
         assert environment[loading_screen.FOLDER] == str(launched)
         assert environment["PYTHONPATH"].startswith(str(tmp_path))
+
+
+def test_the_transition_screen_is_handed_over_as_the_loading_screen_rises(tmp_path: Path):
+    raise_transition_screen(tmp_path, DESKTOP)
+
+    _opened_loading_screen(tmp_path)
+
+    assert parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8")).done
+
+
+def test_the_loading_screens_timing_is_written_into_the_launchs_own_log(tmp_path: Path, caplog):
+    launch_log = logging.getLogger("fun_time.orchestrator")
+    lines: list[str] = []
+    handler = logging.Handler()
+    handler.emit = lambda record: lines.append(record.getMessage())
+    launch_log.addHandler(handler)
+    try:
+        with caplog.at_level(logging.INFO, logger=launch_log.name):
+            _opened_loading_screen(tmp_path)
+    finally:
+        launch_log.removeHandler(handler)
+
+    assert any(line.startswith("Loading screen launched") for line in lines)
 
 
 def test_the_loading_screen_goes_the_moment_the_fun_time_that_raised_it_does(tmp_path: Path):

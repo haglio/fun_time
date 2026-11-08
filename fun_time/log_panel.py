@@ -66,8 +66,6 @@ from fun_time.log_panel_model import (
     with_what_was_heard,
 )
 
-_SOURCE_LABELS = SOURCE_LABELS
-
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,
     logging.INFO: TEXT_MUTED,
@@ -88,7 +86,7 @@ def level_color(level: int) -> QColor:
 _COPY_BUTTON_SIZE = 18
 _COPY_BUTTON_MARGIN = GAP_SMALL
 _COPY_ICON_SIZE = 12
-_COPY_FLASH_MS = 900
+_TICK_THAT_ANSWERS_THE_CLICK_MS = 900
 
 
 def _copy_icon(size: int, color: QColor) -> QIcon:
@@ -117,7 +115,7 @@ class _LevelDial(QComboBox):
 
 
 class LogPanelWidget(QWidget):
-    POLL_MS = 300
+    APPENDED_LINES_POLL_MS = 300
 
     @classmethod
     def for_session(cls, state_dir: Path) -> LogPanelWidget:
@@ -143,9 +141,9 @@ class LogPanelWidget(QWidget):
         self._build_ui()
 
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._poll)
-        self._timer.start(self.POLL_MS)
-        self._poll()
+        self._timer.timeout.connect(self._read_the_lines_other_processes_appended)
+        self._timer.start(self.APPENDED_LINES_POLL_MS)
+        self._read_the_lines_other_processes_appended()
 
 
     def _build_ui(self) -> None:
@@ -185,7 +183,7 @@ class LogPanelWidget(QWidget):
         self._source_buttons: dict[str, QToolButton] = {}
         for source in SOURCES:
             button = QToolButton(self)
-            button.setText(_SOURCE_LABELS[source])
+            button.setText(SOURCE_LABELS[source])
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
@@ -223,9 +221,9 @@ class LogPanelWidget(QWidget):
         self._list.setTextElideMode(Qt.TextElideMode.ElideNone)
         self._list.setMinimumWidth(0)
         outer.addWidget(self._list, stretch=1)
-        self._build_copy_button()
+        self._build_the_floating_copy_button()
 
-    def _build_copy_button(self) -> None:
+    def _build_the_floating_copy_button(self) -> None:
         viewport = self._list.viewport()
         self._copy_icon = _copy_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)
         self._copied_icon = _copied_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)
@@ -291,7 +289,7 @@ class LogPanelWidget(QWidget):
             return
         QApplication.clipboard().setText(item.text())
         self._copy_button.setIcon(self._copied_icon)
-        self._flash_timer.start(_COPY_FLASH_MS)
+        self._flash_timer.start(_TICK_THAT_ANSWERS_THE_CLICK_MS)
 
     def _restore_copy_icon(self) -> None:
         self._copy_button.setIcon(self._copy_icon)
@@ -319,7 +317,7 @@ class LogPanelWidget(QWidget):
             LogPanelState(verbosity=self._filter.verbosity, sources=self._filter.sources),
         )
 
-    def _poll(self) -> None:
+    def _read_the_lines_other_processes_appended(self) -> None:
         new, self._offset = read_events(self._event_log, self._offset)
         if not new:
             return

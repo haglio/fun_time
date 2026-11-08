@@ -37,7 +37,7 @@ class LoadingReveal:
     def routing_suppressed(self) -> bool:
         return self._routing_suppressed
 
-    def took_the_first_restore(self) -> bool:
+    def took_the_reveals_own_restore(self) -> bool:
         if not self._routing_suppressed:
             return False
         self._routing_suppressed = False
@@ -56,10 +56,12 @@ class LoadingReveal:
             self._reveal_where_it_sits()
 
     def _reveal_beneath(self, loading_screen: int) -> None:
-        # By the Windows rule, a window that is not topmost cannot be above one that is.
-        set_always_on_top(self._hwnd, False)
+        self._leave_the_band_a_shown_window_tops()
         self._reveal_where_it_sits()
         set_always_on_top(self._hwnd, True, under=loading_screen)
+
+    def _leave_the_band_a_shown_window_tops(self) -> None:
+        set_always_on_top(self._hwnd, False)
 
     def _reveal_where_it_sits(self) -> None:
         assert self._window is not None

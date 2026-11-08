@@ -6,6 +6,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
+from PyQt6 import sip
 from PyQt6.QtCore import QEvent, QPointF, QSize, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QMouseEvent
 from PyQt6.QtWidgets import QApplication, QToolButton
@@ -24,7 +25,12 @@ from shared_ui.spacing import (
 )
 
 from fun_time.event_log import FAVORITE, MESSAGE, EventRecord, event_line
-from fun_time.log_panel import _COPY_ICON_SIZE, LogPanelWidget, level_color
+from fun_time.log_panel import (
+    _COPY_BUTTON_MARGIN,
+    _COPY_ICON_SIZE,
+    LogPanelWidget,
+    level_color,
+)
 from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
@@ -158,8 +164,9 @@ def panel_factory(tmp_path: Path):
     yield factory
 
     for panel in built:
-        panel.shutdown()
-        panel.close()
+        if not sip.isdeleted(panel):
+            panel.shutdown()
+            panel.close()
     QApplication.clipboard().setText(users_clipboard)
 
 
@@ -186,7 +193,7 @@ def _copy_button(panel: LogPanelWidget) -> QToolButton:
 def _tail_advances(panel: LogPanelWidget, message: str) -> None:
     with panel._event_log.open("a", encoding="utf-8") as fh:
         fh.write(_event_line(message))
-    panel._poll()
+    panel._read_the_lines_other_processes_appended()
 
 
 class TestHoverCopyButton:
@@ -209,6 +216,32 @@ class TestHoverCopyButton:
         button.click()
         assert button.icon().pixmap(size).toImage() ==             icon_pixmap("check", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
+    def test_one_button_serves_every_row_however_many_are_rebuilt(self, panel_factory):
+        panel = panel_factory([f"Clip state {n}" for n in range(60)])
+        _hover_row(panel, 0)
+        the_button = _copy_button(panel)
+
+        _tail_advances(panel, "Similar clip")
+        _hover_row(panel, 5)
+
+        assert panel._list.viewport().findChildren(QToolButton) == [the_button]
+
+    def test_a_click_on_the_copy_button_moves_the_keyboard_focus_nowhere(self, panel_factory):
+        panel = panel_factory(["Clip state"])
+
+        assert _copy_button(panel).focusPolicy() == Qt.FocusPolicy.NoFocus
+
+    def test_the_timer_that_puts_the_copy_mark_back_dies_with_the_panel(self, panel_factory):
+        panel = panel_factory(["Clip state"])
+        _hover_row(panel, 0)
+        _copy_button(panel).click()
+        timer = panel._flash_timer
+        assert timer.isActive()
+
+        sip.delete(panel)
+
+        assert sip.isdeleted(timer)
+
     def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
         panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
@@ -217,6 +250,25 @@ class TestHoverCopyButton:
         QApplication.sendEvent(panel._list, QEvent(QEvent.Type.Leave))
 
         assert not _copy_button(panel).isVisible()
+
+    def test_aiming_at_the_button_does_not_take_it_away(self, panel_factory):
+        panel = panel_factory(["Clip state"])
+        _hover_row(panel, 0)
+
+        QApplication.sendEvent(panel._list.viewport(), QEvent(QEvent.Type.Leave))
+
+        assert _copy_button(panel).isVisible()
+
+    def test_a_line_wrapped_over_several_rows_keeps_its_button_where_the_line_begins(
+        self, panel_factory
+    ):
+        panel = panel_factory([" ".join(["alpha beta gamma"] * 12)])
+        row = panel._list.visualItemRect(panel._list.item(0))
+        assert row.height() > 2 * QFontMetrics(panel._list.font()).height()
+
+        _hover_row(panel, 0)
+
+        assert _copy_button(panel).y() == row.top() + _COPY_BUTTON_MARGIN
 
     def test_a_line_arriving_mid_hover_does_not_strand_the_button_on_a_dead_row(
         self, panel_factory
@@ -258,7 +310,7 @@ class TestWhatWasHeard:
     def _logged_by_count(self, panel: LogPanelWidget) -> None:
         with panel._event_log.open("a", encoding="utf-8") as fh:
             fh.write(event_line(_said(COUNTED, spoken_at=1.0, flashes=False)) + "\n")
-        panel._poll()
+        panel._read_the_lines_other_processes_appended()
 
     @pytest.mark.parametrize("words_first", [False, True])
     def test_a_line_about_something_said_lists_the_words_heard_in_place_of_their_count(
