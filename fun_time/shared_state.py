@@ -3,7 +3,7 @@ from __future__ import annotations
 import configparser
 import io
 import logging
-from dataclasses import MISSING, dataclass, field, fields, replace
+from dataclasses import dataclass, field, fields, replace
 from enum import Enum
 from pathlib import Path
 
@@ -142,7 +142,7 @@ def main_loop_bounds(state: BridgeState) -> tuple[int, int]:
 
 
 def _session_fields():
-    return [f for f in fields(BridgeState) if f.default is not MISSING]
+    return [f for f in fields(BridgeState) if f.default_factory is not SatelliteState]
 
 
 def write_shared_state(state_file: Path, state: BridgeState) -> None:

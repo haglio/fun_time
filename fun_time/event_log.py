@@ -10,7 +10,7 @@ from pathlib import Path
 MESSAGE = 25
 logging.addLevelName(MESSAGE, "NOTICE")
 
-FAVORITE = 26
+FAVORITE = MESSAGE + 1
 logging.addLevelName(FAVORITE, "FAVORITE")
 
 LEVELS_BY_NAME: dict[str, int] = {
@@ -21,6 +21,7 @@ LEVELS_BY_NAME: dict[str, int] = {
     "ERROR": logging.ERROR,
 }
 LEVEL_NAMES: tuple[str, ...] = tuple(LEVELS_BY_NAME)
+EVERYTHING_THE_DIAL_CAN_SHOW = min(LEVELS_BY_NAME.values())
 
 SOURCE_MAIN = "main"
 SOURCE_PORTRAIT = "portrait"
@@ -151,16 +152,16 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
 
 THE_LISTENERS_LOGGERS = ("voice_core",)
 
-_NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
+_LOGGERS_GIVEN_A_CONSOLE_OF_THEIR_OWN = ("fun_time.orchestrator",)
 
 
 def open_event_log(state_dir: Path) -> None:
     handler = EventLogHandler(start_event_log(state_dir))
-    handler.setLevel(logging.DEBUG)
-    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *THE_LISTENERS_LOGGERS):
+    handler.setLevel(EVERYTHING_THE_DIAL_CAN_SHOW)
+    for name in ("fun_time", *_LOGGERS_GIVEN_A_CONSOLE_OF_THEIR_OWN, *THE_LISTENERS_LOGGERS):
         target = logging.getLogger(name)
         for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
             target.removeHandler(existing)
         target.addHandler(handler)
     for name in ("fun_time", *THE_LISTENERS_LOGGERS):
-        logging.getLogger(name).setLevel(logging.DEBUG)
+        logging.getLogger(name).setLevel(EVERYTHING_THE_DIAL_CAN_SHOW)

@@ -12,6 +12,8 @@ from fun_time.shared_state import read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.window_layout import ScreenLayout, screen_layout, secondary_monitor_rects
 
+FLASH_POLL_MS = 250
+
 
 def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> FunestraRects:
     seats = secondary_monitor_rects(screens.secondary_monitor, screens.config, majority=majority)

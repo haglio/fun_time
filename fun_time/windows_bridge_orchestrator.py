@@ -220,7 +220,7 @@ def kill_recorded_child(child: ChildProcess) -> None:
         logger.info("Ended PID %d in %.1fs", child.pid, took_s)
 
 
-def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
+def _let_origenerator_save_and_close(child: ChildProcess | None) -> None:
     if child is None or not child.pid:
         return
     hwnd = find_origenerators_window(child.pid)
@@ -266,7 +266,7 @@ def see_the_hosted_app_out(
     if taken_over and command_file is not None:
         append_command(command_file, RELEASE)
         return True
-    _close_origenerator_gracefully(child)
+    _let_origenerator_save_and_close(child)
     return False
 
 
@@ -281,7 +281,7 @@ def let_go_of_a_kept_origenerator(state_dir: Path, command_file: Path) -> None:
         append_command(command_file, RELEASE)
         return
     child = ChildProcess(pid=kept.pid, created_at=kept.created_at)
-    _close_origenerator_gracefully(child)
+    _let_origenerator_save_and_close(child)
     kill_recorded_child(child)
 
 

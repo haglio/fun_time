@@ -88,7 +88,7 @@ from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
 from fun_time.loopback_inbox import PRESS_PORT_FILENAME, LoopbackInbox
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.message_feed import MessageFeed, screens_if_known
+from fun_time.message_feed import FLASH_POLL_MS, MessageFeed, screens_if_known
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
 from fun_time.project_paths import PROJECT_ICON
@@ -100,7 +100,6 @@ from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 logger = logging.getLogger(__name__)
 
 BAR_REFRESH_MS = 500
-MESSAGE_POLL_MS = 250
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -564,7 +563,7 @@ class DashboardWindow(QMainWindow):
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,
         )
-        self._timer_calling(self._messages.poll).start(MESSAGE_POLL_MS)
+        self._timer_calling(self._messages.poll).start(FLASH_POLL_MS)
         self._timer_calling(self._refresh).start(BAR_REFRESH_MS)
         self._refresh()
 
