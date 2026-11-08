@@ -177,15 +177,15 @@ def _regen_cfg(cfg_factory, tmp_path: Path) -> Path:
     )
 
 
-_UPSCALED = Path("kino") / "2D" / "AI" / "portrait"
+_UPSCALED = Path("2_outbox") / "upscaled_by_orientation" / "portrait"
 
 
 def _write_sidecar(tmp_path: Path, name: str, metadata: dict, *, source: str = "provider",
                    page: str = "") -> Path:
-    video = tmp_path / "videos" / "videos" / _UPSCALED / source / name
+    video = tmp_path / "videos" / "videos" / "2D" / "AI" / _UPSCALED / source / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
-    sidecar = _records(tmp_path) / _UPSCALED / source / Path(name).with_suffix(".json")
+    sidecar = _records(tmp_path) / "2D" / "AI" / _UPSCALED / source / Path(name).with_suffix(".json")
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(json.dumps(metadata), encoding="utf-8")
     mark_favorite(video, _records(tmp_path), True, page=page)

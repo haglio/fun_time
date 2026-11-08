@@ -111,6 +111,9 @@ def config(tmp_path, monkeypatch):
             "ahk_exe": "{ahk}",
             "python_exe": "{python}",
             "main_player_library_dirs": ["{flat}"],
+            "portrait_dirs": ["{flat}"],
+            "landscape_dirs": ["{flat}"],
+            "trash_dir": "{trash}",
             "state_dir": "{state}"
           }},
           "layout": {{
@@ -127,6 +130,7 @@ def config(tmp_path, monkeypatch):
             ahk=str(ahk).replace("\\", "/"),
             python=str(python).replace("\\", "/"),
             flat=str(flat_dir).replace("\\", "/"),
+            trash=str(tmp_path / "trash").replace("\\", "/"),
             state=str(tmp_path / "state").replace("\\", "/"),
             vr=str(vr_dir).replace("\\", "/"),
         ),

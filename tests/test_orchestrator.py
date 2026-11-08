@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app_support import kino_folder
 
 from fun_time import checkout_overrides, orchestrator
 from fun_time.config import load_config
@@ -167,12 +166,23 @@ class TestControllerManifest:
         assert str(extra) in joined
         assert "|" in joined
 
-    def test_each_satellite_plays_kinos_folder_of_its_own_shape(self, cfg_path: Path):
-        manifest = build_windows_bridge_manifest(load_config(cfg_path))
-        kino = kino_folder.upscales_in(kino_folder.kino_dir())
-
-        assert (manifest["portrait"]["sources"], manifest["landscape"]["sources"]) == (
-            str(kino / "portrait"), str(kino / "landscape"))
+    def test_portrait_and_landscape_dirs_joined_with_pipe(self, tmp_path: Path, cfg_factory):
+        portrait_extra = tmp_path / "portrait_extra"
+        landscape_extra = tmp_path / "landscape_extra"
+        portrait_extra.mkdir()
+        landscape_extra.mkdir()
+        path = cfg_factory({"paths": {
+            "portrait_dirs": [str(tmp_path / "portrait"), str(portrait_extra)],
+            "landscape_dirs": [str(tmp_path / "landscape"), str(landscape_extra)],
+        }})
+        cfg = load_config(path)
+        manifest = build_windows_bridge_manifest(cfg)
+        assert str(tmp_path / "portrait") in manifest["portrait"]["sources"]
+        assert str(portrait_extra) in manifest["portrait"]["sources"]
+        assert "|" in manifest["portrait"]["sources"]
+        assert str(tmp_path / "landscape") in manifest["landscape"]["sources"]
+        assert str(landscape_extra) in manifest["landscape"]["sources"]
+        assert "|" in manifest["landscape"]["sources"]
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)

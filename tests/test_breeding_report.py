@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app_support import kino_folder
-
 from fun_time.breeding_report import BreedingRow, build_breeding_rows, main, render_breeding_report
 from fun_time.media_metadata import metadata_path_for
 
@@ -15,7 +13,7 @@ def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path
     paths: dict[str, str] = {}
     for name, meta in videos.items():
         orientation = "portrait" if not name.startswith("wide_") else "landscape"
-        video = kino_folder.upscales_in(media_root / "kino") / orientation / "provider" / f"{name}.mp4"
+        video = media_root / orientation / "provider" / f"{name}.mp4"
         video.parent.mkdir(parents=True, exist_ok=True)
         video.write_text("x", encoding="utf-8")
         paths[name] = str(video)
