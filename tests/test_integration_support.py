@@ -19,7 +19,6 @@ from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import read_playlist
 
 from fun_time import funestra_status, windows_bridge_orchestrator
-from fun_time.config import load_config
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.genau_config import GenauSettings
 from fun_time.loopback_server import LOOPBACK_PORT
@@ -48,6 +47,7 @@ from tests.integration.integration_support import (
     joined_within,
     let_seconds_pass,
     library_videos,
+    load_integration_config,
     one_video_per_video,
     point_the_main_funestra_at,
     published_status,
@@ -61,6 +61,7 @@ from tests.integration.integration_support import (
 )
 from tests.integration.run_clock import keep_time_by
 from tests.made_up_clocks import SleepDrivenClock, StarvedRun
+from tests.made_up_genau import kino_upscales_at
 from tests.made_up_machine import running
 
 OSR2_SLOT_PORT = 50558
@@ -447,13 +448,14 @@ def test_a_runs_main_funestra_browses_the_runs_copy_of_the_library_not_the_machi
     assert config["main_player"]["videos_dir"] == str(run_videos)
 
 
-def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
+def _a_machines_config_over_a_made_up_library(root: Path, monkeypatch) -> Path:
     library = root / "videos"
     films = library / "videos" / "films"
     scripts = library / "scripts" / "scripts" / "films"
-    satellites = {satellite: library / "videos" / "made" / satellite for satellite in ("portrait", "landscape")}
+    kino = kino_upscales_at(monkeypatch, library / "videos")
+    satellites = {satellite: kino / satellite for satellite in ("portrait", "landscape")}
     for folder in (films / "full", scripts / "full", *satellites.values()):
-        folder.mkdir(parents=True)
+        folder.mkdir(parents=True, exist_ok=True)
     for name in ("scene one", "scene two"):
         (films / "full" / f"{name}.mp4").write_bytes(b"")
         (scripts / "full" / f"{name}.funscript").write_text("{}", encoding="utf-8")
@@ -463,7 +465,6 @@ def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
     config = _the_users_config()
     config["paths"].update(
         main_player_library_dirs=[str(films)],
-        portrait_dirs=[str(satellites["portrait"])], landscape_dirs=[str(satellites["landscape"])],
         state_dir=str(root / "state"))
     config["main_player"]["videos_dir"] = str(films)
     config["regen"]["metadata_root"] = str(library / "metadata")
@@ -473,7 +474,7 @@ def _a_machines_config_over_a_made_up_library(root: Path) -> Path:
 
 
 def test_a_runs_genau_plays_on_the_machines_numbers_off_a_port_of_its_own(tmp_path, monkeypatch):
-    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine")
+    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine", monkeypatch)
     raw = json.loads(machine.read_text(encoding="utf-8"))
     raw["genau"] = {"beats_per_loop": 2.0, "udp_port": GENAU_INBOUND_PORT}
     machine.write_text(json.dumps(raw), encoding="utf-8")
@@ -489,11 +490,11 @@ def test_a_runs_genau_plays_on_the_machines_numbers_off_a_port_of_its_own(tmp_pa
 
 def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for_it(
         tmp_path, monkeypatch):
-    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine")
+    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine", monkeypatch)
     monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
     run = tmp_path / "run"
     try:
-        config = load_config(build_integration_config(run))
+        config = load_integration_config(build_integration_config(run))
         manifest = LaunchManifest.read(write_windows_bridge_manifest(
             config, config.paths.state_dir / "windows_bridge_launch.ini"))
         main_list = build_bridge_config_from_manifest(manifest).main_list

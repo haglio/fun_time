@@ -24,6 +24,7 @@ from fun_time.modes import (
     write_playlist_file,
 )
 from tests.drive_fakes import files_that_never_answer
+from tests.made_up_genau import kino_upscales_at
 
 
 def _lines(playlist: Path) -> list[str]:
@@ -104,8 +105,9 @@ def test_build_satellite_playlist_paths_filters_to_favorites_in_f_mode(tmp_path:
     assert paths == [str(first)]
 
 
-def test_build_satellite_playlist_paths_keeps_the_clips_with_an_enhanced_version_or_without(tmp_path: Path):
-    upscaled = tmp_path / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider"
+def test_build_satellite_playlist_paths_keeps_the_clips_with_an_enhanced_version_or_without(
+        tmp_path: Path, monkeypatch):
+    upscaled = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "provider"
     upscaled.mkdir(parents=True)
     paired, alone = upscaled / "abc_topaz.mp4", upscaled / "xyz_topaz.mp4"
     original = tmp_path / "1_sorted" / "provider" / "portrait" / "abc.mp4"
