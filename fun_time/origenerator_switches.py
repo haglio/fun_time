@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from funestra.modes import SatellitesMode
 
+from .command_value import SAY, Command, Scope
 from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
@@ -52,6 +53,16 @@ BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode] = {
 def hosts(funestra: FunTimeFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
     return (funestra in FunTimeFunestra.SATELLITES and config.hosts_origenerator
             and state.satellite(funestra).handed_over)
+
+
+def aimed_at_the_hosted_app(command: Command, state: BridgeState,
+                            config: BridgeConfig) -> Command:
+    holding = next((funestra for funestra in FunTimeFunestra.SATELLITES
+                    if hosts(funestra, state, config)), None)
+    if command.said_to is not Scope.ACTIVE or holding is None:
+        return command
+    aimed = command.aimed_at_the_active(holding)
+    return aimed if aimed.action == SAY else command
 
 
 def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:

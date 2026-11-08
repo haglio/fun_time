@@ -21,7 +21,7 @@ from funestra.video_groups import normalize_path_key
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
-from fun_time.command_value import parse_command
+from fun_time.command_value import parse_command, say_command
 from fun_time.config import SatelliteChannel
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
 from fun_time.crown import Crown
@@ -5091,3 +5091,22 @@ class TestASatellitesSound:
         assert parse_command("active_unmute").aimed_at_the_active(1).text == "audio_unmute"
         assert parse_command("active_volume_down").aimed_at_the_active(1).text == "audio_volume_down"
         assert parse_command("active_volume_up").aimed_at_the_active(3).text == "landscape_volume_up"
+
+
+def test_the_hosted_apps_own_words_said_bare_with_the_main_funestra_targeted_reach_it(tmp_path):
+    config = _origenerator_config(tmp_path)
+    state = _in_origenerator_mode(FunTimeFunestra.LANDSCAPE)
+
+    _new_state, ops = dispatch_command(say_command("active", "populate on"), state, config)
+
+    assert ops == []
+    assert _origenerator_cmds(config) == ["LANDSCAPE_SAY:populate on"]
+
+
+def test_the_hosted_apps_words_said_bare_with_no_satellite_hosting_it_stay_ignored(tmp_path):
+    config = _origenerator_config(tmp_path)
+
+    _new_state, ops = dispatch_command(say_command("active", "populate on"), _up(), config)
+
+    assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
+    assert _origenerator_cmds(config) == []

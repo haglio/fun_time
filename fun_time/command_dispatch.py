@@ -37,7 +37,7 @@ from .genau_commands import about_genaus_flick
 from .hosted_contract import said_to_the_hosted_app, with_when_said
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
-from .origenerator_switches import hosts, hosts_a_satellite
+from .origenerator_switches import aimed_at_the_hosted_app, hosts, hosts_a_satellite
 from .satellite_commands import THE_FUNESTRAS_OWN, is_hud_nav_command, satellite_at_defaults
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
@@ -65,6 +65,7 @@ def dispatch_command(
         command = parse_command(command)
     if command.funestra is not None:
         state = _addressed(command.funestra, command, state)
+    command = aimed_at_the_hosted_app(command, state, config)
     reworded = _a_lock_said_in_the_hosted_apps_words(command, state, config)
     if reworded is not command:
         command, hosted = reworded, None
