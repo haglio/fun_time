@@ -177,15 +177,10 @@ def _dispatch_leave_omnipause(
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     ops = [WindowOp(op="restore_parked"), WindowOp(op="restore_all_topmost"),
-           WindowOp(op="unsuspend_hotkeys")]
-    ops.extend(_main_focus_ops())
+           WindowOp(op="unsuspend_hotkeys"), WindowOp(op="activate_window", key="main_funestra")]
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
-
-
-def _main_focus_ops() -> list[WindowOp]:
-    return [WindowOp(op="activate_window", key="main_funestra")]
 
 
 def _omnipause_toggle(state: BridgeState, config: BridgeConfig,

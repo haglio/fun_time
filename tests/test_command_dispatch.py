@@ -1008,7 +1008,7 @@ def test_crowning_the_main_funestra_takes_the_crown_back_from_the_portrait_funes
     assert new_state.crowned is Crown.MAIN
 
 
-def test_minimize_parks_that_funestras_window(tmp_path: Path):
+def test_a_funestras_own_minimize_parks_that_window_alone_not_all_of_fun_time(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=True))
 
@@ -2906,8 +2906,19 @@ def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
     assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
 
 
+def test_leaving_omnipause_leaves_a_locked_satellites_lock_standing(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(omni_paused=True, portrait=SatelliteState(locked=True))
+
+    new_state, _ops = dispatch_command("omnipause_toggle", state, config)
+
+    assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
+    assert _cmds(config, FunTimeFunestra.PORTRAIT) == []
+    assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
+
+
 @pytest.mark.parametrize("main_mode", list(MainMode))
-def test_leaving_omnipause_brings_the_main_funestra_forward_in_either_mode(
+def test_leaving_omnipause_activates_the_window_kino_and_genau_share_in_either_mode(
         tmp_path: Path, main_mode):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, main_mode=main_mode)

@@ -120,7 +120,7 @@ def hand_back(channel: SatelliteChannel, *, onto: str = "") -> bool:
     return True
 
 
-LET_GO_TIMEOUT_S = 3.0
+STALLED_APP_LET_GO_CEILING_S = 3.0
 
 
 class Departures:
@@ -154,7 +154,7 @@ class Homecoming:
                now: float) -> None:
         for funestra in funestras:
             self._coming[funestra] = (
-                now + LET_GO_TIMEOUT_S, hud_stamp(config.satellite(funestra)))
+                now + STALLED_APP_LET_GO_CEILING_S, hud_stamp(config.satellite(funestra)))
 
     def bring(self, state: BridgeState, config: BridgeConfig, *, now: float,
               left_on: Callable[[FunTimeFunestra], str]) -> list[FunTimeFunestra]:
