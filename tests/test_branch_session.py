@@ -188,6 +188,25 @@ def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
     ] == [live.paths.state_dir] * 2
 
 
+def test_a_key_this_generator_has_never_heard_of_rides_through_as_written(checkouts):
+    raw = json.loads(checkouts.config_path.read_text(encoding="utf-8"))
+    raw["paths"]["only_the_branch_reads_this"] = "C:/elsewhere/thing"
+    checkouts.config_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    written = branch_session.build_branch_config(
+        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary)
+
+    paths = json.loads(written.read_text(encoding="utf-8"))["paths"]
+    assert paths["only_the_branch_reads_this"] == "C:/elsewhere/thing"
+
+
+def test_an_unset_optional_is_not_written_as_a_file_called_none(checkouts):
+    written = branch_session.build_branch_config(
+        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary)
+
+    assert "origenerator_dir" not in json.loads(written.read_text(encoding="utf-8"))["paths"]
+
+
 def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
     live, branch = _live_and_branch(checkouts)
 
@@ -228,6 +247,19 @@ def test_without_an_override_the_machines_own_answer_rides_through(checkouts):
     live, branch = _live_and_branch(checkouts)
 
     assert branch.paths.sibling_checkouts == live.paths.sibling_checkouts
+
+
+def test_one_worktrees_sibling_checkouts_reach_no_other_session(checkouts):
+    other = _make_checkout(checkouts.primary / ".claude" / "worktrees" / "other")
+    machine_config = checkouts.config_path.read_text(encoding="utf-8")
+    _name_sibling_checkouts(checkouts.worktree, "C:/funestra/.claude/worktrees/mine\n")
+
+    live, _branch = _live_and_branch(checkouts)
+    others = branch_session.build_branch_config(
+        other, primary_config_path=checkouts.config_path, primary=checkouts.primary)
+
+    assert load_config(others, project_dir=other).paths.sibling_checkouts == live.paths.sibling_checkouts
+    assert checkouts.config_path.read_text(encoding="utf-8") == machine_config
 
 
 @pytest.mark.parametrize("override", ["C:/funestra/.claude/worktrees/mine\n", None])
@@ -338,7 +370,7 @@ pytestmark_shortcut = pytest.mark.skipif(
 
 
 @pytestmark_shortcut
-def test_the_shortcut_lands_in_the_branchs_own_folder(primary_with_launcher):
+def test_the_shortcut_lands_in_its_own_worktree_where_no_other_agent_tidies(primary_with_launcher):
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -437,6 +469,14 @@ def test_a_worktree_on_no_branch_is_named_after_its_directory():
 
     assert branch_session.shortcut_name(detached, branch_session.DETACHED) == (
         "Verify wonderful-ellis-fbdb9e.lnk"
+    )
+
+
+def test_a_shortcut_carries_the_branch_name_he_was_told_not_the_folders_slug():
+    worktree = Path("C:/checkouts/.claude/worktrees/wonderful-ellis-fbdb9e")
+
+    assert branch_session.shortcut_name(worktree, "claude/some-branch") == (
+        "Verify claude-some-branch.lnk"
     )
 
 
@@ -614,6 +654,21 @@ def test_removing_a_shortcut_leaves_every_other_branch_alone(primary_with_launch
 
 
 @pytestmark_shortcut
+def test_a_launcher_written_before_its_branch_was_renamed_still_comes_out(primary_with_launcher):
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+    git(primary_with_launcher.newer, "branch", "-m", "example/renamed")
+
+    removed = branch_session.remove_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert removed == [written]
+    assert not written.exists()
+
+
+@pytestmark_shortcut
 def test_one_the_old_placement_left_in_his_folder_still_comes_out_on_landing(
     primary_with_launcher,
 ):
@@ -713,7 +768,7 @@ def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Pat
     assert recorded.cwd == str(tmp_path.resolve())
 
 
-def _sessions_exit_with(monkeypatch, returncode: int) -> list[list[str]]:
+def _sessions_exit_with(monkeypatch, returncode: int, *, on_quit=lambda: None) -> list[list[str]]:
     real_popen = subprocess.Popen
     sessions: list[list[str]] = []
 
@@ -721,7 +776,7 @@ def _sessions_exit_with(monkeypatch, returncode: int) -> list[list[str]]:
         if command[0] == "git":
             return real_popen(command, *args, **kwargs)
         sessions.append(list(command))
-        return SimpleNamespace(wait=lambda: returncode)
+        return SimpleNamespace(wait=lambda: (on_quit(), returncode)[1])
 
     monkeypatch.setattr(branch_session, "build_branch_config",
                         lambda worktree, **_: worktree / "state" / "cfg.json")
@@ -868,6 +923,19 @@ def test_a_session_that_fails_on_a_current_worktree_is_not_blamed_on_its_age(
 
     assert returncode == 1
     assert not _note_left_in(repo_with_worktrees.newer).exists()
+
+
+def test_launch_returns_only_once_the_session_has_quit(repo_with_worktrees, monkeypatch):
+    (repo_with_worktrees.newer / "state").mkdir()
+    quit_at: list[str] = []
+    _sessions_exit_with(monkeypatch, 7, on_quit=lambda: quit_at.append("quit"))
+
+    returncode = branch_session.launch(
+        repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert quit_at == ["quit"]
+    assert returncode == 7
+
 
 
 def _sibling_repo(tmp_path: Path, repo: str = "funestra", *,

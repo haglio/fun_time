@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import ast
 import configparser
+import os
+import subprocess
+import sys
 from contextlib import ExitStack, contextmanager
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import kino_folder
+from app_support.win32 import stamp_pinned_shortcuts
 
 from fun_time import checkout_overrides, orchestrator
 from fun_time.config import load_config
@@ -31,6 +37,8 @@ from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
 from fun_time.windows_bridge_orchestrator import HotkeyScriptLaunch, SessionOver
 from tests.made_up_genau import point_the_shared_settings_at
+
+REPO_DIR = Path(__file__).resolve().parent.parent
 
 
 def _a_loading_screen() -> MagicMock:
@@ -474,35 +482,39 @@ class TestTheCrossingIntoTheOtherSession:
 
 
 class TestTheHeadsetIsAsleepBeforeTheRoomSaysWhyItClosed:
-    def test_the_headset_sleeps_before_the_words_go_up(self, cfg_path: Path):
+    def _closing_order(self, cfg_path: Path, *, crossing: bool) -> tuple[int, list[str]]:
+        config = load_config(cfg_path)
         order: list[str] = []
 
+        def a_session_that_ended_badly(*_args):
+            if crossing:
+                request_handoff(config.paths.state_dir, VR)
+            return SessionOver(1, why="a part closed itself")
+
         with _a_launch(
-            run_windows_bridge=MagicMock(return_value=SessionOver(1, why="a part closed itself")),
+            run_windows_bridge=MagicMock(side_effect=a_session_that_ended_badly),
             put_the_headset_to_sleep=MagicMock(side_effect=lambda *_a, **_k: order.append("asleep")),
             show_funestra_died_alert=MagicMock(side_effect=order.append),
-        ):
+        ), patch("fun_time.session_handoff.subprocess.Popen",
+                 side_effect=lambda *_a, **_k: order.append("relay")):
             code = main(["--config", str(cfg_path)])
+        return code, order
+
+    def test_the_headset_sleeps_before_the_words_go_up(self, cfg_path: Path):
+        code, order = self._closing_order(cfg_path, crossing=False)
 
         assert order == ["asleep", "a part closed itself"]
         assert code == 1
 
     def test_a_crossing_starts_only_once_the_words_are_answered(self, cfg_path: Path):
-        config = load_config(cfg_path)
-        order: list[str] = []
+        _code, order = self._closing_order(cfg_path, crossing=True)
 
-        def a_session_that_asked_to_cross(*_args):
-            request_handoff(config.paths.state_dir, VR)
-            return SessionOver(1, why="a part closed itself")
+        assert order[-2:] == ["a part closed itself", "relay"]
 
-        with _a_launch(
-            run_windows_bridge=MagicMock(side_effect=a_session_that_asked_to_cross),
-            show_funestra_died_alert=MagicMock(side_effect=order.append),
-        ), patch("fun_time.session_handoff.subprocess.Popen",
-                 side_effect=lambda *_a, **_k: order.append("relay")):
-            main(["--config", str(cfg_path)])
+    def test_the_relay_that_waits_on_this_mutex_is_spawned_last(self, cfg_path: Path):
+        _code, order = self._closing_order(cfg_path, crossing=True)
 
-        assert order == ["a part closed itself", "relay"]
+        assert order == ["asleep", "a part closed itself", "relay"]
 
     def test_an_error_that_ends_fun_time_puts_the_headset_to_sleep_even_mid_crossing(
         self, cfg_path: Path,
@@ -549,6 +561,19 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
 
         stamp.assert_called_once_with()
 
+    def test_a_retired_fun_time_vr_pin_is_not_stamped_as_fun_times(
+            self, tmp_path: Path, monkeypatch):
+        for name in ("Fun Time.lnk", "Fun Time VR.lnk"):
+            (tmp_path / name).write_bytes(b"")
+        stamped: list[str] = []
+        monkeypatch.setattr(orchestrator, "stamp_pinned_shortcuts", partial(
+            stamp_pinned_shortcuts, pins=tmp_path,
+            stamp=lambda path, _app_id: stamped.append(Path(path).name)))
+
+        orchestrator.stamp_shortcut_aumid()
+
+        assert stamped == ["Fun Time.lnk"]
+
 
 class TestOrchestratorSingleInstance:
     def test_shows_message_and_exits_when_already_running(self, cfg_path: Path):
@@ -583,6 +608,15 @@ class TestTheLoadingScreenGoesUpFirst:
 
     def test_the_session_is_the_last_thing_under_it(self, cfg_path: Path):
         assert self._order_of(cfg_path)[-1] == "session"
+
+    def test_the_session_modules_load_under_the_loading_screen_not_ahead_of_it(self):
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        loaded = subprocess.run(
+            [sys.executable, "-c", "import sys, fun_time.orchestrator; "
+             "print('fun_time.windows_bridge_orchestrator' in sys.modules)"],
+            cwd=str(REPO_DIR), env=env, capture_output=True, text=True, timeout=180, check=True)
+
+        assert loaded.stdout.strip() == "False"
 
     def test_the_loading_screen_says_the_engine_is_being_checked_while_it_is(self, cfg_path: Path):
         said: list[str] = []
@@ -679,3 +713,30 @@ class TestStartupMarker:
         assert result == 0
         assert not startup_marker_path(load_config(cfg_path)).exists()
 
+    def test_a_crash_past_the_marker_is_fun_times_to_report_not_the_launchers(self, cfg_path: Path):
+        with _a_launch(run_windows_bridge=MagicMock(side_effect=RuntimeError("a crash of its own"))), \
+             pytest.raises(RuntimeError, match="a crash of its own"):
+            main(["--config", str(cfg_path)])
+
+        assert startup_marker_path(load_config(cfg_path)).is_file()
+
+
+_SESSION_LAYERS = ("orchestrator", "windows_bridge_orchestrator",
+                   "windows_bridge_sequencer", "windows_bridge_startup")
+
+
+def _modules_imported_by(layer: str) -> set[str]:
+    tree = ast.parse((REPO_DIR / "fun_time" / f"{layer}.py").read_text(encoding="utf-8"))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.rsplit(".", 1)[-1])
+        elif isinstance(node, ast.Import):
+            imported.update(alias.name.rsplit(".", 1)[-1] for alias in node.names)
+    return imported
+
+
+class TestTheSessionIsFourLayers:
+    def test_no_session_layer_imports_one_above_it(self):
+        for depth, layer in enumerate(_SESSION_LAYERS):
+            assert not _modules_imported_by(layer) & set(_SESSION_LAYERS[:depth]), layer
