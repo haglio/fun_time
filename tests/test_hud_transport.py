@@ -17,7 +17,7 @@ def _hud(**overrides) -> SatelliteHud:
     base = {
         "funestra": "portrait", "locked": True, "title": "Locked",
         "current": "C:/v/cur.mp4", "seed_siblings": ["C:/v/s1.mp4"], "action_siblings": ["C:/v/a1.mp4"],
-        "current_action": "alpha", "action_labels": ("gamma",),
+        "current_action": "alpha", "action_lines": ("gamma",),
     }
     base.update(overrides)
     return SatelliteHud(**base)
@@ -168,7 +168,7 @@ def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
 
 def test_the_axis_a_loop_is_not_running_on_stays_capped():
     actions = [f"C:/v/a{i}.mp4" for i in range(9)]
-    hud = _hud(active_loop="seed", action_siblings=actions, action_labels=tuple("x" * 9))
+    hud = _hud(active_loop="seed", action_siblings=actions, action_lines=tuple("x" * 9))
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(hud, Path("C:/t"))

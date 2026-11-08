@@ -680,7 +680,7 @@ class TestBuildVoiceCommands:
         assert (built["portrait next"], built["portrait alpha"]) == (
             "portrait_next", "filter_portrait_alpha")
 
-    def test_a_label_name_that_is_already_a_spoken_command_leaves_the_command_as_it_was(self, caplog):
+    def test_an_action_name_that_is_already_a_spoken_command_leaves_the_command_as_it_was(self, caplog):
         built = build_voice_commands(
             filter_commands={"pause": "filter_satellites_pause", "alpha": "filter_satellites_alpha"},
             clip_jump_phrases=(),

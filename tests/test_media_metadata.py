@@ -336,7 +336,7 @@ def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_
                            metadata_root=metadata_root).entries == {}
 
 
-def test_a_video_with_labels_is_kept_by_a_label_and_never_by_the_sites_word():
+def test_a_video_with_actions_is_kept_by_an_action_and_never_by_its_site_action():
     meta = {"video": {"action": "Gamma", "labels": ["alpha", "XYZ"]}}
 
     assert [matches_query(meta, query) for query in ("alpha", "xyz", "gamma")] == [True, True, False]
@@ -363,7 +363,7 @@ def test_matches_query_drops_a_video_that_has_no_act_recorded():
     assert matches_query(unlabeled, "")
 
 
-def test_a_query_of_several_labels_keeps_a_video_carrying_all_of_them_in_any_order():
+def test_a_query_of_several_actions_keeps_a_video_carrying_all_of_them_in_any_order():
     meta = {"video": {"labels": ["alpha", "beta", "XYZ"]}}
 
     assert [matches_query(meta, query) for query in ("xyz, alpha", "alpha, gamma")] == [True, False]

@@ -53,7 +53,7 @@ class SatelliteHud:
     favorites_filter: bool = False
     latest: bool | None = None
     current_action: str = ""
-    action_labels: tuple[str, ...] = ()
+    action_lines: tuple[str, ...] = ()
     seed_count: int = 0
     action_count: int = 0
     filter_query: str = ""
@@ -223,7 +223,7 @@ class _NavMap:
     seed: list[str]
     action: list[str]
     current_action: str
-    action_labels: tuple[str, ...]
+    action_lines: tuple[str, ...]
     playing: str
     seed_count: int
     action_count: int
@@ -308,7 +308,7 @@ def _map_around(
         seed=seed,
         action=action,
         current_action=index.act_of(hold.anchor),
-        action_labels=tuple(index.act_of(item) for item in action),
+        action_lines=tuple(index.act_of(item) for item in action),
         playing=playing,
         seed_count=len(seed) + 1,
         action_count=len(action) + 1,
@@ -337,7 +337,7 @@ def build_hud(inputs: SatelliteInputs, *, index: GroupIndex | None) -> Satellite
         seed_siblings=drawn.seed,
         action_siblings=drawn.action,
         current_action=drawn.current_action,
-        action_labels=drawn.action_labels,
+        action_lines=drawn.action_lines,
         seed_count=drawn.seed_count,
         action_count=drawn.action_count,
         filter_query=inputs.filter_query,

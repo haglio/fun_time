@@ -51,7 +51,12 @@ from .funestra_deaths import (
     part_closed_message,
     the_part_that_closed,
 )
-from .hosted_contract import ASKING_BUDGET_S, NO_HOSTED_VOCABULARY, HostedVocabulary, publish_labels
+from .hosted_contract import (
+    ASKING_BUDGET_S,
+    NO_HOSTED_VOCABULARY,
+    HostedVocabulary,
+    publish_actions_heard_as,
+)
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_flick_sources
@@ -706,7 +711,7 @@ def prepare_voice_control(
         def listen() -> None:
             try:
                 vocabulary = _what_it_answers(answer)
-                publish_labels(state_dir, vocabulary)
+                publish_actions_heard_as(state_dir, vocabulary)
                 voice_controller = VoiceController(
                     cmd_file=dashboard_cmd_file,
                     settings=settings,

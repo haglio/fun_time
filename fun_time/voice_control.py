@@ -181,7 +181,7 @@ class VoiceController:
         hosted_vocabulary = hosted.vocabulary
         self.commands = build_voice_commands(
             origenerator_phrases=hosted_vocabulary.phrases,
-            filter_commands=filter_voice_commands(dict(hosted_vocabulary.labels_heard_as)))
+            filter_commands=filter_voice_commands(dict(hosted_vocabulary.actions_heard_as)))
         self.hosted = hosted_vocabulary
         self._hosted_cmd_file = hosted.cmd_file
         self._hosted_said_at_suffix = hosted.said_at_suffix
