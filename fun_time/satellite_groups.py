@@ -11,6 +11,7 @@ from funestra.loop_cycle import LOCK, next_stop, standing_at
 from funestra.video_families import actions_text
 from funestra.video_groups import (
     GroupIndex,
+    VideoEntry,
     action_group_items,
     action_label,
     normalize_path_key,
@@ -19,7 +20,7 @@ from funestra.video_groups import (
 )
 
 from .bridge_records import BridgeConfig, WindowOp
-from .event_log import FAVORITE
+from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
 from .lock import a_lock_holds
 from .lock_hud import cell_path, locate_cell, nav_map_cells, navigate_cell
@@ -84,7 +85,7 @@ def cancel_lock(funestra: FunTimeFunestra, state: BridgeState, config: BridgeCon
     return state.with_satellite(funestra, locked=False)
 
 
-def clear_satellite_grouping(state: BridgeState, funestra: FunTimeFunestra) -> BridgeState:
+def with_nothing_held_on_the_queue(state: BridgeState, funestra: FunTimeFunestra) -> BridgeState:
     return state.with_satellite(funestra, loop="", nav_map_anchor="", widen_video="")
 
 
@@ -112,23 +113,23 @@ def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
     return items[0]
 
 
+def _another_seed_of_the_same_act(sibling: VideoEntry, current: VideoEntry) -> bool:
+    return (sibling.seed_key is not None
+            and sibling.seed_key[0] == current.seed_key[0]
+            and sibling.action == current.action
+            and sibling.seed_key[1] != current.seed_key[1])
+
+
 def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
     current_entry = index.entry(current)
-    current_action = current_entry.action
     if current_entry.seed_key is None:
         return None
     group, current_seed = current_entry.seed_key
     found: list[tuple[str, str]] = []
     for path in (m for m in index.seed_items.get(group, []) if Path(m).exists()):
         sibling = index.entry(path)
-        candidate = sibling.seed_key
-        if (
-            candidate
-            and candidate[0] == group
-            and sibling.action == current_action
-            and candidate[1] != current_seed
-        ):
-            found.append((candidate[1], path))
+        if _another_seed_of_the_same_act(sibling, current_entry):
+            found.append((sibling.seed_key[1], path))
     found.sort()
     if not found:
         return None
@@ -167,8 +168,12 @@ def cycle_variant(
         if action:
             ops.append(WindowOp(op="message", key=f"Action: {action}", source=source))
     else:
-        ops.append(WindowOp(op="message", key="Next seed", source=source))
+        ops.append(WindowOp(op="message", key=_AN_EXACT_SISTER_SAYS, source=source))
     return state, ops
+
+
+_AN_EXACT_SISTER_SAYS = "Next seed"
+_A_WIDENED_ROW_SAYS = "More seeds"
 
 
 def more_seeds(
@@ -186,7 +191,7 @@ def more_seeds(
         return state, [WindowOp(op="message", key="Widening net failed", source=source, level=logging.WARNING)]
     state = state.with_satellite(funestra, widen_video=current)
     state, _loop_ops = group_loop(funestra, state, config, target_path=current, axis="seed")
-    return state, [WindowOp(op="message", key="More seeds", source=source)]
+    return state, [WindowOp(op="message", key=_A_WIDENED_ROW_SAYS, source=source)]
 
 
 def wrong_action(
@@ -223,8 +228,8 @@ def group_loop(
         return state, ops
     items, widened = _loop_items(funestra, axis, state, config, current)
     if len(items) <= 1:
-        return _locked_by_a_loop_control(funestra, clear_satellite_grouping(state, funestra), config,
-                                         current)
+        return _locked_by_a_loop_control(funestra, with_nothing_held_on_the_queue(state, funestra),
+                                         config, current)
     state = cancel_lock(funestra, state, config)
     items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
     write_playlist_file(config.satellite(funestra).playlist_file, items,
@@ -248,16 +253,20 @@ def lock_a_loop_left_with_one_video(
     if len([item for item in items if not same_file_to_windows(item, video_that_left)]) > 1:
         return state, []
     send_satellite(config, funestra, LOCK_ON)
-    state = clear_satellite_grouping(state.with_satellite(funestra, locked=True), funestra)
-    return state, [WindowOp(op="message", key="Locked", source=satellite_source(funestra))]
+    state = with_nothing_held_on_the_queue(state.with_satellite(funestra, locked=True), funestra)
+    return state, [_locked_flash(funestra, starred=False)]
 
 
 def _locked_by_a_loop_control(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, current: str
 ) -> tuple[BridgeState, list[WindowOp]]:
     state, ops = lock_satellite(funestra, state, config, current)
-    return state, [WindowOp(op="message", key="Locked", source=satellite_source(funestra),
-                            level=FAVORITE), *ops]
+    return state, [_locked_flash(funestra, starred=True), *ops]
+
+
+def _locked_flash(funestra: FunTimeFunestra, *, starred: bool) -> WindowOp:
+    return WindowOp(op="message", key="Locked", source=satellite_source(funestra),
+                    level=FAVORITE if starred else MESSAGE)
 
 
 def loop_cycle(
@@ -286,7 +295,7 @@ def _loop_and_lock_off(
     return state, [WindowOp(op="message", key="Unlocked", source=satellite_source(funestra))]
 
 
-def _browse_after(browse: list[str], current: str) -> list[str]:
+def _led_by_the_video_on_screen(browse: list[str], current: str) -> list[str]:
     if not current or any(same_file_to_windows(path, current) for path in browse):
         return browse
     return [current, *browse]
@@ -314,7 +323,8 @@ def no_loop(
         regen_metadata_root=config.regen_metadata_root,
     )
     if browse:
-        write_playlist_file(config.satellite(funestra).playlist_file, _browse_after(browse, current),
+        write_playlist_file(config.satellite(funestra).playlist_file,
+                            _led_by_the_video_on_screen(browse, current),
                             metadata_root=config.regen_metadata_root)
         send_satellite(config, funestra, RELOAD_PLAYLIST)
     state = state.with_satellite(funestra, loop="")
