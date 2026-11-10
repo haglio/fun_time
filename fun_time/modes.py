@@ -266,11 +266,14 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
     return state_dir / f"{name}.tsv"
 
 
+def same_file_to_windows(left: str, right: str) -> bool:
+    return normalize_path_key(left) == normalize_path_key(right)
+
+
 def rotated_onto[T](entries: list[T], last_video: str, *,
                     path_of: Callable[[T], object] = lambda item: item.path) -> list[T]:
-    key = normalize_path_key(last_video)
     for position, item in enumerate(entries):
-        if normalize_path_key(str(path_of(item))) == key:
+        if same_file_to_windows(str(path_of(item)), last_video):
             return entries[position:] + entries[:position]
     return entries
 

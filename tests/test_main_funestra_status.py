@@ -4,6 +4,9 @@ from funestra.modes import LoopState
 
 from main_funestra.status import LibraryStatus, status_fields
 
+WHAT_LIGHTS_THE_MAIN_HUDS_LIBRARY_BUTTONS = (
+    "compilation", "has_compilation", "has_other_versions", "jump_to")
+
 
 class StubLoops:
     def __init__(self, state: LoopState = LoopState.NORMAL, bounds=None) -> None:
@@ -18,7 +21,7 @@ class TestStatusFields:
             "compilation", "has_compilation", "has_other_versions", "jump_to",
         ]
 
-    def test_a_running_loop_publishes_the_range_it_holds(self):
+    def test_a_running_loop_publishes_the_range_a_restart_hands_back(self):
         fields = status_fields(StubLoops(LoopState.LOOPING, (2000, 4000)))
 
         assert fields["loop_state"] == "looping"
@@ -36,16 +39,17 @@ class TestStatusFields:
         assert fields["loop_state"] == "recording"
         assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("0", "0")
 
-    def test_the_videos_place_in_the_library_is_published_for_the_main_huds_buttons(self):
-        library = LibraryStatus(compilation="Vol 3", has_compilation=True,
-                                has_other_versions=True, jump_to="clip")
+    def test_what_kino_knows_of_the_video_is_published_for_the_main_huds_buttons(self):
+        only_kino_knows = LibraryStatus(compilation="Vol 3", has_compilation=True,
+                                        has_other_versions=True, jump_to="clip")
 
-        fields = status_fields(StubLoops(), library)
-        unsaid = status_fields(StubLoops())
+        fields = status_fields(StubLoops(), only_kino_knows)
 
-        assert [fields[key] for key in ("compilation", "has_compilation",
-                                        "has_other_versions", "jump_to")] == [
+        assert [fields[key] for key in WHAT_LIGHTS_THE_MAIN_HUDS_LIBRARY_BUTTONS] == [
             "Vol 3", "1", "1", "clip"]
-        assert [unsaid[key] for key in ("compilation", "has_compilation",
-                                        "has_other_versions", "jump_to")] == [
+
+    def test_told_nothing_by_kino_the_file_leaves_those_buttons_dim(self):
+        untold = status_fields(StubLoops())
+
+        assert [untold[key] for key in WHAT_LIGHTS_THE_MAIN_HUDS_LIBRARY_BUTTONS] == [
             "", "0", "0", ""]

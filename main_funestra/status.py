@@ -11,9 +11,13 @@ class LibraryStatus:
     jump_to: str = ""
 
 
+def _range_a_restart_hands_back(loops) -> tuple[int, int]:
+    return loops.bounds or (0, 0)
+
+
 def status_fields(loops, library: LibraryStatus | None = None) -> dict[str, str]:
     library = library or LibraryStatus()
-    loop_in_ms, loop_out_ms = loops.bounds or (0, 0)
+    loop_in_ms, loop_out_ms = _range_a_restart_hands_back(loops)
     return {
         "loop_state": str(loops.state),
         "loop_in_ms": str(int(loop_in_ms)),

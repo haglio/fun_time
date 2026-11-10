@@ -26,17 +26,22 @@ def _publish(path: Path, video, *, fraction: float, image: bool = False) -> None
     )
 
 
+def _a_video_whose_stats_survive_pruning(tmp_path: Path, name: str) -> Path:
+    on_disk = tmp_path / name
+    on_disk.write_text("x", encoding="utf-8")
+    return on_disk
+
+
 def test_a_video_watched_to_the_end_is_recorded_as_a_completion(tmp_path):
-    video = tmp_path / "alpha.mp4"
-    video.write_text("x", encoding="utf-8")
+    video = _a_video_whose_stats_survive_pruning(tmp_path, "alpha.mp4")
     sampler = make_sampler(tmp_path)
 
     _publish(tmp_path / "portrait_status.txt", video, fraction=0.1)
-    sampler.sample_due(now=100.0, paused=False)
+    sampler.sample_due(now=100.0, omni_paused=False)
     _publish(tmp_path / "portrait_status.txt", video, fraction=0.9)
-    sampler.sample_due(now=101.1, paused=False)
+    sampler.sample_due(now=101.1, omni_paused=False)
     _publish(tmp_path / "portrait_status.txt", tmp_path / "beta.mp4", fraction=0.0)
-    sampler.sample_due(now=102.2, paused=False)
+    sampler.sample_due(now=102.2, omni_paused=False)
 
     stats = load_watch_stats(tmp_path / "watch_stats.json")
     assert stats[normalize_path_key(str(video))]["completions"] == 1
@@ -49,9 +54,9 @@ def test_an_image_on_a_satellite_books_nothing_however_far_its_hold_has_run(tmp_
 
     for now, fraction in ((100.0, 0.1), (101.1, 0.9)):
         _publish(tmp_path / "portrait_status.txt", image, fraction=fraction, image=True)
-        sampler.sample_due(now=now, paused=False)
+        sampler.sample_due(now=now, omni_paused=False)
     _publish(tmp_path / "portrait_status.txt", tmp_path / "next.png", fraction=0.0, image=True)
-    sampler.sample_due(now=102.2, paused=False)
+    sampler.sample_due(now=102.2, omni_paused=False)
 
     assert normalize_path_key(str(image)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
@@ -65,56 +70,50 @@ def _publish_main_funestra(path: Path, video, *, position_ms: int, duration_ms: 
     )
 
 
-def _make_video(tmp_path: Path, name: str) -> Path:
-    path = tmp_path / name
-    path.write_text("x", encoding="utf-8")
-    return path
-
-
 class TestSamplingCadence:
     def test_a_sample_inside_the_interval_is_not_taken_again(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        video = _make_video(tmp_path, "alpha.mp4")
+        video = _a_video_whose_stats_survive_pruning(tmp_path, "alpha.mp4")
 
         _publish(tmp_path / "portrait_status.txt", video, fraction=0.9)
-        sampler.sample_due(now=100.0, paused=False)
+        sampler.sample_due(now=100.0, omni_paused=False)
         _publish(tmp_path / "portrait_status.txt", tmp_path / "beta.mp4", fraction=0.0)
-        sampler.sample_due(now=100.1, paused=False)
+        sampler.sample_due(now=100.1, omni_paused=False)
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
-    def test_a_paused_room_is_not_sampled_at_all(self, tmp_path):
+    def test_a_position_held_near_the_end_under_omnipause_is_no_completion(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        video = _make_video(tmp_path, "alpha.mp4")
+        video = _a_video_whose_stats_survive_pruning(tmp_path, "alpha.mp4")
 
         _publish(tmp_path / "portrait_status.txt", video, fraction=0.9)
-        sampler.sample_due(now=100.0, paused=True)
+        sampler.sample_due(now=100.0, omni_paused=True)
         _publish(tmp_path / "portrait_status.txt", tmp_path / "beta.mp4", fraction=0.0)
-        sampler.sample_due(now=101.0, paused=False)
+        sampler.sample_due(now=101.0, omni_paused=False)
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
     def test_resuming_from_a_pause_does_not_sample_off_cadence(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        video = _make_video(tmp_path, "alpha.mp4")
+        video = _a_video_whose_stats_survive_pruning(tmp_path, "alpha.mp4")
 
         _publish(tmp_path / "portrait_status.txt", video, fraction=0.9)
-        sampler.sample_due(now=100.0, paused=False)
-        sampler.sample_due(now=100.6, paused=True)
+        sampler.sample_due(now=100.0, omni_paused=False)
+        sampler.sample_due(now=100.6, omni_paused=True)
         _publish(tmp_path / "portrait_status.txt", tmp_path / "beta.mp4", fraction=0.0)
-        sampler.sample_due(now=100.7, paused=False)
+        sampler.sample_due(now=100.7, omni_paused=False)
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
 
 class TestTheMainFunestra:
     def _sample(self, sampler, at: float) -> None:
-        sampler.sample_due(now=at, paused=False)
+        sampler.sample_due(now=at, omni_paused=False)
 
     def test_a_main_funestra_video_watched_to_the_end_then_departed_is_a_completion(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        watched = _make_video(tmp_path, "watched.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
+        watched = _a_video_whose_stats_survive_pruning(tmp_path, "watched.mp4")
+        nextv = _a_video_whose_stats_survive_pruning(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
         _publish_main_funestra(status, watched, position_ms=9000, duration_ms=10000)
@@ -127,8 +126,8 @@ class TestTheMainFunestra:
 
     def test_an_unknown_duration_yields_no_sample(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        early = _make_video(tmp_path, "early.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
+        early = _a_video_whose_stats_survive_pruning(tmp_path, "early.mp4")
+        nextv = _a_video_whose_stats_survive_pruning(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
         _publish_main_funestra(status, early, position_ms=5000, duration_ms=0)
@@ -140,8 +139,8 @@ class TestTheMainFunestra:
 
     def test_a_paused_main_funestra_is_not_watching(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        watched = _make_video(tmp_path, "watched.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
+        watched = _a_video_whose_stats_survive_pruning(tmp_path, "watched.mp4")
+        nextv = _a_video_whose_stats_survive_pruning(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
         _publish_main_funestra(status, watched, position_ms=9000, duration_ms=10000, paused=True)
@@ -153,7 +152,7 @@ class TestTheMainFunestra:
 
     def test_the_blank_between_videos_is_not_a_departure(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        watched = _make_video(tmp_path, "watched.mp4")
+        watched = _a_video_whose_stats_survive_pruning(tmp_path, "watched.mp4")
         status = tmp_path / "main_player_status.txt"
 
         _publish_main_funestra(status, watched, position_ms=9000, duration_ms=10000)
@@ -165,8 +164,8 @@ class TestTheMainFunestra:
 
     def test_next_marks_the_departed_main_funestra_video_as_a_skip(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        early = _make_video(tmp_path, "early.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
+        early = _a_video_whose_stats_survive_pruning(tmp_path, "early.mp4")
+        nextv = _a_video_whose_stats_survive_pruning(tmp_path, "next.mp4")
         status = tmp_path / "main_player_status.txt"
 
         _publish_main_funestra(status, early, position_ms=1000, duration_ms=10000)
@@ -178,15 +177,15 @@ class TestTheMainFunestra:
         stats = load_watch_stats(tmp_path / "watch_stats.json")
         assert stats[normalize_path_key(str(early))]["skips"] == 1
 
-    def test_a_trashed_video_is_booked_against_nobody(self, tmp_path):
+    def test_a_trashed_videos_departure_is_not_credited_as_a_completion(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        alpha = _make_video(tmp_path, "alpha.mp4")
+        alpha = _a_video_whose_stats_survive_pruning(tmp_path, "alpha.mp4")
 
-        _publish(tmp_path / "portrait_status.txt", alpha, fraction=0.2)
-        sampler.sample_due(now=100.0, paused=False)
+        _publish(tmp_path / "portrait_status.txt", alpha, fraction=0.9)
+        sampler.sample_due(now=100.0, omni_paused=False)
         sampler.note_command("portrait_trash")
         _publish(tmp_path / "portrait_status.txt", tmp_path / "beta.mp4", fraction=0.0)
-        sampler.sample_due(now=101.0, paused=False)
+        sampler.sample_due(now=101.0, omni_paused=False)
 
         assert load_watch_stats(tmp_path / "watch_stats.json") == {}
 
@@ -195,7 +194,7 @@ class TestBackDating:
     def _observe(self, sampler, satellite: str, video: str, *, at: float) -> None:
         _publish(sampler.satellite_status_files[2 if satellite == "portrait" else 3],
                  video, fraction=0.1)
-        sampler.sample_due(now=at, paused=False)
+        sampler.sample_due(now=at, omni_paused=False)
 
     def test_a_spoken_command_names_the_video_the_speaker_was_looking_at(self, tmp_path):
         sampler = make_sampler(tmp_path)
@@ -216,7 +215,7 @@ class TestBackDating:
         status = sampler.satellite_status_files[2]
         for at, image in ((100.0, "C:\\images\\meant.png"), (101.0, "C:\\images\\next.png")):
             status.write_text(f"video={image}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
-            sampler.sample_due(now=at, paused=False)
+            sampler.sample_due(now=at, omni_paused=False)
 
         assert sampler.video_at(parse_command("portrait_lock_on"), 100.2) == "C:\\images\\meant.png"
 
@@ -234,15 +233,15 @@ def _a_video_the_slideshow_left_for_an_image(tmp_path, *, next_pressed_on: str) 
     status = tmp_path / "portrait_status.txt"
     sampler = make_sampler(tmp_path)
     _publish(status, video, fraction=0.3)
-    sampler.sample_due(now=100.0, paused=False)
+    sampler.sample_due(now=100.0, omni_paused=False)
     if next_pressed_on == "the video":
         sampler.note_command("portrait_next")
     _publish(status, tmp_path / "scene one.png", fraction=0.1, image=True)
-    sampler.sample_due(now=101.1, paused=False)
+    sampler.sample_due(now=101.1, omni_paused=False)
     if next_pressed_on == "the image":
         sampler.note_command("portrait_next")
     _publish(status, tmp_path / "beta.mp4", fraction=0.0)
-    sampler.sample_due(now=102.2, paused=False)
+    sampler.sample_due(now=102.2, omni_paused=False)
     return load_watch_stats(tmp_path / "watch_stats.json").get(normalize_path_key(str(video)), {})
 
 

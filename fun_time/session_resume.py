@@ -13,7 +13,6 @@ from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.playback_rate import NORMAL_RATE
 from funestra.playlist import PlaylistItem, read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
-from funestra.video_groups import normalize_path_key
 
 from main_funestra.loop_verbs import SET_LOOP
 
@@ -21,7 +20,7 @@ from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import take_back_the_list
 from .funestra_settings import FunestraReports, with_what_the_funestras_report
 from .main_list import MainList, MainListSettings, new_shuffle_seed
-from .modes import rotated_onto
+from .modes import rotated_onto, same_file_to_windows
 from .shared_state import (
     BridgeState,
     SatelliteState,
@@ -74,7 +73,7 @@ def _resumed_satellite(satellite: SatelliteState, *, playlist_resumed: bool) -> 
 
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
     entries = read_playlist(playlist_file)
-    return bool(entries) and normalize_path_key(str(entries[0].path)) == normalize_path_key(video)
+    return bool(entries) and same_file_to_windows(str(entries[0].path), video)
 
 
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
@@ -108,7 +107,7 @@ def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file:
         write_shared_state(state_file, carried)
         videos = main_list.write(MainListSettings.of(carried), on_screen=on_screen).videos
     logger.info("The Main Funestra opens on the video it was left on"
-                if videos[:1] and normalize_path_key(videos[0]) == normalize_path_key(on_screen)
+                if videos[:1] and same_file_to_windows(videos[0], on_screen)
                 else "The Main Funestra opens at the top of its list")
     return carried
 
