@@ -27,19 +27,22 @@ class FakePlayback:
         self.playlist = [item.path for item in (playlist or [PlaylistItem(current)])]
         self.replaced: list[list[PlaylistItem]] = []
         self.played: list[tuple[Path, Path | None]] = []
-        self.loaded_first = 0
+        self.restarts = 0
 
     def replace_playlist(self, playlist, funscripts=None) -> None:
         funscripts = funscripts or {}
         self.replaced.append([PlaylistItem(path, funscripts.get(path)) for path in playlist])
         self.playlist = list(playlist)
+        if self.current_video not in self.playlist:
+            self.restarts += 1
 
     def load_playlist(self, playlist, funscripts=None) -> None:
         self.replace_playlist(playlist, funscripts)
-        self.loaded_first += 1
+        self.restarts += 1
 
     def play_file(self, video, funscript=None) -> None:
         self.played.append((video, funscript))
+        self.current_video = video
 
 
 class FakeMessages:
@@ -71,23 +74,23 @@ def _jumps(nav, current: Path, funscripts=None, playlist=None):
 class CountingNav:
     def __init__(self, real) -> None:
         self._real = real
-        self.asked: list[tuple[str, Path]] = []
+        self.walks: list[tuple[str, Path]] = []
 
-    def _forward(self, name: str, video: Path):
-        self.asked.append((name, video))
+    def _walk_the_library(self, name: str, video: Path):
+        self.walks.append((name, video))
         return getattr(self._real, name)(video)
 
     def compilation_of(self, video):
-        return self._forward("compilation_of", video)
+        return self._walk_the_library("compilation_of", video)
 
     def full_vid_of(self, video):
-        return self._forward("full_vid_of", video)
+        return self._walk_the_library("full_vid_of", video)
 
     def clip_of(self, video):
-        return self._forward("clip_of", video)
+        return self._walk_the_library("clip_of", video)
 
     def title_of(self, video):
-        return self._forward("title_of", video)
+        return self._walk_the_library("title_of", video)
 
 
 class TestWhatTheButtonsCanDoFromHere:
@@ -103,23 +106,23 @@ class TestWhatTheButtonsCanDoFromHere:
         assert _jumps(nav, second)[0].jump_to == "scene"
         assert _jumps(nav, scene)[0].jump_to == "clip"
 
-    def test_a_clip_whose_scene_is_not_in_the_library_says_nothing(self, tmp_path):
+    def test_the_usual_clip_whose_scene_was_never_kept_offers_no_jump(self, tmp_path):
         nav, first, _second, _scene = _world(tmp_path)
 
         assert _jumps(nav, first)[0].jump_to == ""
 
-    def test_the_library_is_walked_once_per_video_rather_than_per_ask(self, tmp_path):
+    def test_the_library_is_walked_once_per_video_however_often_the_hud_asks(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
         counting = CountingNav(nav)
 
         jumps, session, _messages = _jumps(counting, second)
         for _ in range(5):
             assert jumps.jump_to == "scene"
-        assert [video for name, video in counting.asked if name == "full_vid_of"] == [second]
+        assert [video for name, video in counting.walks if name == "full_vid_of"] == [second]
 
         session.current_video = scene
         assert jumps.jump_to == "clip"
-        assert [video for name, video in counting.asked if name == "full_vid_of"] == [second, scene]
+        assert [video for name, video in counting.walks if name == "full_vid_of"] == [second, scene]
 
 
 class TestResume:
@@ -133,7 +136,7 @@ class TestResume:
         assert session.played == [(second, None)]
         assert [video for video, _fs in session.replaced[-1]] == [first, second]
 
-    def test_a_volume_the_remembered_clip_is_not_in_is_dropped(self, tmp_path):
+    def test_a_pair_from_before_the_library_was_rebuilt_is_dropped_not_resumed(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, _messages = _jumps(nav, scene)
 
@@ -174,18 +177,22 @@ class TestEndCompilation:
 
         assert jumps.compilation == ""
         assert session.replaced[-1] == browse
-        assert session.loaded_first == 0
+        assert session.restarts == 0
 
-    def test_a_clip_the_length_mode_filtered_out_is_kept_anyway(self, tmp_path):
+    def test_a_clip_the_main_list_dropped_for_its_bigger_version_is_kept_anyway(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        bigger_version = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2_apo8_iris2.mp4",
+                               ClipRecord("Vol6", 9, "Alpha Scene 2", "Ann Bly"))
+        bigger_version.write_bytes(b"x" * 400)
         jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
-        without_it = [PlaylistItem(scene)]
+        one_version_per_family = [PlaylistItem(bigger_version), PlaylistItem(scene)]
 
-        jumps.end_compilation(without_it)
+        jumps.end_compilation(one_version_per_family)
 
-        assert session.replaced[-1] == [(second, None), (scene, None)]
-        assert session.loaded_first == 0
+        assert session.replaced[-1] == [(second, None), (bigger_version, None), (scene, None)]
+        assert session.restarts == 0
 
     def test_outside_a_compilation_it_does_nothing(self, tmp_path):
         nav, _first, _second, scene = _world(tmp_path)
@@ -254,7 +261,7 @@ class TestSingleVideoJumps:
         assert session.played == [(second, None)]
         assert messages.said == [("clip jump", MessageLevel.NORMAL)]
 
-    def test_a_miss_says_so_rather_than_moving(self, tmp_path):
+    def test_a_miss_is_said_as_a_warning_never_the_error_red(self, tmp_path):
         nav, first, _second, _scene = _world(tmp_path)
         jumps, session, messages = _jumps(nav, first)
 
@@ -263,13 +270,16 @@ class TestSingleVideoJumps:
         assert session.played == []
         assert messages.said == [("full video not available", MessageLevel.WARNING)]
 
-    def test_neither_jump_disturbs_the_compilation_it_is_inside(self, tmp_path):
+    def test_a_jump_to_one_video_replaces_no_list_so_the_volume_stays_named(self, tmp_path):
         nav, _first, second, _scene = _world(tmp_path)
-        jumps, _session, _messages = _jumps(nav, second)
+        jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
+        the_volumes_list = session.replaced[-1]
 
         jumps.play_full_vid()
+        jumps.play_clip_jump()
 
+        assert session.replaced[-1] is the_volumes_list
         assert jumps.compilation == "Vol6"
 
 
@@ -287,4 +297,4 @@ class TestWhatTheVideoIsCalled:
         for _ in range(5):
             assert jumps.title == "Ann Bly - Alpha Scene 2"
             assert jumps.jump_to == "scene"
-        assert [name for name, _video in counting.asked].count("title_of") == 1
+        assert [name for name, _video in counting.walks].count("title_of") == 1

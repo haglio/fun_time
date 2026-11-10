@@ -44,7 +44,11 @@ from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauS
 from main_funestra.kino import Kino, KinoLibrary
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from tests.dispatch_sweep import every_command, headset_config, sweep
-from tests.genau_fakes import FakeNotifier, FakeSink
+from tests.genau_fakes import (
+    FakeNotifier,
+    FakeSink,
+    every_thread_now_but_the_port_binding_udp_reader,
+)
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
 _OPS_WITH_NO_WINDOWS = frozenset({
@@ -144,12 +148,7 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
         outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink()),
         seams=GenauSeams(
             decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
-            start_thread=_every_thread_but_the_beats_reader_at_once))
-
-
-def _every_thread_but_the_beats_reader_at_once(*, target, args=(), name=""):
-    if name != "genau-udp":
-        target(*args)
+            start_thread=every_thread_now_but_the_port_binding_udp_reader))
 
 
 class _the_funestras_refusals:

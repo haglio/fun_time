@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fun_time.genau_engine import UDP_READER_THREAD
+
+
+def every_thread_now_but_the_port_binding_udp_reader(*, target, args=(), name=""):
+    if name != UDP_READER_THREAD:
+        target(*args)
+
 
 class FakeSink:
     def __init__(self) -> None:

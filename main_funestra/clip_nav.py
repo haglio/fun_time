@@ -17,7 +17,7 @@ def _tokens(text: str) -> set[str]:
     return set(_TOKEN.findall(text.lower()))
 
 
-def _size(video: Path) -> int:
+def _size_if_still_there(video: Path) -> int:
     try:
         return video.stat().st_size
     except OSError:
@@ -90,27 +90,24 @@ class ClipNav:
         comp = self.compilation_of(video)
         if not comp:
             return []
-        best: dict[int, Path] = {}
+        by_index: dict[int, list[Path]] = {}
         for sibling, m in self._clips.items():
-            if self.compilation_of(sibling) != comp:
-                continue
-            index = m.get("index", 0)
-            current = best.get(index)
-            if current is None or _size(sibling) > _size(current):
-                best[index] = sibling
-        return [best[i] for i in sorted(best)]
+            if self.compilation_of(sibling) == comp:
+                by_index.setdefault(m.get("index", 0), []).append(sibling)
+        return [_the_one_the_playlist_would_show(by_index[i]) for i in sorted(by_index)]
 
     def full_vid_of(self, video: Path) -> Path | None:
         meta = self._clips.get(video)
         if meta is None:
             return None
-        family = self._recorded_family(meta)
-        recorded = _largest([s for s in self._non_clips if self._family(s) == family])
-        if recorded is not None:
-            return recorded
+        family = self._family_evolver_matched_frames_to(meta)
+        matched_by_frames = _the_one_the_playlist_would_show(
+            [s for s in self._non_clips if self._family(s) == family])
+        if matched_by_frames is not None:
+            return matched_by_frames
         return _resolve(meta, [c for c in self._non_clips if c != video])
 
-    def _recorded_family(self, meta: dict) -> str | None:
+    def _family_evolver_matched_frames_to(self, meta: dict) -> str | None:
         scene = self._by_id.get(str(meta.get("full_video_id", "")))
         return self._family(scene) if scene is not None else None
 
@@ -118,13 +115,14 @@ class ClipNav:
         if video in self._clips:
             return None
         family = self._family(video)
-        recorded = _largest([
-            v for v, m in self._clips.items() if self._recorded_family(m) == family
+        matched_by_frames = _the_one_the_playlist_would_show([
+            v for v, m in self._clips.items() if self._family_evolver_matched_frames_to(m) == family
         ])
-        if recorded is not None:
-            return recorded
+        if matched_by_frames is not None:
+            return matched_by_frames
         text = _tokens(video.stem)
-        named = _largest([v for v, m in self._clips.items() if v != video and _matches(m, text)])
+        named = _the_one_the_playlist_would_show(
+            [v for v, m in self._clips.items() if v != video and _matches(m, text)])
         if named is not None:
             return named
         candidates = [
@@ -134,9 +132,8 @@ class ClipNav:
         only_clip = _only_candidate(candidates)
         if only_clip is None:
             return None
-        performer = _performer_of(self._clips[only_clip])
-        scenes = [s for s in self._non_clips if performer <= _tokens(s.stem)]
-        return only_clip if _only_candidate(scenes) is not None else None
+        hers = _her_only_scene(self._clips[only_clip], self._non_clips)
+        return only_clip if hers is not None else None
 
 
 def could_be_cut_from(meta: dict, scene: Path) -> bool:
@@ -148,8 +145,8 @@ def _performer_of(meta: dict) -> set[str]:
     return _tokens(str(meta.get("performer", "")))
 
 
-def _largest(candidates: list[Path]) -> Path | None:
-    return max(candidates, key=_size) if candidates else None
+def _the_one_the_playlist_would_show(candidates: list[Path]) -> Path | None:
+    return max(candidates, key=_size_if_still_there) if candidates else None
 
 
 def _only_candidate(candidates: list[Path]) -> Path | None:
@@ -160,11 +157,16 @@ def _only_candidate(candidates: list[Path]) -> Path | None:
         by_title.setdefault(stable_title(candidate.stem), []).append(candidate)
     if len(by_title) != 1:
         return None
-    return _largest(next(iter(by_title.values())))
+    return _the_one_the_playlist_would_show(next(iter(by_title.values())))
+
+
+def _her_only_scene(meta: dict, scenes: Iterable[Path]) -> Path | None:
+    return _only_candidate([s for s in scenes if could_be_cut_from(meta, s)])
 
 
 def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
-    named = _largest([c for c in candidates if _matches(meta, _tokens(c.stem))])
+    named = _the_one_the_playlist_would_show(
+        [c for c in candidates if _matches(meta, _tokens(c.stem))])
     if named is not None:
         return named
-    return _only_candidate([c for c in candidates if could_be_cut_from(meta, c)])
+    return _her_only_scene(meta, candidates)

@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 CONDEMN_RETRY_S = 0.25
 CONDEMN_PATIENCE_S = 30.0
+UDP_READER_THREAD = "genau-udp"
 
 Rescan = Callable[[bool], list[Path]]
 Narrow = Callable[[bool, bool], list[Path]]
@@ -159,7 +160,7 @@ def build_genau_engine(
         target=udp_reader,
         args=(UdpListener(settings.udp_host, settings.udp_port, broker,
                           stop_event or threading.Event(), log),),
-        name="genau-udp",
+        name=UDP_READER_THREAD,
     )
     controls = GenauControls(
         engine=BeatEngine(last_tick=clock()),

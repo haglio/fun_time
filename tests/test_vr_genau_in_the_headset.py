@@ -17,21 +17,20 @@ from funestra.messages import MessageWriter
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
 from fun_time.genau_config import GenauSettings
+from fun_time.genau_engine import UDP_READER_THREAD
 from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauSeams
 from main_funestra.genau_verbs import genau_f_mode
-from tests.genau_fakes import FakeNotifier, FakeSink
+from tests.genau_fakes import (
+    FakeNotifier,
+    FakeSink,
+    every_thread_now_but_the_port_binding_udp_reader,
+)
 
 
 def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray]:
     return [np.full((height, width, 3), i, dtype=np.uint8) for i in range(count)]
-
-
-def _run_now(*, target, args=(), name=""):
-    if name == "genau-udp":
-        return
-    target(*args)
 
 
 class HeldDecodes:
@@ -40,7 +39,7 @@ class HeldDecodes:
         self._held = []
 
     def __call__(self, *, target, args=(), name=""):
-        if name == "genau-udp":
+        if name == UDP_READER_THREAD:
             return
         if self.holding:
             self._held.append((target, args))
@@ -60,7 +59,7 @@ class WorldSetup:
     flat_flicks: tuple = ()
     start_flick: Path | None = None
     latest: bool = False
-    start_thread: Callable = _run_now
+    start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
 
 
 class World:
