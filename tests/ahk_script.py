@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / "windows_bridge_hotkeys.ahk"
+THE_RESIDENT_ENTRYPOINT_NO_TEST_CAN_IMPORT = Path(__file__).resolve().parents[1] / "windows_bridge_hotkeys.ahk"
 
 
 def script_text() -> str:
-    return SCRIPT.read_text(encoding="utf-8")
+    return THE_RESIDENT_ENTRYPOINT_NO_TEST_CAN_IMPORT.read_text(encoding="utf-8")
 
 
 def suspend_exempt_block() -> str:

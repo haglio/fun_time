@@ -55,6 +55,9 @@ VIDEO_ONLY_META = {
     }
 }
 
+THE_KIND_EVOLVER_RECORDS_FOR_EVERY_VIDEO = {"video": {"type": "short"}}
+
+
 _EXAMPLE_USERSCRIPT = (Path(__file__).resolve().parent.parent
                        / "fun_time" / "static" / "regen_autofill.example.user.js")
 
@@ -156,7 +159,7 @@ def test_a_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
 
 def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path):
     _media_root, metadata_root, video = _setup(
-        tmp_path, "portrait", "abc_topaz.mp4", {"video": {"type": "short"}},
+        tmp_path, "portrait", "abc_topaz.mp4", THE_KIND_EVOLVER_RECORDS_FOR_EVERY_VIDEO,
     )
 
     url = regen_url_for_video(
@@ -170,7 +173,7 @@ def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path)
 def test_a_sidecar_holding_only_the_stamps_offers_no_regenerate_link(tmp_path: Path):
     _media_root, metadata_root, video = _setup(
         tmp_path, "portrait", "abc_topaz.mp4",
-        {"video": {"type": "short"}, "watch": {"weight": 2.0}, "favorite": True},
+        {**THE_KIND_EVOLVER_RECORDS_FOR_EVERY_VIDEO, "watch": {"weight": 2.0}, "favorite": True},
     )
 
     url = regen_url_for_video(

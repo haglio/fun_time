@@ -29,9 +29,12 @@ def test_render_tab_page_embeds_the_target_and_the_label():
 
     assert f'"{REGEN_URL}"' in html
     assert '"https://example.com/image/abc"' in html
-    assert "__FT_TARGET__" not in html
-    assert "__FT_LABEL__" not in html
-    assert "__FT_VIDEO__" not in html
+
+
+def test_render_tab_page_fills_every_blank_the_static_page_leaves():
+    html = render_tab_page(TabTarget(REGEN_URL, "https://example.com/image/abc"))
+
+    assert re.findall(r"__FT_[A-Z]+__", html) == []
 
 
 def test_render_tab_page_wears_the_familys_look():

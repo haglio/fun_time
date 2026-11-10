@@ -19,7 +19,7 @@ from funestra.playlist import PlaylistItem, write_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
-from fun_time import preview_marker
+from fun_time import audio_commands, preview_marker, windows_bridge_startup
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.child_launch import no_child_log
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -60,11 +60,12 @@ from fun_time.windows_bridge_startup import (
     launch_satellite,
     launch_ui_companions,
     origenerator_interpreter,
+    origenerator_session_args,
     prepare_random_favs_browser_manifest,
     reap_orphaned_satellites,
     seed_startup_states,
     start_core_session,
-    taskbar_identity_args,
+    the_taskbar_identity_a_child_must_be_told,
 )
 from main_funestra.cli import build_parser as main_funestra_parser
 from satellite.contract import SatelliteChannels, WindowPlacement
@@ -330,6 +331,29 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
         _seed_startup_states(tmp_path, mode=mode)
 
         assert _genau_play_verb(tmp_path) == "PAUSE", mode
+
+
+def test_seed_startup_states_clears_what_a_crashed_session_left_queued_for_genau(
+        tmp_path: Path):
+    genau_cmd = tmp_path / "genau_cmd.txt"
+    genau_cmd.write_text("RESUME\nSET_VOLUME 10 0\n", encoding="utf-8")
+
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
+
+    assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
+
+
+def test_seed_startup_states_resumes_the_sound_through_the_live_commands_publisher(
+        tmp_path: Path):
+    assert windows_bridge_startup.publish_audio_level is audio_commands.publish_audio_level
+    with patch("fun_time.windows_bridge_startup.publish_audio_level") as published:
+        _seed_startup_states(tmp_path, volume=40, muted=True)
+
+    published.assert_called_once_with(
+        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
+        genau_cmd_file=tmp_path / "genau_cmd.txt",
+        audio_volume_file=tmp_path / "audio_volume.txt",
+        volume=40, muted=True)
 
 
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
@@ -1307,7 +1331,7 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
         assert self._identity(command) == APP_USER_MODEL_ID
 
     def test_it_is_the_identity_the_pinned_shortcut_is_stamped_with(self):
-        assert taskbar_identity_args() == ("--taskbar-identity", APP_USER_MODEL_ID)
+        assert the_taskbar_identity_a_child_must_be_told() == ("--taskbar-identity", APP_USER_MODEL_ID)
 
     def test_a_branch_sessions_funestras_join_its_own_button_wearing_its_yellow_letter(
             self, tmp_path: Path, monkeypatch):
@@ -1491,7 +1515,7 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "400",
         "--icon",
         str(PROJECT_ICON),
-        *taskbar_identity_args(),
+        *the_taskbar_identity_a_child_must_be_told(),
         "--genau-command-file",
         "a-state-dir/genau_cmd.txt",
         "--genau-paused-file",
@@ -1732,7 +1756,7 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
     assert cmd[cmd.index("--title") + 1] == "Landscape AI Funestra"
 
 
-def test_build_satellite_launch_command_leaves_the_audio_switchable():
+def test_a_satellites_volume_control_is_not_killed_by_a_no_audio_flag():
     cmd = _a_satellite_argv()
 
     assert "--no-audio" not in cmd
@@ -1992,6 +2016,31 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     assert not any(flag.startswith(("--portrait_", "--landscape_")) for flag in command)
     assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")
     assert "env" not in popen.call_args.kwargs
+
+
+def test_the_hosted_app_is_told_where_a_show_without_a_funestra_goes():
+    plan = WindowLayoutPlan(
+        portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
+        landscape=WindowRect(x=853, y=0, width=1707, height=1440),
+        dashboard=WindowRect(x=0, y=0, width=853, height=206),
+        random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+    )
+
+    args = origenerator_session_args(OrigeneratorSession(
+        layout_plan=plan,
+        command_file="state/origenerator_cmd.txt",
+        paused_file="state/origenerator_paused.txt",
+        status_file="state/origenerator_status.txt",
+        dashboard_cmd_file="state/dashboard_cmd.txt",
+        funestras={}))
+
+    for flag, value in (
+        ("--portrait-x", "2560"), ("--portrait-y", "0"),
+        ("--portrait-width", "1440"), ("--portrait-height", "1870"),
+        ("--landscape-x", "853"), ("--landscape-y", "0"),
+        ("--landscape-width", "1707"), ("--landscape-height", "1440"),
+    ):
+        assert args[args.index(flag) + 1] == value, flag
 
 
 def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
