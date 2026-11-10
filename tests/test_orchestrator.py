@@ -25,8 +25,8 @@ from fun_time.orchestrator import (
     require_dir,
     require_file,
     run_windows_bridge,
-    signal_startup_resolved,
     startup_marker_path,
+    tell_the_hidden_launcher_startup_resolved,
     validate_config,
 )
 from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
@@ -339,15 +339,24 @@ class TestBrokerHelpers:
 
 
 class TestRunController:
-    def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-        loading_screen = _a_loading_screen()
-
+    def _the_session_run_under(self, cfg, loading_screen):
         with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
              patch("fun_time.windows_bridge_orchestrator.run_session",
                    return_value=SessionOver(0)) as bridge:
-            result = run_windows_bridge(cfg, logger, SessionEnvironment(), loading_screen)
+            result = run_windows_bridge(cfg, MagicMock(), SessionEnvironment(), loading_screen)
+        return result, writer, bridge
+
+    def test_the_session_runs_under_the_loading_screen_already_up_never_its_own(self, cfg_path: Path):
+        the_one_the_launch_raised = _a_loading_screen()
+
+        _, _, bridge = self._the_session_run_under(load_config(cfg_path), the_one_the_launch_raised)
+
+        assert bridge.call_args.kwargs["loading_screen"] is the_one_the_launch_raised
+
+    def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+
+        result, writer, bridge = self._the_session_run_under(cfg, _a_loading_screen())
 
         assert result == SessionOver(0)
         writer.assert_called_once_with(cfg, dashboard_enabled=True)
@@ -360,7 +369,6 @@ class TestRunController:
             project_dir=cfg.project_dir)
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
         assert call_kwargs["env"] == SessionEnvironment()
-        assert call_kwargs["loading_screen"] is loading_screen
 
 
 class TestTheProcessEdgeReadsTheSwitchesOnce:
@@ -661,23 +669,25 @@ class TestStartupMarker:
     def test_signal_writes_the_marker(self, cfg_path: Path):
         cfg = load_config(cfg_path)
 
-        signal_startup_resolved(cfg)
+        tell_the_hidden_launcher_startup_resolved(cfg)
 
         assert startup_marker_path(cfg).is_file()
 
-    def test_signal_creates_the_state_dir_if_absent(self, cfg_factory, tmp_path: Path):
+    def test_a_second_launch_can_leave_the_marker_before_any_state_folder_exists(
+            self, cfg_factory, tmp_path: Path):
         cfg = load_config(cfg_factory({"paths": {"state_dir": str(tmp_path / "not_yet")}}))
 
-        signal_startup_resolved(cfg)
+        tell_the_hidden_launcher_startup_resolved(cfg)
 
         assert startup_marker_path(cfg).is_file()
 
-    def test_signal_swallows_write_failure(self, cfg_factory, tmp_path: Path):
-        blocked = tmp_path / "blocked_state"
-        blocked.write_text("", encoding="utf-8")
-        cfg = load_config(cfg_factory({"paths": {"state_dir": str(blocked)}}))
+    def test_a_marker_that_cannot_be_written_never_stops_the_launch(self, cfg_factory, tmp_path: Path):
+        a_real_file_where_the_state_dir_belongs = tmp_path / "blocked_state"
+        a_real_file_where_the_state_dir_belongs.write_text("", encoding="utf-8")
+        cfg = load_config(cfg_factory(
+            {"paths": {"state_dir": str(a_real_file_where_the_state_dir_belongs)}}))
 
-        signal_startup_resolved(cfg)
+        tell_the_hidden_launcher_startup_resolved(cfg)
 
         assert not startup_marker_path(cfg).exists()
 
@@ -688,7 +698,8 @@ class TestStartupMarker:
         assert result == 0
         assert startup_marker_path(load_config(cfg_path)).is_file()
 
-    def test_already_running_leaves_the_marker(self, cfg_path: Path):
+    def test_the_launcher_adds_no_failure_dialog_over_the_already_running_message(
+            self, cfg_path: Path):
         with _a_launch_with_the_machine_held_off(claim_the_session=MagicMock(return_value=None),
                        show_already_running_message=MagicMock()):
             result = main(["--config", str(cfg_path)])

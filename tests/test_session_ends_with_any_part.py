@@ -45,7 +45,7 @@ class _StillRunning:
         return 0
 
 
-def test_the_session_ends_when_a_part_of_its_app_closes(tmp_path, monkeypatch):
+def test_no_session_carries_on_with_satellites_showing_a_dead_origenerator(tmp_path, monkeypatch):
     monkeypatch.setattr(funestra_deaths, "process_started", _born(30))
 
     ended = _wait_for_the_session_to_end(

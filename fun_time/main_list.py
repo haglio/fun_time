@@ -65,7 +65,7 @@ class MainListSettings:
                        main_latest=self.latest, main_shuffle_seed=self.shuffle_seed)
 
     @property
-    def labels(self) -> list[str]:
+    def flags_no_playlist_can_show(self) -> list[str]:
         return [f"{SET_F_MODE} {int(self.scripted_filter)}"]
 
 

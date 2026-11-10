@@ -207,7 +207,7 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
     assert not main_funestra_cmd_file.exists()
 
 
-def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
+def test_f_mode_is_told_right_behind_the_reload_whose_list_cannot_show_it(tmp_path: Path):
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
@@ -230,7 +230,7 @@ def test_toggle_fmode_tells_main_funestra_the_flag_on_the_same_write_as_the_relo
     assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
 
 
-def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
+def _the_verbs_of_a_build_started_at_the_top(tmp_path: Path) -> tuple[list[str], Path, Path]:
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     old, new = root / "old.mp4", root / "new.mp4"
@@ -248,9 +248,20 @@ def test_the_main_funestra_can_be_started_at_the_top_of_the_new_list(tmp_path: P
         main_funestra_cmd_file=main_funestra_cmd_file, start_at_top=True,
     ))
 
-    assert main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
-        "RELOAD_PLAYLIST", "SET_F_MODE 0", f"PLAY_FILE {new}\t{script}",
-    ]
+    return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines(), new, script
+
+
+def test_a_jump_to_the_top_goes_last_onto_the_list_just_reloaded(tmp_path: Path):
+    verbs, new, _ = _the_verbs_of_a_build_started_at_the_top(tmp_path)
+
+    assert verbs[:2] == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
+    assert [verb.startswith(f"PLAY_FILE {new}") for verb in verbs] == [False, False, True]
+
+
+def test_the_jump_names_the_script_the_main_funestra_drives_the_osr2_from(tmp_path: Path):
+    verbs, new, script = _the_verbs_of_a_build_started_at_the_top(tmp_path)
+
+    assert verbs[-1] == f"PLAY_FILE {new}\t{script}"
 
 
 def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path):
@@ -430,8 +441,10 @@ def test_an_f_mode_rebuild_does_not_undo_a_satellites_own_filter(tmp_path: Path)
 def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    old = _make_action_video(portrait_root, metadata_root, "old", "Alpha", "scene one")
-    new = _make_action_video(portrait_root, metadata_root, "new", "Alpha", "scene two")
+    one_seed_family, another_the_filter_cannot_fold_into_it = "scene one", "scene two"
+    old = _make_action_video(portrait_root, metadata_root, "old", "Alpha", one_seed_family)
+    new = _make_action_video(portrait_root, metadata_root, "new", "Alpha",
+                             another_the_filter_cannot_fold_into_it)
     _make_action_video(portrait_root, metadata_root, "other", "Twirling", "scene three")
     os.utime(old, (1000, 1000))
     os.utime(new, (2000, 2000))
@@ -595,7 +608,7 @@ def test_apply_leave_omnipause_in_kino_mode_resumes_main_funestra_and_lifts_the_
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_kino_mode_leaves_genaus_motion_to_the_arbiter(flow_files):
+def test_leaving_omnipause_in_kino_never_starts_genau_against_a_funscript_still_driving(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["main_funestra_paused_file"].write_text("1", encoding="utf-8")
