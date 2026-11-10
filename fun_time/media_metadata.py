@@ -91,8 +91,9 @@ TITLE_FIELD = "title"
 
 
 def video_title(payload: dict, video: str | Path) -> str:
+    evolvers_name_for_the_movie_and_its_cast = str(payload.get(TITLE_FIELD, "") or "").strip()
     return (
-        str(payload.get(TITLE_FIELD, "") or "").strip()
+        evolvers_name_for_the_movie_and_its_cast
         or clip_title(payload)
         or recorded_group(payload, video)
         or Path(video).stem
@@ -134,8 +135,12 @@ def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
         video_suffixes=sorted(SUPPORTED_VIDEO_EXTS))
 
 
+def _keeps_every_video(query: str) -> bool:
+    return not normalized_text(query)
+
+
 def matches_query(metadata: dict, query: str) -> bool:
-    return not normalized_text(query) or actions_are_filtered(actions_text(metadata), query)
+    return _keeps_every_video(query) or actions_are_filtered(actions_text(metadata), query)
 
 
 def path_matches_query(
@@ -143,7 +148,7 @@ def path_matches_query(
     metadata_root: str | Path | None,
     query: str,
 ) -> bool:
-    if not normalized_text(query):
+    if _keeps_every_video(query):
         return True
     return matches_query(recorded_for(video_path, metadata_root), query)
 

@@ -114,11 +114,12 @@ def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):
 
 def test_handles_are_alphabetical_regardless_of_case_or_folder(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    for relative, group in (
+    shelved_so_the_folders_list_them_backwards = (
         ("big_batch/0 unsorted/gamma.mp4", "Gamma Scene"),
         ("big_batch/1 could use work/beta.mp4", "Beta Scene"),
         ("big_batch/3_good_to_go/processed/alpha.mp4", "alpha scene"),
-    ):
+    )
+    for relative, group in shelved_so_the_folders_list_them_backwards:
         _sidecar(metadata, _video(videos, relative), Sidecar(group))
 
     handles = build_library_handles(str(videos), metadata)
@@ -259,8 +260,9 @@ def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
     for index in range(3):
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
         _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
-    left = _video(videos, "big_batch/0 unsorted/excerpt_stuck.mp4")
-    _sidecar(metadata, left, Sidecar("Excerpt Stuck", carved_from="Reel One"))
+    held_open_by_a_session_through_the_move = _video(videos, "big_batch/0 unsorted/excerpt_stuck.mp4")
+    _sidecar(metadata, held_open_by_a_session_through_the_move,
+             Sidecar("Excerpt Stuck", carved_from="Reel One"))
 
     sections = {handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -383,8 +385,8 @@ def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_p
         clip = _video(videos, f"big_batch/cuts/0 unsorted/excerpt{index}.mp4")
         _sidecar(metadata, clip, Sidecar(f"Excerpt {index}", carved_from="Reel One"))
     _sidecar(metadata, _video(videos, "big_batch/whole/0 unsorted/beta.mp4"), Sidecar("Beta Scene"))
-    elsewhere = _video(videos, "small_batch/cuts/gamma.mp4")
-    _sidecar(metadata, elsewhere, Sidecar("Gamma Scene"))
+    under_the_same_word_in_another_folder = _video(videos, "small_batch/cuts/gamma.mp4")
+    _sidecar(metadata, under_the_same_word_in_another_folder, Sidecar("Gamma Scene"))
 
     sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
 
@@ -393,10 +395,11 @@ def test_one_folders_cuts_folder_never_reclassifies_another_folders_videos(tmp_p
 
 def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Path):
     videos, metadata = _library(tmp_path)
+    the_one_group_evolver_gives_both = "Beta Scene"
     excerpt = _video(videos, "big_batch/cuts/0 unsorted/beta_cut.mp4", size=64)
-    _sidecar(metadata, excerpt, Sidecar("Beta Scene", carved_from="Reel One"))
+    _sidecar(metadata, excerpt, Sidecar(the_one_group_evolver_gives_both, carved_from="Reel One"))
     whole = _video(videos, "big_batch/whole/3_good_to_go/beta.mp4", size=9000)
-    _sidecar(metadata, whole, Sidecar("Beta Scene"))
+    _sidecar(metadata, whole, Sidecar(the_one_group_evolver_gives_both))
 
     handles = build_library_handles(str(videos), metadata)
 
