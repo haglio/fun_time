@@ -103,7 +103,7 @@ _FUNESTRAS_NOTE = (
 _ORIGENERATOR_NOTE = (
     "Alone, a phrase reaches the satellite you last navigated.  Add “portrait”, "
     "“landscape”, or “satellites”, before it or after, to aim it, for example "
-    "“portrait experiments” or “fix face landscape”."
+    "“portrait fix hands” or “fix face landscape”."
 )
 _FUNESTRA_KEY_HEADERS = ("Portrait", "Landscape", "Main")
 
@@ -156,7 +156,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("help_reference", "help_reference_close"),
                 ),
             )),
-            _Group("Funestra", (
+            _Group("Funestras", (
                 _Row(
                     "F-mode all — spoken it needs the word \"all\", since bare \"f "
                     "mode\" reaches the Funestra you last navigated; each Funestra also "
@@ -321,7 +321,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     columns=(("Down",), ("S",), (",",)),
                 ),
                 _Row(
-                    "cycle enhancement level — the upscale, the original it was made "
+                    "cycle enhancement — the upscale, the original it was made "
                     "from, or an enhancement",
                     commands=("portrait_cycle_version_back", "portrait_cycle_version",
                               "landscape_cycle_version_back", "landscape_cycle_version",
@@ -376,7 +376,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "reset — back to every default: no filter, no lock, no loop, no "
                     "F-mode, normal speed, shuffled from the top; the Main Funestra's "
-                    "every length, shape, orientation and enhancement level too (leaving "
+                    "every length, shape, orientation and enhancement too (leaving "
                     "any compilation)",
                     commands=_every_funestra("reset"),
                 ),
@@ -410,7 +410,7 @@ _SECTIONS: tuple[_Section, ...] = (
                                    "landscape and portrait"),
                 ),
                 _Row(
-                    "included video types (enhancement level) — \"enhanced only\" keeps "
+                    "included video types (enhancement) — \"enhanced only\" keeps "
                     "what has an enhanced version, \"original only\" what has none, and "
                     "\"enhanced and original\" everything; said to a satellite in "
                     "Origenerator mode, \"enhanced only\" narrows its slideshow and "
@@ -428,7 +428,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("mute / unmute", commands=_sided("mute", "unmute") + _MAIN_SOUND[2:]),
             )),
             _Group("HUD", (
-                *(_Row(f"HUD {direction}",
+                *(_Row(f"move HUD {direction}",
                        commands=tuple(f"{scope}_hud_{direction}" for scope in ("portrait", "landscape", "main")),
                        columns=tuple((key,) for key in keys))
                   for direction, keys in _HUD_MOVE_KEYS.items()),
@@ -447,7 +447,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     controller=(TRIGGER,),
                 ),
                 _Row(
-                    "minimize the HUD — it collapses to a square with a plus on it, "
+                    "minimize HUD — it collapses to a square with a plus on it, "
                     "and the plus brings it back",
                     commands=_every_funestra("hud_minimize", "hud_restore"),
                 ),
@@ -561,9 +561,6 @@ _SECTIONS: tuple[_Section, ...] = (
         "Origenerator",
         (
             _Group("", (
-                _said_to_a_slideshow("play the experiments or requests", "experiments", "requests"),
-                _said_to_a_slideshow("play, pause, or stop the slideshow", "play slideshow",
-                                     "start slideshow", "pause slideshow", "stop slideshow"),
                 _said_to_a_slideshow("fix the image on screen — its face, hands, teeth, or eyes",
                                      "fix face", "fix hands", "fix teeth", "fix eyes"),
                 _said_to_a_slideshow(
