@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from app_support import haglio_settings, ports
 from app_support.flick_folder import flat_flicks_in
+from app_support.win32 import mutex_name
 
 from fun_time import config
 from fun_time.config import PROJECT_DIR as CONFIG_ROOT
@@ -15,6 +16,7 @@ from fun_time.config import ProjectConfig, load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+from fun_time.single_instance import MUTEX_ORCHESTRATOR
 from tests.made_up_genau import point_the_shared_settings_at
 
 
@@ -387,9 +389,14 @@ class TestLoopbackPort:
 
 
 class TestInstanceId:
-    def test_defaults_to_the_config_file(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.instance_id == str(cfg_path)
+    def test_every_config_is_a_session_of_its_own_by_default(self, cfg_path: Path, tmp_path: Path):
+        another_path = tmp_path / "another_fun_time_config.json"
+        another_path.write_text(cfg_path.read_text(encoding="utf-8"), encoding="utf-8")
+        one, another = load_config(cfg_path), load_config(another_path)
+
+        assert one.instance_id == str(cfg_path)
+        assert mutex_name(MUTEX_ORCHESTRATOR, one.instance_id) != mutex_name(
+            MUTEX_ORCHESTRATOR, another.instance_id)
 
     def test_a_config_can_name_another_sessions_identity(self, cfg_factory):
         path = cfg_factory({"instance_id": "C:/checkouts/fun_time/fun_time_config.json"})

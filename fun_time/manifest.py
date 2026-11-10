@@ -11,6 +11,17 @@ from .fun_time_funestras import FunTimeFunestra
 from .main_funestra_hud import main_funestra_hud_path
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
+_SWITCHED_ON, _SWITCHED_OFF = "1", "0"
+
+
+def _as_written(switched_on: bool) -> str:
+    return _SWITCHED_ON if switched_on else _SWITCHED_OFF
+
+
+def _parser_keeping_every_keys_spelling() -> configparser.ConfigParser:
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    return parser
 
 
 def build_windows_bridge_manifest(
@@ -70,7 +81,7 @@ def build_windows_bridge_manifest(
         **{funestra.label: config.satellite(funestra).as_manifest_section()
            for funestra in FunTimeFunestra.SATELLITES},
         "dashboard": {
-            "enabled": "1" if dashboard_enabled else "0",
+            "enabled": _as_written(dashboard_enabled),
         },
         "loopback": {
             "port": str(config.loopback_port),
@@ -82,7 +93,7 @@ def build_windows_bridge_manifest(
             "landscape_width_ratio": str(layout.landscape_width_ratio),
         },
         "random_favs_browser": {
-            "enabled": "1" if config.random_favs_browser.enabled else "0",
+            "enabled": _as_written(config.random_favs_browser.enabled),
             "shortcut_path": str(config.random_favs_browser.shortcut_path),
             "manifest_file": str(config.random_favs_browser_manifest_file),
         },
@@ -97,8 +108,7 @@ def build_windows_bridge_manifest(
 
 def write_manifest_data(data: dict[str, dict[str, str]], destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
+    parser = _parser_keeping_every_keys_spelling()
     parser.read_dict(data)
     with destination.open("w", encoding="utf-8") as fp:
         parser.write(fp)
@@ -231,8 +241,7 @@ class LaunchManifest:
     @classmethod
     def read(cls, path: str | Path) -> LaunchManifest:
         path = Path(path)
-        parser = configparser.ConfigParser()
-        parser.optionxform = str
+        parser = _parser_keeping_every_keys_spelling()
         parser.read(str(path), encoding="utf-8")
 
         def values_of(section: str, kind: type) -> dict[str, str]:
@@ -259,10 +268,10 @@ class LaunchManifest:
                    values_of(funestra.label, SatelliteChannel))
                for funestra in FunTimeFunestra.SATELLITES},
             dashboard_enabled=flag("dashboard", "enabled").strip()
-            not in {"", "0", "false", "False"},
+            not in {"", _SWITCHED_OFF, "false", "False"},
             loopback_port=int(flag("loopback", "port")),
             random_favs_browser=RandomFavsBrowserSettings(
-                enabled=flag("random_favs_browser", "enabled") == "1",
+                enabled=flag("random_favs_browser", "enabled") == _SWITCHED_ON,
                 shortcut_path=flag("random_favs_browser", "shortcut_path"),
                 manifest_file=flag("random_favs_browser", "manifest_file"),
             ),

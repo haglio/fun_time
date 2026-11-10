@@ -27,7 +27,7 @@ from fun_time import (
 from fun_time.config import DEFAULT_CONFIG_PATH
 from fun_time.media_metadata import SESSION_INDEXES
 from fun_time_vr import orchestrator as vr_orchestrator
-from fun_time_vr import vr_runtime, windows_sound
+from tests.headset_refusal import his_headset_refused
 from tests.logging_state import logging_given_back
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 from tests.process_state import the_guard_for
@@ -49,25 +49,25 @@ def _qapp():
         yield app
 
 
-_MUTATING_USER32_CALLS = (
+_USER32_CALLS_THAT_CHANGE_A_WINDOW = (
     "SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW", "BringWindowToTop",
     "SetActiveWindow",
 )
 
 
 @pytest.fixture(autouse=True)
-def _never_mutate_a_real_window(monkeypatch):
+def _never_change_a_window_of_his_live_fun_time(monkeypatch):
     def _inert(*_args, **_kwargs):
         return 0
 
-    for name in _MUTATING_USER32_CALLS:
+    for name in _USER32_CALLS_THAT_CHANGE_A_WINDOW:
         monkeypatch.setattr(win32._user32, name, _inert)
 
 
 @pytest.fixture(autouse=True)
-def _never_switch_a_real_browsers_tabs(monkeypatch):
+def _never_switch_the_tab_he_is_looking_at(monkeypatch):
     def _refuse():
-        raise RuntimeError("a unit test tried to reach a real browser's tabs")
+        raise RuntimeError("a unit test tried to reach the tabs of his own Chrome")
 
     monkeypatch.setattr(chrome_accessibility, "_Automation", _refuse)
 
@@ -84,34 +84,20 @@ def _never_listen_to_his_desktop(monkeypatch):
     monkeypatch.setattr(win32_events.PressAndCaretWatch, "start", lambda _watch: None)
 
 
-_WHAT_REACHES_HIS_HEADSET = {
-    (vr_runtime, "probe"): "asked the VR runtime for a headset",
-    (vr_runtime, "start_runtime"): "started the VR runtime",
-    (vr_runtime, "stop_runtime"): "stopped the VR runtime",
-    (windows_sound, "make_default"): "changed Windows' default sound device",
-}
-
-
 @pytest.fixture(autouse=True)
 def _never_reach_the_real_headset(monkeypatch):
-    reached = []
-
-    def refuse(what):
-        def refused(*_args, **_kwargs):
-            reached.append(what)
-            raise RuntimeError(f"a unit test {what}")
-        return refused
-
-    for (module, name), what in _WHAT_REACHES_HIS_HEADSET.items():
-        monkeypatch.setattr(module, name, refuse(what))
-    yield
-    if reached:
-        pytest.fail(f"a unit test reached his real headset: {', '.join(reached)}")
+    with his_headset_refused(monkeypatch):
+        yield
 
 
 @pytest.fixture(autouse=True)
-def _never_hold_the_live_loopback_port(monkeypatch):
+def _no_session_run_in_this_process_takes_his_loopback_port(monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
+
+
+_STARTUP_TIMEOUTS_OTHER_TESTS_PIN_AS_PRODUCTION_NUMBERS = (
+    "CLOSING_SCREEN_READY_CEILING_S", "POST_LOADING_RESOLVE_TIMEOUT_S",
+)
 
 
 @pytest.fixture(autouse=True)
@@ -121,8 +107,8 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "wait_for_window_by_title",
                         lambda _title, **_kwargs: 0)
     monkeypatch.setattr(raising_the_loading_screen, "wait_for_window", lambda _find, _timeout_s: 0)
-    monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_CEILING_S", 0)
-    monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
+    for timeout in _STARTUP_TIMEOUTS_OTHER_TESTS_PIN_AS_PRODUCTION_NUMBERS:
+        monkeypatch.setattr(windows_bridge_orchestrator, timeout, 0)
 
 
 _SCREENS_OVER_EVERY_MONITOR = (loading_screen, transition_screen, closing_screen)
@@ -133,20 +119,23 @@ _STARTS_A_SCREEN = re.compile(
 
 @pytest.fixture(autouse=True)
 def _never_start_a_real_loading_screen(monkeypatch):
-    create_process = _winapi.CreateProcess
+    the_start_under_any_mocked_popen = _winapi.CreateProcess
 
     def refuse_a_screen(application_name, command_line, *rest):
         if _STARTS_A_SCREEN.search(command_line or ""):
             pytest.fail(f"a unit test started a real screen over every monitor: {command_line}")
-        return create_process(application_name, command_line, *rest)
+        return the_start_under_any_mocked_popen(application_name, command_line, *rest)
 
     monkeypatch.setattr(_winapi, "CreateProcess", refuse_a_screen)
 
 
+_WHERE_A_SESSION_LOOKS_UP_ITS_HEARTBEAT = (orchestrator, session_handoff, vr_orchestrator)
+
+
 @pytest.fixture(autouse=True)
-def _never_leave_a_loading_screen_heartbeat_running(monkeypatch):
-    for module in (orchestrator, session_handoff, vr_orchestrator):
-        monkeypatch.setattr(module, "keep_the_transition_screen", lambda _state_dir: None)
+def _no_heartbeat_outlives_its_test_reading_its_tmp_path(monkeypatch):
+    for looks_it_up in _WHERE_A_SESSION_LOOKS_UP_ITS_HEARTBEAT:
+        monkeypatch.setattr(looks_it_up, "keep_the_transition_screen", lambda _state_dir: None)
 
 
 @pytest.fixture(autouse=True)
@@ -155,7 +144,7 @@ def _fresh_group_index_cache():
 
 
 @pytest.fixture(autouse=True)
-def _never_inherit_the_integration_flag(monkeypatch):
+def _never_act_as_if_on_the_hidden_desktop(monkeypatch):
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
 
 
