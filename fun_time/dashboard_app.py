@@ -4,6 +4,7 @@ import argparse
 import configparser
 import contextlib
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
@@ -486,6 +487,7 @@ class DashboardWindow(QMainWindow):
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
         rfb_rect: Rect | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         super().__init__()
         self._app_config = app_config
@@ -496,7 +498,7 @@ class DashboardWindow(QMainWindow):
                                          actions=partial(published_actions_heard_as, app_config.state_dir))
         self._reveal = LoadingReveal(app_config.state_dir)
 
-        self._flash = PressFlash()
+        self._flash = PressFlash(clock=clock)
         self._flash_going_out = self._timer_calling(self._show_presses)
         self._flash_going_out.setSingleShot(True)
         self._last_snapshot: DashboardSnapshot | None = None
@@ -707,11 +709,13 @@ def build_dashboard_window(
     *,
     launch_geometry: DashboardLaunchGeometry | None = None,
     rfb_rect: Rect | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> DashboardWindow:
     return DashboardWindow(
         app_config, compute_dashboard_bar_layout(),
         launch_geometry=launch_geometry,
         rfb_rect=rfb_rect,
+        clock=clock,
     )
 
 
