@@ -212,12 +212,12 @@ def kill_recorded_child(child: ChildProcess) -> None:
         return
     told_at = time.monotonic()
     still_running = kill_process_tree(child.pid)
-    took_s = time.monotonic() - told_at
+    held_the_quit_for_s = time.monotonic() - told_at
     if still_running:
         logger.warning("Gave up waiting for PID %d to end after %.1fs; still running: %s",
-                       child.pid, took_s, ", ".join(map(str, still_running)))
+                       child.pid, held_the_quit_for_s, ", ".join(map(str, still_running)))
     else:
-        logger.info("Ended PID %d in %.1fs", child.pid, took_s)
+        logger.info("Ended PID %d in %.1fs", child.pid, held_the_quit_for_s)
 
 
 def _let_origenerator_save_and_close(child: ChildProcess | None) -> None:
@@ -235,16 +235,20 @@ def _let_origenerator_save_and_close(child: ChildProcess | None) -> None:
     logger.warning("Origenerator did not close within 5s; the kill sweep takes it")
 
 
-def _park_the_hosted_origenerator(
+def _take_it_out_of_alt_tab(hwnd: int) -> None:
+    hide_window(hwnd)
+
+
+def _park_it_sparing_the_next_startup_its_boot(
     state_dir: Path, child: ChildProcess | None, command_file: Path, *, taken_over: bool,
 ) -> bool:
     if child is None or not child.pid:
         return False
-    hwnd = find_origenerators_window(child.pid)
-    if not hwnd:
+    window_to_adopt = find_origenerators_window(child.pid)
+    if not window_to_adopt:
         return False
     append_command(command_file, CLOSE_SLIDESHOWS)
-    hide_window(hwnd)
+    _take_it_out_of_alt_tab(window_to_adopt)
     keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at,
                           taken_over=taken_over)
     logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
@@ -259,7 +263,7 @@ def see_the_hosted_app_out(
     keep: bool,
     taken_over: bool,
 ) -> bool:
-    if keep and command_file is not None and _park_the_hosted_origenerator(
+    if keep and command_file is not None and _park_it_sparing_the_next_startup_its_boot(
             state_dir, child, command_file, taken_over=taken_over):
         return True
     forget_the_kept_origenerator(state_dir)
@@ -469,13 +473,13 @@ SETTLE_PASSES = 8
 SETTLE_WAIT_S = 1.5
 
 
-def _log_window_obstruction(name: str, hwnd: int, *, ignore: int = 0) -> None:
+def _log_window_obstruction(name: str, hwnd: int, *, covers_it_by_design: int = 0) -> None:
     if not hwnd:
         logger.warning("%s window unresolved after loading; cannot check z-order", name)
         return
     covering = [
         w for w in windows_obscuring(hwnd, iter_zorder())
-        if w.hwnd != ignore
+        if w.hwnd != covers_it_by_design
     ]
     if covering:
         logger.warning("%s (hwnd=%d) is covered at startup by: %s",
@@ -521,9 +525,9 @@ def _fix_post_loading_windows(result: StartupResult, *, overlay_hwnd: int = 0,
         ),
         overlay_hwnd=overlay_hwnd,
     )
-    _log_window_obstruction("Main Funestra", main_funestra_hwnd, ignore=overlay_hwnd)
-    _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
-    _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
+    _log_window_obstruction("Main Funestra", main_funestra_hwnd, covers_it_by_design=overlay_hwnd)
+    _log_window_obstruction("Portrait satellite", portrait_hwnd, covers_it_by_design=overlay_hwnd)
+    _log_window_obstruction("Landscape satellite", landscape_hwnd, covers_it_by_design=overlay_hwnd)
     return hwnds_by_window
 
 
@@ -542,7 +546,7 @@ def _settle_the_funestras(funestras: Sequence[tuple[str, int, int]], *,
         stack = iter_zorder()
         buried = [
             (name, hwnd) for name, hwnd, allowed_above in funestras
-            if hwnd and _covering(hwnd, stack, ignore=(overlay_hwnd, allowed_above))
+            if hwnd and _covering(hwnd, stack, covers_it_by_design=(overlay_hwnd, allowed_above))
         ]
         if not buried:
             break
@@ -552,8 +556,8 @@ def _settle_the_funestras(funestras: Sequence[tuple[str, int, int]], *,
         time.sleep(wait_s)
 
 
-def _covering(hwnd: int, stack, *, ignore: tuple[int, ...] = ()) -> list:
-    return [w for w in windows_obscuring(hwnd, stack) if w.hwnd not in ignore]
+def _covering(hwnd: int, stack, *, covers_it_by_design: tuple[int, ...] = ()) -> list:
+    return [w for w in windows_obscuring(hwnd, stack) if w.hwnd not in covers_it_by_design]
 
 
 def _main_browse_stills(bridge_config) -> list[str]:
@@ -641,10 +645,7 @@ def _reveal_the_app(
     hud: tuple[HudPublisher | None, threading.Event],
     before_the_loading_screen_goes: Callable[[], RfbMode] = lambda: RfbMode.RFB,
 ) -> None:
-    hud_publisher, hud_primed = hud
-    if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
-        logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
-                       HUD_PRIME_TIMEOUT_S)
+    _hold_the_reveal_until_no_satellites_map_is_blank(hud)
     rfb_mode = before_the_loading_screen_goes()
     loading_screen.progress.advance("finalizing")
 
@@ -657,6 +658,14 @@ def _reveal_the_app(
     release_the_funestras(manifest, result.main_mode)
     release_the_headset(loading_screen.progress_file.parent)
     _band_again_after_the_overlay_hands_activation_on(hwnds_by_window, rfb_mode)
+
+
+def _hold_the_reveal_until_no_satellites_map_is_blank(
+        hud: tuple[HudPublisher | None, threading.Event]) -> None:
+    hud_publisher, hud_primed = hud
+    if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
+        logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
+                       HUD_PRIME_TIMEOUT_S)
 
 
 def _band_again_after_the_overlay_hands_activation_on(
