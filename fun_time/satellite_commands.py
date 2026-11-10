@@ -6,6 +6,7 @@ from functools import partial
 from pathlib import Path
 
 from funestra.file_channel import append_command
+from funestra.flick_folder import move_to_trash
 from funestra.funestra_verbs import JUMP_TO_FUNSCRIPT, LOCK_OFF, NEXT, PREV, TRASH, set_speed
 from funestra.hud_placement import HudCorner
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
@@ -17,7 +18,6 @@ from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
 from .lock import a_hosted_lock_holds, build_discard_plan, unfavorite
-from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
 from .mode_plan import EnhancementLevel
 from .origenerator_switches import hosts
@@ -137,7 +137,7 @@ def _send_to_trash(config: BridgeConfig, video: str) -> None:
     if config.hosts_origenerator:
         append_command(config.origenerator_cmd_file, trash_file_line(video))
     else:
-        move_to_trash(config.trash_dir, Path(video))
+        move_to_trash(Path(video), config.trash_dir)
 
 
 def lock_said(funestra: FunTimeFunestra, locked: bool) -> str:

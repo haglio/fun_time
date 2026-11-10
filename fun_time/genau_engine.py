@@ -15,7 +15,7 @@ from funestra.flick_advance import FlickAdvanceState
 from funestra.flick_cache import DecodeRequestState, FlickCacheStore
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_flip import FlickFlip
-from funestra.flick_folder import move_flick_to_trash
+from funestra.flick_folder import move_to_trash
 from funestra.flick_loader import FlickLoadController, FlickLoadParts
 from funestra.flick_renderer import FlickRenderController
 from funestra.flick_selection import FlickSelectionController, FlickSelectionParts
@@ -268,7 +268,7 @@ def _condemn_once_let_go(condemning: _Condemning) -> None:
 def _still_open_after_trying(condemning: _Condemning) -> bool:
     flick, trash_dir, log = condemning.flick, condemning.trash_dir, condemning.log
     try:
-        landed = move_flick_to_trash(flick, trash_dir)
+        landed = move_to_trash(flick, trash_dir)
     except PermissionError:
         return True
     except OSError:

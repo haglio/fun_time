@@ -422,7 +422,7 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
 
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "TRASH"]
     assert favs.call_args[0][0] == meant
-    assert trash.call_args[0][1] == Path(meant)
+    assert trash.call_args[0][0] == Path(meant)
 
 
 def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
@@ -453,7 +453,7 @@ def test_portrait_trash_queues_a_trash_verb_and_condemns_the_video(tmp_path: Pat
 
     assert _cmds(config, 2) == ["TRASH"]
     assert favs.call_args[0][0] == "C:\\clips\\portrait.mp4"
-    assert trash.call_args[0][1] == Path("C:\\clips\\portrait.mp4")
+    assert trash.call_args[0][0] == Path("C:\\clips\\portrait.mp4")
 
 
 def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
@@ -4641,7 +4641,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_trash(tmp_path:
     assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert favs.call_args[0][0] == "odd.mp4"
-    assert trash.call_args[0][1] == Path("odd.mp4")
+    assert trash.call_args[0][0] == Path("odd.mp4")
     assert "Discarding from Funestra 3: odd.mp4" in caplog.text
     assert [(op.op, op.key, op.source) for op in ops] == [
         ("message", "Sent to Trash", "landscape")
