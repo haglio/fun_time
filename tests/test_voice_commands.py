@@ -239,8 +239,9 @@ class TestVoiceCommands:
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
         oov_words = {*_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS, "unretract"}
+        heard_as_reset = {"recents"}
         for phrase in VOICE_COMMANDS:
-            offenders = oov_words & set(phrase.split())
+            offenders = (oov_words | heard_as_reset) & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
 
     def test_every_word_vosk_lacks_is_said_in_words_it_has(self):

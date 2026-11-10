@@ -63,8 +63,8 @@ def _lock_as_said(
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
-        return _lock_a_hosted_satellite(funestra, lock_said(funestra, locked), state, config,
-                                   target_path)
+        return _lock_before_the_hosted_slideshow_moves_on(
+            funestra, lock_said(funestra, locked), state, config, target_path)
     if state.satellite(funestra).locked == locked:
         return state, []
     return _set_lock(funestra, locked, state, config, target_path)
@@ -74,18 +74,23 @@ def _toggle_lock(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     if hosts(funestra, state, config):
-        return _lock_a_hosted_satellite(funestra, _lock_pressed(funestra), state, config, target_path)
+        return _lock_before_the_hosted_slideshow_moves_on(
+            funestra, _lock_pressed(funestra), state, config, target_path)
     return _set_lock(funestra, not state.satellite(funestra).locked, state, config, target_path)
 
 
-def _lock_a_hosted_satellite(
+def _lock_before_the_hosted_slideshow_moves_on(
     funestra: FunTimeFunestra, said: str, state: BridgeState, config: BridgeConfig,
     target_path: str,
 ) -> tuple[BridgeState, list[WindowOp]]:
     if said != lock_said(funestra, False):
         lock_on_what_was_meant(funestra, config, target_path)
-    append_command(config.origenerator_cmd_file, said)
+    _tell_the_hosted_app_after(config, said)
     return state, []
+
+
+def _tell_the_hosted_app_after(config: BridgeConfig, said: str) -> None:
+    append_command(config.origenerator_cmd_file, said)
 
 
 def _set_lock(
@@ -116,11 +121,10 @@ def _discard(
         send_satellite(config, funestra, LOCK_OFF)
     unfavorite(condemned, config)
     if plan.condemns:
-        if already_moved_on:
-            play_video(config, funestra, condemned)
-        send_satellite(config, funestra, TRASH)
+        _drop_the_condemned_video_from_the_queue(config, funestra, condemned,
+                                                 back_on_screen_first=already_moved_on)
     elif not already_moved_on:
-        send_satellite(config, funestra, NEXT)
+        _step_past_a_demoted_favorite_it_keeps_queued(config, funestra)
     state = state.with_satellite(funestra, locked=False)
     lock_ops: list[WindowOp] = []
     if plan.condemns:
@@ -131,6 +135,18 @@ def _discard(
     flashed = WindowOp(op="message", key=plan.message_text, source=satellite_source(funestra),
                       level=MESSAGE if plan.condemns else FAVORITE)
     return state, [flashed, *lock_ops]
+
+
+def _drop_the_condemned_video_from_the_queue(config: BridgeConfig, funestra: FunTimeFunestra,
+                                             condemned: str, *, back_on_screen_first: bool) -> None:
+    if back_on_screen_first:
+        play_video(config, funestra, condemned)
+    send_satellite(config, funestra, TRASH)
+
+
+def _step_past_a_demoted_favorite_it_keeps_queued(config: BridgeConfig,
+                                                  funestra: FunTimeFunestra) -> None:
+    send_satellite(config, funestra, NEXT)
 
 
 def _send_to_trash(config: BridgeConfig, video: str) -> None:

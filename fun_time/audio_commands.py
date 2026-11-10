@@ -31,17 +31,21 @@ def _level_another_process_wrote(argument: str) -> int | None:
         return None
 
 
+def _heard_again_as_in_the_windows_mixer(level: int) -> dict[str, int | bool]:
+    return {"volume": level, "muted": False}
+
+
 def _dispatch_set_volume(
     argument: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     level = _level_another_process_wrote(argument)
     if level is None:
         return state, []
-    return _dispatch_audio(replace(state, volume=level, muted=False), config)
+    return _dispatch_audio(replace(state, **_heard_again_as_in_the_windows_mixer(level)), config)
 
 
 def _step_volume(state: BridgeState, step: int) -> BridgeState:
-    return replace(state, volume=_level_moved(state.volume, step), muted=False)
+    return replace(state, **_heard_again_as_in_the_windows_mixer(_level_moved(state.volume, step)))
 
 
 def _sound_notice(volume: int, muted: bool, source: str) -> WindowOp:
@@ -80,12 +84,13 @@ def _satellite_sound(change: str, funestra: FunTimeFunestra, state: BridgeState,
                      config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     satellite = state.satellite(funestra)
     if change in _MUTED_BY:
-        volume, muted = satellite.volume, _MUTED_BY[change]
+        sound = {"volume": satellite.volume, "muted": _MUTED_BY[change]}
     else:
-        volume, muted = _level_moved(satellite.volume, _STEP_BY[change]), False
-    send_satellite(config, funestra, volume_verb(volume, muted))
-    return (state.with_satellite(funestra, volume=volume, muted=muted),
-            [_sound_notice(volume, muted, FUNESTRA_SOURCES[funestra])])
+        sound = _heard_again_as_in_the_windows_mixer(
+            _level_moved(satellite.volume, _STEP_BY[change]))
+    send_satellite(config, funestra, volume_verb(**sound))
+    return (state.with_satellite(funestra, **sound),
+            [_sound_notice(**sound, source=FUNESTRA_SOURCES[funestra])])
 
 
 HANDLERS: dict[str, Handler] = {
