@@ -80,7 +80,10 @@ logger = logging.getLogger(__name__)
 
 
 def raise_a_browse_the_restack_left_underneath(browsing: subprocess.Popen | None) -> int:
-    if browsing is None or browsing.poll() is not None:
+    if browsing is None:
+        return 0
+    its_pid_may_be_another_programs_by_now = browsing.poll() is not None
+    if its_pid_may_be_another_programs_by_now:
         return 0
     hwnd = find_window_for_process(browsing.pid)
     if hwnd:
@@ -153,7 +156,7 @@ class DispatchLoopRunner:
         self._browse_lock = threading.Lock()
         self._browser_process: subprocess.Popen | None = None
         self._pending_rfb_urls: list[str] = []
-        self._batching_rfb = False
+        self._holding_a_ticks_tabs_for_one_chrome_launch = False
         self.messages = FunestraMessages(config)
         self.reporting = FunestraReporting()
         self.voice = AppVoice()
@@ -208,12 +211,12 @@ class DispatchLoopRunner:
 
         self.arbiter.follow(self.state)
 
-        self._batching_rfb = True
+        self._holding_a_ticks_tabs_for_one_chrome_launch = True
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
                 self._handle_line(parse_command_line(line))
         finally:
-            self._batching_rfb = False
+            self._holding_a_ticks_tabs_for_one_chrome_launch = False
         self._pause_for_a_click_into_a_text_field()
         self._flush_rfb_tabs()
         self.windows.flush_pending_hides()
@@ -305,7 +308,7 @@ class DispatchLoopRunner:
             handler(self, op)
         raise_a_browse_the_restack_left_underneath(self._browser_process)
         write_shared_state(self.shared_state_file, self.state)
-        if not self._batching_rfb:
+        if not self._holding_a_ticks_tabs_for_one_chrome_launch:
             self._flush_rfb_tabs()
         if self.dashboard_enabled:
             self._update_dashboard()
@@ -319,7 +322,8 @@ class DispatchLoopRunner:
         self._pending_rfb_urls = []
         if not urls or not self.rfb_shortcut.target:
             return
-        if not window_exists(self.windows.rfb_hwnd):
+        chrome_would_open_them_in_a_window_of_his_own = not window_exists(self.windows.rfb_hwnd)
+        if chrome_would_open_them_in_a_window_of_his_own:
             logger.warning(
                 "%d RFB tab(s) skipped: no Random Favs Browser window to open into", len(urls))
             return
@@ -359,7 +363,8 @@ class DispatchLoopRunner:
                 logger.warning("dashboard snapshot write failed: %s", exc)
 
     def _converge_origenerator_window(self) -> None:
-        if self.state.omni_paused:
+        the_pause_put_every_window_where_it_stands = self.state.omni_paused
+        if the_pause_put_every_window_where_it_stands:
             return
         self.windows.converge_origenerator_window(self.state.rfb_mode)
 

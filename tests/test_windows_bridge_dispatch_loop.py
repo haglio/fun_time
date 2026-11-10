@@ -109,9 +109,12 @@ LINK_CARRYING_A_PROMPT = build_regen_url(
 )
 
 
+THE_ONE_READER_STUBBED_BESIDE_THE_CONFTESTS_REAL_ONES = "fun_time.fun_time_windows.is_window_topmost"
+
+
 @pytest.fixture(autouse=True)
-def _neutralise_topmost_reads():
-    with patch("fun_time.fun_time_windows.is_window_topmost", return_value=False):
+def _no_topmost_read_answers_from_this_machines_own_windows():
+    with patch(THE_ONE_READER_STUBBED_BESIDE_THE_CONFTESTS_REAL_ONES, return_value=False):
         yield
 
 
@@ -1396,7 +1399,7 @@ class TestOpenRfbTab:
 
         assert [name for name, _ in calls] == ["activate", "open"]
 
-    def test_open_rfb_tab_op_skipped_when_the_rfb_window_is_gone(self, tmp_path):
+    def test_a_tab_chrome_would_open_in_a_window_of_his_own_is_dropped(self, tmp_path):
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
@@ -1452,7 +1455,7 @@ class TestOpenRfbTab:
 
         assert calls == []
 
-    def test_lock_satellites_opens_both_videos_in_one_launch(self, tmp_path):
+    def test_two_locks_never_make_two_launches_racing_for_chromes_one_instance(self, tmp_path):
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
@@ -1851,9 +1854,22 @@ class TestBrowseLibrary:
              patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
             runner._dispatch(parse_command("omnipause_toggle"))
-            runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": 0})
+
+        assert on_top.call_args_list == []
+
+    def test_an_exited_browses_pid_is_never_looked_up_for_a_window(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": 0})
+
+        with patch.object(runner.windows, "restore_parked"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_for_process",
+                   return_value=BROWSE_HWND) as lookup, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
             runner._dispatch(parse_command("omnipause_toggle"))
 
+        assert lookup.call_args_list == [], "the pid may be another program's by now"
         assert on_top.call_args_list == []
 
     def test_sends_selected_file_to_main_funestra_by_default(self, tmp_path):
@@ -2360,7 +2376,7 @@ class TestIdempotentVoiceCommands:
         mock_log.assert_called_once_with("post-enter")
 
 
-    def test_a_sided_fmode_reaches_the_dispatch_as_written(self, tmp_path):
+    def test_which_funestras_a_sided_fmode_names_is_left_to_the_dispatch(self, tmp_path):
         runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2379,7 +2395,7 @@ class TestIdempotentVoiceCommands:
         ]
 
 
-    def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
+    def test_the_robot_hand_running_under_kino_swallows_no_switch_to_genau(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.KINO)
         with patch.object(runner, "_dispatch") as mock_d:
@@ -2388,16 +2404,7 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_called_once_with(parse_command("genau_activate"), None)
 
-    def test_genau_activate_dispatches_in_kino_mode(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode=MainMode.KINO)
-        with patch.object(runner, "_dispatch") as mock_d:
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("genau_activate", encoding="utf-8")
-            runner.tick()
-        mock_d.assert_called_once_with(parse_command("genau_activate"), None)
-
-    def test_genau_activate_dispatches_when_already_in_genau_mode(self, tmp_path):
+    def test_a_switch_to_the_current_mode_is_left_for_the_planner_to_drop(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         with patch.object(runner, "_dispatch") as mock_d:
@@ -3056,7 +3063,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
 
 
 class TestOrigeneratorWindowConverger:
-    def test_omnipause_leaves_the_hosted_window_exactly_where_it_is(self, tmp_path):
+    def test_no_converge_undoes_where_omnipause_put_the_hosted_window(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
         runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
                                omni_paused=True)
@@ -3166,15 +3173,18 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
 
         assert runner.state.origenerator_ready is True
 
-    def test_the_answer_is_latched_rather_than_re_read_all_session(self, tmp_path):
+    def test_a_status_file_unreadable_for_a_moment_closes_no_mode_in_use(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
+            BridgeState(rfb_mode=RfbMode.ORIGENERATOR), FunTimeFunestra.LANDSCAPE))
         runner.tick()
 
         (tmp_path / "origenerator_status.txt").unlink()
         runner.tick()
 
         assert runner.state.origenerator_ready is True
+        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
 
     def test_a_session_hosting_none_is_never_waiting_on_one(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -3192,7 +3202,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
 
         assert runner.state.origenerator_ready is True
 
-    def test_the_answer_is_written_back_to_the_file_the_moment_it_changes(self, tmp_path):
+    def test_the_answer_reaches_the_file_on_a_session_nobody_touches(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         write_shared_state(state_file, BridgeState())
@@ -3344,7 +3354,7 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
-    def test_an_app_the_wait_gave_up_on_leaves_the_app_in_kino_mode_for_good(self, tmp_path):
+    def test_an_app_turning_up_after_the_loading_screen_came_off_switches_nothing(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, _in_origenerator_mode(
             BridgeState(rfb_mode=RfbMode.ORIGENERATOR)))
@@ -3368,12 +3378,14 @@ class TestOpeningInOrigeneratorMode:
         _the_hosted_app_answers(tmp_path)
         runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
+        runner._dispatch(parse_command("portrait_kino_activate"))
         sent = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
 
         runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent
+        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
 
 
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
@@ -3510,7 +3522,7 @@ class TestTheFunestrasComeHome:
         _follow_the_satellites(runner, now=100.6)
         assert self._queued(config, FunTimeFunestra.PORTRAIT) == []
 
-    def test_a_satellite_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
+    def test_a_handback_waits_for_the_list_the_app_will_still_write(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path)
         self._lets_go_of(config, FunTimeFunestra.PORTRAIT)
         runner.homecoming.expect(FunTimeFunestra.SATELLITES, runner.config, now=101.0)
