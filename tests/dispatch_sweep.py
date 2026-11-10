@@ -13,7 +13,7 @@ from fun_time.filter_vocab import filter_voice_commands
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import LaunchManifest, write_manifest_data, write_windows_bridge_manifest
 from fun_time.mode_plan import MAIN_MODES
-from fun_time.origenerator_switches import origenerator_shows
+from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
@@ -153,7 +153,7 @@ def _what_every_command_sent(config: BridgeConfig, satellites_modes) -> dict[str
                 for funestra in FunTimeFunestra.SATELLITES:
                     state = state.with_satellite(
                         funestra, mode=satellites_mode,
-                        handed_over=origenerator_shows(satellites_mode))
+                        handed_over=satellites_mode is ORIGENERATOR_MODE)
                 _state, ops = dispatch_command(command, state, config, target_path="")
                 written = drain(config)
                 written["__ops__"] = sorted({op.op for op in ops})

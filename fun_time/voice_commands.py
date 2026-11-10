@@ -12,7 +12,6 @@ from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL
-from .origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, mode_command
 
 logger = logging.getLogger(__name__)
 
@@ -61,13 +60,7 @@ def _bare_or_named(commands: dict[str, str], words: str, action: str) -> None:
 def _mode_and_reference_phrases(commands: dict[str, str]) -> None:
     for crown in Crown:
         commands.update(named_first_or_last(crown, "crown", crown.command))
-    for _funestra_word, _command in (("main", "main_kino_activate"),
-                                     ("satellite", "satellites_kino_activate"),
-                                     ("satellites", "satellites_kino_activate")):
-        commands.update(named_first_or_last(_funestra_word, "kino mode", _command))
-    for _satellite in _SATELLITE_NAMES:
-        for _mode_words, _mode in (("kino mode", KINO_MODE), ("aura generator mode", ORIGENERATOR_MODE)):
-            commands.update(named_first_or_last(_satellite, _mode_words, mode_command(_satellite, _mode)))
+    commands.update(named_first_or_last("main", "kino mode", "main_kino_activate"))
 
     for _ref_phrase in ("help", "reference", "hot keys", "voice commands"):
         commands[_ref_phrase] = "help_reference"
@@ -288,8 +281,6 @@ def build_voice_commands(
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
         "kino": "kino_activate",
         "kino mode": "kino_activate",
-        "aura generator": "satellites_origenerator_activate",
-        "aura generator mode": "satellites_origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         "projection": "projection_cycle",
@@ -385,7 +376,6 @@ VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 _AS_VOSK_HEARS_IT_AND_AS_HE_READS_IT: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
-    ("aura generator", "origenerator"),
     ("hot keys", "hotkeys"),
     ("un mute", "unmute"),
     ("un pause", "unpause"),

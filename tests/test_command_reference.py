@@ -559,7 +559,6 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert not retired & set(VOICE_COMMANDS.values())
     assert not retired & _ahk_hotkey_commands()
     assert [_keys(_the_row_of(mode)) for mode in ("genau_activate", "main_kino_activate")] == [(), ()]
-    assert "X" not in _the_row_of("satellites_origenerator_activate").detail
     assert _keys(_the_row_of("main_funestra_length_clips")) == ()
     assert _keys(_the_row_of("projection_cycle")) == ()
     [angle] = [row for row in _all_rows() if row.description.startswith("narrow / widen")]
@@ -679,20 +678,19 @@ def test_the_shifted_and_ctrl_pairs_followed_m_and_the_period():
             ("left", "right", "up", "down")] == [("Ctrl+M",), ("Ctrl+.",), ("Ctrl+K",), ("Ctrl+,",)]
 
 
-def test_kino_mode_is_spoken_as_written_of_either_side_or_of_both():
+def test_kino_mode_is_spoken_as_written_of_the_main_funestra():
     assert VOICE_COMMANDS["kino mode"] == "kino_activate"
     assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
-    assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
-    for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode"):
+    for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode",
+                    "satellite kino mode", "satellites kino mode", "portrait kino mode",
+                    "aura generator", "aura generator mode", "landscape aura generator mode"):
         assert retired not in VOICE_COMMANDS, retired
     [kino] = [r for r in _all_rows() if "kino_activate" in r.commands]
-    assert {"main_kino_activate", "satellites_kino_activate"} <= set(kino.commands)
+    assert kino.commands == ("kino_activate", "main_kino_activate")
     assert kino.voice == ("kino", "kino mode")
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
     assert genau_rows
     assert genau_rows[0].voice == ("genau", "genau mode")
-    [origenerator] = [r for r in _all_rows() if "satellites_origenerator_activate" in r.commands]
-    assert origenerator.voice == ("origenerator", "origenerator mode")
 
 
 def test_loop_control_row_consolidates_record_and_cancel():

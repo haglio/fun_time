@@ -39,7 +39,6 @@ _SCOPE_WORDS = (Scope.PORTRAIT, Scope.LANDSCAPE, Scope.SATELLITES, Scope.ALL, Sc
 
 _THE_MAIN_FUNESTRAS_OWN = ("main_", "genau_")
 
-_SAID_OF_THE_SATELLITES_AS_A_WHOLE = frozenset({"kino_activate", "origenerator_activate"})
 
 FILTER = "filter"
 SAY = "say"
@@ -125,13 +124,9 @@ class Command:
         return main_funestras_own(self._rest())
 
     def each(self) -> tuple[Command, ...]:
-        if self.action == FILTER or self.said_to not in _GROUPS or self._said_as_a_whole():
+        if self.action == FILTER or self.said_to not in _GROUPS:
             return (self,)
         return tuple(self._aimed_at(scope) for scope in self.said_to.funestras)
-
-    def _said_as_a_whole(self) -> bool:
-        return (self.said_to is Scope.SATELLITES
-                and self.action in _SAID_OF_THE_SATELLITES_AS_A_WHOLE)
 
     def halves(self) -> tuple[Command, ...]:
         if self.action != FILTER or self.said_to not in _GROUPS:

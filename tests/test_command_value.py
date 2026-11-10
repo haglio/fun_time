@@ -153,10 +153,6 @@ class TestOneCommandForEachFunestraOfAGroup:
             parse_command("main_reset"), parse_command("portrait_reset"),
             parse_command("landscape_reset"))
 
-    def test_the_satellites_mode_switches_are_said_of_the_pair_as_a_whole(self):
-        for whole in ("satellites_kino_activate", "satellites_origenerator_activate"):
-            assert parse_command(whole).each() == (parse_command(whole),)
-
     def test_a_filter_said_to_the_satellites_stays_one_command(self):
         assert parse_command("filter_satellites_alpha").each() == (parse_command("filter_satellites_alpha"),)
 

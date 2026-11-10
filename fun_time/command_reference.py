@@ -504,8 +504,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("Kino", (
                 _Row(
                     "Kino mode",
-                    commands=("kino_activate", "main_kino_activate", "satellites_kino_activate",
-                              "portrait_kino_activate", "landscape_kino_activate"),
+                    commands=("kino_activate", "main_kino_activate"),
                     voice_display=("kino", "kino mode"),
                 ),
                 _Row(
@@ -544,8 +543,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "Origenerator mode — Origenerator Core shares real estate with the Random "
                     "Faves Browser",
-                    commands=("origenerator_activate", "satellites_origenerator_activate",
-                              "portrait_origenerator_activate", "landscape_origenerator_activate"),
+                    commands=("origenerator_activate",),
                     voice_display=("origenerator", "origenerator mode"),
                 ),
                 _said_to_a_slideshow("fix the image on screen — its face, hands, teeth, or eyes",

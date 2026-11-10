@@ -15,7 +15,6 @@ from urllib.request import url2pathname
 import pytest
 from app_support import osr2_hold
 from funestra.modes import LengthMode, MainMode, SatellitesMode
-from funestra.playlist import PlaylistItem, write_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
@@ -582,26 +581,6 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
         playlist = state_dir / f"{name}_playlist.tsv"
         assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
     assert "Resumed last session's playlists" in caplog.text
-
-
-def test_a_session_that_ended_hosting_resumes_its_own_videos_not_the_hosted_apps(
-        tmp_path: Path):
-    kwargs = _start_core_session_kwargs(tmp_path)
-    state_dir = kwargs["state_dir"]
-    left_on = _seed_resumable_session(kwargs)
-    an_image = tmp_path / "an image.png"
-    for name in ("portrait", "landscape"):
-        playlist = state_dir / f"{name}_playlist.tsv"
-        playlist.rename(state_dir / f"{name}_playlist.kept.tsv")
-        write_playlist(playlist, [PlaylistItem(an_image)])
-
-    _run_start_core_session(kwargs)
-
-    for name in ("portrait", "landscape"):
-        first, second = left_on[name]
-        assert (state_dir / f"{name}_playlist.tsv").read_text(
-            encoding="utf-8").splitlines() == [second, first]
-        assert not (state_dir / f"{name}_playlist.kept.tsv").exists()
 
 
 def _run_start_core_session(kwargs: dict) -> str:

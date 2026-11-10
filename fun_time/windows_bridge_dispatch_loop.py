@@ -42,7 +42,7 @@ from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionS
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import Departures, Homecoming, SatellitesChangingHands
+from .funestra_handover import Departures, SatellitesTaken
 from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
@@ -167,12 +167,9 @@ class DispatchLoopRunner:
         self.voice = AppVoice()
         self._answers = 0
         self._ignored_because = ""
-        self.homecoming = Homecoming()
         self.departures = Departures()
-        self.changing_hands = SatellitesChangingHands(
-            self.departures, self.homecoming,
-            left_on=self.hud.the_video_it_comes_home_to,
-            changed=partial(_publish_the_satellite_changing_hands, self))
+        self.satellites_taken = SatellitesTaken(
+            self.departures, changed=partial(_publish_the_satellites_taken, self))
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={funestra: config.satellite(funestra).status_file
@@ -211,7 +208,7 @@ class DispatchLoopRunner:
             raise OrigeneratorNeverCameUp
 
     def _the_app_has_every_satellite(self) -> bool:
-        self.state = self.changing_hands.follow(self.state, self.config, now=time.monotonic())
+        self.state = self.satellites_taken.follow(self.state, self.config)
         return all(self.state.satellite(funestra).handed_over
                    for funestra in FunTimeFunestra.SATELLITES)
 
@@ -251,8 +248,8 @@ class DispatchLoopRunner:
             self.satellite_speeds.take_the_main_funestras_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        self.state = self.changing_hands.follow(self.state, self.config, now=now)
-        self.latest_arrivals.deliver(self.state, coming_home=self.homecoming.funestras)
+        self.state = self.satellites_taken.follow(self.state, self.config)
+        self.latest_arrivals.deliver(self.state)
         held = self.lock_follower.held()
         if held:
             self._take(*a_lock_holds(held, self.state, self.config))
@@ -698,18 +695,9 @@ def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
 
 
-def _publish_the_satellite_changing_hands(runner: DispatchLoopRunner, state: BridgeState) -> None:
+def _publish_the_satellites_taken(runner: DispatchLoopRunner, state: BridgeState) -> None:
     write_shared_state(runner.shared_state_file, state)
     runner.hud.publish(state)
-
-
-def _run_hand_over_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    runner.departures.expect((FunTimeFunestra[op.key.upper()],), runner.config)
-
-
-def _run_take_back_funestras(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    runner.homecoming.expect((FunTimeFunestra[op.key.upper()],), runner.config,
-                             now=time.monotonic())
 
 
 def _run_follow_the_lock(runner: DispatchLoopRunner, op: WindowOp) -> None:
@@ -739,8 +727,6 @@ _OP_HANDLERS = {
     Op.MAIN_FUNESTRA_ANSWERS: _run_an_answer_given_elsewhere,
     Op.NARROWING_ANSWERS: _run_an_answer_given_elsewhere,
     Op.IGNORED: _run_ignored,
-    Op.HAND_OVER_FUNESTRAS: _run_hand_over_funestras,
-    Op.TAKE_BACK_FUNESTRAS: _run_take_back_funestras,
     Op.FOLLOW_THE_LOCK: _run_follow_the_lock,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"

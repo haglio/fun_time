@@ -199,25 +199,6 @@ class TestHudPublishing:
             assert [[button.command for button in row] for row in published.rows] == [
                 [f"{funestra}_minimize", *crown]]
 
-    def test_a_handed_back_satellite_maps_its_video_at_once_not_the_apps_picture(
-            self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        status = tmp_path / "portrait_status.txt"
-        publish_satellite_status(status, "C:/v/p.mp4")
-        feed.publish(BridgeState())
-        away = _hosted(BridgeState(), "portrait")
-        publish_satellite_status(status, "C:/g/scene one.png")
-        feed.publish(away)
-
-        comes_home_to = feed.the_video_it_comes_home_to(FunTimeFunestra.PORTRAIT)
-        feed.publish(BridgeState())
-
-        assert comes_home_to == "C:/v/p.mp4"
-        assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
-        publish_satellite_status(status, "C:/v/p.mp4")
-        feed.publish(BridgeState(active_funestra=2))
-        assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
-
     def test_a_satellite_the_app_holds_keeps_the_apps_last_hud_over_an_empty_read(
             self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))

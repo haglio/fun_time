@@ -45,7 +45,6 @@ from fun_time.fun_time_windows import (
     ChildPids,
     FunTimeWindows,
 )
-from fun_time.funestra_handover import STALLED_APP_LET_GO_CEILING_S, keep_aside
 from fun_time.hud_transport import HudPublisher
 from fun_time.library_browser import BrowseOpening
 from fun_time.manifest import (
@@ -1685,17 +1684,13 @@ class TestWhatArrivesInTheLibrary:
         assert looking["target"] is keep_looking
         assert looking["args"] == (runner.latest_arrivals.look, runner._stop)
 
-    def test_each_tick_hands_it_to_the_app_holding_the_satellites_on_their_way_home(
-            self, tmp_path):
+    def test_each_tick_hands_what_arrived_to_the_funestras_as_they_stand(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.homecoming.expect((FunTimeFunestra.PORTRAIT,), runner.config, now=time.monotonic() + 3600)
 
-        with patch("fun_time.funestra_handover.let_go_since", return_value=False), \
-             patch.object(runner.latest_arrivals, "deliver") as deliver:
+        with patch.object(runner.latest_arrivals, "deliver") as deliver:
             runner.tick()
 
         assert deliver.call_args.args == (runner.state,)
-        assert set(deliver.call_args.kwargs["coming_home"]) == {FunTimeFunestra.PORTRAIT}
 
 
 class TestModeSwitchVisibility:
@@ -3138,8 +3133,8 @@ def _hosting(tmp_path, **overrides):
                    origenerator_status_file=tmp_path / "origenerator_status.txt")
 
 
-def _follow_the_satellites(runner, *, now: float) -> None:
-    runner.state = runner.changing_hands.follow(runner.state, runner.config, now=now)
+def _follow_the_satellites(runner) -> None:
+    runner.state = runner.satellites_taken.follow(runner.state, runner.config)
 
 
 def _in_origenerator_mode(state: BridgeState, *funestras: FunTimeFunestra) -> BridgeState:
@@ -3381,14 +3376,12 @@ class TestOpeningInOrigeneratorMode:
         _the_hosted_app_answers(tmp_path)
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
-        runner._dispatch(parse_command("portrait_kino_activate"))
         sent = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
 
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
 
 
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
@@ -3441,7 +3434,7 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
 
 class TestTheAppTakesAFunestra:
-    def _switched(self, tmp_path):
+    def _asked(self, tmp_path):
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
             {"portrait": tmp_path / "portrait_hud.json"}, tmp_path / "thumbs"))
@@ -3449,100 +3442,26 @@ class TestTheAppTakesAFunestra:
         channel = config.satellite(FunTimeFunestra.PORTRAIT)
         write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])
         publish_whole(channel.origenerator_hud_file, "")
-        runner._dispatch(parse_command("portrait_origenerator_activate"))
+        runner.departures.expect((FunTimeFunestra.PORTRAIT,), config)
         return runner, channel
 
     def test_the_satellite_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
-        runner, _channel = self._switched(tmp_path)
+        runner, _channel = self._asked(tmp_path)
 
-        _follow_the_satellites(runner, now=0.0)
+        _follow_the_satellites(runner)
 
         assert runner.state.portrait.handed_over is False
 
     def test_the_apps_first_hud_hands_the_satellite_over_and_goes_up_at_once(self, tmp_path):
-        runner, channel = self._switched(tmp_path)
+        runner, channel = self._asked(tmp_path)
         publish_whole(channel.origenerator_hud_file,
                       hud_text(HudModel(funestra="portrait", title="Stub slideshow")))
 
-        _follow_the_satellites(runner, now=0.0)
+        _follow_the_satellites(runner)
 
         assert runner.state.portrait.handed_over is True
         published = (tmp_path / "portrait_hud.json").read_text(encoding="utf-8")
         assert parse_hud(published).title == "Stub slideshow"
-
-
-class TestTheFunestrasComeHome:
-    def _left_for_origenerator(self, tmp_path, *, locked=False):
-        config = _hosting(tmp_path)
-        runner = make_runner(tmp_path, config=config)
-        runner.state = replace(runner.state, origenerator_ready=True,
-                               portrait=SatelliteState(locked=locked))
-        for funestra in FunTimeFunestra.SATELLITES:
-            channel = config.satellite(funestra)
-            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / f"{funestra.label}.mp4")])
-            keep_aside(channel)
-            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
-            publish_whole(channel.origenerator_hud_file, f'{{"Funestra": "{funestra.label}"}}')
-        runner.homecoming.expect(FunTimeFunestra.SATELLITES, runner.config, now=100.0)
-        return runner, config
-
-    @staticmethod
-    def _lets_go_of(config, funestra) -> None:
-        publish_whole(config.satellite(funestra).origenerator_hud_file, "")
-
-    @staticmethod
-    def _queued(config, funestra) -> list[str]:
-        cmd_file = config.satellite(funestra).cmd_file
-        return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
-
-    def test_a_satellite_let_go_of_comes_home_locked_as_the_session_holds_it(self, tmp_path):
-        runner, config = self._left_for_origenerator(tmp_path, locked=True)
-        self._lets_go_of(config, FunTimeFunestra.PORTRAIT)
-
-        _follow_the_satellites(runner, now=100.5)
-
-        assert self._queued(config, FunTimeFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
-        assert self._queued(config, FunTimeFunestra.LANDSCAPE) == []
-
-    def test_a_satellite_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
-        runner, config = self._left_for_origenerator(tmp_path)
-
-        _follow_the_satellites(runner, now=100.0 + STALLED_APP_LET_GO_CEILING_S + 0.1)
-
-        assert self._queued(config, FunTimeFunestra.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
-        assert self._queued(config, FunTimeFunestra.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
-
-    def test_going_back_into_the_mode_first_leaves_them_with_the_app(self, tmp_path):
-        runner, config = self._left_for_origenerator(tmp_path)
-        runner.state = _in_origenerator_mode(runner.state, FunTimeFunestra.PORTRAIT)
-        self._lets_go_of(config, FunTimeFunestra.PORTRAIT)
-
-        _follow_the_satellites(runner, now=100.5)
-
-        assert self._queued(config, FunTimeFunestra.PORTRAIT) == []
-        runner.state = runner.state.with_satellite(FunTimeFunestra.PORTRAIT,
-                                                   mode=SatellitesMode.KINO)
-        _follow_the_satellites(runner, now=100.6)
-        assert self._queued(config, FunTimeFunestra.PORTRAIT) == []
-
-    def test_a_handback_waits_for_the_list_the_app_will_still_write(self, tmp_path):
-        runner, config = self._left_for_origenerator(tmp_path)
-        self._lets_go_of(config, FunTimeFunestra.PORTRAIT)
-        runner.homecoming.expect(FunTimeFunestra.SATELLITES, runner.config, now=101.0)
-
-        _follow_the_satellites(runner, now=101.5)
-
-        assert self._queued(config, FunTimeFunestra.PORTRAIT) == []
-
-    def test_the_switch_out_of_the_mode_is_what_sends_for_them(self, tmp_path):
-        config = _hosting(tmp_path)
-        runner = make_runner(tmp_path, config=config)
-        runner.state = _in_origenerator_mode(replace(runner.state, origenerator_ready=True))
-
-        with patch.object(runner.homecoming, "expect") as expect:
-            runner._dispatch(parse_command("portrait_kino_activate"))
-
-        assert expect.call_args.args == ((FunTimeFunestra.PORTRAIT,), runner.config)
 
 
 SECONDARY_MONITOR = MonitorRect(2560, 0, 1440, 3440)

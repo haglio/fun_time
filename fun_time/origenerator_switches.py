@@ -23,32 +23,11 @@ ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 WHAT_THE_DIM_BUTTONS_SAY = "Origenerator is still starting"
 
 OPEN_SLIDESHOW = "open_slideshow"
-CLOSE_SLIDESHOW = "close_slideshow"
 CLOSE_SLIDESHOWS = "CLOSE_SLIDESHOWS"
-
-
-def origenerator_shows(mode: SatellitesMode) -> bool:
-    return mode == ORIGENERATOR_MODE
 
 
 def said_about(satellite: str, verb: str) -> str:
     return f"{satellite}_{verb}"
-
-
-def mode_command(satellite: str, mode: SatellitesMode) -> str:
-    return said_about(satellite, f"{mode}_activate")
-
-
-SATELLITE_MODE_COMMANDS: dict[str, tuple[FunTimeFunestra, SatellitesMode]] = {
-    mode_command(funestra.label, mode): (funestra, mode)
-    for funestra in FunTimeFunestra.SATELLITES
-    for mode in (KINO_MODE, ORIGENERATOR_MODE)
-}
-
-BOTH_SATELLITES_MODE_COMMANDS: dict[str, SatellitesMode] = {
-    "satellites_kino_activate": KINO_MODE,
-    "satellites_origenerator_activate": ORIGENERATOR_MODE,
-}
 
 
 def hosts(funestra: FunTimeFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:

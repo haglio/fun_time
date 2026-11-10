@@ -86,7 +86,6 @@ class HudFeed:
         self._last_publish = 0.0
         self._favorites = _FavoritesReadOnceUntilTheRecordMoves()
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
-        self._the_apps_on_screen: dict[str, str] = {}
         self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
         self._last_worn_hosted: dict[FunTimeFunestra, HudModel | None] = {}
         self._osr2_told: dict[FunTimeFunestra, bool] = {}
@@ -229,27 +228,15 @@ class HudFeed:
         drive = read_drive(self.config.genau_drive_file)
         return drive.advance_interval if drive is not None else 0
 
-    def the_video_it_comes_home_to(self, funestra: FunTimeFunestra) -> str:
-        name = funestra.label
-        self._the_apps_on_screen[name] = read_satellite_status(
-            self.config.satellite(funestra).status_file).video
-        left_on = self._last_satellite_status.get(name)
-        return left_on.video if left_on is not None else ""
-
     def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
         status = read_satellite_status(status_file)
         last_named = self._last_satellite_status.get(funestra)
         if _has_not_started_yet(status, last_named):
             return status
-        if (_read_lost_a_race_with_the_republish(status, last_named)
-                or self._still_names_the_apps_picture(funestra, status)):
+        if _read_lost_a_race_with_the_republish(status, last_named):
             return last_named if last_named is not None else status
-        self._the_apps_on_screen.pop(funestra, None)
         self._last_satellite_status[funestra] = status
         return status
-
-    def _still_names_the_apps_picture(self, funestra: str, status: SatelliteStatus) -> bool:
-        return status.video == self._the_apps_on_screen.get(funestra)
 
     def osr2_mode(self) -> Osr2Mode:
         return osr2_device.mode(self.config.broker_state)

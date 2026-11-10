@@ -234,9 +234,9 @@ def test_the_reference_and_the_routes_agree():
     assert not undocumented, f"routed commands the reference omits: {sorted(undocumented)}"
 
 
-def test_the_session_keeps_only_the_funestras_own_controls_in_origenerator_mode():
+def test_the_session_keeps_only_the_funestras_own_controls_on_a_satellite_the_app_holds():
     own = {
-        "minimize", "crown", "take_osr2", "kino_activate", "origenerator_activate",
+        "minimize", "crown", "take_osr2",
         "lock", "lock_on", "lock_off", "lock_held",
         "speed", "speed_up", "speed_down", "speed_min", "speed_max",
         "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",

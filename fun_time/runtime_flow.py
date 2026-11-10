@@ -7,11 +7,9 @@ from pathlib import Path
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
-from funestra.modes import SatellitesMode
 
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import keep_aside
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
 from .mode_plan import EnhancementLevel, build_mode_switch_plan
 from .modes import (
@@ -21,7 +19,7 @@ from .modes import (
     scripted_item,
     write_playlist_file,
 )
-from .origenerator_switches import CLOSE_SLIDESHOW, KINO_MODE, OPEN_SLIDESHOW, said_about
+from .origenerator_switches import OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
 logger = logging.getLogger(__name__)
@@ -158,37 +156,6 @@ def apply_satellite_filter(
         append_command(channel.cmd_file, play_file(scripted_item(paths[0], regen_metadata_root)))
     summary = "cleared" if not query else f"'{query}'"
     return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
-
-
-@dataclass(frozen=True)
-class SatelliteSwitchFlowResult:
-    next_mode: SatellitesMode
-    is_transition: bool
-    log_message: str
-
-
-def apply_satellite_switch(
-    *,
-    funestra: FunTimeFunestra,
-    current_mode: SatellitesMode,
-    target_mode: SatellitesMode,
-    origenerator_cmd_file: str | Path | None,
-    channel: SatelliteChannel,
-) -> SatelliteSwitchFlowResult:
-    satellite = funestra.label.capitalize()
-    if current_mode == target_mode:
-        return SatelliteSwitchFlowResult(
-            next_mode=target_mode, is_transition=False,
-            log_message=f"{satellite} already in {target_mode} mode")
-    if target_mode == KINO_MODE:
-        if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), said_about(funestra.label, CLOSE_SLIDESHOW))
-    else:
-        keep_aside(channel)
-        hand_the_satellite_to_the_app(funestra, channel, origenerator_cmd_file)
-    return SatelliteSwitchFlowResult(
-        next_mode=target_mode, is_transition=True,
-        log_message=f"{satellite} switched to {target_mode} mode")
 
 
 def hand_the_satellite_to_the_app(funestra: FunTimeFunestra, channel: SatelliteChannel,

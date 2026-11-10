@@ -345,7 +345,6 @@ def _enhancement(level: EnhancementLevel, funestra: FunTimeFunestra, state: Brid
 
 _PARKING_ITS_WINDOW = ("minimize",)
 _ITS_CROWN_AND_THE_OSR2 = ("crown", "take_osr2")
-_ITS_MODE_WHICH_TAKES_IT_BACK = ("kino_activate", "origenerator_activate")
 _ITS_LOCK = ("lock", "lock_on", "lock_off", LOCK_HELD)
 _THE_RATE_IT_PLAYS_AT = ("speed", *PLAYBACK_RATE_ACTS)
 _WHERE_ITS_HUD_SITS = (
@@ -356,7 +355,7 @@ _ITS_SOUND = ("mute", "unmute", "volume_down", "volume_up")
 _ITS_ENHANCEMENT = tuple(f"enhancement_{level}" for level in EnhancementLevel)
 
 THE_FUNESTRAS_OWN = frozenset({
-    *_PARKING_ITS_WINDOW, *_ITS_CROWN_AND_THE_OSR2, *_ITS_MODE_WHICH_TAKES_IT_BACK, *_ITS_LOCK,
+    *_PARKING_ITS_WINDOW, *_ITS_CROWN_AND_THE_OSR2, *_ITS_LOCK,
     *_THE_RATE_IT_PLAYS_AT, *_WHERE_ITS_HUD_SITS, *_ITS_SOUND, *_ITS_ENHANCEMENT,
 })
 

@@ -80,7 +80,6 @@ class TestTheVrReset:
 
 
 _SAID_INSTEAD_OF_A_WORD_VOSK_LACKS = {
-    "origenerator": "aura generator",
     "upscales": "enhanced only",
     "unpause": "un pause",
     "unpark": "un park",
@@ -118,10 +117,6 @@ class TestVoiceCommands:
             "kino": "kino_activate",
             "kino mode": "kino_activate",
             "main kino mode": "main_kino_activate",
-            "satellite kino mode": "satellites_kino_activate",
-            "satellites kino mode": "satellites_kino_activate",
-            "aura generator": "satellites_origenerator_activate",
-            "aura generator mode": "satellites_origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next main": "main_next",
@@ -238,7 +233,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["satellites hud bottom right"] == "satellites_hud_lower_right"
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
-        oov_words = {*_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS, "unretract"}
+        oov_words = {*_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS, "unretract", "origenerator"}
         heard_as_reset = {"recents"}
         for phrase in VOICE_COMMANDS:
             offenders = (oov_words | heard_as_reset) & set(phrase.split())
@@ -299,18 +294,6 @@ class TestVoiceCommands:
         assert len(go_now) == 2
         assert {phrase: VOICE_COMMANDS.get(phrase) for phrase in twins} == twins
 
-    def test_origenerator_mode_puts_both_satellites_in_it_and_is_shown_as_said(self):
-        assert VOICE_COMMANDS["aura generator mode"] == "satellites_origenerator_activate"
-        assert friendly_voice("aura generator mode") == "origenerator mode"
-
-    def test_one_satellites_own_kino_and_origenerator_modes_are_said_of_it(self):
-        assert VOICE_COMMANDS["portrait kino mode"] == VOICE_COMMANDS["kino mode portrait"] == (
-            "portrait_kino_activate")
-        assert (VOICE_COMMANDS["landscape aura generator mode"]
-                == VOICE_COMMANDS["aura generator mode landscape"]
-                == "landscape_origenerator_activate")
-        assert friendly_voice("landscape aura generator mode") == "landscape origenerator mode"
-
     def test_a_hosted_apps_phrase_is_aimed_like_the_grid(self):
         heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=(),
                                      origenerator_phrases=("experiments", "fix hands",
@@ -349,9 +332,8 @@ class TestVoiceCommands:
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
 
-    def test_kino_mode_is_said_of_a_satellite_or_of_both(self):
+    def test_kino_mode_is_said_of_the_main_funestra(self):
         assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
-        assert VOICE_COMMANDS["satellite kino mode"] == "satellites_kino_activate"
         assert VOICE_COMMANDS["kino mode"] == "kino_activate"
         assert VOICE_COMMANDS["kino"] == "kino_activate"
         for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c",

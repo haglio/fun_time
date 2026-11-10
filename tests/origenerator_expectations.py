@@ -16,13 +16,9 @@ from fun_time.hud_feed import HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
-from fun_time.origenerator_switches import (
-    KINO_MODE,
-    ORIGENERATOR_MODE,
-    SATELLITE_MODE_COMMANDS,
-    origenerator_shows,
-)
+from fun_time.origenerator_switches import KINO_MODE, ORIGENERATOR_MODE
 from fun_time.origenerator_trash import trash_file_line
+from fun_time.runtime_flow import hand_the_satellite_to_the_app
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_names import ORIGENERATOR_TITLE
@@ -75,7 +71,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
     written = [
         *_written_in_a_sweep(on_the_monitors),
         *_written_in_a_sweep(in_a_headset),
-        *_written_by(on_the_monitors, _each_satellites_own_mode_buttons, _the_apps_f_mode,
+        *_written_by(on_the_monitors, _each_satellite_handed_to_the_app_at_startup, _the_apps_f_mode,
                      _each_hosted_satellite_told_whether_it_has_the_osr2,
                      _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_app_crossing_in),
@@ -109,11 +105,9 @@ def _written_by(app: BridgeConfig, *acts) -> list[str]:
     return written
 
 
-def _each_satellites_own_mode_buttons(app: BridgeConfig) -> None:
-    for command, (funestra, mode) in SATELLITE_MODE_COMMANDS.items():
-        away = KINO_MODE if origenerator_shows(mode) else ORIGENERATOR_MODE
-        dispatch_command(command, BridgeState(origenerator_ready=True).with_satellite(
-            funestra, mode=away), app)
+def _each_satellite_handed_to_the_app_at_startup(app: BridgeConfig) -> None:
+    for funestra in FunTimeFunestra.SATELLITES:
+        hand_the_satellite_to_the_app(funestra, app.satellite(funestra), app.origenerator_cmd_file)
 
 
 def _both_shows_hosted() -> BridgeState:

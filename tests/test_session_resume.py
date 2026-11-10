@@ -9,10 +9,8 @@ from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.main_hud import OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import MainMode, SatellitesMode
 
-from fun_time.config import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.funestra_handover import hand_back, keep_aside
 from fun_time.funestra_settings import FunestraReports
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
@@ -51,17 +49,6 @@ def _videos(tmp_path: Path, *names: str) -> list[str]:
 def _write_playlist(path: Path, lines: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
-
-
-def _never_came_home(
-    tmp_path: Path, *, own: list[str], showing: str, hosted: list[str],
-) -> SatelliteChannel:
-    channel = SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT)
-    _write_playlist(channel.playlist_file, own)
-    channel.status_file.write_text(f"video={showing}\n", encoding="utf-8")
-    keep_aside(channel)
-    _write_playlist(channel.playlist_file, hosted)
-    return channel
 
 
 class TestResumePlaylists:
@@ -122,25 +109,25 @@ class TestResumePlaylists:
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
 
-    def test_a_satellite_the_hosted_app_held_opens_on_its_own_list_where_it_left(self, tmp_path: Path):
-        a, b, image = _videos(tmp_path, "a.mp4", "b.mp4", "image.png")
-        channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[image])
-
-        assert resume_playlists([(channel.playlist_file, image)]) is True
-
-        assert channel.playlist_file.read_text(encoding="utf-8").splitlines() == [b, a]
-
-    def test_no_kept_list_outlives_the_rebuild_to_be_dealt_over_it(self, tmp_path: Path):
+    def test_a_list_an_older_session_kept_aside_is_deleted_and_never_put_back(self, tmp_path: Path):
         a, image = _videos(tmp_path, "a.mp4", "image.png")
-        channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[image])
+        playlist = tmp_path / "portrait_playlist.tsv"
+        kept = tmp_path / "portrait_playlist.kept.tsv"
+        _write_playlist(kept, [a])
+        _write_playlist(playlist, [image])
 
-        resumed = resume_playlists([
-            (tmp_path / "landscape_playlist.tsv", ""),
-            (channel.playlist_file, image),
-        ])
+        assert resume_playlists([(playlist, image)]) is True
 
-        assert resumed is False
-        assert hand_back(channel) is False
+        assert not kept.exists()
+        assert playlist.read_text(encoding="utf-8").splitlines() == [image]
+
+    def test_a_list_kept_aside_is_deleted_even_when_nothing_resumes(self, tmp_path: Path):
+        kept = tmp_path / "landscape_playlist.kept.tsv"
+        _write_playlist(kept, [_videos(tmp_path, "a.mp4")[0]])
+
+        assert resume_playlists([(tmp_path / "landscape_playlist.tsv", "")]) is False
+
+        assert not kept.exists()
 
 
 class TestResumeSharedState:
