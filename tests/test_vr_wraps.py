@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from dataclasses import replace
 
 from fun_time_vr import wraps
 from fun_time_vr.projection import (
@@ -115,25 +116,33 @@ class TestTheShaderAndTheTableAreOneSource:
         for projection in _FISHEYES:
             assert str(immersive_wrap(projection).fov_deg) not in IMMERSIVE_FRAGMENT_SHADER
 
-    def test_every_glsl_brace_is_doubled_in_the_source(self):
+    def test_no_glsl_brace_is_read_as_an_interpolation(self):
         tree = ast.parse(inspect.getsource(wraps))
-        node = next(
+        the_f_string_as_written = next(
             n for n in ast.walk(tree)
             if isinstance(n, ast.Assign)
-            and getattr(n.targets[0], "id", "") == "IMMERSIVE_FRAGMENT_SHADER")
-        literal = "".join(
-            part.value for part in node.value.values  # type: ignore[attr-defined]
-            if isinstance(part, ast.Constant))
+            and getattr(n.targets[0], "id", "") == "IMMERSIVE_FRAGMENT_SHADER").value
+        parts = the_f_string_as_written.values  # type: ignore[attr-defined]
+        glsl_kept_as_text = "".join(
+            part.value for part in parts if isinstance(part, ast.Constant))
+        interpolated = [
+            part.value for part in parts if isinstance(part, ast.FormattedValue)]
 
-        assert literal.count("{") == literal.count("}") == 11
+        assert all(isinstance(value, ast.Name) for value in interpolated), (
+            "a single brace pair around a literal renders it with the braces eaten")
+        assert glsl_kept_as_text.count("{") == glsl_kept_as_text.count("}") == 11
         assert wraps.IMMERSIVE_FRAGMENT_SHADER.count("{") == 11
 
 
 class TestTheFisheyeCurvesBesideTheAngle:
-    def test_the_new_curves_hold_mkx200s_own_angle(self):
-        for projection in (FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS):
-            assert (immersive_wrap(projection).fov_deg
-                    == immersive_wrap(MKX200_SBS).fov_deg)
+    _CURVES_MASTERING_TOOLS_LIST_BESIDE_EQUIDISTANT = (
+        FISHEYE_200_STEREOGRAPHIC_SBS, FISHEYE_200_EQUISOLID_SBS)
+
+    def test_mkx200_on_another_curve_differs_in_nothing_but_the_curve(self):
+        on_the_plain_curve_its_maker_corrects_against = immersive_wrap(MKX200_SBS)
+        for projection in self._CURVES_MASTERING_TOOLS_LIST_BESIDE_EQUIDISTANT:
+            assert (replace(immersive_wrap(projection), curve=_CURVE_EQUIDISTANT)
+                    == on_the_plain_curve_its_maker_corrects_against), projection
 
     def test_each_entry_is_marked_for_the_curve_it_draws(self):
         assert immersive_wrap(MKX200_SBS).curve == _CURVE_EQUIDISTANT
