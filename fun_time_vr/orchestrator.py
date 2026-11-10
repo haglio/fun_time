@@ -159,7 +159,7 @@ from .loading_screen import (
     wait_for_loading_screen_painted,
 )
 
-VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
+VR_STARTUP_MARKER_NAME = VR.ready_marker
 VR_FUNESTRAS_MODULE = "fun_time_vr.app"
 
 FUNESTRA_READY_TIMEOUT_S = 120.0

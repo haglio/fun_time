@@ -11,14 +11,18 @@ import pytest
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 
+_THE_MODULE_LAUNCH_VBS_RUNS = "fun_time.orchestrator"
+_SESSION_MACHINERY_LOADED_UNDER_THE_LOADING_SCREEN = "fun_time.windows_bridge_orchestrator"
+_READS_THE_OVERLAY_AS_IT_IMPORTS = "fun_time.voice_commands"
+
 _STARTUP_MODULES = (
-    "fun_time.orchestrator",
-    "fun_time.windows_bridge_orchestrator",
-    "fun_time.voice_commands",
+    _THE_MODULE_LAUNCH_VBS_RUNS,
+    _SESSION_MACHINERY_LOADED_UNDER_THE_LOADING_SCREEN,
+    _READS_THE_OVERLAY_AS_IT_IMPORTS,
 )
 
-_NOT_BEFORE_THE_LOADING_SCREEN = (
-    "fun_time.windows_bridge_orchestrator",
+_SECONDS_OF_IMPORT_ON_A_COLD_MACHINE = (
+    _SESSION_MACHINERY_LOADED_UNDER_THE_LOADING_SCREEN,
     "numpy",
     "cv2",
     "PyQt6.QtWidgets",
@@ -45,7 +49,7 @@ def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:
     )
 
 
-def test_startup_graph_imports_against_the_example_overlay():
+def test_a_checkout_with_only_the_example_overlay_imports_all_a_launch_does():
     result = _import_startup_graph(EXAMPLE_CONTENT)
     assert result.returncode == 0, result.stderr
 
@@ -65,14 +69,15 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
 def test_the_launch_loads_nothing_the_loading_screen_does_not_need():
     result = subprocess.run(
         [sys.executable, "-c",
-         ("import fun_time.orchestrator, sys;"
-         f"print([m for m in {_NOT_BEFORE_THE_LOADING_SCREEN!r} if m in sys.modules])")],
+         (f"import {_THE_MODULE_LAUNCH_VBS_RUNS}, sys;"
+         f"print([m for m in {_SECONDS_OF_IMPORT_ON_A_COLD_MACHINE!r} if m in sys.modules])")],
         cwd=PROJECT_DIR, capture_output=True, text=True, check=False,
     )
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "[]", (
-        f"the launch loads {result.stdout.strip()} before it can raise the cover"
+        f"the launch loads {result.stdout.strip()} over a bare desktop, "
+        "before it can raise the loading screen"
     )
 
 

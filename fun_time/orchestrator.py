@@ -22,6 +22,7 @@ from .project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
 from .raising_the_loading_screen import RaisedLoadingScreen, open_the_loading_screen
 from .session_environment import SessionEnvironment
 from .session_handoff import (
+    DESKTOP,
     forget_a_request_a_crash_left_behind,
     hand_over_if_asked,
     keep_the_transition_screen,
@@ -112,7 +113,7 @@ def stamp_the_users_pin_outside_every_checkout() -> None:
             _log.warning("Could not stamp AppUserModelID on %s: %s", pin, refusal)
 
 
-STARTUP_MARKER_NAME = "launcher.ready"
+STARTUP_MARKER_NAME = DESKTOP.ready_marker
 
 
 def startup_marker_path(config, marker_name: str = STARTUP_MARKER_NAME) -> Path:

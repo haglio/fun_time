@@ -65,7 +65,7 @@ def _never_came_home(
 
 
 class TestResumePlaylists:
-    def test_rotates_a_playlist_onto_the_video_that_was_on_screen(self, tmp_path: Path):
+    def test_rotating_onto_the_last_video_keeps_what_was_coming_up_coming_up(self, tmp_path: Path):
         a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [a, b, c])
@@ -74,7 +74,7 @@ class TestResumePlaylists:
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
 
-    def test_carries_the_funscript_column_through_the_rotation(self, tmp_path: Path):
+    def test_a_resumed_video_keeps_the_funscript_that_drives_the_osr2_through_it(self, tmp_path: Path):
         a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
         playlist = tmp_path / "portrait_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b, f"{c}\tc.funscript"])
@@ -90,7 +90,7 @@ class TestResumePlaylists:
     def test_reports_nothing_to_resume_when_a_playlist_file_is_missing(self, tmp_path: Path):
         assert resume_playlists([(tmp_path / "portrait_playlist.tsv", "")]) is False
 
-    def test_leaves_every_playlist_alone_when_one_of_them_cannot_be_resumed(self, tmp_path: Path):
+    def test_the_satellites_playlists_resume_together_or_stay_as_the_build_left_them(self, tmp_path: Path):
         a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         portrait = tmp_path / "portrait_playlist.tsv"
         _write_playlist(portrait, [a, b])
@@ -103,7 +103,7 @@ class TestResumePlaylists:
         assert resumed is False
         assert portrait.read_text(encoding="utf-8").splitlines() == [a, b]
 
-    def test_keeps_the_queue_when_the_video_it_left_on_is_gone(self, tmp_path: Path):
+    def test_last_sessions_queue_comes_back_from_its_top_when_its_video_is_gone(self, tmp_path: Path):
         a, b = _videos(tmp_path, "a.mp4", "b.mp4")
         playlist = tmp_path / "landscape_playlist.tsv"
         _write_playlist(playlist, [a, b])
@@ -122,7 +122,7 @@ class TestResumePlaylists:
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
 
-    def test_opens_a_funestra_that_never_came_home_on_its_own_list(self, tmp_path: Path):
+    def test_a_satellite_the_hosted_app_held_opens_on_its_own_list_where_it_left(self, tmp_path: Path):
         a, b, image = _videos(tmp_path, "a.mp4", "b.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[image])
 
@@ -130,7 +130,7 @@ class TestResumePlaylists:
 
         assert channel.playlist_file.read_text(encoding="utf-8").splitlines() == [b, a]
 
-    def test_spends_a_kept_list_even_when_there_is_nothing_to_resume(self, tmp_path: Path):
+    def test_no_kept_list_outlives_the_rebuild_to_be_dealt_over_it(self, tmp_path: Path):
         a, image = _videos(tmp_path, "a.mp4", "image.png")
         channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[image])
 
@@ -272,6 +272,8 @@ class TestResumeSharedState:
         state = resume_shared_state(state_file, resumed=True)
 
         fresh = BridgeState()
+        assert (state.omni_paused, state.active_funestra) == (
+            fresh.omni_paused, fresh.active_funestra)
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
         for funestra in FunTimeFunestra.SATELLITES:
@@ -296,32 +298,6 @@ class TestResumeSharedState:
         assert satellite_names >= NOT_RESUMED_PER_SATELLITE, sorted(NOT_RESUMED_PER_SATELLITE - satellite_names)
         assert set(RESUMED_SATELLITE_FIELDS) == satellite_names - NOT_RESUMED_PER_SATELLITE
 
-
-class TestResumeSatelliteLocks:
-    def test_queues_a_lock_for_the_satellite_that_was_holding_one(self, tmp_path: Path):
-        portrait = tmp_path / "portrait_cmd.txt"
-        landscape = tmp_path / "landscape_cmd.txt"
-
-        resume_satellite_locks([(portrait, True), (landscape, False)])
-
-        assert portrait.read_text(encoding="utf-8").split() == ["LOCK_ON"]
-        assert not landscape.exists()
-
-    def test_queues_nothing_for_a_session_that_was_not_locked(self, tmp_path: Path):
-        portrait = tmp_path / "portrait_cmd.txt"
-
-        resume_satellite_locks([(portrait, False)])
-
-        assert not portrait.exists()
-
-    def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
-        portrait = tmp_path / "portrait_cmd.txt"
-        portrait.write_text("RELOAD_PLAYLIST\n", encoding="utf-8")
-
-        resume_satellite_locks([(portrait, True)])
-
-        assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK_ON"]
-
     def test_satellites_built_fresh_start_over_and_every_other_setting_comes_back(
             self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -345,7 +321,7 @@ class TestResumeSatelliteLocks:
 
         assert len(seeds) == 3
 
-    def test_the_seeded_state_is_what_the_session_opens_on(self, tmp_path: Path):
+    def test_the_carry_is_on_disk_where_the_dispatch_loop_reads_its_state(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(portrait=SatelliteState(favorites_filter=True), omni_paused=True))
 
@@ -362,6 +338,32 @@ class TestResumeSatelliteLocks:
         assert replace(resume_shared_state(state_file, resumed=True), main_shuffle_seed=0) == (
             BridgeState())
         assert state_file.exists()
+
+
+class TestResumeSatelliteLocks:
+    def test_queues_a_lock_for_the_satellite_that_was_holding_one(self, tmp_path: Path):
+        portrait = tmp_path / "portrait_cmd.txt"
+        landscape = tmp_path / "landscape_cmd.txt"
+
+        resume_satellite_locks([(portrait, True), (landscape, False)])
+
+        assert portrait.read_text(encoding="utf-8").split() == ["LOCK_ON"]
+        assert not landscape.exists()
+
+    def test_a_satellite_left_unlocked_as_one_opens_is_sent_nothing(self, tmp_path: Path):
+        portrait = tmp_path / "portrait_cmd.txt"
+
+        resume_satellite_locks([(portrait, False)])
+
+        assert not portrait.exists()
+
+    def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
+        portrait = tmp_path / "portrait_cmd.txt"
+        portrait.write_text("RELOAD_PLAYLIST\n", encoding="utf-8")
+
+        resume_satellite_locks([(portrait, True)])
+
+        assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK_ON"]
 
 
 class TestResumeMainLoop:
@@ -381,11 +383,13 @@ class TestResumeMainLoop:
 
         assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
 
-    def test_queues_nothing_when_there_was_no_loop(self, tmp_path: Path):
+    def test_a_main_funestra_left_playing_through_as_one_opens_is_sent_nothing(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4")
+        on_the_video_that_leads_with_no_loop = replace(
+            self._looping(tmp_path, "a.mp4"), main_loop_bounds_ms="")
 
-        resume_main_loop(main_funestra_cmd, BridgeState(), playlist)
+        resume_main_loop(main_funestra_cmd, on_the_video_that_leads_with_no_loop, playlist)
 
         assert not main_funestra_cmd.exists()
 
@@ -449,7 +453,7 @@ class TestResumeMainLock:
 
         assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
 
-    def test_queues_nothing_for_a_main_funestra_that_was_holding_its_video(self, tmp_path: Path):
+    def test_a_main_funestra_left_holding_its_video_as_one_opens_is_sent_nothing(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
 
         resume_main_lock(main_funestra_cmd, locked=True)
@@ -674,7 +678,7 @@ class TestPlaylistOpensOn:
         assert playlist_opens_on(tmp_path / "absent.tsv", "C:/v/a.mp4") is False
 
 
-def test_an_app_comes_back_with_origenerator_on_what_it_held_when_left(tmp_path):
+def test_a_session_opens_already_in_the_origenerator_modes_it_was_left_in(tmp_path):
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(
         landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR),

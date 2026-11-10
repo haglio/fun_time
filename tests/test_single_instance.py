@@ -49,13 +49,13 @@ class TestClaimingTheSession:
 
     def test_a_name_left_behind_by_a_session_nothing_is_playing_from_is_claimed(self):
         name = self._a_name()
-        left_behind = _left_behind(name)
+        kept_alive = a_handle_windows_keeps_the_name_alive_for(name)
 
         claimed = claim_the_session(name)
 
         assert claimed
         let_the_session_go(claimed)
-        _close(left_behind)
+        close_the_handle(kept_alive)
 
     def test_letting_go_of_a_name_a_wedged_session_abandoned_frees_it_for_the_next(self):
         name = self._a_name()
@@ -64,7 +64,7 @@ class TestClaimingTheSession:
         let_the_session_go(claim_the_session(name))
 
         assert _claimed_elsewhere(name) is not None
-        _close(wedged)
+        close_the_handle(wedged)
 
 
 def _claimed_elsewhere(name: str) -> int | None:
@@ -86,13 +86,13 @@ def _abandoned_by_a_dead_owner(name: str) -> int:
     return handle
 
 
-def _left_behind(name: str) -> int:
+def a_handle_windows_keeps_the_name_alive_for(name: str) -> int:
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateMutexW.restype = ctypes.c_void_p
     return kernel32.CreateMutexW(None, False, name)
 
 
-def _close(handle: int) -> None:
+def close_the_handle(handle: int) -> None:
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
     kernel32.CloseHandle(ctypes.c_void_p(handle))

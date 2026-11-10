@@ -43,12 +43,14 @@ FLICK_SECONDS = "FLICK_SECONDS"
 CYCLE_SHAPE = "CYCLE_SHAPE"
 LEARNED_ON = "LEARNED_ON"
 
-NOT_RESUMED = frozenset({
-    "omni_paused",
-    "active_funestra",
-    "origenerator_ready",
-    "majority",
-})
+_STARTUP_CLEARS_IT_BEFORE_THE_FUNESTRAS_LAUNCH = frozenset({"omni_paused"})
+_A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION = frozenset({"active_funestra"})
+
+NOT_RESUMED = (
+    _STARTUP_CLEARS_IT_BEFORE_THE_FUNESTRAS_LAUNCH
+    | _A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION
+    | frozenset({"origenerator_ready", "majority"})
+)
 
 NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor", "handed_over"})
 
@@ -80,16 +82,20 @@ def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
     return [item for item in read_playlist(playlist_file) if item.path.exists()]
 
 
-def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
+def _spend_every_kept_list_before_any_rebuild(resumptions: Sequence[tuple[Path, str]]) -> None:
     for playlist_file, _ in resumptions:
         take_back_the_list(playlist_file)
-    rotated: list[tuple[Path, PlaylistEntries]] = []
+
+
+def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
+    _spend_every_kept_list_before_any_rebuild(resumptions)
+    written_only_if_all_resume: list[tuple[Path, PlaylistEntries]] = []
     for playlist_file, last_video in resumptions:
         entries = _surviving_entries(playlist_file)
         if not entries:
             return False
-        rotated.append((playlist_file, rotated_onto(entries, last_video)))
-    for playlist_file, entries in rotated:
+        written_only_if_all_resume.append((playlist_file, rotated_onto(entries, last_video)))
+    for playlist_file, entries in written_only_if_all_resume:
         write_playlist(playlist_file, entries)
     return True
 
@@ -107,13 +113,20 @@ def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file:
     return carried
 
 
+def _resend_a_lock_left_other_than_it_opens(
+    command_file: Path, *, locked: bool, opens_locked: bool,
+) -> None:
+    if locked != opens_locked:
+        append_command(Path(command_file), LOCK_ON if locked else LOCK_OFF)
+
+
 def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
     for command_file, locked in locks:
-        if locked:
-            append_command(Path(command_file), LOCK_ON)
+        _resend_a_lock_left_other_than_it_opens(
+            command_file, locked=locked, opens_locked=SatelliteState().locked)
 
 
-def _shape_steps(shape: str) -> list[str]:
+def _cycles_to_the_shape_no_verb_names_outright(shape: str) -> list[str]:
     shapes = [kind.value for kind in WaveformShape]
     if shape not in shapes:
         return []
@@ -129,7 +142,7 @@ def resume_genau(genau_cmd_file: Path, carried: BridgeState) -> None:
         (HAND_CENTER, carried.genau_center, hand.center),
         (FLICK_SECONDS, carried.genau_flick_seconds, advance.interval),
     ) if value != opens_at]
-    verbs += _shape_steps(carried.genau_shape)
+    verbs += _cycles_to_the_shape_no_verb_names_outright(carried.genau_shape)
     if carried.genau_learned:
         verbs.append(LEARNED_ON)
     if not carried.genau_locked:
@@ -139,8 +152,8 @@ def resume_genau(genau_cmd_file: Path, carried: BridgeState) -> None:
 
 
 def resume_main_lock(main_funestra_cmd_file: Path, *, locked: bool) -> None:
-    if not locked:
-        append_command(Path(main_funestra_cmd_file), LOCK_OFF)
+    _resend_a_lock_left_other_than_it_opens(
+        main_funestra_cmd_file, locked=locked, opens_locked=BridgeState().main_locked)
 
 
 def resume_satellite_volumes(carried: BridgeState,
@@ -178,9 +191,8 @@ def resume_what_lives_in_a_funestra(
 def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
                      playlist_file: Path) -> None:
     in_ms, out_ms = main_loop_bounds(carried)
-    if out_ms <= in_ms:
-        return
-    if playlist_opens_on(playlist_file, carried.main_loop_video):
+    was_looping = out_ms > in_ms
+    if was_looping and playlist_opens_on(playlist_file, carried.main_loop_video):
         append_command(Path(main_funestra_cmd_file),
                        f"{SET_LOOP} {in_ms} {out_ms}")
 

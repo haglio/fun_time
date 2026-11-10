@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import ctypes
 import importlib
 import inspect
 import re
@@ -52,9 +51,12 @@ from fun_time.session_handoff import (
     wait_for_the_session_to_come_up,
     wait_for_the_session_to_let_go,
 )
-from fun_time.single_instance import let_the_session_go
 from fun_time_vr.orchestrator import VR_STARTUP_MARKER_NAME
 from tests.test_launch_smoke import LAUNCHED
+from tests.test_single_instance import (
+    a_handle_windows_keeps_the_name_alive_for,
+    close_the_handle,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 LAUNCHERS = ("launch.vbs", "launch_vr.vbs")
@@ -222,7 +224,7 @@ class TestTheScreenTheLeavingSessionRaisesAndTheArrivingOneTakesDown:
         ).read_text(encoding="utf-8").strip() == "DONE"
 
 
-class TestTheHeadsetHold:
+class TestTheHeadsetHoldIsAHandshake:
     def test_the_hold_carries_whether_to_stop_the_runtime(self, tmp_path: Path):
         hold_the_headset(tmp_path, stop_runtime=True)
         assert headset_hold_asked(tmp_path) is True
@@ -320,14 +322,12 @@ class TestWaitingForTheOutgoingSession:
             assert wait_for_the_session_to_let_go("m", timeout_s=0, poll_s=0) is False
 
     def test_a_name_left_behind_by_a_session_that_is_gone_is_not_one_playing(self):
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CreateMutexW.restype = ctypes.c_void_p
         name = rf"Local\FunTimeTest.{uuid4().hex}"
-        left_behind = kernel32.CreateMutexW(None, False, name)
+        kept_alive = a_handle_windows_keeps_the_name_alive_for(name)
 
         assert a_session_is_playing(name) is False
 
-        let_the_session_go(left_behind)
+        close_the_handle(kept_alive)
 
 
 class TestStartingTheIncomingSession:
@@ -423,7 +423,7 @@ class TestWatchingItComeUp:
         assert "did not finish starting" in reason
 
 
-class TestReportingAFailedCrossing:
+class TestTheDialogThatIsAllAFailedCrossingLeavesOnScreen:
     def test_it_carries_the_tail_of_the_launcher_log(self, tmp_path: Path):
         log = tmp_path / "vr_launcher.log"
         log.write_text("\n".join(f"line {n}" for n in range(40)) + "\n\n\n", encoding="utf-8")

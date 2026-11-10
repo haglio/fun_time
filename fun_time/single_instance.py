@@ -29,7 +29,8 @@ def claim_the_session(name: str) -> int | None:
     handle = dll.CreateMutexW(None, False, name)
     if not handle:
         return None
-    if dll.WaitForSingleObject(ctypes.c_void_p(handle), 0) == _WAIT_TIMEOUT:
+    owned_by_a_live_session = dll.WaitForSingleObject(ctypes.c_void_p(handle), 0) == _WAIT_TIMEOUT
+    if owned_by_a_live_session:
         dll.CloseHandle(ctypes.c_void_p(handle))
         return None
     return handle

@@ -143,8 +143,12 @@ def _read_request(state_dir: str | Path, *, take: bool) -> Handoff | None:
     return Handoff(target, cancelable=_NO_CANCEL not in rest)
 
 
-def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
+def _forget_the_answer_to_an_earlier_hold(state_dir: str | Path) -> None:
     (Path(state_dir) / HEADSET_HELD_NAME).unlink(missing_ok=True)
+
+
+def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
+    _forget_the_answer_to_an_earlier_hold(state_dir)
     (Path(state_dir) / HEADSET_HOLD_NAME).write_text(
         _STOP_RUNTIME if stop_runtime else "", encoding="utf-8",
     )
@@ -307,7 +311,7 @@ def wait_for_the_session_to_let_go(
 @dataclass(frozen=True)
 class SessionLaunch:
     python_exe: str | Path
-    project_dir: str | Path
+    checkout_whose_code_runs: str | Path
     state_dir: str | Path
     config_path: str | Path
 
@@ -323,7 +327,7 @@ def start_the_session(
     with open_child_log(Path(launch.state_dir) / target.launcher_log, command) as log:
         logger.info("Starting %s: %s", target.app_name, subprocess.list2cmdline(command))
         return subprocess.Popen(
-            command, cwd=str(launch.project_dir), stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            command, cwd=str(launch.checkout_whose_code_runs), stdin=subprocess.DEVNULL, stdout=log, stderr=log,
             **hidden_subprocess_kwargs(),
         )
 
@@ -381,7 +385,7 @@ def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
     let_go_of_a_kept_origenerator(Path(state_dir), origenerator_cmd_file)
 
 
-def _give_up(reason: str, log_file: Path, config) -> int:
+def _take_everything_down_leaving_only_a_dialog(reason: str, log_file: Path, config) -> int:
     _uncover_what_was_waiting(config.paths.state_dir, config.origenerator_cmd_file)
     report_a_failed_crossing(reason, log_file)
     return 1
@@ -394,7 +398,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     if not wait_for_the_session_to_let_go(
         mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)
     ):
-        return _give_up(
+        return _take_everything_down_leaving_only_a_dialog(
             "The session that was running never finished shutting down, so "
             f"{target.app_name} could not take over.",
             log_file, config,
@@ -419,7 +423,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     )
     reason = wait_for_the_session_to_come_up(target, session, state_dir=state_dir)
     if reason:
-        return _give_up(reason, log_file, config)
+        return _take_everything_down_leaving_only_a_dialog(reason, log_file, config)
     logger.info("%s is up (pid=%d)", target.app_name, session.pid)
     return 0
 
