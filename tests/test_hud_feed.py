@@ -137,7 +137,7 @@ class TestHudPublishing:
             published = parse_hud((tmp_path / f"{funestra}_hud.json").read_text(encoding="utf-8"))
             assert published.corner is None
             assert published.seeds == ()
-            assert published.title == "Origenerator mode"
+            assert published.title == ""
             crown = ["portrait_crown"] if funestra == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
                 [f"{funestra}_minimize", *crown]]
