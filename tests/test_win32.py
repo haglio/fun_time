@@ -1013,7 +1013,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
     def test_the_topmost_floor_is_topmost_never_shown_and_never_focused(self):
         with _user32_mocked() as mock:
             mock.CreateWindowExW.return_value = 4242
-            assert win32.create_the_topmost_floor_a_promotion_beneath_needs() == 4242
+            assert win32.create_topmost_floor() == 4242
 
         ex_style, _class, _title, style = mock.CreateWindowExW.call_args.args[:4]
         assert ex_style & win32.WS_EX_TOPMOST

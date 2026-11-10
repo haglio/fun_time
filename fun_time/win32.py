@@ -497,7 +497,7 @@ _user32.CreateWindowExW.argtypes = [
 _user32.CreateWindowExW.restype = ctypes.wintypes.HWND
 
 
-def create_the_topmost_floor_a_promotion_beneath_needs() -> int:
+def create_topmost_floor() -> int:
     return int(_user32.CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", None,
         WS_POPUP, 0, 0, 0, 0, None, None, None, None) or 0)

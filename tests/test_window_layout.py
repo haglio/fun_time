@@ -209,17 +209,22 @@ def _overlapping(rects) -> list[tuple[str, str]]:
             if one < other and _overlap(rects[one], rects[other])]
 
 
-def test_the_always_topmost_windows_never_overlap_whatever_their_order(cfg_path: Path):
-    config = load_config(cfg_path)
+def _laid_out_on_two_monitors(cfg_path: Path):
+    layout_config = load_config(cfg_path).layout
     secondary = MonitorRect(2560, 0, 1440, 3440)
     plan = compute_window_layout(
         primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=secondary,
-        layout_config=config.layout,
+        layout_config=layout_config,
     )
+    return layout_config, secondary, plan
+
+
+def test_the_always_topmost_windows_never_overlap_whatever_their_order(cfg_path: Path):
+    layout_config, secondary, plan = _laid_out_on_two_monitors(cfg_path)
 
     for majority in Crown:
-        on_the_secondary = secondary_monitor_rects(secondary, config.layout, majority=majority)
+        on_the_secondary = secondary_monitor_rects(secondary, layout_config, majority=majority)
         rects = {
             "portrait": on_the_secondary.portrait,
             "landscape": plan.landscape,
@@ -231,13 +236,7 @@ def test_the_always_topmost_windows_never_overlap_whatever_their_order(cfg_path:
 
 
 def test_every_window_is_fully_visible_at_once(cfg_path: Path):
-    config = load_config(cfg_path)
-    secondary = MonitorRect(2560, 0, 1440, 3440)
-    plan = compute_window_layout(
-        primary_monitor=MonitorRect(0, 0, 2560, 1392),
-        secondary_monitor=secondary,
-        layout_config=config.layout,
-    )
+    layout_config, secondary, plan = _laid_out_on_two_monitors(cfg_path)
 
     assert _overlapping({
         "portrait": plan.portrait,
@@ -245,5 +244,5 @@ def test_every_window_is_fully_visible_at_once(cfg_path: Path):
         "dashboard": plan.dashboard,
         "rfb": plan.random_favs_browser,
         "main_funestra": compute_main_media_rect(
-            secondary_monitor=secondary, layout_config=config.layout),
+            secondary_monitor=secondary, layout_config=layout_config),
     }) == []

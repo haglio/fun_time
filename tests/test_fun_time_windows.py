@@ -53,7 +53,8 @@ def test_a_window_hidden_since_startup_is_reached_by_its_startup_handle():
     windows = FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID),
                              hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
 
-    with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0),          patch("fun_time.fun_time_windows.find_window_by_title", return_value=0):
+    with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+         patch("fun_time.fun_time_windows.find_window_by_title", return_value=0):
         assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
 

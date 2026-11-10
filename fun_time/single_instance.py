@@ -17,7 +17,7 @@ def the_one_sessions_mutex(config) -> str:
 
 
 _WAIT_TIMEOUT = 0x00000102
-_OWNED_ONLY_ONCE_THE_WAIT_TAKES_IT = False
+_OWNED_AT_CREATION = False
 
 
 def _kernel32():
@@ -32,7 +32,7 @@ def _kernel32():
 
 def claim_the_session(name: str) -> int | None:
     dll = _kernel32()
-    handle = dll.CreateMutexW(None, _OWNED_ONLY_ONCE_THE_WAIT_TAKES_IT, name)
+    handle = dll.CreateMutexW(None, _OWNED_AT_CREATION, name)
     if not handle:
         return None
     owned_by_a_live_session = dll.WaitForSingleObject(ctypes.c_void_p(handle), 0) == _WAIT_TIMEOUT

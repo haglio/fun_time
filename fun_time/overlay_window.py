@@ -26,7 +26,7 @@ from .overlay_progress import (
 )
 from .project_paths import PROJECT_ICON
 from .win32 import (
-    create_the_topmost_floor_a_promotion_beneath_needs,
+    create_topmost_floor,
     find_window_by_title,
     set_always_on_top,
 )
@@ -47,7 +47,7 @@ def opening_panel(status: str) -> LoadingPanel:
 
 
 def _lay_a_topmost_floor_under_the_screen() -> None:
-    create_the_topmost_floor_a_promotion_beneath_needs()
+    create_topmost_floor()
 
 
 class Canvas(Protocol):
