@@ -659,7 +659,7 @@ def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._pending_rfb_urls.append(op.key)
 
 
-def _run_save_video(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+def _run_save_video_on_a_worker(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner._answers += 1
     threading.Thread(
         target=save_and_say,
@@ -718,7 +718,7 @@ _OP_HANDLERS = {
     Op.SUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
-    Op.SAVE_CLIP: _run_save_video,
+    Op.SAVE_CLIP: _run_save_video_on_a_worker,
     Op.MAIN_FUNESTRA_ANSWERS: _run_an_answer_given_elsewhere,
     Op.NARROWING_ANSWERS: _run_an_answer_given_elsewhere,
     Op.IGNORED: _run_ignored,

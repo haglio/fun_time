@@ -4,7 +4,7 @@ import logging
 from dataclasses import replace
 
 from .bridge_records import BridgeConfig, WindowOp
-from .origenerator_switches import RfbMode
+from .origenerator_switches import WHAT_THE_DIM_BUTTONS_SAY, RfbMode
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
@@ -26,8 +26,7 @@ def origenerator_refused(state: BridgeState, config: BridgeConfig, *,
         return [WindowOp(op="message", key="No Origenerator configured",
                          level=logging.WARNING)]
     if asked_for and not state.origenerator_ready:
-        return [WindowOp(op="message", key="Origenerator is still starting",
-                         level=logging.WARNING)]
+        return [WindowOp(op="message", key=WHAT_THE_DIM_BUTTONS_SAY, level=logging.WARNING)]
     return None
 
 

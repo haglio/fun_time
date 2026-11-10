@@ -20,14 +20,13 @@ from funestra.modes import SatellitesMode
 
 from .crown import CROWN_ICON, Crown
 from .funestra_buttons import NOUN, minimize_funestra_button
-from .origenerator_switches import ORIGENERATOR_MODE, mode_command
+from .origenerator_switches import ORIGENERATOR_MODE, WHAT_THE_DIM_BUTTONS_SAY, mode_command
 
 MODE_BUTTONS = (
     (SatellitesMode.KINO, "Kino"),
     (SatellitesMode.ORIGENERATOR, "Origenerator"),
 )
-STILL_STARTING_TOOLTIP = ("Origenerator is still starting — this button becomes enabled "
-                          "when it's ready")
+STILL_STARTING_TOOLTIP = f"{WHAT_THE_DIM_BUTTONS_SAY} — this button becomes enabled when it's ready"
 
 
 @dataclass(frozen=True)

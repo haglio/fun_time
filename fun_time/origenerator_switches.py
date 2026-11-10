@@ -20,6 +20,8 @@ class RfbMode(StrEnum):
 KINO_MODE = SatellitesMode.KINO
 ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 
+WHAT_THE_DIM_BUTTONS_SAY = "Origenerator is still starting"
+
 OPEN_SLIDESHOW = "open_slideshow"
 CLOSE_SLIDESHOW = "close_slideshow"
 CLOSE_SLIDESHOWS = "CLOSE_SLIDESHOWS"

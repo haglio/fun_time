@@ -64,21 +64,26 @@ def percent_rate(value: str) -> str | None:
     return set_speed(pct / 100)
 
 
+def _the_video_whose_clock_paces_the_osr2(holder: FunTimeFunestra,
+                                          config: BridgeConfig) -> FunTimeFunestra | None:
+    if holder is FunTimeFunestra.MAIN:
+        scripted = read_main_funestra_status(config.main_funestra_status_file).funscript_driving
+    else:
+        scripted = read_satellite_status(config.satellite(holder).status_file).funscript_driving
+    return holder if scripted else None
+
+
 def _speed_target(state: BridgeState, config: BridgeConfig, *,
                   by_driver: bool) -> FunTimeFunestra | None:
     holder = funestra_with_the_osr2(state)
     the_motion_can_take_it = by_driver and state.osr2_control == OSR2_DRIVING
     if the_motion_can_take_it and holder is not FunTimeFunestra.MAIN:
-        status = read_satellite_status(config.satellite(holder).status_file)
-        return holder if status.funscript_driving else None
+        return _the_video_whose_clock_paces_the_osr2(holder, config)
     if not kino_shows(state.main_mode):
         return None
     if not the_motion_can_take_it:
         return FunTimeFunestra.MAIN
-    if (holder is FunTimeFunestra.MAIN
-            and read_main_funestra_status(config.main_funestra_status_file).funscript_driving):
-        return FunTimeFunestra.MAIN
-    return None
+    return _the_video_whose_clock_paces_the_osr2(holder, config)
 
 
 _SKIP_AHEAD_NAMES = {
