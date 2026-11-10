@@ -13,7 +13,6 @@ from fun_time.filter_vocab import filter_voice_commands
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import LaunchManifest, write_manifest_data, write_windows_bridge_manifest
 from fun_time.mode_plan import MAIN_MODES
-from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
@@ -120,18 +119,18 @@ def drain(config: BridgeConfig) -> dict[str, list[str]]:
     return written
 
 
-def _named_with_both_modes(main_mode, satellites_mode, command: str) -> str:
-    return f"{main_mode}/{satellites_mode}/{command}"
+def _named_with_the_mode_and_the_hand_over(main_mode, held: bool, command: str) -> str:
+    return f"{main_mode}/{'handed over' if held else 'not handed over'}/{command}"
 
 
 def _the_funestra_it_is_said_to(command: str) -> FunTimeFunestra:
     return parse_command(command).satellite or FunTimeFunestra.MAIN
 
 
-def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
+def sweep(config: BridgeConfig, handed_over: tuple[bool, ...]) -> dict[str, dict[str, list[str]]]:
     drain(config)
     _hold_every_funestra_halfway_through_an_hour(config)
-    return _what_every_command_sent(config, satellites_modes)
+    return _what_every_command_sent(config, handed_over)
 
 
 def _hold_every_funestra_halfway_through_an_hour(config: BridgeConfig) -> None:
@@ -143,19 +142,17 @@ def _hold_every_funestra_halfway_through_an_hour(config: BridgeConfig) -> None:
             encoding="utf-8")
 
 
-def _what_every_command_sent(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
+def _what_every_command_sent(config: BridgeConfig, handed_over: tuple[bool, ...]) -> dict[str, dict[str, list[str]]]:
     landed: dict[str, dict[str, list[str]]] = {}
     for main_mode in MAIN_MODES:
-        for satellites_mode in satellites_modes:
+        for held in handed_over:
             for command in every_command():
                 state = BridgeState(main_mode=main_mode, origenerator_ready=True,
                                     osr2_funestra=_the_funestra_it_is_said_to(command))
                 for funestra in FunTimeFunestra.SATELLITES:
-                    state = state.with_satellite(
-                        funestra, mode=satellites_mode,
-                        handed_over=satellites_mode is ORIGENERATOR_MODE)
+                    state = state.with_satellite(funestra, handed_over=held)
                 _state, ops = dispatch_command(command, state, config, target_path="")
                 written = drain(config)
                 written["__ops__"] = sorted({op.op for op in ops})
-                landed[_named_with_both_modes(main_mode, satellites_mode, command)] = written
+                landed[_named_with_the_mode_and_the_hand_over(main_mode, held, command)] = written
     return landed

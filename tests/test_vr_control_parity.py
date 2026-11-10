@@ -30,8 +30,6 @@ from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMM
 from fun_time.genau_config import GenauSettings
 from fun_time.mode_plan import MAIN_KINO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
-from fun_time.origenerator_switches import KINO_MODE as SATELLITE_KINO_MODE
-from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
@@ -89,13 +87,13 @@ _ONE_SLOW_SWEEP_SERVES_EVERY_TEST = "module"
 @pytest.fixture(scope=_ONE_SLOW_SWEEP_SERVES_EVERY_TEST)
 def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     return sweep(headset_config(tmp_path_factory.mktemp("vr_parity")),
-                 (SATELLITE_KINO_MODE, ORIGENERATOR_MODE))
+                 (False, True))
 
 
 @pytest.fixture(scope=_ONE_SLOW_SWEEP_SERVES_EVERY_TEST)
 def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     root = tmp_path_factory.mktemp("vr_parity_hosting_none")
-    return sweep(headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
+    return sweep(headset_config(root, names_an_origenerator=False), (True,))
 
 
 def test_the_sweep_sends_every_funestra_its_ten_second_steps(landed):
@@ -299,12 +297,12 @@ class TestGenau:
 
 
 class TestTheHostedOrigenerator:
-    def test_it_is_sent_what_is_said_to_a_satellite_in_its_mode(self, landed):
-        assert landed["kino/origenerator/portrait_next"]["origenerator_cmd_file"] == [
+    def test_it_is_sent_what_is_said_to_a_satellite_it_holds(self, landed):
+        assert landed["kino/handed over/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
 
     def test_a_lock_locks_the_funestra_and_then_tells_the_hosted_app(self, landed):
-        assert landed["kino/origenerator/portrait_lock"] == {
+        assert landed["kino/handed over/portrait_lock"] == {
             "portrait_cmd_file": ["LOCK_ON"], "origenerator_cmd_file": ["portrait_lock"],
             "__ops__": []}
 

@@ -14,7 +14,7 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support import osr2_hold
-from funestra.modes import LengthMode, MainMode, SatellitesMode
+from funestra.modes import LengthMode, MainMode
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
@@ -904,29 +904,6 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 
     assert portrait_paused.read_text(encoding="utf-8") == "0"
     assert landscape_paused.read_text(encoding="utf-8") == "0"
-
-
-def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_playing(
-    tmp_path: Path,
-):
-    kwargs = _start_core_session_kwargs(tmp_path)
-    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
-        portrait=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
-        landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR)))
-
-    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
-        "fun_time.windows_bridge_startup.ensure_broker"
-    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
-    ), patch("fun_time.windows_bridge_startup.launch_core_apps"), patch(
-        "fun_time.windows_bridge_startup.resume_playlists", return_value=True
-    ):
-        _start_core_session(kwargs)
-
-    assert kwargs["portrait"].channels.paused.read_text(encoding="utf-8") == "0"
-    assert kwargs["landscape"].channels.paused.read_text(encoding="utf-8") == "0"
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):

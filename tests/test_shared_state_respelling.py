@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from funestra.modes import MainMode, SatellitesMode
+from funestra.modes import MainMode
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.origenerator_switches import RfbMode
@@ -71,11 +71,8 @@ class TestTheSharedStateFile:
 
         rewritten = state_file.read_text(encoding="utf-8")
         assert "main_mode = hybrid" in rewritten
-        assert "portrait_mode = player" in rewritten
         state = read_shared_state(state_file)
-        assert (state.main_mode, *(state.satellite(funestra).mode
-                                   for funestra in FunTimeFunestra.SATELLITES), state.rfb_mode) == (
-            MainMode.KINO, SatellitesMode.KINO, SatellitesMode.KINO, RfbMode.RFB)
+        assert (state.main_mode, state.rfb_mode) == (MainMode.KINO, RfbMode.RFB)
 
     def test_the_reader_knows_no_old_key_before_the_rewrite(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
@@ -87,18 +84,18 @@ class TestTheSharedStateFile:
         assert state.active_funestra == 1
         assert state.main_scripted_filter is False
 
-    def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
+    def test_a_room_left_in_origenerator_mode_comes_back_with_origenerator_in_the_browsers_place(
             self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text("[state]\nsatellites_mode = origenerator\n", encoding="utf-8")
 
         migrate_shared_state(state_file)
 
-        state = read_shared_state(state_file)
-        assert [state.satellite(funestra).mode for funestra in FunTimeFunestra.SATELLITES] == [
-            SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert state.rfb_mode is RfbMode.ORIGENERATOR
-        assert "satellites_mode" not in state_file.read_text(encoding="utf-8")
+        assert read_shared_state(state_file) == BridgeState(rfb_mode=RfbMode.ORIGENERATOR)
+        written = state_file.read_text(encoding="utf-8")
+        assert "satellites_mode" not in written
+        assert "portrait_mode" not in written
+        assert "landscape_mode" not in written
 
     def test_a_file_already_in_todays_spelling_is_left_untouched(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME

@@ -16,7 +16,6 @@ from fun_time.hud_feed import HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
-from fun_time.origenerator_switches import KINO_MODE, ORIGENERATOR_MODE
 from fun_time.origenerator_trash import trash_file_line
 from fun_time.runtime_flow import hand_the_satellite_to_the_app
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -93,7 +92,7 @@ def _with_his_video_or_act_blanked(line: str) -> str:
 
 
 def _written_in_a_sweep(app: BridgeConfig) -> list[str]:
-    return [line for written in sweep(app, (KINO_MODE, ORIGENERATOR_MODE)).values()
+    return [line for written in sweep(app, (False, True)).values()
             for line in written.get("origenerator_cmd_file", ())]
 
 
@@ -111,7 +110,7 @@ def _each_satellite_handed_to_the_app_at_startup(app: BridgeConfig) -> None:
 
 
 def _both_shows_hosted() -> BridgeState:
-    hosted = SatelliteState(mode=ORIGENERATOR_MODE, handed_over=True)
+    hosted = SatelliteState(handed_over=True)
     return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
 
 

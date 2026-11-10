@@ -3,8 +3,6 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from funestra.modes import SatellitesMode
-
 from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
@@ -16,9 +14,6 @@ class RfbMode(StrEnum):
     RFB = "rfb"
     ORIGENERATOR = "origenerator"
 
-
-KINO_MODE = SatellitesMode.KINO
-ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 
 WHAT_THE_DIM_BUTTONS_SAY = "Origenerator is still starting"
 

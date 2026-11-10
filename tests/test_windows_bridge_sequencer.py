@@ -15,7 +15,7 @@ from app_support import ports
 from app_support.origenerator_handoff import hand_over, take_the_takeover
 from app_support.testing import origenerator_handed_over
 from app_support.win32 import process_started
-from funestra.modes import MainMode, SatellitesMode
+from funestra.modes import MainMode
 
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
@@ -42,7 +42,6 @@ from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
 from fun_time.shared_state import (
     BridgeState,
-    SatelliteState,
     shared_state_path,
     write_shared_state,
 )
@@ -1580,11 +1579,10 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
         )
         if left_in_origenerator:
             write_shared_state(shared_state_path(tmp_path), BridgeState(
-                portrait=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
                 rfb_mode=RfbMode.ORIGENERATOR))
         return cfg, manifest_path
 
-    def test_every_session_opens_its_satellites_in_kino_mode(
+    def test_a_session_left_with_origenerator_in_the_browsers_place_starts_telling_it_nothing(
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path, left_in_origenerator=True)

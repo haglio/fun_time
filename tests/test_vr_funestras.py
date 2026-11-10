@@ -56,7 +56,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_manifest_data,
 )
-from fun_time.origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, RfbMode
+from fun_time.origenerator_switches import RfbMode
 from fun_time.osr2_section import osr2_readout_path
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
@@ -66,7 +66,6 @@ from fun_time.overlay_progress import (
 )
 from fun_time.shared_state import (
     BridgeState,
-    SatelliteState,
     shared_state_path,
     write_shared_state,
 )
@@ -3383,18 +3382,15 @@ class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
 
 
 class TestCoreShowsInTheHeadsetWheneverOrigeneratorIsUp:
-    @pytest.mark.parametrize(("ready", "rfb_mode", "portrait_mode", "shows"), [
-        (True, RfbMode.RFB, KINO_MODE, True),
-        (True, RfbMode.ORIGENERATOR, KINO_MODE, True),
-        (True, RfbMode.RFB, ORIGENERATOR_MODE, True),
-        (False, RfbMode.ORIGENERATOR, ORIGENERATOR_MODE, False),
+    @pytest.mark.parametrize(("ready", "rfb_mode", "shows"), [
+        (True, RfbMode.RFB, True),
+        (True, RfbMode.ORIGENERATOR, True),
+        (False, RfbMode.ORIGENERATOR, False),
     ])
-    def test_it_shows_whatever_the_mode_selectors_say_once_origenerator_is_up(
-            self, tmp_path, ready, rfb_mode, portrait_mode, shows):
+    def test_it_shows_whatever_the_mode_selector_says_once_origenerator_is_up(
+            self, tmp_path, ready, rfb_mode, shows):
         state_file = shared_state_path(tmp_path)
-        write_shared_state(state_file, BridgeState(
-            origenerator_ready=ready, rfb_mode=rfb_mode,
-            portrait=SatelliteState(mode=portrait_mode)))
+        write_shared_state(state_file, BridgeState(origenerator_ready=ready, rfb_mode=rfb_mode))
         unit = _GalleryUnit(remembered={}, state_dir=tmp_path, shared_state_file=state_file)
 
         unit.pump(threading.Event(), now=0.0)

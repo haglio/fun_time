@@ -20,7 +20,7 @@ from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
 from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_PARKED
-from funestra.modes import MainMode, SatellitesMode
+from funestra.modes import MainMode
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 from funestra.status import StatusWriter
@@ -1037,7 +1037,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path, config=make_config(
             tmp_path, regen_metadata_root=metadata_root, origenerator_enabled=True,
             origenerator_cmd_file=hosted_app))
-        runner.state = _in_origenerator_mode(
+        runner.state = _handed_over(
             replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
         (tmp_path / "dashboard_cmd.txt").write_text(
             f"portrait_lock_held|{video}\n", encoding="utf-8")
@@ -1307,7 +1307,7 @@ class TestWhatASpokenCommandFlashes:
     ):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
+        write_shared_state(tmp_path / "shared_state.ini", _handed_over(
             BridgeState(active_funestra=3)))
         (tmp_path / "dashboard_cmd.txt").write_text(
             format_spoken_command(command, spoken_at=1.0, said=said), encoding="utf-8")
@@ -1323,7 +1323,7 @@ class TestWhatASpokenCommandFlashes:
 def test_a_word_the_app_hears_as_a_lock_locks_a_satellite_showing_the_hosted_app(tmp_path):
     runner = make_runner(tmp_path, config=_hosting(tmp_path))
     _the_hosted_app_answers(tmp_path)
-    write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
+    write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))
     runner.hear_as_a_lock(frozenset({"hold"}))
     (tmp_path / "dashboard_cmd.txt").write_text(
         format_spoken_command("portrait_say_hold", spoken_at=1.0, said="portrait hold"),
@@ -2481,17 +2481,17 @@ class TestIdempotentVoiceCommands:
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
         runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
-        runner.state = _in_origenerator_mode(runner.state, FunTimeFunestra.LANDSCAPE)
+        runner.state = _handed_over(runner.state, FunTimeFunestra.LANDSCAPE)
 
         runner._update_dashboard()
 
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
 
-    def test_the_dashboards_f_mode_lights_off_the_hosted_shows_in_origenerator_mode(
+    def test_the_dashboards_f_mode_lights_off_the_hosted_shows_handed_over(
         self, tmp_path,
     ):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
-        runner.state = _in_origenerator_mode(replace(runner.state, main_scripted_filter=True))
+        runner.state = _handed_over(replace(runner.state, main_scripted_filter=True))
         for funestra in FunTimeFunestra.SATELLITES:
             publish_the_show(runner.config, funestra, f_mode=True)
 
@@ -2670,7 +2670,7 @@ class TestWatchTracking:
         runner = make_runner(tmp_path, config=make_config(
             tmp_path, origenerator_enabled=True,
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
-        runner.state = _in_origenerator_mode(
+        runner.state = _handed_over(
             replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
         return runner
 
@@ -3104,25 +3104,21 @@ def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
 
 
 class TestASessionThatHostsNoOrigenerator:
-    def test_a_resumed_origenerator_mode_reads_as_kino(self, tmp_path):
+    def test_the_browsers_place_left_to_origenerator_goes_back_to_the_browser(self, tmp_path):
         runner = make_runner(tmp_path)
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(rfb_mode=RfbMode.ORIGENERATOR)))
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
         runner.tick()
 
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert runner.state.rfb_mode is RfbMode.RFB
 
-    def test_with_an_origenerator_that_is_up_the_mode_stands(self, tmp_path):
+    def test_with_an_origenerator_that_is_up_the_browsers_place_stands(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(rfb_mode=RfbMode.ORIGENERATOR), FunTimeFunestra.LANDSCAPE))
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
         runner.tick()
 
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
 
 
@@ -3137,15 +3133,14 @@ def _follow_the_satellites(runner) -> None:
     runner.state = runner.satellites_taken.follow(runner.state, runner.config)
 
 
-def _in_origenerator_mode(state: BridgeState, *funestras: FunTimeFunestra) -> BridgeState:
+def _handed_over(state: BridgeState, *funestras: FunTimeFunestra) -> BridgeState:
     for funestra in funestras or FunTimeFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR,
-                                     handed_over=True)
+        state = state.with_satellite(funestra, handed_over=True)
     return state
 
 
-def _modes(state: BridgeState) -> list[SatellitesMode]:
-    return [state.satellite(funestra).mode for funestra in FunTimeFunestra.SATELLITES]
+def _taken(state: BridgeState) -> list[bool]:
+    return [state.satellite(funestra).handed_over for funestra in FunTimeFunestra.SATELLITES]
 
 
 def _the_hosted_app_answers(tmp_path):
@@ -3176,7 +3171,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
     def test_a_status_file_unreadable_for_a_moment_closes_no_mode_in_use(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
+        write_shared_state(tmp_path / "shared_state.ini", _handed_over(
             BridgeState(rfb_mode=RfbMode.ORIGENERATOR), FunTimeFunestra.LANDSCAPE))
         runner.tick()
 
@@ -3184,7 +3179,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         runner.tick()
 
         assert runner.state.origenerator_ready is True
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
+        assert _taken(runner.state) == [False, True]
 
     def test_a_session_hosting_none_is_never_waiting_on_one(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -3238,8 +3233,6 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
     def test_a_funestra_that_has_reported_nothing_leaves_what_the_app_remembers(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         remembered = replace(shifted_state(BridgeState()), rfb_mode=RfbMode.RFB)
-        for funestra in FunTimeFunestra.SATELLITES:
-            remembered = remembered.with_satellite(funestra, mode=SatellitesMode.KINO)
         write_shared_state(state_file, remembered)
         runner = make_runner(tmp_path)
         for status_file in (runner.config.main_funestra_status_file,
@@ -3308,14 +3301,14 @@ class TestOpeningInOrigeneratorMode:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
+        assert _taken(runner.state) == [True, True]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_every_setting_the_app_was_left_in_comes_back_with_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
-        write_shared_state(state_file, _in_origenerator_mode(
+        write_shared_state(state_file, _handed_over(
             replace(shifted_state(BridgeState()), rfb_mode=RfbMode.ORIGENERATOR)))
         left_in = resume_shared_state(state_file, resumed=True)
         config = _hosting(tmp_path)
@@ -3336,7 +3329,7 @@ class TestOpeningInOrigeneratorMode:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
+        assert _taken(runner.state) == [True, True]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3350,7 +3343,7 @@ class TestOpeningInOrigeneratorMode:
 
         runner.activate_origenerator(wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
+        assert _taken(runner.state) == [True, True]
         assert runner.state.rfb_mode is RfbMode.RFB
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3370,7 +3363,7 @@ class TestOpeningInOrigeneratorMode:
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
+        write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
