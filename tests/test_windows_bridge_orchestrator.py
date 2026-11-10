@@ -84,6 +84,7 @@ from fun_time.shared_state import (
     write_shared_state,
 )
 from fun_time.shortcuts import Shortcut
+from fun_time.state_file_names import PREFIX, RETIRED_PREFIX
 from fun_time.unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from fun_time.win32 import StackedWindow
 from fun_time.win32_events import PressAndCaretWatch
@@ -104,14 +105,15 @@ from fun_time.windows_bridge_orchestrator import (
     _let_origenerator_save_and_close,
     _log_window_obstruction,
     _shutdown_children,
-    add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     identify_children,
     kill_recorded_child,
+    log_into_the_hotkey_scripts_log,
     run_session,
     seat_the_secondary_monitor,
     silence_the_funestras,
     stop_everything,
+    stop_hotkey_script,
     wait_for_voice_under_the_loading_screen,
     write_pids_file,
 )
@@ -687,6 +689,26 @@ class TestRunPythonOrchestratedBridge:
             )
 
         mock_wait.assert_not_called()
+
+    def test_a_session_without_the_dashboard_scans_no_library_and_grabs_no_frames(
+            self, cfg_factory, tmp_path):
+        manifest_path = write_windows_bridge_manifest(
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME,
+            dashboard_enabled=False)
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.prime_group_indexes") as scanned, \
+             patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails") as grabbed:
+            _a_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            )
+
+        scanned.assert_not_called()
+        grabbed.assert_not_called()
 
     def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
@@ -1473,6 +1495,11 @@ def _run_a_session(cfg_factory, tmp_path, run: SessionRun | None = None):
     return state_dir
 
 
+_WHAT_A_QUIT_TAKES_DOWN = {
+    "close_browser", "kill:200", "kill:300", "kill:400", "kill:500", "kill:700", "kill:800",
+}
+
+
 class TestClosingScreenLifecycle:
     def test_the_closing_screen_goes_the_moment_the_fun_time_that_raised_it_does(
             self, cfg_factory, tmp_path):
@@ -1505,10 +1532,35 @@ class TestClosingScreenLifecycle:
         _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
         assert events[0] == "loading_screen_up"
-        assert set(events[1:]) == {
-            "close_browser", "kill:200", "kill:300", "kill:400",
-            "kill:500", "kill:700", "kill:800",
-        }
+        assert set(events[1:]) == _WHAT_A_QUIT_TAKES_DOWN
+
+    def test_an_interrupt_takes_the_children_down_as_a_quit_does(self, cfg_factory, tmp_path):
+        events: list[str] = []
+
+        with patch.object(windows_bridge_orchestrator, "_wait_for_the_session_to_end",
+                          side_effect=KeyboardInterrupt):
+            _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
+
+        assert events[0] == "loading_screen_up"
+        assert set(events[1:]) == _WHAT_A_QUIT_TAKES_DOWN
+
+    def test_the_loopback_server_stops_serving_under_the_closing_screen(
+            self, cfg_factory, tmp_path):
+        events: list[str] = []
+        server = MagicMock()
+        server.shutdown.side_effect = lambda: events.append("stopped serving")
+        real_finish = PhaseProgress.finish
+
+        def finished(self):
+            real_finish(self)
+            events.append("screen down")
+
+        with patch("fun_time.windows_bridge_orchestrator.serve_loopback", return_value=server), \
+             patch.object(PhaseProgress, "finish", finished):
+            _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
+
+        assert events.index("loading_screen_up") < events.index("stopped serving")
+        assert events[-1] == "screen down"
 
     def test_every_sound_is_paused_before_the_loading_screen_goes_up(self, cfg_factory, tmp_path):
         paused_at_loading_screen_up: dict[str, str] = {}
@@ -1818,7 +1870,7 @@ class TestWaitForClosingScreen:
 
     def test_gives_up_rather_than_wedge_the_teardown(self, tmp_path, caplog, monkeypatch):
         monkeypatch.setattr(
-            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0.05
+            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_CEILING_S", 0.05
         )
         proc = MagicMock()
         proc.poll.return_value = None
@@ -1869,7 +1921,7 @@ def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosi
 class TestAClosingScreenStarvedOfProcessor:
     def test_is_given_its_time_to_paint_on_the_clock_it_is_handed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0.05
+            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_CEILING_S", 0.05
         )
 
         _screen, painted = _a_teardown_under_a_starved_screen(tmp_path, now=lambda: 0.0)
@@ -2057,6 +2109,31 @@ class TestStartupCancellation:
         assert not (state_dir / "bridge_pids.ini").exists()
         mock_runner.assert_not_called()
         fake_loading_proc.wait.assert_called()
+
+    def test_a_cancelled_startups_loading_screen_goes_only_once_its_windows_are_gone(
+            self, cfg_factory, tmp_path):
+        manifest_path = write_windows_bridge_manifest(
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        events: list[str] = []
+        real_finish = PhaseProgress.finish
+
+        def finished(self):
+            real_finish(self)
+            events.append("loading screen down")
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=StartupCancelled(launched_pids=[300, 200], rfb_hwnd=1234)), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=lambda pid: events.append(f"kill:{pid}")), \
+             patch("fun_time.windows_bridge_orchestrator.close_window",
+                   side_effect=lambda hwnd: events.append("close_browser")), \
+             patch.object(PhaseProgress, "finish", finished):
+            _a_session(manifest_path=manifest_path, ahk_exe="ahk.exe",
+                       hotkey_script="hotkeys.ahk", state_dir=tmp_path / "state",
+                       project_dir=tmp_path)
+
+        assert events == ["kill:300", "kill:200", "close_browser", "loading screen down"]
 
     def test_a_part_slow_to_end_does_not_let_the_loading_screen_take_itself_down(
             self, cfg_factory, tmp_path):
@@ -2451,6 +2528,33 @@ class TestHotkeyScriptGoesUpFirst:
         assert seen == [False]
         assert (state_dir / "bridge_pids.ini").is_file()
 
+    def test_a_retired_state_file_name_is_taken_up_before_the_script_can_open_it(
+        self, cfg_factory, tmp_path
+    ):
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        retired = state_dir / f"{RETIRED_PREFIX}_status.txt"
+        retired.write_text("", encoding="utf-8")
+        taken_up = state_dir / f"{PREFIX}_status.txt"
+
+        seen: list[tuple[bool, bool]] = []
+        self._run(
+            cfg_factory, tmp_path,
+            on_ahk_launch=lambda: seen.append((retired.exists(), taken_up.exists())),
+        )
+
+        assert seen == [(False, True)]
+
+    def test_the_scripts_launch_line_is_in_the_log_the_script_appends_to(
+        self, cfg_factory, tmp_path
+    ):
+        self._run(cfg_factory, tmp_path)
+
+        manifest = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        the_scripts_log = Path(manifest.runtime.windows_bridge_log_file)
+        assert "Launching AHK hotkey script: ahk.exe hotkeys.ahk" in the_scripts_log.read_text(
+            encoding="utf-8")
+
 
 class TestPostLoadingWindowState:
     def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path):
@@ -2735,7 +2839,7 @@ class TestOpenEventLog:
         before = {name: (list(logging.getLogger(name).handlers), logging.getLogger(name).level)
                   for name in logging.root.manager.loggerDict if name.startswith("fun_time")}
         try:
-            add_dispatch_file_handler(tmp_path / "bridge.log")
+            log_into_the_hotkey_scripts_log(tmp_path / "bridge.log")
             dispatch_command(command, BridgeState(origenerator_ready=True), config)
             assert said in (tmp_path / "bridge.log").read_text(encoding="utf-8")
         finally:
@@ -2754,7 +2858,7 @@ class TestOpenEventLog:
             listener_logger.setLevel(logging.NOTSET)
             open_event_log(tmp_path)
             logging.getLogger("voice_core.listener").info("Voice command: 'next'")
-            add_dispatch_file_handler(tmp_path / "bridge.log")
+            log_into_the_hotkey_scripts_log(tmp_path / "bridge.log")
             logging.getLogger("voice_core.listener").info("Voice command: 'skip'")
 
             records, _offset = read_events(event_log_path(tmp_path))
@@ -2784,6 +2888,31 @@ class TestOpenEventLog:
         text = (tmp_path / "bridge.log").read_text(encoding="utf-8")
         assert "Dispatch loop error" in text
         assert "ValueError: a stand-in failure" in text
+
+    def test_a_line_that_cannot_be_written_never_takes_the_app_down(self, tmp_path):
+        speaking = logging.getLogger("tests.bridge_log_unwritable")
+        speaking.propagate = False
+        handler = _AppendOnWriteHandler(tmp_path / "bridge.log")
+        speaking.addHandler(handler)
+        try:
+            with patch("fun_time.windows_bridge_orchestrator.append_line",
+                       side_effect=OSError("a stand-in full disk")):
+                speaking.error("Dispatch loop error")
+        finally:
+            speaking.removeHandler(handler)
+
+        assert not (tmp_path / "bridge.log").exists()
+
+
+class TestStoppingTheHotkeyScript:
+    def test_a_script_that_ignores_the_exit_is_killed(self, tmp_path):
+        script = MagicMock()
+        script.wait.side_effect = subprocess.TimeoutExpired("ahk.exe", 3.0)
+
+        stop_hotkey_script(script, tmp_path / "ahk_cmd.txt")
+
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        script.kill.assert_called_once_with()
 
 
 class TestOrigeneratorGracefulClose:
@@ -3068,6 +3197,11 @@ class TestARoomLeftInOrigeneratorMode:
         assert "post-loading pass with origenerator in the browser's place" in events
         assert "rfb out of the band" in events
         assert "rfb in the band" not in events
+
+    def test_the_bands_are_set_again_once_the_loading_screen_has_gone(self, cfg_factory, tmp_path):
+        events = self._run(cfg_factory, tmp_path, the_app_answers=True)
+
+        assert events.index("loading screen gone") < events.index("rfb out of the band")
 
     def test_the_slideshows_are_asked_for_before_the_loading_screen_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)

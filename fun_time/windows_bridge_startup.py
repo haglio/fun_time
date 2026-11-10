@@ -126,19 +126,35 @@ def ensure_broker(
     broker_state_dir: str | Path | None,
     broker_tray_launcher: Path | None = None,
 ) -> None:
-    source_mtime = broker_source_mtime(broker_tray_launcher)
-    if source_mtime is not None:
-        started_at = broker_process_started_at(broker_tray_launcher)
-        if started_at is not None and source_mtime > started_at:
-            logger.info(
-                "Broker started %.0fs before its own code was last written; restarting it",
-                source_mtime - started_at,
-            )
-            stop_broker_processes(broker_tray_launcher)
-            broker.start(broker_tray_launcher)
-            return
+    older_by_s = _seconds_the_broker_is_older_than_its_code(broker_tray_launcher)
+    if older_by_s is not None and older_by_s > 0:
+        logger.info(
+            "Broker started %.0fs before its own code was last written; restarting it",
+            older_by_s,
+        )
+        _replace_a_broker_deaf_to_newer_verbs(broker_tray_launcher)
+        return
     if broker_state_dir is not None and broker.is_running(Path(broker_state_dir)):
         return
+    _start_beside_one_that_may_only_look_gone(broker_tray_launcher)
+
+
+def _seconds_the_broker_is_older_than_its_code(broker_tray_launcher: Path | None) -> float | None:
+    source_mtime = broker_source_mtime(broker_tray_launcher)
+    if source_mtime is None:
+        return None
+    started_at = broker_process_started_at(broker_tray_launcher)
+    if started_at is None:
+        return None
+    return source_mtime - started_at
+
+
+def _replace_a_broker_deaf_to_newer_verbs(broker_tray_launcher: Path | None) -> None:
+    stop_broker_processes(broker_tray_launcher)
+    broker.start(broker_tray_launcher)
+
+
+def _start_beside_one_that_may_only_look_gone(broker_tray_launcher: Path | None) -> None:
     broker.start(broker_tray_launcher)
 
 

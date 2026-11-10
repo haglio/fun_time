@@ -125,14 +125,15 @@ from fun_time.windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from fun_time.windows_bridge_orchestrator import (
+    CLOSING_SCREEN_READY_CEILING_S,
     ChildProcess,
     PreparedVoice,
-    add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     finish_under_the_loading_screen,
     kill_recorded_child,
     launch_hotkey_script,
     let_go_of_a_kept_origenerator,
+    log_into_the_hotkey_scripts_log,
     prepare_voice_control,
     see_the_hosted_app_out,
     start_hud_priming,
@@ -298,8 +299,6 @@ def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
                        shapes_verb(plays_vr=shapes.plays_vr, plays_flat=shapes.plays_flat))
 
 
-CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
-
 HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S = 15.0
 
 
@@ -382,7 +381,7 @@ def _closing_screen(
     wait_for_loading_screen_painted(
         ready_file,
         still_alive=lambda: funestra.poll() is None,
-        timeout_s=CLOSING_SCREEN_READY_TIMEOUT_S,
+        timeout_s=CLOSING_SCREEN_READY_CEILING_S,
     )
     try:
         yield shutdown
@@ -432,7 +431,7 @@ def _prepare_the_launch(config, env: SessionEnvironment, *, cancelable: bool) ->
     take_up_the_retired_state_file_names(state_dir)
     open_event_log(state_dir)
     manifest = LaunchManifest.read(manifest_path)
-    add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
+    log_into_the_hotkey_scripts_log(Path(manifest.runtime.windows_bridge_log_file))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_funestra=True)
     pids_file = state_dir / "bridge_pids.ini"
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
