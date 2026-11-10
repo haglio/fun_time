@@ -72,7 +72,7 @@ class DashboardBarLayout:
     quit_button: Rect
     omnipause_button: Rect
     help_button: Rect
-    voice_panel: Rect
+    microphone_button: Rect
     fmode_button: Rect
     reset_all_button: Rect
     vr_button: Rect
@@ -120,7 +120,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         quit_button=buttons[0],
         omnipause_button=buttons[1],
         help_button=buttons[2],
-        voice_panel=buttons[3],
+        microphone_button=buttons[3],
         fmode_button=fmode_button,
         reset_all_button=reset_all_button,
         vr_button=vr_button,

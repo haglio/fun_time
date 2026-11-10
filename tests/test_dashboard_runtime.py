@@ -16,6 +16,12 @@ from fun_time.funestra_status import (
 )
 
 
+def _a_snapshot_todays_writer_cannot_produce(tmp_path: Path, text: str) -> Path:
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    snapshot_file.write_text(text, encoding="utf-8")
+    return snapshot_file
+
+
 def test_a_snapshot_that_was_never_written_reads_as_no_snapshot(tmp_path: Path):
     assert load_dashboard_snapshot(tmp_path / "missing.ini") is None
 
@@ -30,9 +36,8 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
     assert snapshot.omni_paused is True
 
 
-def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
-    snapshot_file = tmp_path / "dashboard_state.ini"
-    snapshot_file.write_text("[voice]\nactive=1\n", encoding="utf-8")
+def test_an_older_writers_snapshot_with_no_omnipause_section_reads_as_playing(tmp_path: Path):
+    snapshot_file = _a_snapshot_todays_writer_cannot_produce(tmp_path, "[voice]\nactive=1\n")
 
     snapshot = load_dashboard_snapshot(snapshot_file)
 
@@ -50,9 +55,8 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
     assert snapshot.voice_active is False
 
 
-def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
-    snapshot_file = tmp_path / "dashboard_state.ini"
-    snapshot_file.write_text("[omnipause]\nactive=0\n", encoding="utf-8")
+def test_an_older_writers_snapshot_with_no_voice_section_reads_as_listening(tmp_path: Path):
+    snapshot_file = _a_snapshot_todays_writer_cannot_produce(tmp_path, "[omnipause]\nactive=0\n")
 
     snapshot = load_dashboard_snapshot(snapshot_file)
 
@@ -96,7 +100,7 @@ def test_read_genau_status_parses_the_flick_lock(tmp_path: Path):
     assert read_genau_status(status_file).locked is False
 
 
-def test_read_genau_status_defaults_the_flick_lock_to_on(tmp_path: Path):
+def test_a_genau_status_silent_about_the_lock_reads_locked_as_genau_opens(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("shape=sine\n", encoding="utf-8")
 
@@ -148,7 +152,7 @@ def test_read_main_funestra_status_parses_the_lock(tmp_path: Path):
     assert read_main_funestra_status(status_file).locked is False
 
 
-def test_read_main_funestra_status_defaults_the_lock_to_on(tmp_path: Path):
+def test_a_main_status_silent_about_the_lock_reads_locked_as_the_main_funestra_opens(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 
@@ -226,7 +230,7 @@ def test_read_main_funestra_status_parses_the_range_a_running_loop_holds(tmp_pat
     assert read_main_funestra_status(status_file).loop_bounds == (2000, 4000)
 
 
-def test_read_main_funestra_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
+def test_the_empty_range_a_canceled_loop_goes_on_publishing_is_no_loop(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nloop_state=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
@@ -236,7 +240,7 @@ def test_read_main_funestra_status_reads_no_loop_where_nothing_is_looping(tmp_pa
     assert read_main_funestra_status(tmp_path / "missing.txt").loop_bounds is None
 
 
-def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
+def test_a_loop_an_older_main_funestra_published_without_its_range_is_no_loop(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nloop_state=looping\n", encoding="utf-8")
 
@@ -263,7 +267,7 @@ def test_funscript_driving_is_scripted_and_not_resting():
 
 
 class TestTheStatusFilesShape:
-    def test_a_line_with_no_equals_is_passed_over(self, tmp_path):
+    def test_the_fragment_a_torn_write_leaves_is_passed_over(self, tmp_path):
         path = tmp_path / "status.txt"
         path.write_text("video=demo.mp4\nnonsense\nposition_ms=42\n", encoding="utf-8")
 

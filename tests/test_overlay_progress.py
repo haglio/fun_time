@@ -113,7 +113,7 @@ class TestPhaseProgress:
         progress.advance("slow")
         assert progress_file.read_text(encoding="utf-8") == "100/1000|Slow..."
 
-    def test_only_the_final_phase_puts_the_bar_on_the_total(self, tmp_path: Path):
+    def test_a_phase_beginning_is_credited_only_the_waits_before_it_never_its_own(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=TWO_PHASES)
 
@@ -136,7 +136,7 @@ class TestPhaseProgress:
 
         assert announced.read_text(encoding="utf-8") == advanced.read_text(encoding="utf-8")
 
-    def test_an_announced_phase_is_not_a_checkpoint(self, tmp_path: Path):
+    def test_a_cancel_waits_past_an_announcement_for_the_first_phase_with_a_teardown(self, tmp_path: Path):
         progress_file = tmp_path / PROGRESS_FILENAME
         cancel_file_for(progress_file).write_text(f"{CANCEL_WORD}\n", encoding="utf-8")
         progress = PhaseProgress(progress_file, phases=TWO_PHASES,
@@ -171,7 +171,7 @@ class TestStartupPhases:
         assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
                              "finalizing"]
 
-    def test_the_loading_screen_says_origenerator_is_activating_whatever_it_comes_back_into(self):
+    def test_the_activating_step_names_the_app_whichever_of_its_windows_come_back(self):
         assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
     def test_the_launch_names_its_own_work_before_the_app_arrives(self):

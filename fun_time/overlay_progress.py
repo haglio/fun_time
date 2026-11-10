@@ -132,6 +132,10 @@ SHUTDOWN_PHASES: tuple[Phase, ...] = (
 )
 
 
+def _hundredths_of_a_second(phases: tuple[Phase, ...]) -> int:
+    return round(sum(phase.weight for phase in phases) * 100)
+
+
 @runtime_checkable
 class ProgressReporter(Protocol):
     def advance(self, phase: str) -> None: ...
@@ -170,8 +174,9 @@ class PhaseProgress:
 
     def announce(self, phase: str) -> None:
         entered = self._phase_index(phase)
-        done = round(sum(p.weight for p in self._phases[:entered]) * 100)
-        total = round(sum(p.weight for p in self._phases) * 100)
+        already_waited_out = self._phases[:entered]
+        done = _hundredths_of_a_second(already_waited_out)
+        total = _hundredths_of_a_second(self._phases)
         line = f"{done}/{total}|{self._phases[entered].message}"
         self._progress_file.write_text(
             f"{line}|{self._hint}" if self._hint else line, encoding="utf-8")

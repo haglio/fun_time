@@ -5,6 +5,7 @@ from .overlay_progress import STARTUP_PHASES, progress_file_argument
 WINDOW_TITLE = "Fun Time Loading"
 
 STALE_TIMEOUT_S = 60.0
+WORDS_THE_LAUNCH_WROTE_BEFORE_THIS_SCREEN_EXISTED = STARTUP_PHASES[0].message
 
 
 def main() -> None:
@@ -17,7 +18,7 @@ def main() -> None:
     OverlayWindow.over_every_monitor(
         progress_file,
         title=WINDOW_TITLE,
-        status=STARTUP_PHASES[0].message,
+        status=WORDS_THE_LAUNCH_WROTE_BEFORE_THIS_SCREEN_EXISTED,
         stale_timeout_s=STALE_TIMEOUT_S,
         taking_over=TakingOver.from_the_launcher(),
     ).run()
