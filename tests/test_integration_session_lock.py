@@ -50,6 +50,9 @@ def test_held_lock_blocks_a_second_caller():
         holder.close()
 
 
+LONG_ENOUGH_FOR_THE_WORKER_TO_BE_WAITING_S = 0.2
+
+
 def test_release_lets_the_next_caller_acquire():
     name = _unique_name()
     holder = SingleInstanceLock(name)
@@ -66,7 +69,7 @@ def test_release_lets_the_next_caller_acquire():
 
     thread = threading.Thread(target=worker)
     thread.start()
-    time.sleep(0.2)
+    time.sleep(LONG_ENOUGH_FOR_THE_WORKER_TO_BE_WAITING_S)
     holder.release()
     thread.join(timeout=5)
     holder.close()
@@ -157,7 +160,7 @@ def test_a_lane_numbers_from_0_again_once_every_run_has_left_it():
         after.close()
 
 
-def test_runs_waiting_for_the_lock_get_it_in_the_order_they_started_waiting():
+def test_a_run_is_never_starved_by_runs_that_joined_the_line_after_it():
     name = _unique_name()
     blocker = _held_by_the_test(name)
     order: list[str] = []
@@ -182,9 +185,12 @@ def test_hold_integration_lock_queues_until_free_then_releases():
         with hold_integration_lock(name=name, notify_every_s=0.1, notify=notifications.append):
             entered.set()
 
+    def the_contender_says_it_is_waiting() -> bool:
+        return bool(notifications)
+
     thread = threading.Thread(target=contender)
     thread.start()
-    wait_until(lambda: bool(notifications), timeout=10.0)
+    wait_until(the_contender_says_it_is_waiting, timeout=10.0)
     assert not entered.is_set()
 
     blocker.release()

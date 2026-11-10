@@ -65,7 +65,7 @@ def test_the_sweep_imports_no_unit_test_module_on_its_way_to_the_integration_dir
     assert swept_on_the_way == []
 
 
-def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
+def test_a_sweep_reaching_the_conftest_after_the_session_started_is_refused_too(pytestconfig):
     swept_in = subprocess.run(
         _a_run_that_sweeps_the_integration_directory_in(pytestconfig),
         cwd=TESTS_ROOT.parent,
@@ -143,7 +143,7 @@ def test_an_integration_run_on_the_hidden_desktop_draws_real_windows():
 
 
 @pytest.mark.repo_check
-def test_every_integration_module_stays_off_a_machine_that_is_not_windows():
+def test_off_windows_each_integration_modules_own_mark_is_all_that_stops_it():
     integration = Path(__file__).resolve().parent / "integration"
     unguarded = [
         module.name

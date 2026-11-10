@@ -144,7 +144,7 @@ def test_stop_kills_every_child_the_terminated_orchestrator_orphaned(session):
     assert sorted(killed) == [201, 202, 203, 205, 206]
 
 
-def test_stop_waits_for_every_child_it_killed_to_be_gone(session):
+def test_stop_leaves_no_dying_child_holding_its_status_file_against_the_next_session(session):
     _write_bridge_pids(session, {"main_funestra_pid": ChildProcess(201, 2010)})
     alive = [True, True, False]
     asked: list[int] = []
@@ -401,8 +401,8 @@ def test_the_seconds_a_check_lets_pass_are_the_seconds_the_run_could_run(monkeyp
     assert wall.now > 10.0
 
 
-def test_the_reap_never_waits_on_a_hotkey_script_it_did_not_end(session, monkeypatch):
-    monkeypatch.setattr(integration_support, "_kill_leftover_app_processes", lambda: None)
+def test_the_reap_never_waits_out_the_hotkey_script_his_own_fun_time_runs(session, monkeypatch):
+    monkeypatch.setattr(integration_support, "_kill_every_app_left_on_the_desktop_all_runs_share", lambda: None)
     monkeypatch.setattr(session, "_wait_for_orchestrators_to_exit", lambda: None)
     monkeypatch.setattr(integration_support.time, "sleep",
                         lambda _seconds: pytest.fail("the reap waited"))
@@ -658,7 +658,7 @@ def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):
     assert "origenerator_python_exe" not in config["paths"]
 
 
-def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
+def test_a_runs_funestras_import_from_the_sibling_branches_this_checkout_names(tmp_path, monkeypatch):
     state_dir = tmp_path / "state"
     state_dir.mkdir(exist_ok=True)
     branch = tmp_path / "funestra_branch"
@@ -894,10 +894,10 @@ def test_a_quiet_window_tolerates_the_odd_frame():
 
 
 def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
-    noise_on_one_pass = [[1.0, 78.7], [1.0, 90.6], [1.0, 91.7], [1.0, 628.0]]
+    a_machine_hiccup_on_one_pass = [[1.0, 78.7], [1.0, 90.6], [1.0, 91.7], [1.0, 628.0]]
     stalls_every_pass = [[1.0, 640.0], [1.0, 647.0], [1.0, 651.0], [1.0, 660.0]]
 
-    assert stall_per_transition(noise_on_one_pass) < 150.0
+    assert stall_per_transition(a_machine_hiccup_on_one_pass) < 150.0
     assert stall_per_transition(stalls_every_pass) > 150.0
 
 
@@ -1004,7 +1004,7 @@ def test_a_modules_shared_session_is_done_with_before_a_test_starts_one_of_its_o
 
 
 @pytest.mark.repo_check
-def test_every_app_a_run_stands_in_for_is_python_that_parses():
+def test_stub_apps_kept_in_strings_are_compiled_before_a_run_launches_them():
     sources = []
     for path in sorted((Path(__file__).resolve().parent / "integration").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
