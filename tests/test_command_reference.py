@@ -640,7 +640,7 @@ def test_what_only_kino_answers_is_the_kino_group_or_rides_a_shared_navigation_r
     assert not [row for row in _all_rows() if row.description == "save clip"]
 
 
-def test_a_satellites_command_has_one_row_whichever_mode_the_side_is_in():
+def test_a_satellites_command_has_one_row():
     for cmd in ("landscape_trash", "portrait_nav_up", "landscape_loop", "satellites_cycle_version"):
         assert _keys(_the_row_of(cmd)), cmd
     assert "on a Satellite" in _the_row_of("portrait_trash").detail
