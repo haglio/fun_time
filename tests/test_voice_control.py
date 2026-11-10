@@ -64,7 +64,7 @@ class TestCommandRules:
         assert rules.phrases == frozenset(commands)
         assert set(told) <= rules.phrases
 
-    def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_app(self):
+    def test_no_second_best_reading_quits_resets_or_moves_the_device(self):
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         ruled_out = {phrase for phrase in rules.phrases if rules.never_repaired(phrase)}
@@ -77,7 +77,7 @@ class TestCommandRules:
         assert command_rules(VOICE_COMMANDS, confidence_threshold=0.6, confirm_commands=True
                              ).confidence_threshold == 0.6
 
-    def test_with_commands_confirmed_only_relief_acts_on_the_first_listeners_word_alone(self):
+    def test_with_commands_confirmed_only_relief_is_too_urgent_for_a_second_opinion(self):
         rules = command_rules(VOICE_COMMANDS, confidence_threshold=0.7, confirm_commands=True)
 
         assert {phrase for phrase in rules.phrases if rules.stands_alone(phrase)} == {
@@ -269,7 +269,7 @@ class TestHandleHeard:
         ("main full length please", "main"),
         ("full length please landscape", "landscape"),
     ])
-    def test_an_unrecognized_phrase_reports_over_the_funestra_it_named(
+    def test_an_unrecognized_phrase_reports_where_the_speaker_is_looking(
         self, tmp_path, monkeypatch, heard, source,
     ):
         vc = _controller(tmp_path)
@@ -284,14 +284,14 @@ class TestHandleHeard:
         assert seen == [source, source]
 
     def test_the_first_funestra_word_spoken_claims_the_report(self):
-        assert voice_control._source_for_heard_text("landscape then portrait") == "landscape"
-        assert voice_control._source_for_heard_text("portrait then landscape") == "portrait"
+        assert voice_control._where_the_speaker_is_looking("landscape then portrait") == "landscape"
+        assert voice_control._where_the_speaker_is_looking("portrait then landscape") == "portrait"
 
     def test_a_funestra_word_inside_a_longer_word_does_not_claim_the_report(self):
-        assert voice_control._source_for_heard_text("mainly landscaped") == "system"
+        assert voice_control._where_the_speaker_is_looking("mainly landscaped") == "system"
 
     def test_both_names_two_funestras_and_claims_no_report(self):
-        assert voice_control._source_for_heard_text("both full length please") == "system"
+        assert voice_control._where_the_speaker_is_looking("both full length please") == "system"
 
     def test_unrecognized_speech_stays_silent_while_muted(self, tmp_path, monkeypatch):
         vc = _controller(tmp_path)
@@ -454,7 +454,7 @@ class TestTheListenerItRuns:
 
         assert seen == [("Voice control: audio from the microphone resumed", "system", 25)]
 
-    def test_the_first_words_of_an_utterance_say_the_app_is_working_on_them(
+    def test_the_first_words_are_acknowledged_before_the_seconds_understanding_takes(
             self, tmp_path, monkeypatch):
         vc = VoiceController(
             cmd_file=tmp_path / "cmd.txt",
@@ -468,7 +468,7 @@ class TestTheListenerItRuns:
 
         assert seen == [voice_control.WORKING_ON_IT]
 
-    def test_it_says_so_once_per_utterance_however_the_words_grow(self, tmp_path, monkeypatch):
+    def test_each_revision_of_a_growing_reading_adds_no_line(self, tmp_path, monkeypatch):
         vc = VoiceController(
             cmd_file=tmp_path / "cmd.txt",
             settings=VoiceControlConfig(enabled=True, model_path="unused"),
@@ -497,7 +497,7 @@ class TestTheListenerItRuns:
         assert seen == [voice_control.WORKING_ON_IT] * 2
 
     @pytest.mark.parametrize("quieted", ["mute", "suspend"])
-    def test_an_app_not_being_listened_to_is_told_nothing(self, tmp_path, monkeypatch, quieted):
+    def test_words_that_will_be_thrown_away_are_not_said_to_be_worked_on(self, tmp_path, monkeypatch, quieted):
         vc = VoiceController(
             cmd_file=tmp_path / "cmd.txt",
             settings=VoiceControlConfig(enabled=True, model_path="unused"),
@@ -658,7 +658,7 @@ class TestWriteCommand:
         written = cmd_file.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == ["play", "quit"]
 
-    def test_suspend_still_lets_relief_through(self, tmp_path: Path):
+    def test_a_pause_can_leave_the_device_on_him_and_still_hears_relief(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = _controller(tmp_path)
         vc.suspend()
@@ -681,7 +681,7 @@ class TestWriteCommand:
         written = cmd_file.read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == [command]
 
-    def test_suspend_freezes_the_reference_popup_too(self, tmp_path: Path):
+    def test_room_noise_heard_as_help_opens_no_popup_during_a_pause(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
         vc = _controller(tmp_path)
         vc.suspend()

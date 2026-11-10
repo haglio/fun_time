@@ -68,7 +68,7 @@ _THE_ONE_FUNESTRA_A_WORD_NAMES: dict[str, str] = {
 }
 
 
-def _source_for_heard_text(text: str) -> str:
+def _where_the_speaker_is_looking(text: str) -> str:
     for word in text.lower().split():
         source = _THE_ONE_FUNESTRA_A_WORD_NAMES.get(word)
         if source is not None:
@@ -108,7 +108,7 @@ class VoiceHolds:
         return self._changes[changes_by_then - 1][1] if changes_by_then else None
 
 
-def _holds_or_ends_the_app(command: str) -> bool:
+def _costs_too_much_for_a_second_best_reading(command: str) -> bool:
     return (
         command in {"quit", "relief_omnipause", "robot_hand_park"}
         or command.endswith("_reset")
@@ -126,13 +126,14 @@ def _said_in(phrase: str) -> str | None:
 
 def command_rules(commands: Mapping[str, str], *, confidence_threshold: float,
                   confirm_commands: bool) -> CommandRules:
-    relief = frozenset(phrase for phrase, command in commands.items()
-                       if command == "relief_omnipause")
+    too_urgent_for_a_second_opinion = frozenset(
+        phrase for phrase, command in commands.items() if command == "relief_omnipause")
     return CommandRules(
         phrases=frozenset(commands),
-        never_repaired=lambda phrase: _holds_or_ends_the_app(commands[phrase]),
+        never_repaired=lambda phrase: _costs_too_much_for_a_second_best_reading(commands[phrase]),
         confidence_threshold=confidence_threshold,
-        stands_alone=(relief if confirm_commands else frozenset(commands)).__contains__,
+        stands_alone=(too_urgent_for_a_second_opinion if confirm_commands
+                      else frozenset(commands)).__contains__,
         written=_written,
         said_in=_said_in,
     )
@@ -361,7 +362,7 @@ class VoiceController:
 
     def _report_words(self, line: _MissLine, words: str, *, heard_text: str,
                       spoken_at: float) -> None:
-        source = _source_for_heard_text(heard_text)
+        source = _where_the_speaker_is_looking(heard_text)
         after = f" {line.then}" if line.then else ""
         list_message(logger, f"{line.logged} ({_how_many(words)}){after}", source=source,
                      level=logging.WARNING, spoken_at=spoken_at)
