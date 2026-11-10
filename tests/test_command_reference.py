@@ -43,11 +43,18 @@ from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import display_forms, filter_voice_commands
 from fun_time.genau_commands import about_genaus_flick
 from fun_time.main_funestra_commands import MAIN_FUNESTRA_CMD_MAP
-from fun_time.voice_commands import GENAU_SAID, VOICE_COMMANDS, build_voice_commands, friendly_voice
+from fun_time.voice_commands import (
+    GENAU_SAID,
+    RELIEF_SAID_IN_A_HURRY,
+    VOICE_COMMANDS,
+    build_voice_commands,
+    friendly_voice,
+)
 from fun_time.voice_control import SPOKEN_FOR_THE_KEYS_A_PAUSE_LEAVES_LIVE, SUSPEND_EXEMPT_COMMANDS
 from tests.ahk_script import script_text, suspend_exempt_block, suspend_exempt_keys
 
 _NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_flick_seconds)_\d+$")
+_AN_UNFILLED_PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
 
 
@@ -167,6 +174,10 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
         assert bound is not None, f"{cmd} must be bound in the AHK hotkey script"
         assert bound.lower() == key.lower(), f"{cmd} is on {bound!r}, expected {key!r}"
         assert _the_row_of(cmd).key_columns[column] == (key,)
+
+
+def test_ending_a_loop_outright_is_spoken_and_holds_no_key():
+    assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
     for cmd in ("portrait_no_loop", "landscape_no_loop"):
         assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
         assert _keys(_the_row_of(cmd)) == ()
@@ -196,6 +207,11 @@ def _shared_sections() -> tuple[ReferenceSection, ...]:
 def _the_row_of(cmd: str) -> CommandRef:
     [row] = [row for row in _all_rows() if cmd in row.commands]
     return row
+
+
+def _the_set_line_directly_follows_its_nudge(rows, nudge: str, set_line: str) -> bool:
+    names = [row.description for row in rows]
+    return names.index(set_line) == names.index(nudge) + 1
 
 
 def test_every_scope_shares_one_grid_with_a_key_column_per_funestra():
@@ -405,13 +421,10 @@ def test_one_row_steps_every_funestra_through_the_enhancement_levels():
 
 def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     rows = _funestras_section().rows
-    descs = [r.description for r in rows]
     nudge = next(r for r in rows if "main_funestra_speed_up" in r.commands)
     assert _keys(nudge) == ()
     assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
-    assert descs.index(nudge.description) + 1 == next(
-        i for i, d in enumerate(descs) if d.startswith("set playback speed")
-    )
+    assert _the_set_line_directly_follows_its_nudge(rows, nudge.description, "set playback speed")
 
 
 def test_the_speed_keys_ride_the_bare_nudge_the_osr2s_driver_answers():
@@ -453,7 +466,10 @@ def test_sound_rows_are_voice_only_and_reach_every_funestra():
     assert {"audio_volume_down", "portrait_volume_up", "landscape_volume_down",
             "satellites_volume_up", "active_volume_down"} <= set(steps[0].commands)
     assert _keys(steps[0]) == ()
-    assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
+
+
+def test_neither_word_of_a_volume_pair_is_shown_as_the_real_one():
+    assert set(_the_row_of("audio_volume_up").voice) == {"quiet", "quieter", "loud", "louder"}
 
 
 def test_no_say_column_leaks_the_raw_un_mute_form():
@@ -709,14 +725,12 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
     assert not any(("min" in v or "max" in v or "0\u2013100" in v) for v in amp_updown.voice)
 
     osr2_rows = _section("OSR2").rows
-    descs = [r.description for r in osr2_rows]
     for updown, setname in (
         ("amplitude up / down", "set amplitude"),
         ("center up / down", "set center"),
         ("speed up / down", "set speed"),
     ):
-        at = next(i for i, d in enumerate(descs) if d.startswith(updown))
-        assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
+        assert _the_set_line_directly_follows_its_nudge(osr2_rows, updown, setname), setname
     set_amp = next(r for r in osr2_rows if r.description == "set amplitude")
     assert "min amp" in set_amp.voice
     assert "max amp" in set_amp.voice
@@ -1234,8 +1248,9 @@ def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
     assert row.voice == ("relief omnipause", "stop")
 
 
-def test_relief_answers_to_one_word_as_well_as_its_full_name():
-    assert VOICE_COMMANDS["stop"] == "relief_omnipause"
+def test_relief_said_in_a_hurry_is_a_single_word():
+    assert len(RELIEF_SAID_IN_A_HURRY.split()) == 1
+    assert VOICE_COMMANDS[RELIEF_SAID_IN_A_HURRY] == "relief_omnipause"
 
 
 def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
@@ -1299,7 +1314,7 @@ def test_render_reference_html_contains_key_content():
     assert "Esc" in html
     assert "genau" in html
     assert "Genau" in html
-    assert not re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", html)
+    assert not _AN_UNFILLED_PLACEHOLDER.search(html)
 
 
 def test_render_reference_html_has_no_heading_or_subtitle():

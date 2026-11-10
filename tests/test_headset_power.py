@@ -34,7 +34,7 @@ def _woken(tmp_path, *, before=None, during=None, ready=True, already_up=False):
 
 
 class TestWakingItAsFunTimeOpens:
-    def test_the_wake_runs_off_the_session_s_own_startup(self, tmp_path):
+    def test_fun_time_opens_without_waiting_for_the_headset_to_wake(self, tmp_path):
         threads = _Threads()
 
         headset_power.wake_the_headset(tmp_path, start_thread=threads)
@@ -42,7 +42,7 @@ class TestWakingItAsFunTimeOpens:
         assert [name for name, _, _ in threads.started] == ["headset-wake"]
         assert threads.started[0][2] == (tmp_path,)
 
-    def test_a_test_run_wakes_no_headset(self, tmp_path):
+    def test_an_integration_run_leaves_his_headset_alone(self, tmp_path):
         threads = _Threads()
 
         headset_power.wake_the_headset(tmp_path, integration=True, start_thread=threads)
@@ -108,7 +108,7 @@ class TestPuttingItToSleepAsFunTimeCloses:
         assert slept is True
         stopped.assert_called_once_with(tmp_path)
 
-    def test_the_ready_word_goes_with_it(self, tmp_path):
+    def test_no_ready_flag_outlives_the_runtime_it_spoke_for(self, tmp_path):
         self._closed(tmp_path, crossing=False, ours=True)
 
         assert headset_power.the_headset_is_ready(tmp_path) is False
