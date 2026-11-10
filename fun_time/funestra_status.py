@@ -27,9 +27,13 @@ def scripted_fields(values: dict[str, str]) -> dict:
     }
 
 
+MAIN_FUNESTRA_OPENS_LOCKED = True
+GENAU_OPENS_LOCKED = True
+
+
 @dataclass(frozen=True)
 class MainFunestraStatus(ScriptedStatus):
-    locked: bool = True
+    locked: bool = MAIN_FUNESTRA_OPENS_LOCKED
     loop_state: LoopState = LoopState.NORMAL
     loop_in_ms: int = 0
     loop_out_ms: int = 0
@@ -41,9 +45,13 @@ class MainFunestraStatus(ScriptedStatus):
 
     @property
     def loop_bounds(self) -> tuple[int, int] | None:
-        if self.loop_state is not LoopState.LOOPING or self.loop_out_ms <= self.loop_in_ms:
+        if self.loop_state is not LoopState.LOOPING or self._its_range_would_hold_mpv_on_one_frame:
             return None
         return (self.loop_in_ms, self.loop_out_ms)
+
+    @property
+    def _its_range_would_hold_mpv_on_one_frame(self) -> bool:
+        return self.loop_out_ms <= self.loop_in_ms
 
 
 __all__ = ["read_key_values"]
@@ -60,7 +68,7 @@ def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None
 
 def _main_funestra_status_from(values: dict) -> MainFunestraStatus:
     return MainFunestraStatus(
-        **asdict(parse_status(values, default=FunestraStatus(locked=True))),
+        **asdict(parse_status(values, default=FunestraStatus(locked=MAIN_FUNESTRA_OPENS_LOCKED))),
         loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
         **scripted_fields(values),
         loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
@@ -93,7 +101,7 @@ def _status_touch(values: dict) -> int | None:
 @dataclass(frozen=True)
 class GenauStatus:
     learned_active: bool = False
-    locked: bool = True
+    locked: bool = GENAU_OPENS_LOCKED
     shape: str = "sine"
     flick: str = ""
     flipped: bool = False
@@ -124,7 +132,7 @@ def published_genau_status(path: Path) -> GenauStatus | None:
 def _genau_status_from(values: dict) -> GenauStatus:
     return GenauStatus(
         learned_active=_status_bool(values, "learned"),
-        locked=_status_bool(values, "locked", default=True),
+        locked=_status_bool(values, "locked", default=GENAU_OPENS_LOCKED),
         shape=values.get("shape", "sine").strip(),
         flick=values.get("flick", "").strip(),
         flipped=_status_bool(values, "flipped"),

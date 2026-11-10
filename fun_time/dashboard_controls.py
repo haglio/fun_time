@@ -46,6 +46,10 @@ class BarState:
     nothing_to_reset: bool = False
     headset_ready: bool = True
 
+    @property
+    def entering_vr_now_would_cross_into_a_blank_headset(self) -> bool:
+        return not self.in_vr and not self.headset_ready
+
     @classmethod
     def of(cls, snapshot: DashboardSnapshot | None, reference_open: bool = False) -> BarState:
         if snapshot is None:
@@ -69,7 +73,7 @@ def bar_controls(layout: DashboardBarLayout, state: BarState) -> tuple[BarContro
                    lit=None if state.omni_paused else BLUE),
         BarControl(HELP_REFERENCE, layout.help_button, "question",
                    lit=BLUE if state.reference_open else None),
-        BarControl(VOICE_TOGGLE, layout.voice_panel, "mic",
+        BarControl(VOICE_TOGGLE, layout.microphone_button, "mic",
                    lit=BLUE if state.voice_active else None),
         BarControl(FMODE_TOGGLE, layout.fmode_button, "fmode", ink=MAGENTA,
                    lit=GREEN if state.f_mode else None),
@@ -78,7 +82,8 @@ def bar_controls(layout: DashboardBarLayout, state: BarState) -> tuple[BarContro
                    dim=state.nothing_to_reset),
         BarControl(EXIT_VR if state.in_vr else ENTER_VR, layout.vr_button,
                    "monitor" if state.in_vr else "headset",
-                   ink=TEXT_PRIMARY if state.in_vr or state.headset_ready else TEXT_MUTED,
-                   dim=not state.in_vr and not state.headset_ready),
+                   ink=(TEXT_MUTED if state.entering_vr_now_would_cross_into_a_blank_headset
+                        else TEXT_PRIMARY),
+                   dim=state.entering_vr_now_would_cross_into_a_blank_headset),
         *((BarControl(VR_RESET, layout.vr_reset_button, "reset"),) if state.in_vr else ()),
     )

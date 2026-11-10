@@ -54,12 +54,12 @@ def test_nothing_in_the_bar_overlaps_anything_else():
                     or second.x + second.width <= first.x)
 
 
-def test_the_microphone_is_one_of_the_buttons_not_a_light_beside_them():
+def test_the_microphone_is_a_button_in_the_run_not_a_light_adrift_past_a_gap():
     layout = compute_dashboard_bar_layout()
 
-    assert layout.voice_panel.height == layout.quit_button.height == BUTTON
-    assert layout.voice_panel.y == layout.quit_button.y
-    assert layout.voice_panel.x == layout.help_button.x + BUTTON + GAP
+    assert layout.microphone_button.height == layout.quit_button.height == BUTTON
+    assert layout.microphone_button.y == layout.quit_button.y
+    assert layout.microphone_button.x == layout.help_button.x + BUTTON + GAP
 
 
 def test_everything_sits_on_one_line_inside_the_bars_height():
@@ -85,7 +85,7 @@ def test_client_rect_filling_frame_insets_by_the_chrome():
         100, 200, 400, 300)
 
 
-def test_the_bar_uses_the_familys_button_metrics():
+def test_the_bars_buttons_match_the_huds_right_below_them_in_size_and_gap():
     assert BUTTON == BUTTON_SIZE_HUD
     assert GAP == BUTTON_GAP
 
@@ -96,7 +96,7 @@ def test_one_rectangle_under_every_name_the_session_calls_it():
     assert all(name is Rect for name in every_name)
 
 
-def test_a_rect_is_still_four_ints_in_that_order():
+def test_a_rect_built_by_position_is_x_y_width_height_in_that_order():
     assert [f.name for f in fields(Rect)] == ["x", "y", "width", "height"]
     assert Rect(1, 2, 3, 4) == Rect(x=1, y=2, width=3, height=4)
 

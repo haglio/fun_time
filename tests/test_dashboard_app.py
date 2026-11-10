@@ -216,7 +216,7 @@ def test_the_bar_carries_only_what_belongs_to_no_funestra():
 def test_the_every_funestra_pair_and_the_crossing_each_stand_in_a_group_of_their_own():
     layout = compute_dashboard_bar_layout()
 
-    assert layout.fmode_button.x - (layout.voice_panel.x + layout.voice_panel.width) == GROUP_GAP
+    assert layout.fmode_button.x - (layout.microphone_button.x + layout.microphone_button.width) == GROUP_GAP
     assert (layout.vr_button.x
             - (layout.reset_all_button.x + layout.reset_all_button.width)) == GROUP_GAP
 
@@ -324,19 +324,19 @@ def test_pausing_everything_does_not_paint_the_button_a_state_color():
 def test_the_microphone_comes_on_with_what_it_reports():
     layout = compute_dashboard_bar_layout()
 
-    assert _fill(_scene(_snapshot(voice_active=True)), layout.voice_panel) == BLUE
-    assert _fill(_scene(_snapshot(voice_active=False)), layout.voice_panel) == BG_BUTTON
+    assert _fill(_scene(_snapshot(voice_active=True)), layout.microphone_button) == BLUE
+    assert _fill(_scene(_snapshot(voice_active=False)), layout.microphone_button) == BG_BUTTON
 
 
 def test_the_microphone_carries_its_own_mark():
     layout = compute_dashboard_bar_layout()
     drawn = {item.rect for item in _scene().images}
 
-    assert layout.voice_panel in drawn
+    assert layout.microphone_button in drawn
 
 
 def test_the_microphone_is_the_one_the_family_shares():
-    panel = compute_dashboard_bar_layout().voice_panel
+    panel = compute_dashboard_bar_layout().microphone_button
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
     expected = icon_pixmap("mic", _icon_side(panel), TEXT_PRIMARY)
@@ -372,7 +372,7 @@ def test_a_pressed_light_stays_its_color_rather_than_going_gray_as_if_off():
 
     pressed = _fill(_scene(_snapshot(voice_active=True),
                            pressed_actions=frozenset({VOICE_TOGGLE})),
-                    layout.voice_panel)
+                    layout.microphone_button)
 
     assert pressed == lighten_color(BLUE)
 
@@ -1247,7 +1247,7 @@ def test_every_control_on_the_bar_wears_a_drawn_mark():
 
     for rect, name in ((layout.quit_button, "power"),
                        (layout.help_button, "question"),
-                       (layout.voice_panel, "mic")):
+                       (layout.microphone_button, "mic")):
         satellite = _icon_side(rect)
         assert drawn[rect].toImage() == icon_pixmap(name, satellite, TEXT_PRIMARY).toImage(), name
 
@@ -1259,7 +1259,7 @@ def test_the_help_mark_is_as_big_as_the_marks_beside_it():
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
     help_side = drawn[layout.help_button].width()
-    mic_side = drawn[layout.voice_panel].width()
+    mic_side = drawn[layout.microphone_button].width()
     assert abs(help_side - mic_side) <= 2
 
 
@@ -1281,7 +1281,7 @@ def test_the_bar_wears_the_huds_button_edge_and_corner():
            for item in _scene(_snapshot(voice_active=True, f_mode=True)).rects}
 
     assert all(item.outline == TEXT_MUTED for item in _scene(_snapshot(omni_paused=True, voice_active=False)).rects)
-    assert lit[layout.voice_panel] == BLUE
+    assert lit[layout.microphone_button] == BLUE
     assert lit[layout.fmode_button] == GREEN
     assert lit[layout.quit_button] == TEXT_MUTED
     assert _BUTTON_RADIUS == BUTTON_RADIUS_HUD
@@ -1293,7 +1293,7 @@ def test_a_pressed_control_keeps_the_edge_its_state_gave_it():
                      pressed_actions=frozenset({VOICE_TOGGLE}))
 
     assert next(item.outline for item in pressed.rects
-                if item.rect == layout.voice_panel) == BLUE
+                if item.rect == layout.microphone_button) == BLUE
 
 
 def _icon_side(rect) -> int:

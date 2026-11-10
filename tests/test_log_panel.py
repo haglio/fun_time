@@ -98,7 +98,7 @@ class TestAppendRecords:
 
 
 class TestLevelColor:
-    def test_an_ordinary_announcement_is_white(self):
+    def test_an_ordinary_confirmation_is_white_never_the_favorites_green(self):
         assert level_color(MESSAGE).getRgb()[:3] == (240, 240, 240)
 
     def test_the_favorites_and_the_funscripts_keep_the_green(self):
@@ -149,7 +149,7 @@ def _event_line(message: str) -> str:
 @pytest.fixture
 def panel_factory(tmp_path: Path):
     built: list[LogPanelWidget] = []
-    users_clipboard = QApplication.clipboard().text()
+    what_a_developer_watching_on_a_real_display_had_copied = QApplication.clipboard().text()
 
     def factory(messages: list[str]) -> LogPanelWidget:
         QApplication.clipboard().clear()
@@ -167,7 +167,7 @@ def panel_factory(tmp_path: Path):
         if not sip.isdeleted(panel):
             panel.shutdown()
             panel.close()
-    QApplication.clipboard().setText(users_clipboard)
+    QApplication.clipboard().setText(what_a_developer_watching_on_a_real_display_had_copied)
 
 
 def _hover_row(panel: LogPanelWidget, row: int) -> None:
@@ -205,7 +205,7 @@ class TestHoverCopyButton:
 
         assert QApplication.clipboard().text() == panel._list.item(1).text()
 
-    def test_the_button_wears_the_familys_copy_mark_and_its_tick(self, panel_factory):
+    def test_the_button_wears_shared_uis_copy_mark_and_tick_not_a_drawing_of_its_own(self, panel_factory):
         panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
         button = _copy_button(panel)

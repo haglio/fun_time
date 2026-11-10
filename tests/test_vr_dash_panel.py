@@ -150,7 +150,7 @@ class TestItIsTheDesktopsBar:
         assert actions[QUIT_BUTTON] == bar.quit_button
         assert actions[OMNIPAUSE_TOGGLE] == bar.omnipause_button
         assert actions[HELP_REFERENCE] == bar.help_button
-        assert actions[VOICE_TOGGLE] == bar.voice_panel
+        assert actions[VOICE_TOGGLE] == bar.microphone_button
 
     def test_every_window_has_a_filter_chip(self):
         actions = dash_actions()
