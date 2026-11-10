@@ -35,7 +35,7 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 SIBLINGS_BESIDE_THE_PRIMARY_NOT_THE_WORKTREE = ["../funestra", "../shared_ui"]
 
 
-def _write_config(path: Path, **paths: str) -> Path:
+def _write_a_config_relative_where_the_real_one_is(path: Path, **paths: str) -> Path:
     raw = {
         "paths": {
             **paths,
@@ -90,7 +90,7 @@ def checkouts(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(
         primary=primary,
         worktree=worktree,
-        config_path=_write_config(primary / "fun_time_config.json"),
+        config_path=_write_a_config_relative_where_the_real_one_is(primary / "fun_time_config.json"),
     )
 
 
@@ -323,7 +323,7 @@ def test_a_directory_that_is_not_a_checkout_is_refused(checkouts, tmp_path):
         )
 
 
-def test_the_private_overlays_follow_the_session_into_the_worktree(checkouts):
+def test_a_branch_session_reads_his_overlays_not_the_committed_example(checkouts):
     (checkouts.primary / "content.local.json").write_text(
         json.dumps({"studios": ["Example Studio"]}), encoding="utf-8"
     )
@@ -405,6 +405,16 @@ def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary
 
     assert Path(found.target).name.lower() == "wscript.exe"
     assert branch_session.LAUNCHER_NAME in found.arguments
+
+
+@pytestmark_shortcut
+def test_the_shortcut_carries_the_branch_name_for_a_failed_launch_to_show(primary_with_launcher):
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    found = _shortcut_at(primary_with_launcher.newer, written)
+
     assert "example/newer" in found.arguments
 
 
@@ -584,7 +594,7 @@ def test_a_shortcut_is_written_once_the_hosted_app_has_its_own_state(
     assert written.exists()
 
 
-def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
+def test_building_the_config_runs_the_seeding_whose_rules_test_branch_seeding_holds(checkouts):
     state = checkouts.primary / "state"
     state.mkdir(parents=True)
     (state / "watch_stats.json").write_text(
@@ -976,7 +986,7 @@ def engine_checkouts(tmp_path: Path) -> SimpleNamespace:
     return _sibling_repo(tmp_path)
 
 
-def test_a_shortcut_is_refused_while_a_pinned_funestra_checkout_predates_the_branchs_pin(
+def test_no_shortcut_while_a_named_funestra_checkout_lacks_what_the_branch_imports(
         primary_with_launcher, engine_checkouts):
     _pin(primary_with_launcher.newer, "funestra", "v0.1.9")
     _names_sibling_checkout(primary_with_launcher.newer, engine_checkouts.before_the_tag)
@@ -1006,7 +1016,7 @@ def test_the_shortcut_command_reports_a_refusal_without_a_traceback(
 @pytestmark_shortcut
 def test_the_shortcut_command_prints_the_chain_for_the_agent_to_read_first(
         primary_with_launcher, monkeypatch, capsys):
-    _write_config(primary_with_launcher.primary / "fun_time_config.json")
+    _write_a_config_relative_where_the_real_one_is(primary_with_launcher.primary / "fun_time_config.json")
     monkeypatch.setattr(branch_session, "primary_checkout",
                         lambda start=None: primary_with_launcher.primary)
 
@@ -1060,8 +1070,9 @@ def _origenerator_pinned_to(tmp_path: Path, repo: str) -> Path:
 
 
 def _hosting_origenerator_pinned_to(primary: Path, tmp_path: Path, repo: str) -> Path:
-    return _write_config(primary / "fun_time_config.json",
-                         origenerator_dir=str(_origenerator_pinned_to(tmp_path, repo)))
+    return _write_a_config_relative_where_the_real_one_is(
+        primary / "fun_time_config.json",
+        origenerator_dir=str(_origenerator_pinned_to(tmp_path, repo)))
 
 
 def test_a_launch_that_would_start_origenerator_on_a_checkout_older_than_its_pin_is_refused(
@@ -1092,8 +1103,9 @@ def test_a_launch_starting_origenerator_on_a_checkout_that_carries_its_pin_goes_
 
 def test_the_origenerator_a_worktree_names_for_its_own_session_is_the_one_asked(
         repo_with_worktrees, engine_checkouts, tmp_path, monkeypatch):
-    config = _write_config(repo_with_worktrees.primary / "fun_time_config.json",
-                           origenerator_dir=str(tmp_path / "production_origenerator"))
+    config = _write_a_config_relative_where_the_real_one_is(
+        repo_with_worktrees.primary / "fun_time_config.json",
+        origenerator_dir=str(tmp_path / "production_origenerator"))
     origenerator = _origenerator_pinned_to(tmp_path, "funestra")
     _write_origenerator_override(repo_with_worktrees.newer, f"{origenerator}\n")
     _names_sibling_checkout(repo_with_worktrees.newer, engine_checkouts.before_the_tag)
@@ -1172,7 +1184,7 @@ def test_every_checkout_the_worktree_names_is_held_to_origenerators_pins_not_onl
         branch_session.SiblingOlderThanThePin(shared_ui.before_the_tag, "shared_ui", "v0.1.9")]
 
 
-class TestTheSessionOnTheTaskbar:
+class TestABranchSessionHasNoPinnedShortcutToDescribeItsButton:
     def _described(self, monkeypatch, tmp_path, *, branch_session_flag: bool) -> dict:
         if branch_session_flag:
             monkeypatch.setenv(preview_marker.FLAG, "1")

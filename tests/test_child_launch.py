@@ -13,7 +13,7 @@ PACKAGES = (ROOT / "fun_time", ROOT / "satellite", ROOT / "fun_time_vr", ROOT / 
 
 _SUPPLIES_THE_PAIR = "no_child_log"
 
-_SUPPRESSES_THE_CONSOLE = frozenset({
+_KNOWN_BY_NAME_TO_SET_CREATE_NO_WINDOW = frozenset({
     "no_console_window",
     "hidden_subprocess_kwargs",
     "origenerator_launch_kwargs",
@@ -60,8 +60,12 @@ def _says_where_the_output_goes(call: ast.Call) -> bool:
 def _asks_for_no_console(call: ast.Call) -> bool:
     if any(keyword.arg == "creationflags" for keyword in call.keywords):
         return True
-    if _unpacks(call, _SUPPRESSES_THE_CONSOLE):
+    if _unpacks(call, _KNOWN_BY_NAME_TO_SET_CREATE_NO_WINDOW):
         return True
+    return _unpacks_kwargs_a_swept_caller_built(call)
+
+
+def _unpacks_kwargs_a_swept_caller_built(call: ast.Call) -> bool:
     return any(keyword.arg is None and isinstance(keyword.value, ast.Name)
                for keyword in call.keywords)
 
@@ -94,7 +98,7 @@ def test_every_child_says_where_its_output_goes(path: Path, call: ast.Call):
     [pytest.param(path, call, id=f"{path.name}:{call.lineno}")
      for path, call in _spawn_calls()],
 )
-def test_every_child_asks_for_no_main_hud_window(path: Path, call: ast.Call):
+def test_every_child_asks_for_no_console_window(path: Path, call: ast.Call):
     assert _asks_for_no_console(call), (
         f"{path.relative_to(ROOT)}:{call.lineno}: spawn with no creationflags. "
         "A session the crossing relay started runs under the windowed "
@@ -110,7 +114,7 @@ def test_the_helper_sends_the_pair_to_devnull():
         "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 
-def test_the_main_hud_helper_carries_the_flag_and_nothing_else():
+def test_no_console_window_leaves_the_childs_own_first_window_showing():
     assert no_console_window() == {"creationflags": subprocess.CREATE_NO_WINDOW}
 
 
