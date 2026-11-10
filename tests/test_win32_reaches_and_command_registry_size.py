@@ -15,7 +15,7 @@ def _package_sources():
     return sorted(p for pkg in PACKAGES for p in pkg.rglob("*.py"))
 
 
-_WIN32_REACHES = {
+_REACHES_AROUND_THE_GUARDED_WIN32_LAYER = {
     "main_funestra/window.py": 3,
     # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
     # these want the AttributeError ctypes.windll gives off Windows, and every
@@ -75,6 +75,16 @@ def _win32_reaches(tree) -> int:
     return reaches
 
 
+def test_every_call_through_one_hoisted_binding_is_a_reach_of_its_own():
+    hoisted_once = ast.parse(
+        "import ctypes\n"
+        "u = ctypes.windll.user32\n"
+        "u.SetWindowPos()\n"
+        "u.ShowWindow()\n")
+
+    assert _win32_reaches(hoisted_once) == 3
+
+
 def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
     counted = {}
     for path in _package_sources():
@@ -82,7 +92,7 @@ def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
         if reaches:
             counted[path.relative_to(ROOT).as_posix()] = reaches
 
-    assert counted == _WIN32_REACHES, (
+    assert counted == _REACHES_AROUND_THE_GUARDED_WIN32_LAYER, (
         "the direct-binding count moved.  A file that is new here reaches "
         "ctypes.windll instead of asking fun_time.win32 or fun_time.monitors; "
         "a count that came down is one to lower here in the same commit."

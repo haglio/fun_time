@@ -7,7 +7,10 @@ import sys
 from pathlib import Path
 
 from fun_time import win32
-from tests.integration.integration_support import environment_with_this_checkouts_siblings
+from tests.integration.integration_support import (
+    environment_with_this_checkouts_siblings,
+    this_checkouts_siblings,
+)
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -41,6 +44,12 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
         cwd=str(REPO_DIR), env=environment_with_this_checkouts_siblings(),
         capture_output=True, text=True, timeout=180, check=False,
     )
+
+
+def test_a_shim_on_the_inherited_path_does_not_reach_the_child(monkeypatch, tmp_path):
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "a shim that fakes windll back in"))
+
+    assert environment_with_this_checkouts_siblings()["PYTHONPATH"] == this_checkouts_siblings()
 
 
 def test_the_win32_wrapper_imports_where_ctypes_has_no_windll():
@@ -81,7 +90,7 @@ def test_the_integration_support_modules_import_where_ctypes_has_no_windll():
     assert result.returncode == 0, result.stderr
 
 
-def test_our_own_rect_carries_win32s_own_memory_layout():
+def test_our_own_rect_keeps_the_layout_getwindowrect_writes_into():
     theirs = ctypes.wintypes.RECT
     ours = win32.Win32Rect
 
