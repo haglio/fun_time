@@ -1,7 +1,7 @@
 # Resuming a session
 
-`fun_time.session_resume` brings a reopened session back to the video each Funestra
-was on, and the mode they were in. Both orchestrators call it, so a desktop
+`fun_time.session_resume` brings a reopened session back to what the Main
+Funestra was showing, and the mode it was in. Both orchestrators call it, so a desktop
 reopen, a VR reopen and a crossing between the two
 ([entering-vr.md](entering-vr.md)) all resume the same way.
 
@@ -11,21 +11,18 @@ across a dozen docstrings it is free to drift apart in eleven of them.
 
 ## Why it exists
 
-Every Funestra starts at the top of the playlist file fun_time hands it, and
-startup used to overwrite all three with a fresh weighted shuffle — so reopening
-Fun Time landed on three videos you had never chosen and lost whatever you were
-watching. Resume keeps the satellites' last playlists and rotates each onto the
-video that was on screen: the Funestra's first entry is where you left off, and
-because a playlist wraps, the videos that were coming up still come up in the
-same order. The Main Funestra's list is never kept; it is built again, from the
-video that was on screen ([below](#the-main-funestras-one-list)).
+Every Funestra starts at the top of the playlist file it is handed, and startup
+used to overwrite all three with a fresh weighted shuffle — so reopening Fun Time
+landed on videos you had never chosen and lost whatever you were watching. The
+Main Funestra's list is built again, from the video that was on screen
+([below](#the-main-funestras-one-list)). A Satellite plays what the hosted
+Origenerator gives it, and its buttons, keys and spoken commands are passed to
+Origenerator, so a reopened Satellite opens on an empty list and the app fills it.
 
-Keeping those files means keeping what *shaped* them. A playlist carries its
-session's F-mode, filter, order and loop in it, so the session has to come back
-believing what its files say, or every HUD describes a session other than the
-one playing.
+Coming back to the Main Funestra's video means coming back with the buttons that
+shaped its list, or its HUD describes a session other than the one playing.
 
-Nothing is written at shutdown for either half. Each Funestra publishes the video
+Nothing is written at shutdown. Each Funestra publishes the video
 it is playing to its status file every tick, and the dispatch loop writes the
 state file after every command, so the last tick before the session ended is the
 record — one that survives the force-kill that ends a session, and a crash or a
@@ -33,13 +30,10 @@ power cut too, where a shutdown hook would not.
 
 ## What comes back, and why
 
-`RESUMED_FIELDS` is the list. Most of it is what shaped the playlist files: each
-Funestra's own F-mode and each Satellite's filter decide which videos are in them,
-Latest fixes their order, a group loop *is* the group written out as the
-playlist, with the map anchored (and the seed row widened) on the video it
-started from, and the Main Funestra's buttons, with the number its shuffle is
-dealt from, are what its one list is built from. The rest is what the session was simply *left* in —
-the sound level, the OSR2's max intensity, each Satellite's lock, whether the OSR2
+`RESUMED_FIELDS` is the list. Most of it is what the Main Funestra's one list is
+built from: its buttons, with the number its shuffle is dealt from. The rest is
+what the session was simply *left* in — the sound level, the OSR2's max
+intensity, where each Satellite's HUD sits and its volume control, whether the OSR2
 was let go of or held at one end, whether Genau was browsing Latest — and there
 is no more reason for those to reset overnight than for the video on screen to.
 
@@ -50,8 +44,6 @@ a file a new process reads:
   (`fun_time.audio_volume.publish_audio_level`),
 - the OSR2's max intensity, held below full, is seeded at startup to every
   Funestra that can drive the OSR2 (`fun_time.max_intensity.publish_max_intensity`),
-- each satellite lock is queued back on that satellite's command file
-  (`resume_satellite_locks`),
 - Genau's choice between its VR and flat flicks is queued back on Genau's
   command file in the headset (`fun_time_vr.orchestrator.resume_genau_shapes`), because Genau rescans
   its folders whole at every launch; a desktop Genau has only flat flicks, so
@@ -80,7 +72,7 @@ windows where they always open, and the session's first ticks seat them from
 the crown, which does come back, and the shape of what the Main Funestra shows,
 whether that is a video or one of Genau's flicks.
 
-Every session that hosts Origenerator opens with the app holding both Satellite
+Every session opens with the app holding both Satellite
 Funestras (Satellite mode, their one mode), and with Origenerator back in the Random
 Faves Browser's place if the last session left it there, and both happen UNDER THE
 LOADING SCREEN: rearranging the Funestras once Fun Time is already his, under
@@ -110,8 +102,8 @@ mark of an app that has since closed is never believed.
 An older Fun Time kept a Satellite's own list beside its playlist while the app
 held it (`portrait_playlist.kept.tsv`, `landscape_playlist.kept.tsv`) and put it
 back when the Satellite came home to Kino mode. No Satellite goes back to a list
-of Fun Time's own any more, so `resume_playlists` deletes any such file it finds
-instead.
+of Fun Time's own any more, so `empty_the_satellites_lists`, which opens each
+Satellite on an empty list, deletes any such file it finds as well.
 
 ## The Main Funestra's one list
 
@@ -152,13 +144,12 @@ where one question about one file can hang for hours.
 
 ## The things that have to be re-sent
 
-A satellite's lock is repeat-one in mpv's own `loop_file`, and the Main Funestra's
-A/B loop is a range inside one video. Both live in a Funestra process that has
-just been replaced, so unlike a filter or an order neither can ride back in on a
-file the new Funestra reads — each is queued on the Funestra's command file before
-that Funestra launches, and drains on its first tick. By then the Funestra has
-loaded the video at the top of its playlist, which is the video the
-lock was on and the video the loop was cut from. The Main Funestra holds the seek until mpv
+The Main Funestra's A/B loop is a range inside one video. It lives in a Funestra
+process that has just been replaced, so unlike a button it cannot ride back in on
+a file the new Funestra reads — it is queued on the Main Funestra's command file
+before that Funestra launches, and drains on its first tick. By then the Main
+Funestra has loaded the video at the top of its playlist, which is the video the
+loop was cut from. The Main Funestra holds the seek until mpv
 has the file open (its `restore_loop`), so the loop lands however slowly the
 file opens.
 
@@ -171,7 +162,7 @@ before the queue.
 ## What a reopen re-sends because it lives in a Funestra
 
 Some settings live in a Funestra process while it runs, so they are gone the
-moment a session ends: each Funestra's playback rate, each satellite's own level and
+moment a session ends: the Main Funestra's playback rate, each satellite's own level and
 mute, the Main Funestra's hold on
 the video it is playing and the loop it runs, and Genau's Amp, Speed and Center bars,
 shape, flick seconds and two switches. Fun Time's state is still the one place they
@@ -190,19 +181,12 @@ Every startup also takes in what the Funestras and the headset last reported
 before it reads the state, since a change made in the second before a session
 ended can reach a status file after the dispatch loop has stopped writing.
 
-## Three rules that are easy to lose
-
-**Resuming the satellites' playlists is all or nothing.** One build writes
-both, so both rotations are worked out before either is written: a session
-either resumes whole or is left exactly as the last build wrote it.
+## Two rules that are easy to lose
 
 **The state file is written either way.** The alternative was deleting it at
 startup, which is exactly how a session came back playing favorites while every
 HUD said F-mode was off — and then answered "F-mode" by reporting it *enabled*
-and changing nothing you could see. Satellites whose playlists had to be built
-fresh start over with them: what described those files (`DESCRIBES_THE_PLAYLIST`
-— each Satellite's lock, filter, F-mode, order, loop and map) is gone with them, and
-everything else Fun Time was left in still comes back.
+and changing nothing you could see.
 
 **The dispatch loop opens on the state file, never on defaults.** Origenerator
 is put back under the loading screen before the loop's first tick, through the switches'
@@ -214,7 +198,7 @@ default too.
 
 ## Where the video was left
 
-Resume puts the video that was on screen back at the top of each playlist; the
+Resume puts the video that was on screen back at the top of the Main Funestra's list; the
 point inside that video is the Funestras' own, and is kept for every video rather
 than only the one a session ended on. `main_funestra.play_points` is the whole of
 it — a JSON file in the state dir keyed by video path, read when a Funestra opens

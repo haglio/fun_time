@@ -245,7 +245,7 @@ The main stack runs in one of two modes: **Kino** and **Genau** (spoken, or Kino
 
 Spoken, "kino mode" and "main kino mode" put the Main Funestra in Kino mode, and "genau mode" puts it in Genau mode. Genau is heard said either way, the German word or "go now".
 
-The Satellite Funestras have one mode, Satellite mode, which has no switch: each plays Origenerator's slideshows. What holds the Random Faves Browser's place is a switch of its own: the pair of mode selectors under the dashboard's log, **Random Faves Browser** and **Origenerator**. With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag and asks it for both Satellites' slideshows before the loading screen comes down; an app that never answers ends the startup. Its main window sits over the RFB's rect while that pair says Origenerator (parked under the browser otherwise), and each Satellite opens on the whole Origenerator library of its own shape, shuffled, which is what its reset button goes back to. Each Satellite wears the app's own nav map and buttons under a row of its own minimize button (and, on the Portrait Funestra, the crown), and everything said to it — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app; only minimize, the crown and the playback speed stay the Funestra's. A session hosting no Origenerator draws no pair under the log. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
+The Satellite Funestras have one mode, Satellite mode, which has no switch: each plays Origenerator's slideshows. What holds the Random Faves Browser's place is a switch of its own: the pair of mode selectors under the dashboard's log, **Random Faves Browser** and **Origenerator**. The session launches the checkout of [Origenerator](../origenerator) that `paths.origenerator_dir` names at startup with its `--fun-time` flag and asks it for both Satellites' slideshows before the loading screen comes down; an app that never answers ends the startup. Its main window sits over the RFB's rect while that pair says Origenerator (parked under the browser otherwise), and each Satellite opens on the whole Origenerator library of its own shape, shuffled, which is what its reset button goes back to. Each Satellite wears the app's own nav map and buttons under a row of its own minimize button (and, on the Portrait Funestra, the crown), and everything said to it — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app; only minimize, the crown and the playback speed stay the Funestra's. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
 
 ### The library browser
 
@@ -427,15 +427,14 @@ The alternative was worse than it sounds: a Funestra that closed itself left the
 
 ### F-mode
 
-F-mode is **per Funestra** — the Main Funestra, portrait and landscape each have their own — and setting one rebuilds that Funestra's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A Funestra that was not named is not rebuilt at all, so narrowing one Satellite never reshuffles the other's queue. What it narrows to differs by Funestra:
+F-mode is **per Funestra** — the Main Funestra, portrait and landscape each have their own. Setting the Main Funestra's rebuilds its playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`; a Satellite's is passed to the hosted Origenerator. What it narrows to differs by Funestra:
 
 - the main playlist (the Main Funestra) keeps only videos with a hand-written `.funscript` at the mirrored path (`videos\videos\…` maps to `videos\scripts\scripts\….funscript`, and an empty mark under `videos\scripts\generated` says no person wrote it) that is in action for at least 30% of the running time Evolver recorded for the video, counting each run of action from its first cycle to its last, a pause of under five seconds staying inside its run (`plays_in_f_mode`). A video whose running time Evolver has not recorded yet — a new one, or one of the headset's own videos on the cloud drive that it has not reached, a few of which it measures each run — stays in
-- each satellite plays only items that are in its normal portrait/landscape pool *and* marked a favorite on their metadata sidecar
 - Genau, which has the Main Funestra in Genau mode, keeps only the flicks marked a favorite on their sidecar — a lock on Genau marks its flick, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-mode is its own, apart from the Main Funestra's, the way its browse order is
 
 Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control row, the Main Funestra's HUD's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-mode **on** unless every Funestra is already in it, so the whole-app gesture can never leave half Fun Time narrowed. The Portrait and Landscape Funestras' part of it is each slideshow's own F-mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its shape's "favorites" — "portrait favorites", "landscape favorites" — as its F-mode, the word Origenerator's shows answer with their own F-mode switch.
 
-Every session writes the Main Funestra's list from the F-mode and the other buttons it carries (`fun_time.main_list`); `apply_fmode` rebuilds the named Funestras after that.
+Every session writes the Main Funestra's list from the F-mode and the other buttons it carries (`fun_time.main_list`); `apply_fmode` rebuilds it when the Main Funestra is named.
 
 Because the narrowing is invisible in the playlist itself, every HUD says when it is on. The Main Funestra's mode HUD carries it beside the length mode or compilation — the Main Funestra is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-Funestra flag, published with the rest of that Funestra's HUD.
 
@@ -445,35 +444,16 @@ F-mode is also one of the things a **reset** drops — see below.
 
 "Reset" means the same thing on every Funestra: put it back to its defaults, and it is a button on that Funestra's own HUD (next to F-mode in each satellite's control row and in the Main Funestra's HUD's transport row) as well as a spoken word. What the defaults cover differs by Funestra, because what each Funestra has does:
 
-- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its action filter, drops F-mode, ends any group loop with the widened seed row and frozen nav map that rode on it, returns the browse to shuffled and starts from the top of a freshly built playlist, and puts its playback speed back to 1×. A Funestra whose speed is the only thing off keeps its browse and the video on screen, as the Main Funestra does. `no filter` is the narrow counterpart — it drops the action filter and leaves the rest standing
+- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) passes the reset to the hosted Origenerator
 - the Main Funestra (`main_reset`, "main reset" / "reset main") puts back every button its one list is built from — F-mode off, 2D and VR both in, videos and full videos both in, the browse shuffled and dealt afresh — which leaves any compilation with it, and starts from the top of the new list; it also cancels any A/B loop, unlocks it and puts its playback speed back to 1×
 
-**A reset does nothing to a Funestra that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. A satellite is skipped whole when its state is already the default one; the Main Funestra's list is rebuilt only when one of those buttons was narrowing or ordering it or a compilation was playing, and the Main Funestra ignores being told to go somewhere it already is.
+**A reset does nothing to a Funestra that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. The Main Funestra's list is rebuilt only when one of those buttons was narrowing or ordering it or a compilation was playing, and the Main Funestra ignores being told to go somewhere it already is.
 
 Bare "reset" reaches whichever Funestra was last addressed, the Main Funestra included.
 
-**A reset with nothing to put back is drawn faded, and takes no press.** The same answer that skips the dispatch rides out to the surfaces that draw the button: the Main Funestra's HUD's reset, each satellite HUD's, and the dashboards' Reset All go dim while every Funestra they reach is already at its defaults. The Funestras draw that from the button's own dim flag, which fades the icon, leaves it unlit under the pointer and posts nothing. Reset All stays live while a show is hosted — the session cannot see what the show is showing, so it never claims there is nothing to put back.
+**A reset with nothing to put back is drawn faded, and takes no press.** The same answer that skips the dispatch rides out to the surfaces that draw the button: the Main Funestra's HUD's reset, each satellite HUD's, and the dashboards' Reset All go dim while every Funestra they reach is already at its defaults. The Funestras draw that from the button's own dim flag, which fades the icon, leaves it unlit under the pointer and posts nothing. For the Satellites, Reset All goes by the reset button on each one's HUD as the hosted Origenerator publishes it, faded or not.
 
 **Reset All** resets every Funestra at once: it is the dashboard's button beside F-mode, on the desktop and in the headset alike, and the spoken "reset all" / "all reset". It posts `all_reset`, which the dispatch loop expands the way it expands a `both_*` command — into `main_reset`, `portrait_reset` and `landscape_reset`, each handled exactly as if it had been pressed on its own Funestra.
-
-### Cycle action & cycle seed (satellites)
-
-AI videos under the regen media root carry metadata sidecars (see `regen.media_root` / `metadata_root` in the config) recording the prompts, settings, and seeds they were generated from. Fun Time groups the satellite libraries by that metadata (`fun_time/media_metadata.py`):
-
-- an **action group** is every video generated from the *same source image* — what that image shows, across different actions (for text-to-video, the same prompt+seed with a different action)
-- a **seed group** is every video whose generation config differs *only by seed* — the same scenario rendered from a different seed
-- a **loose seed group** is the same scene held only by its prompts and cast/action, with the render settings (model, resolution, aspect ratio, quality, creativity) freed as well as the seed — a wider net for "the same scene, however it was rendered"
-
-Two command pairs ride on those groups, spoken rather than key-bound ("portrait action", "portrait seed", "landscape action", "landscape seed"):
-
-- **Cycle action** switches the current video to the next action of its group, in a fixed order so repeating it tours every action. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one item per group — see below), it is swapped in place of the current entry.
-- **Cycle seed** jumps to a same-config-different-seed sister, touring the group in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed group (same scene, render settings freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the Funestra and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar video"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across videos and wait for a "Similar video").
-
-Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
-
-Both groupings are only as good as the actions the sidecars record, so there is a way to say one is wrong: **"wrong action"** (naming a Satellite or bare, like "trash") sends the current video back to Origenerator's action setter tool, which takes off both the video's own actions and its image's and puts it first in line to be set again. Fun Time writes the video's path with `app_support.wrong_actions` into the production Origenerator checkout's `state/`, and Origenerator takes it from there; the sidecar is left as it is. Nothing about playback changes: the video is not bad, only mislabeled.
-
-During satellite builds, each action group **collapses to one playlist slot**, so the same source image doesn't recur once per action. Shuffled builds draw that item weighted by the watch weight below; Premiere (`P`, newest-first) instead keeps the group's newest item and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
 
 ### Watch weight — videos "breed" by attention
 
@@ -483,7 +463,7 @@ Fun Time records how you treat each satellite video (`fun_time/watch_stats.py`, 
 - pressing next/prev (or cycling action/seed) early in a video counts a **skip**
 - **locking** a video is the strongest positive signal
 
-Warm Gun, on the phone, records the same three for what it plays. Evolver's Watch Weights stage sums the two onto every library video's metadata sidecar as a `watch` block — the counts and a playback weight, `2^((completions + 3·locks − skips)/3)` clamped to between ⅛× and 8× — and Fun Time reads that weight off the sidecar at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the actions you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). So what you skip on the phone fades here too, and the other way round. This is the continuous companion to send-to-Trash: hated videos fade away instead of leaving. Neutral videos are never excluded, the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything, and a video Evolver has not stamped yet weighs 1. A favorite is the `favorite` mark on the video's sidecar, the one place Fun Time, Evolver and the phone all read it; the same stage applies a favorite made or taken back on the phone to that mark.
+Warm Gun, on the phone, records the same three for what it plays. Evolver's Watch Weights stage sums the two onto every library video's metadata sidecar as a `watch` block — the counts and a playback weight, `2^((completions + 3·locks − skips)/3)` clamped to between ⅛× and 8×. A favorite is the `favorite` mark on the video's sidecar, the one place Fun Time, Evolver and the phone all read it; the same stage applies a favorite made or taken back on the phone to that mark.
 
 Check the current standings any time with the leaderboard (from the project root):
 
@@ -498,18 +478,13 @@ It ranks every stamped video in the configured library by that weight — "Risin
 Every lock marks the item it holds a favorite on its metadata sidecar, through
 one routine (`fun_time.lock.a_lock_holds`), however it was asked for:
 
-- a satellite's lock key, its padlock button, or "lock" said to it
-- a double-click on a thumbnail in a satellite's HUD, locked or not
-- a loop button on a video with no siblings, which locks it
-- the loop key (E, or Home on the Portrait Satellite), whose first stop is the lock
 - the Main Funestra's lock in Kino mode, and Genau's in Genau mode
+- a Satellite's lock, once the hosted Origenerator says which item it holds (`lock_held`), for an item that has a metadata sidecar
 
 The Main Funestra and Genau decide what a press holds, so their item is the one
 each reports holding once it has read the press (`fun_time.lock_follower`). The
-the session's own holds — a session reopening locked, a loop left with one video by a
-discard, Genau holding its flick when no shape is left — add nothing, and nor
-does a satellite's lock, which the hosted app stars in
-its own gallery (see `origenerator_cmd.txt` below).
+session's own holds — a session reopening locked, a loop left with one video by a
+discard, Genau holding its flick when no shape is left — add nothing.
 
 A lock also counts as a lock in the watch stats, and opens where more of the
 item is made: a video a website made opens that site's page in the Random Faves

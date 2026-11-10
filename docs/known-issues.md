@@ -33,20 +33,18 @@
     Genau's flicks and the Robot Hand's stretches, and the audio companion (on the
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
     `funestra` for it; GenauVR, the standalone headset app, is retired with that.
-  - The hosted Origenerator IS launched, as of 2026-09-20, so the Satellites play
-    its slideshows in the headset: the slideshows are the Satellite Funestras'
-    own playlists, and the headset's satellites are
-    Funestras. `fun_time.hosted_origenerator` brings the app up for either shape
+  - The hosted Origenerator IS launched, as of 2026-09-20, and a Satellite plays
+    what it gives it, in the headset as on the desktop.
+    `fun_time.hosted_origenerator` brings the app up for either shape
     of session and sees it out of either teardown. The app's own window hangs on a
     screen of its own in the headset whenever the app is up, whatever the mode
     selectors say: there is no browser in the headset, and the headset's dashboard
     carries no Random Faves Browser / Origenerator strip.
-    A session hosting none is still a config naming none.
   - The only place a control may be left dead in the headset is
     `tests/test_vr_control_parity.py`'s own list of what the hosted Origenerator
     does not answer in its mode (dead on the monitors too): it walks every hotkey
     and every spoken phrase through the real dispatch, on the config a headset
-    session builds and with both satellites in each of their modes, and holds each
+    session builds, and holds each
     verb that lands to the vocabulary of whatever will read it in VR — the
     headset's Main Funestra with Kino and the headset's own verbs on it, the
     satellites' Funestras, Genau's registry, and the hosted app's as read from
