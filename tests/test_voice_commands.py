@@ -50,10 +50,10 @@ class TestTheSpokenCrossing:
             ("exit v r", "exit_vr"),
         ],
     )
-    def test_both_spellings_of_the_name_answer(self, phrase, command):
+    def test_vr_answers_as_the_word_and_as_its_two_letters(self, phrase, command):
         assert VOICE_COMMANDS[phrase] == command
 
-    def test_no_phrase_a_crossing_starts_with_is_a_command_of_its_own(self):
+    def test_no_shorter_phrase_can_outscore_a_crossing_it_starts(self):
         crossings = [p for p, c in VOICE_COMMANDS.items() if c in ("enter_vr", "exit_vr")]
         assert crossings
         for phrase in crossings:
@@ -77,6 +77,20 @@ class TestTheVrReset:
     def test_both_spellings_put_the_funestras_back_and_read_as_vr_reset(self, phrase):
         assert VOICE_COMMANDS[phrase] == "vr_reset"
         assert friendly_voice(phrase) == "VR reset"
+
+
+_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS = {
+    "origenerator": "aura generator",
+    "upscales": "enhanced only",
+    "unpause": "un pause",
+    "unpark": "un park",
+    "funscript": "fun script",
+    "omnipause": "omni pause",
+    "omniplay": "omni play",
+    "osr2": "o s r two",
+    "2d": "two d",
+    "hotkeys": "hot keys",
+}
 
 
 class TestVoiceCommands:
@@ -170,7 +184,7 @@ class TestVoiceCommands:
     def test_the_overlay_says_the_words_that_flip_genaus_flick(self):
         assert build_voice_commands(flick_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
 
-    def test_holding_a_genau_flick_is_the_main_lock_and_nothing_of_its_own(self):
+    def test_genaus_flick_has_no_second_lock_to_disagree_with_the_main_one(self):
         assert "lock clip" not in VOICE_COMMANDS
         assert "auto advance" not in VOICE_COMMANDS
         assert "advance on" not in VOICE_COMMANDS
@@ -224,11 +238,16 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["satellites hud bottom right"] == "satellites_hud_lower_right"
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
-        oov_words = {"origenerator", "upscales", "unpause", "unpark", "unretract", "funscript",
-                     "omnipause", "omniplay", "osr2", "2d", "hotkeys"}
+        oov_words = {*_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS, "unretract"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
+
+    def test_every_word_vosk_lacks_is_said_in_words_it_has(self):
+        unsayable = {word: said for word, said in _SAID_INSTEAD_OF_A_WORD_VOSK_LACKS.items()
+                     if not any(said in phrase for phrase in VOICE_COMMANDS)}
+
+        assert unsayable == {}
 
     def test_the_holds_stop_the_device_without_pausing_the_app(self):
         assert VOICE_COMMANDS["park"] == "robot_hand_park"
@@ -446,7 +465,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["portrait lock seed"] == "portrait_action_loop"
         assert VOICE_COMMANDS["lock type landscape"] == "landscape_seed_loop"
 
-    def test_the_scope_named_all_is_gone_from_the_grid(self):
+    def test_all_means_every_funestra_and_never_everything_holding_a_video(self):
         for phrase in ("lock all", "loop all", "same all"):
             assert phrase not in VOICE_COMMANDS
             for satellite in SATELLITE_WORDS:
@@ -468,7 +487,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["main unlock"] == "main_lock_off"
         assert VOICE_COMMANDS["unlock main"] == "main_lock_off"
 
-    def test_primary_is_no_longer_a_spoken_word_for_the_funestra(self):
+    def test_primary_is_a_monitors_name_and_never_a_funestras(self):
         spoken = {phrase for phrase in VOICE_COMMANDS if "primary" in phrase}
 
         assert spoken == set()
@@ -733,6 +752,9 @@ def test_the_crown_is_given_by_naming_the_funestra_after_the_word_crown():
         "portrait_crown", "main_crown")
 
 
+_WHISPER_READS_AS_NEITHER = "un minimize"
+
+
 class TestMinimizingAHudBySpeech:
     @pytest.mark.parametrize("said", ["{verb} {hud}", "{hud} {verb}"])
     @pytest.mark.parametrize(("verb", "act"), [
@@ -745,5 +767,5 @@ class TestMinimizingAHudBySpeech:
             assert (VOICE_COMMANDS.get(said.format(verb=verb, hud=f"{funestra} hud"))
                     == f"{funestra}_{act}")
 
-    def test_no_phrase_says_un_minimize(self):
-        assert [phrase for phrase in VOICE_COMMANDS if "un minimize" in phrase] == []
+    def test_no_phrase_says_what_whisper_cannot_tell_from_minimize(self):
+        assert [phrase for phrase in VOICE_COMMANDS if _WHISPER_READS_AS_NEITHER in phrase] == []

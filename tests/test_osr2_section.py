@@ -95,9 +95,9 @@ class TestTheRowThatAimsTheDevice:
         assert "robot_hand_park" not in console
 
 
-class TestTheReadoutTheWordLeaves:
+class TestTheWordTheSessionPublishesAndThePainterTogether:
     @staticmethod
-    def _readout(main_mode: MainMode, *, funscript_driving: bool, max_intensity: int = 100,
+    def _painted_from_what_the_session_publishes(main_mode: MainMode, *, funscript_driving: bool, max_intensity: int = 100,
                  tmp_path):
         part = osr2_part(FunTimeFunestra.MAIN, Osr2PartFacts(
             main_mode=main_mode, control=OSR2_DRIVING, paused=False,
@@ -123,8 +123,11 @@ class TestTheReadoutTheWordLeaves:
         x, y, w, h = rect
         return left + x + w // 2, top + y + h // 2
 
-    def test_genaus_marks_and_bands_answer_a_press_in_genau_mode(self, tmp_path):
-        painter = self._readout(MainMode.GENAU, funscript_driving=True, tmp_path=tmp_path)
+    def test_a_funscript_on_the_parked_main_funestra_leaves_genaus_readout_pressable(self, tmp_path):
+        on_the_video_the_parked_main_funestra_holds = True
+        painter = self._painted_from_what_the_session_publishes(
+            MainMode.GENAU, funscript_driving=on_the_video_the_parked_main_funestra_holds,
+            tmp_path=tmp_path)
 
         marks = {b.command: r for r, b in painter.buttons
                  if b.command.startswith(("robot_hand_amplitude", "robot_hand_center", "robot_hand_speed"))}
@@ -135,16 +138,17 @@ class TestTheReadoutTheWordLeaves:
             painter.press_at(*self._center(track.rect))
             assert painter.holding, f"the {track.axis} band at {track.rect} refused a press"
 
-    def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
-        painter = self._readout(MainMode.KINO, funscript_driving=True, tmp_path=tmp_path)
+    def test_kino_never_puts_genaus_motion_on_the_device_during_a_funscripts_turn(self, tmp_path):
+        painter = self._painted_from_what_the_session_publishes(
+            MainMode.KINO, funscript_driving=True, tmp_path=tmp_path)
 
         for track in self._readouts_own(painter):
             assert painter.press_at(*self._center(track.rect)) == ""
             assert not painter.holding
 
     def test_the_max_intensity_holds_a_funscripts_turn_down_too_so_it_stays_pressable(self, tmp_path):
-        painter = self._readout(MainMode.KINO, funscript_driving=True, max_intensity=50,
-                                tmp_path=tmp_path)
+        painter = self._painted_from_what_the_session_publishes(
+            MainMode.KINO, funscript_driving=True, max_intensity=50, tmp_path=tmp_path)
         (max_intensity,) = [track for track in painter.tracks if track.axis == MAX_INTENSITY]
 
         assert painter.press_at(*self._center(max_intensity.rect)).startswith("max_intensity_")

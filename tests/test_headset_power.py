@@ -54,7 +54,7 @@ class TestWakingItAsFunTimeOpens:
 
         assert answered.readiness is Readiness.READY
 
-    def test_his_sound_goes_back_where_the_runtime_moved_it(self, tmp_path):
+    def test_the_sound_a_waking_runtime_took_for_the_headset_goes_back_to_his_desk(self, tmp_path):
         _, put_back, _ = _woken(
             tmp_path, before={OUTPUT_FOR_MUSIC: SPEAKERS}, during={OUTPUT_FOR_MUSIC: HEADSET})
 

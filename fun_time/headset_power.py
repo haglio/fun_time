@@ -41,12 +41,13 @@ def get_the_headset_ready(state_dir: str | Path) -> Probe:
     )
 
     ours = not runtime_was_running()
-    before = windows_sound.default_devices()
+    his_at_the_desk = windows_sound.default_devices()
     if ours:
-        remember_the_sound_devices(Path(state_dir), before)
+        remember_the_sound_devices(Path(state_dir), his_at_the_desk)
     found = ensure_ready()
-    moved_to = windows_sound.default_devices()
-    what_the_runtime_moved_goes_back(before, moved_to, moved_to)
+    taken_for_the_headset = windows_sound.default_devices()
+    what_the_runtime_moved_goes_back(
+        his_at_the_desk, taken_for_the_headset, taken_for_the_headset)
     if found.readiness is Readiness.READY:
         write_whole(headset_ready_flag(state_dir), "")
         if ours:

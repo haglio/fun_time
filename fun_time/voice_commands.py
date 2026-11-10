@@ -123,13 +123,14 @@ def _group_cycle_and_mode_phrases(commands: dict[str, str]) -> None:
         for _cycle_verb in ("cycle", "next", "change"):
             commands[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
-    _SOUND_WORDS: dict[str, str] = {
-        "mute": "mute", "un mute": "unmute",
-        "quiet": "volume_down", "quieter": "volume_down",
-        "loud": "volume_up", "louder": "volume_up",
+    _EITHER_WORD_FOR_A_SOUND_CHANGE: dict[str, tuple[str, ...]] = {
+        "mute": ("mute",), "unmute": ("un mute",),
+        "volume_down": ("quiet", "quieter"),
+        "volume_up": ("loud", "louder"),
     }
-    for _sound_word, _change in _SOUND_WORDS.items():
-        _bare_or_named(commands, _sound_word, _change)
+    for _change, _either_word in _EITHER_WORD_FOR_A_SOUND_CHANGE.items():
+        for _sound_word in _either_word:
+            _bare_or_named(commands, _sound_word, _change)
 
     _FMODE_PHRASES: dict[str, tuple[str, str]] = {
         "f mode": ("fmode", "fmode_toggle"),
