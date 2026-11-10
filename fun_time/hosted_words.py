@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 from .command_value import SAY, Command, Scope, parse_command
 from .fun_time_funestras import FunTimeFunestra
-from .hosted_contract import said_to_core, said_to_the_hosted_app, written_for_the_hosted_app
+from .hosted_contract import said_to_the_hosted_app, written_for_the_hosted_app
 from .main_funestra_commands import refused_on_a_satellite
-from .origenerator_switches import RfbMode, hosts
+from .origenerator_switches import hosts
 from .satellite_commands import THE_FUNESTRAS_OWN
 
 if TYPE_CHECKING:
@@ -14,20 +14,13 @@ if TYPE_CHECKING:
     from .shared_state import BridgeState
 
 
-def line_said_bare_to_the_hosted_app(command: Command, state: BridgeState,
-                                     config: BridgeConfig) -> str | None:
-    if command.said_to is not Scope.ACTIVE:
+def line_said_bare_to_the_hosted_app(command: Command, config: BridgeConfig) -> str | None:
+    if command.said_to is not Scope.ACTIVE or not config.hosts_origenerator:
         return None
     said = command.aimed_at_the_active(FunTimeFunestra.PORTRAIT)
     if said.action != SAY:
         return None
-    holding = next((funestra for funestra in FunTimeFunestra.SATELLITES
-                    if hosts(funestra, state, config)), None)
-    if holding is not None:
-        return said_to_the_hosted_app(holding.label, said.argument)
-    shown = (config.hosts_origenerator and state.origenerator_ready
-             and state.rfb_mode is RfbMode.ORIGENERATOR)
-    return said_to_core(said.argument) if shown else None
+    return said_to_the_hosted_app(FunTimeFunestra.PORTRAIT.label, said.argument)
 
 
 def _about_a_satellite(command: Command) -> bool:
@@ -45,21 +38,20 @@ def _words_for_the_hosted_app_to_match(command: Command) -> tuple[str, str] | No
     return (command.said_to, _CLEAR_FILTER) if command.action == "no_filter" else None
 
 
-def a_lock_said_in_the_hosted_apps_words(command: Command, state: BridgeState,
-                                          config: BridgeConfig) -> Command:
+def a_lock_said_in_the_hosted_apps_words(command: Command, config: BridgeConfig) -> Command:
     if (command.action != SAY or command.argument not in config.origenerator_lock_phrases
-            or not routes_to_origenerator(command, state, config)):
+            or not routes_to_origenerator(command, config)):
         return command
     return Command.to(command.satellite, "lock_on")
 
 
-def routes_to_origenerator(command: str | Command, state: BridgeState, config: BridgeConfig) -> bool:
+def routes_to_origenerator(command: str | Command, config: BridgeConfig) -> bool:
     if isinstance(command, str):
         command = parse_command(command)
     spoken = _words_for_the_hosted_app_to_match(command)
     if spoken is not None:
-        return hosts(command.satellite, state, config)
-    return all(_about_a_satellite(said) and hosts(said.satellite, state, config)
+        return hosts(command.satellite, config)
+    return all(_about_a_satellite(said) and hosts(said.satellite, config)
                for said in command.halves())
 
 

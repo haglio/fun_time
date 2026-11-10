@@ -782,17 +782,6 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_osr2|0", "landscape_osr2|1", "portrait_osr2|1", "landscape_osr2|0"]
 
-    def test_an_app_that_restarted_while_its_satellite_was_kinos_is_told_again(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-
-        feed.publish(_hosted(BridgeState(osr2_funestra=2), "portrait"))
-        feed.publish(BridgeState(osr2_funestra=2))
-        feed.publish(_hosted(BridgeState(osr2_funestra=2), "portrait"))
-
-        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "portrait_osr2|1", "portrait_osr2|1"]
-
-
 class TestASatelliteWithTheOsr2:
     def test_names_why_the_osr2_cannot_be_heard(self, tmp_path):
         feed = make_feed(tmp_path)

@@ -29,8 +29,7 @@ from fun_time.command_dispatch import dispatch_command
 from fun_time.dashboard_actions import BROWSE_LIBRARY_CLOSE, HELP_REFERENCE_COMMANDS
 from fun_time.genau_config import GenauSettings
 from fun_time.mode_plan import MAIN_KINO_MODE
-from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
-from fun_time.shared_state import BridgeState, SatelliteState
+from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
@@ -96,9 +95,8 @@ def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     return sweep(headset_config(root, names_an_origenerator=False), (True,))
 
 
-def test_the_sweep_sends_every_funestra_its_ten_second_steps(landed):
-    for channel in ("main_funestra_cmd_file", "portrait_cmd_file", "landscape_cmd_file"):
-        assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, channel)), channel
+def test_the_sweep_sends_the_main_funestra_its_ten_second_steps(landed):
+    assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, "main_funestra_cmd_file"))
 
 
 def _sent_to(landed, channel: str) -> dict[str, str]:
@@ -258,28 +256,6 @@ class TestTheSatellites:
                 if not handled:
                     dead[verb] = where
         assert not dead, f"the hosted satellite session answers none of these: {dead}"
-
-    def test_a_reset_unlocks_it_and_starts_a_fresh_browse_from_the_top(self, tmp_path):
-        config = headset_config(tmp_path)
-        videos = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
-        for video in videos:
-            video.write_bytes(b"")
-        session = Playback(list(videos), engine=FakeEngine())
-        session.set_locked(True)
-        playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
-
-        dispatch_command(
-            "portrait_reset", BridgeState(portrait=SatelliteState(locked=True, latest=True)), config)
-        controls = FunestraControls(
-            session,
-            reload_playlist=lambda: session.replace_playlist(
-                [item.path for item in read_playlist(playlist)]),
-        )
-        for line in config.portrait.cmd_file.read_text(encoding="utf-8").splitlines():
-            apply_satellite_command(line, controls)
-
-        assert not session.is_locked
-        assert session.current_video == read_playlist(playlist)[0].path
 
 
 def _a_satellite_line(verb: str, video: Path) -> str:

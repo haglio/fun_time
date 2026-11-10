@@ -791,8 +791,7 @@ def start_voice_control(
     dispatch_runner.voice.controller = voice_controller
     dispatch_runner.hear_as_a_lock(voice_controller.hosted.lock_phrases)
     voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
-    voice_controller.hosted_satellites = lambda: hosted_satellites(dispatch_runner.state,
-                                                              dispatch_runner.config)
+    voice_controller.hosted_satellites = lambda: hosted_satellites(dispatch_runner.config)
     if not dispatch_runner.state.mic_muted:
         voice_controller.unmute()
     return voice_controller, prepared.thread

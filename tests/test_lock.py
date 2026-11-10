@@ -7,6 +7,7 @@ from app_support import favorites
 from fun_time.content import WebProvider, load_web_providers
 from fun_time.lock import a_hosted_lock_holds, a_lock_holds, build_discard_plan, go_to_line
 from fun_time.media_metadata import metadata_path_for, recorded_for
+from fun_time.origenerator_switches import RfbMode
 from fun_time.shared_state import BridgeState
 from fun_time.watch_stats import watch_stats_path
 from tests.test_windows_bridge_dispatch_loop import make_config
@@ -94,3 +95,22 @@ def test_a_hosted_lock_on_a_sites_video_with_no_record_still_opens_the_sites_pag
     assert [op.op for op in ops] == ["open_rfb_tab"]
     assert _asked_of_the_hosted_app(config) == []
     assert not config.regen_metadata_root.exists()
+
+
+def test_a_hosted_lock_on_a_sites_video_puts_the_browser_back_over_origenerator(tmp_path):
+    config = _hosting(tmp_path)
+    video = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
+
+    state, ops = a_hosted_lock_holds(
+        video, BridgeState(origenerator_ready=True, rfb_mode=RfbMode.ORIGENERATOR), config)
+
+    assert state.rfb_mode is RfbMode.RFB
+    assert [op.op for op in ops] == ["hide_window", "restack_rfb", "open_rfb_tab"]
+
+
+def test_a_hosted_lock_asks_nothing_of_an_origenerator_still_starting(tmp_path):
+    config = _hosting(tmp_path)
+
+    a_hosted_lock_holds(str(tmp_path / "made here" / "scene one.mp4"), BridgeState(), config)
+
+    assert _asked_of_the_hosted_app(config) == []
