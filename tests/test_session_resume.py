@@ -7,7 +7,7 @@ from typing import ClassVar
 from funestra import funestra_verbs
 from funestra.genau_controls import VERBS as GENAU_VERBS
 from funestra.main_hud import OSR2_PARKED, OSR2_RETRACTED
-from funestra.modes import MainMode, SatellitesMode
+from funestra.modes import MainMode
 
 from fun_time.crown import Crown
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -665,14 +665,10 @@ class TestPlaylistOpensOn:
         assert playlist_opens_on(tmp_path / "absent.tsv", "C:/v/a.mp4") is False
 
 
-def test_a_session_opens_already_in_the_origenerator_modes_it_was_left_in(tmp_path):
+def test_a_session_opens_with_the_browsers_place_where_it_was_left(tmp_path):
     state_file = tmp_path / "shared_state.ini"
-    write_shared_state(state_file, BridgeState(
-        landscape=SatelliteState(mode=SatellitesMode.ORIGENERATOR),
-        rfb_mode=RfbMode.ORIGENERATOR))
+    write_shared_state(state_file, BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
     resumed = resume_shared_state(state_file, resumed=True)
 
-    assert resumed.satellite(FunTimeFunestra.LANDSCAPE).mode is SatellitesMode.ORIGENERATOR
-    assert resumed.satellite(FunTimeFunestra.PORTRAIT).mode is SatellitesMode.KINO
     assert resumed.rfb_mode is RfbMode.ORIGENERATOR

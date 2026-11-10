@@ -49,7 +49,7 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
-from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbMode
+from fun_time.origenerator_switches import RfbMode
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
@@ -83,7 +83,6 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import (
     BridgeState,
-    SatelliteState,
     shared_state_path,
     write_shared_state,
 )
@@ -3161,8 +3160,7 @@ class TestARoomLeftInOrigeneratorMode:
         manifest = LaunchManifest.read(manifest_path)
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
-        write_shared_state(shared_state_path(state_dir), BridgeState(
-            portrait=SatelliteState(mode=ORIGENERATOR_MODE), rfb_mode=RfbMode.ORIGENERATOR))
+        write_shared_state(shared_state_path(state_dir), BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
         if the_app_answers:
             status = Path(manifest.commands.origenerator_status_file)
             status.parent.mkdir(parents=True, exist_ok=True)

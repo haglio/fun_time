@@ -10,14 +10,14 @@ from pathlib import Path
 from funestra.flick_advance import FlickAdvanceState
 from funestra.hud_placement import HudCorner, HudEdge
 from funestra.main_hud import OSR2_DRIVING
-from funestra.modes import LengthMode, MainMode, SatellitesMode, read_mode
+from funestra.modes import LengthMode, MainMode, read_mode
 from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
 from .mode_plan import STARTUP_MAIN_MODE, EnhancementLevel
-from .origenerator_switches import KINO_MODE, RfbMode
+from .origenerator_switches import RfbMode
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,6 @@ class SatelliteState:
     nav_map_anchor: str = ""
     widen_video: str = ""
     nav_anchor: str = ""
-    mode: SatellitesMode = KINO_MODE
     handed_over: bool = False
     speed: float = 1.0
     volume: int = MAX_VOLUME
@@ -191,7 +190,7 @@ _LAST_SESSIONS_KEYS = {
     "landscape_f_mode": ("landscape_favorites_filter",),
     "active_player": ("active_funestra",),
     "osr2_player": ("osr2_funestra",),
-    "satellites_mode": ("portrait_mode", "landscape_mode", "rfb_mode"),
+    "satellites_mode": ("rfb_mode",),
     "rfb_slot": ("rfb_mode",),
     "portrait_map_anchor": ("portrait_nav_map_anchor",),
     "landscape_map_anchor": ("landscape_nav_map_anchor",),

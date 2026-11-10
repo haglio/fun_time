@@ -5,9 +5,8 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from .bridge_records import BridgeConfig
-from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import origenerator_has_published
-from .origenerator_switches import KINO_MODE, RfbMode
+from .origenerator_switches import RfbMode
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
@@ -17,9 +16,7 @@ class OrigeneratorNeverCameUp(Exception):
     pass
 
 
-def holding_nothing(state: BridgeState) -> BridgeState:
-    for funestra in FunTimeFunestra.SATELLITES:
-        state = state.with_satellite(funestra, mode=KINO_MODE)
+def with_the_browser_in_its_place(state: BridgeState) -> BridgeState:
     return replace(state, rfb_mode=RfbMode.RFB)
 
 
@@ -50,7 +47,7 @@ class OrigeneratorOpening:
         state = replace(state, origenerator_ready=self.has_answered())
         if self._config.origenerator_enabled and state.origenerator_ready:
             return state
-        return holding_nothing(state)
+        return with_the_browser_in_its_place(state)
 
     def opens_now(self, wait_for_the_app: Callable[[Callable[[], bool]], bool]) -> bool:
         owed, self._owed = self._owed, False

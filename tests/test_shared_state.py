@@ -14,7 +14,6 @@ from funestra.modes import MainMode
 from fun_time import shared_state
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES, build_mode_switch_plan
-from fun_time.origenerator_switches import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.shared_state import (
     _LAST_SESSIONS_KEYS,
     SHARED_STATE_FILENAME,
@@ -302,17 +301,37 @@ class TestTheSideLens:
 
 def test_an_old_mode_word_comes_back_as_a_mode_the_switch_plan_accepts(tmp_path: Path):
     state_file = tmp_path / SHARED_STATE_FILENAME
-    for saved_main, saved_satellite in (("main_player", "player"), ("hybrid", "player"),
-                                        ("video", "video")):
-        write_shared_state(state_file, BridgeState(
-            main_mode=saved_main, portrait=SatelliteState(mode=saved_satellite)))
+    for saved_main in ("main_player", "hybrid", "video"):
+        write_shared_state(state_file, BridgeState(main_mode=saved_main))
 
         resumed = read_shared_state(state_file)
 
-        assert (resumed.main_mode, resumed.satellite(FunTimeFunestra.PORTRAIT).mode) == (
-            MAIN_KINO_MODE, SATELLITES_KINO_MODE), saved_main
+        assert resumed.main_mode == MAIN_KINO_MODE, saved_main
         build_mode_switch_plan(current_mode=resumed.main_mode, target_mode=MainMode.GENAU,
                                omni_paused=False)
+
+
+@pytest.mark.parametrize("satellite", ["portrait", "landscape"])
+@pytest.mark.parametrize("saved", ["kino", "origenerator", "video", "player"])
+def test_a_satellite_mode_an_older_session_saved_is_read_past(tmp_path: Path, satellite, saved):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    state_file.write_text(f"[state]\n{satellite}_mode = {saved}\nmax_intensity = 38\n",
+                          encoding="utf-8")
+
+    assert read_shared_state(state_file) == BridgeState(max_intensity=38)
+
+
+def test_a_satellite_mode_an_older_session_saved_is_gone_from_the_next_file_written(
+        tmp_path: Path):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    state_file.write_text("[state]\nportrait_mode = origenerator\nlandscape_mode = kino\n",
+                          encoding="utf-8")
+
+    write_shared_state(state_file, read_shared_state(state_file))
+
+    written = state_file.read_text(encoding="utf-8")
+    assert "portrait_mode" not in written
+    assert "landscape_mode" not in written
 
 
 def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
@@ -324,7 +343,7 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 
 _EXPECTED_STATE_KEYS = {
     "portrait_locked": "0", "landscape_locked": "0",
-    "main_mode": "kino", "portrait_mode": "kino", "landscape_mode": "kino",
+    "main_mode": "kino",
     "portrait_handed_over": "0", "landscape_handed_over": "0",
     "rfb_mode": "rfb",
     "origenerator_ready": "0",

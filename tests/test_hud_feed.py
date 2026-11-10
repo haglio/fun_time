@@ -13,7 +13,7 @@ from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
 from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_PARKED, MainHudModel, read_main_hud
-from funestra.modes import MainMode, Osr2State, SatellitesMode
+from funestra.modes import MainMode, Osr2State
 from funestra.osr2_visualizer import DriveHud, publish_drive
 from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, parse_hud
 
@@ -54,8 +54,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
     for funestra in funestras or ("portrait", "landscape"):
-        state = state.with_satellite(FunTimeFunestra[funestra.upper()],
-                                     mode=SatellitesMode.ORIGENERATOR, handed_over=True)
+        state = state.with_satellite(FunTimeFunestra[funestra.upper()], handed_over=True)
     return state
 
 

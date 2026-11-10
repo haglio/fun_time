@@ -62,9 +62,9 @@ from .modes import scripted_item
 from .origenerator_opening import (
     OrigeneratorNeverCameUp,
     OrigeneratorOpening,
-    holding_nothing,
+    with_the_browser_in_its_place,
 )
-from .origenerator_switches import ORIGENERATOR_MODE, RfbMode
+from .origenerator_switches import RfbMode
 from .runtime_flow import hand_the_satellite_to_the_app, write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .session_end import mark_session_end
@@ -151,7 +151,7 @@ class DispatchLoopRunner:
             seen.window, seen.process, hosted_app=self.config.origenerator_enabled))
         self.sync_interval_s = publishing.sync_interval_ms / 1000
         left_in = read_shared_state(files.shared_state) or BridgeState()
-        self.state = holding_nothing(left_in)
+        self.state = with_the_browser_in_its_place(left_in)
         self.opening = OrigeneratorOpening(
             config, left_in, already_open=start.origenerator_already_open,
             showing_a_slideshow=start.origenerator_showing_a_slideshow)
@@ -201,7 +201,6 @@ class DispatchLoopRunner:
         for funestra in FunTimeFunestra.SATELLITES:
             hand_the_satellite_to_the_app(funestra, self.config.satellite(funestra),
                                           self.config.origenerator_cmd_file)
-            self.state = self.state.with_satellite(funestra, mode=ORIGENERATOR_MODE)
         if self.opening.puts_origenerator_in_the_browsers_place:
             self._dispatch(parse_command(ORIGENERATOR_ACTIVATE))
         if not wait_for_the_app(self._the_app_has_every_satellite):
