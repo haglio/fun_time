@@ -20,7 +20,7 @@ def _rfb_mode_ops(rfb_mode: RfbMode) -> list[WindowOp]:
     return [WindowOp(op="hide_window", key="origenerator"), WindowOp(op="restack_rfb")]
 
 
-def origenerator_refused(state: BridgeState, config: BridgeConfig, *,
+def _origenerator_refused(state: BridgeState, config: BridgeConfig, *,
                          asked_for: bool) -> list[WindowOp] | None:
     if not config.origenerator_enabled:
         return [WindowOp(op="message", key="No Origenerator configured",
@@ -32,7 +32,7 @@ def origenerator_refused(state: BridgeState, config: BridgeConfig, *,
 
 def switch_the_rfb_mode(target: RfbMode, state: BridgeState, config: BridgeConfig,
                         _target_path: str = "") -> tuple[BridgeState, list[WindowOp]]:
-    refused = origenerator_refused(state, config, asked_for=target is RfbMode.ORIGENERATOR)
+    refused = _origenerator_refused(state, config, asked_for=target is RfbMode.ORIGENERATOR)
     if refused is not None:
         return state, refused
     if state.rfb_mode is target:

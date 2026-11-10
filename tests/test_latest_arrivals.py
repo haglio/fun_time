@@ -125,19 +125,6 @@ class TestASatellitePlayingItsLatestList:
         assert held == []
         assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
 
-    def test_holds_what_arrives_until_it_is_back_on_its_own_list(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        newcomer = _video(library, "scene two.mp4")
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST, coming_home={FunTimeFunestra.PORTRAIT})
-        held = _queued(config.portrait.cmd_file)
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert held == []
-        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
-
 
 class TestASatelliteShuffling:
     def test_is_handed_nothing_and_nothing_that_came_meanwhile_waits_for_its_latest(self, tmp_path):

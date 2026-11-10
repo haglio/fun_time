@@ -17,7 +17,6 @@ from funestra.robot_hand import RobotHandState, WaveformShape
 from main_funestra.loop_verbs import SET_LOOP
 
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import take_back_the_list
 from .funestra_settings import FunestraReports, with_what_the_funestras_report
 from .main_list import MainList, MainListSettings, new_shuffle_seed
 from .modes import rotated_onto, same_file_to_windows
@@ -81,13 +80,13 @@ def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
     return [item for item in read_playlist(playlist_file) if item.path.exists()]
 
 
-def _spend_every_kept_list_before_any_rebuild(resumptions: Sequence[tuple[Path, str]]) -> None:
+def _delete_every_list_an_older_session_kept_aside(resumptions: Sequence[tuple[Path, str]]) -> None:
     for playlist_file, _ in resumptions:
-        take_back_the_list(playlist_file)
+        playlist_file.with_name(f"{playlist_file.stem}.kept.tsv").unlink(missing_ok=True)
 
 
 def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
-    _spend_every_kept_list_before_any_rebuild(resumptions)
+    _delete_every_list_an_older_session_kept_aside(resumptions)
     written_only_if_all_resume: list[tuple[Path, PlaylistEntries]] = []
     for playlist_file, last_video in resumptions:
         entries = _surviving_entries(playlist_file)

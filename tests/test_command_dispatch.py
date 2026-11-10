@@ -43,9 +43,7 @@ from fun_time.media_metadata import (
     metadata_path_for,
 )
 from fun_time.mode_plan import EnhancementLevel
-from fun_time.modes import write_playlist_file
 from fun_time.origenerator_switches import RfbMode, hosted_satellites
-from fun_time.satellite_buttons import STILL_STARTING_TOOLTIP
 from fun_time.satellite_commands import _discard, _toggle_lock
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock, send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -4266,96 +4264,26 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-class TestEachSatellitesOwnMode:
-    def test_a_satellites_origenerator_button_hands_that_funestra_alone_to_the_app(
-            self, tmp_path):
+class TestASatelliteTheAppHasNotTaken:
+    def test_kino_mode_switches_the_main_funestra_alone(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        for funestra in FunTimeFunestra.SATELLITES:
-            write_playlist_file(config.satellite(funestra).playlist_file,
-                                [str(tmp_path / f"{funestra.label}.mp4")])
-        state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert state.rfb_mode is RfbMode.RFB
-        assert [(op.op, op.key) for op in ops if op.op != "message"] == [
-            ("hand_over_funestras", "portrait")]
-        assert _origenerator_cmds(config) == ["portrait_open_slideshow"]
-        portrait = config.satellite(FunTimeFunestra.PORTRAIT)
-        assert not portrait.paused_file.exists()
-        assert _cmds(config, FunTimeFunestra.PORTRAIT) == ["LOCK_OFF"]
-        assert portrait.playlist_file.with_name(f"{portrait.playlist_file.stem}.kept.tsv").exists()
-        assert _cmds(config, FunTimeFunestra.LANDSCAPE) == []
+        held = _in_origenerator_mode(main_mode=MainMode.GENAU)
 
-    def test_a_satellites_kino_button_asks_the_app_to_let_go_of_that_funestra_alone(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("landscape_kino_activate", _in_origenerator_mode(), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
-        assert _origenerator_cmds(config) == ["landscape_close_slideshow"]
-        assert not config.landscape.paused_file.exists()
-        assert [(op.op, op.key) for op in ops] == [("take_back_funestras", "landscape")]
+        state, _ops = dispatch_command("kino_activate", held, config)
 
-    def test_a_button_for_the_mode_a_satellite_is_already_in_changes_nothing(self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("portrait_kino_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert (ops, _origenerator_cmds(config)) == ([], [])
+        assert state.main_mode is MainMode.KINO
+        assert (state.portrait, state.landscape) == (held.portrait, held.landscape)
+        assert _origenerator_cmds(config) == []
+        assert [_cmds(config, funestra) for funestra in FunTimeFunestra.SATELLITES] == [[], []]
 
-    def test_satellites_kino_mode_brings_both_satellites_home(self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command(
-            "satellites_kino_activate",
-            _in_origenerator_mode(rfb_mode=RfbMode.ORIGENERATOR), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert state.rfb_mode is RfbMode.ORIGENERATOR
-        assert _origenerator_cmds(config) == ["portrait_close_slideshow", "landscape_close_slideshow"]
-        assert [(op.op, op.key) for op in ops] == [
-            ("take_back_funestras", "portrait"), ("take_back_funestras", "landscape")]
-
-    def test_origenerator_mode_said_of_both_puts_both_satellites_in_it_and_leaves_the_browser(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        state, _ops = dispatch_command("satellites_origenerator_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert state.rfb_mode is RfbMode.RFB
-        assert _origenerator_cmds(config) == ["portrait_open_slideshow", "landscape_open_slideshow"]
-
-    def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
-        config = _make_config(tmp_path)
-        state, ops = dispatch_command("portrait_origenerator_activate", _up(), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert any(op.op == "message" and op.level == logging.WARNING for op in ops)
-
-    def test_a_switch_asked_before_origenerators_windows_exist_is_refused_in_the_dim_buttons_words(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-
-        for command in ("portrait_origenerator_activate", "satellites_origenerator_activate"):
-            state, ops = dispatch_command(command, BridgeState(), config)
-            assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-            assert [(op.op, op.key) for op in ops] == [
-                ("message", "Origenerator is still starting")]
-            assert STILL_STARTING_TOOLTIP.startswith("Origenerator is still starting")
-            assert _origenerator_cmds(config) == []
-
-    def test_a_switch_clicked_while_paused_still_hands_the_funestra_to_the_hosted_app(
-            self, tmp_path):
-        config = _origenerator_config(tmp_path)
-        write_playlist_file(config.satellite(FunTimeFunestra.LANDSCAPE).playlist_file,
-                            [str(tmp_path / "landscape.mp4")])
-        state, _ops = dispatch_command("landscape_origenerator_activate",
-                                       _up(omni_paused=True), config)
-        assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
-        assert _origenerator_cmds(config) == ["landscape_open_slideshow"]
-        assert _cmds(config, FunTimeFunestra.LANDSCAPE) == ["LOCK_OFF"]
-
-    def test_a_press_on_the_satellite_still_in_kino_mode_stays_with_its_funestra(self, tmp_path):
+    def test_a_press_on_a_satellite_the_app_has_not_taken_stays_with_its_funestra(self, tmp_path):
         config = _origenerator_config(tmp_path)
         _state, _ = dispatch_command("landscape_next",
                                     _in_origenerator_mode(FunTimeFunestra.PORTRAIT), config)
         assert _origenerator_cmds(config) == []
         assert _cmds(config, FunTimeFunestra.LANDSCAPE) == ["NEXT"]
 
-    def test_an_act_said_to_both_satellites_in_different_modes_reaches_each_where_its_mode_says(
+    def test_an_act_said_to_both_satellites_reaches_each_where_its_holder_says(
             self, tmp_path):
         config = _origenerator_config(tmp_path)
 

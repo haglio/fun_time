@@ -26,7 +26,6 @@ from .broker_control import write_broker_command
 from .checkout_overrides import is_a_worktree, sibling_checkouts_kwargs
 from .child_launch import no_child_log, open_child_log
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import take_back_the_list
 from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
 from .hosted_contract import the_args_it_declares
@@ -253,9 +252,6 @@ def start_core_session(
     main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
     portrait_status = read_satellite_status(Path(portrait.channels.status))
     landscape_status = read_satellite_status(Path(landscape.channels.status))
-    for launch in (portrait, landscape):
-        if take_back_the_list(Path(launch.channels.playlist)):
-            logger.info("Took %s's own clips back from the hosted app", launch.funestra.label)
     resumed = resume_playlists([
         (Path(portrait.channels.playlist), portrait_status.video),
         (Path(landscape.channels.playlist), landscape_status.video),

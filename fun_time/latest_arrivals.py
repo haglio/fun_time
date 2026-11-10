@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Collection
 from dataclasses import dataclass
 
 from funestra.file_channel import append_command
@@ -44,7 +43,6 @@ class _ASatellite:
     config: BridgeConfig
     state: BridgeState
     funestra: FunTimeFunestra
-    coming_home: Collection[FunTimeFunestra]
 
     @property
     def name(self) -> str:
@@ -54,7 +52,7 @@ class _ASatellite:
         return self.state.satellite(self.funestra).latest
 
     def plays_its_own_list(self) -> bool:
-        return not (self.state.satellite(self.funestra).loop or self.funestra in self.coming_home
+        return not (self.state.satellite(self.funestra).loop
                     or hosts(self.funestra, self.state, self.config))
 
     def lets_through(self, paths: list[str]) -> list[str]:
@@ -83,8 +81,7 @@ class LatestArrivals:
         for arrivals in (self._main, *self._satellites.values()):
             arrivals.look()
 
-    def deliver(self, state: BridgeState, *,
-                coming_home: Collection[FunTimeFunestra] = ()) -> None:
+    def deliver(self, state: BridgeState) -> None:
         self._main.hand_to(_TheMainFunestra(self._config, state))
         for funestra, arrivals in self._satellites.items():
-            arrivals.hand_to(_ASatellite(self._config, state, funestra, coming_home))
+            arrivals.hand_to(_ASatellite(self._config, state, funestra))
