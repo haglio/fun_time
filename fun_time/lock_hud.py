@@ -95,6 +95,7 @@ Cell = tuple[str, int]
 
 
 _STEPS_ALONG_THE_ACTION_COLUMN = {"down": 1, "up": -1}
+_CELLS_ON_THE_ACTION_COLUMN = ("corner", "action")
 
 
 def navigate_cell(cell: Cell, direction: str, *, action_count: int) -> Cell:
@@ -102,7 +103,7 @@ def navigate_cell(cell: Cell, direction: str, *, action_count: int) -> Cell:
     if step is None:
         return cell
     bucket, index = cell
-    if bucket not in ("corner", "action"):
+    if bucket not in _CELLS_ON_THE_ACTION_COLUMN:
         return cell
     ring = action_count + 1
     position = ((0 if bucket == "corner" else index + 1) + step) % ring
@@ -251,7 +252,7 @@ def _resolve_anchor(
 ) -> _NavMapHold:
     if inputs.loop_axis in ("seed", "action"):
         group = _looping_group(index, inputs, widened_pool, pool_keys)
-        if len(group) > 1:
+        if _a_loop_over_it_is_more_than_a_lock(group):
             return _NavMapHold(_map_anchor_in(group, inputs.nav_map_anchor), inputs.loop_axis, held=True)
     elif inputs.nav_map_anchor and _axis_holding(index, inputs.nav_map_anchor, inputs.current, widened_pool):
         return _NavMapHold(inputs.nav_map_anchor, held=True)
@@ -261,6 +262,10 @@ def _resolve_anchor(
         if cell is not None:
             return _NavMapHold(inputs.nav_anchor, nav_cell=cell)
     return _NavMapHold(inputs.current)
+
+
+def _a_loop_over_it_is_more_than_a_lock(group: list[str]) -> bool:
+    return len(group) > 1
 
 
 def _axis_shown(
@@ -317,9 +322,13 @@ def _map_around(
         current_action=index.act_of(hold.anchor),
         action_lines=tuple(index.act_of(item) for item in action),
         playing=playing,
-        seed_count=len(seed) + 1,
-        action_count=len(action) + 1,
+        seed_count=_size_of_the_whole_axis(seed),
+        action_count=_size_of_the_whole_axis(action),
     )
+
+
+def _size_of_the_whole_axis(others_before_any_draw_cap: list[str]) -> int:
+    return len(others_before_any_draw_cap) + 1
 
 
 def build_hud(inputs: SatelliteInputs, *, index: GroupIndex | None) -> SatelliteHud:

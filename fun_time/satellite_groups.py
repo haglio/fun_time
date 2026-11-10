@@ -346,6 +346,14 @@ def switch_to_video(
     return state, [WindowOp(op="message", key="Switched", source=satellite_source(funestra))]
 
 
+def _steps_off_a_seed(cell: tuple[str, int], direction: str) -> bool:
+    return cell[0] == "seed" and direction in ("down", "up")
+
+
+def _map_re_rooted_on(seed: str) -> tuple[str, tuple[str, int]]:
+    return seed, ("corner", 0)
+
+
 def navigate_hud(
     funestra: FunTimeFunestra, direction: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -364,8 +372,8 @@ def navigate_hud(
     root = anchor
     seeds, actions = nav_map_cells(index, root)
     cell = locate_cell(current, root, seeds, actions) or ("corner", 0)
-    if cell[0] == "seed" and direction in ("down", "up"):
-        root, cell = current, ("corner", 0)
+    if _steps_off_a_seed(cell, direction):
+        root, cell = _map_re_rooted_on(current)
         seeds, actions = nav_map_cells(index, root)
     target_cell = navigate_cell(cell, direction, action_count=len(actions))
     target = cell_path(target_cell, root, seeds, actions)

@@ -51,7 +51,7 @@ class TestOsr2State:
             assert osr2_state(main_mode=MainMode.KINO, osr2_mode=Osr2Mode.OFF,
                               funscript_driving=True, trouble=trouble) == expected
 
-    def test_a_main_funestra_parked_off_screen_cannot_claim_the_device(self):
+    def test_a_parked_main_funestras_stale_status_cannot_claim_the_device(self):
         assert osr2_state(main_mode=MainMode.GENAU, osr2_mode=Osr2Mode.CONTROLLED,
                           funscript_driving=True) == Osr2State.ROBOT_HAND
 
@@ -75,7 +75,7 @@ class TestPayload:
         assert _payload(main_mode=MainMode.KINO, main_funestra=driving).osr2 == Osr2State.FUNSCRIPT
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
 
-    def test_declares_the_main_funestras_loop_machine_on_the_record_button(self):
+    def test_the_record_button_alone_tells_its_painter_where_the_loop_gesture_is(self):
         recording = _button(_payload(main_funestra=MainFunestraStatus(loop_state=LoopState.RECORDING)),
                             "main_funestra_record_tap")
         resting = _button(_payload(), "main_funestra_record_tap")
@@ -123,7 +123,7 @@ class TestPayload:
         assert _button(unknown, "main_funestra_clip_jump").dim is True
 
 
-def test_the_hud_carries_the_main_funestras_browse_order():
+def test_the_hud_alone_tells_the_main_funestra_its_browse_order():
     assert _payload(latest=True).latest is True
     assert _payload().latest is False
     assert _button(_payload(latest=True), "main_latest").lit is True
@@ -140,7 +140,7 @@ def test_in_genau_mode_f_mode_lights_off_genaus_own_and_not_kinos():
     assert _button(_payload(main_mode=MainMode.GENAU, scripted_filter=True), "main_fmode").lit is False
 
 
-def test_the_length_pair_lights_off_what_the_orchestrator_holds():
+def test_the_length_pair_lights_off_the_narrowing_of_fun_times_own_list():
     lit = [button.lit for button in _payload(length_mode=LengthMode.CLIPS).rows[1]
            if button.command.startswith("main_funestra_length")]
 
@@ -155,9 +155,14 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     assert _payload(main_mode=MainMode.GENAU, latest=True, genau_latest=False).latest is False
 
 
-def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():
-    assert not any(a.startswith("main_projection") for a in _actions(_payload()))
+def test_outside_the_headset_there_is_one_shape_and_no_pair_to_draw():
+    one_shape_and_so_no_choice = {"plays_vr": None, "plays_flat": None}
 
+    assert not any(a.startswith("main_projection")
+                   for a in _actions(_payload(**one_shape_and_so_no_choice)))
+
+
+def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():
     headset = _payload(plays_vr=True, plays_flat=False)
     assert _button(headset, "main_projection_none").lit is True
     assert _button(headset, "main_projection_both").lit is False

@@ -13,6 +13,8 @@ from funestra.video_groups import (
 from funestra.video_groups import normalize_path_key as K
 
 from fun_time.lock_hud import (
+    ACTION_LIMIT,
+    SEED_LIMIT,
     SatelliteInputs,
     build_hud,
     build_satellite_hud,
@@ -425,13 +427,15 @@ def test_the_title_says_looping_without_counting():
     assert "3" not in hud.title
 
 
-def test_the_hud_counts_the_seeds_and_actions_the_map_stands_for():
-    index = _index(current=CUR, seed_sibs=[S1, "C:/vids/seed2.mp4"], action_sibs=[A1])
+def test_the_hud_counts_every_seed_and_action_past_what_the_map_can_draw():
+    more_seeds_than_fit = [f"C:/vids/seed{n}.mp4" for n in range(SEED_LIMIT + 2)]
+    more_actions_than_fit = [f"C:/vids/action{n}.mp4" for n in range(ACTION_LIMIT + 1)]
+    index = _index(current=CUR, seed_sibs=more_seeds_than_fit, action_sibs=more_actions_than_fit)
 
     hud = _hud("portrait", locked=False, current=CUR, index=index)
 
-    assert hud.seed_count == 3
-    assert hud.action_count == 2
+    assert hud.seed_count == len(more_seeds_than_fit) + 1
+    assert hud.action_count == len(more_actions_than_fit) + 1
 
 
 @pytest.mark.parametrize("anchor", [
@@ -634,7 +638,7 @@ def test_navigate_walks_the_action_column_and_wraps_past_its_end():
     assert navigate_cell(("action", 0), "up", action_count=2) == ("corner", 0)
 
 
-def test_navigate_from_a_seed_cell_is_a_no_op():
+def test_a_step_off_a_seed_is_left_to_the_dispatchers_re_rooting():
     assert navigate_cell(("seed", 1), "down", action_count=2) == ("seed", 1)
     assert navigate_cell(("seed", 1), "up", action_count=2) == ("seed", 1)
 
