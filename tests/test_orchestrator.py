@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import ast
 import configparser
-import os
-import subprocess
-import sys
 from contextlib import ExitStack, contextmanager
 from functools import partial
 from pathlib import Path
@@ -36,6 +33,7 @@ from fun_time.project_paths import PROJECT_DIR, SIBLING_CHECKOUTS_OVERRIDE_NAME
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
 from fun_time.windows_bridge_orchestrator import HotkeyScriptLaunch, SessionOver
+from tests.launcher_python import run_python_the_way_a_launcher_does
 from tests.made_up_genau import point_the_shared_settings_at
 
 REPO_DIR = Path(__file__).resolve().parent.parent
@@ -46,8 +44,8 @@ def _a_loading_screen() -> MagicMock:
 
 
 @contextmanager
-def _a_launch(**overrides):
-    steps = {
+def _a_launch_with_the_machine_held_off(**overrides):
+    steps_that_run_for_real_unless_held_here = {
         "configure_logging": MagicMock(return_value=MagicMock()),
         "install_exception_logging": MagicMock(),
         "claim_the_session": MagicMock(return_value=42),
@@ -55,7 +53,7 @@ def _a_launch(**overrides):
         "validate_config": MagicMock(),
         "open_event_log": MagicMock(),
         "open_the_loading_screen": MagicMock(return_value=_a_loading_screen()),
-        "stamp_shortcut_aumid": MagicMock(),
+        "stamp_the_users_pin_outside_every_checkout": MagicMock(),
         "describe_the_session_on_the_taskbar": MagicMock(),
         "engine_missing_abort": MagicMock(return_value=False),
         "prepare_orchestrator_launcher": MagicMock(),
@@ -66,9 +64,9 @@ def _a_launch(**overrides):
         **overrides,
     }
     with ExitStack() as stack:
-        for name, mock in steps.items():
+        for name, mock in steps_that_run_for_real_unless_held_here.items():
             stack.enter_context(patch(f"fun_time.orchestrator.{name}", mock))
-        yield SimpleNamespace(**steps)
+        yield SimpleNamespace(**steps_that_run_for_real_unless_held_here)
 
 
 class TestBuildParser:
@@ -150,13 +148,15 @@ class TestControllerManifest:
             assert manifest[satellite]["status_file"] == str(state / f"{satellite}_status.txt")
             assert manifest[satellite]["playlist_file"] == str(state / f"{satellite}_playlist.tsv")
 
-    def test_the_brokers_files_are_manifested_from_the_brokers_own_directory(
+    def test_a_session_whose_state_folder_moved_is_still_told_the_brokers_own(
         self, tmp_path: Path, cfg_factory,
     ):
         broker_state = tmp_path / "primary_state"
         path = cfg_factory({"paths": {"broker_state_dir": str(broker_state)}})
-        commands = build_windows_bridge_manifest(load_config(path))["commands"]
+        config = load_config(path)
+        commands = build_windows_bridge_manifest(config)["commands"]
 
+        assert config.paths.state_dir != broker_state
         assert commands["broker_state_dir"] == str(broker_state)
         assert commands["broker_cmd_file"] == str(broker_state / "broker_cmd.txt")
         assert commands["broker_mode_file"] == str(broker_state / "broker_mode.txt")
@@ -283,14 +283,14 @@ class TestControllerManifest:
 
 
 class TestValidateConfig:
-    def _make_config_with_stubs(self, cfg_path: Path):
+    def _config_stubbing_only_what_lives_under_tmp_path(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         for p in (cfg.paths.ahk_exe, cfg.paths.python_exe):
             p.touch()
         return cfg
 
-    def test_validates_a_well_formed_config(self, cfg_path: Path):
-        cfg = self._make_config_with_stubs(cfg_path)
+    def test_ahk_and_python_are_the_only_programs_a_launch_demands(self, cfg_path: Path):
+        cfg = self._config_stubbing_only_what_lives_under_tmp_path(cfg_path)
 
         validate_config(cfg)
 
@@ -299,7 +299,7 @@ class TestValidateConfig:
         genau = tmp_path / "bare_genau"
         genau.mkdir()
         point_the_shared_settings_at(monkeypatch, genau)
-        cfg = self._make_config_with_stubs(cfg_path)
+        cfg = self._config_stubbing_only_what_lives_under_tmp_path(cfg_path)
 
         with pytest.raises(FileNotFoundError, match="bare_genau"):
             validate_config(cfg)
@@ -307,7 +307,7 @@ class TestValidateConfig:
     def test_names_genaus_audio_folder_when_it_is_missing(
             self, cfg_path: Path, genaus_folder: Path, tmp_path: Path, monkeypatch):
         point_the_shared_settings_at(monkeypatch, genaus_folder, tmp_path / "no_such_audio")
-        cfg = self._make_config_with_stubs(cfg_path)
+        cfg = self._config_stubbing_only_what_lives_under_tmp_path(cfg_path)
 
         with pytest.raises(FileNotFoundError, match="no_such_audio"):
             validate_config(cfg)
@@ -330,7 +330,7 @@ class TestValidateConfig:
 
 class TestBrokerHelpers:
     def test_the_broker_is_left_to_the_one_policy_inside_the_launch(self, cfg_path: Path):
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
@@ -368,7 +368,7 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
         monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
 
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             main(["--config", str(cfg_path)])
 
         assert launch.run_windows_bridge.call_args.args[2] == SessionEnvironment(
@@ -379,7 +379,7 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
     ):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
 
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             main(["--config", str(cfg_path)])
 
         launch.wake_the_headset.assert_called_once_with(
@@ -387,7 +387,7 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
 
 
 class TestTheCheckoutsItsOwnCheckoutNames:
-    def test_the_session_and_its_loading_screen_run_the_sibling_checkouts_this_checkout_names(
+    def test_a_config_an_older_production_checkout_wrote_still_runs_this_checkouts_siblings(
             self, cfg_path: Path, tmp_path: Path, monkeypatch):
         checkout = tmp_path / "funestra_worktree"
         (tmp_path / "state").mkdir(exist_ok=True)
@@ -395,7 +395,7 @@ class TestTheCheckoutsItsOwnCheckoutNames:
             f"{checkout}\n", encoding="utf-8")
         monkeypatch.setattr(checkout_overrides, "PROJECT_DIR", tmp_path)
 
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             main(["--config", str(cfg_path)])
 
         assert launch.open_the_loading_screen.call_args.kwargs["sibling_checkouts"] == str(checkout)
@@ -404,7 +404,7 @@ class TestTheCheckoutsItsOwnCheckoutNames:
 
 class TestTheWayBackOffersNoEsc:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, cfg_path: Path):
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             main(["--config", str(cfg_path), "--no-cancel"])
 
         assert launch.open_the_loading_screen.call_args.kwargs["cancelable"] is False
@@ -412,24 +412,24 @@ class TestTheWayBackOffersNoEsc:
 
 class TestMainCheckFlag:
     def test_the_check_flag_reports_success_without_starting_the_bridge(self, cfg_path: Path):
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             result = main(["--config", str(cfg_path), "--check"])
 
         assert result == 0
         launch.run_windows_bridge.assert_not_called()
 
     def test_a_check_raises_no_loading_screen_and_stamps_no_pin(self, cfg_path: Path):
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             main(["--config", str(cfg_path), "--check"])
 
         launch.open_the_loading_screen.assert_not_called()
-        launch.stamp_shortcut_aumid.assert_not_called()
+        launch.stamp_the_users_pin_outside_every_checkout.assert_not_called()
 
 
 class TestTheCrossingIntoTheOtherSession:
     def _main(self, cfg_path: Path, *, during_session=lambda: None):
         run_bridge = MagicMock(side_effect=lambda *_a, **_k: (during_session(), SessionOver(0))[1])
-        with _a_launch(run_windows_bridge=run_bridge) as launch, \
+        with _a_launch_with_the_machine_held_off(run_windows_bridge=run_bridge) as launch, \
              patch("fun_time.session_handoff.subprocess.Popen") as popen:
             return main(["--config", str(cfg_path)]), popen, launch
 
@@ -453,7 +453,7 @@ class TestTheCrossingIntoTheOtherSession:
 
         popen.assert_not_called()
 
-    def test_a_request_a_crash_left_behind_never_reaches_the_next_session(
+    def test_a_crashs_leftover_request_never_sends_a_later_quit_into_the_headset(
         self, cfg_path: Path,
     ):
         config = load_config(cfg_path)
@@ -491,7 +491,7 @@ class TestTheHeadsetIsAsleepBeforeTheRoomSaysWhyItClosed:
                 request_handoff(config.paths.state_dir, VR)
             return SessionOver(1, why="a part closed itself")
 
-        with _a_launch(
+        with _a_launch_with_the_machine_held_off(
             run_windows_bridge=MagicMock(side_effect=a_session_that_ended_badly),
             put_the_headset_to_sleep=MagicMock(side_effect=lambda *_a, **_k: order.append("asleep")),
             show_funestra_died_alert=MagicMock(side_effect=order.append),
@@ -525,7 +525,7 @@ class TestTheHeadsetIsAsleepBeforeTheRoomSaysWhyItClosed:
             request_handoff(config.paths.state_dir, VR)
             raise RuntimeError("an error of its own")
 
-        with _a_launch(run_windows_bridge=MagicMock(side_effect=an_error_of_its_own)) as launch, \
+        with _a_launch_with_the_machine_held_off(run_windows_bridge=MagicMock(side_effect=an_error_of_its_own)) as launch, \
              pytest.raises(RuntimeError, match="an error of its own"):
             main(["--config", str(cfg_path)])
 
@@ -535,7 +535,7 @@ class TestTheHeadsetIsAsleepBeforeTheRoomSaysWhyItClosed:
 
 class TestMainDescribesTheSessionsTaskbarButton:
     def test_a_session_describes_the_button_of_the_checkout_it_runs_from(self, cfg_path: Path):
-        with _a_launch() as launch:
+        with _a_launch_with_the_machine_held_off() as launch:
             main(["--config", str(cfg_path)])
 
         launch.describe_the_session_on_the_taskbar.assert_called_once_with(PROJECT_DIR)
@@ -543,7 +543,7 @@ class TestMainDescribesTheSessionsTaskbarButton:
 
 class TestMainStampsOnlyTheMachinesOwnShortcut:
     def _main(self, cfg_path: Path, stamp):
-        with _a_launch(stamp_shortcut_aumid=stamp):
+        with _a_launch_with_the_machine_held_off(stamp_the_users_pin_outside_every_checkout=stamp):
             return main(["--config", str(cfg_path)])
 
     def test_a_session_on_another_config_leaves_the_pin_alone(self, cfg_path: Path):
@@ -570,15 +570,15 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
             stamp_pinned_shortcuts, pins=tmp_path,
             stamp=lambda path, _app_id: stamped.append(Path(path).name)))
 
-        orchestrator.stamp_shortcut_aumid()
+        orchestrator.stamp_the_users_pin_outside_every_checkout()
 
         assert stamped == ["Fun Time.lnk"]
 
 
 class TestOrchestratorSingleInstance:
-    def test_shows_message_and_exits_when_already_running(self, cfg_path: Path):
+    def test_a_second_launch_raises_no_loading_screen_over_its_already_running_message(self, cfg_path: Path):
         show_msg = MagicMock()
-        with _a_launch(claim_the_session=MagicMock(return_value=None),
+        with _a_launch_with_the_machine_held_off(claim_the_session=MagicMock(return_value=None),
                        show_already_running_message=show_msg) as launch:
             result = main(["--config", str(cfg_path)])
 
@@ -593,7 +593,7 @@ class TestTheLoadingScreenGoesUpFirst:
     def _order_of(self, cfg_path: Path) -> list[str]:
         order: list[str] = []
         loading_screen = _a_loading_screen()
-        with _a_launch(
+        with _a_launch_with_the_machine_held_off(
             open_the_loading_screen=MagicMock(side_effect=lambda *_a, **_k: order.append("loading_screen") or loading_screen),
             engine_missing_abort=MagicMock(
                 side_effect=lambda *_a, **_k: order.append("engine") or False),
@@ -610,11 +610,9 @@ class TestTheLoadingScreenGoesUpFirst:
         assert self._order_of(cfg_path)[-1] == "session"
 
     def test_the_session_modules_load_under_the_loading_screen_not_ahead_of_it(self):
-        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-        loaded = subprocess.run(
-            [sys.executable, "-c", "import sys, fun_time.orchestrator; "
-             "print('fun_time.windows_bridge_orchestrator' in sys.modules)"],
-            cwd=str(REPO_DIR), env=env, capture_output=True, text=True, timeout=180, check=True)
+        loaded = run_python_the_way_a_launcher_does(
+            "import sys, fun_time.orchestrator; "
+            "print('fun_time.windows_bridge_orchestrator' in sys.modules)")
 
         assert loaded.stdout.strip() == "False"
 
@@ -623,7 +621,7 @@ class TestTheLoadingScreenGoesUpFirst:
         loading_screen = _a_loading_screen()
         loading_screen.progress.announce.side_effect = said.append
 
-        with _a_launch(
+        with _a_launch_with_the_machine_held_off(
             open_the_loading_screen=MagicMock(return_value=loading_screen),
             engine_missing_abort=MagicMock(
                 side_effect=lambda *_a, **_k: said.append("probed") or False),
@@ -632,10 +630,10 @@ class TestTheLoadingScreenGoesUpFirst:
 
         assert said == ["engine", "probed"]
 
-    def test_a_launch_that_fails_under_the_loading_screen_takes_it_down(self, cfg_path: Path):
+    def test_a_failed_launch_takes_the_loading_screen_off_the_launchers_failure_dialog(self, cfg_path: Path):
         loading_screen = _a_loading_screen()
 
-        with _a_launch(
+        with _a_launch_with_the_machine_held_off(
             open_the_loading_screen=MagicMock(return_value=loading_screen),
             engine_missing_abort=MagicMock(side_effect=OSError("the engine check failed")),
         ), pytest.raises(OSError, match="the engine check failed"):
@@ -643,11 +641,11 @@ class TestTheLoadingScreenGoesUpFirst:
 
         loading_screen.take_it_down.assert_called_once()
 
-    def test_a_missing_engine_is_told_to_uncover_before_it_says_so(self, cfg_path: Path):
+    def test_a_missing_engine_is_handed_the_way_to_uncover_its_alert(self, cfg_path: Path):
         loading_screen = _a_loading_screen()
         abort = MagicMock(return_value=True)
 
-        with _a_launch(open_the_loading_screen=MagicMock(return_value=loading_screen),
+        with _a_launch_with_the_machine_held_off(open_the_loading_screen=MagicMock(return_value=loading_screen),
                        engine_missing_abort=abort):
             result = main(["--config", str(cfg_path)])
 
@@ -684,14 +682,14 @@ class TestStartupMarker:
         assert not startup_marker_path(cfg).exists()
 
     def test_successful_launch_leaves_the_marker(self, cfg_path: Path):
-        with _a_launch():
+        with _a_launch_with_the_machine_held_off():
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
         assert startup_marker_path(load_config(cfg_path)).is_file()
 
     def test_already_running_leaves_the_marker(self, cfg_path: Path):
-        with _a_launch(claim_the_session=MagicMock(return_value=None),
+        with _a_launch_with_the_machine_held_off(claim_the_session=MagicMock(return_value=None),
                        show_already_running_message=MagicMock()):
             result = main(["--config", str(cfg_path)])
 
@@ -699,7 +697,7 @@ class TestStartupMarker:
         assert startup_marker_path(load_config(cfg_path)).is_file()
 
     def test_validation_failure_leaves_no_marker(self, cfg_path: Path):
-        with _a_launch(
+        with _a_launch_with_the_machine_held_off(
             validate_config=MagicMock(side_effect=FileNotFoundError("missing dir")),
         ), pytest.raises(FileNotFoundError):
             main(["--config", str(cfg_path)])
@@ -707,14 +705,14 @@ class TestStartupMarker:
         assert not startup_marker_path(load_config(cfg_path)).exists()
 
     def test_check_only_run_leaves_no_marker(self, cfg_path: Path):
-        with _a_launch():
+        with _a_launch_with_the_machine_held_off():
             result = main(["--config", str(cfg_path), "--check"])
 
         assert result == 0
         assert not startup_marker_path(load_config(cfg_path)).exists()
 
     def test_a_crash_past_the_marker_is_fun_times_to_report_not_the_launchers(self, cfg_path: Path):
-        with _a_launch(run_windows_bridge=MagicMock(side_effect=RuntimeError("a crash of its own"))), \
+        with _a_launch_with_the_machine_held_off(run_windows_bridge=MagicMock(side_effect=RuntimeError("a crash of its own"))), \
              pytest.raises(RuntimeError, match="a crash of its own"):
             main(["--config", str(cfg_path)])
 

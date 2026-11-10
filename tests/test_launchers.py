@@ -21,7 +21,7 @@ STATE = PROJECT_DIR / "state"
 on_windows = pytest.mark.skipif(sys.platform != "win32", reason="the Windows script host")
 
 
-def test_shell_wrapper_starts_the_orchestrator_on_the_project_venv():
+def test_main_sh_never_runs_a_path_python_that_dies_importing_the_siblings():
     text = (PROJECT_DIR / "main.sh").read_text(encoding="utf-8")
 
     assert ".venv/Scripts/python.exe" in text
@@ -46,9 +46,14 @@ def test_the_vr_launcher_runs_the_vr_orchestrator_under_its_own_marker():
 
 
 @on_windows
-def test_a_branch_launch_runs_branch_session_from_the_primary_and_watches_the_worktree(
-    tmp_path: Path,
-):
+def test_neither_launchers_leftover_marker_can_vouch_for_the_other_kind_of_launch():
+    desktop, headset = dry_run(PROJECT_DIR / "launch.vbs"), dry_run(PROJECT_DIR / "launch_vr.vbs")
+
+    assert Path(desktop.value("ready")) != Path(headset.value("ready"))
+
+
+@on_windows
+def test_a_branch_launch_runs_branch_session_from_the_primary(tmp_path: Path):
     worktree = tmp_path / "worktree"
     worktree.mkdir()
 
@@ -58,7 +63,17 @@ def test_a_branch_launch_runs_branch_session_from_the_primary_and_watches_the_wo
     assert Path(report.value("interpreter")).parent == PROJECT_DIR / ".venv" / "Scripts"
     assert report.value("arguments") == f'-m fun_time.branch_session "{worktree}"'
     assert report.value("label") == "example-branch"
+
+
+@on_windows
+def test_the_live_sessions_leftover_marker_cannot_vouch_for_a_branch_launch(tmp_path: Path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+
+    report = dry_run(PROJECT_DIR / LAUNCHER_NAME, str(worktree), "example-branch")
+
     assert Path(report.value("ready")) == worktree / "state" / STARTUP_MARKER_NAME
+    assert Path(report.value("ready")) != STATE / STARTUP_MARKER_NAME
 
 
 @on_windows

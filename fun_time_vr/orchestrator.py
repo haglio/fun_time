@@ -62,7 +62,7 @@ from fun_time.orchestrator import (
     ensure_runtime_files,
     require_dir,
     signal_startup_resolved,
-    stamp_shortcut_aumid,
+    stamp_the_users_pin_outside_every_checkout,
     validate_config,
 )
 from fun_time.overlay_progress import (
@@ -86,8 +86,8 @@ from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
     DESKTOP,
     VR,
-    clear_handoff_request,
     drop_transition_screen,
+    forget_a_request_a_crash_left_behind,
     hand_over_if_asked,
     headset_is_held,
     hold_the_headset,
@@ -780,11 +780,11 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Loaded config from %s", config.config_path)
     keep_the_transition_screen(config.paths.state_dir)
     ensure_runtime_files(config)
-    clear_handoff_request(config.paths.state_dir)
+    forget_a_request_a_crash_left_behind(config.paths.state_dir)
     validate_config(config)
     validate_vr_config(config)
     if config.config_path == DEFAULT_CONFIG_PATH:
-        stamp_shortcut_aumid()
+        stamp_the_users_pin_outside_every_checkout()
     describe_the_session_on_the_taskbar(PROJECT_DIR)
 
     if args.check:

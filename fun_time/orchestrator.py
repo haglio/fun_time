@@ -22,7 +22,7 @@ from .project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
 from .raising_the_loading_screen import RaisedLoadingScreen, open_the_loading_screen
 from .session_environment import SessionEnvironment
 from .session_handoff import (
-    clear_handoff_request,
+    forget_a_request_a_crash_left_behind,
     hand_over_if_asked,
     keep_the_transition_screen,
     pending_handoff,
@@ -103,7 +103,7 @@ def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: 
     return ended
 
 
-def stamp_shortcut_aumid() -> None:
+def stamp_the_users_pin_outside_every_checkout() -> None:
     _log = logging.getLogger(__name__)
     for pin, refusal in stamp_pinned_shortcuts(APP_USER_MODEL_ID, ["Fun Time"]).items():
         if refusal is None:
@@ -155,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Loaded config from %s", config.config_path)
     keep_the_transition_screen(state_dir)
     ensure_runtime_files(config)
-    clear_handoff_request(state_dir)
+    forget_a_request_a_crash_left_behind(state_dir)
     validate_config(config)
 
     if args.check:
@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     try:
         if config.config_path == DEFAULT_CONFIG_PATH:
-            stamp_shortcut_aumid()
+            stamp_the_users_pin_outside_every_checkout()
         describe_the_session_on_the_taskbar(PROJECT_DIR)
 
         loading_screen.progress.announce("engine")
