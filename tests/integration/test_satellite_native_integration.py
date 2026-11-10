@@ -8,12 +8,12 @@ from pathlib import Path
 import pytest
 from app_support.win32 import process_started
 from funestra.funestra_verbs import LOCK_ON, NEXT, SET_PACE, SET_SPEED, SHOW_FRAME
+from funestra.satellite_hud import HudModel, hud_text
 from PIL import Image
 
-from fun_time.hud_transport import HudPublisher
-from fun_time.lock_hud import SatelliteInputs, build_hud
+from fun_time.hud_transport import HudPublisher, hosted_model
 from fun_time.satellite_control import read_satellite_status
-from fun_time.thumbnail_cache import hud_and_browser_thumbnail_cache, thumbnail_for
+from fun_time.shared_state import SatelliteState
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 
 from .integration_support import let_seconds_pass, published_status
@@ -79,22 +79,15 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
                            desc="our own reap to clear a satellite stranded on our files")
 
 
-def test_the_satellite_survives_drawing_the_published_lock_hud(tmp_path):
+def test_the_satellite_survives_drawing_the_published_hud(tmp_path):
     videos = library_videos_of("portrait", 2)
-    cache_dir = hud_and_browser_thumbnail_cache(tmp_path)
-    for video in videos:
-        thumbnail_for(video, cache_dir)
     satellite = a_lone_satellite()
-    publisher = HudPublisher({"portrait": satellite.hud}, cache_dir)
+    publisher = HudPublisher({"portrait": satellite.hud})
 
     def publish(locked: bool) -> None:
-        publisher.publish("portrait", build_hud(
-            SatelliteInputs(
-                "portrait", locked=locked, current=str(videos[0]),
-                filter_query="alpha" if locked else "",
-            ),
-            index=None,
-        ))
+        publisher.publish_text("portrait", hud_text(hosted_model(
+            "portrait", HudModel(funestra="portrait", title="Stand-in slideshow", locked=locked),
+            SatelliteState(), in_vr=False, crowned=False, active=True)))
 
     publish(locked=False)
 
