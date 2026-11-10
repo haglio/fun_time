@@ -35,7 +35,7 @@ from fun_time.win32 import (
 )
 from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
 from tests.integration.integration_support import await_window, joined_within, wait_for
-from tests.test_library_browser import a_double_click_as_the_mouse_sends_it
+from tests.mouse_events import a_double_click_as_the_mouse_sends_it
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -154,7 +154,7 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
 
 STAND_IN_TITLE = "FUNTIMEMARK-MAIN-FUNESTRA"
 
-_A_REAL_INTERPRETER_NOT_THE_CONFIGS_STUB_EXE = sys.executable
+_A_REAL_INTERPRETER = sys.executable
 
 # A whole interpreter, Qt, and a walk of the library stand between the launch
 # and the window.  Generous rather than tuned: a cold run is the slow one, and
@@ -191,7 +191,7 @@ def test_the_browse_opens_in_front_where_nothing_holds_the_foreground(tmp_path: 
 
     browsing = threading.Thread(
         target=lambda: browse_library(
-            manifest, _A_REAL_INTERPRETER_NOT_THE_CONFIGS_STUB_EXE, BrowseOpening(over=(100, 100, 900, 700))),
+            manifest, _A_REAL_INTERPRETER, BrowseOpening(over=(100, 100, 900, 700))),
         daemon=True,
     )
     browsing.start()
@@ -239,7 +239,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
 
     browsing = threading.Thread(
         target=lambda: browse_library(
-            manifest, _A_REAL_INTERPRETER_NOT_THE_CONFIGS_STUB_EXE,
+            manifest, _A_REAL_INTERPRETER,
             BrowseOpening(over=(100, 100, 900, 700)), runner=runner),
         daemon=True,
     )

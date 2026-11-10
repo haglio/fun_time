@@ -68,7 +68,7 @@ def _watching_while_start_blocks_past_the_reveal() -> _AtTheReveal:
     return watcher
 
 
-_THE_DASHBOARD_WHICH_ONCE_SHOWED_SECONDS_AFTER_THE_LIFT = {"FUN_TIME_DISABLE_DASHBOARD": "0"}
+_WITH_THE_DASHBOARD = {"FUN_TIME_DISABLE_DASHBOARD": "0"}
 
 
 def test_the_app_is_finished_when_the_loading_screen_lifts():
@@ -79,7 +79,7 @@ def test_the_app_is_finished_when_the_loading_screen_lifts():
     try:
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
-            **_THE_DASHBOARD_WHICH_ONCE_SHOWED_SECONDS_AFTER_THE_LIFT,
+            **_WITH_THE_DASHBOARD,
         })
         joined_within(watcher, 60.0)
 

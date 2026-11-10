@@ -3,11 +3,13 @@ from __future__ import annotations
 import ast
 import itertools
 import json
+import logging
 import os
 import socket
 import subprocess
 import sys
 import textwrap
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +17,7 @@ from unittest.mock import patch
 
 import pytest
 from app_support import haglio_settings, osr2_device
+from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import read_playlist
 
@@ -566,19 +569,36 @@ def test_the_integration_config_never_shares_genaus_inbound_socket(isolated_port
     assert isolated_ports["genau"]["udp_port"] != GENAU_INBOUND_PORT
 
 
-def _bound_the_way_genau_binds(port: int) -> socket.socket:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", port))
-    return sock
+class _WhatAListenerLogged(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.levels: list[int] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.levels.append(record.levelno)
 
 
 def test_windows_lets_a_second_genau_bind_the_port_a_first_one_holds():
-    first = _bound_the_way_genau_binds(0)
+    port = integration_support._free_udp_port()
+    stop = threading.Event()
+    logged = _WhatAListenerLogged()
+    log = logging.Logger("two genaus on one port")
+    log.addHandler(logged)
+    genaus = [
+        threading.Thread(target=udp_reader, args=(
+            UdpListener("127.0.0.1", port, BrokerFeed(), stop, log, retry_delays=()),))
+        for _each in range(2)
+    ]
     try:
-        _bound_the_way_genau_binds(first.getsockname()[1]).close()
+        for genau in genaus:
+            genau.start()
+        integration_support.seen_within(lambda: len(logged.levels) == len(genaus), seconds=10.0)
     finally:
-        first.close()
+        stop.set()
+        for genau in genaus:
+            genau.join()
+
+    assert logged.levels == [logging.INFO, logging.INFO], "each Genau says once that it bound"
 
 
 def _every_value(node) -> list:

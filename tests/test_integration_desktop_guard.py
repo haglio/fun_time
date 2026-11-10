@@ -109,6 +109,15 @@ def test_a_run_on_the_hidden_desktop_that_did_not_write_itself_down_for_line_is_
     assert "-m tests.integration.hidden_desktop" in str(refusal.value)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="the refusal returns early off Windows")
+def test_a_run_off_the_hidden_desktop_is_refused_before_any_fixture_runs():
+    with pytest.raises(pytest.exit.Exception) as refusal:
+        integration_conftest.pytest_sessionstart(session=None)
+
+    assert refusal.value.returncode == REFUSED_EXIT_CODE
+    assert f"must run on the '{HIDDEN_DESKTOP_NAME}' desktop" in str(refusal.value)
+
+
 def test_the_unit_suite_never_inherits_the_integration_flag():
     assert os.environ.get("FUN_TIME_RUN_INTEGRATION") is None
 

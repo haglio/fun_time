@@ -808,7 +808,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     )
 
 
-def _locked_so_the_clip_read_is_the_clip_trashed(session: FunTimeIntegrationSession,
+def _locked_then_read(session: FunTimeIntegrationSession,
                                                  status_file: Path) -> str:
     session.wait_until(
         lambda: bool(read_satellite_status(status_file).video),
@@ -823,7 +823,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_trash(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
-    held = _locked_so_the_clip_read_is_the_clip_trashed(isolated_integration_session, status_file)
+    held = _locked_then_read(isolated_integration_session, status_file)
     no_longer_the_favorite_every_satellite_sample_starts_as(
         held, isolated_integration_session.config.regen.metadata_root)
 
@@ -896,7 +896,7 @@ def _stepped_off_the_video_every_fresh_start_lands_on(session: FunTimeIntegratio
     )
 
 
-def _frozen_so_nothing_advances_while_the_session_closes(session: FunTimeIntegrationSession) -> None:
+def _frozen_for_the_close(session: FunTimeIntegrationSession) -> None:
     session.write_dashboard_command("omnipause_toggle")
     session.wait_until(
         lambda: session.read_main_funestra_status().paused,
@@ -915,7 +915,7 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         first.start()
         opened_with = _videos(playlist)
         _stepped_off_the_video_every_fresh_start_lands_on(first, opened_with)
-        _frozen_so_nothing_advances_while_the_session_closes(first)
+        _frozen_for_the_close(first)
         left_on = first.read_main_funestra_status().video
         assert left_on != opened_with[0], "the session must close off the top of its playlist"
         first.quit_gracefully()

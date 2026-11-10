@@ -38,7 +38,7 @@ _SATELLITE_TITLES = ("Portrait AI Funestra", "Landscape AI Funestra")
 _STARTUP_UNDER_A_LOADING_SCREEN_S = 90.0
 
 
-def _this_startup_took_the_loading_screen_path_every_other_run_skips(session) -> None:
+def _this_startup_took_the_loading_screen_path(session) -> None:
     events = event_log_path(session.config.paths.state_dir)
     text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
     assert "Loading screen launched" in text, (
@@ -58,7 +58,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects_not_merely_topmos
     try:
         session.start(wait_seconds=_STARTUP_UNDER_A_LOADING_SCREEN_S,
                       env_overrides={"FUN_TIME_INTEGRATION_OVERLAYS": "1"})
-        _this_startup_took_the_loading_screen_path_every_other_run_skips(session)
+        _this_startup_took_the_loading_screen_path(session)
 
         hwnds = {
             title: await_window(title, 10, exact=True)
