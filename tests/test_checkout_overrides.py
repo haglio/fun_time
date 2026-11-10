@@ -101,7 +101,7 @@ def _this_checkout_names(tmp_path, monkeypatch, override: str, entry: str) -> No
     monkeypatch.setattr(checkout_overrides, "PROJECT_DIR", tmp_path)
 
 
-def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path, monkeypatch, cfg_path):
+def test_an_override_the_primarys_generator_predates_is_still_applied_at_launch(tmp_path, monkeypatch, cfg_path):
     _this_checkout_names(tmp_path, monkeypatch, ORIGENERATOR_DIR_OVERRIDE_NAME,
                          "C:/origenerator/.claude/worktrees/mine")
 
@@ -110,7 +110,7 @@ def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path,
     assert config.paths.origenerator_dir == Path("C:/origenerator/.claude/worktrees/mine")
 
 
-def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch, cfg_path):
+def test_an_integration_run_never_hosts_the_real_origenerator_this_checkout_names(tmp_path, monkeypatch, cfg_path):
     _this_checkout_names(tmp_path, monkeypatch, ORIGENERATOR_DIR_OVERRIDE_NAME,
                          "C:/origenerator/.claude/worktrees/mine")
 

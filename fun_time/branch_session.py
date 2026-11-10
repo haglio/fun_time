@@ -93,7 +93,7 @@ def primary_checkout() -> Path:
     return primary_checkout_of(_the_checkout_fun_time_was_imported_from())
 
 
-def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]]:
+def _paths_a_branch_would_read_against_its_worktree(real: ProjectConfig) -> dict[str, dict[str, object]]:
     paths, browser, regen = real.paths, real.random_favs_browser, real.regen
     return {
         "paths": {
@@ -120,7 +120,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
 
 
 def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
-    for section, values in _primary_resolved_values(real).items():
+    for section, values in _paths_a_branch_would_read_against_its_worktree(real).items():
         for key, value in values.items():
             if value is None:
                 raw.get(section, {}).pop(key, None)
