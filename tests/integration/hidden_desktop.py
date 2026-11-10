@@ -228,9 +228,12 @@ def _close_process_handles(pi: _PROCESS_INFORMATION) -> None:
     _kernel32.CloseHandle(pi.hThread)
 
 
+THE_MUTE_A_HIDDEN_DESKTOP_DOES_NOT_GIVE = {"FUN_TIME_MUTE_AUDIO": "1"}
+
+
 def _child_environment(environment: Mapping[str, str] | None) -> dict[str, str]:
     resolved = dict(os.environ if environment is None else environment)
-    resolved["FUN_TIME_MUTE_AUDIO"] = "1"
+    resolved.update(THE_MUTE_A_HIDDEN_DESKTOP_DOES_NOT_GIVE)
     if resolved.get("COVERAGE_PROCESS_START"):
         resolved["PYTHONPATH"] = os.pathsep.join(
             filter(None, (str(MEASURED_PROCESS_STARTUP), resolved.get("PYTHONPATH"))))

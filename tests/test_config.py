@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -30,9 +31,9 @@ class TestLoadConfig:
             load_config(tmp_path / "nonexistent.json")
 
     def test_missing_default_regenerates_from_example_then_raises(self, tmp_path: Path, monkeypatch):
-        example_text = config.EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8")
+        the_example_every_checkout_commits = config.EXAMPLE_CONFIG_PATH.read_text(encoding="utf-8")
         example = tmp_path / "fun_time_config.example.json"
-        example.write_text(example_text, encoding="utf-8")
+        example.write_text(the_example_every_checkout_commits, encoding="utf-8")
         target = tmp_path / "fun_time_config.json"
         monkeypatch.setattr(config, "DEFAULT_CONFIG_PATH", target)
         monkeypatch.setattr(config, "EXAMPLE_CONFIG_PATH", example)
@@ -41,7 +42,8 @@ class TestLoadConfig:
         with pytest.raises(FileNotFoundError, match="fun_time_config"):
             load_config()
         assert target.exists()
-        assert json.loads(target.read_text(encoding="utf-8")) == json.loads(example_text)
+        assert json.loads(target.read_text(encoding="utf-8")) == json.loads(
+            the_example_every_checkout_commits)
 
     def test_missing_default_without_example_raises_naming_both(self, tmp_path: Path, monkeypatch):
         target = tmp_path / "fun_time_config.json"
@@ -135,7 +137,7 @@ class TestLoadConfig:
         cfg = load_config(cfg_path)
         assert cfg.paths.broker_state_dir == cfg.paths.state_dir
 
-    def test_the_brokers_files_follow_the_broker_when_it_is_named(self, cfg_factory, tmp_path: Path):
+    def test_every_file_the_broker_itself_opens_follows_its_folder_when_named(self, cfg_factory, tmp_path: Path):
         broker_state = tmp_path / "primary" / "state"
         path = cfg_factory({"paths": {"broker_state_dir": str(broker_state)}})
         cfg = load_config(path)
@@ -187,7 +189,7 @@ class TestRegenConfig:
         assert cfg.random_favs_browser.profile_name == ""
         assert cfg.random_favs_browser.enabled is False
 
-    def test_a_browser_section_that_names_no_profile_stays_off(self, cfg_factory):
+    def test_no_chrome_profile_is_guessed_for_a_browser_section_naming_none(self, cfg_factory):
         path = cfg_factory({"random_favs_browser": {"enabled": True, "open_count": 3}})
         cfg = load_config(path)
         assert cfg.random_favs_browser.enabled is False
@@ -382,7 +384,7 @@ class TestLoopbackPort:
         cfg = load_config(cfg_path)
         assert cfg.loopback_port == LOOPBACK_PORT
 
-    def test_a_session_can_be_given_a_port_of_its_own(self, cfg_factory):
+    def test_a_second_session_on_the_machine_can_serve_on_a_port_of_its_own(self, cfg_factory):
         path = cfg_factory({"loopback_port": 54321})
         cfg = load_config(path)
         assert cfg.loopback_port == 54321
@@ -398,10 +400,19 @@ class TestInstanceId:
         assert mutex_name(MUTEX_ORCHESTRATOR, one.instance_id) != mutex_name(
             MUTEX_ORCHESTRATOR, another.instance_id)
 
-    def test_a_config_can_name_another_sessions_identity(self, cfg_factory):
-        path = cfg_factory({"instance_id": "C:/checkouts/fun_time/fun_time_config.json"})
-        cfg = load_config(path)
-        assert cfg.instance_id == "C:/checkouts/fun_time/fun_time_config.json"
+    def test_a_config_naming_the_live_sessions_identity_takes_the_same_mutex(
+            self, cfg_path: Path, cfg_factory, tmp_path: Path):
+        live = load_config(cfg_path)
+        a_branch_sessions_path = tmp_path / "branch" / "fun_time_config.json"
+        a_branch_sessions_path.parent.mkdir()
+        a_branch_sessions_path.write_text(
+            cfg_factory({"instance_id": live.instance_id}).read_text(encoding="utf-8"),
+            encoding="utf-8")
+        branch = load_config(a_branch_sessions_path)
+
+        assert branch.config_path != live.config_path
+        assert mutex_name(MUTEX_ORCHESTRATOR, branch.instance_id) == mutex_name(
+            MUTEX_ORCHESTRATOR, live.instance_id)
 
 
 class TestOrigeneratorPaths:
@@ -455,6 +466,18 @@ class TestTheProjectsOwnPaths:
 
     def test_the_root_is_the_one_the_config_resolves_against(self):
         assert CONFIG_ROOT is PROJECT_DIR
+
+    def test_no_other_module_works_the_root_out_from_its_own_depth(self):
+        from_its_own_depth = re.compile(r"__file__.*(\.parent\.parent|\.parents\[)")
+        packages = ("fun_time", "fun_time_vr", "main_funestra", "satellite")
+        own = PROJECT_DIR / "fun_time" / "project_paths.py"
+        assert from_its_own_depth.search(own.read_text(encoding="utf-8"))
+        assert [
+            str(module.relative_to(PROJECT_DIR))
+            for package in packages
+            for module in sorted((PROJECT_DIR / package).rglob("*.py"))
+            if module != own and from_its_own_depth.search(module.read_text(encoding="utf-8"))
+        ] == []
 
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
         wants = {

@@ -10,9 +10,10 @@ from urllib.parse import urlparse
 from app_support import haglio_settings
 from app_support.overlay import backfilled
 
-_PROJECT_DIR = Path(__file__).resolve().parent.parent
-LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
-EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
+from .project_paths import PROJECT_DIR
+
+LOCAL_CONTENT = PROJECT_DIR / "content.local.json"
+EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 
 _TEMPLATES_WRITTEN_INTO_THE_FAVORITES_FILE: dict[str, Any] = {"web_providers": []}
 
