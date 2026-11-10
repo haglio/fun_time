@@ -14,7 +14,7 @@ _PROJECT_DIR = Path(__file__).resolve().parent.parent
 LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
 EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
 
-_EMPTY_WHEN_ABSENT: dict[str, Any] = {"web_providers": []}
+_TEMPLATES_WRITTEN_INTO_THE_FAVORITES_FILE: dict[str, Any] = {"web_providers": []}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -32,7 +32,7 @@ def load_content(
     example = _read_json(example_path)
     if not local_path.exists():
         return example
-    return backfilled(_read_json(local_path), example, empty_when_absent=_EMPTY_WHEN_ABSENT)
+    return backfilled(_read_json(local_path), example, empty_when_absent=_TEMPLATES_WRITTEN_INTO_THE_FAVORITES_FILE)
 
 
 @dataclass(frozen=True)

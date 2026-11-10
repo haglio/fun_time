@@ -30,6 +30,7 @@ from fun_time.library_browser import (
     NON_LETTER_HEADING,
     SIDEBAR_WIDTH,
     TOP_LEVEL_NAME,
+    WAY_BACK_UP,
     BrowseCallbacks,
     BrowseOpening,
     IndexLine,
@@ -98,10 +99,12 @@ def _click(view: QAbstractItemView, row: int) -> None:
         send_left_button(view, row, kind)
 
 
+def _press(key: Qt.Key) -> QKeyEvent:
+    return QKeyEvent(QEvent.Type.KeyPress, key.value, Qt.KeyboardModifier.NoModifier)
+
+
 def _backspace() -> QKeyEvent:
-    return QKeyEvent(
-        QEvent.Type.KeyPress, Qt.Key.Key_Backspace.value, Qt.KeyboardModifier.NoModifier,
-    )
+    return _press(Qt.Key.Key_Backspace)
 
 
 def _thumbnailed(window, rows: list[int]) -> bool:
@@ -165,7 +168,7 @@ def test_opening_a_folder_shows_what_is_in_it_and_a_way_back(browser, tmp_path: 
     window.grid.itemActivated.emit(window.grid.item(0))
 
     assert _labels(window.grid) == ["all folders", "whole  (1)", "cuts  (2)"]
-    assert window.grid.rows[0] is None
+    assert window.grid.rows[0] is WAY_BACK_UP
 
 
 def test_the_deepest_folder_lays_out_every_video_under_it(browser, tmp_path: Path):
@@ -358,6 +361,19 @@ def test_a_cached_still_becomes_the_tile_and_only_misses_are_extracted(browser, 
     assert not window.grid.item(thumbnailed_row).icon().isNull()
     assert window.grid.item(bare_row).icon().isNull()
     assert rows_needing_stills(window.grid.rows, cache) == [bare_row]
+
+
+def test_a_folder_tile_missing_one_of_its_stills_is_queued_for_the_rest(tmp_path: Path):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    thumbnailed = tmp_path / "alpha.mp4"
+    thumbnailed.write_bytes(b"\0")
+    bare = tmp_path / "beta.mp4"
+    bare.write_bytes(b"\0")
+    Image.new("RGB", (16, 9)).save(thumbnail_path(thumbnailed, cache), "JPEG")
+    folder = SubFolder(name="big_batch", count=2, previews=(str(thumbnailed), str(bare)))
+
+    assert rows_needing_stills([folder], cache) == [0]
 
 
 def test_closing_the_browse_extracts_no_still_after_the_one_in_hand(
@@ -608,6 +624,36 @@ def test_choosing_a_name_moves_the_grid_to_it(browser, tmp_path: Path):
     window.index.setCurrentRow(_labels(window.index).index("Zulu Scene"))
 
     assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
+
+
+def test_a_jump_from_the_sidebar_lands_mid_grid_never_on_its_lower_edge(
+    browser, tmp_path: Path,
+):
+    handles = [_handle(f"Scene {number:02}", section="main") for number in range(60)]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+    window.show()
+
+    window.index.setCurrentRow(_labels(window.index).index("Scene 40"))
+
+    tile = window.grid.visualItemRect(window.grid.item(window.grid.currentRow()))
+    below_the_tile = window.grid.viewport().height() - tile.bottom()
+    assert window.grid.rows[window.grid.currentRow()].title == "Scene 40"
+    assert below_the_tile > tile.height()
+
+
+def test_walking_the_grid_leaves_the_sidebar_where_it_stands(browser, tmp_path: Path):
+    handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+    _click(window.index, _letter_row(window.index, "Z"))
+
+    window.grid.setCurrentRow(window.grid.rows.index(handles[0]))
+
+    assert window.index.currentItem().text() == "Zulu Scene"
+    assert _shown_names(window.index) == ["Zulu Scene"]
 
 
 def test_clicking_a_letter_moves_the_grid_to_where_that_letter_starts(
@@ -1064,6 +1110,19 @@ def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
     assert browse_library(manifest, r"C:\python.exe", BrowseOpening(), runner=lambda _c, **_k: None) is None
 
 
+def test_escape_is_omnipauses_and_abandons_no_browse(browser, tmp_path: Path):
+    picked: list[str] = []
+    window = browser([_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=picked.append)
+    window.open_folder(("main",))
+    window.show()
+
+    for half in (window.grid, window.index, window):
+        QApplication.sendEvent(half, _press(Qt.Key.Key_Escape))
+
+    assert window.isVisible()
+    assert picked == []
+
+
 def test_closing_the_browse_tells_the_process_it_is_over(browser, tmp_path: Path):
     ended: list[str] = []
     window = browser(
@@ -1224,6 +1283,26 @@ def test_a_folder_tile_shows_four_stills_in_a_grid(browser, tmp_path: Path):
         image.pixel(3 * ICON_WIDTH // 4, 3 * ICON_HEIGHT // 4),
     }
     assert len(corners) == 4
+
+
+def test_a_folder_of_two_leaves_its_spare_cells_empty(browser, tmp_path: Path):
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    handles = []
+    for index in range(2):
+        video = tmp_path / f"v{index}.mp4"
+        video.write_bytes(b"\0" * (10 + index))
+        Image.new("RGB", (160, 90), (200, 40, 90)).save(thumbnail_path(video, cache), "JPEG")
+        handles.append(_handle(f"Scene {index}", str(video), section="big_batch"))
+
+    window = browser(handles, thumbnail_cache=cache, on_pick=lambda _v: None)
+    image = window.grid.item(0).icon().pixmap(ICON_WIDTH, ICON_HEIGHT).toImage()
+
+    drawn_at = {
+        (across, down): image.pixelColor(across * ICON_WIDTH // 4, down * ICON_HEIGHT // 4).alpha() > 0
+        for across in (1, 3) for down in (1, 3)
+    }
+    assert drawn_at == {(1, 1): True, (3, 1): True, (1, 3): False, (3, 3): False}
 
 
 def test_a_folder_holding_one_video_gives_it_the_whole_tile(browser, tmp_path: Path):

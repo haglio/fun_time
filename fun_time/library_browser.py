@@ -72,15 +72,17 @@ WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
 FLICKS_TOP_LEVEL_NAME = "Genau"
 
-TILE_WIDTH = 200
-TILE_HEIGHT = 168
 ICON_WIDTH = 176
-ICON_HEIGHT = 99
+ICON_HEIGHT = ICON_WIDTH * 9 // 16
+ROOM_FOR_TWO_LINES_OF_TITLE = 69
+TILE_WIDTH = 200
+TILE_HEIGHT = ICON_HEIGHT + ROOM_FOR_TWO_LINES_OF_TITLE
 
-SIDEBAR_WIDTH = 220
+SIDEBAR_WIDTH = TILE_WIDTH * 11 // 10
 
 NON_LETTER_HEADING = "#"
 
+WAY_BACK_UP = None
 UP_LABEL = "back"
 UP_TO_LIBRARY = "all folders"
 
@@ -100,6 +102,10 @@ class BrowseList(QListWidget):
             self._go_up()
             return
         super().keyPressEvent(event)
+
+    def land_mid_view_on(self, row: int) -> None:
+        self.setCurrentRow(row)
+        self.scrollToItem(self.item(row), QAbstractItemView.ScrollHint.PositionAtCenter)
 
 
 class LibraryGrid(BrowseList):
@@ -134,7 +140,7 @@ class LibraryGrid(BrowseList):
         # which of the two the user made.
         self.itemActivated.connect(lambda item: on_activate(self.row(item)))
 
-        self._extraction: _ThumbnailExtraction | None = None
+        self._extraction: _StillDecodesOffTheEventLoop | None = None
         self._collect_timer = QTimer(self)
         self._collect_timer.timeout.connect(self._collect_thumbnails)
 
@@ -143,7 +149,7 @@ class LibraryGrid(BrowseList):
         self.rows = []
         listings = FolderListings()
         if folder.parent is not None:
-            self._add_row(self._up_item(folder.parent), None)
+            self._add_row(self._up_item(folder.parent), WAY_BACK_UP)
         for child in folder.children:
             self._add_row(self._folder_item(child, listings), child)
         for handle in folder.handles:
@@ -152,11 +158,8 @@ class LibraryGrid(BrowseList):
         self.start_thumbnail_extraction(listings)
 
     def reveal(self, row: int) -> None:
-        item = self.item(row)
-        if item is None:
-            return
-        self.setCurrentRow(row)
-        self.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+        if self.item(row) is not None:
+            self.land_mid_view_on(row)
 
     def _add_row(self, item: QListWidgetItem, what: LibraryHandle | SubFolder | None) -> None:
         self.rows.append(what)
@@ -169,15 +172,20 @@ class LibraryGrid(BrowseList):
         item = QListWidgetItem(f"{child.name}  ({child.count})")
         item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
         item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
-        thumbnails = [
-            cached for cached in (
-                cached_thumbnail(preview, self._thumbnail_cache, listings)
-                for preview in child.previews
-            ) if cached is not None
-        ]
+        thumbnails = self._cached_stills(child, listings)
         if thumbnails:
             item.setIcon(montage_icon(thumbnails))
         return item
+
+    def _cached_stills(
+        self, what: LibraryHandle | SubFolder, listings: FolderListings
+    ) -> list[Path]:
+        return [
+            cached for cached in (
+                cached_thumbnail(preview, self._thumbnail_cache, listings)
+                for preview in previews_of(what)
+            ) if cached is not None
+        ]
 
     def _up_item(self, parent: tuple[str, ...]) -> QListWidgetItem:
         item = QListWidgetItem(UP_LABEL if parent else UP_TO_LIBRARY)
@@ -202,7 +210,7 @@ class LibraryGrid(BrowseList):
         self.stop_thumbnail_extraction()
         pending = rows_needing_stills(self.rows, self._thumbnail_cache, listings)
         if pending:
-            self._extraction = _ThumbnailExtraction(
+            self._extraction = _StillDecodesOffTheEventLoop(
                 [(row, previews_of(self.rows[row])) for row in pending], self._thumbnail_cache,
             )
             self._extraction.start()
@@ -221,12 +229,7 @@ class LibraryGrid(BrowseList):
         while not extraction.extracted.empty():
             row = extraction.extracted.get_nowait()
             item, what = self.item(row), self.rows[row]
-            thumbnails = [
-                cached for cached in (
-                    cached_thumbnail(preview, self._thumbnail_cache, listings)
-                    for preview in previews_of(what)
-                ) if cached is not None
-            ]
+            thumbnails = self._cached_stills(what, listings)
             if thumbnails:
                 item.setIcon(montage_icon(thumbnails) if isinstance(what, SubFolder)
                              else fitted_icon(thumbnails[0]))
@@ -234,7 +237,7 @@ class LibraryGrid(BrowseList):
             self._collect_timer.stop()
 
 
-class _ThumbnailExtraction(threading.Thread):
+class _StillDecodesOffTheEventLoop(threading.Thread):
     def __init__(self, pending: Sequence[tuple[int, Sequence[str]]], thumbnail_cache: Path) -> None:
         super().__init__(daemon=True, name="library-thumbnails")
         self._pending = pending
@@ -325,8 +328,7 @@ class FolderIndex(BrowseList):
         if row is None:
             return
         self._open_only(self._heading_above(row))
-        self.setCurrentRow(row)
-        self.scrollToItem(self.item(row), QAbstractItemView.ScrollHint.PositionAtCenter)
+        self.land_mid_view_on(row)
 
     def _heading_above(self, row: int) -> int:
         return next(r for r in range(row, -1, -1) if self.lines[r].is_heading)
@@ -343,8 +345,13 @@ class FolderIndex(BrowseList):
             self._open_only(None)
             return
         self._open_only(row)
-        self.setCurrentRow(row + 1)
-        self._reveal(self.item(row + 1))
+        self._choose(row + 1)
+
+    def _choose(self, row: int) -> None:
+        qt_will_report_no_change = row == self.currentRow()
+        self.setCurrentRow(row)
+        if qt_will_report_no_change:
+            self._reveal(self.item(row))
 
     def _open_only(self, heading_row: int | None) -> None:
         self._open_heading = heading_row
@@ -484,7 +491,7 @@ class LibraryBrowserWindow(QWidget):
 
     def _activate(self, row: int) -> None:
         what = self.grid.rows[row]
-        if what is None:
+        if what is WAY_BACK_UP:
             self.go_up()
         elif isinstance(what, SubFolder):
             self.open_folder((*self._path, what.name))
@@ -504,7 +511,7 @@ class IndexLine:
 
 
 def name_of(what: LibraryHandle | SubFolder | None) -> str:
-    return what.display_name if what is not None else ""
+    return what.display_name if what is not WAY_BACK_UP else ""
 
 
 def initial_letter(name: str) -> str:
@@ -514,7 +521,7 @@ def initial_letter(name: str) -> str:
 
 def alphabetical_index(rows: Sequence[object]) -> list[IndexLine]:
     named = sorted(
-        ((name_of(what), row) for row, what in enumerate(rows) if what is not None),
+        ((name_of(what), row) for row, what in enumerate(rows) if what is not WAY_BACK_UP),
         key=lambda named_row: (named_row[0].casefold(), named_row[0]),
     )
     groups: dict[str, list[IndexLine]] = {}
@@ -590,7 +597,7 @@ def montage_icon(thumbnails: Sequence[str | Path]) -> QIcon:
 
 
 def previews_of(what: LibraryHandle | SubFolder | None) -> tuple[str, ...]:
-    return what.previews if what is not None else ()
+    return what.previews if what is not WAY_BACK_UP else ()
 
 
 def rows_needing_stills(

@@ -18,6 +18,9 @@ from .media_metadata import (
 )
 from .modes import collect_video_files, source_roots
 
+_LARGEST = 0
+_SMALLEST = -1
+
 
 @dataclass(frozen=True)
 class LibraryHandle:
@@ -27,7 +30,7 @@ class LibraryHandle:
 
     @property
     def video(self) -> str:
-        return self.versions[0]
+        return self.versions[_LARGEST]
 
     @property
     def display_name(self) -> str:
@@ -39,7 +42,11 @@ class LibraryHandle:
 
     @property
     def preview(self) -> str:
-        return self.versions[-1]
+        return self.quickest_version_to_decode
+
+    @property
+    def quickest_version_to_decode(self) -> str:
+        return self.versions[_SMALLEST]
 
 
 def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | None:
@@ -75,8 +82,8 @@ def source_path(video: str, sources: str) -> tuple[str, ...]:
 
 
 def source_folder(video: str, sources: str) -> str:
-    folders = source_path(video, sources)
-    return folders[0] if folders else ""
+    library_division, *_pipeline_stages = source_path(video, sources) or ("",)
+    return library_division
 
 
 def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tuple[str, bool], str]:
@@ -143,6 +150,10 @@ def is_an_excerpt(path: tuple[str, ...], kind: str, cuts: dict[str, str]) -> boo
     return len(path) > 1 and cuts.get(path[0]) == path[1]
 
 
+def _largest_first(versions: list[str], sizes: FolderListings) -> tuple[str, ...]:
+    return tuple(sorted(versions, key=lambda video: (-sizes.size(video), video)))
+
+
 def build_library_handles(
     sources: str, metadata_root: Path | None, *, listing=collect_video_files,
 ) -> list[LibraryHandle]:
@@ -167,8 +178,7 @@ def build_library_handles(
         ).append(video)
 
     played = {
-        family: tuple(sorted(videos, key=lambda video: (-sizes.size(video), video)))
-        for family, videos in families.items()
+        family: _largest_first(videos, sizes) for family, videos in families.items()
     }
     keys = {
         family: (source_folder(versions[0], sources), family[1])

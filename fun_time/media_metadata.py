@@ -46,7 +46,11 @@ def video_type_of(payload: dict) -> str:
     video = payload.get("video")
     if isinstance(video, dict) and video.get("type"):
         return str(video["type"])
-    return EXCERPT if isinstance(payload.get("clip"), dict) else ""
+    return EXCERPT if _carved_before_kinds_were_recorded(payload) else ""
+
+
+def _carved_before_kinds_were_recorded(payload: dict) -> bool:
+    return isinstance(payload.get("clip"), dict)
 
 
 ORIENTATION_FIELD = "orientation"
@@ -67,17 +71,17 @@ def recorded_duration_seconds(payload: dict) -> float | None:
     return float(seconds) if isinstance(seconds, (int, float)) else None
 
 
-REPEATED_TITLE_NUMBER = re.compile(r"\(\d+\)")
+NUMBER_IN_A_DOWNLOADED_SET = re.compile(r"\(\d+\)")
 
 
-def repeated_title_number_of(video: str | Path) -> str:
-    found = REPEATED_TITLE_NUMBER.findall(Path(video).stem)
+def downloaded_set_number_of(video: str | Path) -> str:
+    found = NUMBER_IN_A_DOWNLOADED_SET.findall(Path(video).stem)
     return found[-1] if found else ""
 
 
 def recorded_group(payload: dict, video: str | Path) -> str:
     group = version_group_of(payload)
-    number = repeated_title_number_of(video)
+    number = downloaded_set_number_of(video)
     return f"{group} {number}" if group and number else group
 
 

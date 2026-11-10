@@ -7,7 +7,7 @@ from pathlib import Path
 from app_support.video_names import normalize_title
 from funestra.playlist import PlaylistItem
 
-from fun_time.media_metadata import REPEATED_TITLE_NUMBER, repeated_title_number_of
+from fun_time.media_metadata import NUMBER_IN_A_DOWNLOADED_SET, downloaded_set_number_of
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ def _begins_the_same_scene(shorter: tuple[str, ...], longer: tuple[str, ...]) ->
     if len(shorter) > len(longer) or longer[: len(shorter)] != shorter:
         return False
     extra = longer[len(shorter):]
-    return not (extra and REPEATED_TITLE_NUMBER.fullmatch(extra[0]))
+    return not (extra and NUMBER_IN_A_DOWNLOADED_SET.fullmatch(extra[0]))
 
 
 def _group_whose_title_begins_this_one(
@@ -75,7 +75,7 @@ def _group_by_recorded_id(
         if gid is None:
             unrecorded.append(entry)
             continue
-        gid = f"{gid}{repeated_title_number_of(entry.video)}"
+        gid = f"{gid}{downloaded_set_number_of(entry.video)}"
         if gid not in by_id:
             by_id[gid] = []
             order.append(gid)
