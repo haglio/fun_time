@@ -94,11 +94,8 @@ class _IPolicyConfig(IUnknown):
     ]
 
 
-_COM_ALREADY_ON_THIS_THREAD_IN_THE_OTHER_APARTMENT = OSError
-
-
-def _com_on_this_thread() -> None:
-    with contextlib.suppress(_COM_ALREADY_ON_THIS_THREAD_IN_THE_OTHER_APARTMENT):
+def _com_on_this_thread_in_whichever_apartment() -> None:
+    with contextlib.suppress(OSError):
         comtypes.CoInitialize()
 
 
@@ -136,7 +133,7 @@ def _default_device_or_none(enumerator, flow: str, role: str) -> SoundDevice | N
 
 def default_devices() -> Defaults:
     try:
-        _com_on_this_thread()
+        _com_on_this_thread_in_whichever_apartment()
         enumerator = comtypes.CoCreateInstance(
             _DEVICE_ENUMERATOR, _IMMDeviceEnumerator, CLSCTX_ALL)
     except (OSError, comtypes.COMError):
@@ -148,7 +145,7 @@ def default_devices() -> Defaults:
 
 def make_default(device: SoundDevice, role: str) -> None:
     try:
-        _com_on_this_thread()
+        _com_on_this_thread_in_whichever_apartment()
         policy = comtypes.CoCreateInstance(_POLICY_CONFIG_CLIENT, _IPolicyConfig, CLSCTX_ALL)
         policy.SetDefaultEndpoint(device.id, _windows_erole(role))
     except (OSError, comtypes.COMError):

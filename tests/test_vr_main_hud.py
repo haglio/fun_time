@@ -32,10 +32,10 @@ class TestTheHeldWidth:
                                                    plays_vr=True, plays_flat=True), in_vr=True))
             for mode in ("kino", "genau")
         }
-        kinos_transport_row = widest_row_in["kino"]
+        kinos_widest_row = widest_row_in["kino"]
 
-        assert kinos_transport_row == max(widest_row_in.values())
-        assert kinos_transport_row + 2 * _PAD <= HUD_WIDTH_PX
+        assert kinos_widest_row == max(widest_row_in.values())
+        assert kinos_widest_row + 2 * _PAD <= HUD_WIDTH_PX
 
     def test_it_clears_the_widest_mode(self):
         for mode in ("kino", "genau"):

@@ -160,8 +160,8 @@ def handle_at(
     across_the_frame = 0.0 <= u <= 1.0
     if across_the_frame and 0.0 <= v <= 1.0:
         return SURFACE
-    in_the_bar_hung_clear_above_the_frame = across_the_frame and 1.0 < v <= 1.0 + dv
-    if in_the_bar_hung_clear_above_the_frame:
+    in_the_bar_set_clear_above_the_frame = across_the_frame and 1.0 < v <= 1.0 + dv
+    if in_the_bar_set_clear_above_the_frame:
         return MOVE
     return None
 

@@ -39,14 +39,15 @@ def _a_view(*, yaw_deg: float = 0.0):
 
 
 _BOTH_EYES = [_a_view(), _a_view()]
+_UNARRANGED = Arranged([], [], np.eye(4, dtype=np.float32), 0.0, 0.0)
 
 
 def test_where_the_head_is_never_reaches_the_scene():
     stepped_aside = _a_view()
     stepped_aside.pose.position.x = 0.5
 
-    assert np.array_equal(_view_from_the_spheres_center(stepped_aside), _view_from_the_spheres_center(_a_view()))
-_UNARRANGED = Arranged([], [], np.eye(4, dtype=np.float32), 0.0, 0.0)
+    assert np.array_equal(_view_from_the_spheres_center(stepped_aside),
+                          _view_from_the_spheres_center(_a_view()))
 
 
 class _ASession:

@@ -143,7 +143,7 @@ def _remembered_tilt(written: object) -> float:
         return 0.0
 
 
-def _a_spot_a_hand_may_have_edited(spot: dict) -> Placement:
+def _hand_edited_spot_clamped_within_the_scene(spot: dict) -> Placement:
     return clamp_placement(Placement(**{part: float(spot[part]) for part in _FIELDS}))
 
 
@@ -164,7 +164,7 @@ def layout_from_json(text: str) -> Layout:
         if not isinstance(spot, dict):
             continue
         try:
-            remembered[name] = _a_spot_a_hand_may_have_edited(spot)
+            remembered[name] = _hand_edited_spot_clamped_within_the_scene(spot)
         except (KeyError, TypeError, ValueError):
             logger.warning("Ignoring the remembered %s placement", name)
     return Layout(placements=remembered, tilt_deg=tilt_deg)
