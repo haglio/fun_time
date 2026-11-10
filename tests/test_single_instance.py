@@ -37,8 +37,18 @@ class TestClaimingTheSession:
         name = self._a_name()
         first = claim_the_session(name)
 
-        assert _claimed_elsewhere(name) is None
+        assert _claimed_from_a_thread_that_does_not_own_it(name) is None
 
+        let_the_session_go(first)
+
+    def test_windows_grants_a_held_name_again_to_the_thread_that_owns_it(self):
+        name = self._a_name()
+        first = claim_the_session(name)
+
+        again = claim_the_session(name)
+
+        assert again
+        let_the_session_go(again)
         let_the_session_go(first)
 
     def test_the_name_is_free_again_once_that_session_lets_go(self):
@@ -67,7 +77,7 @@ class TestClaimingTheSession:
 
         let_the_session_go(claimed)
 
-        assert _claimed_elsewhere(name) is not None
+        assert _claimed_from_a_thread_that_does_not_own_it(name) is not None
         close_the_handle(kept_alive_by)
 
     def test_letting_go_of_an_abandoned_name_releases_it_which_closing_alone_does_not(self):
@@ -76,11 +86,22 @@ class TestClaimingTheSession:
 
         let_the_session_go(claim_the_session(name))
 
-        assert _claimed_elsewhere(name) is not None
+        assert _claimed_from_a_thread_that_does_not_own_it(name) is not None
+        close_the_handle(wedged)
+
+    def test_asking_after_an_abandoned_name_takes_it_until_it_is_let_go(self):
+        name = self._a_name()
+        wedged = _abandoned_by_a_dead_owner(name)
+
+        asked = claim_the_session(name)
+
+        assert asked
+        assert _claimed_from_a_thread_that_does_not_own_it(name) is None
+        let_the_session_go(asked)
         close_the_handle(wedged)
 
 
-def _claimed_elsewhere(name: str) -> int | None:
+def _claimed_from_a_thread_that_does_not_own_it(name: str) -> int | None:
     answer: list[int | None] = []
     thread = threading.Thread(target=lambda: answer.append(claim_the_session(name)))
     thread.start()

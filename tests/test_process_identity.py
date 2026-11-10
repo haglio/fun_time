@@ -6,7 +6,11 @@ from pathlib import Path
 from app_support.launcher import launchers
 from app_support.process_identity_check import ProcessName, assert_the_process_is_named
 
-from fun_time.process_identity import NAMER, prepare_orchestrator_launcher
+from fun_time.process_identity import (
+    NAMER,
+    THE_INTERPRETER_LAUNCH_VBS_RUNS_NEVER_ITS_NAMED_COPY,
+    prepare_orchestrator_launcher,
+)
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 from tests.made_up_machine import running
@@ -23,11 +27,12 @@ class TestTheStringsOtherLanguagesMatchOn:
         assert NAMER.process_name_pattern == (
             r"^pythonw?\.exe$|^py\.exe$|^FunTime-[A-Za-z]+\.exe$")
 
-    def test_the_satellite_reap_is_the_sweep_that_carries_it(self):
+    def test_the_satellite_reap_force_ends_only_images_the_pattern_names(self):
         stranded = "-m satellite --status-file C:/state/portrait_status.txt"
-        machine = [(51, "FunTime-Portrait.exe", stranded, 0.0),
-                   (52, "Relay-Portrait.exe", stranded, 0.0)]
-        with running("fun_time.windows_bridge_startup", machine) as ended:
+        ours = (51, "FunTime-Portrait.exe", stranded, 0.0)
+        another_apps_satellite_module = (52, "Relay-Portrait.exe", stranded, 0.0)
+        with running("fun_time.windows_bridge_startup",
+                     [ours, another_apps_satellite_module]) as ended:
             reap_orphaned_satellites("satellite", ["C:/state/portrait_status.txt"])
 
         assert ended == [51]
@@ -35,9 +40,10 @@ class TestTheStringsOtherLanguagesMatchOn:
     def test_the_launcher_looks_for_the_name_the_namer_gives_the_orchestrator(self):
         (desktop,) = [spec for spec in launchers(PROJECT_DIR) if spec.file == "launch.vbs"]
         named = NAMER.exe_name(desktop.interpreter, "Orchestrator")
+        run_if_found_else_the_plain_interpreter_silently = desktop.named_interpreter
 
         assert named == "FunTime-Orchestrator.exe"
-        assert desktop.named_interpreter == named
+        assert run_if_found_else_the_plain_interpreter_silently == named
 
 
 class TestTheRolesThisRepoLaunches:
@@ -50,7 +56,7 @@ class TestTheRolesThisRepoLaunches:
         for name in ("pythonw.exe", "python.exe", "py.exe"):
             assert re.match(NAMER.process_name_pattern, name), name
 
-    def test_the_sweep_pattern_leaves_everything_else_alone(self):
+    def test_the_force_ending_sweeps_pattern_matches_none_of_his_own_apps(self):
         for name in ("notepad.exe", "mypythonw.exe", "FunTimeOther.exe", "python3.exe"):
             assert not re.match(NAMER.process_name_pattern, name), name
 
@@ -59,7 +65,8 @@ class TestTheRolesThisRepoLaunches:
             assert not re.match(NAMER.process_name_pattern, name), name
             assert not NAMER.owns_exe_name(name), name
 
-    def test_each_one_reads_as_english_under_the_app_s_own_name(self):
+    def test_a_role_one_word_for_its_file_name_is_english_in_its_row(self):
+        assert NAMER.exe_name("pythonw.exe", "AudioCompanion") == "FunTime-AudioCompanion.exe"
         assert NAMER.description("AudioCompanion") == "Fun Time \u2013 Audio Companion"
         assert NAMER.description("LibraryBrowser") == "Fun Time \u2013 Library Browser"
         for role in ROLES:
@@ -72,14 +79,19 @@ class TestTheRolesThisRepoLaunches:
             assert not NAMER.owns_exe_name(name), name
 
 
-class TestPrepareOrchestratorLauncher:
-    def test_names_a_copy_of_the_main_hud_interpreter_beside_the_running_one(self, tmp_path: Path):
+class TestTheOneCopyFunTimeMakesAheadOfASession:
+    def test_it_is_made_from_the_interpreter_the_launcher_runs(self):
+        (desktop,) = [spec for spec in launchers(PROJECT_DIR) if spec.file == "launch.vbs"]
+
+        assert desktop.interpreter == THE_INTERPRETER_LAUNCH_VBS_RUNS_NEVER_ITS_NAMED_COPY
+
+    def test_app_supports_check_of_its_machinery_is_handed_fun_times_answers(self, tmp_path: Path):
         assert_the_process_is_named(
             prepare_orchestrator_launcher, tmp_path,
             ProcessName(
                 app_name="Fun Time",
                 role="Orchestrator",
-                interpreter="python.exe",
+                interpreter=THE_INTERPRETER_LAUNCH_VBS_RUNS_NEVER_ITS_NAMED_COPY,
                 row="Fun Time \u2013 Orchestrator",
                 icon=PROJECT_ICON,
             ),

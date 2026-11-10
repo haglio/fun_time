@@ -32,6 +32,14 @@ def test_nothing_outranks_pyproject_as_the_config_file():
         assert not parsed.has_section(section), f"{name} shadows pyproject.toml"
 
 
+def test_no_test_stops_every_patch_in_the_process_to_end_its_own():
+    stop_every_patch = "stop" + "all("
+
+    assert not [
+        test_file.name for test_file in (REPO_ROOT / "tests").rglob("*.py")
+        if stop_every_patch in test_file.read_text(encoding="utf-8")]
+
+
 def test_an_ordinary_run_does_not_collect_the_integration_suite():
     assert "integration" in _settings()["norecursedirs"]
 

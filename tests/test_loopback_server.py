@@ -103,7 +103,7 @@ def test_other_paths_are_404(tmp_path):
         server.shutdown()
 
 
-def test_a_pause_entered_while_a_page_is_open_reaches_its_next_ask(tmp_path):
+def test_a_tab_page_frozen_by_a_pause_hears_it_end_at_its_next_ask(tmp_path):
     script = tmp_path / USERSCRIPT_NAME
     script.write_text("// x\n", encoding="utf-8")
     paused = False
@@ -115,6 +115,9 @@ def test_a_pause_entered_while_a_page_is_open_reaches_its_next_ask(tmp_path):
         paused = True
         with _get(port, OMNIPAUSE_PATH) as resp:
             assert json.loads(resp.read()) == {"omni_paused": True}
+        paused = False
+        with _get(port, OMNIPAUSE_PATH) as resp:
+            assert json.loads(resp.read()) == {"omni_paused": False}
     finally:
         server.shutdown()
 
