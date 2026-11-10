@@ -19,7 +19,7 @@ from funestra.playlist import PlaylistItem, write_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
-from fun_time import audio_commands, preview_marker, windows_bridge_startup
+from fun_time import audio_commands, preview_marker
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.child_launch import no_child_log
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -331,6 +331,7 @@ def test_seed_startup_states_pauses_genau_by_verb_as_well_as_by_flag(tmp_path: P
         _seed_startup_states(tmp_path, mode=mode)
 
         assert _genau_play_verb(tmp_path) == "PAUSE", mode
+        assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "1", mode
 
 
 def test_seed_startup_states_clears_what_a_crashed_session_left_queued_for_genau(
@@ -343,17 +344,25 @@ def test_seed_startup_states_clears_what_a_crashed_session_left_queued_for_genau
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
 
 
-def test_seed_startup_states_resumes_the_sound_through_the_live_commands_publisher(
-        tmp_path: Path):
-    assert windows_bridge_startup.publish_audio_level is audio_commands.publish_audio_level
-    with patch("fun_time.windows_bridge_startup.publish_audio_level") as published:
-        _seed_startup_states(tmp_path, volume=40, muted=True)
+def _the_level_each_sound_sink_was_told(state_dir: Path) -> tuple[list[str], list[str], int]:
+    def told(command_file: str) -> list[str]:
+        return [verb for verb in (state_dir / command_file).read_text(encoding="utf-8").splitlines()
+                if verb.startswith("SET_VOLUME")]
+    return (told("main_player_cmd.txt"), told("genau_cmd.txt"),
+            read_volume(state_dir / "audio_volume.txt"))
 
-    published.assert_called_once_with(
-        main_funestra_cmd_file=tmp_path / "main_player_cmd.txt",
-        genau_cmd_file=tmp_path / "genau_cmd.txt",
-        audio_volume_file=tmp_path / "audio_volume.txt",
-        volume=40, muted=True)
+
+def test_a_resumed_mute_shows_on_screen_as_the_live_mute_does(tmp_path: Path):
+    resumed, live = tmp_path / "resumed", tmp_path / "live"
+    live.mkdir()
+
+    _seed_startup_states(resumed, volume=40, muted=True)
+    audio_commands.publish_audio_level(
+        main_funestra_cmd_file=live / "main_player_cmd.txt",
+        genau_cmd_file=live / "genau_cmd.txt",
+        audio_volume_file=live / "audio_volume.txt", volume=40, muted=True)
+
+    assert _the_level_each_sound_sink_was_told(resumed) == _the_level_each_sound_sink_was_told(live)
 
 
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
@@ -759,6 +768,19 @@ def test_start_core_session_clears_an_omnipause_a_crashed_session_left_set(tmp_p
     _run_start_core_session(kwargs)
 
     assert replace(read_shared_state(state_file), main_shuffle_seed=0) == BridgeState()
+
+
+def test_start_core_session_drops_the_f_mode_of_a_main_list_that_comes_out_empty(
+        tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_file = shared_state_path(kwargs["state_dir"])
+    write_shared_state(state_file, BridgeState(main_scripted_filter=True))
+
+    _run_start_core_session(kwargs)
+
+    assert read_shared_state(state_file).main_scripted_filter is False
+    assert "SET_F_MODE 0" in kwargs["main_funestra_cmd_file"].read_text(
+        encoding="utf-8").splitlines()
 
 
 def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_in(

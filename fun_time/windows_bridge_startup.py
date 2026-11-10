@@ -154,14 +154,10 @@ def _seconds_the_broker_is_older_than_its_code(broker_tray_launcher: Path | None
     code_written_at = broker_source_mtime(broker_tray_launcher)
     if code_written_at is None:
         return None
-    started_at = _found_by_sweeping_the_machines_processes(broker_tray_launcher)
-    if started_at is None:
+    started_at_found_by_sweeping_every_process = broker_process_started_at(broker_tray_launcher)
+    if started_at_found_by_sweeping_every_process is None:
         return None
-    return code_written_at - started_at
-
-
-def _found_by_sweeping_the_machines_processes(broker_tray_launcher: Path | None) -> float | None:
-    return broker_process_started_at(broker_tray_launcher)
+    return code_written_at - started_at_found_by_sweeping_every_process
 
 
 def _replace_a_broker_deaf_to_newer_verbs(broker_tray_launcher: Path | None) -> None:
@@ -232,7 +228,7 @@ def start_core_session(
     reap_orphaned_satellites(
         m.modules.satellite_module, [portrait.channels.status, landscape.channels.status],
     )
-    _leave_a_park_for_the_brokers_next_tick(commands)
+    leave_a_park_for_the_brokers_next_tick(commands)
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
     state_path = Path(state_dir)
     main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
@@ -287,14 +283,14 @@ def start_core_session(
     return carried.main_mode
 
 
-def _leave_a_park_for_the_brokers_next_tick(commands: CommandFiles) -> None:
+def leave_a_park_for_the_brokers_next_tick(commands: CommandFiles) -> None:
     write_broker_command(commands.broker_cmd_file, osr2_hold.PARK)
 
 
 def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts: str | None) -> int:
-    with open_child_log(log_file, cmd) as the_child_keeps_its_own_handle:
+    with open_child_log(log_file, cmd) as the_launchers_handle_closed_at_once:
         proc = subprocess.Popen(
-            cmd, stdout=the_child_keeps_its_own_handle, stderr=the_child_keeps_its_own_handle,
+            cmd, stdout=the_launchers_handle_closed_at_once, stderr=the_launchers_handle_closed_at_once,
             **sibling_checkouts_kwargs(sibling_checkouts), **hidden_subprocess_kwargs())
     return proc.pid
 

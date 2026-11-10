@@ -1562,7 +1562,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     stand_ins = {
         "open_event_log": MagicMock(),
         "log_into_the_hotkey_scripts_log": MagicMock(),
-        "write_broker_command": MagicMock(),
+        "leave_a_park_for_the_brokers_next_tick": MagicMock(),
         "ensure_broker": MagicMock(),
         "reap_orphaned_satellites": MagicMock(),
         "stock_the_playlists": MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),

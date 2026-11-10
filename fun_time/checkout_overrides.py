@@ -36,8 +36,6 @@ def sibling_checkouts_kwargs(sibling_checkouts: str | Path | None) -> dict:
         if part and Path(part).is_dir()]
     if not ahead_of_the_venvs_pinned_installs:
         return {}
-    paths = list(ahead_of_the_venvs_pinned_installs)
-    inherited = os.environ.get("PYTHONPATH")
-    if inherited:
-        paths.append(inherited)
-    return {"env": {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}}
+    inherited = [os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []
+    return {"env": {**os.environ, "PYTHONPATH": os.pathsep.join(
+        ahead_of_the_venvs_pinned_installs + inherited)}}
