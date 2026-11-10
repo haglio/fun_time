@@ -42,7 +42,7 @@ def test_the_map_draws_only_thumbnails_made_already_a_grab_takes_seconds_on_hevc
     )
 
 
-def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
+def test_the_map_lists_its_folder_once_a_stuck_file_would_stall_every_command(tmp_path: Path):
     folder = tmp_path / "vids"
     folder.mkdir()
     cache = tmp_path / "thumbs"

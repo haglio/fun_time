@@ -48,6 +48,7 @@ from fun_time.dashboard_actions import (
     REFERENCE_OPEN_FILENAME,
     VOICE_TOGGLE,
 )
+from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.event_log import MESSAGE, event_log_path
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import (
@@ -69,7 +70,6 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
-from fun_time.windows_bridge_dispatch_loop import DISPATCH_TICK_S
 from fun_time_vr import app, frame_loop, funestras, room
 from fun_time_vr.app import build_parser
 from fun_time_vr.dash_panel import (
@@ -1651,7 +1651,7 @@ class TestHangingTheRoom:
         assert by_name["file-channels"]["args"] == (the_room.pumped, the_room.stop, perf)
 
     def test_the_file_worker_polls_no_slower_than_the_desktops_dispatch_loop(self):
-        assert PUMP_HZ >= 1 / DISPATCH_TICK_S
+        assert PUMP_HZ >= 1 / LOOP_TICK_S
 
     def test_a_satellites_texture_outresolves_the_headset_across_its_width(self):
         a_headsets_pixels_per_degree = 25
