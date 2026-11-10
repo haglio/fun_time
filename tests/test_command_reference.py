@@ -370,7 +370,7 @@ def test_the_navigation_rows_are_the_steps_the_nudges_the_scenes_then_what_is_do
     assert [row.description for row in navigation.rows] == [
         "previous", "next", "nudge back 10 seconds", "nudge forward 10 seconds",
         "previous scene in the video", "next scene in the video", "trash", "lock / unlock",
-        "cycle enhancement level", "clip navigation", "jump to funscript", "next funscripted",
+        "cycle enhancement", "clip navigation", "jump to funscript", "next funscripted",
         "navigate the map", "cycle loop mode"]
     assert (back.voice, forward.voice) == (("back",), ("skip",))
     assert (back.detail, forward.detail) == ("", "")
@@ -407,11 +407,11 @@ def test_genaus_flick_steps_and_trash_ride_the_shared_rows_and_k_sits_under_main
     assert _the_row_of("genau_next_flick").description == "next"
 
 
-def test_one_row_steps_every_funestra_through_the_enhancement_levels():
+def test_one_row_steps_every_funestra_through_its_enhancements():
     versions = _the_row_of("satellites_cycle_version")
 
     assert versions == _the_row_of("main_funestra_cycle_version_back")
-    assert versions.description == "cycle enhancement level"
+    assert versions.description == "cycle enhancement"
     assert versions.detail == "the upscale, the original it was made from, or an enhancement"
     assert versions.voice == ("version", "change version", "cycle version", "next version")
     assert versions.key_columns == (("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
@@ -789,7 +789,7 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
     assert [(group.title, [row.description for row in group.rows]) for group in dashboard.groups] == [
         ("", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
               "open / close this hotkeys & voice reference"]),
-        ("Funestra", ["F-mode all", "reset all"]),
+        ("Funestras", ["F-mode all", "reset all"]),
         ("Voice control", ["disable voice control",
                            "accept the last command voice was not sure enough of"]),
     ]
@@ -857,7 +857,8 @@ def test_the_hud_moves_a_row_per_direction_by_key_then_to_a_corner_by_name():
     left, right, up, down, corner, minimize = hud.rows
 
     assert [row.description for row in hud.rows] == [
-        "HUD left", "HUD right", "HUD up", "HUD down", "HUD to a corner", "minimize the HUD"]
+        "move HUD left", "move HUD right", "move HUD up", "move HUD down", "HUD to a corner",
+        "minimize HUD"]
     assert [row.key_columns for row in (left, right, up, down)] == [
         (("Ctrl+Left",), ("Ctrl+A",), ("Ctrl+M",)), (("Ctrl+Right",), ("Ctrl+D",), ("Ctrl+.",)),
         (("Ctrl+Up",), ("Ctrl+W",), ("Ctrl+K",)), (("Ctrl+Down",), ("Ctrl+S",), ("Ctrl+,",))]
@@ -880,13 +881,11 @@ def test_the_origenerator_section_speaks_origenerators_own_words():
 
     assert [group.title for group in origenerator.groups] == [""]
     assert [row.description for row in origenerator.rows] == [
-        "play the experiments or requests", "play, pause, or stop the slideshow",
         "fix the image on screen", f"animate the image as a Genau {genau_flick_noun().one}",
     ]
-    assert origenerator.rows[0].detail == ""
-    assert origenerator.rows[2].detail == "its face, hands, teeth, or eyes"
-    assert not [row for row in _all_rows()
-                if "show" in row.description.split() and row not in origenerator.rows]
+    assert origenerator.rows[0].detail == "its face, hands, teeth, or eyes"
+    assert not [row for row in _all_rows() if "slideshow" in row.description
+                or "experiments" in row.description or "requests" in row.description]
 
 
 def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_aim_a_phrase():
@@ -894,18 +893,16 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_ai
     flick = genau_flick_noun().one
 
     assert [row.voice for row in origenerator.rows] == [
-        ("experiments", "requests"),
-        ("play slideshow", "start slideshow", "pause slideshow", "stop slideshow"),
         ("fix face", "fix hands", "fix teeth", "fix eyes"),
         ("genau",),
     ]
     assert origenerator.note == (
         "Alone, a phrase reaches the satellite you last navigated.  Add “portrait”, "
         "“landscape”, or “satellites”, before it or after, to aim it, for example "
-        "“portrait experiments” or “fix face landscape”."
+        "“portrait fix hands” or “fix face landscape”."
     )
     assert all(row.commands == () for row in origenerator.rows)
-    assert "name a Satellite" in origenerator.rows[3].detail
+    assert "name a Satellite" in origenerator.rows[1].detail
     heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=(),
                                  origenerator_phrases=("fix hands", *GENAU_SAID))
     assert heard["fix hands"] == "active_say_fix_hands"
@@ -948,7 +945,7 @@ def test_the_main_funestras_own_rows_are_what_it_browses_and_its_loops():
     assert [row.description for row in main.groups[0].rows] == ["open the browser"]
 
 
-def test_the_included_lengths_shapes_and_enhancement_levels_are_said_as_what_they_include():
+def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_include():
     included = _group("Funestras", "Included video types")
     lengths, shapes, orientations, levels = included.rows
 
@@ -962,7 +959,7 @@ def test_the_included_lengths_shapes_and_enhancement_levels_are_said_as_what_the
     assert orientations.description == "included video types (orientation)"
     assert orientations.voice == ("portrait only", "landscape only", "portrait and landscape",
                                   "landscape and portrait")
-    assert levels.description == "included video types (enhancement level)"
+    assert levels.description == "included video types (enhancement)"
     assert levels.voice == ("enhanced only", "original only", "enhanced and original",
                             "original and enhanced")
     assert {"active_enhancement_enhanced", "portrait_enhancement_original",
