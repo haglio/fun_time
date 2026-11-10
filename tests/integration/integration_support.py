@@ -98,6 +98,7 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
     return status
 
 INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
+MACHINES_SETTINGS_ENV = "FUN_TIME_THE_MACHINES_HAGLIO_SETTINGS"
 _MACHINES_OWN_PORTS = frozenset({50555, 50556, 50558, LOOPBACK_PORT})
 
 
@@ -610,7 +611,8 @@ def real_config_path() -> Path:
 
 
 def load_the_machines_config():
-    with on_the_settings_this_machine_has():
+    machines = os.environ.get(MACHINES_SETTINGS_ENV)
+    with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: machines} if machines else {}):
         return load_config(real_config_path())
 
 
@@ -732,7 +734,7 @@ def genau_where_this_machine_keeps_it() -> Iterator[None]:
     settings = write_settings_naming_genau(
         build_integration_temp_root(), Path(machines["genau_dir"]), Path(machines["genau_audio_dir"]),
         kino=Path(machines["kino_dir"]))
-    with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: str(settings)}):
+    with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: str(settings), MACHINES_SETTINGS_ENV: str(settings)}):
         yield
 
 
