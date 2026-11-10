@@ -3,20 +3,22 @@ from __future__ import annotations
 import ast
 import importlib
 import inspect
+import tomllib
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
-SHELLS = (
-    "fun_time_vr/app.py",
-    "fun_time_vr/render.py",
-    "fun_time_vr/vr_session.py",
-    "fun_time_vr/video_thread.py",
-    "fun_time_vr/gl_contexts.py",
-    "fun_time_vr/windows_sound.py",
-    "satellite/app.py",
-    "fun_time/chrome_accessibility.py",
-)
+
+def _modules_no_unit_test_builds() -> tuple[str, ...]:
+    with (ROOT / "pyproject.toml").open("rb") as config:
+        excused = tomllib.load(config)["tool"]["haglio"]["coverage"]["not-unit-tested"]
+    return tuple(module["path"] for module in excused)
+
+
+EXCUSED_WHEN_THIS_CHECK_WAS_WRITTEN = ("satellite/app.py", "fun_time_vr/video_thread.py")
+SHELLS = (*_modules_no_unit_test_builds(), *EXCUSED_WHEN_THIS_CHECK_WAS_WRITTEN)
 SHARED_PACKAGES = ("funestra", "shared_ui", "app_support")
 
 
@@ -43,24 +45,50 @@ def _what_it_calls(borrowed: dict[str, tuple[str, str]], spelled: str):
     return found if callable(found) else None
 
 
-def test_every_word_a_shell_hands_the_shared_code_is_one_it_takes():
+def _spreads_a_mapping_whose_words_the_source_does_not_spell(call: ast.Call) -> bool:
+    return any(word.arg is None for word in call.keywords)
+
+
+def _signature_if_python_can_report_one(target) -> inspect.Signature | None:
+    try:
+        return inspect.signature(target)
+    except (TypeError, ValueError):
+        return None
+
+
+def _calls_handing_the_shared_code_words_it_takes(source: str) -> int:
+    tree = ast.parse(source)
+    borrowed = _names_borrowed_from_the_shared_code(tree)
     checked = 0
-    for shell in SHELLS:
-        tree = ast.parse((ROOT / shell).read_text(encoding="utf-8"))
-        borrowed = _names_borrowed_from_the_shared_code(tree)
-        for call in ast.walk(tree):
-            if not isinstance(call, ast.Call) or not call.keywords:
-                continue
-            if any(word.arg is None for word in call.keywords):
-                continue
-            target = _what_it_calls(borrowed, ast.unparse(call.func))
-            if target is None:
-                continue
-            try:
-                signature = inspect.signature(target)
-            except (TypeError, ValueError):
-                continue
-            signature.bind_partial(
-                **dict.fromkeys(word.arg for word in call.keywords))
-            checked += 1
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call) or not call.keywords:
+            continue
+        if _spreads_a_mapping_whose_words_the_source_does_not_spell(call):
+            continue
+        target = _what_it_calls(borrowed, ast.unparse(call.func))
+        if target is None:
+            continue
+        signature = _signature_if_python_can_report_one(target)
+        if signature is None:
+            continue
+        signature.bind_partial(
+            **dict.fromkeys(word.arg for word in call.keywords))
+        checked += 1
+    return checked
+
+
+def test_every_word_a_shell_hands_the_shared_code_is_one_it_takes():
+    checked = sum(
+        _calls_handing_the_shared_code_words_it_takes((ROOT / shell).read_text(encoding="utf-8"))
+        for shell in SHELLS)
+
     assert checked, "no shell calls the shared code by a borrowed name any more"
+
+
+def test_a_word_the_shared_code_renamed_is_caught_in_a_shell_nothing_builds():
+    a_shell_still_saying_the_old_word = (
+        "from app_support.siblings import primary_checkout_of\n"
+        "primary_checkout_of(the_word_before_the_rename=1)\n")
+
+    with pytest.raises(TypeError, match="the_word_before_the_rename"):
+        _calls_handing_the_shared_code_words_it_takes(a_shell_still_saying_the_old_word)

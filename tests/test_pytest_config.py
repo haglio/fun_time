@@ -10,6 +10,10 @@ pytestmark = pytest.mark.repo_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+PYTEST_TAKES_ITS_WHOLE_CONFIGURATION_FROM_THE_FIRST_OF = (
+    "pytest.ini", "pyproject.toml", "tox.ini", "setup.cfg")
+PYTESTS_SECTION_IN = {"tox.ini": "pytest", "setup.cfg": "tool:pytest"}
+
 
 def _settings() -> dict:
     with (REPO_ROOT / "pyproject.toml").open("rb") as config:
@@ -21,9 +25,11 @@ def test_the_settings_live_in_pyproject():
 
 
 def test_nothing_outranks_pyproject_as_the_config_file():
-    assert not (REPO_ROOT / "pytest.ini").exists()
+    ours = PYTEST_TAKES_ITS_WHOLE_CONFIGURATION_FROM_THE_FIRST_OF.index("pyproject.toml")
+    for read_before_ours in PYTEST_TAKES_ITS_WHOLE_CONFIGURATION_FROM_THE_FIRST_OF[:ours]:
+        assert not (REPO_ROOT / read_before_ours).exists()
 
-    for name, section in (("tox.ini", "pytest"), ("setup.cfg", "tool:pytest")):
+    for name, section in PYTESTS_SECTION_IN.items():
         candidate = REPO_ROOT / name
         if not candidate.exists():
             continue
