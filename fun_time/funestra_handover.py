@@ -9,10 +9,10 @@ from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST
 from funestra.playlist import read_playlist, write_playlist
 from funestra.satellite_hud import parse_hud
 
-from .bridge_records import IN_ORIGENERATOR_MODE, BridgeConfig, WindowOp, ignored
+from .bridge_records import BridgeConfig, WindowOp
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
-from .hosted_contract import ENHANCED_ONLY, said_to_the_hosted_app
+from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL, said_to_the_hosted_app
 from .mode_plan import EnhancementLevel
 from .modes import rotated_onto
 from .origenerator_switches import origenerator_shows
@@ -51,20 +51,11 @@ def show_f_mode(channel: SatelliteChannel) -> bool | None:
     return _slideshows_switch(channel, "fmode")
 
 
-def show_enhanced_filter(channel: SatelliteChannel) -> bool | None:
-    return _slideshows_switch(channel, "enhanced")
-
-
 def slideshows_enhancement(
     funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    if level is EnhancementLevel.ORIGINAL:
-        return ignored(state, IN_ORIGENERATOR_MODE)
-    if level is EnhancementLevel.ENHANCED:
-        append_command(config.origenerator_cmd_file,
-                       said_to_the_hosted_app(funestra.label, ENHANCED_ONLY))
-    elif show_enhanced_filter(config.satellite(funestra)):
-        append_command(config.origenerator_cmd_file, f"{funestra.label}_enhanced")
+    append_command(config.origenerator_cmd_file, said_to_the_hosted_app(
+        funestra.label, SAID_FOR_AN_ENHANCEMENT_LEVEL[level]))
     return state, []
 
 

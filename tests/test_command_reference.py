@@ -973,6 +973,7 @@ def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_incl
     assert {"active_enhancement_enhanced", "portrait_enhancement_original",
             "satellites_enhancement_both", "main_enhancement_enhanced"} <= set(levels.commands)
     assert "Origenerator mode" not in levels.detail
+    assert levels.detail.endswith('"enhanced and original" everything')
     assert not [row for row in _section("Main Funestra").rows
                 if row.description.startswith("included")]
 
