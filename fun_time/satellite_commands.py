@@ -16,11 +16,12 @@ from .command_value import FILTER, Command
 from .event_log import FAVORITE, MESSAGE
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import slideshows_enhancement
-from .lock import a_hosted_lock_holds, build_discard_plan, trash_file_line, unfavorite
+from .lock import a_hosted_lock_holds, build_discard_plan, unfavorite
 from .media_actions import move_to_trash
 from .media_metadata import forget_indexed_video, is_favorite
 from .mode_plan import EnhancementLevel
 from .origenerator_switches import hosts
+from .origenerator_trash import trash_file_line
 from .osr2_commands import (
     FUNSCRIPT_MOVES,
     PLAYBACK_RATE_ACTS,

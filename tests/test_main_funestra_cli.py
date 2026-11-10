@@ -159,6 +159,7 @@ FUN_TIME_ARGV = [
     "--genau-latest",
     "--genau-f-mode",
     "--genau-orientations", "portrait",
+    "--origenerator-command-file", "C:/example/state/origenerator_cmd.txt",
 ]
 
 LANDS_AS = {
@@ -186,6 +187,7 @@ LANDS_AS = {
     "genau_latest": True,
     "genau_f_mode": True,
     "genau_orientations": ["portrait"],
+    "origenerator_command_file": Path("C:/example/state/origenerator_cmd.txt"),
 }
 
 
@@ -241,6 +243,7 @@ EVERY_FLAG_ARGV = [
     "--state-dir", "C:/example/state",
     "--metadata-dir", "C:/example/library/metadata",
     "--notice-file", "C:/example/state/main_player_notice.txt",
+    "--origenerator-command-file", "C:/example/state/origenerator_cmd.txt",
     "--playlist", "C:/example/state/main_player_playlist.tsv",
     "--width", "1280",
     "--height", "1024",
@@ -274,6 +277,7 @@ EVERY_FLAG_LANDS_AS = {
     "state_dir": Path("C:/example/state"),
     "metadata_dir": Path("C:/example/library/metadata"),
     "notice_file": Path("C:/example/state/main_player_notice.txt"),
+    "origenerator_command_file": Path("C:/example/state/origenerator_cmd.txt"),
     "playlist": Path("C:/example/state/main_player_playlist.tsv"),
     "width": 1280,
     "height": 1024,
@@ -319,6 +323,7 @@ NO_FLAGS_LANDS_AS = {
     "console_file": None,
     "drive_file": None,
     "dashboard_cmd_file": None,
+    "origenerator_command_file": None,
     "genau_command_file": None,
     "genau_paused_file": None,
     "genau_status_file": None,
