@@ -22,10 +22,12 @@ from fun_time.command_dispatch import ROUTES, handles
 from fun_time.command_reference import build_reference_sections
 from fun_time.command_value import MAIN_EQUIVALENTS, Scope, parse_command
 from fun_time.filter_vocab import filter_voice_commands
+from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
 from fun_time.satellite_buttons import HudState, funestra_rows
 from fun_time.voice_commands import build_voice_commands
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
+from fun_time_vr.thumbs import PROJECTION_BACK
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
     PREFIXED_COMMAND_FORMS,
@@ -33,15 +35,7 @@ from tests.test_command_id_snapshot import (
     _expected_numeric_ids,
 )
 
-_MAIN_HUD_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
-    "genau_flick_seconds_down",
-    "genau_flick_seconds_up",
-    "main_projection_none",
-    "main_funestra_length_none",
-    "main_orientation_none",
-    "main_funestra_record_tap",
-    "projection_cycle_back",
-}
+_A_VR_STICK_PUSHED_LEFT_POSTS = frozenset({PROJECTION_BACK})
 
 _HUD_POSTED_WITH_A_VALUE = frozenset(form.rstrip("|") for form in PREFIXED_COMMAND_FORMS) | {
     MAX_INTENSITY,
@@ -77,7 +71,7 @@ def _reference_ids() -> frozenset[str]:
     )
 
 
-def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
+def _where_a_session_sends_every_phrase() -> tuple[frozenset[str], frozenset[str]]:
     targets: set[str] = set()
     residues: set[str] = set()
     told = build_voice_commands(filter_commands=filter_voice_commands(_TOLD_ACTIONS))
@@ -96,15 +90,17 @@ def _dashboard_ids() -> frozenset[str]:
     )
 
 
-def _console_verbs() -> frozenset[str]:
+def _console_verbs_in_every_state() -> frozenset[str]:
     declared = (
         button.command
-        for mode, plays_vr, plays_flat, length_mode, compilation, jump_to, has_osr2, in_vr
-        in itertools.product(MainMode, (False, True), (False, True), LengthMode,
-                             ("", "Volume One"), ("", "scene", "clip"), (False, True),
+        for (mode, plays_vr, plays_flat, plays_portrait, plays_landscape, length_mode, compilation,
+             jump_to, has_osr2, in_vr)
+        in itertools.product(MainMode, (False, True), (False, True), (False, True), (False, True),
+                             LengthMode, ("", "Volume One"), ("", "scene", "clip"), (False, True),
                              (False, True))
         for row in main_hud_rows(
             MainFunestraFacts(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
+                     plays_portrait=plays_portrait, plays_landscape=plays_landscape,
                      length_mode=length_mode, compilation=compilation, has_compilation=True,
                      jump_to=jump_to, has_osr2=has_osr2),
             in_vr=in_vr)
@@ -126,7 +122,7 @@ def _satellite_verbs() -> frozenset[str]:
 
 
 def test_every_verb_the_main_hud_posts_lands_on_a_handler():
-    posted = _console_verbs()
+    posted = _console_verbs_in_every_state()
     assert posted, "no console button posts anything"
     unanswered = {command for command in posted if not _answered(command)}
     assert not unanswered, sorted(unanswered)
@@ -140,13 +136,13 @@ def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
 
 
 def test_every_spoken_phrase_lands_on_a_handler():
-    targets, _ = _voice_resolutions()
+    targets, _ = _where_a_session_sends_every_phrase()
     dead = {command for command in targets if not _answered(command)}
     assert not dead, f"spoken commands with no handler: {sorted(dead)}"
 
 
 def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
-    _, residues = _voice_resolutions()
+    _, residues = _where_a_session_sends_every_phrase()
     assert residues
     for residue in residues:
         action = parse_command(residue).action
@@ -161,12 +157,14 @@ def test_every_ahk_binding_lands_on_a_handler():
 
 
 def test_every_route_is_reachable_from_some_surface():
-    targets, _ = _voice_resolutions()
+    targets, _ = _where_a_session_sends_every_phrase()
     reachable = _keys(
         targets
         | _ahk_ids()
         | _dashboard_ids()
-        | _MAIN_HUD_POSTED
+        | frozenset(HUD_ONLY_COMMAND_IDS)
+        | _console_verbs_in_every_state()
+        | _A_VR_STICK_PUSHED_LEFT_POSTS
         | _HUD_POSTED_WITH_A_VALUE
         | _satellite_verbs()
         | {"portrait_lock", "landscape_lock"}
@@ -176,8 +174,16 @@ def test_every_route_is_reachable_from_some_surface():
     assert not unreachable, f"routes nothing can reach: {sorted(unreachable)}"
 
 
+def test_including_neither_takes_a_deliberate_press_and_no_phrase_or_key():
+    neither = {pair.commands[(False, False)] for pair in (PROJECTION, LENGTH, ORIENTATION)}
+    spoken, _ = _where_a_session_sends_every_phrase()
+
+    assert neither <= _console_verbs_in_every_state()
+    assert not neither & (spoken | _ahk_ids())
+
+
 def test_every_loop_branch_is_reachable_and_known():
-    targets, _ = _voice_resolutions()
+    targets, _ = _where_a_session_sends_every_phrase()
     told_by_the_hosted_app = frozenset(REQUEST_NEWS)
     for branch in _loop_branch_ids():
         assert branch in targets | _ahk_ids() | _dashboard_ids() | told_by_the_hosted_app, (

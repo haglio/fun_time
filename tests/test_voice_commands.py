@@ -225,7 +225,7 @@ class TestVoiceCommands:
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
         oov_words = {"origenerator", "upscales", "unpause", "unpark", "unretract", "funscript",
-                     "omnipause", "omniplay", "osr2", "2d"}
+                     "omnipause", "omniplay", "osr2", "2d", "hotkeys"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"

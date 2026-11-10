@@ -43,6 +43,7 @@ def parse_command_line(line: str) -> CommandLine:
 
 
 GENAU_SAID: tuple[str, ...] = ("genau", "go now")
+RELIEF_SAID_IN_A_HURRY = "stop"
 _SATELLITE_NAMES = tuple(funestra.label for funestra in FunTimeFunestra.SATELLITES)
 _SATELLITE_WORDS = (*_SATELLITE_NAMES, "satellites")
 FAVORITES_PHRASE = "favorites"
@@ -274,7 +275,7 @@ def build_voice_commands(
         "omni pause": "pause",
         "omni play": "play",
         "relief omni pause": "relief_omnipause",
-        "stop": "relief_omnipause",
+        RELIEF_SAID_IN_A_HURRY: "relief_omnipause",
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
         "o s r two control off": "robot_hand_park",
