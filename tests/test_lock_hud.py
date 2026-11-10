@@ -514,17 +514,17 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
 
 
 def test_a_nav_frozen_map_shows_the_exact_family_the_keys_walk():
-    other = "C:/vids/other.mp4"
+    outside_the_family = "C:/vids/other.mp4"
     index = GroupIndex(
         entries=_entries(
             VideoEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
                       scene_tags=ONE_SCENE),
             VideoEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1"),
                       scene_tags=ONE_SCENE),
-            VideoEntry(other, action="Alpha", action_key="g2",
+            VideoEntry(outside_the_family, action="Alpha", action_key="g2",
                       scene_tags=MOST_OF_THAT_SCENE),
         ),
-        action_items={"g1": sorted([CUR, S1]), "g2": [other]},
+        action_items={"g1": sorted([CUR, S1]), "g2": [outside_the_family]},
         seed_items={"S": sorted([CUR, S1])},
     )
 
@@ -639,7 +639,7 @@ def test_navigate_from_a_seed_cell_is_a_no_op():
     assert navigate_cell(("seed", 1), "up", action_count=2) == ("seed", 1)
 
 
-def test_left_and_right_move_no_cell_those_keys_cycle_the_videos_version():
+def test_left_and_right_are_the_videos_versions_never_a_map_step():
     corner = ("corner", 0)
     assert navigate_cell(corner, "right", action_count=2) == corner
     assert navigate_cell(corner, "left", action_count=2) == corner

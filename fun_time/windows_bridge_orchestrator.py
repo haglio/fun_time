@@ -548,10 +548,10 @@ def _main_browse_stills(bridge_config) -> list[str]:
 
 
 def start_hud_priming(
-    bridge_config, manifest, *, enabled: bool
+    bridge_config, manifest, *, dashboard_enabled: bool
 ) -> tuple[HudPublisher | None, threading.Event]:
     primed = threading.Event()
-    if not enabled:
+    if not dashboard_enabled:
         primed.set()
         return None, primed
     sources = (bridge_config.portrait.sources, bridge_config.landscape.sources)
@@ -1019,7 +1019,7 @@ def run_session(
                              project_dir=hotkeys.project_dir),
         ahk_cmd_file)
 
-    hud = start_hud_priming(bridge_config, manifest, enabled=dashboard_enabled)
+    hud = start_hud_priming(bridge_config, manifest, dashboard_enabled=dashboard_enabled)
     hud_publisher = hud[0]
 
     logger.info("Running startup sequence")

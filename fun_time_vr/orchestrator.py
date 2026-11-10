@@ -492,7 +492,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             return _end_a_launch_the_headset_never_joined(launch, launched, ahk_proc)
         _wait_for_the_room(launch.room_ready_file, launched.funestra, progress)
         hud_publisher, _hud_primed = start_hud_priming(
-            launch.bridge_config, launch.manifest, enabled=True)
+            launch.bridge_config, launch.manifest, dashboard_enabled=True)
         if progress.cancelled:
             raise StartupCancelled()
     except StartupCancelled:
