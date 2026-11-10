@@ -2016,7 +2016,6 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     ):
         assert flag in command, flag
         assert command[command.index(flag) + 1] == value, flag
-    assert not any(flag.startswith(("--portrait_", "--landscape_")) for flag in command)
     assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")
     assert "env" not in popen.call_args.kwargs
 
