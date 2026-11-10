@@ -36,6 +36,9 @@ CHANNELS_ONLY_THE_MAIN_FUNESTRA_HAS = ("console",)
 CHANNELS_ONLY_THE_BROKER_HAD = ("tcode_host", "tcode_port")
 _NEVER_A_SATELLITES = {*CHANNELS_ONLY_THE_MAIN_FUNESTRA_HAS, *CHANNELS_ONLY_THE_BROKER_HAD}
 
+FLAGS_ARGPARSE_ADDS_ITSELF = {"-h"}
+POLICIES_NEITHER_A_CHANNEL_NOR_A_PLACEMENT = {"--no-audio"}
+
 _PLACED = WindowPlacement(x=2560, y=0, width=1440, height=2500,
                           title="Portrait AI Funestra", taskbar_identity="Example.App")
 
@@ -65,7 +68,7 @@ class TestTheRoundTrip:
         assert argv == ["--playlist", "p.tsv"]
 
 
-class TestNothingHasDrifted:
+class TestNoDeclarationDriftsFromTheTables:
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
         assert tuple(field for field, _flag, _kind in CHANNELS) == tuple(
             field.name for field in fields(SatelliteChannels) if field.name not in _NEVER_A_SATELLITES)
@@ -92,7 +95,8 @@ class TestNothingHasDrifted:
                     for action in build_parser()._actions if action.option_strings}
         declared = {flag for _field, flag, _kind in CHANNELS if flag is not None}
         declared |= {flag for _field, flag in PLACEMENT}
-        assert accepted - declared - {"-h", "--no-audio"} == set()
+        assert accepted - declared - FLAGS_ARGPARSE_ADDS_ITSELF == (
+            POLICIES_NEITHER_A_CHANNEL_NOR_A_PLACEMENT)
 
 
 class TestReadOutOfTheManifest:

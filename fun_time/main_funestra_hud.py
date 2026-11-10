@@ -17,7 +17,9 @@ MAIN_FUNESTRA_HUD_FILENAME = "main_player_console.json"
 
 def osr2_state(*, main_mode: MainMode, osr2_mode: Osr2Mode, funscript_driving: bool,
                trouble: Osr2Trouble | None = None) -> Osr2State:
-    return Osr2State.of(osr2_mode, funscript_driving=funscript_driving and kino_shows(main_mode),
+    status_is_of_a_video_now_on_screen = kino_shows(main_mode)
+    return Osr2State.of(osr2_mode,
+                        funscript_driving=funscript_driving and status_is_of_a_video_now_on_screen,
                         trouble=trouble)
 
 

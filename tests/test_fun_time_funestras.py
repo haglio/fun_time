@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fun_time.event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.satellite_groups import satellite_source
 
 
 def test_funestras_keep_the_numbers_the_saved_state_stores():
@@ -27,3 +28,8 @@ def test_the_event_log_sources_are_exactly_the_funestra_labels():
     assert FunTimeFunestra.MAIN.label == SOURCE_MAIN
     assert FunTimeFunestra.PORTRAIT.label == SOURCE_PORTRAIT
     assert FunTimeFunestra.LANDSCAPE.label == SOURCE_LANDSCAPE
+
+
+def test_a_satellites_label_is_the_source_its_log_lines_carry():
+    assert satellite_source(FunTimeFunestra.PORTRAIT) == SOURCE_PORTRAIT
+    assert satellite_source(FunTimeFunestra.LANDSCAPE) == SOURCE_LANDSCAPE

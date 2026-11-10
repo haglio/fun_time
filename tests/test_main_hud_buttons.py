@@ -35,7 +35,7 @@ _MINUS, _PLUS = shared_icon("minus"), shared_icon("plus")
 
 
 @pytest.fixture
-def pips(monkeypatch):
+def flicks_under_a_word_no_code_spells(monkeypatch):
     monkeypatch.setattr(main_hud_buttons, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
 
@@ -107,14 +107,14 @@ class TestTransport:
         for action in ("main_nudge_prev", "genaumacher_save", "main_funestra_record_tap"):
             assert action not in actions
 
-    def test_genau_browses_its_flicks_from_the_same_button_kino_browses_its_library(self, pips):
+    def test_genau_browses_its_flicks_from_the_same_button_kino_browses_its_library(self, flicks_under_a_word_no_code_spells):
         kino = _button(MainFunestraFacts(main_mode=MainMode.KINO), "browse_library")
         genau = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "browse_library")
 
         assert (kino.icon, kino.tooltip) == (genau.icon, "Browse the library")
         assert genau.tooltip == "Browse the pips"
 
-    def test_genaus_transport_names_its_flicks_in_the_overlays_word(self, pips):
+    def test_genaus_transport_names_its_flicks_in_the_overlays_word(self, flicks_under_a_word_no_code_spells):
         def tips(**facts):
             return {b.command: b.tooltip for b in _every_row(MainFunestraFacts(main_mode=MainMode.GENAU, **facts))[1]}
 
@@ -274,7 +274,7 @@ class TestGenausProjectionPair:
     def test_it_follows_the_browse_order_as_it_does_under_a_video(self):
         assert self._faces_after_latest(MainMode.GENAU) == self._faces_after_latest(MainMode.KINO) != []
 
-    def test_it_names_the_flicks_where_the_video_pair_says_videos(self, pips):
+    def test_it_names_the_flicks_where_the_video_pair_says_videos(self, flicks_under_a_word_no_code_spells):
         tips = [{b.tooltip for b in self._pair(*plays)}
                 for plays in ((True, True), (True, False), (False, False))]
 
@@ -436,7 +436,7 @@ class TestPaceRows:
         assert [b.icon or b.host_value for b in row] == [
             "Playback speed", _MINUS, "playback_speed", _PLUS]
 
-    def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self, pips):
+    def test_the_seconds_are_a_read_out_between_the_arrows_that_genau_fills(self, flicks_under_a_word_no_code_spells):
         row = next(row for row in main_hud_rows(MainFunestraFacts(main_mode=MainMode.GENAU))
                    if any(b.command == "genau_flick_seconds_down" for b in row))
 
@@ -634,8 +634,12 @@ class TestLayout:
 
 
 class TestFaces:
-    def test_no_button_types_a_face_of_its_own(self):
-        assert not {b.icon for b in _every_button() if len(b.icon) == 1 and not b.icon.isalnum()}
+    @staticmethod
+    def _is_a_symbol_the_font_would_draw(face: str) -> bool:
+        return len(face) == 1 and not face.isalnum()
+
+    def test_no_buttons_face_is_a_symbol_the_font_draws(self):
+        assert not {b.icon for b in _every_button() if self._is_a_symbol_the_font_would_draw(b.icon)}
 
     def test_every_mark_a_button_names_is_one_the_family_draws(self):
         named = {shared_icon_name(b.icon) for b in _every_button()
@@ -682,7 +686,7 @@ class TestOrientationPair:
         assert portrait[0] - (full[0] + full[2]) == GROUP_GAP
         assert landscape[0] - (portrait[0] + portrait[2]) == GAP
 
-    def test_they_name_the_videos_and_the_flicks_where_the_other_pairs_do(self, pips):
+    def test_they_name_the_videos_and_the_flicks_where_the_other_pairs_do(self, flicks_under_a_word_no_code_spells):
         assert {b.tooltip for b in self._pair()} == {
             "Including portrait videos", "Including landscape videos"}
         assert {b.tooltip for b in self._pair(MainMode.GENAU, plays_landscape=False)} == {
