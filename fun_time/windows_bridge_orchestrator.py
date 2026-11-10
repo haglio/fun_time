@@ -42,7 +42,10 @@ from .desktop_session import (
     release_of,
     silence_the_funestras,
 )
-from .event_log import LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME
+from .event_log import (
+    EVERYTHING_FOR_THE_LOG_PANEL_TO_FILTER,
+    LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME,
+)
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
@@ -463,7 +466,7 @@ def log_into_the_hotkey_scripts_log(log_path: Path) -> None:
     handler = _AppendOnWriteHandler(log_path)
     for name in ("fun_time", *LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME):
         lg = logging.getLogger(name)
-        lg.setLevel(logging.DEBUG)
+        lg.setLevel(EVERYTHING_FOR_THE_LOG_PANEL_TO_FILTER)
         lg.addHandler(handler)
 
 

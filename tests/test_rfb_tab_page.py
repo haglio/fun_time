@@ -74,13 +74,13 @@ def test_render_tab_page_embeds_no_video_for_a_relative_path():
     assert 'var video = "";' in html
 
 
-def test_render_tab_page_asks_this_session_whether_it_is_omnipaused(tmp_path: Path):
+def test_no_tab_silently_never_freezes_for_want_of_the_omnipause_url(tmp_path: Path):
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
 
     assert f'"{omnipause_url()}"' in html
 
 
-def test_render_tab_page_asks_at_the_port_this_session_serves_on():
+def test_no_tab_silently_never_freezes_for_asking_at_the_default_port():
     html = render_tab_page(TabTarget(REGEN_URL, "l"), loopback_port=8771)
 
     assert f'"{omnipause_url(8771)}"' in html

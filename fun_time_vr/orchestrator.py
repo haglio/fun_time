@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 
-from app_support import osr2_hold
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import process_started
@@ -21,7 +20,6 @@ from funestra.flick_folder import vr_flicks_in
 
 from fun_time.branch_session import describe_the_session_on_the_taskbar
 from fun_time.bridge_records import BridgeConfig
-from fun_time.broker_control import write_broker_command
 from fun_time.checkout_overrides import apply_this_checkouts_overrides, sibling_checkouts_kwargs
 from fun_time.child_launch import open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
@@ -146,6 +144,7 @@ from fun_time.windows_bridge_sequencer import release_the_funestras
 from fun_time.windows_bridge_startup import (
     ensure_broker,
     launch_audio_companion,
+    leave_a_park_for_the_brokers_next_tick,
     reap_orphaned_satellites,
     seed_startup_states,
     start_the_satellites_playing_whatever_a_pause_left_behind,
@@ -512,7 +511,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
     bridge_config, progress = launch.bridge_config, launch.progress
     progress.advance("services")
-    write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
+    leave_a_park_for_the_brokers_next_tick(commands)
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
     start_the_satellites_playing_whatever_a_pause_left_behind(manifest.portrait.paused_file, manifest.landscape.paused_file)
     reap_orphaned_satellites(
