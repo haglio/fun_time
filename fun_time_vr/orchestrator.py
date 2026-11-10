@@ -61,8 +61,8 @@ from fun_time.modes import (
 from fun_time.orchestrator import (
     ensure_runtime_files,
     require_dir,
-    signal_startup_resolved,
     stamp_the_users_pin_outside_every_checkout,
+    tell_the_hidden_launcher_startup_resolved,
     validate_config,
 )
 from fun_time.overlay_progress import (
@@ -771,7 +771,7 @@ def main(argv: list[str] | None = None) -> int:
     _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger.warning("Another Fun Time session (desktop or VR) is already running; exiting")
-        signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
+        tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         show_already_running_message(
             "Another copy of Fun Time (desktop or VR) is already running."
         )
@@ -792,10 +792,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if engine_missing_abort(config, log=logger.error):
-        signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
+        tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         return 1
 
-    signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
+    tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
     try:
         exit_code = run_vr_bridge(config, env, cancelable=not args.no_cancel)
     except BaseException:

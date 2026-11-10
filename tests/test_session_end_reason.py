@@ -80,7 +80,13 @@ def test_the_command_channel_keeps_the_phrase_whatever_asked_left():
     assert 'KeepOrMarkSessionEnd("an end asked on the AHK command channel")' in body
     assert 'KeepOrMarkSessionEnd("an exit on the AHK command channel")' in body
     assert "if (FileExist(STATE_DIR" in body
-    assert 'MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")' in body
+
+
+def test_the_quit_chord_being_the_asker_writes_over_any_marker():
+    chord = function_source("EndSession")
+
+    assert 'MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")' in chord
+    assert "KeepOrMarkSessionEnd(" not in chord
 
 
 def _hotkey_script() -> str:

@@ -124,7 +124,8 @@ class TestTheRequestFile:
         assert not handoff_request_path(tmp_path).exists()
         assert take_handoff_request(tmp_path) is None
 
-    def test_a_teardown_may_read_the_request_without_spending_it(self, tmp_path: Path):
+    def test_a_teardown_reads_of_the_crossing_leaving_the_request_for_the_orchestrator(
+            self, tmp_path: Path):
         request_handoff(tmp_path, VR)
 
         assert pending_handoff(tmp_path) is VR
@@ -159,7 +160,7 @@ class TestTheRequestFile:
             assert handoff_request_path(tmp_path).read_text(encoding="utf-8").strip() == target.key
 
 
-class TestTheLoadingScreenThatSpansTheCrossing:
+class TestTheScreenTheLeavingSessionRaisesAndTheArrivingOneTakesDown:
     @pytest.mark.parametrize(
         ("target", "says"), [(VR, "Entering VR"), (DESKTOP, "Returning to Fun Time")],
     )
@@ -185,7 +186,7 @@ class TestTheLoadingScreenThatSpansTheCrossing:
 
         assert crossing_progress_path(tmp_path).read_text(encoding="utf-8").strip() == "DONE"
 
-    def test_an_ordinary_startup_drops_nothing_and_leaves_nothing(self, tmp_path: Path):
+    def test_an_ordinary_startup_leaves_no_done_for_the_next_session_to_read(self, tmp_path: Path):
         drop_transition_screen(tmp_path)
 
         assert not crossing_progress_path(tmp_path).exists()
@@ -209,7 +210,7 @@ class TestTheLoadingScreenThatSpansTheCrossing:
             "-m", "fun_time.transition_screen", str(crossing_progress_path(tmp_path)),
         ]
 
-    def test_a_crossing_that_never_happened_uncovers_the_monitors(self, config):
+    def test_a_failed_crossing_takes_down_the_screen_no_session_is_coming_for(self, config):
         raise_transition_screen(config.paths.state_dir, VR)
         with patch.object(session_handoff, "wait_for_the_session_to_let_go",
                           return_value=False), \

@@ -119,7 +119,7 @@ def startup_marker_path(config, marker_name: str = STARTUP_MARKER_NAME) -> Path:
     return config.paths.state_dir / marker_name
 
 
-def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> None:
+def tell_the_hidden_launcher_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> None:
     marker = startup_marker_path(config, marker_name)
     try:
         marker.parent.mkdir(parents=True, exist_ok=True)
@@ -148,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
-        signal_startup_resolved(config)
+        tell_the_hidden_launcher_startup_resolved(config)
         show_already_running_message("Another copy of Fun Time is already running.")
         return 1
 
@@ -174,10 +174,10 @@ def main(argv: list[str] | None = None) -> int:
 
         loading_screen.progress.announce("engine")
         if engine_missing_abort(config, log=logger.error, uncover=loading_screen.take_it_down):
-            signal_startup_resolved(config)
+            tell_the_hidden_launcher_startup_resolved(config)
             return 1
 
-        signal_startup_resolved(config)
+        tell_the_hidden_launcher_startup_resolved(config)
         prepare_orchestrator_launcher()
         wake_the_headset(state_dir, integration=env.integration)
         ended = run_windows_bridge(config, logger, env, loading_screen)

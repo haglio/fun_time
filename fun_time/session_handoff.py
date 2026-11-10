@@ -261,7 +261,8 @@ def _launch_transition_screen(progress_file: Path, *, sibling_checkouts: str) ->
 
 def drop_transition_screen(state_dir: str | Path) -> None:
     path = crossing_progress_path(state_dir)
-    if path.exists():
+    a_crossing_raised_a_screen = path.exists()
+    if a_crossing_raised_a_screen:
         path.write_text("DONE\n", encoding="utf-8")
 
 

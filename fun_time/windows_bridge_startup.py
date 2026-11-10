@@ -159,8 +159,8 @@ def seed_startup_states(manifest: LaunchManifest, carried: BridgeState) -> None:
         volume=carried.volume,
         muted=carried.muted,
     )
-    for label in MainListSettings.of(carried).labels:
-        append_command(main_funestra_cmd_file, label)
+    for flag in MainListSettings.of(carried).flags_no_playlist_can_show:
+        append_command(main_funestra_cmd_file, flag)
     if carried.max_intensity < FULL_INTENSITY:
         publish_max_intensity(
             (genau_cmd_file, main_funestra_cmd_file,

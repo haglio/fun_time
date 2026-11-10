@@ -100,7 +100,10 @@ def test_each_stretch_is_counted_at_its_own_speed():
     assert clock.seconds() == pytest.approx(60.0)
 
 
-class _AMachineReadATickOut(_Machine):
+_A_WINDOWS_BUSY_TIME_TICK_S = 0.03
+
+
+class _AMachineWindowsCountsATickAtATime(_Machine):
     def __init__(self) -> None:
         super().__init__()
         self._readings = 0
@@ -111,11 +114,12 @@ class _AMachineReadATickOut(_Machine):
 
     def _read_busy(self) -> float:
         self._readings += 1
-        return self.others + self.run + (0.03 if self._readings % 2 else -0.03)
+        out_by = _A_WINDOWS_BUSY_TIME_TICK_S if self._readings % 2 else -_A_WINDOWS_BUSY_TIME_TICK_S
+        return self.others + self.run + out_by
 
 
 def test_a_run_read_every_few_ticks_has_none_of_the_time_other_work_holds_every_processor_for():
-    machine = _AMachineReadATickOut()
+    machine = _AMachineWindowsCountsATickAtATime()
     clock = machine.clock()
 
     for _ in range(200):
@@ -254,4 +258,4 @@ def test_the_on_time_clock_reads_this_processes_threads_and_their_states_from_wi
     kernel32.GetCurrentThread.restype = wt.HANDLE
 
     assert threading.get_native_id() in run_clock._thread_ids_of(os.getpid())
-    assert run_clock._scheduler_state(kernel32.GetCurrentThread()) == 2
+    assert run_clock._scheduler_state(kernel32.GetCurrentThread()) == run_clock._RUNNING

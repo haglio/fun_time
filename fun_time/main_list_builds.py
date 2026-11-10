@@ -31,16 +31,20 @@ class MainListBuild:
     def run(self) -> None:
         written = self.main_list.write(self.settings, on_screen=self.on_screen,
                                        from_the_top=self.start_at_top)
-        verbs = [RELOAD_PLAYLIST, *self.settings.labels]
+        verbs = [RELOAD_PLAYLIST, *self.settings.flags_no_playlist_can_show]
         if written.nothing_left:
             verbs.append(LOCK_ON)
             flash_message(logger, NO_OTHER_VIDEOS, source=SOURCE_MAIN, level=logging.WARNING)
         elif self.start_at_top:
-            verbs.append(play_file(scripted_item(written.videos[0], self.main_list.metadata_root)))
+            verbs.append(self._jump_onto_the_list_just_reloaded(written.videos[0]))
         for verb in verbs:
             append_command(Path(self.main_funestra_cmd_file), verb)
         if self.says and not written.nothing_left:
             flash_message(logger, self.says, source=SOURCE_MAIN)
+
+    def _jump_onto_the_list_just_reloaded(self, head: str) -> str:
+        with_the_script_the_osr2_is_driven_from = scripted_item(head, self.main_list.metadata_root)
+        return play_file(with_the_script_the_osr2_is_driven_from)
 
     def replacing(self, waiting: MainListBuild) -> MainListBuild:
         return replace(self, start_at_top=self.start_at_top or waiting.start_at_top)
