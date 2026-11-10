@@ -61,7 +61,7 @@ from tests.integration.integration_support import (
 )
 from tests.integration.run_clock import keep_time_by
 from tests.made_up_clocks import SleepDrivenClock, StarvedRun
-from tests.made_up_genau import kino_upscales_at
+from tests.made_up_genau import kino_upscales_at, made_up_genau, point_the_shared_settings_at
 from tests.made_up_machine import running
 
 OSR2_SLOT_PORT = 50558
@@ -507,6 +507,18 @@ def test_a_runs_room_plays_each_main_video_with_the_funscript_the_run_copied_for
     assert all(item.funscript is not None and run in item.funscript.parents for item in played), [
         item.funscript for item in played]
 
+
+def test_a_run_that_points_genau_at_a_made_up_folder_still_plays_the_machines_kino(tmp_path, monkeypatch):
+    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine", monkeypatch)
+    monkeypatch.setattr(integration_support, "real_config_path", lambda: machine)
+    monkeypatch.setenv(integration_support.MACHINES_SETTINGS_ENV, os.environ[haglio_settings.SETTINGS_ENV])
+    point_the_shared_settings_at(monkeypatch, made_up_genau(tmp_path / "test"))
+    try:
+        config = load_integration_config(build_integration_config(tmp_path / "run"))
+    finally:
+        close_the_runs_osr2s()
+
+    assert {path.name for path in config.paths.portrait_dirs[0].iterdir()} == {"alpha.mp4", "beta.mp4"}
 
 def test_the_runs_slot_listens_so_the_runs_senders_have_somewhere_to_connect(isolated_ports):
     config = isolated_ports
