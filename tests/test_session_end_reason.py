@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -56,6 +57,15 @@ def test_an_unreadable_marker_is_read_as_no_marker(tmp_path):
     (tmp_path / SESSION_END_MARKER).mkdir()
 
     assert "UNEXPECTED" in _describe_session_end(tmp_path, 0)
+
+
+def test_a_marker_that_cannot_be_cleared_still_says_what_ended_the_session(tmp_path):
+    (tmp_path / SESSION_END_MARKER).write_text("the quit chord (Ctrl+Alt+Q)", encoding="utf-8")
+
+    with patch.object(Path, "unlink", side_effect=PermissionError("a stand-in open handle")):
+        described = _describe_session_end(tmp_path, 0)
+
+    assert "quit chord" in described
 
 
 def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
@@ -119,7 +129,7 @@ def test_everything_that_asks_for_the_end_says_what_asked_first():
 
     assert unmarked == [], (
         "these ask for the end without saying what asked: " + ", ".join(unmarked))
-    assert exits == ["stop_hotkey_script"]
+    assert exits == ["_ask_the_script_to_release_the_keyboard"]
 
 
 def _writes_to_the_mailbox(node, word: str) -> bool:

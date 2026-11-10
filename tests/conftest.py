@@ -121,7 +121,7 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "wait_for_window_by_title",
                         lambda _title, **_kwargs: 0)
     monkeypatch.setattr(raising_the_loading_screen, "wait_for_window", lambda _find, _timeout_s: 0)
-    monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
+    monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_CEILING_S", 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 
 

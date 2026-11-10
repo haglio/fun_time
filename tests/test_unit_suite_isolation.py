@@ -15,7 +15,7 @@ from fun_time import (
 )
 
 REAL_STARTUP_TIMEOUTS = {
-    "CLOSING_SCREEN_READY_TIMEOUT_S": windows_bridge_orchestrator.CLOSING_SCREEN_READY_TIMEOUT_S,
+    "CLOSING_SCREEN_READY_CEILING_S": windows_bridge_orchestrator.CLOSING_SCREEN_READY_CEILING_S,
     "POST_LOADING_RESOLVE_TIMEOUT_S": windows_bridge_orchestrator.POST_LOADING_RESOLVE_TIMEOUT_S,
 }
 
@@ -32,7 +32,7 @@ def test_a_unit_test_never_waits_out_a_window_no_test_opened():
 
 
 def test_a_unit_test_never_waits_out_a_startup_timeout():
-    assert windows_bridge_orchestrator.CLOSING_SCREEN_READY_TIMEOUT_S == 0
+    assert windows_bridge_orchestrator.CLOSING_SCREEN_READY_CEILING_S == 0
     assert windows_bridge_orchestrator.POST_LOADING_RESOLVE_TIMEOUT_S == 0
 
 

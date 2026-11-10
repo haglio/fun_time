@@ -1524,7 +1524,7 @@ class TestWhatAPreviousSessionLeft:
             raise HotkeyScriptWentUp
 
         with patch.object(orchestrator, "open_event_log"), \
-             patch.object(orchestrator, "add_dispatch_file_handler"), \
+             patch.object(orchestrator, "log_into_the_hotkey_scripts_log"), \
              patch("fun_time_vr.orchestrator.subprocess.Popen", side_effect=hotkey_script), \
              pytest.raises(HotkeyScriptWentUp):
             orchestrator.run_vr_bridge(config, SessionEnvironment())
@@ -1545,7 +1545,7 @@ class TestTheHotkeyScriptsArguments:
             raise HotkeyScriptWentUp
 
         with patch.object(orchestrator, "open_event_log"), \
-             patch.object(orchestrator, "add_dispatch_file_handler"), \
+             patch.object(orchestrator, "log_into_the_hotkey_scripts_log"), \
              patch("fun_time_vr.orchestrator.subprocess.Popen", side_effect=hotkey_script), \
              pytest.raises(HotkeyScriptWentUp):
             orchestrator.run_vr_bridge(config, SessionEnvironment())
@@ -1561,7 +1561,7 @@ class TestTheHotkeyScriptsArguments:
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     stand_ins = {
         "open_event_log": MagicMock(),
-        "add_dispatch_file_handler": MagicMock(),
+        "log_into_the_hotkey_scripts_log": MagicMock(),
         "write_broker_command": MagicMock(),
         "ensure_broker": MagicMock(),
         "reap_orphaned_satellites": MagicMock(),

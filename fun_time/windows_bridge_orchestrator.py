@@ -307,18 +307,21 @@ def _shutdown_children(
                 kill_recorded_child(children[key])
 
 
-CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
+A_FRESH_TKINTER_PROCESS_IS_UP_WITHIN_S = 1.0
+SLACK_FOR_A_LOADED_MACHINE_S = 4.0
+CLOSING_SCREEN_READY_CEILING_S = (
+    A_FRESH_TKINTER_PROCESS_IS_UP_WITHIN_S + SLACK_FOR_A_LOADED_MACHINE_S)
 
 
 def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen, *,
                              now: Callable[[], float] = time.monotonic) -> None:
     try:
         wait_until(lambda: ready_file.exists() or proc.poll() is not None,
-                   timeout=CLOSING_SCREEN_READY_TIMEOUT_S, interval=0.05, now=now)
+                   timeout=CLOSING_SCREEN_READY_CEILING_S, interval=0.05, now=now)
     except TimeoutError:
         logger.warning(
             "Closing screen not ready after %.1fs; closing anyway",
-            CLOSING_SCREEN_READY_TIMEOUT_S,
+            CLOSING_SCREEN_READY_CEILING_S,
         )
         return
     if not ready_file.exists():
@@ -376,16 +379,32 @@ def launch_hotkey_script(*, ahk_exe: str | Path, script: str | Path, manifest_pa
     return subprocess.Popen(command, cwd=project_dir, **no_child_log(), **no_console_window())
 
 
+HOTKEY_SCRIPT_EXIT_WAIT_S = 3.0
+
+
 def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
+    _ask_the_script_to_release_the_keyboard(ahk_cmd_file)
+    _kill_a_script_still_swallowing_the_keys(proc)
+
+
+def _ask_the_script_to_release_the_keyboard(ahk_cmd_file: Path) -> None:
     try:
         ahk_cmd_file.write_text("exit", encoding="utf-8")
     except OSError:
         logger.warning("Could not ask the hotkey script to exit", exc_info=True)
+
+
+def _kill_a_script_still_swallowing_the_keys(proc: subprocess.Popen) -> None:
     try:
-        proc.wait(timeout=3.0)
+        proc.wait(timeout=HOTKEY_SCRIPT_EXIT_WAIT_S)
     except subprocess.TimeoutExpired:
         proc.kill()
         logger.warning("Hotkey script did not exit after cancel, killed")
+
+
+def _kill_while_their_pids_are_still_theirs(launched_seconds_ago: Sequence[int]) -> None:
+    for pid in launched_seconds_ago:
+        kill_process_tree(pid)
 
 
 def _take_down_the_startup(
@@ -401,8 +420,7 @@ def _take_down_the_startup(
     logger.info("%s; tearing down %d launched child(ren)", end.reason, len(launched.pids))
     stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
     with loading_screen.progress.loading_screen_kept_up():
-        for pid in launched.pids:
-            kill_process_tree(pid)
+        _kill_while_their_pids_are_still_theirs(launched.pids)
     if launched.release_origenerator_via is not None:
         append_command(launched.release_origenerator_via, RELEASE)
     close_window(launched.rfb_hwnd)
@@ -436,7 +454,7 @@ class _AppendOnWriteHandler(logging.Handler):
             pass
 
 
-def add_dispatch_file_handler(log_path: Path) -> None:
+def log_into_the_hotkey_scripts_log(log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
     for name in ("fun_time", *THE_LISTENERS_LOGGERS):
@@ -638,7 +656,11 @@ def _reveal_the_app(
 
     release_the_funestras(manifest, result.main_mode)
     release_the_headset(loading_screen.progress_file.parent)
+    _band_again_after_the_overlay_hands_activation_on(hwnds_by_window, rfb_mode)
 
+
+def _band_again_after_the_overlay_hands_activation_on(
+        hwnds_by_window: dict[str, int], rfb_mode: RfbMode) -> None:
     apply_topmost_bands(hwnds_by_window, rfb_mode=rfb_mode)
     _settle_the_funestras(
         _funestras_to_settle(
@@ -658,6 +680,11 @@ def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> Threading
         return None
     logger.info("Loopback server started on 127.0.0.1:%d", port)
     return server
+
+
+def _stop_serving_which_blocks_until_the_loop_returns(server: ThreadingHTTPServer) -> None:
+    server.shutdown()
+    server.server_close()
 
 
 @dataclass(frozen=True)
@@ -915,15 +942,10 @@ def _run_until_the_hotkeys_exit(
     show_overlays: bool,
 ) -> SessionOver:
     state_dir = launch.state_dir
-    children = running.children
-    origenerator_cmd_file = launch.bridge_config.origenerator_cmd_file
-    sibling_checkouts = launch.manifest.runtime.sibling_checkouts
-    voice_controller, voice_thread = running.voice
-    dispatch_runner, _loop = running.dispatch
     asked = False
     closed = None
     try:
-        ended = _wait_for_the_session_to_end(hotkeys.proc, state_dir, children=children)
+        ended = _wait_for_the_session_to_end(hotkeys.proc, state_dir, children=running.children)
         exit_code, closed = ended.exit_code, ended.closed
         asked = session_end_marker_path(state_dir).exists()
         if closed is not None:
@@ -935,45 +957,62 @@ def _run_until_the_hotkeys_exit(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
-        stop_everything(launch.manifest, running.dispatch)
-        crossing = pending_handoff(state_dir)
-        esc_cancels = (CANCEL_CLOSING_FUN_TIME
-                       if asked and show_overlays and crossing is None else "")
-        closing_screen = (
-            _closing_screen(state_dir, sibling_checkouts=sibling_checkouts,
-                            crossing=crossing, esc_cancels=esc_cancels)
-            if show_overlays else contextlib.nullcontext(NullProgress()))
-        with closing_screen as shutdown_progress:
-            if voice_controller is not None:
-                voice_controller.stop()
-            if voice_thread is not None:
-                voice_thread.join(timeout=2.0)
-            dispatch_runner.close()
-            if running.loopback_server is not None:
-                running.loopback_server.shutdown()
-                running.loopback_server.server_close()
-            logger.info("The session is over — shutting down child processes")
-            flag = state_dir / CANCEL_FILENAME
-            parking = crossing is not None or (
-                bool(esc_cancels) and what_the_flag_asks(flag) == CANCEL_WORD)
-            _shutdown_children(
-                result.rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
-                farewell=HostedAppFarewell(
-                    command_file=(origenerator_cmd_file
-                                  if parking or result.origenerator_taken_over else None),
-                    keep=parking, taken_over=result.origenerator_taken_over),
-            )
-            if crossing is None:
-                stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
-            if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
-                logger.info("Esc called the quit off; opening Fun Time again")
-                way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
-                _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
-                request_handoff(state_dir, DESKTOP, cancelable=False)
-            elif crossing is None:
-                let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
+        _take_the_session_down(launch, hotkeys, result, running,
+                               asked=asked, show_overlays=show_overlays)
 
     return SessionOver(exit_code, why="" if closed is None else part_closed_message(closed))
+
+
+def _take_the_session_down(
+    launch: SessionLaunch,
+    hotkeys: HotkeyScript,
+    result: StartupResult,
+    running: RunningSession,
+    *,
+    asked: bool,
+    show_overlays: bool,
+) -> None:
+    state_dir = launch.state_dir
+    origenerator_cmd_file = launch.bridge_config.origenerator_cmd_file
+    sibling_checkouts = launch.manifest.runtime.sibling_checkouts
+    voice_controller, voice_thread = running.voice
+    dispatch_runner, _loop = running.dispatch
+    stop_everything(launch.manifest, running.dispatch)
+    crossing = pending_handoff(state_dir)
+    esc_cancels = (CANCEL_CLOSING_FUN_TIME
+                   if asked and show_overlays and crossing is None else "")
+    closing_screen = (
+        _closing_screen(state_dir, sibling_checkouts=sibling_checkouts,
+                        crossing=crossing, esc_cancels=esc_cancels)
+        if show_overlays else contextlib.nullcontext(NullProgress()))
+    with closing_screen as shutdown_progress:
+        if voice_controller is not None:
+            voice_controller.stop()
+        if voice_thread is not None:
+            voice_thread.join(timeout=2.0)
+        dispatch_runner.close()
+        if running.loopback_server is not None:
+            _stop_serving_which_blocks_until_the_loop_returns(running.loopback_server)
+        logger.info("The session is over — shutting down child processes")
+        flag = state_dir / CANCEL_FILENAME
+        parking = crossing is not None or (
+            bool(esc_cancels) and what_the_flag_asks(flag) == CANCEL_WORD)
+        _shutdown_children(
+            result.rfb_hwnd, running.children, shutdown_progress, state_dir=state_dir,
+            farewell=HostedAppFarewell(
+                command_file=(origenerator_cmd_file
+                              if parking or result.origenerator_taken_over else None),
+                keep=parking, taken_over=result.origenerator_taken_over),
+        )
+        if crossing is None:
+            stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
+        if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
+            logger.info("Esc called the quit off; opening Fun Time again")
+            way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
+            _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
+            request_handoff(state_dir, DESKTOP, cancelable=False)
+        elif crossing is None:
+            let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
 
 
 def run_session(
@@ -994,7 +1033,7 @@ def run_session(
     dashboard_enabled = manifest.dashboard_enabled
     launch = SessionLaunch(manifest_path, manifest, bridge_config, state_dir)
 
-    add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
+    log_into_the_hotkey_scripts_log(Path(manifest.runtime.windows_bridge_log_file))
 
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"

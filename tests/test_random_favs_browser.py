@@ -4,9 +4,13 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from fun_time.config import load_config
 from fun_time.content import WebProvider
+from fun_time.lock import a_lock_holds
 from fun_time.media_metadata import mark_favorite
 from fun_time.random_favs_browser import (
     FavEntry,
@@ -16,7 +20,9 @@ from fun_time.random_favs_browser import (
     resolve_profile_directory,
     write_manifest,
 )
-from fun_time.rfb_tab_page import TabTarget
+from fun_time.rfb_tab_page import TabTarget, render_tab_page
+from fun_time.shared_state import BridgeState
+from tests.test_windows_bridge_dispatch_loop import make_config
 
 _PROVIDERS = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
@@ -237,6 +243,26 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     assert targets[0].url.startswith("https://example.com/video#ft=")
     assert targets[0].label == "https://example.com/image/abc"
     assert targets[0].video_path == str(video)
+
+
+def test_a_lock_opens_the_tab_the_startup_browser_opens_for_that_favorite(
+        cfg_factory, tmp_path: Path):
+    video = _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "A PROMPT"}},
+                           page="https://example.com/image/abc")
+    project = load_config(_regen_cfg(cfg_factory, tmp_path))
+    _, [at_startup] = build_manifest(project, _PROVIDERS)
+    session = make_config(
+        tmp_path / "state",
+        regen_media_root=project.regen.media_root,
+        regen_metadata_root=project.regen.metadata_root,
+        regen_generate_video_url=project.regen.generate_video_url,
+        regen_generate_image_url=project.regen.generate_image_url)
+
+    with patch("fun_time.lock.load_web_providers", return_value=_PROVIDERS):
+        _state, [opened] = a_lock_holds(str(video), BridgeState(), session)
+
+    at_the_lock = Path(url2pathname(urlparse(opened.key).path)).read_text(encoding="utf-8")
+    assert at_the_lock == render_tab_page(at_startup, loopback_port=session.loopback_port)
 
 
 def test_build_manifest_plays_the_original_not_the_upscale(cfg_factory, tmp_path: Path):
