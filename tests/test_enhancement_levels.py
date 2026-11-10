@@ -2,14 +2,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from app_support import kino_folder
+
 from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import has_an_upscale
+from tests.made_up_genau import kino_upscales_at
 
-UPSCALED = ("2_outbox", "upscaled_by_orientation", "portrait", "provider")
+
+@pytest.fixture(autouse=True)
+def _kino(tmp_path, monkeypatch):
+    return kino_upscales_at(monkeypatch, tmp_path)
 
 
 def _upscaled(media_root: Path, name: str) -> Path:
-    video = media_root.joinpath(*UPSCALED, name)
+    video = kino_folder.upscales_in(kino_folder.kino_dir()) / "portrait" / "provider" / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
     return video

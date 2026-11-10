@@ -252,9 +252,6 @@ def _cleanup_tmp_root():
 
 def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     (tmp_path / "state").mkdir(exist_ok=True)
-    (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "trash").mkdir(exist_ok=True)
     (tmp_path / "videos" / "videos" / "main_player_library").mkdir(parents=True, exist_ok=True)
 
     cfg: dict = {
@@ -262,9 +259,6 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
             "main_player_library_dirs": [str(tmp_path / "videos" / "videos" / "main_player_library")],
-            "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
-            "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
-            "trash_dir": str(tmp_path / "trash"),
             "state_dir": str(tmp_path / "state"),
         },
         "layout": {

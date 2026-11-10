@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from fun_time.bridge_records import BridgeConfig
@@ -58,9 +59,6 @@ def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
         "ahk_exe": str(root / "AutoHotkey64.exe"),
         "python_exe": str(root / "python.exe"),
         "main_player_library_dirs": [str(folders["primary"])],
-        "portrait_dirs": [str(folders["portrait"])],
-        "landscape_dirs": [str(folders["landscape"])],
-        "trash_dir": str(folders["trash"]),
         "state_dir": str(folders["state"]),
     }
     if names_an_origenerator:
@@ -75,7 +73,10 @@ def app_at_hand(root: Path, *, names_an_origenerator: bool = True):
         "audio_companion": {"host": "127.0.0.1", "port": 50556},
         "vr": {"library_dirs": [str(folders["vr"])]},
     }), encoding="utf-8")
-    return with_made_up_genau(load_config(config_file), root)
+    config = with_made_up_genau(load_config(config_file), root)
+    return replace(config, paths=replace(
+        config.paths, portrait_dirs=(folders["portrait"],), landscape_dirs=(folders["landscape"],),
+        trash_dir=folders["trash"]))
 
 
 TOLD_ACTIONS = {"alpha": ("alpha",)}

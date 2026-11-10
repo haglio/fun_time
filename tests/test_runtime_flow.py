@@ -25,6 +25,7 @@ from fun_time.runtime_flow import (
     apply_satellite_filter,
     satellite_browse_paths,
 )
+from tests.made_up_genau import kino_upscales_at
 
 
 def _make_action_video(
@@ -433,8 +434,8 @@ def test_recents_honors_the_satellites_filter_and_orders_newest_first(tmp_path: 
     assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]
 
 
-def test_apply_satellite_filter_narrows_to_the_clips_with_an_enhanced_version(tmp_path: Path):
-    upscaled = tmp_path / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider"
+def test_apply_satellite_filter_narrows_to_the_clips_with_an_enhanced_version(tmp_path: Path, monkeypatch):
+    upscaled = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "provider"
     upscaled.mkdir(parents=True)
     paired, alone = upscaled / "abc_topaz.mp4", upscaled / "xyz_topaz.mp4"
     original = tmp_path / "1_sorted" / "provider" / "portrait" / "abc.mp4"
