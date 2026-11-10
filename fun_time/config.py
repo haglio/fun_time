@@ -8,7 +8,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
-from app_support import haglio_settings, ports, state_files
+from app_support import haglio_settings, kino_folder, ports, state_files
 from app_support.config_reader import (
     optional_section,
     require_path,
@@ -282,9 +282,9 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
         ahk_exe=require_path(paths_raw, "ahk_exe", source_path, base=project_dir, context="config.paths"),
         python_exe=require_path(paths_raw, "python_exe", source_path, base=project_dir, context="config.paths"),
         main_funestra_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in main_funestra_library_dirs_raw),
-        portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
-        landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
-        trash_dir=require_path(paths_raw, "trash_dir", source_path, base=project_dir, context="config.paths"),
+        portrait_dirs=(kino_folder.upscales_in(kino_folder.kino_dir()) / "portrait",),
+        landscape_dirs=(kino_folder.upscales_in(kino_folder.kino_dir()) / "landscape",),
+        trash_dir=kino_folder.trash_folder_in(kino_folder.kino_dir()),
         genau_dir=Path(haglio_settings.value("genau_dir")),
         genau_audio_dir=Path(haglio_settings.value("genau_audio_dir")),
         state_dir=state_dir,
@@ -420,16 +420,3 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
         vr=_load_vr_config(vr_raw, project_dir),
         instance_id_override=str(raw["instance_id"]) if raw.get("instance_id") else None,
     )
-
-
-def _load_dir_list(
-    paths_raw: dict[str, Any], list_key: str, single_key: str, source_path: Path, project_dir: Path
-) -> tuple[Path, ...]:
-    values = paths_raw.get(list_key)
-    if values is None:
-        return (resolve_path(project_dir, str(require_value(paths_raw, single_key, source_path, context="config.paths"))),)
-    if not isinstance(values, list):
-        raise TypeError(f"paths.{list_key} must be a list of folder paths")
-    if not values:
-        raise ValueError(f"paths.{list_key} must include at least one folder path")
-    return tuple(resolve_path(project_dir, str(value)) for value in values)

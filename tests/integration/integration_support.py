@@ -22,7 +22,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from app_support import haglio_settings
+from app_support import haglio_settings, kino_folder
 from app_support.osr2_slot import Osr2Slot
 from app_support.siblings import primary_checkout_of
 from app_support.state_files import OSR2_SERIAL_RX
@@ -61,7 +61,7 @@ from fun_time.win32_process import (
 )
 from fun_time.windows_bridge_orchestrator import ChildProcess, kill_recorded_child
 from main_funestra.library import collapse_playlist_versions
-from tests.made_up_genau import write_settings_naming_genau
+from tests.made_up_genau import SETTINGS_NAME, write_settings_naming_genau
 from tests.scratch import remove_scratch
 
 from . import run_clock
@@ -225,9 +225,24 @@ def published_ago(status_file: Path, now: float) -> str:
         return "never"
 
 
+def settings_of_the_run_at(config_path: Path) -> Path:
+    return config_path.parent / SETTINGS_NAME
+
+
+@contextlib.contextmanager
+def on_the_runs_settings(config_path: Path) -> Iterator[None]:
+    with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: str(settings_of_the_run_at(config_path))}):
+        yield
+
+
+def load_integration_config(config_path: Path):
+    with on_the_runs_settings(config_path):
+        return load_config(config_path)
+
+
 class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
-        self.config = load_config(config_path)
+        self.config = load_integration_config(config_path)
         self._proc: subprocess.Popen[str] | None = None
         self._log_pos = 0
 
@@ -304,6 +319,7 @@ class FunTimeIntegrationSession:
         env["FUN_TIME_RUN_INTEGRATION"] = "1"
         env["FUN_TIME_FAKE_MONITORS"] = ";".join(
             f"{m.x},{m.y},{m.width},{m.height}" for m in SESSION_MONITORS)
+        env[haglio_settings.SETTINGS_ENV] = str(settings_of_the_run_at(self.config.config_path))
         env.update(env_overrides or {})
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
@@ -651,10 +667,11 @@ def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
     state_dir = state_dir_of(tmp_path)
     integration_root = state_dir.parent
-    trash_dir = integration_root / "trash"
     library = integration_root / "videos"
-    portrait_dir = library / "videos" / "portrait"
-    landscape_dir = library / "videos" / "landscape"
+    kino = library / "videos" / "kino"
+    trash_dir = kino_folder.trash_folder_in(kino)
+    portrait_dir = kino_folder.upscales_in(kino) / "portrait"
+    landscape_dir = kino_folder.upscales_in(kino) / "landscape"
     primary_dir = library / "videos" / "primary"
     metadata_root = library / "metadata"
     for path in (state_dir, trash_dir, portrait_dir, landscape_dir, primary_dir):
@@ -669,9 +686,6 @@ def build_integration_config(tmp_path: Path) -> Path:
 
     config = json.loads(real.config_path.read_text(encoding="utf-8"))
     config["paths"]["main_player_library_dirs"] = [str(primary_dir)]
-    config["paths"]["portrait_dirs"] = [str(portrait_dir)]
-    config["paths"]["landscape_dirs"] = [str(landscape_dir)]
-    config["paths"]["trash_dir"] = str(trash_dir)
     config["paths"]["state_dir"] = str(state_dir)
     config["paths"].pop("genau_dir", None)
     config["random_favs_browser"]["enabled"] = False
@@ -685,6 +699,8 @@ def build_integration_config(tmp_path: Path) -> Path:
 
     config_path = integration_root / INTEGRATION_CONFIG_NAME
     config_path.write_text(json.dumps(config), encoding="utf-8")
+    settings_of_the_run_at(config_path).write_text(
+        json.dumps({**haglio_settings.load(), "kino_dir": str(kino)}), encoding="utf-8")
     return config_path
 
 
@@ -709,7 +725,8 @@ def genau_where_this_machine_keeps_it() -> Iterator[None]:
     with on_the_settings_this_machine_has():
         machines = haglio_settings.load()
     settings = write_settings_naming_genau(
-        build_integration_temp_root(), Path(machines["genau_dir"]), Path(machines["genau_audio_dir"]))
+        build_integration_temp_root(), Path(machines["genau_dir"]), Path(machines["genau_audio_dir"]),
+        kino=Path(machines["kino_dir"]))
     with mock.patch.dict(os.environ, {haglio_settings.SETTINGS_ENV: str(settings)}):
         yield
 
