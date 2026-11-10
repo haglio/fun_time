@@ -32,13 +32,17 @@ class TestRoleTopmost:
         assert sum(len(group) for group in groups) == len(MANAGED_WINDOWS)
         assert set().union(*groups) == set(MANAGED_WINDOWS)
 
+    def test_kino_and_genau_share_the_one_always_topmost_main_funestra(self):
+        assert "main_funestra" in FIXED_TOPMOST_WINDOWS
+        assert not {"kino", "genau"} & set(MANAGED_WINDOWS)
+
 
 class TestVisibleRoles:
     def test_the_browser_in_its_place_shows_every_window_but_the_hosted_apps(self):
         assert set(visible_windows(RfbMode.RFB)) == {
             "portrait", "landscape", "dashboard", "main_funestra", "rfb"}
 
-    def test_origenerator_in_the_browsers_place_counts_the_browser_under_it(self):
+    def test_the_browser_origenerator_covers_is_minimized_and_restored_with_the_rest(self):
         assert set(visible_windows(RfbMode.ORIGENERATOR)) == set(MANAGED_WINDOWS)
 
 

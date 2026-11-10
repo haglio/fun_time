@@ -27,5 +27,6 @@ def window_is_topmost(window_name: str, rfb_mode: RfbMode = RfbMode.RFB) -> bool
 
 
 def visible_windows(rfb_mode: RfbMode = RfbMode.RFB) -> list[str]:
-    held = RFB_MODE_WINDOWS if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",)
-    return [*FIXED_TOPMOST_WINDOWS, *held]
+    the_browser_and_what_covers_it = (
+        RFB_MODE_WINDOWS if rfb_mode is RfbMode.ORIGENERATOR else ("rfb",))
+    return [*FIXED_TOPMOST_WINDOWS, *the_browser_and_what_covers_it]
