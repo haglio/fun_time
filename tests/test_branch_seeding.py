@@ -143,7 +143,7 @@ def test_no_real_config_lands_where_a_session_given_no_config_would_read_it(tmp_
 
 def test_a_branch_writing_its_seeded_cache_leaves_the_live_sessions_alone(live, branch_state):
     as_the_live_session_left_it = (live / "watch_stats.json").read_text(encoding="utf-8")
-    branch_seeding.seed_derived_caches(live, branch_state)
+    branch_seeding.seed_what_is_costly_to_rebuild(live, branch_state)
 
     with (branch_state / "watch_stats.json").open("r+", encoding="utf-8") as seeded:
         seeded.write(json.dumps({"unfinished": {}}))
