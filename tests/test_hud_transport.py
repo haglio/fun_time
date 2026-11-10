@@ -125,6 +125,19 @@ def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
     assert payload.actions == ()
 
 
+def test_a_hud_drawn_before_its_stills_are_cached_decodes_no_frame(tmp_path):
+    playing, seed, action = (str(tmp_path / name) for name in ("one.mp4", "two.mp4", "three.mp4"))
+    for video in (playing, seed, action):
+        Path(video).write_bytes(b"x")
+    hud = _hud(current=playing, seed_siblings=[seed], action_siblings=[action])
+
+    with patch("cv2.VideoCapture") as decoder:
+        payload = hud_model(hud, tmp_path / "cache")
+
+    assert not decoder.called
+    assert payload.corner == HudCell(path=playing, thumb="")
+
+
 def test_hud_payload_has_no_corner_when_nothing_is_playing():
     with patch("fun_time.hud_transport.cached_thumbnail", return_value=None):
         payload = hud_model(
