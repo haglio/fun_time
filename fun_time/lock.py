@@ -18,15 +18,10 @@ from .watch_stats import record_watch_event, watch_stats_path
 
 SENT_TO_TRASH = "Sent to Trash"
 _GO_TO = "GO_TO"
-_TRASH_FILE = "TRASH_FILE"
 
 
 def go_to_line(item: str) -> str:
     return f"{_GO_TO}|{item}"
-
-
-def trash_file_line(item: str) -> str:
-    return f"{_TRASH_FILE}|{item}"
 
 
 def a_lock_holds(item: str, state: BridgeState,

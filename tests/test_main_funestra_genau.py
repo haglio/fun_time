@@ -81,6 +81,7 @@ class WorldSetup:
     turned: tuple = ()
     orientations: tuple = BOTH
     start_thread: Callable = _run_now
+    origenerator_commands: Path | None = None
 
 
 class World:
@@ -123,7 +124,8 @@ class World:
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
             outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
-                                 messages=self.messages),
+                                 messages=self.messages,
+                                 origenerator_commands=setup.origenerator_commands),
             seams=GenauSeams(
                 decode=lambda _path: _frames(),
                 start_thread=setup.start_thread,
@@ -202,6 +204,31 @@ class TestTheFlickOnScreen:
 
         assert (trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4").is_file()
         assert not flick.exists()
+
+    def test_trash_tells_a_hosted_origenerator_where_the_flick_went(self, tmp_path):
+        commands = tmp_path / "origenerator_cmd.txt"
+        world = World(tmp_path, WorldSetup(origenerator_commands=commands))
+
+        world.send("TRASH")
+
+        landed = trash_folder_in(tmp_path) / "2D" / "non_AI" / "alpha one.mp4"
+        assert commands.read_text(encoding="utf-8").splitlines() == [
+            f"TRASH_FILE|{world.flat_dir / 'alpha one.mp4'}|{landed}"]
+
+    def test_trash_tells_origenerator_of_a_flick_still_being_read_once_it_is_let_go(self, tmp_path):
+        commands = tmp_path / "origenerator_cmd.txt"
+        condemning = _CondemningInTheBackground()
+        world = World(tmp_path, WorldSetup(start_thread=condemning,
+                                           origenerator_commands=commands))
+
+        with (world.flat_dir / "alpha one.mp4").open("rb"):
+            world.send("TRASH")
+            told_while_open = commands.exists()
+        for thread in condemning.threads:
+            thread.join(5)
+
+        assert not told_while_open
+        assert commands.read_text(encoding="utf-8").startswith("TRASH_FILE|")
 
     def test_trash_gives_up_on_a_flick_that_stays_open_and_says_so(self, tmp_path, monkeypatch, caplog):
         monkeypatch.setattr(genau_engine, "CONDEMN_PATIENCE_S", 0.5)

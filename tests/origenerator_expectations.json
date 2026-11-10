@@ -85,6 +85,7 @@
     "SAY:{words}",
     "TAKE_BACK",
     "TRASH_FILE|C:/v/scene one.mp4",
+    "TRASH_FILE|C:/v/scene one.mp4|C:/t/scene one.mp4",
     "filter_landscape_{row}",
     "filter_portrait_{row}",
     "landscape_action_loop",

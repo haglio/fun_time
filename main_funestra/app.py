@@ -70,6 +70,7 @@ def _genau(args):
             notifier=GenauNotifier(args.notify_host, args.notify_port),
             tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
             messages=MessageWriter(args.notice_file),
+            origenerator_commands=args.origenerator_command_file,
         ),
     )
 

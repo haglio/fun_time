@@ -941,6 +941,8 @@ _MANIFEST_FIELDS_OF_A_MAIN_FUNESTRA = {
     "genau_status_file": ("commands", "genau_status_file"),
     "flicks_dir": ("media", "genau_flicks"),
     "metadata_dir": ("regen", "metadata_root"),
+    "origenerator_dir": ("runtime", "origenerator_dir"),
+    "origenerator_cmd_file": ("commands", "origenerator_cmd_file"),
 }
 _GENAU_STARTS = {"genau_start_flick": "start_flick", "genau_latest": "latest",
                  "genau_f_mode": "f_mode", "genau_orientations": "orientations"}
@@ -953,6 +955,7 @@ def _a_main_funestra_launch(tmp_path: Path, **overrides) -> dict:
         status_file="status", console_file="console.json",
         dashboard_cmd_file="dash_cmd.txt", notice_file="", osr2_port="", flicks_dir="",
         metadata_dir="", sibling_checkouts="", state_dir="a-state-dir",
+        origenerator_dir="", origenerator_cmd_file="",
         main_funestra_x=0, main_funestra_y=0, main_funestra_width=100, main_funestra_height=100,
         log_file=tmp_path / "main_funestra.log", **GENAUS_FILES)
     launch.update(overrides)
@@ -987,6 +990,20 @@ def test_the_main_funestra_is_handed_genaus_own_files(tmp_path: Path):
     assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
     assert command[command.index("--genau-paused-file") + 1] == "a-state-dir/genau_paused.txt"
     assert command[command.index("--genau-status-file") + 1] == "a-state-dir/genau_status.txt"
+
+
+def test_a_session_hosting_origenerator_hands_genau_origenerators_commands(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path, origenerator_dir="C:/origenerator",
+                                      origenerator_cmd_file="a-state-dir/origenerator_cmd.txt")
+
+    assert command[command.index("--origenerator-command-file") + 1] == (
+        "a-state-dir/origenerator_cmd.txt")
+
+
+def test_a_session_hosting_no_origenerator_hands_genau_no_commands_of_it(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path, origenerator_cmd_file="a-state-dir/origenerator_cmd.txt")
+
+    assert "--origenerator-command-file" not in command
 
 
 def test_the_main_funestra_opens_genau_on_the_flick_it_was_left_showing(tmp_path: Path):

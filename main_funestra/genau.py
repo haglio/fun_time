@@ -31,6 +31,7 @@ from fun_time.genau_engine import (
 from fun_time.inclusion_pairs import BOTH, ORIENTATION, Included
 from fun_time.media_metadata import recorded_for, recorded_orientation
 from fun_time.modes import keep_favorites, videos_in
+from fun_time.origenerator_trash import tell_origenerator_it_went
 
 from .genau_verbs import apply_command as answer_genaus_verb
 
@@ -55,6 +56,7 @@ class GenauOutputs:
     notifier: Any
     tcode_sink: Any
     messages: MessageWriter | None = None
+    origenerator_commands: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +114,7 @@ class Genau:
                 say=self._say,
                 condemned_to=lambda flick: trash_folder_for(flick, self._flicks_folder),
                 set_volume=self._the_apps_level_is_the_funestras,
+                tell_where_it_went=tell_origenerator_it_went(outputs.origenerator_commands),
             ),
             EngineSeams(stop_event=seams.stop_event, decode=seams.decode,
                         start_thread=seams.start_thread,

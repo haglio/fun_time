@@ -22,6 +22,7 @@ from fun_time.origenerator_switches import (
     SATELLITE_MODE_COMMANDS,
     origenerator_shows,
 )
+from fun_time.origenerator_trash import trash_file_line
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_names import ORIGENERATOR_TITLE
@@ -80,6 +81,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         *(said_to_the_hosted_app(funestra.label, "{words}")
           for funestra in FunTimeFunestra.SATELLITES),
         said_to_core("{words}"),
+        trash_file_line("C:/v/scene one.mp4", "C:/t/scene one.mp4"),
     ]
     return {_as_published(line) for line in written}
 

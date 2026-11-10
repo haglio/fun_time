@@ -105,6 +105,7 @@ class GenauHost:
     say_no_other_flicks: Callable[[], None] = lambda: None
     say: Callable[[str], None] = lambda _words: None
     set_volume: Callable[[int, bool], None] | None = None
+    tell_where_it_went: Callable[[Path, Path], None] = lambda _flick, _landed: None
 
 
 @dataclass(frozen=True)
@@ -147,7 +148,8 @@ def build_genau_engine(
         loader=loader,
         renderer=renderer,
         notifier=host.notifier,
-        condemn_flick=lambda flick: _condemn(flick, host.condemned_to(flick), log, start_thread),
+        condemn_flick=lambda flick: _condemn(
+            _Condemning(flick, host.condemned_to(flick), host.tell_where_it_went, log), start_thread),
     ))
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     learned = LearnedMotionState(model=load_default_model())
@@ -238,23 +240,33 @@ def _narrow(selection: FlickSelectionController, scan: Callable[[], list[Path]],
         nothing_left()
 
 
-def _condemn(flick: Path, trash_dir: Path, log: logging.Logger, start_thread) -> None:
-    if not _still_open_after_trying(flick, trash_dir, log):
+@dataclass(frozen=True)
+class _Condemning:
+    flick: Path
+    trash_dir: Path
+    tell_where_it_went: Callable[[Path, Path], None]
+    log: logging.Logger
+
+
+def _condemn(condemning: _Condemning, start_thread) -> None:
+    if not _still_open_after_trying(condemning):
         return
-    log.info("%s is still open; condemning it once it is let go", flick.name)
-    start_thread(target=_condemn_once_let_go, args=(flick, trash_dir, log), name="genau-condemn")
+    condemning.log.info("%s is still open; condemning it once it is let go", condemning.flick.name)
+    start_thread(target=_condemn_once_let_go, args=(condemning,), name="genau-condemn")
 
 
-def _condemn_once_let_go(flick: Path, trash_dir: Path, log: logging.Logger) -> None:
+def _condemn_once_let_go(condemning: _Condemning) -> None:
     give_up_at = time.monotonic() + CONDEMN_PATIENCE_S
     while time.monotonic() < give_up_at:
         time.sleep(CONDEMN_RETRY_S)
-        if not _still_open_after_trying(flick, trash_dir, log):
+        if not _still_open_after_trying(condemning):
             return
-    log.error("%s was still open after %gs, so it was not condemned", flick.name, CONDEMN_PATIENCE_S)
+    condemning.log.error("%s was still open after %gs, so it was not condemned",
+                         condemning.flick.name, CONDEMN_PATIENCE_S)
 
 
-def _still_open_after_trying(flick: Path, trash_dir: Path, log: logging.Logger) -> bool:
+def _still_open_after_trying(condemning: _Condemning) -> bool:
+    flick, trash_dir, log = condemning.flick, condemning.trash_dir, condemning.log
     try:
         landed = move_flick_to_trash(flick, trash_dir)
     except PermissionError:
@@ -266,4 +278,5 @@ def _still_open_after_trying(flick: Path, trash_dir: Path, log: logging.Logger) 
         log.info("Flick %s was already gone; nothing to condemn", flick.name)
     else:
         log.info("Condemned %s to %s", flick.name, trash_dir)
+        condemning.tell_where_it_went(flick, landed)
     return False
