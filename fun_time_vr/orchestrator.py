@@ -57,6 +57,7 @@ from fun_time.modes import (
 )
 from fun_time.orchestrator import (
     ensure_runtime_files,
+    no_origenerator_set_up,
     require_dir,
     stamp_the_users_pin_outside_every_checkout,
     tell_the_hidden_launcher_startup_resolved,
@@ -784,6 +785,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         logger.info("Config validation succeeded")
         return 0
+
+    if no_origenerator_set_up(config, log=logger.error):
+        tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)
+        return 1
 
     if engine_missing_abort(config, log=logger.error):
         tell_the_hidden_launcher_startup_resolved(config, VR_STARTUP_MARKER_NAME)

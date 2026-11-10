@@ -13,7 +13,7 @@ from .branch_session import describe_the_session_on_the_taskbar
 from .checkout_overrides import apply_this_checkouts_overrides
 from .config import DEFAULT_CONFIG_PATH, load_config
 from .event_log import open_event_log
-from .funestra_deaths import show_funestra_died_alert
+from .funestra_deaths import NO_ORIGENERATOR_SET_UP, show_funestra_died_alert
 from .funestra_engine import engine_missing_abort
 from .headset_power import put_the_headset_to_sleep, wake_the_headset
 from .manifest import write_windows_bridge_manifest
@@ -79,6 +79,14 @@ def validate_config(config) -> None:
     require_dir(config.paths.genau_audio_dir)
     require_file(config.project_dir / HOTKEY_SCRIPT_NAME)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
+
+
+def no_origenerator_set_up(config, *, log) -> bool:
+    if config.paths.origenerator_dir is not None:
+        return False
+    log(NO_ORIGENERATOR_SET_UP)
+    show_funestra_died_alert(NO_ORIGENERATOR_SET_UP)
+    return True
 
 
 def run_windows_bridge(config, logger, env: SessionEnvironment, loading_screen: RaisedLoadingScreen) -> SessionOver:
@@ -162,6 +170,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         logger.info("Config validation succeeded")
         return 0
+
+    if no_origenerator_set_up(config, log=logger.error):
+        tell_the_hidden_launcher_startup_resolved(config)
+        return 1
 
     open_event_log(state_dir)
     loading_screen = open_the_loading_screen(

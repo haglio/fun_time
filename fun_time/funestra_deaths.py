@@ -101,6 +101,11 @@ def part_closed_message(part: str) -> str:
             f"so the whole session was closed with it.")
 
 
+NO_ORIGENERATOR_SET_UP = (
+    "Fun Time stopped starting up: no Origenerator is set up (paths.origenerator_dir in "
+    "fun_time_config.json is empty), so the Satellite Funestras would have had nothing to play.")
+
+
 def origenerator_never_came_up_message() -> str:
     return ("Fun Time stopped starting up: Origenerator Core never finished starting, "
             "so the Satellite Funestras would have had nothing to play.")
