@@ -19,6 +19,15 @@ def _main_list_build(tmp_path, settings: MainListSettings, **build) -> MainListB
                          settings=settings, main_funestra_cmd_file=tmp_path / "cmd.txt", **build)
 
 
+def _full_videos_for_want_of_a_record(tmp_path, *names: str) -> list:
+    library = tmp_path / "library"
+    library.mkdir()
+    videos = [library / name for name in names]
+    for video in videos:
+        video.write_text("x", encoding="utf-8")
+    return videos
+
+
 def test_a_rebuild_writes_the_list_from_the_video_on_screen(tmp_path):
     library = tmp_path / "library"
     library.mkdir()
@@ -59,11 +68,8 @@ def test_a_rebuild_tells_the_main_funestra_its_f_mode_on_the_write_the_reload_ri
 
 
 def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so(tmp_path, caplog):
-    library = tmp_path / "library"
-    library.mkdir()
-    on_screen, other = library / "scene one.mp4", library / "scene two.mp4"
-    for video in (on_screen, other):
-        video.write_text("x", encoding="utf-8")
+    on_screen, _other = _full_videos_for_want_of_a_record(
+        tmp_path, "scene one.mp4", "scene two.mp4")
     build = _main_list_build(tmp_path, MainListSettings(length=LengthMode.CLIPS),
                              on_screen=str(on_screen))
 
@@ -90,9 +96,7 @@ def test_a_press_that_leaves_videos_says_what_it_asked_for(tmp_path, caplog):
 
 
 def test_a_press_that_leaves_no_video_says_only_that(tmp_path, caplog):
-    library = tmp_path / "library"
-    library.mkdir()
-    (library / "scene one.mp4").write_text("x", encoding="utf-8")
+    _full_videos_for_want_of_a_record(tmp_path, "scene one.mp4")
     build = _main_list_build(tmp_path, MainListSettings(length=LengthMode.CLIPS),
                              says="Clips only")
 

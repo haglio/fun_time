@@ -136,7 +136,8 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
         size = path.stat().st_size
     except OSError:
         return [], 0
-    if size < offset:
+    a_new_session_cut_the_file_shorter = size < offset
+    if a_new_session_cut_the_file_shorter:
         offset = 0
     if size == offset:
         return [], offset

@@ -35,8 +35,12 @@ def test_the_origenerator_button_is_dim_until_that_app_is_up():
     assert "starting" not in ready[1].tooltip
 
 
-def _rgb(pixels: np.ndarray, rect, *, inset: int = 2) -> np.ndarray:
+_CORNERS_BLENDING_INTO_THE_GROUND_PX = 2
+
+
+def _rgb_inside_the_corners(pixels: np.ndarray, rect) -> np.ndarray:
     x, y, width, height = rect
+    inset = _CORNERS_BLENDING_INTO_THE_GROUND_PX
     return pixels[y + inset:y + height - inset, x + inset:x + width - inset, :3]
 
 
@@ -45,7 +49,7 @@ def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
         funestra="portrait", rows=(mode_row("portrait", mode=ORIGENERATOR_MODE),)))
     hud_rect = next(rect for rect, button in hud.targets.buttons
                     if button.icon == "Origenerator")
-    hud_rgb = _rgb(hud.bgra[:, :, [2, 1, 0, 3]], hud_rect)
+    hud_rgb = _rgb_inside_the_corners(hud.bgra[:, :, [2, 1, 0, 3]], hud_rect)
 
     placed = place_selector(selector_buttons(RfbMode.ORIGENERATOR, origenerator_ready=True),
                          x=10, y=10)
@@ -53,7 +57,7 @@ def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
     strip_rect = next(rect for rect, button in placed if button.icon == "Origenerator")
 
     assert (strip_rect[2], strip_rect[3]) == (hud_rect[2], hud_rect[3])
-    assert np.array_equal(_rgb(strip, strip_rect), hud_rgb)
+    assert np.array_equal(_rgb_inside_the_corners(strip, strip_rect), hud_rgb)
 
 
 def test_a_hovered_button_lightens_as_a_huds_does_and_a_dim_one_does_not():
@@ -63,6 +67,6 @@ def test_a_hovered_button_lightens_as_a_huds_does_and_a_dim_one_does_not():
     def drawn(hovered):
         return np.asarray(paint_selector((400, 38), placed, hovered=hovered))
 
-    assert not np.array_equal(_rgb(drawn(browser), browser), _rgb(drawn(None), browser))
-    assert np.array_equal(_rgb(drawn(origenerator), origenerator),
-                          _rgb(drawn(None), origenerator))
+    assert not np.array_equal(_rgb_inside_the_corners(drawn(browser), browser), _rgb_inside_the_corners(drawn(None), browser))
+    assert np.array_equal(_rgb_inside_the_corners(drawn(origenerator), origenerator),
+                          _rgb_inside_the_corners(drawn(None), origenerator))

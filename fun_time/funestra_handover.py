@@ -68,8 +68,12 @@ def slideshows_enhancement(
     return state, []
 
 
+def _the_app_has_published_nothing_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
+    return hud_stamp(channel) == stamp
+
+
 def taken_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
-    if hud_stamp(channel) == stamp:
+    if _the_app_has_published_nothing_since(channel, stamp):
         return False
     try:
         return bool(channel.origenerator_hud_file.read_text(encoding="utf-8").strip())
@@ -78,7 +82,7 @@ def taken_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
 
 
 def let_go_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
-    if hud_stamp(channel) == stamp:
+    if _the_app_has_published_nothing_since(channel, stamp):
         return False
     try:
         return not channel.origenerator_hud_file.read_text(encoding="utf-8").strip()
@@ -164,7 +168,9 @@ class Homecoming:
                 del self._coming[funestra]
                 continue
             channel = config.satellite(funestra)
-            if now < deadline and not let_go_since(channel, stamp):
+            the_app_may_yet_write_its_list_over_ours = (
+                now < deadline and not let_go_since(channel, stamp))
+            if the_app_may_yet_write_its_list_over_ours:
                 continue
             del self._coming[funestra]
             hand_back(channel, onto=left_on(funestra))

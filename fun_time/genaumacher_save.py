@@ -37,6 +37,8 @@ def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
 
 
 LOGGED_ALREADY_WITH_NOTHING_TO_FLASH = ""
+_GENAUMACHERS_OWN_FAILURES = (OSError, subprocess.SubprocessError)
+_LEVEL_OF_A_FAILED_SAVES_ONLY_WORD = logging.ERROR
 
 
 def save_clip_session(config: BridgeConfig) -> str:
@@ -63,10 +65,11 @@ def save_clip_session(config: BridgeConfig) -> str:
             logger.info("genaumacher_save: %s", session_path)
             name = Path(session_path).stem if session_path else "session"
             return f"Genaumacher: {name}"
-        logger.error("genaumacher_save failed: %s", result.stderr.strip())
+        logger.log(_LEVEL_OF_A_FAILED_SAVES_ONLY_WORD,
+                   "genaumacher_save failed: %s", result.stderr.strip())
         return LOGGED_ALREADY_WITH_NOTHING_TO_FLASH
-    except (OSError, subprocess.SubprocessError) as exc:
-        logger.error("genaumacher_save error: %s", exc)
+    except _GENAUMACHERS_OWN_FAILURES as exc:
+        logger.log(_LEVEL_OF_A_FAILED_SAVES_ONLY_WORD, "genaumacher_save error: %s", exc)
         return LOGGED_ALREADY_WITH_NOTHING_TO_FLASH
 
 

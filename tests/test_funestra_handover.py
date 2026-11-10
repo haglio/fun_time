@@ -22,6 +22,11 @@ def _playing(channel: SatelliteChannel, video: str) -> None:
     channel.status_file.write_text(f"video={video}\n", encoding="utf-8")
 
 
+def _the_hosted_app_writes_its_own_list_over(channel: SatelliteChannel) -> None:
+    write_playlist(channel.playlist_file,
+                   [PlaylistItem(channel.playlist_file.parent / "image.png")])
+
+
 def test_coming_home_lands_the_funestra_on_the_video_it_left(tmp_path):
     channel = _channel(tmp_path)
     write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / name)
@@ -29,7 +34,7 @@ def test_coming_home_lands_the_funestra_on_the_video_it_left(tmp_path):
     _playing(channel, str(tmp_path / "two.mp4"))
 
     keep_aside(channel)
-    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
+    _the_hosted_app_writes_its_own_list_over(channel)
     assert hand_back(channel) is True
 
     assert _paths(channel.playlist_file) == ["two.mp4", "three.mp4", "one.mp4"]
@@ -42,7 +47,7 @@ def test_coming_home_lands_on_the_video_it_had_moved_on_to_before_the_app_took_i
                                         for name in ("one.mp4", "two.mp4", "three.mp4")])
     _playing(channel, str(tmp_path / "one.mp4"))
     keep_aside(channel)
-    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
+    _the_hosted_app_writes_its_own_list_over(channel)
 
     assert hand_back(channel, onto=str(tmp_path / "two.mp4")) is True
 
@@ -98,7 +103,7 @@ def test_a_satellite_that_never_came_home_keeps_the_list_it_left_with(tmp_path):
     channel = _channel(tmp_path)
     write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "one.mp4")])
     keep_aside(channel)
-    write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "image.png")])
+    _the_hosted_app_writes_its_own_list_over(channel)
 
     keep_aside(channel)
 

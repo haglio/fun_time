@@ -3,14 +3,15 @@ from __future__ import annotations
 import subprocess
 import sys
 
-QT_FREE = (
+_RULES_THE_SESSIONS_MESSAGE_FEED_READS = ("fun_time.message_placement",)
+_TESTED_WITHOUT_A_QAPPLICATION = (
     "fun_time.log_panel_model",
-    "fun_time.message_placement",
     "fun_time.event_log",
     "fun_time.dashboard_layout",
     "fun_time.dashboard_bridge",
     "fun_time.dashboard_runtime",
 )
+QT_FREE = (*_RULES_THE_SESSIONS_MESSAGE_FEED_READS, *_TESTED_WITHOUT_A_QAPPLICATION)
 
 
 def test_the_pure_halves_load_without_the_window_toolkit():
