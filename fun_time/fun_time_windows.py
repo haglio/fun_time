@@ -47,6 +47,14 @@ def find_origenerators_window(pid: int) -> int:
     return find_window_for_process(pid, is_origenerators_caption, include_hidden=True)
 
 
+def _minimize_to_its_taskbar_button(hwnd: int) -> None:
+    minimize_window(hwnd, activate_the_next_window=False)
+
+
+def _restore_where_windows_kept_it(hwnd: int) -> None:
+    restore_window(hwnd, activate=False)
+
+
 @dataclass(frozen=True)
 class ChildPids:
     main_funestra: int = 0
@@ -62,12 +70,12 @@ class FunTimeWindows:
         *,
         pids: ChildPids,
         rfb_hwnd: int = 0,
-        hwnds_by_window: dict[str, int] | None = None,
+        hwnds_seen_while_visible: dict[str, int] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.pids = pids
         self.rfb_hwnd = rfb_hwnd
-        self._hwnds_kept_for_when_hidden: dict[str, int] = dict(hwnds_by_window or {})
+        self._hwnds_kept_for_when_hidden: dict[str, int] = dict(hwnds_seen_while_visible or {})
         self.clock = clock
         self._pending_hides: dict[str, float] = {}
         self._parked_hwnds: list[int] = []
@@ -110,12 +118,11 @@ class FunTimeWindows:
                 )
         return hwnd
 
-
     def show(self, window_name: str) -> None:
         self._pending_hides.pop(window_name, None)
         hwnd = self.hwnd(window_name)
         if hwnd:
-            restore_window(hwnd, activate=False)
+            _restore_where_windows_kept_it(hwnd)
 
     def activate(self, window_name: str) -> None:
         hwnd = self.hwnd(window_name)
@@ -138,19 +145,19 @@ class FunTimeWindows:
     def minimize(self, window_name: str) -> None:
         hwnd = self.hwnd(window_name)
         if hwnd:
-            minimize_window(hwnd, activate=False)
+            _minimize_to_its_taskbar_button(hwnd)
 
     def park(self, window_name: str) -> None:
         hwnd = self.hwnd(window_name)
         if not hwnd:
             return
-        self.minimize(window_name)
+        _minimize_to_its_taskbar_button(hwnd)
         if hwnd not in self._parked_hwnds:
             self._parked_hwnds.append(hwnd)
 
     def restore_parked(self) -> None:
         for hwnd in self._parked_hwnds:
-            restore_window(hwnd, activate=False)
+            _restore_where_windows_kept_it(hwnd)
         self._parked_hwnds = []
 
     def minimize_all(self, window_names: Iterable[str]) -> None:
@@ -158,12 +165,12 @@ class FunTimeWindows:
         for window_name in window_names:
             hwnd = self.hwnd(window_name)
             if hwnd:
-                minimize_window(hwnd, activate=False)
+                _minimize_to_its_taskbar_button(hwnd)
                 self._minimized_hwnds.append(hwnd)
 
     def restore_minimized(self) -> None:
         for hwnd in self._minimized_hwnds:
-            restore_window(hwnd, activate=False)
+            _restore_where_windows_kept_it(hwnd)
         self._minimized_hwnds = []
         self._parked_hwnds = []
 
@@ -190,7 +197,6 @@ class FunTimeWindows:
                 moves.append((growth, hwnd, rect))
         for _growth, hwnd, rect in sorted(moves, key=lambda move: move[0]):
             place_window(hwnd, rect.x, rect.y, rect.width, rect.height)
-
 
     def remove_all_topmost(self) -> None:
         for window_name in MANAGED_WINDOWS:
@@ -226,11 +232,11 @@ class FunTimeWindows:
         minimized = is_window_minimized(hwnd)
         if rfb_mode is RfbMode.ORIGENERATOR:
             if minimized:
-                restore_window(hwnd, activate=False)
+                _restore_where_windows_kept_it(hwnd)
             if minimized or self._an_rfb_mode_window_out_of_its_band(rfb_mode):
                 self.restack_rfb_mode(rfb_mode)
         elif not minimized:
-            minimize_window(hwnd, activate=False)
+            _minimize_to_its_taskbar_button(hwnd)
 
     def _an_rfb_mode_window_out_of_its_band(self, rfb_mode: RfbMode) -> bool:
         return any(is_window_topmost(hwnd) != window_is_topmost(window_name, rfb_mode)

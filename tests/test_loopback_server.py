@@ -77,6 +77,19 @@ def test_reflects_edits_without_a_restart(tmp_path):
         server.shutdown()
 
 
+def test_http_servers_stderr_line_per_request_is_silenced(tmp_path, capsys):
+    script = tmp_path / USERSCRIPT_NAME
+    script.write_text("// x\n", encoding="utf-8")
+    server = make_server(port=0, script_path=script)
+    port = _serve(server)
+    try:
+        with _get(port, f"/{USERSCRIPT_NAME}") as resp:
+            resp.read()
+    finally:
+        server.shutdown()
+    assert capsys.readouterr().err == ""
+
+
 def test_other_paths_are_404(tmp_path):
     script = tmp_path / USERSCRIPT_NAME
     script.write_text("// x\n", encoding="utf-8")
@@ -90,7 +103,7 @@ def test_other_paths_are_404(tmp_path):
         server.shutdown()
 
 
-def test_reports_the_live_omnipause_state(tmp_path):
+def test_a_pause_entered_while_a_page_is_open_reaches_its_next_ask(tmp_path):
     script = tmp_path / USERSCRIPT_NAME
     script.write_text("// x\n", encoding="utf-8")
     paused = False

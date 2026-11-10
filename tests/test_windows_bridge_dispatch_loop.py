@@ -162,7 +162,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
             origenerator=kwargs.pop("origenerator_pid", 0),
         ),
         rfb_hwnd=kwargs.pop("rfb_hwnd", 0),
-        hwnds_by_window=kwargs.pop("hwnds_by_window", None),
+        hwnds_seen_while_visible=kwargs.pop("hwnds_by_window", None),
         **({"clock": kwargs.pop("clock")} if "clock" in kwargs else {}),
     )
     start = {name: kwargs.pop(name) for name in (
@@ -750,7 +750,7 @@ class TestDispatchLoopRunner:
         assert {h for h, _ in minimized} == {
             RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND,
         }
-        assert all(kw.get("activate") is False for _, kw in minimized)
+        assert all(kw.get("activate_the_next_window") is False for _, kw in minimized)
 
     def test_omniminimize_in_genau_mode_includes_the_main_funestra_too(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -821,7 +821,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert [h for h, _ in minimized] == [PORTRAIT_HWND]
-        assert all(kw.get("activate") is False for _, kw in minimized), (
+        assert all(kw.get("activate_the_next_window") is False for _, kw in minimized), (
             "parking one Funestra must not hand the foreground to the next")
 
     def test_a_huds_minimize_button_parks_the_window_still_showing_its_video(self, tmp_path):

@@ -25,7 +25,11 @@ from .overlay_progress import (
     what_the_flag_asks,
 )
 from .project_paths import PROJECT_ICON
-from .win32 import create_hidden_topmost_window, find_window_by_title, set_always_on_top
+from .win32 import (
+    create_the_topmost_floor_a_promotion_beneath_needs,
+    find_window_by_title,
+    set_always_on_top,
+)
 
 POLL_MS = 200
 
@@ -43,7 +47,7 @@ def opening_panel(status: str) -> LoadingPanel:
 
 
 def _lay_a_topmost_floor_under_the_screen() -> None:
-    create_hidden_topmost_window()
+    create_the_topmost_floor_a_promotion_beneath_needs()
 
 
 class Canvas(Protocol):

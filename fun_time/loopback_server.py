@@ -16,6 +16,7 @@ USERSCRIPT_NAME = "regen_autofill.user.js"
 EXAMPLE_USERSCRIPT_NAME = "regen_autofill.example.user.js"
 
 OMNIPAUSE_PATH = "/omnipause"
+WHAT_TAMPERMONKEY_EXPECTS_AT_A_USER_JS_URL = "text/javascript; charset=utf-8"
 
 
 def userscript_path() -> Path:
@@ -46,7 +47,7 @@ def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
             except OSError:
                 self.send_error(404)
                 return
-            self._respond(body, "text/javascript; charset=utf-8")
+            self._respond(body, WHAT_TAMPERMONKEY_EXPECTS_AT_A_USER_JS_URL)
 
         def _respond(self, body: bytes, content_type: str, *, allow_any_origin: bool = False) -> None:
             self.send_response(200)

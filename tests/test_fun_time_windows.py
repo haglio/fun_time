@@ -48,10 +48,12 @@ def make_windows(**overrides) -> FunTimeWindows:
     return FunTimeWindows(pids=ChildPids(**pids), **overrides)
 
 
-def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
-    windows = FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID), hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
+def test_a_window_hidden_since_startup_is_reached_by_its_startup_handle():
+    windows = FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID),
+                             hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
 
-    assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
+    with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0),          patch("fun_time.fun_time_windows.find_window_by_title", return_value=0):
+        assert windows.hwnd("main_funestra") == MAIN_FUNESTRA_HWND
 
 
 def test_with_no_pids_and_no_window_found_every_window_op_is_a_no_op():
@@ -138,7 +140,7 @@ class TestResolveRole:
 class TestParking:
     def test_a_mode_switch_holds_its_outgoing_funestra_up_for_the_settle(self):
         clock = HandDrivenClock()
-        windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
+        windows = make_windows(clock=clock, hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
 
         minimized: list[int] = []
         with patch("fun_time.fun_time_windows.minimize_window",
@@ -151,6 +153,11 @@ class TestParking:
             windows.flush_pending_hides()
 
         assert minimized == [MAIN_FUNESTRA_HWND]
+
+    def test_the_settle_is_generous_next_to_the_two_frames_a_window_needs(self):
+        two_frames_at_60_hz_s = 2 / 60
+
+        assert 5 * two_frames_at_60_hz_s <= MAIN_BLANK_SETTLE_S
 
 
 class TestTopmostBands:
@@ -266,7 +273,7 @@ class TestOrigeneratorWindowConverger:
              _minimized(False), \
              patch("fun_time.fun_time_windows.minimize_window") as minimize:
             windows.converge_origenerator_window(RfbMode.RFB)
-        minimize.assert_called_once_with(4242, activate=False)
+        minimize.assert_called_once_with(4242, activate_the_next_window=False)
 
     def test_without_a_hosted_app_the_converger_is_inert(self):
         windows = make_windows()
@@ -279,7 +286,7 @@ TOP_MODE_SELECTOR = WindowRect(2560, 0, 1440, 940)
 
 
 def test_placing_a_window_moves_it_onto_its_rect():
-    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
+    windows = make_windows(hwnds_seen_while_visible={"portrait": PORTRAIT_HWND})
 
     with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 2500)), \
          _minimized(False), \
@@ -290,7 +297,7 @@ def test_placing_a_window_moves_it_onto_its_rect():
 
 
 def test_a_window_already_on_its_rect_is_left_alone():
-    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
+    windows = make_windows(hwnds_seen_while_visible={"portrait": PORTRAIT_HWND})
 
     with patch("fun_time.fun_time_windows.window_rect", return_value=(2560, 0, 1440, 940)), \
          _minimized(False), \
@@ -301,7 +308,7 @@ def test_a_window_already_on_its_rect_is_left_alone():
 
 
 def test_a_minimized_window_is_left_where_it_was_until_it_is_back():
-    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND})
+    windows = make_windows(hwnds_seen_while_visible={"portrait": PORTRAIT_HWND})
 
     with patch("fun_time.fun_time_windows.window_rect", return_value=(-32000, -32000, 160, 28)), \
          _minimized(True), \
@@ -325,7 +332,7 @@ def test_a_window_nobody_has_found_yet_is_not_placed():
 
 
 def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_app():
-    windows = make_windows(hwnds_by_window={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND})
+    windows = make_windows(hwnds_seen_while_visible={"portrait": PORTRAIT_HWND, "main_funestra": MAIN_FUNESTRA_HWND})
     now = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}
 
     with patch("fun_time.fun_time_windows.window_rect", side_effect=now.get), \
@@ -340,7 +347,7 @@ class TestParkedAndMinimized:
     def _windows(self) -> FunTimeWindows:
         return make_windows(
             clock=HandDrivenClock(),
-            hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND, "portrait": PORTRAIT_HWND},
+            hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND, "portrait": PORTRAIT_HWND},
         )
 
     def _restored_by(self, action) -> list[int]:
@@ -353,7 +360,7 @@ class TestParkedAndMinimized:
 
     def test_showing_a_window_cancels_the_minimize_waiting_on_its_settle(self):
         clock = HandDrivenClock()
-        windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
+        windows = make_windows(clock=clock, hwnds_seen_while_visible={"main_funestra": MAIN_FUNESTRA_HWND})
         minimized: list[int] = []
 
         with patch("fun_time.fun_time_windows.minimize_window",
@@ -365,6 +372,14 @@ class TestParkedAndMinimized:
             windows.flush_pending_hides()
 
         assert minimized == []
+
+    def test_a_parked_satellite_keeps_its_taskbar_button_as_the_way_back(self):
+        windows = self._windows()
+
+        with patch("fun_time.fun_time_windows.minimize_window") as minimize:
+            windows.park("portrait")
+
+        minimize.assert_called_once_with(PORTRAIT_HWND, activate_the_next_window=False)
 
     def test_a_window_a_mode_minimizes_is_not_one_the_next_resume_restores(self):
         windows = self._windows()

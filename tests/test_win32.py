@@ -14,6 +14,7 @@ from unittest.mock import call, patch
 
 from fun_time import win32, win32_process
 from fun_time.dashboard_layout import Rect
+from fun_time.fun_time_windows import find_origenerators_window
 from fun_time.win32 import (
     GWL_EXSTYLE,
     HWND_NOTOPMOST,
@@ -45,8 +46,11 @@ from fun_time.win32_process import (
     is_process_alive,
     process_table,
 )
+from fun_time.window_names import MANAGED_WINDOWS, ORIGENERATOR_TITLE
 from tests.child_reports import an_interpreter_asleep
 from tests.sleeps import sleeps_in
+
+SWP_ASYNCWINDOWPOS = 0x4000
 
 
 def _user32_mocked():
@@ -168,7 +172,7 @@ class TestAWindowThatHasStoppedAnswering:
         finally:
             released.set()
 
-    def test_our_own_windows_are_called_straight(self, monkeypatch):
+    def test_our_own_windows_are_called_on_the_thread_that_would_answer_them(self, monkeypatch):
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: True)
         threads: list[str] = []
@@ -184,11 +188,24 @@ class TestAWindowThatHasStoppedAnswering:
         with self._stalled(monkeypatch):
             started = time.monotonic()
             set_always_on_top(111, True)
-            minimize_window(111, activate=False)
+            minimize_window(111, activate_the_next_window=False)
             restore_window(111, activate=False)
             move_window(111, Rect(0, 0, 10, 10))
 
             assert time.monotonic() - started < 5
+
+    def test_a_pass_over_every_managed_window_stalled_costs_a_few_seconds(self):
+        assert len(MANAGED_WINDOWS) * win32.STALLED_WINDOW_TIMEOUT_S < 10
+
+    def test_no_call_is_posted_for_the_window_to_take_out_of_order(self):
+        with _user32_mocked() as mock:
+            set_always_on_top(111, True)
+            win32.place_window(111, 0, 0, 10, 10)
+            move_window(111, Rect(0, 0, 10, 10))
+
+        flags = [placed.args[-1] for placed in mock.SetWindowPos.call_args_list]
+        assert len(flags) == 3
+        assert not [flag for flag in flags if flag & SWP_ASYNCWINDOWPOS]
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
         with (
@@ -292,9 +309,9 @@ class TestMinimizeWindow:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
 
-    def test_no_activate_uses_sw_showminnoactive(self):
+    def test_a_minimize_that_leaves_the_next_window_inactive_uses_sw_showminnoactive(self):
         with _user32_mocked() as mock_user32:
-            minimize_window(99999, activate=False)
+            minimize_window(99999, activate_the_next_window=False)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_SHOWMINNOACTIVE)
 
 
@@ -692,6 +709,15 @@ class TestFindWindowForProcess:
             self._enumerating(mock, [(11, 999, "Origenerator")])
             assert win32.find_window_for_process(500, "Origenerator") == 0
 
+    def test_his_standalone_origenerator_under_the_same_caption_is_not_the_hosted_one(
+            self, monkeypatch):
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        standalone, hosted = 999, 500
+        with _user32_mocked() as mock:
+            self._enumerating(mock, [(11, standalone, ORIGENERATOR_TITLE),
+                                     (12, hosted, ORIGENERATOR_TITLE)])
+            assert find_origenerators_window(hosted) == 12
+
     def test_a_launchers_child_owns_the_window_and_still_resolves(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda pid: [pid + 1])
         with _user32_mocked() as mock:
@@ -833,7 +859,7 @@ class TestIterZorder:
 
         mock.GetWindowRect.side_effect = rect_of
 
-    def test_the_walk_reports_front_to_back(self):
+    def test_the_walk_follows_the_stacking_order_which_enumwindows_does_not_promise(self):
         with _user32_mocked() as mock:
             self._stack(mock, [
                 (11, "Main Funestra", True, False, (0, 0, 100, 200)),
@@ -841,6 +867,7 @@ class TestIterZorder:
             ])
             stacked = win32.iter_zorder()
 
+        mock.EnumWindows.assert_not_called()
         assert [w.hwnd for w in stacked] == [11, 12]
         assert [w.title for w in stacked] == ["Main Funestra", "Fun Time"]
         assert stacked[1].rect == (100, 0, 300, 400)
@@ -928,10 +955,10 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert mock.ShowWindow.call_args_list == [
             call(4242, win32.SW_HIDE), call(4242, win32.SW_SHOW)]
 
-    def test_the_hidden_topmost_window_is_topmost_never_shown_and_never_focused(self):
+    def test_the_topmost_floor_is_topmost_never_shown_and_never_focused(self):
         with _user32_mocked() as mock:
             mock.CreateWindowExW.return_value = 4242
-            assert win32.create_hidden_topmost_window() == 4242
+            assert win32.create_the_topmost_floor_a_promotion_beneath_needs() == 4242
 
         ex_style, _class, _title, style = mock.CreateWindowExW.call_args.args[:4]
         assert ex_style & win32.WS_EX_TOPMOST

@@ -612,7 +612,7 @@ def seat_the_secondary_monitor(manifest: LaunchManifest, hwnds_by_window: dict[s
         return
     most = majority_now(state, Path(manifest.commands.main_funestra_status_file),
                         Path(manifest.commands.genau_status_file))
-    FunTimeWindows(pids=ChildPids(), hwnds_by_window=hwnds_by_window).seat(rects(majority=most))
+    FunTimeWindows(pids=ChildPids(), hwnds_seen_while_visible=hwnds_by_window).seat(rects(majority=most))
 
 
 def _reveal_the_app(
@@ -840,7 +840,7 @@ def _build_the_dispatch_loop(
                     origenerator=result.origenerator_pid,
                 ),
                 rfb_hwnd=result.rfb_hwnd,
-                hwnds_by_window=result.hwnds_by_window,
+                hwnds_seen_while_visible=result.hwnds_by_window,
             ),
             rfb_shortcut=rfb_shortcut,
             rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,

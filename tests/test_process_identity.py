@@ -51,9 +51,13 @@ class TestTheRolesThisRepoLaunches:
             assert re.match(NAMER.process_name_pattern, name), name
 
     def test_the_sweep_pattern_leaves_everything_else_alone(self):
-        for name in ("notepad.exe", "mypythonw.exe", "FunTimeOther.exe",
-                     "python3.exe", "Broker-Tray.exe"):
+        for name in ("notepad.exe", "mypythonw.exe", "FunTimeOther.exe", "python3.exe"):
             assert not re.match(NAMER.process_name_pattern, name), name
+
+    def test_the_broker_names_its_own_processes_and_the_namer_claims_none(self):
+        for name in ("Broker-Tray.exe", "Broker-Broker.exe"):
+            assert not re.match(NAMER.process_name_pattern, name), name
+            assert not NAMER.owns_exe_name(name), name
 
     def test_each_one_reads_as_english_under_the_app_s_own_name(self):
         assert NAMER.description("AudioCompanion") == "Fun Time \u2013 Audio Companion"
