@@ -52,11 +52,11 @@ from fun_time.session_handoff import (
     wait_for_the_session_to_let_go,
 )
 from fun_time_vr.orchestrator import VR_STARTUP_MARKER_NAME
-from tests.test_launch_smoke import LAUNCHED
-from tests.test_single_instance import (
+from tests.mutex_handles import (
     a_handle_windows_keeps_the_name_alive_for,
     close_the_handle,
 )
+from tests.test_launch_smoke import LAUNCHED
 
 REPO = Path(__file__).resolve().parents[1]
 LAUNCHERS = ("launch.vbs", "launch_vr.vbs")

@@ -122,7 +122,7 @@ def test_the_shortcut_line_says_when_the_chain_is_empty(checkouts):
         checkouts.worktree, checkouts.primary, config_path=checkouts.config_path)
 
     assert "the shared code its venv installs" in line
-    assert "would show nothing here" in line
+    assert "the session would show no branch of that code" in line
 
 
 def test_the_shortcut_line_reads_the_worktrees_own_override_first(checkouts):
@@ -381,7 +381,7 @@ pytestmark_shortcut = pytest.mark.skipif(
 
 
 @pytestmark_shortcut
-def test_the_shortcut_lands_in_its_own_worktree_where_no_other_agent_tidies(primary_with_launcher):
+def test_the_shortcut_stays_out_of_the_folder_every_agent_sweeps(primary_with_launcher):
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
@@ -494,16 +494,10 @@ def test_a_worktree_on_no_branch_is_named_after_its_directory():
     )
 
 
-def test_a_shortcut_carries_the_branch_name_he_was_told_not_the_folders_slug():
-    worktree = Path("C:/checkouts/.claude/worktrees/wonderful-ellis-fbdb9e")
+def test_a_shortcut_is_named_for_the_branch_an_agent_tells_him():
+    a_folder_slug_he_never_saw = Path("C:/checkouts/.claude/worktrees/wonderful-ellis-fbdb9e")
 
-    assert branch_session.shortcut_name(worktree, "claude/some-branch") == (
-        "Verify claude-some-branch.lnk"
-    )
-
-
-def test_a_branch_name_becomes_a_filename_windows_will_take():
-    assert branch_session.shortcut_name(Path("C:/wt"), "claude/some-branch") == (
+    assert branch_session.shortcut_name(a_folder_slug_he_never_saw, "claude/some-branch") == (
         "Verify claude-some-branch.lnk"
     )
 
@@ -594,7 +588,7 @@ def test_a_shortcut_is_written_once_the_hosted_app_has_its_own_state(
     assert written.exists()
 
 
-def test_building_the_config_runs_the_seeding_whose_rules_test_branch_seeding_holds(checkouts):
+def test_the_config_build_is_wired_to_the_seeding(checkouts):
     state = checkouts.primary / "state"
     state.mkdir(parents=True)
     (state / "watch_stats.json").write_text(
@@ -957,7 +951,6 @@ def test_launch_returns_only_once_the_session_has_quit(repo_with_worktrees, monk
 
     assert quit_at == ["quit"]
     assert returncode == 7
-
 
 
 def _sibling_repo(tmp_path: Path, repo: str = "funestra", *,

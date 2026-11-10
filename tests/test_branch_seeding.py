@@ -41,7 +41,7 @@ def test_a_branch_sessions_own_watch_stats_are_not_rolled_back_by_older_ones(liv
     assert json.loads((branch_state / "watch_stats.json").read_text(encoding="utf-8")) == {"newer": {}}
 
 
-def test_a_thumbnail_already_there_is_never_stale_and_never_replaced(live, branch_state):
+def test_a_thumbnail_named_for_its_videos_mtime_is_never_replaced(live, branch_state):
     (branch_state / "hud_thumbnails").mkdir(parents=True)
     (branch_state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"already here")
     (live / "hud_thumbnails" / "def456.jpg").write_bytes(b"new one")

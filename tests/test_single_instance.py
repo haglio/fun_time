@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import ctypes
 import threading
 from pathlib import Path
 from uuid import uuid4
@@ -17,6 +16,10 @@ from fun_time.single_instance import (
     claim_the_session,
     let_the_session_go,
     show_already_running_message,
+)
+from tests.mutex_handles import (
+    a_handle_windows_keeps_the_name_alive_for,
+    close_the_handle,
 )
 
 
@@ -84,18 +87,6 @@ def _abandoned_by_a_dead_owner(name: str) -> int:
     handle = claimed[0]
     assert handle, "the owner thread could not claim the name to abandon"
     return handle
-
-
-def a_handle_windows_keeps_the_name_alive_for(name: str) -> int:
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateMutexW.restype = ctypes.c_void_p
-    return kernel32.CreateMutexW(None, False, name)
-
-
-def close_the_handle(handle: int) -> None:
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-    kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
 def test_the_mutex_name_is_the_one_every_running_session_was_started_under():

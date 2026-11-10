@@ -960,8 +960,7 @@ def test_the_flick_browser_offers_the_vr_flicks_in_either_room(tmp_path: Path, c
     assert desktop_flicks.thumbnail_cache == load_browser_config(desktop).thumbnail_cache
 
 
-def test_the_browser_is_its_own_process_the_dispatch_loop_hosting_no_qt_windows(tmp_path: Path):
-
+def test_the_browser_runs_in_a_qt_process_of_its_own(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []

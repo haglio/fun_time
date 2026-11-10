@@ -207,7 +207,7 @@ def test_fmode_on_one_funestra_leaves_the_others_playlists_untouched(tmp_path: P
     assert not main_funestra_cmd_file.exists()
 
 
-def test_f_mode_is_told_right_behind_the_reload_whose_list_cannot_show_it(tmp_path: Path):
+def test_f_mode_is_told_right_behind_the_reload(tmp_path: Path):
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
