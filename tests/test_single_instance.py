@@ -60,7 +60,17 @@ class TestClaimingTheSession:
         let_the_session_go(claimed)
         close_the_handle(kept_alive)
 
-    def test_letting_go_of_a_name_a_wedged_session_abandoned_frees_it_for_the_next(self):
+    def test_a_claim_owns_the_name_once_so_one_let_go_frees_it(self):
+        name = self._a_name()
+        claimed = claim_the_session(name)
+        kept_alive_by = a_handle_windows_keeps_the_name_alive_for(name)
+
+        let_the_session_go(claimed)
+
+        assert _claimed_elsewhere(name) is not None
+        close_the_handle(kept_alive_by)
+
+    def test_letting_go_of_an_abandoned_name_releases_it_which_closing_alone_does_not(self):
         name = self._a_name()
         wedged = _abandoned_by_a_dead_owner(name)
 

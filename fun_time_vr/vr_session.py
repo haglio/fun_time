@@ -15,7 +15,7 @@ from OpenGL import GL, WGL
 
 from fun_time import preview_marker
 from fun_time.project_paths import PROJECT_VR_ICON
-from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
+from fun_time.win32 import draw_nothing_at_all, minimize_window, set_the_icon_alt_tab_draws
 
 from .controller_bindings import ACTION_TYPES, AIM, CONTROLLER_BINDINGS, HAND_PATHS
 from .controller_reading import ControllerActions, no_hands
@@ -97,11 +97,11 @@ class VRSession(SessionStates):
         hwnd = glfw.get_win32_window(self._window)
         self._wear_the_sessions_taskbar_button(hwnd)
         draw_nothing_at_all(hwnd)
-        minimize_window(hwnd, activate=False)
+        minimize_window(hwnd, activate_the_next_window=False)
 
     @staticmethod
     def _wear_the_sessions_taskbar_button(hwnd: int) -> None:
-        set_window_icon(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
+        set_the_icon_alt_tab_draws(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
         preview_marker.dress_the_window(hwnd)
 
     def _init_openxr(self, app_name: str) -> None:

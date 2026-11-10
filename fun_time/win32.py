@@ -127,12 +127,16 @@ def window_title(hwnd: int) -> str:
     return title.value
 
 
+def _has_a_title(hwnd: int) -> bool:
+    return _user32.GetWindowTextLengthW(hwnd) > 0
+
+
 def find_windows_by_class(substring: str) -> set[int]:
     # A browser window carries the page's title and its launcher handed the URL to a running Chrome,
     # so only the window class finds it.
     return _every_window(
         lambda hwnd: bool(_user32.IsWindowVisible(hwnd))
-        and _user32.GetWindowTextLengthW(hwnd) > 0
+        and _has_a_title(hwnd)
         and substring in window_class(hwnd))
 
 
@@ -142,7 +146,7 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
             return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
-        return _user32.GetWindowTextLengthW(hwnd) > 0
+        return _has_a_title(hwnd)
 
     return _first_window(matches)
 
@@ -405,13 +409,13 @@ _user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
 
 
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
-    buf = ctypes.create_unicode_buffer(256)
+    title_text = ctypes.create_unicode_buffer(256)
 
     def matches(hwnd: int) -> bool:
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
-        _user32.GetWindowTextW(hwnd, buf, 256)
-        return buf.value == title if exact else title in buf.value
+        _user32.GetWindowTextW(hwnd, title_text, 256)
+        return title_text.value == title if exact else title in title_text.value
 
     return _first_window(matches)
 
@@ -420,9 +424,9 @@ SW_MINIMIZE = 6
 SW_SHOWMINNOACTIVE = 7
 
 
-def minimize_window(hwnd: int, *, activate: bool = True) -> None:
+def minimize_window(hwnd: int, *, activate_the_next_window: bool = True) -> None:
     _without_hanging(
-        _user32.ShowWindow, hwnd, SW_MINIMIZE if activate else SW_SHOWMINNOACTIVE,
+        _user32.ShowWindow, hwnd, SW_MINIMIZE if activate_the_next_window else SW_SHOWMINNOACTIVE,
         what=f"minimize_window({hwnd})",
     )
 
@@ -434,7 +438,7 @@ def draw_nothing_at_all(hwnd: int) -> None:
     _user32.SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA)
 
 
-def set_window_icon(hwnd: int, icon_path: str | Path) -> None:
+def set_the_icon_alt_tab_draws(hwnd: int, icon_path: str | Path) -> None:
     try:
         for which, side in ((ICON_SMALL, 16), (ICON_BIG, 32)):
             handle = _user32.LoadImageW(
@@ -489,7 +493,7 @@ _user32.CreateWindowExW.argtypes = [
 _user32.CreateWindowExW.restype = ctypes.wintypes.HWND
 
 
-def create_hidden_topmost_window() -> int:
+def create_the_topmost_floor_a_promotion_beneath_needs() -> int:
     return int(_user32.CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", None,
         WS_POPUP, 0, 0, 0, 0, None, None, None, None) or 0)
