@@ -290,6 +290,9 @@ class TestHandleHeard:
     def test_a_funestra_word_inside_a_longer_word_does_not_claim_the_report(self):
         assert voice_control._source_for_heard_text("mainly landscaped") == "system"
 
+    def test_both_names_two_funestras_and_claims_no_report(self):
+        assert voice_control._source_for_heard_text("both full length please") == "system"
+
     def test_unrecognized_speech_stays_silent_while_muted(self, tmp_path, monkeypatch):
         vc = _controller(tmp_path)
         vc.mute()

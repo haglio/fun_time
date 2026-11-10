@@ -61,7 +61,7 @@ def _how_many(words: str) -> str:
     return f"{count} word{'' if count == 1 else 's'}"
 
 
-_SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
+_THE_ONE_FUNESTRA_A_WORD_NAMES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
     "main": SOURCE_MAIN,
@@ -70,15 +70,15 @@ _SPOKEN_FUNESTRA_SOURCES: dict[str, str] = {
 
 def _source_for_heard_text(text: str) -> str:
     for word in text.lower().split():
-        source = _SPOKEN_FUNESTRA_SOURCES.get(word)
+        source = _THE_ONE_FUNESTRA_A_WORD_NAMES.get(word)
         if source is not None:
             return source
     return SOURCE_SYSTEM
 
-SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({
-    "play", "quit", "relief_omnipause",
-    "enter_vr", "exit_vr", "recenter_view", "vr_reset",
-})
+
+SPOKEN_FOR_THE_KEYS_A_PAUSE_LEAVES_LIVE: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
+THE_HEADSETS_FOUR: frozenset[str] = frozenset({"enter_vr", "exit_vr", "recenter_view", "vr_reset"})
+SUSPEND_EXEMPT_COMMANDS: frozenset[str] = SPOKEN_FOR_THE_KEYS_A_PAUSE_LEAVES_LIVE | THE_HEADSETS_FOUR
 
 
 @dataclass(frozen=True)

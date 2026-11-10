@@ -61,7 +61,7 @@ class TestTheFlagFilesThisProcessReads:
         ("1", True), ("0", False), ("", False), ("true", False),
         (" 1 \n", True), ("\ufeff1", True),
     ])
-    def test_that_reader_is_the_one_this_process_hands_its_runtime(
+    def test_the_reader_this_process_hands_its_runtime_turns_genau_music_on_only_for_1(
             self, tmp_path, cfg_path, unmuted, text: str, expected: bool):
         read_flag = self._reader_the_runtime_was_given(tmp_path, cfg_path)
         path = tmp_path / "flag.txt"
@@ -264,7 +264,7 @@ class TestAudioPlaybackController:
 
         music.set_volume.assert_not_called()
 
-    def test_a_force_muted_controller_never_touches_the_mixer(self, tmp_path: Path):
+    def test_a_hidden_or_test_runs_mute_holds_against_every_published_level(self, tmp_path: Path):
         music = MagicMock()
         controller = self._make_controller(tmp_path, music, force_muted=True)
 
@@ -294,7 +294,7 @@ def test_the_controller_runs_on_a_handed_in_sound_with_no_mixer_open(tmp_path: P
     assert the_global_one.mock_calls == []
 
 
-class TestWhenTheSoundWillNotDoWhatItIsAsked:
+class TestAFailureInTheHiddenCompanionIsLoggedAndTheMusicPlaysOn:
     @staticmethod
     def _controller(tmp_path, music, **overrides):
         return AudioPlaybackController(
@@ -393,7 +393,7 @@ class TestTheOutputItPlaysOn:
         assert picked == self.HEADSET
         init.assert_any_call(devicename=self.HEADSET)
 
-    def test_a_name_no_output_carries_means_the_default(self):
+    def test_a_name_no_output_carries_opens_the_default_rather_than_refusing_to_start(self):
         with patch("fun_time.audio_companion_app.get_audio_device_names", return_value=self.NAMES), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \
              patch.object(audio_companion_app.pygame.mixer, "quit"):

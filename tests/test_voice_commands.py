@@ -578,6 +578,10 @@ def test_group_commands_join_the_order_agnostic_grid():
                 assert VOICE_COMMANDS[f"{word} {satellite}"] == f"{satellite}_{act}"
 
 
+def test_full_vid_is_a_fallback_beside_the_reliably_heard_full_video():
+    assert VOICE_COMMANDS["full vid"] == VOICE_COMMANDS["full video"] == "main_funestra_full_vid"
+
+
 def test_resume_and_unpause_are_synonyms_for_play():
     assert VOICE_COMMANDS["resume"] == "play"
     assert VOICE_COMMANDS["un pause"] == "play"
@@ -669,6 +673,10 @@ class TestBuildVoiceCommands:
         assert built["fabricated act"] == "filter_satellites_fabricated_act"
         assert "fabricated jump phrase" not in VOICE_COMMANDS
         assert built["quit"] == "quit"
+
+    def test_every_clip_jump_phrase_is_the_library_overlays_and_none_is_written_here(self):
+        built = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=())
+        assert "main_funestra_clip_jump" not in built.values()
 
     def test_the_built_vocabulary_is_read_only(self):
         built = build_voice_commands(filter_commands={}, clip_jump_phrases=())

@@ -59,6 +59,6 @@ def test_a_video_funestra_silences_itself_off_screen_with_no_switch_set(module_n
 def test_the_audio_companion_silences_itself_off_screen_with_no_switch_set(monkeypatch):
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.setattr(audio_companion_app, "on_hidden_desktop", lambda: True)
-    assert audio_companion_app.force_muted() is True
+    assert audio_companion_app.silenced_for_a_hidden_or_test_run() is True
     monkeypatch.setattr(audio_companion_app, "on_hidden_desktop", lambda: False)
-    assert audio_companion_app.force_muted() is False
+    assert audio_companion_app.silenced_for_a_hidden_or_test_run() is False

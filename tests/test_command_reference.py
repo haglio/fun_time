@@ -44,8 +44,8 @@ from fun_time.filter_vocab import display_forms, filter_voice_commands
 from fun_time.genau_commands import about_genaus_flick
 from fun_time.main_funestra_commands import MAIN_FUNESTRA_CMD_MAP
 from fun_time.voice_commands import GENAU_SAID, VOICE_COMMANDS, build_voice_commands, friendly_voice
-from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
-from tests.ahk_script import script_text, suspend_exempt_block
+from fun_time.voice_control import SPOKEN_FOR_THE_KEYS_A_PAUSE_LEAVES_LIVE, SUSPEND_EXEMPT_COMMANDS
+from tests.ahk_script import script_text, suspend_exempt_block, suspend_exempt_keys
 
 _NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_flick_seconds)_\d+$")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
@@ -170,6 +170,11 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
     for cmd in ("portrait_no_loop", "landscape_no_loop"):
         assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
         assert _keys(_the_row_of(cmd)) == ()
+
+
+def test_the_script_spells_letter_keys_lowercase_and_the_reference_uppercase():
+    assert _ahk_binding_for("landscape_loop") == "e"
+    assert _the_row_of("landscape_loop").key_columns[1] == ("E",)
 
 
 def _section(title: str) -> ReferenceSection:
@@ -407,6 +412,12 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     assert descs.index(nudge.description) + 1 == next(
         i for i, d in enumerate(descs) if d.startswith("set playback speed")
     )
+
+
+def test_the_speed_keys_ride_the_bare_nudge_the_osr2s_driver_answers():
+    assert [_ahk_binding_for(cmd) for cmd in ("speed_up", "speed_down")] == ["l", "j"]
+    assert _the_row_of("speed_up").key_columns == (("L", "J"),)
+    assert _keys(_the_row_of("main_funestra_speed_up")) == ()
 
 
 def test_the_quit_row_no_longer_offers_the_exit_synonym():
@@ -1230,6 +1241,12 @@ def test_relief_answers_to_one_word_as_well_as_its_full_name():
 def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     assert "relief_omnipause" in _ahk_suspend_exempt_commands()
     assert "relief_omnipause" in SUSPEND_EXEMPT_COMMANDS
+
+
+def test_the_spoken_three_a_pause_leaves_live_are_the_scripts_three_exempt_keys():
+    spoken_for_key = {"Esc": "play", "^!q": "quit", "+Esc": "relief_omnipause"}
+    assert suspend_exempt_keys() == set(spoken_for_key)
+    assert frozenset(spoken_for_key.values()) == SPOKEN_FOR_THE_KEYS_A_PAUSE_LEAVES_LIVE
 
 
 def test_a_paused_room_hears_what_he_ruled_and_nothing_else():

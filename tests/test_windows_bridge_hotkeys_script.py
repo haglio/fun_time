@@ -4,7 +4,7 @@ import re
 
 from fun_time.overlay_progress import CANCEL_FILENAME
 from fun_time.session_handoff import CROSSING_PROGRESS_NAME, LOADING_SCREEN_STALE_S
-from tests.ahk_script import function_source, script_text, suspend_exempt_block
+from tests.ahk_script import function_source, script_text, suspend_exempt_block, suspend_exempt_keys
 
 
 def test_script_suppresses_the_tray_icon():
@@ -33,10 +33,7 @@ def test_the_way_out_survives_omnipause():
 
 
 def test_the_pause_leaves_exactly_three_keys_live():
-    bound = {line.split("::", 1)[0]
-             for line in suspend_exempt_block().splitlines() if "::" in line}
-
-    assert bound == {"Esc", "^!q", "+Esc"}
+    assert suspend_exempt_keys() == {"Esc", "^!q", "+Esc"}
 
 
 def test_the_hotkeys_stay_live_whichever_window_has_the_keyboard():

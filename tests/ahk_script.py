@@ -14,6 +14,10 @@ def suspend_exempt_block() -> str:
     return text.split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
 
 
+def suspend_exempt_keys() -> set[str]:
+    return {line.split("::", 1)[0] for line in suspend_exempt_block().splitlines() if "::" in line}
+
+
 def function_source(name: str) -> str:
     text = script_text()
     for line in text.splitlines():
