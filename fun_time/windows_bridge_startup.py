@@ -62,8 +62,12 @@ logger = logging.getLogger(__name__)
 SATELLITE_PORTRAIT_TITLE = "Portrait AI Funestra"
 SATELLITE_LANDSCAPE_TITLE = "Landscape AI Funestra"
 
-def taskbar_identity_args() -> tuple[str, str]:
-    return ("--taskbar-identity", preview_marker.session_identity(preview_marker.shown_as()))
+def the_sessions_taskbar_identity() -> str:
+    return preview_marker.session_identity(preview_marker.shown_as())
+
+
+def the_taskbar_identity_a_child_must_be_told() -> tuple[str, str]:
+    return ("--taskbar-identity", the_sessions_taskbar_identity())
 
 
 def _the_session_icon() -> str:
@@ -119,7 +123,10 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
     started = [created for found in processes_matching(
                    contract.image_pattern, contract.broker_command_line_pattern)
                if (created := process_started(found.pid)) is not None]
-    return unix_seconds(min(started)) if started else None
+    if not started:
+        return None
+    the_likeliest_to_run_old_code = min(started)
+    return unix_seconds(the_likeliest_to_run_old_code)
 
 
 def ensure_broker(
@@ -162,8 +169,7 @@ def seed_startup_states(manifest: LaunchManifest, carried: BridgeState) -> None:
     commands = manifest.commands
     genau_cmd_file = Path(commands.genau_cmd_file)
     main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
-    genau_cmd_file.parent.mkdir(parents=True, exist_ok=True)
-    genau_cmd_file.write_text("PAUSE\n", encoding="utf-8")
+    _wipe_genaus_queue_down_to_a_lone_pause(genau_cmd_file)
     append_command(main_funestra_cmd_file, show_verb(carried.main_mode))
     for path in (commands.genau_paused_file, commands.audio_paused_file,
                  commands.main_funestra_paused_file):
@@ -182,6 +188,11 @@ def seed_startup_states(manifest: LaunchManifest, carried: BridgeState) -> None:
             (genau_cmd_file, main_funestra_cmd_file,
              *(manifest.satellite(funestra).cmd_file for funestra in FunTimeFunestra.SATELLITES)),
             max_intensity=carried.max_intensity)
+
+
+def _wipe_genaus_queue_down_to_a_lone_pause(genau_cmd_file: Path) -> None:
+    genau_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+    genau_cmd_file.write_text("PAUSE\n", encoding="utf-8")
 
 
 def reset_satellite_paused_states(
@@ -213,7 +224,7 @@ def start_core_session(
     reap_orphaned_satellites(
         m.modules.satellite_module, [portrait.channels.status, landscape.channels.status],
     )
-    write_broker_command(commands.broker_cmd_file, osr2_hold.PARK)
+    _leave_a_park_for_the_brokers_next_tick(commands)
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
     state_path = Path(state_dir)
     main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
@@ -265,6 +276,10 @@ def start_core_session(
     )
     launch_core_apps(m, portrait, landscape, result_file)
     return carried.main_mode
+
+
+def _leave_a_park_for_the_brokers_next_tick(commands: CommandFiles) -> None:
+    write_broker_command(commands.broker_cmd_file, osr2_hold.PARK)
 
 
 def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts: str | None) -> int:
@@ -320,10 +335,13 @@ def _rect_args(prefix: str, rect) -> list[str]:
             for word in (f"--{prefix}{field}", str(getattr(rect, field)))]
 
 
+def _where_a_show_it_opens_without_a_funestra_goes(plan: WindowLayoutPlan) -> list[str]:
+    return [*_rect_args("portrait-", plan.portrait), *_rect_args("landscape-", plan.landscape)]
+
+
 def origenerator_session_args(session: OrigeneratorSession) -> list[str]:
     args = ["--fun-time", *_rect_args("", session.layout_plan.random_favs_browser)]
-    args.extend(_rect_args("portrait-", session.layout_plan.portrait))
-    args.extend(_rect_args("landscape-", session.layout_plan.landscape))
+    args.extend(_where_a_show_it_opens_without_a_funestra_goes(session.layout_plan))
     for satellite, funestra in session.funestras.items():
         args.extend([
             f"--{satellite}-playlist", str(funestra.playlist_file),
@@ -334,7 +352,7 @@ def origenerator_session_args(session: OrigeneratorSession) -> list[str]:
     if session.frames_file is not None and session.input_file is not None:
         args.extend(["--frames-file", str(session.frames_file),
                      "--input-file", str(session.input_file)])
-    args.extend(taskbar_identity_args())
+    args.extend(the_taskbar_identity_a_child_must_be_told())
     args.extend([
         "--command-file", str(session.command_file),
         "--paused-file", str(session.paused_file),
@@ -431,7 +449,7 @@ def launch_main_funestra(
         str(rect.height),
         "--icon",
         _the_session_icon(),
-        *taskbar_identity_args(),
+        *the_taskbar_identity_a_child_must_be_told(),
         "--genau-command-file",
         str(commands.genau_cmd_file),
         "--genau-paused-file",
@@ -537,7 +555,7 @@ def launch_core_apps(
                 x=launch.rect.x, y=launch.rect.y,
                 width=launch.rect.width, height=launch.rect.height,
                 title=title,
-                taskbar_identity=taskbar_identity_args()[1],
+                taskbar_identity=the_sessions_taskbar_identity(),
                 icon=Path(_the_session_icon()),
                 tiles=tiles),
             role=role,

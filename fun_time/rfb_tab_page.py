@@ -41,15 +41,21 @@ def _file_uri(video_path: str) -> str:
 
 
 def render_tab_page(target: TabTarget, *, loopback_port: int = LOOPBACK_PORT) -> str:
-    template = with_family_look(_TEMPLATE_PATH.read_text(encoding="utf-8"))
-    for token, value in (
+    page = with_family_look(_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    for token, value in _all_this_module_puts_into_the_static_page(target, loopback_port):
+        page = page.replace(token, _js_string(value))
+    return page
+
+
+def _all_this_module_puts_into_the_static_page(
+        target: TabTarget, loopback_port: int) -> tuple[tuple[str, str], ...]:
+    the_one_place_its_freeze_can_come_from = omnipause_url(loopback_port)
+    return (
         ('"__FT_TARGET__"', target.url),
         ('"__FT_LABEL__"', target.label),
         ('"__FT_VIDEO__"', _file_uri(target.video_path)),
-        ('"__FT_OMNIPAUSE__"', omnipause_url(loopback_port)),
-    ):
-        template = template.replace(token, _js_string(value))
-    return template
+        ('"__FT_OMNIPAUSE__"', the_one_place_its_freeze_can_come_from),
+    )
 
 
 def _write_page(page: Path, target: TabTarget, loopback_port: int) -> str:

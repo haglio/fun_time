@@ -7,6 +7,13 @@ from fun_time.session_handoff import CROSSING_PROGRESS_NAME, LOADING_SCREEN_STAL
 from tests.ahk_script import function_source, script_text, suspend_exempt_block, suspend_exempt_keys
 
 
+def test_a_lifted_function_holds_no_line_of_another():
+    opened_here = [line for line in function_source("EndSession").splitlines()
+                   if line[:1].isalpha() and line.endswith("{")]
+
+    assert opened_here == ["EndSession() {"]
+
+
 def test_script_suppresses_the_tray_icon():
     assert "#NoTrayIcon" in script_text()
 

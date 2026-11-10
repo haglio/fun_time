@@ -56,8 +56,12 @@ def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProv
     return TabTarget(
         url=regen_url or entry.web_url,
         label=entry.web_url or Path(entry.local_path).name,
-        video_path=original_rendition(entry.local_path, regen.media_root) or entry.local_path,
+        video_path=_the_rendition_light_enough_for_a_tab(entry.local_path, regen.media_root),
     )
+
+
+def _the_rendition_light_enough_for_a_tab(video: str, media_root: Path) -> str:
+    return original_rendition(video, media_root) or video
 
 
 def choose_random[T](items: list[T], count: int, rng: random.Random | None = None) -> list[T]:
