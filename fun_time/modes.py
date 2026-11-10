@@ -128,10 +128,13 @@ def has_matching_funscript(video_path: str, metadata_root: Path | None = None) -
 
 
 def has_handcrafted_funscript(video_path: str, metadata_root: Path | None = None) -> bool:
-    if not has_matching_funscript(video_path, metadata_root):
-        return False
+    return (has_matching_funscript(video_path, metadata_root)
+            and not _is_marked_out_of_f_mode_alone(video_path, metadata_root))
+
+
+def _is_marked_out_of_f_mode_alone(video_path: str, metadata_root: Path | None) -> bool:
     marker = build_generated_marker_path(video_path, metadata_root)
-    return not (marker and Path(marker).exists())
+    return bool(marker and Path(marker).exists())
 
 
 LEAST_SCRIPTED_SHARE = 0.30
@@ -199,12 +202,16 @@ class VideoShapes:
 
 def _group_of(index: GroupIndex, by_seed_group: bool) -> Callable[[str], str | None]:
     if by_seed_group:
-        def seed_group_of(path: str) -> str | None:
+        def the_videos_only_a_seed_tells_apart(path: str) -> str | None:
             seed_key = index.entry(path).seed_key
             return seed_key[0] if seed_key is not None else None
 
-        return seed_group_of
-    return lambda path: index.entry(path).action_key
+        return the_videos_only_a_seed_tells_apart
+
+    def the_videos_only_an_action_tells_apart(path: str) -> str | None:
+        return index.entry(path).action_key
+
+    return the_videos_only_an_action_tells_apart
 
 
 def _collapse_and_weigh(
@@ -266,12 +273,12 @@ def build_satellite_playlist_paths(
     files = satellite_narrowing(collect_video_files(build.sources), build.favorites_filter,
                                 filter_query=build.filter_query, metadata_root=metadata_root)
     files = build.enhancement.keep(files, has_an_upscale(build.media_root))
-    filtered = bool(build.filter_query) and metadata_root is not None
+    the_filter_already_pinned_the_act = bool(build.filter_query) and metadata_root is not None
     if metadata_root is None:
         return order_paths(files, recent=build.recent, rng=rng)
     if build.recent:
-        return _collapse_recent(files, metadata_root, by_seed_group=filtered)
-    return _collapse_and_weigh(files, metadata_root, rng, by_seed_group=filtered)
+        return _collapse_recent(files, metadata_root, by_seed_group=the_filter_already_pinned_the_act)
+    return _collapse_and_weigh(files, metadata_root, rng, by_seed_group=the_filter_already_pinned_the_act)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:

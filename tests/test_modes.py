@@ -530,9 +530,9 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
 
 def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
-        "old": _t2v_meta("Alpha", "1", prompt="scene one"),
-        "new": _t2v_meta("Alpha", "2", prompt="scene two"),
-        "other": _t2v_meta("Twirling", "3", prompt="scene three"),
+        "old": _a_text_to_video_sidecar("Alpha", "1", prompt="scene one"),
+        "new": _a_text_to_video_sidecar("Alpha", "2", prompt="scene two"),
+        "other": _a_text_to_video_sidecar("Twirling", "3", prompt="scene three"),
     })
     os.utime(paths["old"], (1000, 1000))
     os.utime(paths["new"], (2000, 2000))
@@ -590,7 +590,7 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
     assert l_cum not in landscape_written
 
 
-def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
+def _a_text_to_video_sidecar(action: str, seed: str, prompt: str = "same scene") -> dict:
     return {
         "video": {
             "prompt": prompt,
@@ -604,10 +604,10 @@ def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
     }
 
 
-def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
+def test_a_filtered_build_shows_one_of_the_videos_only_a_seed_tells_apart(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
-        "clip_a": _t2v_meta("Alpha", "1"),
-        "clip_b": _t2v_meta("Alpha", "2"),
+        "clip_a": _a_text_to_video_sidecar("Alpha", "1"),
+        "clip_b": _a_text_to_video_sidecar("Alpha", "2"),
     })
     os.utime(paths["clip_a"], (1000, 1000))
     os.utime(paths["clip_b"], (2000, 2000))
@@ -620,10 +620,10 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
     assert built == [paths["clip_b"]]
 
 
-def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
+def test_an_unfiltered_build_keeps_videos_only_a_seed_tells_apart(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
-        "clip_a": _t2v_meta("Alpha", "1"),
-        "clip_b": _t2v_meta("Alpha", "2"),
+        "clip_a": _a_text_to_video_sidecar("Alpha", "1"),
+        "clip_b": _a_text_to_video_sidecar("Alpha", "2"),
     })
     os.utime(paths["clip_a"], (1000, 1000))
     os.utime(paths["clip_b"], (2000, 2000))
@@ -636,11 +636,11 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
     assert sorted(built) == sorted([paths["clip_a"], paths["clip_b"]])
 
 
-def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
+def test_a_filtered_build_keeps_another_action_apart(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
-        "clip_a": _t2v_meta("Side Alpha", "1"),
-        "clip_b": _t2v_meta("Side Alpha", "2"),
-        "theta": _t2v_meta("Side Theta", "1"),
+        "clip_a": _a_text_to_video_sidecar("Side Alpha", "1"),
+        "clip_b": _a_text_to_video_sidecar("Side Alpha", "2"),
+        "theta": _a_text_to_video_sidecar("Side Theta", "1"),
     })
 
     built = build_satellite_playlist_paths(
