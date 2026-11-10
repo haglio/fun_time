@@ -27,7 +27,7 @@ def _an_origin_and_a_checkout_of_it(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _held_to(monkeypatch, *, named: Path | None, beside: Path | None) -> dict:
-    monkeypatch.setattr(origenerator_contract, "named_checkout", lambda: named)
+    monkeypatch.setattr(origenerator_contract, "named_checkout_unless_retired", lambda: named)
     monkeypatch.setattr(origenerator_contract, "_the_checkout_beside", lambda: beside)
     return origenerator_contract.published()
 

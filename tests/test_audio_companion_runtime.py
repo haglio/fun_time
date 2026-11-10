@@ -54,7 +54,7 @@ def test_process_iteration_handles_udp_line_after_runtime_command(tmp_path: Path
     controller.handle_udp_line.assert_called_once_with("VISIBLE 1")
 
 
-def test_process_iteration_applies_the_published_volume(tmp_path: Path):
+def test_a_restarted_companion_applies_the_published_level_on_its_first_pass(tmp_path: Path):
     sock = Mock()
     sock.recvfrom.side_effect = TimeoutError()
     controller = Mock()

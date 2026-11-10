@@ -3,9 +3,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fun_time import closing_screen, loading_screen
+from fun_time import closing_screen, loading_screen, preview_marker
 from fun_time.closing_screen import WINDOW_TITLE
 from fun_time.overlay_progress import ready_file_for
+
+DASHBOARDS_EXACT_TITLE = preview_marker.app_title(None)
 
 
 class FakeOverlay:
@@ -19,9 +21,9 @@ class FakeOverlay:
 
 
 class TestWindowTitle:
-    def test_title_cannot_be_mistaken_for_the_dashboard(self):
-        assert WINDOW_TITLE != "Fun Time"
-        assert "Fun Time" in WINDOW_TITLE
+    def test_the_dispatch_loops_search_for_the_dashboard_never_finds_it(self):
+        assert WINDOW_TITLE != DASHBOARDS_EXACT_TITLE
+        assert DASHBOARDS_EXACT_TITLE in WINDOW_TITLE
 
 
 def test_it_waits_for_news_far_less_long_than_startups_loading_screen():
@@ -60,7 +62,7 @@ class TestMain:
 
         assert overlay.kwargs.get("taking_over") is None
 
-    def test_reports_ready_only_once_the_loading_screen_is_painted(self, tmp_path, monkeypatch):
+    def test_teardown_is_told_it_is_up_only_once_it_is_painted(self, tmp_path, monkeypatch):
         progress_file, overlay = self._run_main(tmp_path, monkeypatch)
 
         assert not ready_file_for(progress_file).exists()

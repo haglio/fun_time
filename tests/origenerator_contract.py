@@ -18,7 +18,7 @@ from fun_time.hosted_contract import CONTRACT_FILE, published_by
 from fun_time.project_paths import PROJECT_DIR
 
 
-def named_checkout() -> Path | None:
+def named_checkout_unless_retired() -> Path | None:
     named = override_lines(PROJECT_DIR / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME)
     if not named or not Path(named[0]).exists():
         return None
@@ -41,7 +41,7 @@ def _the_checkout_beside() -> Path | None:
 
 
 def published() -> dict:
-    named = named_checkout()
+    named = named_checkout_unless_retired()
     if named is not None and (document := published_by(named)) is not None:
         return document
     if (beside := _the_checkout_beside()) is None:

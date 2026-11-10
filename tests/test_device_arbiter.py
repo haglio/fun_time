@@ -9,7 +9,7 @@ from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 
 from fun_time.device_arbiter import TCODE_OFF, TCODE_ON, DeviceArbiter, FunestraFiles
 from fun_time.fun_time_funestras import FunTimeFunestra
-from tests.fun_time_window_fakes import FakeClock
+from tests.fun_time_window_fakes import HandDrivenClock
 
 
 def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArbiter:
@@ -21,7 +21,7 @@ def make_driver(tmp_path: Path, clock=None, device_on=lambda: True) -> DeviceArb
                                           cmd_file=tmp_path / f"{funestra.label}_cmd.txt")
                     for funestra in FunTimeFunestra.SATELLITES},
         device_on=device_on,
-        clock=clock or FakeClock(),
+        clock=clock or HandDrivenClock(),
     )
 
 
@@ -147,7 +147,7 @@ class TestNobodyDriving:
         assert genau(driver) == [TCODE_OFF, "PAUSE", *PARKED]
 
     def test_a_hold_is_stated_once_however_long_it_lasts(self, tmp_path):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         driver = make_driver(tmp_path, clock=clock)
         publish_main_funestra(driver)
 
@@ -252,7 +252,7 @@ class TestKinoModeFunscriptHandoff:
         assert genau(driver)[-2:] == HAND_YIELDS
 
     def test_a_stalled_playhead_cannot_hold_the_flip_forever(self, tmp_path):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         driver = make_driver(tmp_path, clock)
         publish_main_funestra(driver, resting=True, position_ms=14_000)
         driver.sync("kino", paused=False)
@@ -302,7 +302,7 @@ class TestKinoModeFunscriptHandoff:
         assert main_funestra(driver) == [TCODE_OFF]
 
     def test_commands_written_only_on_change(self, tmp_path):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         driver = make_driver(tmp_path, clock)
         publish_main_funestra(driver, has_funscript=True, resting=False)
         driver.sync("kino", paused=False)
@@ -498,7 +498,7 @@ class TestASideFunestraThatHasTheOsr2:
         assert main_funestra(driver)[-1] == TCODE_OFF
 
     def test_the_flip_to_its_script_waits_for_the_touch_its_trace_chose(self, tmp_path):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         driver = make_driver(tmp_path, clock=clock)
         publish_satellite(tmp_path, FunTimeFunestra.PORTRAIT, resting=True, position_ms=1_000)
         driver.sync("kino", paused=False, holder=FunTimeFunestra.PORTRAIT)

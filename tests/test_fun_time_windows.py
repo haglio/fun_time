@@ -30,7 +30,7 @@ from tests.fun_time_window_fakes import (
     PORTRAIT_PID,
     RFB_HWND,
     TOPMOST_HWNDS,
-    FakeClock,
+    HandDrivenClock,
     lookup_hosted,
     lookup_pid,
     lookup_title,
@@ -137,7 +137,7 @@ class TestResolveRole:
 
 class TestParking:
     def test_a_mode_switch_holds_its_outgoing_funestra_up_for_the_settle(self):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
 
         minimized: list[int] = []
@@ -339,7 +339,7 @@ def test_the_window_that_shrinks_moves_before_the_one_that_grows_into_its_app():
 class TestParkedAndMinimized:
     def _windows(self) -> FunTimeWindows:
         return make_windows(
-            clock=FakeClock(),
+            clock=HandDrivenClock(),
             hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND, "portrait": PORTRAIT_HWND},
         )
 
@@ -352,7 +352,7 @@ class TestParkedAndMinimized:
         return restored
 
     def test_showing_a_window_cancels_the_minimize_waiting_on_its_settle(self):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         windows = make_windows(clock=clock, hwnds_by_window={"main_funestra": MAIN_FUNESTRA_HWND})
         minimized: list[int] = []
 

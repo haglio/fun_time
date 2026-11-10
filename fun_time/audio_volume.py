@@ -10,6 +10,8 @@ MAX_VOLUME = 100
 
 VOLUME_STEP = 10
 
+_NEVER_SILENT_FOR_WANT_OF_A_READABLE_LEVEL = MAX_VOLUME
+
 
 def write_volume(path: Path, volume: int) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -20,7 +22,7 @@ def read_volume(path: Path) -> int:
     try:
         return int(path.read_text(encoding="utf-8").replace("﻿", "").strip())
     except (OSError, ValueError):
-        return MAX_VOLUME
+        return _NEVER_SILENT_FOR_WANT_OF_A_READABLE_LEVEL
 
 
 def volume_verb(volume: int, muted: bool) -> str:

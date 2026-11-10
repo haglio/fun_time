@@ -4,6 +4,7 @@ from tests.integration.above_the_loading_screen import VISIBLE_MS, AboveTheLoadi
 
 PANEL, OTHER, NOTHING = 4242, 1717, 0
 POLL_MS = 2.0
+THE_COVER_ANSWERS_A_RAISE_IN_MS = 16
 
 
 def _walk(*spans: tuple[float, int]) -> list[tuple[float, int, str]]:
@@ -18,7 +19,7 @@ def _walk(*spans: tuple[float, int]) -> list[tuple[float, int, str]]:
 
 
 def test_the_covers_own_answer_ends_a_stay():
-    stays = stays_from(_walk((10, PANEL), (16, NOTHING), (10, PANEL)))
+    stays = stays_from(_walk((10, PANEL), (THE_COVER_ANSWERS_A_RAISE_IN_MS, NOTHING), (10, PANEL)))
 
     assert [round(stay.ms) for stay in stays] == [8, 8]
 
@@ -41,7 +42,7 @@ def test_nothing_above_the_loading_screen_is_no_stay_at_all():
     assert stays_from([]) == []
 
 
-def test_a_pause_in_the_sampling_is_not_counted_into_a_stay():
+def test_time_the_sampler_never_looked_at_is_left_out_of_a_stay():
     samples = [(0.000, PANEL, "panel"), (0.002, PANEL, "panel"),
                (0.050, PANEL, "panel"), (0.052, PANEL, "panel")]
 

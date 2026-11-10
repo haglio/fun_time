@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -53,6 +54,19 @@ VIDEO_ONLY_META = {
         "created": "2026-03-13",
     }
 }
+
+_EXAMPLE_USERSCRIPT = (Path(__file__).resolve().parent.parent
+                       / "fun_time" / "static" / "regen_autofill.example.user.js")
+
+
+def test_the_example_userscript_names_every_key_of_the_payload():
+    the_shape_it_reads = re.search(
+        r"with shape:(.*?)\n \*\n", _EXAMPLE_USERSCRIPT.read_text(encoding="utf-8"), re.DOTALL
+    ).group(1)
+    keys_it_reads = set(re.findall(r"[a-z_]+(?=\s*[:,}])", the_shape_it_reads)) - {"label", "val"}
+
+    for metadata in (IMAGE_META, VIDEO_ONLY_META):
+        assert set(build_payload(metadata)) == keys_it_reads
 
 
 def _decode(url: str) -> dict:

@@ -22,7 +22,7 @@ from tests.integration.integration_support import (
     run_within,
     this_checkouts_siblings,
 )
-from tests.origenerator_contract import named_checkout
+from tests.origenerator_contract import named_checkout_unless_retired
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -75,7 +75,7 @@ def _the_origenerator_this_branchs_session_would_launch():
     if config is None:
         pytest.skip("no local fun_time_config.json (git-ignored; absent in CI), "
                     "and a made-up one would prove only that what it made up boots")
-    checkout = named_checkout() or config.paths.origenerator_dir
+    checkout = named_checkout_unless_retired() or config.paths.origenerator_dir
     if not checkout or not Path(checkout).exists():
         pytest.skip("this session hosts no Origenerator (paths.origenerator_dir)")
     python_exe = config.paths.origenerator_python_exe or origenerator_interpreter(checkout)

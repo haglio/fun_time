@@ -464,6 +464,24 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
     assert appearances < 15, "a weight-1/8 video should miss most builds"
 
 
+def test_a_chronically_skipped_video_still_comes_up_under_latest(tmp_path: Path):
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
+        "disliked": _i2v_meta("111", "Alpha"),
+        "neutral": _i2v_meta("222", "Dancing"),
+    })
+    _stamp_weight(metadata_root, paths["disliked"], 0.125)
+
+    appearances = sum(
+        paths["disliked"] in build_satellite_playlist_paths(
+            SatelliteBuild(str(source_dir), recent=True),
+            rng=random.Random(round_no), metadata_root=metadata_root,
+        )
+        for round_no in range(40)
+    )
+
+    assert appearances == 40
+
+
 def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_old": _i2v_meta("111", "Alpha"),

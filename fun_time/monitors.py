@@ -59,17 +59,17 @@ def enumerate_monitors() -> list[MonitorInfo]:
 def get_logical_monitor_rects(
     monitors: list[MonitorInfo],
     *,
-    primary_index: int,
-    secondary_index: int,
+    configured_primary_number: int,
+    configured_secondary_number: int,
 ) -> tuple[MonitorRect, MonitorRect]:
     if not monitors:
         raise ValueError("No monitors detected")
 
-    def _clamp(idx: int) -> int:
-        return max(0, min(len(monitors) - 1, idx - 1))
+    def _nearest_monitor_numbered(counting_from_one: int) -> MonitorInfo:
+        return monitors[max(0, min(len(monitors) - 1, counting_from_one - 1))]
 
-    configured_primary = monitors[_clamp(primary_index)]
-    configured_secondary = monitors[_clamp(secondary_index)]
+    configured_primary = _nearest_monitor_numbered(configured_primary_number)
+    configured_secondary = _nearest_monitor_numbered(configured_secondary_number)
 
     primary_is_landscape = configured_primary.width >= configured_primary.height
     secondary_is_portrait = configured_secondary.width < configured_secondary.height

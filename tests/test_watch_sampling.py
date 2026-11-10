@@ -203,6 +203,22 @@ class TestBackDating:
 
         assert sampler.video_at(parse_command("portrait_lock"), 100.2) == "C:\\clips\\meant.mp4"
 
+    def test_a_change_of_video_is_misplaced_by_under_half_a_second(self, tmp_path):
+        lock = parse_command("portrait_lock")
+        for changed_at_tick in range(20, 60):
+            room = tmp_path / str(changed_at_tick)
+            room.mkdir()
+            sampler = make_sampler(room)
+            for tick in range(100):
+                _publish(sampler.satellite_status_files[2],
+                         "C:/clips/before.mp4" if tick < changed_at_tick else "C:/clips/after.mp4",
+                         fraction=0.1)
+                sampler.sample_due(now=100.0 + tick / 20, paused=False)
+            changed_at = 100.0 + changed_at_tick / 20
+
+            assert sampler.video_at(lock, changed_at - 0.5) == "C:/clips/before.mp4"
+            assert sampler.video_at(lock, changed_at + 0.5) == "C:/clips/after.mp4"
+
     def test_each_satellite_reads_its_own_timeline(self, tmp_path):
         sampler = make_sampler(tmp_path)
         self._observe(sampler, "portrait", "C:\\clips\\portrait.mp4", at=100.0)
