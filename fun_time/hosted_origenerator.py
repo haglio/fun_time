@@ -54,7 +54,7 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> HostedApp | None:
     forget_the_kept_origenerator(state_dir)
     if kept is None or process_started(kept.pid) != kept.created_at:
         return None
-    write_flag_file(m.commands.origenerator_paused_file, False)
+    _lift_the_pause_an_earlier_omnipause_stranded(m)
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
     logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
     return HostedApp(kept.pid, already_open=True, taken_over=kept.taken_over,
@@ -104,6 +104,15 @@ def what_an_adopted_app_is_told(frames_file: str, input_file: str, *, in_a_heads
     return f"{HAND_OVER}|{frames_file}|{input_file}" if in_a_headset else TAKE_BACK
 
 
+def _lift_the_pause_an_earlier_omnipause_stranded(m: LaunchManifest) -> None:
+    write_flag_file(m.commands.origenerator_paused_file, False)
+
+
+def _take_down_the_huds_of_a_show_no_longer_running(session: OrigeneratorSession) -> None:
+    for funestra in session.funestras.values():
+        Path(funestra.hud_file).unlink(missing_ok=True)
+
+
 def _clear_what_an_earlier_app_left(m: LaunchManifest) -> None:
     for name in (m.commands.origenerator_frames_file,
                  m.commands.origenerator_input_file):
@@ -134,14 +143,13 @@ def bring_up_the_hosted_app(
         append_command(Path(m.commands.origenerator_cmd_file), crossing)
         logger.info("Told the adopted app which session this is: %s", crossing)
         return kept
-    write_flag_file(m.commands.origenerator_paused_file, False)
+    _lift_the_pause_an_earlier_omnipause_stranded(m)
     origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
     origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
     origenerator_cmd_file.write_text("", encoding="utf-8")
     Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
     session = the_session_it_is_handed(m, plan, in_a_headset=in_a_headset)
-    for funestra in session.funestras.values():
-        Path(funestra.hud_file).unlink(missing_ok=True)
+    _take_down_the_huds_of_a_show_no_longer_running(session)
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
         handoff.hand_over(open_app.place, pid=open_app.pid,
@@ -167,8 +175,8 @@ def bring_up_the_hosted_app(
 
 
 def _its_interpreter(m: LaunchManifest, origenerator_dir: str) -> str | Path:
-    return (m.executables.origenerator_python_exe.strip()
-            or origenerator_interpreter(origenerator_dir))
+    the_install_its_pinned_libraries_are_in = origenerator_interpreter(origenerator_dir)
+    return m.executables.origenerator_python_exe.strip() or the_install_its_pinned_libraries_are_in
 
 
 def what_it_answers_by_voice_in(m: LaunchManifest, **asking) -> HostedVocabulary:
