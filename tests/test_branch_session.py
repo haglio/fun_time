@@ -591,11 +591,14 @@ def test_a_shortcut_is_refused_for_a_worktree_that_says_its_session_hosts_no_ori
     state.mkdir(exist_ok=True)
     (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text("", encoding="utf-8")
 
-    with pytest.raises(branch_session.HostsNoOrigenerator, match="hosts no Origenerator"):
+    with pytest.raises(branch_session.HostsNoOrigenerator, match="hosts no Origenerator") as refused:
         branch_session.write_launch_shortcut(
             primary_with_launcher.newer, primary=primary_with_launcher.primary)
 
     assert not list(primary_with_launcher.newer.glob("*.lnk"))
+    assert refused.value.for_him == (
+        "That branch would start without Origenerator, so Fun Time would stop as it starts.")
+    assert "Satellites" not in str(refused.value)
 
 
 @pytestmark_shortcut

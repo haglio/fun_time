@@ -566,11 +566,10 @@ class HostsNoOrigenerator(AppWouldNotStart):
     def __init__(self, override: Path):
         super().__init__(
             f"{override} is empty, so this worktree's session hosts no Origenerator, and a "
-            "session that hosts none stops as it starts: its Satellites would have nothing to "
-            "play. Name the Origenerator checkout in it, or delete it to host the production "
-            "checkout's, then make the shortcut again.",
-            for_him="That branch would start without Origenerator, so its Satellites would have "
-                    "had nothing to play and Fun Time would stop as it starts.")
+            "session that hosts none stops as it starts. Name the Origenerator checkout in it, "
+            "or delete it to host the production checkout's, then make the shortcut again.",
+            for_him="That branch would start without Origenerator, so Fun Time would stop as it "
+                    "starts.")
 
 
 def hosted_origenerator_checkout(worktree: Path) -> Path | None:
