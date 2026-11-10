@@ -672,8 +672,10 @@ def test_a_runs_funestras_import_from_the_sibling_branches_this_checkout_names(t
 
     integration_support.apply_this_checkouts_siblings(config)
 
-    assert config["paths"]["sibling_checkouts"] == [str(branch)]
-    assert integration_support.this_checkouts_siblings() == str(branch)
+    dies_at_import = ("a Funestra launched without this checkout's siblings dies at import, "
+                      "and the run reads as a wall of timeouts, not as a path problem")
+    assert config["paths"]["sibling_checkouts"] == [str(branch)], dies_at_import
+    assert integration_support.this_checkouts_siblings() == str(branch), dies_at_import
 
 
 def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
@@ -1023,7 +1025,11 @@ def test_stub_apps_kept_in_strings_are_compiled_before_a_run_launches_them():
 
     assert sources, "no stub app sources found to check"
     for where, source in sources:
-        compile(source, where, "exec")
+        try:
+            compile(source, where, "exec")
+        except SyntaxError as broken:
+            pytest.fail(f"{where} dies at import ({broken}), which a run reads as "
+                        "waiting out an app that never answers")
 
 
 _WHAT_RUNS_THE_RUN = frozenset({

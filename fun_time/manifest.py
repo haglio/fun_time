@@ -18,6 +18,14 @@ def _as_written(switched_on: bool) -> str:
     return _SWITCHED_ON if switched_on else _SWITCHED_OFF
 
 
+def _is_on_unless_blank_or_spelled_off(flag: str) -> bool:
+    return flag.strip() not in {"", _SWITCHED_OFF, "false", "False"}
+
+
+def _is_on_only_as_the_writer_spells_it(flag: str) -> bool:
+    return flag == _SWITCHED_ON
+
+
 def _parser_keeping_every_keys_spelling() -> configparser.ConfigParser:
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -267,11 +275,11 @@ class LaunchManifest:
             **{funestra.label: SatelliteChannel.from_manifest_section(
                    values_of(funestra.label, SatelliteChannel))
                for funestra in FunTimeFunestra.SATELLITES},
-            dashboard_enabled=flag("dashboard", "enabled").strip()
-            not in {"", _SWITCHED_OFF, "false", "False"},
+            dashboard_enabled=_is_on_unless_blank_or_spelled_off(flag("dashboard", "enabled")),
             loopback_port=int(flag("loopback", "port")),
             random_favs_browser=RandomFavsBrowserSettings(
-                enabled=flag("random_favs_browser", "enabled") == _SWITCHED_ON,
+                enabled=_is_on_only_as_the_writer_spells_it(
+                    flag("random_favs_browser", "enabled")),
                 shortcut_path=flag("random_favs_browser", "shortcut_path"),
                 manifest_file=flag("random_favs_browser", "manifest_file"),
             ),

@@ -99,7 +99,9 @@ _READERS_THAT_SPELL_KEYS_THEMSELVES = ("fun_time/dashboard_app.py", "fun_time/li
 @pytest.mark.parametrize("reader", _READERS_THAT_SPELL_KEYS_THEMSELVES)
 def test_every_key_a_reader_spells_for_itself_is_written(reader, cfg_path):
     source = (_REPO_ROOT / reader).read_text(encoding="utf-8")
-    spelled = re.findall(r'\.get(?:int|float)?\(\s*"([^"]+)",\s*"([^"]+)"', source)
+    a_read_of_the_manifest = (
+        r'(?:\bparser|_read_manifest\([^)]*\))\.get(?:int|float)?\(\s*"([^"]+)",\s*"([^"]+)"')
+    spelled = re.findall(a_read_of_the_manifest, source)
     assert spelled, f"{reader} no longer reads the manifest for itself?"
 
     data = build_windows_bridge_manifest(load_config(cfg_path))

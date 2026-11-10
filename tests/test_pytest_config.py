@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import ast
 import configparser
+import inspect
 import tomllib
 from pathlib import Path
 
 import pytest
+from _pytest.config import findpaths
 
 pytestmark = pytest.mark.repo_check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-PYTEST_TAKES_ITS_WHOLE_CONFIGURATION_FROM_THE_FIRST_OF = (
-    "pytest.ini", "pyproject.toml", "tox.ini", "setup.cfg")
 PYTESTS_SECTION_IN = {"tox.ini": "pytest", "setup.cfg": "tool:pytest"}
 
 
@@ -24,10 +25,29 @@ def test_the_settings_live_in_pyproject():
     assert _settings()
 
 
+def _config_files_in_the_order_this_pytest_looks_for_them() -> list[str]:
+    looked_for = [
+        node.value for node in ast.walk(ast.parse(inspect.getsource(findpaths.locate_config)))
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "config_names"]
+    assert len(looked_for) == 1, "pytest no longer lists its config files where this reads them"
+    return ast.literal_eval(looked_for[0])
+
+
+def _files_pytest_would_read_instead_of_pyproject(root: Path) -> list[str]:
+    order = _config_files_in_the_order_this_pytest_looks_for_them()
+    return [name for name in order[:order.index("pyproject.toml")] if (root / name).exists()]
+
+
+@pytest.mark.parametrize("outranking", ["pytest.toml", ".pytest.toml", "pytest.ini", ".pytest.ini"])
+def test_a_file_pytest_reads_before_pyproject_is_found(outranking, tmp_path):
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    (tmp_path / outranking).write_text("", encoding="utf-8")
+
+    assert _files_pytest_would_read_instead_of_pyproject(tmp_path) == [outranking]
+
+
 def test_nothing_outranks_pyproject_as_the_config_file():
-    ours = PYTEST_TAKES_ITS_WHOLE_CONFIGURATION_FROM_THE_FIRST_OF.index("pyproject.toml")
-    for read_before_ours in PYTEST_TAKES_ITS_WHOLE_CONFIGURATION_FROM_THE_FIRST_OF[:ours]:
-        assert not (REPO_ROOT / read_before_ours).exists()
+    assert _files_pytest_would_read_instead_of_pyproject(REPO_ROOT) == []
 
     for name, section in PYTESTS_SECTION_IN.items():
         candidate = REPO_ROOT / name
