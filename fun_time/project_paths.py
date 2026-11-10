@@ -3,7 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+_LEVELS_THIS_MODULE_SITS_BELOW_THE_ROOT = 1
+PROJECT_DIR = Path(__file__).resolve().parents[_LEVELS_THIS_MODULE_SITS_BELOW_THE_ROOT]
 PROJECT_ICON = PROJECT_DIR / "icon.ico"
 PROJECT_VR_ICON = PROJECT_DIR / "vr_icon.ico"
 HOTKEY_SCRIPT_NAME = "windows_bridge_hotkeys.ahk"

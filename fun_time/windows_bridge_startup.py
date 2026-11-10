@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -84,12 +84,20 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
         parser.write(fp)
 
 
+def _the_broker_and_the_tray_that_would_start_it_again(contract: broker.BrokerContract) -> list:
+    return processes_matching(contract.image_pattern, contract.command_line_pattern)
+
+
+def _the_script_that_launches_them(contract: broker.BrokerContract) -> list:
+    return processes_matching(r"^wscript\.exe$", contract.launcher_pattern)
+
+
 def stop_broker_processes(broker_tray_launcher: Path | str | None) -> None:
     contract = broker.read_contract(broker_tray_launcher)
     if contract is None:
         return
-    for found in (*processes_matching(contract.image_pattern, contract.command_line_pattern),
-                  *processes_matching(r"^wscript\.exe$", contract.launcher_pattern)):
+    for found in (*_the_broker_and_the_tray_that_would_start_it_again(contract),
+                  *_the_script_that_launches_them(contract)):
         kill_process_tree(found.pid)
 
 
@@ -115,9 +123,14 @@ def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
         return None
     package = broker_tray_launcher.parent / contract.package_dir
     try:
-        return max((source.stat().st_mtime for source in package.rglob("*.py")), default=None)
+        return max((source.stat().st_mtime
+                    for source in _the_code_a_running_broker_loaded(package)), default=None)
     except OSError:
         return None
+
+
+def _the_code_a_running_broker_loaded(package: Path) -> Iterator[Path]:
+    return package.rglob("*.py")
 
 
 def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float | None:
@@ -133,17 +146,23 @@ def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float 
     return unix_seconds(the_likeliest_to_run_old_code)
 
 
+def _restarted_a_broker_that_predates_its_newest_verbs(broker_tray_launcher: Path | None) -> bool:
+    older_by_s = _seconds_the_broker_is_older_than_its_code(broker_tray_launcher)
+    if older_by_s is None or older_by_s <= 0:
+        return False
+    logger.info(
+        "Broker started %.0fs before its own code was last written; restarting it",
+        older_by_s,
+    )
+    _replace_a_broker_deaf_to_newer_verbs(broker_tray_launcher)
+    return True
+
+
 def ensure_broker(
     broker_state_dir: str | Path | None,
     broker_tray_launcher: Path | None = None,
 ) -> None:
-    older_by_s = _seconds_the_broker_is_older_than_its_code(broker_tray_launcher)
-    if older_by_s is not None and older_by_s > 0:
-        logger.info(
-            "Broker started %.0fs before its own code was last written; restarting it",
-            older_by_s,
-        )
-        _replace_a_broker_deaf_to_newer_verbs(broker_tray_launcher)
+    if _restarted_a_broker_that_predates_its_newest_verbs(broker_tray_launcher):
         return
     if broker_state_dir is not None and broker.is_running(Path(broker_state_dir)):
         return

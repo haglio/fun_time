@@ -65,7 +65,7 @@ class TestWhatTheSweepEnds:
 
         assert _swept(launcher) == [23, 25]
 
-    def test_a_broker_that_publishes_nothing_is_left_alone(self, tmp_path):
+    def test_a_broker_that_publishes_no_names_is_not_killed_by_guesswork(self, tmp_path):
         (tmp_path / "launch_relay_tray.vbs").write_text("' a launcher", encoding="utf-8")
 
         assert _swept(tmp_path / "launch_relay_tray.vbs") == []
@@ -99,7 +99,7 @@ class TestWhichSourcesDateTheBroker:
 
         assert broker_source_mtime(launcher) == 3000.0
 
-    def test_a_file_that_is_not_source_does_not_date_it(self, tmp_path):
+    def test_a_log_written_among_the_code_never_makes_the_broker_look_stale(self, tmp_path):
         launcher = _a_broker_checkout(tmp_path)
         package = tmp_path / PUBLISHED["package_dir"]
         package.mkdir()

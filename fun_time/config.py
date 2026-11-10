@@ -375,10 +375,14 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
     )
 
 
+def _write_a_starter_whose_paths_are_placeholders(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(EXAMPLE_CONFIG_PATH, path)
+
+
 def _raise_for_missing_config(path: Path) -> None:
     if path == DEFAULT_CONFIG_PATH and EXAMPLE_CONFIG_PATH.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(EXAMPLE_CONFIG_PATH, path)
+        _write_a_starter_whose_paths_are_placeholders(path)
         raise FileNotFoundError(
             f"No config found, so a starter copy was written from "
             f"{EXAMPLE_CONFIG_PATH.name} to {path}. Fill in your real paths "

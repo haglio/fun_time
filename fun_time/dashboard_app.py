@@ -91,7 +91,7 @@ from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.message_feed import FLASH_POLL_MS, MessageFeed, screens_if_known
 from fun_time.message_overlay import MessageOverlay
 from fun_time.press_flash import PressFlash
-from fun_time.project_paths import PROJECT_ICON
+from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 from fun_time.reference_dialog import ReferenceDialog
 from fun_time.rfb_mode_selector import RfbModeSelector
 from fun_time.session_end import mark_session_end
@@ -692,7 +692,7 @@ IMPORTED_CHECKOUT_FILENAME = "dashboard_source.txt"
 
 
 def imported_checkout() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return PROJECT_DIR
 
 
 def record_imported_checkout(state_dir: Path) -> Path:
