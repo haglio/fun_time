@@ -64,9 +64,8 @@ from .modes import scripted_item
 from .origenerator_opening import (
     OrigeneratorNeverCameUp,
     OrigeneratorOpening,
-    with_the_browser_in_its_place,
 )
-from .rfb_mode import switch_the_rfb_mode
+from .rfb_mode import switch_the_rfb_mode, with_the_browser_in_its_place
 from .rfb_modes import RfbMode
 from .runtime_flow import hand_the_satellite_to_the_app, write_flag_file
 from .satellite_speeds import SatelliteSpeeds

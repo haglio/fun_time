@@ -10,6 +10,14 @@ from .shared_state import BridgeState
 logger = logging.getLogger(__name__)
 
 
+def with_the_browser_in_its_place(state: BridgeState) -> BridgeState:
+    return replace(state, rfb_mode=RfbMode.RFB, core_named_last=False)
+
+
+def core_shows(state: BridgeState) -> bool:
+    return state.origenerator_core_ready and state.rfb_mode is RfbMode.ORIGENERATOR
+
+
 def _rfb_mode_ops(rfb_mode: RfbMode) -> list[WindowOp]:
     if rfb_mode is RfbMode.ORIGENERATOR:
         return [
@@ -34,4 +42,6 @@ def switch_the_rfb_mode(target: RfbMode, state: BridgeState, _config: BridgeConf
     if state.rfb_mode is target:
         return state, []
     logger.info("Origenerator mode" if target is RfbMode.ORIGENERATOR else "Random Faves Browser mode")
-    return replace(state, rfb_mode=target), _rfb_mode_ops(target)
+    moved = (replace(state, rfb_mode=target) if target is RfbMode.ORIGENERATOR
+             else with_the_browser_in_its_place(state))
+    return moved, _rfb_mode_ops(target)

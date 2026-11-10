@@ -6,6 +6,7 @@ from dataclasses import replace
 
 from .bridge_records import BridgeConfig
 from .funestra_status import origenerator_core_waits, origenerator_has_published
+from .rfb_mode import with_the_browser_in_its_place
 from .rfb_modes import RfbMode
 from .shared_state import BridgeState
 
@@ -14,10 +15,6 @@ logger = logging.getLogger(__name__)
 
 class OrigeneratorNeverCameUp(Exception):
     pass
-
-
-def with_the_browser_in_its_place(state: BridgeState) -> BridgeState:
-    return replace(state, rfb_mode=RfbMode.RFB)
 
 
 class OrigeneratorOpening:
