@@ -558,7 +558,9 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert not retired & _covered_commands()
     assert not retired & set(VOICE_COMMANDS.values())
     assert not retired & _ahk_hotkey_commands()
-    assert [_keys(_the_row_of(mode)) for mode in ("genau_activate", "main_kino_activate")] == [(), ()]
+    assert [_keys(_the_row_of(mode)) for mode in ("genau_activate", "main_kino_activate",
+                                                 "origenerator_activate")] == [(), (), ()]
+    assert "X" not in _the_row_of("origenerator_activate").detail
     assert _keys(_the_row_of("main_funestra_length_clips")) == ()
     assert _keys(_the_row_of("projection_cycle")) == ()
     [angle] = [row for row in _all_rows() if row.description.startswith("narrow / widen")]
@@ -683,7 +685,7 @@ def test_kino_mode_is_spoken_as_written_of_the_main_funestra():
     assert VOICE_COMMANDS["main kino mode"] == "main_kino_activate"
     for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "video mode",
                     "satellite kino mode", "satellites kino mode", "portrait kino mode",
-                    "aura generator", "aura generator mode", "landscape aura generator mode"):
+                    "landscape aura generator mode"):
         assert retired not in VOICE_COMMANDS, retired
     [kino] = [r for r in _all_rows() if "kino_activate" in r.commands]
     assert kino.commands == ("kino_activate", "main_kino_activate")
@@ -828,6 +830,8 @@ def test_each_mode_leads_its_own_group_and_says_only_what_a_reader_cannot_see():
         "Origenerator mode",
         "Origenerator Core shares real estate with the Random Faves Browser")
     assert genau.commands == ("genau_activate",)
+    assert origenerator.commands == ("origenerator_activate",)
+    assert origenerator.voice == ("origenerator", "origenerator mode")
     assert _section("Origenerator").rows[0] == origenerator
     assert _section("Random Faves Browser").rows == (browser,)
     assert (browser.description, browser.detail) == ("Random Faves Browser", "")

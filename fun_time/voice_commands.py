@@ -10,6 +10,7 @@ from fun_time.filter_vocab import named_first_or_last
 from .command_value import main_funestras_own, say_command
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
+from .dashboard_actions import ORIGENERATOR_ACTIVATE
 from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL
 
@@ -281,6 +282,8 @@ def build_voice_commands(
         **{phrase: "genau_activate" for said in GENAU_SAID for phrase in (said, f"{said} mode")},
         "kino": "kino_activate",
         "kino mode": "kino_activate",
+        "aura generator": ORIGENERATOR_ACTIVATE,
+        "aura generator mode": ORIGENERATOR_ACTIVATE,
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         "projection": "projection_cycle",
@@ -376,6 +379,7 @@ VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 _AS_VOSK_HEARS_IT_AND_AS_HE_READS_IT: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
+    ("aura generator", "origenerator"),
     ("hot keys", "hotkeys"),
     ("un mute", "unmute"),
     ("un pause", "unpause"),
