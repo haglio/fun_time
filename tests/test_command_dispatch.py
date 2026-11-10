@@ -34,6 +34,7 @@ from fun_time.media_metadata import (
     metadata_path_for,
 )
 from fun_time.mode_plan import EnhancementLevel
+from fun_time.rfb_mode import with_the_browser_in_its_place
 from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -2726,7 +2727,21 @@ class TestALineInTheHostedAppsWordsSaidBare:
         assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
         assert _origenerator_cmds(config) == []
 
-    def test_core_named_while_the_browser_holds_its_place_is_not_told(self, tmp_path):
+    @pytest.mark.parametrize(("named_first", "line"), [
+        ("portrait_mute", "PORTRAIT_SAY:populate on"),
+        ("landscape_mute", "LANDSCAPE_SAY:populate on"),
+    ])
+    def test_picking_the_browser_after_core_takes_it_back_to_the_satellite_named_before(
+            self, tmp_path, named_first, line):
+        config = _make_config(tmp_path)
+        state = self._named(_up(), config, named_first, "origenerator_activate", "rfb_activate")
+
+        self._said_bare(state, config)
+
+        assert _origenerator_cmds(config) == [line]
+
+    def test_picking_the_browser_after_core_with_no_satellite_named_leaves_it_ignored(
+            self, tmp_path):
         config = _make_config(tmp_path)
         state = self._named(_up(), config, "origenerator_activate", "rfb_activate")
 
@@ -2734,3 +2749,16 @@ class TestALineInTheHostedAppsWordsSaidBare:
 
         assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
         assert _origenerator_cmds(config) == []
+
+    def test_a_pick_of_core_refused_while_it_starts_does_not_name_it(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = self._named(BridgeState(), config, "portrait_mute", "origenerator_activate")
+
+        self._said_bare(state, config)
+
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:populate on"]
+
+    def test_the_session_putting_the_browser_back_un_names_core(self):
+        named = BridgeState(rfb_mode=RfbMode.ORIGENERATOR, core_named_last=True)
+
+        assert with_the_browser_in_its_place(named).core_named_last is False

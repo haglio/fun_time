@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from .command_value import SAY, Command, Scope, parse_command
 from .hosted_contract import said_to_core, said_to_the_hosted_app, written_for_the_hosted_app
 from .main_funestra_commands import refused_on_a_satellite
-from .rfb_modes import RfbMode
 from .satellite_commands import THE_FUNESTRAS_OWN
 
 if TYPE_CHECKING:
@@ -38,8 +37,7 @@ def the_satellite_a_bare_line_reaches(command: Command, state: BridgeState) -> C
 
 
 def line_said_bare_to_core(command: Command, state: BridgeState) -> str | None:
-    core_shows = state.origenerator_core_ready and state.rfb_mode is RfbMode.ORIGENERATOR
-    if _said_bare(command) and state.core_named_last and core_shows:
+    if _said_bare(command) and state.core_named_last:
         return said_to_core(command.argument)
     return None
 

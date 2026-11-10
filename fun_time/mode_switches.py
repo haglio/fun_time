@@ -7,7 +7,7 @@ from functools import partial
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
-from .rfb_mode import switch_the_rfb_mode
+from .rfb_mode import core_shows, switch_the_rfb_mode
 from .rfb_modes import RfbMode
 from .runtime_flow import apply_mode_switch
 from .shared_state import BridgeState
@@ -54,8 +54,8 @@ def _mode_switch(target: str, state: BridgeState, config: BridgeConfig,
 
 def _core_picked(state: BridgeState, config: BridgeConfig,
                  target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return switch_the_rfb_mode(RfbMode.ORIGENERATOR, replace(state, core_named_last=True), config,
-                               target_path)
+    state, ops = switch_the_rfb_mode(RfbMode.ORIGENERATOR, state, config, target_path)
+    return (replace(state, core_named_last=True) if core_shows(state) else state), ops
 
 
 HANDLERS: dict[str, Handler] = {
