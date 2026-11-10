@@ -405,6 +405,9 @@ def checkouts_older_than_the_hosted_origenerator_needs(
 
 def _why_its_app_would_not_start(
         worktree: Path, *, primary: Path, config_path: Path) -> AppWouldNotStart | None:
+    override = worktree / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME
+    if override.exists() and not override_lines(override):
+        return HostsNoOrigenerator(override)
     lacking = libraries_older_than_the_pin(worktree)
     if lacking:
         return OutOfDateLibrary(lacking[0])
@@ -557,6 +560,17 @@ class HostedAppWithoutItsOwnState(AppWouldNotStart):
             "from the production Origenerator checkout, then make the shortcut again.",
             for_him="That branch starts an Origenerator that has none of your own settings, so "
                     "it would open on no library at all with nothing in the gallery.")
+
+
+class HostsNoOrigenerator(AppWouldNotStart):
+    def __init__(self, override: Path):
+        super().__init__(
+            f"{override} is empty, so this worktree's session hosts no Origenerator, and a "
+            "session that hosts none stops as it starts: its Satellites would have nothing to "
+            "play. Name the Origenerator checkout in it, or delete it to host the production "
+            "checkout's, then make the shortcut again.",
+            for_him="That branch would start without Origenerator, so its Satellites would have "
+                    "had nothing to play and Fun Time would stop as it starts.")
 
 
 def hosted_origenerator_checkout(worktree: Path) -> Path | None:

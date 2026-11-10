@@ -14,6 +14,7 @@ from app_support.win32 import stamp_pinned_shortcuts
 
 from fun_time import checkout_overrides, orchestrator
 from fun_time.config import load_config
+from fun_time.funestra_deaths import NO_ORIGENERATOR_SET_UP
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     build_windows_bridge_manifest,
@@ -22,6 +23,7 @@ from fun_time.manifest import (
 from fun_time.orchestrator import (
     build_parser,
     main,
+    no_origenerator_set_up,
     require_dir,
     require_file,
     run_windows_bridge,
@@ -56,6 +58,7 @@ def _a_launch_with_the_machine_held_off(**overrides):
         "stamp_the_users_pin_outside_every_checkout": MagicMock(),
         "describe_the_session_on_the_taskbar": MagicMock(),
         "engine_missing_abort": MagicMock(return_value=False),
+        "no_origenerator_set_up": MagicMock(return_value=False),
         "prepare_orchestrator_launcher": MagicMock(),
         "wake_the_headset": MagicMock(),
         "run_windows_bridge": MagicMock(return_value=SessionOver(0)),
@@ -766,3 +769,28 @@ class TestTheSessionIsFourLayers:
     def test_no_session_layer_imports_one_above_it(self):
         for depth, layer in enumerate(_SESSION_LAYERS):
             assert not _modules_imported_by(layer) & set(_SESSION_LAYERS[:depth]), layer
+
+
+class TestALaunchThatNamesNoOrigenerator:
+    def test_stops_before_anything_starts_and_says_which_setting_is_missing(self, cfg_factory):
+        config_path = cfg_factory({"paths": {"origenerator_dir": ""}})
+
+        with _a_launch_with_the_machine_held_off(
+                no_origenerator_set_up=no_origenerator_set_up) as launch:
+            result = main(["--config", str(config_path)])
+
+        assert result == 1
+        launch.open_the_loading_screen.assert_not_called()
+        launch.run_windows_bridge.assert_not_called()
+        [said] = launch.show_funestra_died_alert.call_args.args
+        assert said == NO_ORIGENERATOR_SET_UP
+
+    def test_a_launch_that_names_one_goes_on(self, cfg_factory, tmp_path):
+        config_path = cfg_factory({"paths": {"origenerator_dir": str(tmp_path / "origenerator")}})
+
+        with _a_launch_with_the_machine_held_off(
+                no_origenerator_set_up=no_origenerator_set_up) as launch:
+            main(["--config", str(config_path)])
+
+        launch.run_windows_bridge.assert_called_once()
+        launch.show_funestra_died_alert.assert_not_called()

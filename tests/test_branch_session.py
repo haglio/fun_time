@@ -585,6 +585,19 @@ def test_a_shortcut_is_refused_when_the_hosted_app_carries_none_of_its_own_state
     assert not list(primary_with_launcher.newer.glob("*.lnk"))
 
 
+def test_a_shortcut_is_refused_for_a_worktree_that_says_its_session_hosts_no_origenerator(
+        primary_with_launcher):
+    state = primary_with_launcher.newer / branch_session.STATE_DIRNAME
+    state.mkdir(exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text("", encoding="utf-8")
+
+    with pytest.raises(branch_session.HostsNoOrigenerator, match="hosts no Origenerator"):
+        branch_session.write_launch_shortcut(
+            primary_with_launcher.newer, primary=primary_with_launcher.primary)
+
+    assert not list(primary_with_launcher.newer.glob("*.lnk"))
+
+
 @pytestmark_shortcut
 def test_a_shortcut_is_written_once_the_hosted_app_has_its_own_state(
         primary_with_launcher, tmp_path):

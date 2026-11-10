@@ -23,7 +23,7 @@ from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time.config import load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.funestra_deaths import origenerator_never_came_up_message
+from fun_time.funestra_deaths import NO_ORIGENERATOR_SET_UP, origenerator_never_came_up_message
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
@@ -699,6 +699,7 @@ class TestTheCrossingBackToTheDesktop:
              mutex_free(), \
              patch("fun_time.session_handoff.subprocess.Popen") as popen, \
              patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+             patch.object(orchestrator, "no_origenerator_set_up", return_value=False), \
              patch.object(orchestrator, "run_vr_bridge",
                           side_effect=lambda *_a, **_k: (during_session(), 0)[1]):
             return orchestrator.main([]), popen
@@ -732,6 +733,7 @@ def _the_session_main_starts(config, argv: list[str]) -> MagicMock:
          mutex_free(), \
          patch("fun_time.session_handoff.subprocess.Popen"), \
          patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+         patch.object(orchestrator, "no_origenerator_set_up", return_value=False), \
          patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
         orchestrator.main(argv)
     return run_bridge
@@ -949,6 +951,7 @@ def test_an_error_that_ends_fun_time_vr_puts_the_runtime_fun_time_woke_to_sleep(
          patch.object(orchestrator, "install_exception_logging"), \
          mutex_free(), \
          patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+         patch.object(orchestrator, "no_origenerator_set_up", return_value=False), \
          patch.object(orchestrator, "run_vr_bridge",
                       side_effect=RuntimeError("an error of its own")), \
          pytest.raises(RuntimeError, match="an error of its own"):
@@ -1933,3 +1936,18 @@ class TestOpeningAVrSession:
                           start_voice_control=MagicMock(return_value=(controller, None)))
 
         assert seen == [STARTING_VOICE_COMMANDS.message]
+
+
+def test_a_headset_launch_that_names_no_origenerator_stops_before_anything_starts(config):
+    with patch.object(orchestrator, "load_config",
+                      return_value=replace(config, paths=replace(config.paths, origenerator_dir=None))), \
+         patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+         patch.object(orchestrator, "install_exception_logging"), \
+         mutex_free(), \
+         patch("fun_time.orchestrator.show_funestra_died_alert") as alert, \
+         patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+         patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
+        assert orchestrator.main([]) == 1
+
+    run_bridge.assert_not_called()
+    assert alert.call_args.args == (NO_ORIGENERATOR_SET_UP,)
