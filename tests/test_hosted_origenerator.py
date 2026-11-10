@@ -305,7 +305,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
              patch("fun_time.hosted_origenerator.the_open_origenerator",
                    return_value=OpenOrigenerator(6060, starting=False,
                                                  place=origenerator / "state",
-                                                 slideshow_on=())), \
+                                                 showing_a_slideshow=False)), \
              origenerator_handed_over(side_effect=answer), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=_a_stand_in_launch_that_takes_any_argument(launched)):
@@ -333,7 +333,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
              patch("fun_time.hosted_origenerator.the_open_origenerator",
                    return_value=OpenOrigenerator(6060, starting=False,
                                                  place=origenerator / "state",
-                                                 slideshow_on=())), \
+                                                 showing_a_slideshow=False)), \
              origenerator_handed_over(side_effect=lambda _place, **kw: handed.update(kw)):
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=True)
 

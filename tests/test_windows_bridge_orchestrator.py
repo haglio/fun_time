@@ -30,7 +30,6 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_deaths import (
     FunestraDied,
     LaunchedFunestra,
@@ -1193,9 +1192,9 @@ class TestLoadingScreenLifecycle:
 
         assert runner.call_args.args[2].origenerator_already_open is already_open
 
-    @pytest.mark.parametrize("slideshow_on", [(FunTimeFunestra.PORTRAIT,), ()])
-    def test_the_dispatch_loop_is_told_which_satellite_the_hosted_apps_slideshow_is_on(
-        self, cfg_factory, tmp_path, slideshow_on,
+    @pytest.mark.parametrize("showing_a_slideshow", [True, False])
+    def test_the_dispatch_loop_is_told_whether_the_hosted_app_was_showing_a_slideshow(
+        self, cfg_factory, tmp_path, showing_a_slideshow,
     ):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -1206,7 +1205,7 @@ class TestLoadingScreenLifecycle:
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                    return_value=replace(_fake_startup_result(),
-                                        origenerator_slideshow_on=slideshow_on)), \
+                                        origenerator_showing_a_slideshow=showing_a_slideshow)), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
                    return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
@@ -1220,7 +1219,7 @@ class TestLoadingScreenLifecycle:
                 env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
-        assert runner.call_args.args[2].origenerator_slideshow_on == slideshow_on
+        assert runner.call_args.args[2].origenerator_showing_a_slideshow is showing_a_slideshow
 
 
 class TestKeepingTheHostedApp:

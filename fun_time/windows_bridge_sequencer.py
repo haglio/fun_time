@@ -79,7 +79,7 @@ class StartupResult:
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
-    origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
+    origenerator_showing_a_slideshow: bool = False
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_hwnd: int = 0
     hwnds_by_window: dict[str, int] = field(default_factory=dict)
@@ -141,12 +141,12 @@ class _LaunchedChildren:
     dashboard_pid: int = 0
     origenerator_taken_over: bool = False
     origenerator_already_open: bool = False
-    origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
+    origenerator_showing_a_slideshow: bool = False
 
     def hosts(self, app: HostedApp) -> int:
         self.origenerator_already_open = app.already_open
         self.origenerator_taken_over = app.taken_over
-        self.origenerator_slideshow_on = app.slideshow_on
+        self.origenerator_showing_a_slideshow = app.showing_a_slideshow
         if not app.taken_over:
             self.pids.append(app.pid)
         return app.pid
@@ -199,7 +199,7 @@ class _CoreSession:
     origenerator_pid: int
     origenerator_taken_over: bool
     origenerator_already_open: bool
-    origenerator_slideshow_on: tuple[FunTimeFunestra, ...]
+    origenerator_showing_a_slideshow: bool
     main_funestra_status_file: Path
 
 
@@ -332,7 +332,7 @@ def _launch_core_media(
         origenerator_pid=origenerator_pid,
         origenerator_taken_over=launched.origenerator_taken_over,
         origenerator_already_open=launched.origenerator_already_open,
-        origenerator_slideshow_on=launched.origenerator_slideshow_on,
+        origenerator_showing_a_slideshow=launched.origenerator_showing_a_slideshow,
         main_funestra_status_file=main_funestra_status_file,
     )
 
@@ -509,7 +509,7 @@ def _run_startup_phases(
         origenerator_pid=core.origenerator_pid,
         origenerator_taken_over=core.origenerator_taken_over,
         origenerator_already_open=core.origenerator_already_open,
-        origenerator_slideshow_on=core.origenerator_slideshow_on,
+        origenerator_showing_a_slideshow=core.origenerator_showing_a_slideshow,
         main_mode=core.main_mode,
         hwnds_by_window=hwnds_by_window,
         rfb_hwnd=rfb_hwnd,
