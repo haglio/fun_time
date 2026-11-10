@@ -11,4 +11,6 @@ class TestScreenNames:
 
 
 def test_the_hud_hangs_at_the_main_huds_own_pixel_scale():
-    assert 300 * DEG_PER_PX > 20.0
+    a_satellite_huds_width_px, wide_enough_to_press_deg = 300, 20.0
+
+    assert a_satellite_huds_width_px * DEG_PER_PX > wide_enough_to_press_deg

@@ -729,9 +729,12 @@ class _SatelliteUnit(_VideoUnit):
         else:
             self._buttons.unhang()
         if self._hud_shown and self.target.ready:
+            as_wide_as_on_the_main_hud_whatever_the_videos_resolution = (
+                self.hud_texture.width * DEG_PER_PX)
             self.hud_screen.placement = attached_to(
                 self.funestra.hud_edge, self.shown, aspect=self.target.aspect,
-                shape=Footprint(self.hud_texture.width * DEG_PER_PX, self.hud_texture.aspect),
+                shape=Footprint(as_wide_as_on_the_main_hud_whatever_the_videos_resolution,
+                                self.hud_texture.aspect),
                 gap_deg=HUD_GAP_PAST_THE_TOGGLE_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
@@ -1284,7 +1287,8 @@ class _GalleryUnit:
             return ()
         return (Hanging(
             Screen(GALLERY, self.screen.placement, self.texture.aspect,
-                   movable=True, resizable=True, pressable=True, right_clicks=True),
+                   movable=True, resizable=True, pressable=True,
+                   has_a_right_click_menu=True),
             mesh=self.screen, frame=self.texture, blend=True),)
 
     def hangs_by(self) -> dict[str, Hangs]:

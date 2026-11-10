@@ -119,14 +119,22 @@ def cylinder_hit(ray: Ray, radius: float = RADIUS_M) -> SurfacePoint | None:
 _EDGE_ON_DEG = 89.0
 
 
+def _kept_in_front_of_the_screens_plane(off_center_deg: float) -> float:
+    return max(-_EDGE_ON_DEG, min(_EDGE_ON_DEG, off_center_deg))
+
+
+def _out_at_the_flat_frame(height_on_the_cylinder: float, off_center: float) -> float:
+    return height_on_the_cylinder / math.cos(off_center)
+
+
 def screen_uv(
     point: SurfacePoint, placement: Placement, aspect: float, radius: float = RADIUS_M,
 ) -> tuple[float, float]:
-    off_center = math.radians(max(-_EDGE_ON_DEG, min(
-        _EDGE_ON_DEG, turn_deg(placement.azimuth_deg, point.azimuth_deg))))
+    off_center = math.radians(_kept_in_front_of_the_screens_plane(
+        turn_deg(placement.azimuth_deg, point.azimuth_deg)))
     half = half_width(placement.width_deg, radius)
     across = radius * math.tan(off_center)
-    up = point.y / math.cos(off_center) - center_height(placement, radius)
+    up = _out_at_the_flat_frame(point.y, off_center) - center_height(placement, radius)
     return across / half / 2.0 + 0.5, up * aspect / half / 2.0 + 0.5
 
 
@@ -138,7 +146,8 @@ SURFACE = "surface"
 
 
 def handle_extent(placement: Placement, aspect: float) -> tuple[float, float]:
-    du = RADIUS_M * math.radians(HANDLE_DEG) / (2.0 * half_width(placement.width_deg))
+    one_length_each_way_on_every_screen = RADIUS_M * math.radians(HANDLE_DEG)
+    du = one_length_each_way_on_every_screen / (2.0 * half_width(placement.width_deg))
     return du, du * aspect
 
 
@@ -148,9 +157,11 @@ def handle_at(
     du, dv = handle_extent(placement, aspect)
     if resizable and -dv <= v <= 0.0 and (-du <= u <= 0.0 or 1.0 <= u <= 1.0 + du):
         return RESIZE
-    if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
+    across_the_frame = 0.0 <= u <= 1.0
+    if across_the_frame and 0.0 <= v <= 1.0:
         return SURFACE
-    if 0.0 <= u <= 1.0 and 1.0 < v <= 1.0 + dv:
+    in_the_bar_hung_clear_above_the_frame = across_the_frame and 1.0 < v <= 1.0 + dv
+    if in_the_bar_hung_clear_above_the_frame:
         return MOVE
     return None
 
@@ -201,7 +212,7 @@ def handle_vertices(
 
 class Grab:
     def __init__(
-        self, handle: str, placement: Placement, *, start: SurfacePoint, aspect: float = 1.0,
+        self, handle: str, placement: Placement, *, start: SurfacePoint, aspect: float,
         widened_by: float = 1.0,
     ) -> None:
         self.handle = handle
@@ -212,19 +223,19 @@ class Grab:
         self._aspect = aspect
         self._side = 1.0 if turn_deg(
             placement.azimuth_deg, start.azimuth_deg) >= 0.0 else -1.0
-        self._anchor = (
+        self._pinned_far_corner = (
             placement.azimuth_deg - self._side * placement.width_deg / 2.0,
             (center_height(placement, RADIUS_M) + self._half_height(placement.width_deg))
             * math.cos(math.radians(placement.width_deg) / 2.0),
         )
-        self._width_deg = placement.width_deg
+        self._width_reached_deg = placement.width_deg
 
     def _half_height(self, width_deg: float) -> float:
         return half_width(width_deg, RADIUS_M) / self._aspect
 
-    def _from_the_anchor(self, azimuth_deg: float) -> float:
-        turn = turn_deg(self._anchor[0], azimuth_deg)
-        return turn + 360.0 * round((self._side * self._width_deg - turn) / 360.0)
+    def _turn_nearest_the_width_reached(self, azimuth_deg: float) -> float:
+        turn = turn_deg(self._pinned_far_corner[0], azimuth_deg)
+        return turn + 360.0 * round((self._side * self._width_reached_deg - turn) / 360.0)
 
     def dragged_to(self, point: SurfacePoint) -> Placement:
         placement = self._placement
@@ -232,7 +243,7 @@ class Grab:
             azimuth = placement.azimuth_deg + turn_deg(self._start.azimuth_deg, point.azimuth_deg)
             off_center = math.radians(turn_deg(placement.azimuth_deg, self._start.azimuth_deg))
             lift = (center_height(placement, RADIUS_M)
-                    + (point.y - self._start.y) / math.cos(off_center))
+                    + _out_at_the_flat_frame(point.y - self._start.y, off_center))
             return clamp_placement(Placement(
                 azimuth_deg=turn_deg(0.0, azimuth),
                 elevation_deg=elevation_at(lift, RADIUS_M),
@@ -241,16 +252,17 @@ class Grab:
         return self._resized_to(point)
 
     def _resized_to(self, point: SurfacePoint) -> Placement:
-        azimuth, y = self._anchor
-        across = math.radians(self._side * self._from_the_anchor(point.azimuth_deg))
+        azimuth, y = self._pinned_far_corner
+        across = math.radians(self._side * self._turn_nearest_the_width_reached(point.azimuth_deg))
         down = 2.0 * math.asin(
             max(-1.0, min(1.0, (y - point.y) * self._aspect / (2.0 * RADIUS_M))))
-        weight = (math.cos(math.radians(self._width_deg) / 2.0) / self._aspect) ** 2
+        weight = (math.cos(math.radians(self._width_reached_deg) / 2.0) / self._aspect) ** 2
         reached_deg = min(math.degrees((across + weight * down) / (1.0 + weight)), _HALF_TURN_DEG)
         size_deg = clamp_width(widened_deg(reached_deg, 1.0 / self._widened_by))
         width_deg = widened_deg(size_deg, self._widened_by)
-        self._width_deg = width_deg
-        lift = y / math.cos(math.radians(width_deg) / 2.0) - self._half_height(width_deg)
+        self._width_reached_deg = width_deg
+        lift = (_out_at_the_flat_frame(y, math.radians(width_deg) / 2.0)
+                - self._half_height(width_deg))
         return Placement(
             azimuth_deg=turn_deg(0.0, azimuth + self._side * width_deg / 2.0),
             elevation_deg=clamp_elevation(elevation_at(lift, RADIUS_M)),
@@ -304,7 +316,7 @@ class Screen:
     movable: bool = False
     resizable: bool = False
     pressable: bool = False
-    right_clicks: bool = False
+    has_a_right_click_menu: bool = False
     immersive: bool = False
     item: bool = False
     widened_by: float = 1.0
@@ -348,9 +360,18 @@ class Frame:
     taken: str | None = None
 
 
+def _is_under_the_ray_wherever_it_points(screen: Screen) -> bool:
+    return screen.immersive
+
+
+def _right_clicked(screen: Screen, hand: HandInput) -> bool:
+    stick_pushed_in_as_the_one_triggers_second_button = hand.stick_pressed
+    return screen.has_a_right_click_menu and stick_pushed_in_as_the_one_triggers_second_button
+
+
 def _hover_at(point: SurfacePoint, screens: Sequence[Screen]) -> tuple[Screen, Hover] | None:
     for screen in reversed(screens):
-        if screen.immersive:
+        if _is_under_the_ray_wherever_it_points(screen):
             continue
         u, v = screen_uv(point, screen.placement, screen.aspect)
         handle = handle_at(u, v, screen.placement, aspect=screen.aspect,
@@ -443,7 +464,7 @@ class Pointer:
         elif edge == PRESS and screen.item:
             self._start_squeeze(aim, scene_rotation, PressEvent(
                 PRESS, screen.name, hover.u, hover.v) if screen.pressable else None)
-        elif edge == PRESS and screen.right_clicks and hands[self.hand].stick_pressed:
+        elif edge == PRESS and _right_clicked(screen, hands[self.hand]):
             events = (PressEvent(RIGHT_CLICK, screen.name, hover.u, hover.v),)
         elif edge == PRESS and screen.pressable:
             self._pressing = screen

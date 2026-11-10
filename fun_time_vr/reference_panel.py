@@ -50,6 +50,7 @@ _HEAD_H = BUTTON_SIZE + _PAD
 _NOTE_LINES_AT_MOST = 3
 _KEY_X, _SAY_X, _WHAT_X = _PAD, 210, 400
 _CONTROLLER_X, _SAY_AFTER_CONTROLLER_X, _WHAT_AFTER_BOTH_X = 170, 300, 470
+_THE_FRONT_NOT_WHERE_READING_STOPPED = 0
 _NO_KEY = "—"
 
 
@@ -200,6 +201,6 @@ class ReferencePointer:
 
     def showing(self, open_: bool) -> None:
         if open_ and not self.state.open:
-            self.state = ReferenceState(open=True, page=0)
+            self.state = ReferenceState(open=True, page=_THE_FRONT_NOT_WHERE_READING_STOPPED)
         else:
             self.state = replace(self.state, open=open_)

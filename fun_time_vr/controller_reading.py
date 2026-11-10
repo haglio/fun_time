@@ -69,12 +69,14 @@ def _aim(controllers: ControllerActions, hand: str, path: Any, when_and_where: t
     )
 
 
-def _hand_input(controllers: ControllerActions, hand: str, path: Any,
+def _hand_input(controllers: ControllerActions, hand: str, for_this_hand_alone: Any,
                 when_and_where: tuple[int, Any]) -> HandInput:
     return HandInput(
-        aim=_aim(controllers, hand, path, when_and_where),
-        trigger=_float(controllers, TRIGGER, path),
-        stick_x=_float(controllers, STICK_X, path), stick_y=_float(controllers, STICK_Y, path),
-        stick_pressed=_pressed(controllers, STICK_CLICK, path),
-        forward=_pressed(controllers, FORWARD, path), back=_pressed(controllers, BACK, path),
+        aim=_aim(controllers, hand, for_this_hand_alone, when_and_where),
+        trigger=_float(controllers, TRIGGER, for_this_hand_alone),
+        stick_x=_float(controllers, STICK_X, for_this_hand_alone),
+        stick_y=_float(controllers, STICK_Y, for_this_hand_alone),
+        stick_pressed=_pressed(controllers, STICK_CLICK, for_this_hand_alone),
+        forward=_pressed(controllers, FORWARD, for_this_hand_alone),
+        back=_pressed(controllers, BACK, for_this_hand_alone),
     )

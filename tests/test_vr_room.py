@@ -97,7 +97,7 @@ class TestWhatReachesTheEyes:
 
         assert [mesh for mesh, _frame, _blend in drawn] == ["clock", "notes"]
 
-    def test_a_screen_the_compositor_took_as_a_quad_is_left_out(self):
+    def test_a_screen_the_runtime_lays_over_the_scene_as_a_quad_is_left_out(self):
         assert self._drawn(_hanging("notes"), _hanging("clock"), as_quads=("notes",)) == [
             ("clock", "clock", False)]
 
@@ -170,7 +170,7 @@ class TestWhereEachScreenHangs:
         assert room.where_they_hang([_Hanger({"dash": hangs})])["dash"].spot("dash") == "wrapped"
 
 
-class TestTheGatesOnTheRoomsAssembly:
+class TestANewScreenIsRegisteredInOnePlace:
     def _source(self, thing) -> str:
         return inspect.getsource(thing).lstrip()
 

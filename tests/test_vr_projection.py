@@ -163,9 +163,10 @@ class TestSidecarPersistence:
     def test_a_choice_for_a_video_in_a_vr_folder_on_another_drive_is_remembered(self, tmp_path):
         metadata = tmp_path / "local" / "videos" / "metadata"
         metadata.mkdir(parents=True)
-        vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
-        video = vr_dir / "scene one.mp4"
-        memory = ProjectionMemory(metadata, (vr_dir,))
+        where_every_vr_video_is_on_the_cloud_drive_alone = (
+            tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished")
+        video = where_every_vr_video_is_on_the_cloud_drive_alone / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (where_every_vr_video_is_on_the_cloud_drive_alone,))
 
         assert memory.save(str(video), MKX200_SBS) is True
 
