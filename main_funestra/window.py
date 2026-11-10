@@ -24,7 +24,7 @@ def _leave_out_the_input_methods_that_stall_band_changes() -> None:
     ctypes.WinDLL("imm32").ImmDisableIME(_ALL_THREADS_OF_THIS_PROCESS)
 
 
-def wear_the_icon(pygame, icon: Path | None) -> None:
+def replace_pygames_logo_with(pygame, icon: Path | None) -> None:
     surface = _icon_surface(pygame, icon)
     if surface is not None:
         pygame.display.set_icon(surface)

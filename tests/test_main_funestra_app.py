@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from main_funestra import app
-from main_funestra.window import wear_the_icon
+from main_funestra.window import replace_pygames_logo_with
 
 
 def _the_app_source_a_test_cannot_run() -> ast.Module:
@@ -126,8 +126,8 @@ class TestWhenSomethingCosmeticFails:
         worn = []
 
         with caplog.at_level(logging.DEBUG, logger="main_funestra.window"):
-            wear_the_icon(SimpleNamespace(display=SimpleNamespace(set_icon=worn.append)),
-                          not_an_icon)
+            replace_pygames_logo_with(
+                SimpleNamespace(display=SimpleNamespace(set_icon=worn.append)), not_an_icon)
 
         assert worn == []
         assert "icon" in caplog.records[0].getMessage().lower()

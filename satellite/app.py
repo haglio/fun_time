@@ -14,9 +14,9 @@ from funestra.playlist import PlaylistItem
 from main_funestra.input import Input
 from main_funestra.window import (
     before_the_window_exists,
+    replace_pygames_logo_with,
     run_the_window,
     take_outside_resizes,
-    wear_the_icon,
 )
 
 from .cli import audio_muted, build_parser, resolve_playlist
@@ -61,7 +61,7 @@ def _open_window(placement: WindowPlacement, claim_identity) -> int:
     pygame.init()
     if placement.x is not None and placement.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"
-    wear_the_icon(pygame, placement.icon)
+    replace_pygames_logo_with(pygame, placement.icon)
     # Borderless, so the client area IS the place it was given: mpv paints into this window via
     # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
     # the portrait/landscape rect.
