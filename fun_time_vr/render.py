@@ -243,10 +243,10 @@ class _TintProgram:
         self._color = GL.glGetUniformLocation(self.program, "color")
 
     def draw(
-        self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
+        self, mesh: ScreenMesh, view_proj32: np.ndarray, color: tuple[float, float, float, float],
     ) -> None:
         GL.glUseProgram(self.program)
-        GL.glUniformMatrix4fv(self._view_proj, 1, GL.GL_TRUE, view_proj)
+        GL.glUniformMatrix4fv(self._view_proj, 1, GL.GL_TRUE, view_proj32)
         GL.glUniform4f(self._color, *color)
         GL.glEnable(GL.GL_BLEND)
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
@@ -285,7 +285,7 @@ class SceneRenderer:
         GL.glClearColor(*clear)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-    def draw_immersive(self, wrap: Wrap, texture: int, inv_view_proj: np.ndarray, eye: int) -> None:
+    def draw_immersive(self, wrap: Wrap, texture: int, inv_view_proj32: np.ndarray, eye: int) -> None:
         GL.glUseProgram(self._immersive_program)
         GL.glUniform1i(self._imm_eye, eye)
         GL.glUniform1i(self._imm_mode, wrap.mode)
@@ -293,7 +293,7 @@ class SceneRenderer:
         GL.glUniform1i(self._imm_curve, wrap.curve)
         GL.glUniform1f(self._imm_height, wrap.height)
         GL.glUniform1i(self._imm_tex, 0)
-        GL.glUniformMatrix4fv(self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj)
+        GL.glUniformMatrix4fv(self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj32)
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
         GL.glBindVertexArray(self._fullscreen_vao)
@@ -302,11 +302,11 @@ class SceneRenderer:
         GL.glUseProgram(0)
 
     def draw_screen(
-        self, mesh: ScreenMesh, texture: int, view_proj: np.ndarray, *, blend: bool = False,
+        self, mesh: ScreenMesh, texture: int, view_proj32: np.ndarray, *, blend: bool = False,
     ) -> None:
         GL.glUseProgram(self._quad_program)
         GL.glUniform1i(self._quad_tex, 0)
-        GL.glUniformMatrix4fv(self._quad_view_proj, 1, GL.GL_TRUE, view_proj)
+        GL.glUniformMatrix4fv(self._quad_view_proj, 1, GL.GL_TRUE, view_proj32)
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
         if blend:
@@ -318,16 +318,16 @@ class SceneRenderer:
         GL.glUseProgram(0)
 
     def draw_solid(
-        self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
+        self, mesh: ScreenMesh, view_proj32: np.ndarray, color: tuple[float, float, float, float],
     ) -> None:
-        self._solid.draw(mesh, view_proj, color)
+        self._solid.draw(mesh, view_proj32, color)
 
     def draw_shaded(
-        self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
+        self, mesh: ScreenMesh, view_proj32: np.ndarray, color: tuple[float, float, float, float],
     ) -> None:
-        self._shaded.draw(mesh, view_proj, color)
+        self._shaded.draw(mesh, view_proj32, color)
 
-    def copy_texture(self, texture: int) -> None:
+    def copy_texture_by_drawing(self, texture: int) -> None:
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glDisable(GL.GL_BLEND)
         GL.glDisable(GL.GL_SCISSOR_TEST)

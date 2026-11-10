@@ -66,7 +66,7 @@ def refresh_quad_layer(headset: Headset, index: int, unit, arranged: Arranged) -
     if unit.layer_dirty:
         headset.session.ensure_quad_swapchain(index, unit.target.width, unit.target.height)
         headset.session.bind_quad_framebuffer(index)
-        headset.renderer.copy_texture(unit.target.texture)
+        headset.renderer.copy_texture_by_drawing(unit.target.texture)
         headset.session.release_quad_framebuffer(index)
         unit.layer_dirty = False
         unit.layer_rect = (unit.target.width, unit.target.height)
@@ -113,7 +113,7 @@ def draw_eyes(
 def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, views) -> None:
     was_held = loading_screen.anchor.held
     heading = loading_screen.anchor.heading(
-        yaw_of_orientation(orientation_of(views[0])), settled=loading_screen.anchor_settled)
+        yaw_of_orientation(orientation_of(views[0])), settled=loading_screen.seen_by_the_frame_loop.anchor_settled)
     if was_held is None and loading_screen.anchor.held is not None:
         logger.info("Loading screen placed at heading %.0f°", math.degrees(heading))
     hanging = yaw_rotation_matrix(heading)

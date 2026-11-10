@@ -22,6 +22,7 @@ from fun_time_vr.frame_loop import (
     present_the_loading_screen,
     raise_the_loading_screen,
     refresh_quad_layer,
+    _view_from_the_spheres_center,
     tear_down,
 )
 from fun_time_vr.funestras import Arranged
@@ -38,6 +39,13 @@ def _a_view(*, yaw_deg: float = 0.0):
 
 
 _BOTH_EYES = [_a_view(), _a_view()]
+
+
+def test_where_the_head_is_never_reaches_the_scene():
+    stepped_aside = _a_view()
+    stepped_aside.pose.position.x = 0.5
+
+    assert np.array_equal(_view_from_the_spheres_center(stepped_aside), _view_from_the_spheres_center(_a_view()))
 _UNARRANGED = Arranged([], [], np.eye(4, dtype=np.float32), 0.0, 0.0)
 
 
@@ -103,7 +111,7 @@ class _ARenderer:
     def draw_screen(self, mesh, texture, view_proj, *, blend=False) -> None:
         self.screens.append((mesh, texture))
 
-    def copy_texture(self, texture) -> None:
+    def copy_texture_by_drawing(self, texture) -> None:
         self.copied.append(texture)
 
     def close(self) -> None:
@@ -131,7 +139,7 @@ class _ALoadingScreen:
         self.showing = showing
         self.wanted = wanted
         self.holding = False
-        self.anchor_settled = False
+        self.seen_by_the_frame_loop = SimpleNamespace(anchor_settled=False)
         self.anchor = SimpleNamespace(held=None, heading=self._heading)
         self.screen = SimpleNamespace(ready=screen_ready, mesh="loading-screen-mesh")
         self.texture = SimpleNamespace(texture=7)

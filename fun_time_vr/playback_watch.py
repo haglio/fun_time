@@ -2,14 +2,14 @@
 # held.
 from __future__ import annotations
 
-STALL_SECONDS = 6.0
+LONGER_THAN_A_SLOW_OPEN_S = 6.0
 
 STALLED = "stalled"
 STILL_STALLED = "still stalled"
 
 
 class PlaybackWatch:
-    def __init__(self, *, seconds: float = STALL_SECONDS) -> None:
+    def __init__(self, *, seconds: float = LONGER_THAN_A_SLOW_OPEN_S) -> None:
         self._seconds = seconds
         self._position: float | None = None
         self._since = 0.0

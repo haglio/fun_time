@@ -1098,6 +1098,13 @@ class TestTheAudioCompanionInVr:
         assert [ast.unparse(argument) for argument in launch.args] == ["manifest"]
         assert given["audio_device"] == "config.vr.audio_device"
 
+    def test_no_dashboard_is_launched_beside_it_to_show_a_message(self):
+        launched = {ast.unparse(n.func) for n in ast.walk(ast.parse(_the_session_as_one_source()))
+                    if isinstance(n, ast.Call)}
+
+        assert "launch_audio_companion" in launched
+        assert not {name for name in launched if "dashboard" in name or "ui_companions" in name}
+
     def test_it_is_listening_before_genaus_role_can_name_its_first_flick(self):
         calls = _call_lines_in_run_vr_bridge()
 

@@ -322,6 +322,18 @@ class TestAGrab:
         assert grown.width_deg == pytest.approx(wider)
         assert self._upper(grown, -side) == pytest.approx(anchor)
 
+    def test_a_resize_past_the_azimuth_limit_still_holds_the_far_corner(self):
+        near_the_limit = Placement(
+            azimuth_deg=AZIMUTH_LIMIT_DEG - 10.0, elevation_deg=10.0, width_deg=12.0)
+        anchor = self._upper(near_the_limit, -1.0)
+        grab = Grab(RESIZE, near_the_limit, start=self._corner(near_the_limit, 1.0),
+                    aspect=self._ASPECT)
+
+        grown = grab.dragged_to(self._grabbed_corner_at(anchor, 1.0, 36.0))
+
+        assert grown.azimuth_deg > AZIMUTH_LIMIT_DEG
+        assert self._upper(grown, -1.0) == pytest.approx(anchor)
+
     def test_the_two_corners_carry_the_screen_opposite_ways(self):
         wider = 2 * _A_SCREEN.width_deg
         pulled = {}

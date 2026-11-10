@@ -27,7 +27,7 @@ class TestFramePerf:
             perf.note("wait", 8.0)
             clock.now += 0.4
             perf.frame_done()
-            perf.maybe_flush()
+            perf.flush_off_the_render_thread()
         assert not caplog.records
 
     def test_one_line_per_window_with_fps_and_percentiles(self, caplog):
@@ -37,7 +37,7 @@ class TestFramePerf:
             perf.note("mpv", 1.0)
             clock.now += 0.1
             perf.frame_done()
-            perf.maybe_flush()
+            perf.flush_off_the_render_thread()
         assert len(caplog.records) == 1
         line = caplog.records[0].getMessage()
         assert "fps=10.0" in line
@@ -50,7 +50,7 @@ class TestFramePerf:
             perf.note("wait", 5.0)
             clock.now += 0.1
             perf.frame_done()
-            perf.maybe_flush()
+            perf.flush_off_the_render_thread()
         assert len(caplog.records) == 2
 
     def test_spikes_surface_in_the_max_column(self, caplog):
@@ -59,7 +59,7 @@ class TestFramePerf:
             perf.note("pump", 250.0 if index == 25 else 1.0)
             clock.now += 0.1
             perf.frame_done()
-            perf.maybe_flush()
+            perf.flush_off_the_render_thread()
         line = caplog.records[0].getMessage()
         assert "pump=1.0/1.0/250.0" in line
 
@@ -67,5 +67,5 @@ class TestFramePerf:
         perf, clock = _perf_with_capture(caplog)
         for _ in range(4):
             clock.now += 2.0
-            perf.maybe_flush()
+            perf.flush_off_the_render_thread()
         assert not caplog.records

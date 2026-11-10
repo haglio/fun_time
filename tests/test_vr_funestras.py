@@ -94,6 +94,7 @@ from fun_time_vr.funestras import (
     Arrangement,
     LoadingScreenUnit,
     LoadingScreenWatch,
+    SeenByTheFrameLoop,
     VrSettings,
     _ControllerPosts,
     _DashUnit,
@@ -1309,6 +1310,17 @@ class TestTheLoadingScreenUnit:
 
         assert len(unit.texture.uploads) == 2
 
+    def test_a_frame_drawn_reads_no_progress_file(self, tmp_path, loading_screen_graphics):
+        progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
+        progress.advance("funestras")
+        unit = LoadingScreenUnit(tmp_path)
+        unit.render_latest_frame()
+
+        progress.advance("finalizing")
+        unit.render_latest_frame()
+
+        assert len(unit.texture.uploads) == 1
+
     def test_a_finished_room_asks_for_its_wearer_while_the_headset_is_still_off(
             self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
@@ -1316,7 +1328,7 @@ class TestTheLoadingScreenUnit:
         unit = LoadingScreenUnit(tmp_path)
         assert unit._loading_screen.status == "Waiting for Funestras..."
 
-        unit.awaiting_wearer = True
+        unit.seen_by_the_frame_loop = SeenByTheFrameLoop(awaiting_wearer=True)
         unit.pump(threading.Event(), 0.0)
 
         assert unit._loading_screen.status == WEARER_STATUS
@@ -1329,7 +1341,7 @@ class TestTheLoadingScreenUnit:
                       phases=VR_SHUTDOWN_PHASES).advance("funestras")
         unit = LoadingScreenUnit(tmp_path)
 
-        unit.awaiting_wearer = True
+        unit.seen_by_the_frame_loop = SeenByTheFrameLoop(awaiting_wearer=True)
         unit.pump(threading.Event(), 0.0)
 
         assert unit._loading_screen.status != WEARER_STATUS
@@ -1752,7 +1764,7 @@ class TestTheShellsWordsForTheRoom:
 
 class TestWatchingTheLoadingScreen:
     def _watch(self, *, dwell_s: float = 0.0):
-        loading_screen = SimpleNamespace(anchor_settled=None, awaiting_wearer=None, settled=MagicMock())
+        loading_screen = SimpleNamespace(seen_by_the_frame_loop=None, settled=MagicMock())
         scene_ready = MagicMock()
         watch = LoadingScreenWatch(loading_screen, scene_ready, dwell_s=dwell_s)
         return loading_screen, scene_ready, watch
@@ -1779,24 +1791,26 @@ class TestWatchingTheLoadingScreen:
 
         watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
         watch.frame_began(blank=(), focused=False, views_tracked=True)
-        unworn = loading_screen.anchor_settled
+        unworn = loading_screen.seen_by_the_frame_loop.anchor_settled
         watch.frame_ended(covered=True, focused=True, should_render=True, now=2.0)
         watch.frame_began(blank=(), focused=True, views_tracked=True)
-        worn = loading_screen.anchor_settled
+        worn = loading_screen.seen_by_the_frame_loop.anchor_settled
         watch.frame_began(blank=(), focused=True, views_tracked=False)
 
-        assert (unworn, worn, loading_screen.anchor_settled) == (False, True, False)
+        assert (unworn, worn, loading_screen.seen_by_the_frame_loop.anchor_settled) == (
+            False, True, False)
 
     def test_the_loading_screen_is_told_it_is_waiting_on_him_only_once_the_room_is_up(self):
         loading_screen, _scene_ready, watch = self._watch()
 
         watch.frame_began(blank=("main",), focused=False, views_tracked=True)
-        building = loading_screen.awaiting_wearer
+        building = loading_screen.seen_by_the_frame_loop.awaiting_wearer
         watch.frame_began(blank=(), focused=False, views_tracked=True)
-        built = loading_screen.awaiting_wearer
+        built = loading_screen.seen_by_the_frame_loop.awaiting_wearer
         watch.frame_began(blank=(), focused=True, views_tracked=True)
 
-        assert (building, built, loading_screen.awaiting_wearer) == (False, True, False)
+        assert (building, built, loading_screen.seen_by_the_frame_loop.awaiting_wearer) == (
+            False, True, False)
 
     def test_the_loading_screen_settles_on_the_first_frame_that_carried_it(self):
         loading_screen, _scene_ready, watch = self._watch()
@@ -1910,6 +1924,19 @@ class TestArrangingTheRoom:
 
         assert arranging.scene_yaw == pytest.approx(yaw_of_orientation(
             (0.0, math.sin(math.radians(15.0)), 0.0, math.cos(math.radians(15.0)))))
+
+    def test_recentering_while_looking_at_the_floor_leaves_the_room_upright(self):
+        the_room = _a_room_to_arrange()
+        the_room.main_unit.verbs.recenter.ask()
+        down = math.radians(-60.0) / 2
+        at_the_floor = SimpleNamespace(pose=SimpleNamespace(
+            position=SimpleNamespace(x=0.0, y=1.6, z=0.0),
+            orientation=SimpleNamespace(x=math.sin(down), y=0.0, z=0.0, w=math.cos(down))))
+
+        arranging, _arranged = self._arrange(the_room, views=[at_the_floor])
+
+        straight_up = np.array([0.0, 1.0, 0.0, 0.0])
+        assert arranging.scene_rotation @ straight_up == pytest.approx(straight_up)
 
     def test_a_layout_reset_puts_every_screen_back_and_forgets_the_layout(self):
         the_room = _a_room_to_arrange()
