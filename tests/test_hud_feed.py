@@ -652,7 +652,7 @@ class TestWhatTheHudSaysAboutWhereItSits:
                                    corner=HudCell(path="C:/p/one.png")))
         (tmp_path / "origenerator_portrait_hud.json").write_text(hosted, encoding="utf-8")
         state = _hosted(replace(
-            BridgeState(origenerator_ready=True),
+            BridgeState(origenerator_core_ready=True),
             portrait=SatelliteState(hud_corner=HudCorner.LOWER_LEFT, hud_minimized=True)))
 
         feed.publish(state)

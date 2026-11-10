@@ -42,7 +42,7 @@ class BridgeState:
     landscape: SatelliteState = field(default_factory=SatelliteState)
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_mode: RfbMode = RfbMode.RFB
-    origenerator_ready: bool = False
+    origenerator_core_ready: bool = False
     main_scripted_filter: bool = False
     main_hud_corner: HudCorner = HudCorner.UPPER_LEFT
     main_hud_edge: HudEdge = HudEdge.LOWER

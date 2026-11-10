@@ -11,7 +11,7 @@ from fun_time.rfb_modes import RfbMode
 
 
 def test_the_strip_offers_the_browser_then_origenerator():
-    buttons = selector_buttons(RfbMode.RFB, origenerator_ready=True)
+    buttons = selector_buttons(RfbMode.RFB, origenerator_core_ready=True)
 
     assert [(b.command, b.icon, b.width) for b in buttons] == [
         (RFB_ACTIVATE, "Random Faves Browser", FIT_THE_WORD),
@@ -20,13 +20,13 @@ def test_the_strip_offers_the_browser_then_origenerator():
 
 def test_whichever_holds_the_browsers_place_is_lit():
     for holder in RfbMode:
-        lit = [b.lit for b in selector_buttons(holder, origenerator_ready=True)]
+        lit = [b.lit for b in selector_buttons(holder, origenerator_core_ready=True)]
         assert lit == [holder is RfbMode.RFB, holder is RfbMode.ORIGENERATOR], holder
 
 
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
-    starting = selector_buttons(RfbMode.RFB, origenerator_ready=False)
-    ready = selector_buttons(RfbMode.RFB, origenerator_ready=True)
+    starting = selector_buttons(RfbMode.RFB, origenerator_core_ready=False)
+    ready = selector_buttons(RfbMode.RFB, origenerator_core_ready=True)
 
     assert [b.dim for b in starting] == [False, True]
     assert "starting" in starting[1].tooltip
@@ -50,7 +50,7 @@ def test_the_strips_buttons_are_drawn_as_a_huds_word_buttons_are():
                     if button.icon == "Origenerator")
     hud_rgb = _rgb_inside_the_corners(hud.bgra[:, :, [2, 1, 0, 3]], hud_rect)
 
-    placed = place_selector(selector_buttons(RfbMode.ORIGENERATOR, origenerator_ready=True),
+    placed = place_selector(selector_buttons(RfbMode.ORIGENERATOR, origenerator_core_ready=True),
                          x=10, y=10)
     strip = np.asarray(paint_selector((400, 38), placed))
     strip_rect = next(rect for rect, button in placed if button.icon == "Origenerator")
@@ -60,7 +60,7 @@ def test_the_strips_buttons_are_drawn_as_a_huds_word_buttons_are():
 
 
 def test_a_hovered_button_lightens_as_a_huds_does_and_a_dim_one_does_not():
-    placed = place_selector(selector_buttons(RfbMode.RFB, origenerator_ready=False), x=10, y=10)
+    placed = place_selector(selector_buttons(RfbMode.RFB, origenerator_core_ready=False), x=10, y=10)
     browser, origenerator = (rect for rect, _button in placed)
 
     def drawn(hovered):

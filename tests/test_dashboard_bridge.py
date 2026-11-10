@@ -18,7 +18,7 @@ from fun_time.rfb_modes import RfbMode
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     snapshot = DashboardSnapshot(
         omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
-        origenerator_ready=True, rfb_mode=RfbMode.ORIGENERATOR,
+        origenerator_core_ready=True, rfb_mode=RfbMode.ORIGENERATOR,
     )
     path = tmp_path / "dashboard_state.ini"
 
@@ -52,7 +52,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "[headset]\n"
         "ready=1\n"
         "[origenerator]\n"
-        "ready=0\n"
+        "core_ready=0\n"
         "in_the_rfb_mode=0\n"
     )
 

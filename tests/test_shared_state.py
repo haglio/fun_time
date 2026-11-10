@@ -256,7 +256,7 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 _EXPECTED_STATE_KEYS = {
     "main_mode": "kino",
     "rfb_mode": "rfb",
-    "origenerator_ready": "0",
+    "origenerator_core_ready": "0",
     "main_scripted_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",
     "portrait_hud_corner": "upper_left", "landscape_hud_corner": "upper_left",

@@ -1905,7 +1905,7 @@ def test_genau_holding_its_flick_for_want_of_shapes_is_not_a_lock_of_his(tmp_pat
     flick = tmp_path / "flicks" / "made up flick.mp4"
     _show_on_genau(config, flick, locked=False)
     only_flat = _make_state(main_mode=MainMode.GENAU, genau_plays_vr=False,
-                            rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
+                            rfb_mode=RfbMode.ORIGENERATOR, origenerator_core_ready=True)
 
     _state, ops = dispatch_command("main_projection_none", only_flat, config)
 
@@ -2038,7 +2038,7 @@ def test_main_latest_starts_at_the_top_where_the_newest_arrivals_sit(tmp_path):
 
 
 def _up(**fields) -> BridgeState:
-    return BridgeState(origenerator_ready=True, **fields)
+    return BridgeState(origenerator_core_ready=True, **fields)
 
 
 def _handed_over(*_funestras: FunTimeFunestra, **fields) -> BridgeState:

@@ -23,9 +23,9 @@ _BUTTONS = (
 )
 
 
-def selector_buttons(rfb_mode: RfbMode, *, origenerator_ready: bool) -> tuple[Button, ...]:
+def selector_buttons(rfb_mode: RfbMode, *, origenerator_core_ready: bool) -> tuple[Button, ...]:
     def button(holder: RfbMode, command: str, label: str) -> Button:
-        dim = holder is RfbMode.ORIGENERATOR and not origenerator_ready
+        dim = holder is RfbMode.ORIGENERATOR and not origenerator_core_ready
         return Button(command, label, STILL_STARTING_TOOLTIP if dim else "",
                       width=FIT_THE_WORD, lit=rfb_mode is holder, dim=dim)
     return tuple(button(*declared) for declared in _BUTTONS)
@@ -64,8 +64,8 @@ class RfbModeSelector:
         self.placed: list[tuple[Rect, Button]] = []
         self._hovered: tuple[Rect, Button] | None = None
 
-    def show(self, rfb_mode: RfbMode, *, origenerator_ready: bool) -> bool:
-        placed = place_selector(selector_buttons(rfb_mode, origenerator_ready=origenerator_ready),
+    def show(self, rfb_mode: RfbMode, *, origenerator_core_ready: bool) -> bool:
+        placed = place_selector(selector_buttons(rfb_mode, origenerator_core_ready=origenerator_core_ready),
                                 x=self._x, y=self._y)
         changed = placed != self.placed
         self.placed = placed

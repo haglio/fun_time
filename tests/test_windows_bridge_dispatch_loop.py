@@ -1012,7 +1012,7 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path, config=make_config(tmp_path, regen_metadata_root=metadata_root))
         hosted_app = runner.config.origenerator_cmd_file
         runner.state = _handed_over(
-            replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
+            replace(runner.state, origenerator_core_ready=True), FunTimeFunestra.PORTRAIT)
         (tmp_path / "dashboard_cmd.txt").write_text(
             f"portrait_lock_held|{video}\n", encoding="utf-8")
 
@@ -2418,12 +2418,12 @@ class TestIdempotentVoiceCommands:
             self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
         runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
-                               origenerator_ready=True)
+                               origenerator_core_ready=True)
 
         runner._update_dashboard()
 
         snapshot = load_dashboard_snapshot(runner.config.dashboard_state_file)
-        assert (snapshot.rfb_mode, snapshot.origenerator_ready) == (RfbMode.ORIGENERATOR, True)
+        assert (snapshot.rfb_mode, snapshot.origenerator_core_ready) == (RfbMode.ORIGENERATOR, True)
 
     def test_a_slideshow_that_has_shown_no_hud_yet_leaves_the_reset_light_to_the_rest(
             self, tmp_path):
@@ -2608,7 +2608,7 @@ class TestWatchTracking:
     def _holding_a_slideshow(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
         runner.state = _handed_over(
-            replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
+            replace(runner.state, origenerator_core_ready=True), FunTimeFunestra.PORTRAIT)
         return runner
 
     def test_a_video_watched_to_the_end_in_a_slideshow_is_a_completion(
@@ -2833,7 +2833,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner = make_runner(tmp_path, config=make_config(tmp_path), origenerator_pid=700)
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.GENAU,
-                               rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
+                               rfb_mode=RfbMode.ORIGENERATOR, origenerator_core_ready=True)
         return runner
 
     def test_the_gallery_goes_to_the_flick_genau_moved_on_to_before_locking(self, tmp_path):
@@ -2915,7 +2915,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
         runner = make_runner(tmp_path, config=make_config(tmp_path), origenerator_pid=700)
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
-                               rfb_mode=RfbMode.RFB, origenerator_ready=True)
+                               rfb_mode=RfbMode.RFB, origenerator_core_ready=True)
         return runner
 
     def test_origenerator_is_asked_to_go_to_the_video_once_the_main_funestra_holds_it(
@@ -2956,7 +2956,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
                                   arguments=""))
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
-                               rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
+                               rfb_mode=RfbMode.ORIGENERATOR, origenerator_core_ready=True)
         made_by_a_website = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
         _the_main_funestra_publishes(tmp_path, locked=False, video=made_by_a_website)
         calls: list[tuple[str, object]] = []
@@ -3042,27 +3042,27 @@ def _the_hosted_app_answers(tmp_path, *, core_ready: str | None = None):
         f"portrait_active=0\nlandscape_active=0\n{core_line}", encoding="utf-8")
 
 
-class TestOrigeneratorIsReadyWhenTheAppAnswers:
+class TestOrigeneratorCoreIsReadyWhenTheAppSaysSo:
     def test_it_is_not_ready_until_the_app_publishes_a_status(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
 
         runner.tick()
-        assert runner.state.origenerator_ready is False
+        assert runner.state.origenerator_core_ready is False
 
         _the_hosted_app_answers(tmp_path)
         runner.tick()
-        assert runner.state.origenerator_ready is True
+        assert runner.state.origenerator_core_ready is True
 
     def test_core_is_not_ready_until_the_app_says_comfyui_has_answered(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
         _the_hosted_app_answers(tmp_path, core_ready="0")
 
         runner.tick()
-        assert runner.state.origenerator_ready is False
+        assert runner.state.origenerator_core_ready is False
 
         _the_hosted_app_answers(tmp_path, core_ready="1")
         runner.tick()
-        assert runner.state.origenerator_ready is True
+        assert runner.state.origenerator_core_ready is True
 
     def test_an_app_already_open_when_the_session_began_is_ready_at_once(
             self, tmp_path):
@@ -3071,7 +3071,7 @@ class TestOrigeneratorIsReadyWhenTheAppAnswers:
 
         runner.tick()
 
-        assert runner.state.origenerator_ready is True
+        assert runner.state.origenerator_core_ready is True
 
     def test_a_status_file_unreadable_for_a_moment_closes_no_mode_in_use(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
@@ -3083,7 +3083,7 @@ class TestOrigeneratorIsReadyWhenTheAppAnswers:
         (tmp_path / "origenerator_status.txt").unlink()
         runner.tick()
 
-        assert runner.state.origenerator_ready is True
+        assert runner.state.origenerator_core_ready is True
 
     def test_the_apps_boot_is_noticed_on_a_tick_that_read_no_state_file(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
@@ -3092,7 +3092,7 @@ class TestOrigeneratorIsReadyWhenTheAppAnswers:
 
         runner.tick()
 
-        assert runner.state.origenerator_ready is True
+        assert runner.state.origenerator_core_ready is True
 
     def test_the_answer_reaches_the_file_on_a_session_nobody_touches(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -3100,11 +3100,11 @@ class TestOrigeneratorIsReadyWhenTheAppAnswers:
         write_shared_state(state_file, BridgeState())
 
         runner.tick()
-        assert read_shared_state(state_file).origenerator_ready is False
+        assert read_shared_state(state_file).origenerator_core_ready is False
 
         _the_hosted_app_answers(tmp_path)
         runner.tick()
-        assert read_shared_state(state_file).origenerator_ready is True
+        assert read_shared_state(state_file).origenerator_core_ready is True
 
 
 def _publish_status(path: Path, *, speed: float) -> None:
@@ -3140,7 +3140,7 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
         runner.tick()
 
         assert remembered_values(read_shared_state(state_file)) == remembered_values(
-            replace(remembered, origenerator_ready=False))
+            replace(remembered, origenerator_core_ready=False))
 
 
 def _the_app_takes_each_satellite_asked_of_it(config):
@@ -3372,7 +3372,7 @@ class TestTheAppTakesAFunestra:
         config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
             {"portrait": tmp_path / "portrait_hud.json"}))
-        runner.state = replace(runner.state, origenerator_ready=True)
+        runner.state = replace(runner.state, origenerator_core_ready=True)
         channel = config.satellite(FunTimeFunestra.PORTRAIT)
         write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])
         publish_whole(channel.origenerator_hud_file, "")

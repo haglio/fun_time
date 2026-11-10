@@ -1771,7 +1771,7 @@ def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part
 
 
 def test_the_strip_lights_whatever_holds_the_browsers_place(mode_selector_window):
-    mode_selector_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True),
+    mode_selector_window._do_render(_snapshot(rfb_mode=RfbMode.ORIGENERATOR, origenerator_core_ready=True),
                             frozenset())
 
     assert [(button.icon, button.lit, button.dim) for _rect, button in mode_selector_window._mode_selector.buttons.placed] == [
@@ -1779,7 +1779,7 @@ def test_the_strip_lights_whatever_holds_the_browsers_place(mode_selector_window
 
 
 def test_a_press_on_the_mode_selector_asks_for_that_one_in_the_browsers_place(mode_selector_window, tmp_path):
-    mode_selector_window._do_render(_snapshot(origenerator_ready=True), frozenset())
+    mode_selector_window._do_render(_snapshot(origenerator_core_ready=True), frozenset())
 
     _press_the_strip(mode_selector_window, "Origenerator")
     _press_the_strip(mode_selector_window, "Random Faves Browser")
@@ -1789,7 +1789,7 @@ def test_a_press_on_the_mode_selector_asks_for_that_one_in_the_browsers_place(mo
 
 
 def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(mode_selector_window):
-    mode_selector_window._do_render(_snapshot(origenerator_ready=False), frozenset())
+    mode_selector_window._do_render(_snapshot(origenerator_core_ready=False), frozenset())
 
     _press_the_strip(mode_selector_window, "Origenerator")
 
@@ -1800,7 +1800,7 @@ def test_the_strips_origenerator_takes_no_press_while_that_app_is_starting(mode_
 def selector():
     widget = RfbModeSelectorWidget(tooltip=_Tooltip())
     widget.resize(600, widget.height())
-    widget.show_state(_snapshot(origenerator_ready=True))
+    widget.show_state(_snapshot(origenerator_core_ready=True))
     return widget
 
 
@@ -1818,7 +1818,7 @@ def test_a_button_on_the_mode_selector_lights_under_the_pointer_until_it_leaves(
 
 
 def test_origenerator_on_the_mode_selector_says_it_is_starting_until_the_pointer_moves_off(selector):
-    selector.show_state(_snapshot(origenerator_ready=False))
+    selector.show_state(_snapshot(origenerator_core_ready=False))
 
     _point_at(selector, *_on_the_mode_selector(selector, "Origenerator"))
     _point_at(selector, 0, 0)

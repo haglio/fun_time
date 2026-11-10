@@ -369,7 +369,7 @@ class DispatchLoopRunner:
                         self.state, self.config,
                         read_main_funestra_status(self.config.main_funestra_status_file)),
                     headset_ready=the_headset_is_ready(self.config.state_dir),
-                    origenerator_ready=self.state.origenerator_ready,
+                    origenerator_core_ready=self.state.origenerator_core_ready,
                     rfb_mode=self.state.rfb_mode,
                 ),
             )

@@ -376,7 +376,7 @@ class RfbModeSelectorWidget(PressableDrawing):
         self.show_state(DashboardSnapshot())
 
     def show_state(self, snapshot: DashboardSnapshot) -> None:
-        if self.buttons.show(snapshot.rfb_mode, origenerator_ready=snapshot.origenerator_ready):
+        if self.buttons.show(snapshot.rfb_mode, origenerator_core_ready=snapshot.origenerator_core_ready):
             self.update()
 
     def drawing(self) -> tuple[bytes, tuple[int, int]]:
