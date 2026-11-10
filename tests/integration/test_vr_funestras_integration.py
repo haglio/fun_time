@@ -75,14 +75,16 @@ def _no_gl_call_waits_for_the_drivers_error_report_as_in_the_headset_session():
     )
 
 
-FRAME_BUDGET_MS = 1000.0 / 90.0
+_THE_CRYSTAL_SUPERS_REFRESH_HZ = 90.0
+FRAME_BUDGET_MS = 1000.0 / _THE_CRYSTAL_SUPERS_REFRESH_HZ
 # What the median gates compare against.  The regression they guard — an mpv
 # render PACING the loop (video_dims querying a locked core) — showed as
 # hundreds of milliseconds per frame; a healthy loop measures 1-2ms mid-suite,
 # so half a period of headroom is margin the machine can spend, not the
 # pipeline.
 MEDIAN_BUDGET_MS = FRAME_BUDGET_MS * 1.5
-SETTLE_WINDOWS = 12
+WINDOWS_ENOUGH_TO_OUTWAIT_A_WHOLE_SESSIONS_TEARDOWN = 12
+_WIDE_ENOUGH_TO_FIND_LIGHT_IN_A_DARK_OPENING_SCENE_PX = 64
 
 
 def _sample_library_videos(dirs, count: int) -> list[str]:
@@ -125,14 +127,15 @@ def _write_the_playlists(config, manifest, vr) -> None:
 
 
 def _has_a_picture(unit) -> bool:
-    strip = np.zeros((1, 64, 4), dtype=np.uint8)
+    width = _WIDE_ENOUGH_TO_FIND_LIGHT_IN_A_DARK_OPENING_SCENE_PX
+    strip_through_the_middle = np.zeros((1, width, 4), dtype=np.uint8)
     GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, unit.target.fbo)
     GL.glReadPixels(
-        max(0, unit.target.width // 2 - 32), unit.target.height // 2, 64, 1,
-        GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, strip,
+        max(0, unit.target.width // 2 - width // 2), unit.target.height // 2, width, 1,
+        GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, strip_through_the_middle,
     )
     GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-    return bool(strip[:, :, :3].any())
+    return bool(strip_through_the_middle[:, :, :3].any())
 
 
 @dataclass(frozen=True)
@@ -162,10 +165,14 @@ class _Pipeline:
             unit.close()
 
 
-def _wait_for_the_first_pictures(pipeline: _Pipeline) -> None:
+def _wait_for_what_the_startup_gate_reads_before_any_frame(pipeline: _Pipeline) -> None:
     status = Path(pipeline.manifest.commands.main_funestra_status_file)
     wait_for(lambda: read_main_funestra_status(status).video,
              desc="the Main Funestra's first status write")
+
+
+def _wait_for_the_first_pictures(pipeline: _Pipeline) -> None:
+    _wait_for_what_the_startup_gate_reads_before_any_frame(pipeline)
     pipeline.run_frames(240)
     for unit, name in zip(pipeline.units, ("main", "portrait", "landscape"), strict=True):
         wait_for(lambda u=unit: (pipeline.run_frames(9) or u.target.ready),
@@ -182,14 +189,14 @@ def _wait_for_the_machine_to_settle(pipeline: _Pipeline) -> None:
     # Probe in short windows and start the real sample only once one comes
     # in quiet; bounded, and a machine that never gets there says so in
     # those words rather than leaving the sample to blame the pipeline.
-    for _ in range(SETTLE_WINDOWS):
+    for _ in range(WINDOWS_ENOUGH_TO_OUTWAIT_A_WHOLE_SESSIONS_TEARDOWN):
         probe: list[float] = []
         pipeline.run_frames(120, sink=probe)
         if window_is_quiet(probe, budget_ms=FRAME_BUDGET_MS):
             return
     probe.sort()
     pytest.fail(
-        f"the machine never rendered {SETTLE_WINDOWS} quiet windows into one: "
+        f"the machine never rendered {WINDOWS_ENOUGH_TO_OUTWAIT_A_WHOLE_SESSIONS_TEARDOWN} quiet windows into one: "
         f"the last was {probe[len(probe) // 2]:.1f}ms median, "
         f"{probe[len(probe) * 9 // 10]:.1f}ms p90, {probe[-1]:.1f}ms worst "
         f"against a {FRAME_BUDGET_MS:.1f}ms frame — nothing was measured"
@@ -209,7 +216,10 @@ def _assert_the_frame_budget_holds(pipeline: _Pipeline) -> None:
     )
     stalled = [name for unit, name in zip(pipeline.units, ("main", "portrait", "landscape"), strict=True)
                if not unit.layer_dirty]
-    assert not stalled, f"no new frame reached the scene from {stalled} in six seconds"
+    assert not stalled, (
+        f"no new frame reached the scene from {stalled} in six seconds — "
+        "a loop kept fast by videos that stopped reaching it proves nothing"
+    )
 
 
 def _assert_next_advances_the_main_funestra(commands) -> None:
@@ -303,17 +313,17 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     ]
     pipeline = _Pipeline(manifest, main, satellites)
     perf = vrp.FramePerf(logger=vrp.logger)
-    pump_failure: list[BaseException] = []
+    what_the_worker_died_of: list[BaseException] = []
 
-    def pump_channels() -> None:
+    def pump_channels_keeping_what_the_worker_raises() -> None:
         try:
             vrp._pump_channels(pipeline.units, stop, perf)
         except BaseException as exc:  # noqa: BLE001 — re-raised, and reported
-            pump_failure.append(exc)
+            what_the_worker_died_of.append(exc)
             raise
 
     pump_thread = threading.Thread(
-        target=pump_channels, daemon=True, name="file-channels",
+        target=pump_channels_keeping_what_the_worker_raises, daemon=True, name="file-channels",
     )
 
     closed = False
@@ -348,8 +358,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         assert joined_within(pump_thread, 30.0), (
             "the file-channel worker never came back after the Funestras closed"
         )
-        assert not pump_failure, (
-            f"the worker raised once the Funestras were closed: {pump_failure[0]!r}"
+        assert not what_the_worker_died_of, (
+            "the worker did not run out of work once the Funestras were closed, "
+            f"it died: {what_the_worker_died_of[0]!r}"
         )
     finally:
         stop.set()
@@ -359,13 +370,16 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         glfw.terminate()
 
 
+def _open_paused_as_genau_mode_leaves_the_flag_for_the_next_session(commands) -> None:
+    Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
+
+
 def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
     temp_root = build_integration_temp_root()
     config = load_integration_config(build_integration_config(temp_root))
     manifest_path = write_manifest_data(
         build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
-
 
     manifest = LaunchManifest.read(manifest_path)
     vr = vrp.VrSettings.read(manifest_path)
@@ -374,7 +388,7 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
         encoding="utf-8",
     )
-    Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
+    _open_paused_as_genau_mode_leaves_the_flag_for_the_next_session(commands)
 
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-play-test")
@@ -421,6 +435,8 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         joined_within(pump, 5.0)
         main.close()
         glfw.terminate()
+
+
 def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
     temp_root = build_integration_temp_root()
     config = load_integration_config(build_integration_config(temp_root))
@@ -462,13 +478,16 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
     def after_frames(answer):
         return lambda: (run_frames(9) or answer())
 
+    def held_still_so_both_marks_land_on_a_known_spot() -> int:
+        Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
+        return wait_for(after_frames(lambda: published().paused and published().position_ms),
+                        desc="the video to hold where it had got to")
+
     try:
         pump.start()
         wait_for(after_frames(lambda: published().position_ms),
                  desc="the video to start playing")
-        Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
-        held_at = wait_for(after_frames(lambda: published().paused and published().position_ms),
-                           desc="the video to hold where it had got to")
+        held_at = held_still_so_both_marks_land_on_a_known_spot()
         assert published().loop_state is LoopState.NORMAL
 
         append_command(cmd_file, RECORD_TAP)
