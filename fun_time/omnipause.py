@@ -146,7 +146,7 @@ def _dispatch_omnipause_toggle(
     )
     if plan.action == "enter":
         return _dispatch_enter_omnipause(state, config)
-    return _dispatch_leave_omnipause(state, config)
+    return _leave_as_only_the_toggle_does(state, config)
 
 
 def _dispatch_enter_omnipause(
@@ -165,7 +165,7 @@ def _dispatch_enter_omnipause(
     return state, ops
 
 
-def _dispatch_leave_omnipause(
+def _leave_as_only_the_toggle_does(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     result = apply_leave_omnipause(

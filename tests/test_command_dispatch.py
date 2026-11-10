@@ -983,16 +983,19 @@ def test_primary_nav_sets_active_funestra_to_primary(tmp_path: Path):
         assert new_state.active_funestra == 1, command
 
 
-def test_naming_a_funestras_f_mode_makes_it_the_active_one(tmp_path: Path):
+def test_a_bare_f_mode_follows_the_funestra_whose_f_mode_was_named_last(tmp_path: Path):
     config = _make_config(tmp_path)
 
     for suffix in ("", "_on", "_off"):
+        bare = parse_command(f"active_fmode{suffix}")
         new_state, _ops = dispatch_command(
             f"main_fmode{suffix}", _make_state(active_funestra=3), config)
         assert new_state.active_funestra == 1, suffix
+        assert bare.aimed_at_the_active(new_state.active_funestra).text == f"main_fmode{suffix}"
         new_state, _ops = dispatch_command(
             f"portrait_fmode{suffix}", _make_state(active_funestra=1), config)
         assert new_state.active_funestra == 2, suffix
+        assert bare.aimed_at_the_active(new_state.active_funestra).text == f"portrait_fmode{suffix}"
 
 
 def test_naming_a_funestras_playback_speed_makes_it_the_active_one(tmp_path: Path):
@@ -1500,7 +1503,7 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
     assert {call.kwargs["funestra"] for call in mock_filter.call_args_list} == set(FunTimeFunestra.SATELLITES)
 
 
-def test_filter_command_both_scope_messages_each_satellite_under_its_own_source(tmp_path: Path):
+def test_a_filter_on_both_satellites_is_a_message_the_log_panel_files_under_each(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 
@@ -1837,6 +1840,22 @@ def _subject_meta(*, prompt: str = "x, y, z", image_seed: str = "1",
     }
 
 
+def _the_same_subject_doing(action: str) -> dict:
+    return _subject_meta(action=action)
+
+
+def _the_same_act_from_image_seed(image_seed: str) -> dict:
+    return _subject_meta(image_seed=image_seed)
+
+
+def _a_draft_of_the_same_prompt_in_a_seed_family_of_its_own(image_seed: str) -> dict:
+    return _subject_meta(image_seed=image_seed, quality="Draft")
+
+
+def _rendered_from_another_scene(action: str) -> dict:
+    return _subject_meta(prompt="another scene", image_seed="7", action=action)
+
+
 def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path):
     config, paths = _a_library_only_one_funestra_sees(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
@@ -1969,7 +1988,7 @@ def test_portrait_cycle_seed_messages_without_seed_siblings(tmp_path: Path):
     assert dead_end[0].level == logging.WARNING
 
 
-def _scene_meta(*, image_seed: str, quality: str) -> dict:
+def _the_same_beach_scene_rendered_at(*, image_seed: str, quality: str) -> dict:
     return {
         "video": {"prompt": "beach", "action": "Alpha", "labels": ["Alpha"], "seed": "5"},
         "source_image": {"positive_prompt": "subject at the beach", "seed": image_seed, "quality": quality},
@@ -1978,8 +1997,8 @@ def _scene_meta(*, image_seed: str, quality: str) -> dict:
 
 def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
     config, paths = _a_library_only_one_funestra_sees(tmp_path, {
-        "subject_best": _scene_meta(image_seed="111", quality="Best"),
-        "subject_draft": _scene_meta(image_seed="222", quality="Draft"),
+        "subject_best": _the_same_beach_scene_rendered_at(image_seed="111", quality="Best"),
+        "subject_draft": _the_same_beach_scene_rendered_at(image_seed="222", quality="Draft"),
     })
     state = _make_state()
 
@@ -2546,7 +2565,7 @@ def test_mute_or_unmute_misheard_twice_still_lands_where_it_was_asked(tmp_path: 
     assert still_audible.muted is False
 
 
-def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
+def test_a_louder_said_while_muted_is_heard_rather_than_seeming_missed(tmp_path: Path):
     config = _make_config(tmp_path)
 
     new_state, _ops = dispatch_command(
@@ -3157,18 +3176,18 @@ def test_genaumacher_save_is_ignored_in_genau_mode(tmp_path: Path):
 
 def _loop_config(tmp_path: Path, *, axis: str, funestra: int = 2) -> tuple[BridgeConfig, str, str]:
     if axis == "action":
-        videos = {"a": _subject_meta(action="Alpha"), "b": _subject_meta(action="Twirling")}
+        videos = {"a": _the_same_subject_doing("Alpha"), "b": _the_same_subject_doing("Twirling")}
     else:
-        videos = {"a": _subject_meta(image_seed="1"), "b": _subject_meta(image_seed="2")}
+        videos = {"a": _the_same_act_from_image_seed("1"), "b": _the_same_act_from_image_seed("2")}
     config, paths = _a_library_only_one_funestra_sees(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"]
 
 
 def _widened_loop_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str]:
     config, paths = _a_library_only_one_funestra_sees(tmp_path, {
-        "a": _subject_meta(image_seed="1"),
-        "a2": _subject_meta(image_seed="2"),
-        "b": _subject_meta(image_seed="3", quality="Draft"),
+        "a": _the_same_act_from_image_seed("1"),
+        "a2": _the_same_act_from_image_seed("2"),
+        "b": _a_draft_of_the_same_prompt_in_a_seed_family_of_its_own("3"),
     })
     return config, paths["a"], paths["a2"], paths["b"]
 
@@ -3343,7 +3362,7 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == ""
 
 
-def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path):
+def test_a_lock_leaves_the_loops_queue_alone_so_the_loop_stays_lit(tmp_path: Path):
     config = _make_config(tmp_path)
     video = r"C:\videos\provider2\abc_123.mp4"
 
@@ -3355,6 +3374,7 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
             config,
         )
 
+    assert _cmds(config, 2) == ["LOCK_ON"]
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "action"
     assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == video
@@ -3494,13 +3514,16 @@ def test_next_in_a_loop_of_several_videos_moves_on_within_the_loop(tmp_path: Pat
     assert state.portrait.loop == "seed"
 
 
+_AN_ACT_NOBODY_RE_SEEDED = "Gamma"
+
+
 def _cycle_config(tmp_path: Path, *, seed_group: bool = True,
                   action_group: bool = True, funestra: int = 2) -> tuple[BridgeConfig, str, str, str]:
     videos = {
         "a": _subject_meta(image_seed="1", action="Alpha"),
         "b": (_subject_meta(image_seed="1", action="Beta") if action_group
-              else _subject_meta(prompt="another scene", image_seed="7", action="Beta")),
-        "c": _subject_meta(image_seed="2", action="Alpha" if seed_group else "Gamma"),
+              else _rendered_from_another_scene("Beta")),
+        "c": _subject_meta(image_seed="2", action="Alpha" if seed_group else _AN_ACT_NOBODY_RE_SEEDED),
     }
     config, paths = _a_library_only_one_funestra_sees(tmp_path, videos, funestra=funestra)
     return config, paths["a"], paths["b"], paths["c"]
@@ -4571,20 +4594,31 @@ class TestALockOnAHostedSide:
         assert _cmds(config, FunTimeFunestra.PORTRAIT) == [f"PLAY_FILE {meant}", "LOCK_ON"]
         assert _origenerator_cmds(config) == ["portrait_lock_on"]
 
-    @pytest.mark.parametrize("funestra_locked", [False, True])
-    @pytest.mark.parametrize(("command", "to_the_funestra"), [
-        ("portrait_lock_on", ["LOCK_ON"]), ("portrait_lock_off", [])])
-    def test_a_lock_or_a_letting_go_said_is_handed_on_whatever_the_funestra_says_of_its_lock(
-            self, command, to_the_funestra, funestra_locked, tmp_path):
+    def _said_to_a_hosted_side(self, command, tmp_path, *, held_by_a_request_or_a_run):
         config = _origenerator_config(tmp_path)
-        _set_current(config, FunTimeFunestra.PORTRAIT, "C:\\images\\up.png", locked=funestra_locked)
-
+        _set_current(config, FunTimeFunestra.PORTRAIT, "C:\\images\\up.png",
+                     locked=held_by_a_request_or_a_run)
         _state, ops = dispatch_command(
-            command, _in_origenerator_mode(portrait=SatelliteState(locked=not funestra_locked)),
+            command,
+            _in_origenerator_mode(portrait=SatelliteState(locked=not held_by_a_request_or_a_run)),
             config)
+        return ops, _cmds(config, FunTimeFunestra.PORTRAIT), _origenerator_cmds(config)
 
-        assert (ops, _cmds(config, FunTimeFunestra.PORTRAIT), _origenerator_cmds(config)) == (
-            [], to_the_funestra, [command])
+    @pytest.mark.parametrize("held_by_a_request_or_a_run", [False, True])
+    def test_a_funestra_a_request_or_a_run_holds_still_hands_a_spoken_lock_on(
+            self, held_by_a_request_or_a_run, tmp_path):
+        assert self._said_to_a_hosted_side(
+            "portrait_lock_on", tmp_path,
+            held_by_a_request_or_a_run=held_by_a_request_or_a_run,
+        ) == ([], ["LOCK_ON"], ["portrait_lock_on"])
+
+    @pytest.mark.parametrize("held_by_a_request_or_a_run", [False, True])
+    def test_a_letting_go_said_is_handed_on_and_never_steps_the_funestra_on(
+            self, held_by_a_request_or_a_run, tmp_path):
+        assert self._said_to_a_hosted_side(
+            "portrait_lock_off", tmp_path,
+            held_by_a_request_or_a_run=held_by_a_request_or_a_run,
+        ) == ([], [], ["portrait_lock_off"])
 
     def test_the_hosted_apps_own_word_for_its_lock_is_the_satellites_spoken_lock(self, tmp_path):
         config = replace(_origenerator_config(tmp_path),
@@ -4874,7 +4908,9 @@ class TestASessionThatHostsNoOrigenerator:
     def test_a_resumed_origenerator_mode_still_drives_the_funestras(self, tmp_path):
         config = replace(_origenerator_config(tmp_path), origenerator_enabled=False)
         state = _in_origenerator_mode()
+        still_named_by_the_manifest = config.origenerator_cmd_file
 
+        assert still_named_by_the_manifest is not None
         assert not routes_to_origenerator("portrait_next", state, config)
         dispatch_command("portrait_next", state, config)
 

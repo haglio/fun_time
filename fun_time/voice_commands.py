@@ -383,7 +383,7 @@ def build_voice_commands(
 VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 
-_VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
+_AS_VOSK_HEARS_IT_AND_AS_HE_READS_IT: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
     ("aura generator", "origenerator"),
     ("hot keys", "hotkeys"),
@@ -404,6 +404,6 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
 
 
 def friendly_voice(phrase: str) -> str:
-    for raw, nice in _VOICE_DISPLAY_ALIASES:
+    for raw, nice in _AS_VOSK_HEARS_IT_AND_AS_HE_READS_IT:
         phrase = phrase.replace(raw, nice)
     return phrase

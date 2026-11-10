@@ -16,6 +16,12 @@ from .shared_state import BridgeState
 logger = logging.getLogger(__name__)
 
 
+_THE_MOTION_READOUTS_OWN_PLUS_AND_MINUS = {
+    "robot_hand_speed_down": "SPEED_DOWN",
+    "robot_hand_speed_up": "SPEED_UP",
+}
+
+
 _SENT_TO_THE_HAND_IN_EITHER_MODE = {
     "robot_hand_amplitude_down": "AMPLITUDE_DOWN",
     "robot_hand_amplitude_up": "AMPLITUDE_UP",
@@ -31,8 +37,7 @@ _SENT_TO_THE_HAND_IN_EITHER_MODE = {
     "genau_prev_flick": PREV,
     "genau_next_flick": NEXT,
     "genau_flip_ends": "FLIP_ENDS",
-    "robot_hand_speed_down": "SPEED_DOWN",
-    "robot_hand_speed_up": "SPEED_UP",
+    **_THE_MOTION_READOUTS_OWN_PLUS_AND_MINUS,
 }
 
 
