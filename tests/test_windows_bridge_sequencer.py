@@ -33,11 +33,11 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
-from fun_time.origenerator_switches import RfbMode
 from fun_time.overlay_progress import (
     NullProgress,
     StartupCancelled,
 )
+from fun_time.rfb_modes import RfbMode
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import keep_the_origenerator
 from fun_time.shared_state import (

@@ -27,8 +27,8 @@ from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavesBrowserSettings
 from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
-from .origenerator_switches import RfbMode
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
+from .rfb_modes import RfbMode
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_launch import SatelliteLaunch

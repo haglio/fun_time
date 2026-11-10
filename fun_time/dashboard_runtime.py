@@ -4,7 +4,7 @@ import configparser
 from pathlib import Path
 
 from .dashboard_bridge import DashboardSnapshot, decode_snapshot
-from .origenerator_switches import RfbMode
+from .rfb_modes import RfbMode
 
 
 def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:

@@ -89,11 +89,11 @@ from fun_time.event_log import (
 from fun_time.log_panel_model import LogPanelState, save_ui_state, ui_state_path
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
-from fun_time.origenerator_switches import RfbMode
 from fun_time.press_flash import PRESS_FLASH_S
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.reference_dialog import ReferenceDialog
 from fun_time.rfb_mode_selector import STILL_STARTING_TOOLTIP
+from fun_time.rfb_modes import RfbMode
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.unlogged_messages import flash_unlogged
 from fun_time.voice_control import VoiceController

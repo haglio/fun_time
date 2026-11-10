@@ -6,8 +6,8 @@ from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 
 from fun_time.dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
-from fun_time.origenerator_switches import RfbMode
 from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
+from fun_time.rfb_modes import RfbMode
 
 
 def test_the_strip_offers_the_browser_then_origenerator():

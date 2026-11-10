@@ -48,7 +48,6 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
-from fun_time.origenerator_switches import RfbMode
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
@@ -65,6 +64,7 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.raising_the_loading_screen import open_the_loading_screen
+from fun_time.rfb_modes import RfbMode
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (

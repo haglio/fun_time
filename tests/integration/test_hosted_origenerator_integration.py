@@ -16,8 +16,8 @@ from shared_ui.preview import Preview, window_title
 from fun_time.event_log import event_log_path
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import find_origenerators_window
-from fun_time.origenerator_switches import RfbMode
 from fun_time.process_tree import kill_process_tree
+from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
     read_shared_state,

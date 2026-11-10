@@ -7,8 +7,8 @@ from functools import partial
 from .bridge_records import BridgeConfig, Handler, WindowOp
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .mode_plan import MAIN_GENAU_MODE, MAIN_KINO_MODE
-from .origenerator_switches import RfbMode
 from .rfb_mode import switch_the_rfb_mode
+from .rfb_modes import RfbMode
 from .runtime_flow import apply_mode_switch
 from .shared_state import BridgeState
 

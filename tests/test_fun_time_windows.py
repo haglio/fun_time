@@ -10,7 +10,7 @@ from fun_time.fun_time_windows import (
     ChildPids,
     FunTimeWindows,
 )
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.window_layout import WindowRect
 from fun_time.window_names import ORIGENERATOR_TITLE, ORIGENERATOR_WINDOW
 from fun_time.windows_bridge_sequencer import apply_topmost_bands

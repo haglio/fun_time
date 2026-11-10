@@ -10,7 +10,7 @@ from funestra.hud_title import F_MODE_LABEL
 from main_funestra.genau_verbs import genau_f_mode
 
 from .bridge_records import BridgeConfig, Handler, WindowOp
-from .command_value import FUNESTRA_SOURCES, say_command
+from .command_value import FUNESTRA_SOURCES
 from .event_log import FAVORITE, MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import show_f_mode
@@ -20,7 +20,6 @@ from .main_list_commands import on_the_main_funestra
 from .mode_plan import kino_shows
 from .runtime_flow import FMODE_FUNESTRAS, apply_fmode
 from .shared_state import BridgeState
-from .voice_commands import FAVORITES_PHRASE
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +32,8 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[FunTimeFunestra, ...], bool | None]] = {
     "fmode_toggle": (FMODE_FUNESTRAS, None),
     "fmode_on": (FMODE_FUNESTRAS, True),
     "fmode_off": (FMODE_FUNESTRAS, False),
-    **{_sided_fmode_command(funestra, target): ((funestra,), target)
-       for funestra in FunTimeFunestra for target in (None, True, False)},
-    **{say_command(funestra.label, FAVORITES_PHRASE): ((funestra,), None)
-       for funestra in FunTimeFunestra.SATELLITES},
+    **{_sided_fmode_command(FunTimeFunestra.MAIN, target): ((FunTimeFunestra.MAIN,), target)
+       for target in (None, True, False)},
 }
 
 

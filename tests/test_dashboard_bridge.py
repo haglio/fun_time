@@ -12,7 +12,7 @@ from fun_time.dashboard_bridge import (
     write_dashboard_snapshot,
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 
 
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):

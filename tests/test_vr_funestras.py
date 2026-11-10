@@ -56,7 +56,6 @@ from fun_time.manifest import (
     LaunchManifest,
     write_manifest_data,
 )
-from fun_time.origenerator_switches import RfbMode
 from fun_time.osr2_section import osr2_readout_path
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
@@ -64,6 +63,7 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
+from fun_time.rfb_modes import RfbMode
 from fun_time.shared_state import (
     BridgeState,
     shared_state_path,

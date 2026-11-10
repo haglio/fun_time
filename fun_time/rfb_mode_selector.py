@@ -11,7 +11,7 @@ from shared_ui.fonts import SIZE_BODY, SIZE_TINY
 from shared_ui.palette import BG_PRIMARY
 
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
-from .origenerator_switches import WHAT_THE_DIM_BUTTONS_SAY, RfbMode
+from .rfb_modes import WHAT_THE_DIM_BUTTONS_SAY, RfbMode
 
 Rect = tuple[int, int, int, int]
 

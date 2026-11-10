@@ -107,6 +107,14 @@ def the_args_it_declares(checkout: str | Path, args: list[str]) -> list[str]:
     return [word for flag in flags if flag[0] in declared for word in flag]
 
 
+OPEN_SLIDESHOW = "open_slideshow"
+CLOSE_SLIDESHOWS = "CLOSE_SLIDESHOWS"
+
+
+def said_about(satellite: str, verb: str) -> str:
+    return f"{satellite}_{verb}"
+
+
 def said_at_suffix_of(checkout: str | Path) -> str:
     return (published_by(checkout) or {}).get("said_at_suffix", "")
 

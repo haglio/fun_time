@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .origenerator_switches import RfbMode
+from .rfb_modes import RfbMode
 
 
 @dataclass(frozen=True)

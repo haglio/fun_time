@@ -4,7 +4,7 @@ from pathlib import Path
 
 from funestra.modes import MainMode
 
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import (
     SHARED_STATE_FILENAME,

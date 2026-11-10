@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from shared_ui.preview import Preview, window_title
 
-from .origenerator_switches import RfbMode
+from .rfb_modes import RfbMode
 
 FIXED_TOPMOST_WINDOWS: tuple[str, ...] = ("portrait", "landscape", "dashboard", "main_funestra")
 

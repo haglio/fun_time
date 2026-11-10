@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from shared_ui.preview import Preview, window_title
 
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.window_names import (
     FIXED_TOPMOST_WINDOWS,
     MANAGED_WINDOWS,

@@ -10,9 +10,9 @@ from funestra.funestra_verbs import LOCK_OFF
 
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
+from .hosted_contract import OPEN_SLIDESHOW, said_about
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
 from .mode_plan import build_mode_switch_plan
-from .origenerator_switches import OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
 logger = logging.getLogger(__name__)
