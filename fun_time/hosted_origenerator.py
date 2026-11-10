@@ -118,10 +118,13 @@ def _clear_last_sessions_huds(session: OrigeneratorSession) -> None:
         Path(funestra.hud_file).unlink(missing_ok=True)
 
 
+_WINDOWS_REFUSES_TO_REMOVE_A_FILE_STILL_MAPPED = OSError
+
+
 def _clear_a_frame_and_presses_that_would_read_as_live(m: LaunchManifest) -> None:
     for name in (m.commands.origenerator_frames_file,
                  m.commands.origenerator_input_file):
-        with contextlib.suppress(OSError):
+        with contextlib.suppress(_WINDOWS_REFUSES_TO_REMOVE_A_FILE_STILL_MAPPED):
             Path(name).unlink(missing_ok=True)
 
 
