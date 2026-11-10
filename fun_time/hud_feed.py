@@ -47,8 +47,13 @@ from .shared_state import BridgeState
 PUBLISH_INTERVAL_S = 3 * LOOP_TICK_S
 
 
-def _read_lost_a_race_with_the_republish(status: SatelliteStatus) -> bool:
-    return not status.video
+def _has_not_started_yet(status: SatelliteStatus, last_named: SatelliteStatus | None) -> bool:
+    return last_named is None and not status.video
+
+
+def _read_lost_a_race_with_the_republish(
+        status: SatelliteStatus, last_named: SatelliteStatus | None) -> bool:
+    return last_named is not None and not status.video
 
 
 class _FavoritesReadOnceUntilTheRecordMoves:
@@ -238,9 +243,12 @@ class HudFeed:
 
     def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
         status = read_satellite_status(status_file)
-        if (_read_lost_a_race_with_the_republish(status)
+        last_named = self._last_satellite_status.get(funestra)
+        if _has_not_started_yet(status, last_named):
+            return status
+        if (_read_lost_a_race_with_the_republish(status, last_named)
                 or self._still_names_the_apps_picture(funestra, status)):
-            return self._last_satellite_status.get(funestra, status)
+            return last_named if last_named is not None else status
         self._the_apps_on_screen.pop(funestra, None)
         self._last_satellite_status[funestra] = status
         return status

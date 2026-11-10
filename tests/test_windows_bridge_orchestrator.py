@@ -3402,7 +3402,7 @@ class TestTheHudPublisherASessionStarts:
 
         with patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
             windows_bridge_orchestrator.start_hud_priming(
-                bridge_config, LaunchManifest.read(manifest_path), enabled=True)
+                bridge_config, LaunchManifest.read(manifest_path), dashboard_enabled=True)
         return publisher, manifest_path
 
     def test_it_publishes_the_osr2_part_where_the_dashboard_reads_it(self, cfg_factory, tmp_path):
@@ -3430,7 +3430,8 @@ class TestTheHudPublisherASessionStarts:
              patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails",
                    side_effect=lambda videos, _cache: warmed.extend(videos)), \
              patch("fun_time.windows_bridge_orchestrator.threading.Thread") as thread:
-            windows_bridge_orchestrator.start_hud_priming(bridge_config, manifest, enabled=True)
+            windows_bridge_orchestrator.start_hud_priming(
+                bridge_config, manifest, dashboard_enabled=True)
             thread.call_args.kwargs["target"]()
 
         assert str(video) in warmed

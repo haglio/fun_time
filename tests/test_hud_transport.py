@@ -27,7 +27,7 @@ def _thumb(path: str) -> Path:
     return Path(path).with_suffix(".jpg")
 
 
-def test_the_map_draws_only_thumbnails_made_already_a_grab_takes_seconds_on_hevc():
+def test_the_map_never_waits_on_a_frame_grab():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         model = hud_model(_hud(), Path("C:/state/thumbs"))
 
@@ -42,24 +42,41 @@ def test_the_map_draws_only_thumbnails_made_already_a_grab_takes_seconds_on_hevc
     )
 
 
-def test_the_map_lists_its_folder_once_a_stuck_file_would_stall_every_command(tmp_path: Path):
-    folder = tmp_path / "vids"
-    folder.mkdir()
+def _a_map_whose_thumbnails_are_made(tmp_path: Path) -> tuple[SatelliteHud, Path, Path]:
+    library = tmp_path / "vids"
+    library.mkdir()
     cache = tmp_path / "thumbs"
     cache.mkdir()
     videos = []
     for name in ("cur", "s1", "a1"):
-        video = folder / f"{name}.mp4"
+        video = library / f"{name}.mp4"
         video.write_bytes(b"x")
         thumbnail_path(video, cache).write_bytes(b"jpeg")
         videos.append(str(video))
-
     hud = _hud(current=videos[0], seed_siblings=[videos[1]], action_siblings=[videos[2]])
+    return hud, library, cache
+
+
+def test_a_map_built_on_the_command_loop_lists_its_folder_once(tmp_path: Path):
+    hud, _library, cache = _a_map_whose_thumbnails_are_made(tmp_path)
+
     with folders_listed() as read:
         model = hud_model(hud, cache)
 
     assert len(read) == 1
-    assert model.corner == HudCell(path=videos[0], thumb=str(thumbnail_path(videos[0], cache)))
+    assert model.corner == HudCell(
+        path=hud.current, thumb=str(thumbnail_path(hud.current, cache)))
+
+
+def test_the_funestra_is_handed_pictures_outside_the_library(tmp_path: Path):
+    hud, library, cache = _a_map_whose_thumbnails_are_made(tmp_path)
+
+    model = hud_model(hud, cache)
+
+    pictures = [Path(cell.thumb) for cell in (model.corner, *model.seeds, *model.actions)]
+    assert len(pictures) == 3
+    assert all(cache in picture.parents for picture in pictures)
+    assert not any(library in picture.parents for picture in pictures)
 
 
 def test_hud_payload_carries_whether_this_satellite_is_the_active_one():
@@ -155,7 +172,7 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
     assert payload.active_loop == "seed"
 
 
-def test_a_loop_is_published_whole_the_funestra_windows_it_round_the_video():
+def test_a_running_loop_hands_the_funestra_every_item_it_cycles():
     seeds = [f"C:/v/s{i}.mp4" for i in range(12)]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
 
@@ -197,7 +214,7 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_video():
     assert payload.playing == ("corner", 0)
 
 
-def test_an_unchanged_hud_is_not_rewritten_the_funestra_redraws_on_every_write(tmp_path: Path):
+def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
 
@@ -209,7 +226,7 @@ def test_an_unchanged_hud_is_not_rewritten_the_funestra_redraws_on_every_write(t
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is False
 
 
-def test_a_write_that_never_landed_is_retried_a_locked_hud_may_never_change(tmp_path: Path):
+def test_a_locked_huds_dropped_write_is_retried_next_tick(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
 

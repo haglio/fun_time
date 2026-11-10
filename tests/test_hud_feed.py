@@ -20,6 +20,7 @@ from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, par
 from fun_time.bridge_records import BridgeConfig
 from fun_time.config import SatelliteChannel
 from fun_time.crown import Crown
+from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
@@ -427,7 +428,7 @@ class TestHudPublishing:
         assert version_button(hud(tmp_path, "landscape"))["dim"] is True
 
 
-    def test_a_hosted_reset_is_never_faded_the_session_cannot_see_the_show(self, tmp_path):
+    def test_the_session_never_fades_a_reset_belonging_to_the_hosted_show(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(funestra="portrait", title="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
@@ -645,7 +646,9 @@ class TestHudPublishing:
         portrait = hud(tmp_path, "portrait")
         assert portrait["is_favorite"] is True
 
-    def test_publishing_is_throttled_below_the_tick_rate(self, tmp_path):
+    def test_publishing_keeps_up_with_five_second_videos_below_the_tick_rate(self, tmp_path):
+        a_satellites_video_s = 5.0
+        assert LOOP_TICK_S < PUBLISH_INTERVAL_S < a_satellites_video_s / 20
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
 
@@ -697,7 +700,7 @@ class TestHudPublishing:
         portrait = hud(tmp_path, "portrait")
         assert portrait["corner"] is None
 
-    def test_a_session_without_a_publisher_publishes_nothing(self, tmp_path):
+    def test_a_session_with_the_dashboard_off_publishes_no_hud(self, tmp_path):
         HudFeed(config=make_config(tmp_path), publisher=None).publish(BridgeState())
 
         assert not (tmp_path / "portrait_hud.json").exists()
