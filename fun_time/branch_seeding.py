@@ -33,12 +33,12 @@ def seed_what_is_costly_to_rebuild(live_state: Path, branch_state: Path) -> list
 
 
 def top_up_thumbnails(live_state: Path, branch_state: Path) -> list[Path]:
-    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415  (pulls in cv2)
+    from .thumbnail_cache import hud_and_browser_thumbnail_cache  # noqa: PLC0415  (pulls in cv2)
 
-    source = live_state / THUMBNAIL_CACHE_DIRNAME
+    source = hud_and_browser_thumbnail_cache(live_state)
     if not source.is_dir():
         return []
-    destination = branch_state / THUMBNAIL_CACHE_DIRNAME
+    destination = hud_and_browser_thumbnail_cache(branch_state)
     destination.mkdir(parents=True, exist_ok=True)
     copied: list[Path] = []
     for entry in source.iterdir():

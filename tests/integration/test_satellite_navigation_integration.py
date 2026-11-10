@@ -21,7 +21,7 @@ from fun_time.lock_hud import SatelliteHud
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
-from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
+from fun_time.thumbnail_cache import hud_and_browser_thumbnail_cache
 
 from .integration_support import published_status, video_of_a_test_pattern
 from .lone_satellite import LoneSatellite, a_lone_satellite, library_videos_of
@@ -255,7 +255,7 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
         # gesture that grows the HUD — a two-cell seed row becomes eight — so the
         # Funestra re-renders it at a new size and hands mpv a differently-shaped
         # overlay while the video under it keeps decoding.
-        publisher = HudPublisher({"portrait": satellite.hud}, tmp_path / THUMBNAIL_CACHE_DIRNAME)
+        publisher = HudPublisher({"portrait": satellite.hud}, hud_and_browser_thumbnail_cache(tmp_path))
 
         def publish(row: list[str], loop: str) -> None:
             publisher.publish("portrait", SatelliteHud(

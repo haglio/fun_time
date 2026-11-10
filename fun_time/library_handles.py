@@ -49,15 +49,18 @@ class LibraryHandle:
         return self.versions[_SMALLEST]
 
 
-def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | None:
-    key = normalize_path_key(video)
-    if not key:
+def handle_for(
+    handles: Sequence[LibraryHandle], as_the_funestra_spells_it: str
+) -> LibraryHandle | None:
+    as_a_case_blind_disk_reads_it = normalize_path_key(as_the_funestra_spells_it)
+    if not as_a_case_blind_disk_reads_it:
         return None
     return next(
         (
             handle
             for handle in handles
-            if any(normalize_path_key(version) == key for version in handle.versions)
+            if any(normalize_path_key(version) == as_a_case_blind_disk_reads_it
+                   for version in handle.versions)
         ),
         None,
     )

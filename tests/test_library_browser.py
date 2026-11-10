@@ -120,15 +120,21 @@ def _until(condition, *, within_s: float = 10.0) -> None:
 
 
 @pytest.fixture
-def browser(tmp_path):
+def no_browser_outlives_its_tmp_path(tmp_path):
     opened: list[LibraryBrowserWindow] = []
+    yield opened
+    for window in opened:
+        window.close()
 
+
+@pytest.fixture
+def browser(no_browser_outlives_its_tmp_path):
     def configured(handles, *, thumbnail_cache, callbacks, activate_on_click=False,
                    top_level_name=TOP_LEVEL_NAME):
         window = LibraryBrowserWindow(
             handles, thumbnail_cache=thumbnail_cache, callbacks=callbacks,
             activate_on_click=activate_on_click, top_level_name=top_level_name)
-        opened.append(window)
+        no_browser_outlives_its_tmp_path.append(window)
         return window
 
     def build(handles, *, thumbnail_cache, on_pick, on_close=None, on_dismiss=None):
@@ -137,9 +143,7 @@ def browser(tmp_path):
             callbacks=BrowseCallbacks(on_pick=on_pick, on_close=on_close, on_dismiss=on_dismiss))
 
     build.configured = configured
-    yield build
-    for window in opened:
-        window.close()
+    return build
 
 
 def test_a_browse_opens_on_the_librarys_own_folders(browser, tmp_path: Path):
@@ -566,7 +570,7 @@ def test_a_heading_is_not_something_the_arrows_can_land_on(browser, tmp_path: Pa
     assert name.flags() & Qt.ItemFlag.ItemIsSelectable
 
 
-def test_a_name_with_no_letter_to_file_under_goes_to_the_hash_heading(browser, tmp_path: Path):
+def test_names_led_by_a_digit_or_a_bracket_share_the_one_hash_heading(browser, tmp_path: Path):
     window = browser(
         [
             _handle("2 Scene", section="main"),
@@ -1085,14 +1089,15 @@ def test_the_desktops_genau_browse_forks_into_vr_and_2d_with_the_ai_flicks_apart
     assert _labels(shown.grid)[1:] == ["AI  (1)", "non_AI  (1)"]
 
 
-def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):
+def test_a_browse_with_nothing_up_is_launched_as_one_started_by_hand(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
 
     browse_library(manifest, r"C:\python.exe", BrowseOpening(), runner=lambda c, **_k: commands.append(c))
 
-    assert "--playing" not in commands[0]
+    by_hand = [str(manifest), str(pick_file_for(manifest))]
+    assert commands[0][3:] == by_hand
 
 
 def test_an_abandoned_browse_picks_nothing(tmp_path: Path):

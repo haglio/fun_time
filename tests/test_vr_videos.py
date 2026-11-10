@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 from fun_time.modes import VideoShapes
@@ -19,6 +21,15 @@ class TestIsVrVideo:
 
     def test_a_sibling_dir_whose_name_merely_starts_the_same_is_outside(self, tmp_path: Path):
         assert not is_vr_video(tmp_path / "vr_old" / "scene.mp4", [tmp_path / "vr"])
+
+
+def test_the_desktop_narrows_a_playlist_without_loading_the_headset():
+    probe = "import sys, fun_time.modes; print('fun_time_vr' in sys.modules)"
+
+    result = subprocess.run([sys.executable, "-c", probe],
+                            capture_output=True, text=True, check=True)
+
+    assert result.stdout.strip() == "False"
 
 
 class TestFilenameTokens:

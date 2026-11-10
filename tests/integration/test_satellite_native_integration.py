@@ -13,7 +13,7 @@ from PIL import Image
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import SatelliteInputs, build_hud
 from fun_time.satellite_control import read_satellite_status
-from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
+from fun_time.thumbnail_cache import hud_and_browser_thumbnail_cache, thumbnail_for
 from fun_time.windows_bridge_startup import reap_orphaned_satellites
 
 from .integration_support import let_seconds_pass, published_status
@@ -81,7 +81,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
 
 def test_the_satellite_survives_drawing_the_published_lock_hud(tmp_path):
     videos = library_videos_of("portrait", 2)
-    cache_dir = tmp_path / THUMBNAIL_CACHE_DIRNAME
+    cache_dir = hud_and_browser_thumbnail_cache(tmp_path)
     for video in videos:
         thumbnail_for(video, cache_dir)
     satellite = a_lone_satellite()

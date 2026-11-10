@@ -22,6 +22,7 @@ from fun_time_vr.library_host import (
     serve_once,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX
+from tests.drive_fakes import files_that_never_answer
 from tests.still_fakes import ExtractionsHeldAtTheFirst
 
 pytestmark = pytest.mark.usefixtures("no_still_is_extracted_from_the_made_up_videos")
@@ -87,6 +88,21 @@ class TestOpening:
         assert browse.window.isVisible()
         assert "Scene 31" in _names(browse)
         assert grid.rows[grid.currentRow()].title == "Scene 31"
+
+    def test_a_drive_stuck_on_its_videos_freezes_no_opening(self, headset, tmp_path: Path):
+        browse, _reader, _said = headset
+        folder = tmp_path / "vids"
+        folder.mkdir()
+        video = folder / "alpha.mp4"
+        video.write_bytes(b"\0")
+        browse.take_the_library(
+            [LibraryHandle(title="alpha scene", versions=(str(video),), section="VR")])
+
+        with files_that_never_answer(folder):
+            browse.apply(f"open 1 {video}")
+
+        grid = browse.window.grid
+        assert grid.rows[grid.currentRow()].title == "alpha scene"
 
     def test_it_opens_on_the_librarys_own_folders_with_nothing_playing(self, headset):
         browse, _reader, _said = headset

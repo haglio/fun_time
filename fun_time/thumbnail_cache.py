@@ -13,7 +13,11 @@ from .folder_listings import FolderListings
 
 DEFAULT_MAX_SIZE = 160
 
-THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
+_DIRNAME = "hud_thumbnails"
+
+
+def hud_and_browser_thumbnail_cache(state_dir: str | Path) -> Path:
+    return Path(state_dir) / _DIRNAME
 
 
 def thumbnail_path(
@@ -35,15 +39,15 @@ def cached_thumbnail(
 _FIFTHS = 5
 
 
-def _read_representative_frame(video_path: str | Path):
+def _frame_past_any_fade_in(video_path: str | Path):
     capture = cv2.VideoCapture(str(video_path))
     try:
         if not capture.isOpened():
             return None
         total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        target = total // _FIFTHS if total > _FIFTHS else 0
-        if target:
-            capture.set(cv2.CAP_PROP_POS_FRAMES, target)
+        a_fifth_of_the_way_in = total // _FIFTHS if total > _FIFTHS else 0
+        if a_fifth_of_the_way_in:
+            capture.set(cv2.CAP_PROP_POS_FRAMES, a_fifth_of_the_way_in)
         ok, frame = capture.read()
         if not ok:
             capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -60,7 +64,7 @@ def thumbnail_for(
     dest = thumbnail_path(video_path, cache_dir, listings)
     if dest.is_file():
         return dest
-    frame = _read_representative_frame(video_path)
+    frame = _frame_past_any_fade_in(video_path)
     if frame is None:
         return None
     image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
