@@ -370,7 +370,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         glfw.terminate()
 
 
-def _open_paused_as_genau_mode_leaves_the_flag_for_the_next_session(commands) -> None:
+def _paused_as_a_headset_session_opens(commands) -> None:
     Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
 
 
@@ -388,7 +388,7 @@ def test_the_main_funestra_plays_once_kino_mode_unpauses_it():
         "".join(f"{video}\n" for video in _main_videos_next_can_step_between(config, manifest, vr)),
         encoding="utf-8",
     )
-    _open_paused_as_genau_mode_leaves_the_flag_for_the_next_session(commands)
+    _paused_as_a_headset_session_opens(commands)
 
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-play-test")
@@ -478,7 +478,7 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
     def after_frames(answer):
         return lambda: (run_frames(9) or answer())
 
-    def held_still_so_both_marks_land_on_a_known_spot() -> int:
+    def held_still() -> int:
         Path(commands.main_funestra_paused_file).write_text("1", encoding="utf-8")
         return wait_for(after_frames(lambda: published().paused and published().position_ms),
                         desc="the video to hold where it had got to")
@@ -487,7 +487,7 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
         pump.start()
         wait_for(after_frames(lambda: published().position_ms),
                  desc="the video to start playing")
-        held_at = held_still_so_both_marks_land_on_a_known_spot()
+        held_at = held_still()
         assert published().loop_state is LoopState.NORMAL
 
         append_command(cmd_file, RECORD_TAP)

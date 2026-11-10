@@ -49,6 +49,7 @@ from fun_time.library_tree import SubFolder
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
 from tests.drive_fakes import files_that_never_answer, folders_listed
+from tests.mouse_events import a_double_click_as_the_mouse_sends_it, send_left_button
 from tests.still_fakes import ExtractionsHeldAtTheFirst, still_extractions
 
 pytestmark = pytest.mark.usefixtures("no_still_is_extracted_from_the_made_up_videos")
@@ -58,23 +59,6 @@ def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
     return LibraryHandle(
         title=title, versions=versions or (f"C:/videos/{title}.mp4",), section=section,
     )
-
-
-THE_FOUR_EVENTS_OF_A_MOUSES_DOUBLE_CLICK = (
-    QEvent.Type.MouseButtonPress,
-    QEvent.Type.MouseButtonRelease,
-    QEvent.Type.MouseButtonDblClick,
-    QEvent.Type.MouseButtonRelease,
-)
-
-
-def a_double_click_as_the_mouse_sends_it(view: QListWidget, row: int) -> None:
-    point = QPointF(view.visualItemRect(view.item(row)).center())
-    for kind in THE_FOUR_EVENTS_OF_A_MOUSES_DOUBLE_CLICK:
-        QApplication.sendEvent(view.viewport(), QMouseEvent(
-            kind, point, Qt.MouseButton.LeftButton,
-            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-        ))
 
 
 def _labels(view: QListWidget) -> list[str]:
@@ -110,12 +94,8 @@ def _header_words(window) -> str:
 
 
 def _click(view: QAbstractItemView, row: int) -> None:
-    point = QPointF(view.visualItemRect(view.item(row)).center())
     for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
-        QApplication.sendEvent(view.viewport(), QMouseEvent(
-            kind, point, Qt.MouseButton.LeftButton,
-            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-        ))
+        send_left_button(view, row, kind)
 
 
 def _backspace() -> QKeyEvent:
@@ -1099,7 +1079,7 @@ def test_closing_the_browse_tells_the_process_it_is_over(browser, tmp_path: Path
     assert ended == ["over"]
 
 
-def test_a_lone_double_click_event_reaches_no_pick_the_mouses_four_do(browser, tmp_path: Path):
+def test_only_the_mouses_four_events_make_a_double_click_pick(browser, tmp_path: Path):
     handles = [_handle("alpha scene", "C:/videos/alpha.mp4", section="main")]
     lone_picked: list[str] = []
     picked: list[str] = []
@@ -1114,10 +1094,7 @@ def test_a_lone_double_click_event_reaches_no_pick_the_mouses_four_do(browser, t
 
     lone = shown(lone_picked.append)
     row = lone.grid.rows.index(handles[0])
-    point = QPointF(lone.grid.visualItemRect(lone.grid.item(row)).center())
-    QApplication.sendEvent(lone.grid.viewport(), QMouseEvent(
-        QEvent.Type.MouseButtonDblClick, point, Qt.MouseButton.LeftButton,
-        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+    send_left_button(lone.grid, row, QEvent.Type.MouseButtonDblClick)
     a_double_click_as_the_mouse_sends_it(shown(picked.append).grid, row)
 
     assert lone_picked == []

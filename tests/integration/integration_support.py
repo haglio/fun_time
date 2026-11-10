@@ -346,6 +346,9 @@ class FunTimeIntegrationSession:
         if os.environ.get("COVERAGE_PROCESS_START") and self._proc and self._proc.poll() is None:
             with contextlib.suppress(AssertionError, RuntimeError):
                 self.quit_gracefully()
+        self.end_as_a_crash_does()
+
+    def end_as_a_crash_does(self) -> None:
         if self._proc and self._proc.poll() is None:
             self._proc.terminate()
             if not ended_within(self._proc, 5):
@@ -768,7 +771,7 @@ RELEASE_BUDGET_S = 180.0
 
 
 def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:
-    refused = _removed_once_windows_has_closed_what_the_dead_processes_held(
+    refused = _refused_until_the_budget_ran_out(
         RUN_ROOTS, budget_s=budget_s, sleep=sleep)
     RUN_ROOTS.clear()
     if refused:
@@ -777,13 +780,15 @@ def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> 
             + "\n".join(f"{root}: {refusal}" for root, refusal in refused))
 
 
-def remove_once_windows_has_closed_what_the_dead_process_held(folder: Path) -> None:
-    for _folder, refusal in _removed_once_windows_has_closed_what_the_dead_processes_held(
+def remove_once_windows_releases_it(folder: Path) -> None:
+    if not folder.exists():
+        return
+    for _folder, refusal in _refused_until_the_budget_ran_out(
             [folder], budget_s=RELEASE_BUDGET_S, sleep=time.sleep):
         raise refusal
 
 
-def _removed_once_windows_has_closed_what_the_dead_processes_held(
+def _refused_until_the_budget_ran_out(
         roots, *, budget_s: float, sleep) -> list[tuple[Path, OSError]]:
     budget = Budget(budget_s)
     refused = _remove_each(roots)

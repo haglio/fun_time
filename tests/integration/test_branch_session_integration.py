@@ -63,7 +63,7 @@ def _a_branch_config_as_stripped_as_the_runs(branch_checkout: Path, temp_root: P
     return branch_config
 
 
-def _the_one_path_the_imported_code_places_not_the_config(checkout: Path) -> Path:
+def _the_path_the_imported_code_places(checkout: Path) -> Path:
     return checkout / HOTKEY_SCRIPT_NAME
 
 
@@ -85,7 +85,7 @@ def test_a_branch_session_runs_the_branch_checkouts_code(branch_checkout_session
 
     logged = session.wait_for_log("Launching AHK hotkey script")
 
-    assert str(_the_one_path_the_imported_code_places_not_the_config(branch_checkout)) in logged
+    assert str(_the_path_the_imported_code_places(branch_checkout)) in logged
 
 
 def test_a_branch_session_brings_up_a_whole_session_in_the_worktrees_state(

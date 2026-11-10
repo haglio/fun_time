@@ -285,7 +285,6 @@ _A_SESSION_A_QUIT_AND_FIVE_WAITS_S = (
     _A_START_WITH_EVERY_CORE_BUSY_S + QUIT_BUDGET_S + 5 * COMMAND_BUDGET_S)
 _THAT_AND_THE_SHARED_SESSIONS_QUIT_S = _A_SESSION_A_QUIT_AND_FIVE_WAITS_S + QUIT_BUDGET_S
 _FUNESTRA_TITLES = (SATELLITE_PORTRAIT_TITLE, SATELLITE_LANDSCAPE_TITLE)
-_LAUNCHED_ONCE_TO_SPARE_THE_TESTS_AFTER_IT = "module"
 _A_BURIAL_ARRIVES_SECONDS_LATE_S = 10.0
 _AN_INTERPRETER_WITH_TKINTER_AND_FUNESTRA = sys.executable
 
@@ -321,8 +320,8 @@ def _parked_core(pid: int) -> int:
     return hwnd if hwnd and is_window_minimized(hwnd) else 0
 
 
-@pytest.fixture(scope=_LAUNCHED_ONCE_TO_SPARE_THE_TESTS_AFTER_IT)
-def hosted_session():
+@pytest.fixture(scope="module")
+def the_modules_hosted_session():
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
@@ -402,18 +401,18 @@ def _put_origenerator_in_the_browsers_place(session) -> None:
              desc="Origenerator to take the Random Favs Browser's place")
 
 
-def _demote_every_window_with_an_omnipause_cycle(session) -> None:
+def _the_omnipause_cycle_the_demo_failed_after(session) -> None:
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_log("OmniPause: entering")
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_log("OmniPause: leaving")
 
 
-def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hosted_session):
-    session, hwnd = hosted_session
+def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(the_modules_hosted_session):
+    session, hwnd = the_modules_hosted_session
     assert is_window_minimized(hwnd)
 
-    _demote_every_window_with_an_omnipause_cycle(session)
+    _the_omnipause_cycle_the_demo_failed_after(session)
 
     _put_origenerator_in_the_browsers_place(session)
     wait_for(lambda: not is_window_minimized(hwnd),
@@ -427,8 +426,8 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(hos
              desc="the hosted window to park again")
 
 
-def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_own(hosted_session):
-    session, _hwnd = hosted_session
+def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_own(the_modules_hosted_session):
+    session, _hwnd = the_modules_hosted_session
     own_lists = {funestra: sorted(_own_videos(session, funestra)) for funestra in _FUNESTRAS}
     assert all(own_lists.values()), "the Funestras had no lists of their own to begin with"
 
@@ -441,8 +440,8 @@ def test_the_funestras_play_the_hosted_apps_slideshows_and_come_back_to_their_ow
 
 
 def test_one_satellite_plays_the_hosted_apps_slideshow_while_the_other_and_the_browser_stay_put(
-        hosted_session):
-    session, hwnd = hosted_session
+        the_modules_hosted_session):
+    session, hwnd = the_modules_hosted_session
     portrait, landscape = _FUNESTRAS
     landscape_own = sorted(_own_videos(session, landscape))
     assert landscape_own, "the Landscape Funestra had no list of its own to begin with"
@@ -502,8 +501,8 @@ def _published_unless_caught_mid_rename(hud_file: Path) -> str:
 
 
 def test_a_switch_clicked_while_paused_hands_the_funestras_over_and_the_resume_bands_the_window(
-        hosted_session):
-    session, hwnd = hosted_session
+        the_modules_hosted_session):
+    session, hwnd = the_modules_hosted_session
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_new_log("OmniPause: entering")
 
@@ -537,7 +536,7 @@ def _input_method_windows_of(processes: set[int]) -> list[int]:
     return found
 
 
-def test_no_funestra_keeps_input_method_windows_that_could_stall_its_band(hosted_session):
+def test_no_funestra_keeps_input_method_windows_that_could_stall_its_band(the_modules_hosted_session):
     funestras = {window_process(await_window(title, 10, exact=True))
                  for title in ("Main Funestra", SATELLITE_PORTRAIT_TITLE, SATELLITE_LANDSCAPE_TITLE)}
 
@@ -545,8 +544,8 @@ def test_no_funestra_keeps_input_method_windows_that_could_stall_its_band(hosted
     assert _input_method_windows_of(funestras) == []
 
 
-def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):
-    session, _hwnd = hosted_session
+def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(the_modules_hosted_session):
+    session, _hwnd = the_modules_hosted_session
     pids = session.read_child_pids()
     portrait = await_window("Portrait AI Funestra", 10, exact=True)
     landscape = await_window("Landscape AI Funestra", 10, exact=True)
@@ -695,17 +694,12 @@ def test_a_trash_press_in_kino_hands_the_video_to_the_hosted_apps_trash():
         session.stop()
 
 
-def _end_as_a_crash_does_sparing_the_next_start_a_takeover(
-        session: FunTimeIntegrationSession) -> None:
-    session.stop()
-
-
 def _the_state_beside_the_playlists_a_real_session_leaves(config_path: Path) -> Path:
     first = FunTimeIntegrationSession(config_path)
     try:
         first.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
     finally:
-        _end_as_a_crash_does_sparing_the_next_start_a_takeover(first)
+        first.end_as_a_crash_does()
     return shared_state_path(first.config.paths.state_dir)
 
 

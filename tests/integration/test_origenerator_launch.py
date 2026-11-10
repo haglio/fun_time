@@ -55,7 +55,7 @@ def _funestras(tmp_path: Path) -> dict[str, HandedFunestra]:
     }
 
 
-def _this_machines_own_config_never_a_made_up_one():
+def _this_machines_own_config():
     here = Path(__file__).resolve()
     # This checkout first, then the primary when this is a worktree: the config
     # is git-ignored, so it exists only in the primary — which sits exactly
@@ -71,7 +71,7 @@ def _this_machines_own_config_never_a_made_up_one():
 
 
 def _the_origenerator_this_branchs_session_would_launch():
-    config = _this_machines_own_config_never_a_made_up_one()
+    config = _this_machines_own_config()
     if config is None:
         pytest.skip("no local fun_time_config.json (git-ignored; absent in CI), "
                     "and a made-up one would prove only that what it made up boots")
