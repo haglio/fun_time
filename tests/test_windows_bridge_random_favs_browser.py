@@ -20,7 +20,7 @@ from fun_time.windows_bridge_random_favs_browser import (
 )
 
 
-def windows_argv(command_line: str) -> list[str]:
+def as_windows_itself_splits_it(command_line: str) -> list[str]:
     shell32 = ctypes.WinDLL("shell32", use_last_error=True)
     shell32.CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
     shell32.CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
@@ -48,7 +48,7 @@ def test_build_open_rfb_tab_command_constructs_chrome_command():
             arguments='--profile-directory="Profile 2"'),
     )
 
-    assert windows_argv(cmd) == [
+    assert as_windows_itself_splits_it(cmd) == [
         r"C:\Chrome\chrome.exe", "--profile-directory=Profile 2", "https://example.com"]
 
 
@@ -62,11 +62,11 @@ def test_build_open_rfb_tab_command_with_empty_args():
             arguments=""),
     )
 
-    assert windows_argv(cmd) == [r"C:\Chrome\chrome.exe", "https://example.com"]
+    assert as_windows_itself_splits_it(cmd) == [r"C:\Chrome\chrome.exe", "https://example.com"]
 
 
 @needs_windows
-def test_build_open_rfb_tab_command_opens_multiple_urls_in_one_launch():
+def test_two_tabs_are_never_two_chrome_launches_racing_each_other():
     cmd = build_open_rfb_tab_command(
         urls=["https://example.com/1", "https://example.com/2"],
         shortcut=Shortcut(
@@ -75,7 +75,7 @@ def test_build_open_rfb_tab_command_opens_multiple_urls_in_one_launch():
             arguments=""),
     )
 
-    assert windows_argv(cmd) == [
+    assert as_windows_itself_splits_it(cmd) == [
         r"C:\Chrome\chrome.exe", "https://example.com/1", "https://example.com/2"]
 
 
@@ -134,7 +134,7 @@ def test_build_random_favs_browser_launch_plan_adds_profile_and_new_window(tmp_p
     )
 
     assert plan.should_launch is True
-    assert windows_argv(plan.cmd) == [
+    assert as_windows_itself_splits_it(plan.cmd) == [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         "--disable-features=Something",
         "--profile-directory=Profile 2",
@@ -163,8 +163,8 @@ def test_build_random_favs_browser_launch_plan_preserves_existing_shortcut_args_
     # The shortcut's own text is spliced in verbatim: the .lnk already stores it
     # as command-line text, so re-quoting it would change what Chrome is told.
     assert '--disable-features="Something With Spaces"' in plan.cmd
-    assert windows_argv(plan.cmd)[1] == "--disable-features=Something With Spaces"
-    assert windows_argv(plan.cmd)[-1] == "https://example.com/1"
+    assert as_windows_itself_splits_it(plan.cmd)[1] == "--disable-features=Something With Spaces"
+    assert as_windows_itself_splits_it(plan.cmd)[-1] == "https://example.com/1"
 
 
 def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch):
@@ -201,9 +201,9 @@ _WINDOWS_COMMAND_LINE_LIMIT = 32767
 
 
 def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path: Path):
-    payload = "%22" * 1300
+    fragment_the_size_of_a_real_prompt_set = "%22" * 1300
     targets = [
-        TabTarget(url=f"https://example.com/create#ft={payload}", label=f"https://example.com/image/{i}")
+        TabTarget(url=f"https://example.com/create#ft={fragment_the_size_of_a_real_prompt_set}", label=f"https://example.com/image/{i}")
         for i in range(10)
     ]
     manifest_file = tmp_path / "browser_manifest.txt"
@@ -218,7 +218,7 @@ def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path:
     )
 
     assert plan.should_launch is True
-    assert payload not in plan.cmd
+    assert fragment_the_size_of_a_real_prompt_set not in plan.cmd
     assert len(plan.cmd) < _WINDOWS_COMMAND_LINE_LIMIT
 
 
@@ -229,4 +229,4 @@ def test_a_quote_in_a_profile_name_no_longer_malforms_the_command_line():
         shortcut=Shortcut(target=r"C:\Chrome\chrome.exe", work_dir="", arguments=""),
     )
 
-    assert windows_argv(cmd) == [r"C:\Chrome\chrome.exe", r'https://example.com/a"b']
+    assert as_windows_itself_splits_it(cmd) == [r"C:\Chrome\chrome.exe", r'https://example.com/a"b']

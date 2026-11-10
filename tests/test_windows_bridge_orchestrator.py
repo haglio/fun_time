@@ -339,7 +339,7 @@ class TestFixPostLoadingWindows:
 
         with patch(
             "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
-        ) as apply, patch(
+        ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
             "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
@@ -349,12 +349,13 @@ class TestFixPostLoadingWindows:
         ), patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ), patch(
+            "fun_time.windows_bridge_orchestrator.find_origenerators_window"
+        ) as looked_for_the_hosted_app, patch(
             "fun_time.windows_bridge_orchestrator._log_window_obstruction"
         ) as obstruction:
             _fix_post_loading_windows(result)
 
-        assert not [name for name in apply.call_args.kwargs
-                    if name.startswith("origenerator")]
+        looked_for_the_hosted_app.assert_not_called()
         watched = [call.args[1] for call in obstruction.call_args_list]
         assert 111 in watched
         assert 222 in watched
@@ -1823,7 +1824,7 @@ class TestClosingScreenLifecycle:
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
 
     @pytest.mark.parametrize("loading_screen", ["loading_screen", "closing_screen", "transition_screen"])
-    def test_no_loading_screen_opens_a_main_hud_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
+    def test_no_loading_screen_opens_a_console_window_of_its_own(self, cfg_factory, tmp_path, loading_screen):
         launches: dict[str, dict] = {}
 
         _run_a_session(cfg_factory, tmp_path, SessionRun(launches=launches, crossing=VR if loading_screen == "transition_screen" else None))
@@ -1832,7 +1833,7 @@ class TestClosingScreenLifecycle:
         assert launched["creationflags"] & subprocess.CREATE_NO_WINDOW
         assert "startupinfo" not in launched
 
-    def test_the_way_back_screen_runs_those_checkouts_too(self, cfg_factory, tmp_path):
+    def test_the_way_back_screen_imports_from_those_checkouts_too(self, cfg_factory, tmp_path):
         sibling = tmp_path / "sibling_checkout"
         sibling.mkdir()
         launches: dict[str, dict] = {}
@@ -2610,7 +2611,7 @@ class TestPostLoadingWindowState:
 
 
 class TestMainFunestraObstructionLog:
-    def test_names_the_window_covering_main_funestra(self, caplog):
+    def test_names_what_covers_a_main_funestra_that_is_flagged_topmost(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
             StackedWindow(hwnd=2020, title="Main Funestra", topmost=True, rect=(2560, 2500, 1440, 900)),
@@ -2700,7 +2701,7 @@ class TestVoiceControlIntegration:
 
         mock_vc.stop.assert_called_once()
 
-    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path, caplog):
+    def test_voice_asked_for_that_cannot_run_is_logged_as_an_error(self, cfg_factory, tmp_path, caplog):
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
@@ -2992,7 +2993,7 @@ class TestTheFunestrasStartWhenTheLoadingScreenIsGone:
             )
         return events
 
-    def test_the_release_waits_for_the_loading_screen_to_go(self, cfg_factory, tmp_path):
+    def test_no_video_starts_playing_unseen_under_the_loading_screen(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path)
 
         assert "Funestras released" in events, "the Funestras were never started"
@@ -3461,7 +3462,7 @@ class TestStartingVoice:
         assert prepared is None
         verifying_listener.assert_not_called()
 
-    def test_a_session_that_will_not_listen_never_loads_the_microphone_stack(
+    def test_a_session_with_voice_off_never_pays_to_import_the_speech_libraries(
             self, cfg_factory, tmp_path):
         config_path = cfg_factory({"voice_control": {"enabled": False}})
 
