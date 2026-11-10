@@ -89,6 +89,7 @@ _SAID_INSTEAD_OF_A_WORD_VOSK_LACKS = {
     "osr2": "o s r two",
     "2d": "two d",
     "hotkeys": "hot keys",
+    "origenerator": "aura generator",
 }
 
 
@@ -233,7 +234,7 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["satellites hud bottom right"] == "satellites_hud_lower_right"
 
     def test_no_phrase_uses_a_word_vosk_cannot_hear(self):
-        oov_words = {*_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS, "unretract", "origenerator"}
+        oov_words = {*_SAID_INSTEAD_OF_A_WORD_VOSK_LACKS, "unretract"}
         heard_as_reset = {"recents"}
         for phrase in VOICE_COMMANDS:
             offenders = (oov_words | heard_as_reset) & set(phrase.split())
@@ -327,6 +328,15 @@ class TestVoiceCommands:
         assert heard["satellites genau"] == "satellites_say_genau"
         assert heard["go now portrait"] == "portrait_say_go_now"
         assert not {"active_say_genau", "active_say_go_now"} & set(heard.values())
+
+    def test_aura_generator_shows_origenerator_core_in_the_browsers_place(self):
+        assert VOICE_COMMANDS["aura generator"] == "origenerator_activate"
+        assert VOICE_COMMANDS["aura generator mode"] == "origenerator_activate"
+        for retired in ("portrait aura generator mode", "landscape aura generator mode"):
+            assert retired not in VOICE_COMMANDS, retired
+
+    def test_aura_generator_reads_as_origenerator(self):
+        assert friendly_voice("aura generator mode") == "origenerator mode"
 
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):
