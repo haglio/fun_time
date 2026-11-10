@@ -45,7 +45,7 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[FunTimeFunestra, ...], bool | None]] = {
 def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: FunTimeFunestra) -> bool | None:
     if funestra is FunTimeFunestra.MAIN:
         return state.main_scripted_filter if kino_shows(state.main_mode) else state.genau_favorites_filter
-    if hosts(funestra, state, config):
+    if hosts(funestra, config):
         return show_f_mode(config.satellite(funestra))
     return state.satellite(funestra).favorites_filter
 
@@ -88,7 +88,7 @@ def _dispatch_fmode(
     state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
     enabled = _next_f_mode(state, config, asked_for) if target is None else target
-    hosted = tuple(funestra for funestra in asked_for if hosts(funestra, state, config))
+    hosted = tuple(funestra for funestra in asked_for if hosts(funestra, config))
     changed = tuple(funestra for funestra in asked_for
                     if funestra not in hosted and _funestra_f_mode(state, config, funestra) != enabled)
     _set_the_hosted_shows_f_mode(hosted, enabled, config)

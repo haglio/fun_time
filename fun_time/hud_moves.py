@@ -50,7 +50,7 @@ def _put_in(funestra: FunTimeFunestra, corner: HudCorner, state: BridgeState,
             config: BridgeConfig) -> BridgeState:
     if funestra is FunTimeFunestra.MAIN:
         return replace(state, main_hud_corner=corner)
-    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", state, config)
+    _tell_the_hosted_app(funestra, f"hud_corner|{corner}", config)
     return state.with_satellite(funestra, hud_corner=corner)
 
 
@@ -59,7 +59,7 @@ def _opened(funestra: FunTimeFunestra, state: BridgeState,
     if funestra is FunTimeFunestra.MAIN:
         return replace(state, main_hud_minimized=False)
     if hosted_app_told_through is not None:
-        _tell_the_hosted_app(funestra, "hud_minimized|0", state, hosted_app_told_through)
+        _tell_the_hosted_app(funestra, "hud_minimized|0", hosted_app_told_through)
     return state.with_satellite(funestra, hud_minimized=False)
 
 
@@ -74,7 +74,7 @@ def _collapsed_hud(funestra: FunTimeFunestra, state: BridgeState, config: Bridge
                    minimized: bool) -> BridgeState:
     if funestra is FunTimeFunestra.MAIN:
         return replace(state, main_hud_minimized=minimized)
-    _tell_the_hosted_app(funestra, f"hud_minimized|{1 if minimized else 0}", state, config)
+    _tell_the_hosted_app(funestra, f"hud_minimized|{1 if minimized else 0}", config)
     return state.with_satellite(funestra, hud_minimized=minimized)
 
 
@@ -92,9 +92,8 @@ def _hud_placed(corner: HudCorner, funestra: FunTimeFunestra, state: BridgeState
     return _put_in(funestra, corner, state, config)
 
 
-def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, state: BridgeState,
-                         config: BridgeConfig) -> None:
-    if hosts(funestra, state, config):
+def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, config: BridgeConfig) -> None:
+    if hosts(funestra, config):
         append_command(config.origenerator_cmd_file, f"{funestra.label}_{action}")
 
 

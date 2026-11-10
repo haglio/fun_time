@@ -41,7 +41,6 @@ from .hosted_words import (
 )
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
-from .origenerator_switches import hosts_a_satellite
 from .satellite_commands import is_hud_nav_command, satellite_at_defaults
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
@@ -69,13 +68,13 @@ def dispatch_command(
         command = parse_command(command)
     if command.funestra is not None:
         state = _addressed(command.funestra, command, state)
-    reworded = a_lock_said_in_the_hosted_apps_words(command, state, config)
+    reworded = a_lock_said_in_the_hosted_apps_words(command, config)
     if reworded is not command:
         command, hosted = reworded, None
     if about_genaus_flick(command) and kino_shows(state.main_mode):
         return ignored(state, IN_KINO_MODE)
     if hosted is None:
-        hosted = routes_to_origenerator(command, state, config)
+        hosted = routes_to_origenerator(command, config)
     if hosted:
         return state, told_to_the_hosted_app(command, state, config, spoken_at)
 
@@ -98,7 +97,7 @@ def _half_by_half(command: Command, state: BridgeState, config: BridgeConfig,
 def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> Result:
     if command.said_to is Scope.ACTIVE:
-        bare = line_said_bare_to_the_hosted_app(command, state, config)
+        bare = line_said_bare_to_the_hosted_app(command, config)
         return ((state, written_for_the_hosted_app([bare], config, None)) if bare
                 else ignored(state, ON_THE_MAIN_FUNESTRA))
     if command.action == SAY:
@@ -109,7 +108,7 @@ def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
 
 def app_at_defaults(state: BridgeState, config: BridgeConfig, status: MainFunestraStatus) -> bool:
     return (main_funestra_at_defaults(state, config, status)
-            and not hosts_a_satellite(state, config)
+            and not config.hosts_origenerator
             and all(satellite_at_defaults(
                         state.satellite(funestra),
                         read_satellite_status(config.satellite(funestra).status_file))

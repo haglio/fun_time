@@ -142,7 +142,7 @@ class HudFeed:
 
         told = self._osr2_told
         for funestra in FunTimeFunestra.SATELLITES:
-            if hosts(funestra, state, self.config):
+            if hosts(funestra, self.config):
                 tell_a_hosted_satellite_whose_the_osr2_is(self.config, told, funestra,
                                                      funestra is with_the_osr2)
                 held = state.satellite(funestra)

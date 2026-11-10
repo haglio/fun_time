@@ -10,7 +10,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_value import FILTER, parse_command, set_command
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.hosted_contract import SAID_AT_FIELD, said_to_core, said_to_the_hosted_app
+from fun_time.hosted_contract import SAID_AT_FIELD, said_to_the_hosted_app
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.hud_feed import HudFeed
 from fun_time.hud_transport import HudPublisher
@@ -72,13 +72,12 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
         *_written_in_a_sweep(in_a_headset),
         *_written_by(on_the_monitors, _each_satellite_handed_to_the_app_at_startup, _the_apps_f_mode,
                      _each_hosted_satellite_told_whether_it_has_the_osr2,
-                     _a_taken_over_copy_handed_back,
+                     _a_hosted_lock_on_a_video_no_website_made, _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_app_crossing_in),
         *(what_an_adopted_app_is_told("{frames}", "{input}", in_a_headset=in_a_headset)
           for in_a_headset in (False, True)),
         *(said_to_the_hosted_app(funestra.label, "{words}")
           for funestra in FunTimeFunestra.SATELLITES),
-        said_to_core("{words}"),
         trash_file_line("C:/v/scene one.mp4", "C:/t/scene one.mp4"),
     ]
     return {_with_his_video_or_act_blanked(line) for line in written}
@@ -126,6 +125,10 @@ def _the_apps_f_mode(app: BridgeConfig) -> None:
     with patch("fun_time.f_mode.apply_fmode",
                return_value=SimpleNamespace(funestras=(), log_message="")):
         dispatch_command("fmode_toggle", _both_shows_hosted(), app)
+
+
+def _a_hosted_lock_on_a_video_no_website_made(app: BridgeConfig) -> None:
+    dispatch_command("portrait_lock_held|C:/v/scene one.mp4", _both_shows_hosted(), app)
 
 
 def _a_taken_over_copy_handed_back(app: BridgeConfig) -> None:

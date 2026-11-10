@@ -53,7 +53,7 @@ class _ASatellite:
 
     def plays_its_own_list(self) -> bool:
         return not (self.state.satellite(self.funestra).loop
-                    or hosts(self.funestra, self.state, self.config))
+                    or hosts(self.funestra, self.config))
 
     def lets_through(self, paths: list[str]) -> list[str]:
         satellite = self.state.satellite(self.funestra)

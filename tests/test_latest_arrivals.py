@@ -109,22 +109,6 @@ class TestASatellitePlayingItsLatestList:
         assert held == []
         assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
 
-    def test_holds_what_arrives_while_it_plays_origenerators_slideshows(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library),
-                                     origenerator_enabled=True,
-                                     origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
-        newcomer = _video(library, "scene two.mp4")
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST.with_satellite(
-            FunTimeFunestra.PORTRAIT, handed_over=True))
-        held = _queued(config.portrait.cmd_file)
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert held == []
-        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
-
 
 class TestASatelliteShuffling:
     def test_is_handed_nothing_and_nothing_that_came_meanwhile_waits_for_its_latest(self, tmp_path):

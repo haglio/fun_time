@@ -62,7 +62,7 @@ def _lock_as_said(
     locked: bool, funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig,
     target_path: str = "",
 ) -> tuple[BridgeState, list[WindowOp]]:
-    if hosts(funestra, state, config):
+    if hosts(funestra, config):
         return _lock_before_the_hosted_slideshow_moves_on(
             funestra, lock_said(funestra, locked), state, config, target_path)
     if state.satellite(funestra).locked == locked:
@@ -73,7 +73,7 @@ def _lock_as_said(
 def _toggle_lock(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    if hosts(funestra, state, config):
+    if hosts(funestra, config):
         return _lock_before_the_hosted_slideshow_moves_on(
             funestra, _lock_pressed(funestra), state, config, target_path)
     return _set_lock(funestra, not state.satellite(funestra).locked, state, config, target_path)
@@ -249,7 +249,7 @@ def _set_filter(query: str, funestra: FunTimeFunestra, state: BridgeState,
 def _dispatch_enhancement(
     funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    if hosts(funestra, state, config):
+    if hosts(funestra, config):
         return slideshows_enhancement(funestra, level, state, config)
     if state.satellite(funestra).enhancement is level:
         return state, []

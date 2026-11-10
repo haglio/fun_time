@@ -131,10 +131,6 @@ def said_to_the_hosted_app(satellite: str, words: str) -> str:
     return f"{satellite.upper()}_SAY:{words}"
 
 
-def said_to_core(words: str) -> str:
-    return f"SAY:{words}"
-
-
 SAID_FOR_AN_ENHANCEMENT_LEVEL = MappingProxyType({
     "enhanced": "enhanced only",
     "original": "original only",

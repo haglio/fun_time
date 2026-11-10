@@ -3406,7 +3406,7 @@ class TestStartingVoice:
             satellites = controller.return_value.hosted_satellites()
 
         assert satellites == frozenset({"landscape"})
-        asked.assert_called_once_with(runner.state, runner.config)
+        asked.assert_called_once_with(runner.config)
 
     def test_the_app_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(
         self, cfg_factory, tmp_path,

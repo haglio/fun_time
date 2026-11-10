@@ -7,7 +7,6 @@ from .fun_time_funestras import FunTimeFunestra
 
 if TYPE_CHECKING:
     from .bridge_records import BridgeConfig
-    from .shared_state import BridgeState
 
 
 class RfbMode(StrEnum):
@@ -25,16 +24,11 @@ def said_about(satellite: str, verb: str) -> str:
     return f"{satellite}_{verb}"
 
 
-def hosts(funestra: FunTimeFunestra | None, state: BridgeState, config: BridgeConfig) -> bool:
-    return (funestra in FunTimeFunestra.SATELLITES and config.hosts_origenerator
-            and state.satellite(funestra).handed_over)
+def hosts(funestra: FunTimeFunestra | None, config: BridgeConfig) -> bool:
+    return funestra in FunTimeFunestra.SATELLITES and config.hosts_origenerator
 
 
-def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str]:
+def hosted_satellites(config: BridgeConfig) -> frozenset[str]:
     return frozenset(funestra.label for funestra in FunTimeFunestra.SATELLITES
-                     if hosts(funestra, state, config))
-
-
-def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
-    return bool(hosted_satellites(state, config))
+                     if hosts(funestra, config))
 
