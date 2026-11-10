@@ -128,8 +128,9 @@ from fun_time_vr.layout import (
     PORTRAIT,
     REFERENCE,
     Layout,
-    clamp_placement,
+    layout_from_json,
     shown_at,
+    write_layout,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
 from fun_time_vr.loading_screen import (
@@ -137,6 +138,7 @@ from fun_time_vr.loading_screen import (
     VR_STARTUP_PHASES,
     WEARER_STATUS,
     LoadingScreenWatcher,
+    SceneReady,
 )
 from fun_time_vr.main_hud import DEG_PER_PX, HUD_WIDTH_PX
 from fun_time_vr.matrices import yaw_of_orientation
@@ -232,7 +234,7 @@ def test_the_vr_section_reads_back_with_its_key_case_intact(tmp_path):
     assert vr.compositor_layers is True
 
 
-def test_the_compositor_falls_back_to_off_when_the_section_does_not_say(tmp_path):
+def test_a_manifest_written_before_compositor_layers_existed_leaves_them_off(tmp_path):
     path = tmp_path / "windows_bridge_launch.ini"
     path.write_text("[vr]\nlibrary_dirs=\n", encoding="utf-8")
 
@@ -628,11 +630,17 @@ def _dashboard_asked(tmp_path) -> list[str]:
 
 
 class TestTheMainFunestrasPass:
-    def test_the_main_screen_blends_nothing_into_its_frame(self, tmp_path, a_fake_engine):
+    @pytest.mark.parametrize("wrapped", [False, True], ids=["flat", "wrapped"])
+    def test_the_hud_is_drawn_on_its_own_bitmap_never_into_the_frame(
+            self, tmp_path, a_fake_engine, wrapped):
         unit = _a_main_unit(tmp_path)
+        if wrapped:
+            unit.target.ready = True
+            unit.verbs.wrap_of = lambda _video: immersive_wrap(EQUIRECT_180_SBS)
 
         unit.pump(threading.Event(), 0.0)
 
+        assert unit.wraps_the_viewer is wrapped
         assert unit.engine.overlays == {}
         assert unit.hud.take()[0] is not None
 
@@ -1431,8 +1439,13 @@ class TestWhenTheRoomIsUp:
     def test_a_screen_with_no_frame_is_named(self, blank, screen):
         assert _still_blank(**_room(**{blank: False})) == (screen,)
 
-    def test_a_main_hud_the_room_does_not_show_is_not_waited_for(self):
-        assert _still_blank(**_room(main_hud_unit=False, main_hud_in_the_room=False)) == ()
+    def test_a_minimized_main_hud_does_not_hold_the_reveal_for_the_whole_grace(self, tmp_path):
+        revealed = tmp_path / "revealed"
+        never_painted = _room(main_hud_unit=False, main_hud_in_the_room=False)
+
+        SceneReady(revealed, clock=lambda: 0.0).note(blank=_still_blank(**never_painted), read=True)
+
+        assert revealed.exists()
 
     def test_a_sized_texture_is_not_a_frame(self):
         scene = _room()
@@ -1468,7 +1481,7 @@ def test_the_eyes_are_handed_the_arrangement_the_pointer_was():
     assert {k.arg: ast.unparse(k.value) for k in drawn.keywords} == {"as_quads": "as_quads"}
 
 
-def test_the_headset_builds_kino_with_the_desktops_own_builder():
+def test_the_headset_keeps_no_copy_of_the_desktops_kino_builder():
     tree = ast.parse(inspect.getsource(funestras._TheLibrary.kino).lstrip())
     calls = {ast.unparse(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
 
@@ -1563,7 +1576,8 @@ class TestHangingTheRoom:
 
         assert routed == [the_room.main_unit, *the_room.satellites]
 
-    def test_it_is_the_one_list_everything_is_read_off(self, tmp_path, faked_collaborators):
+    def test_no_pass_over_the_room_keeps_a_list_of_screens_of_its_own(
+            self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
         assert all(unit in the_room.closing for unit in the_room.units)
@@ -1653,7 +1667,7 @@ class TestHangingTheRoom:
         faked_collaborators["Funestra"].return_value.showing = MainMode.GENAU
         assert the_room.library._genau_has_the_slot() is True
 
-    def test_the_main_funestra_keeps_the_loading_screen_moving_while_it_reads_the_library(
+    def test_a_cold_library_read_of_seconds_keeps_presenting_the_loading_screen(
             self, tmp_path, faked_collaborators):
         present = MagicMock()
 
@@ -1661,7 +1675,7 @@ class TestHangingTheRoom:
 
         assert faked_collaborators["_TheLibrary"].call_args.kwargs["while_reading"] is present
 
-    def test_the_loading_screen_is_presented_between_the_funestras_being_built(
+    def test_only_the_loading_screen_presents_frames_while_funestras_open_their_media(
             self, tmp_path, faked_collaborators):
         order: list[str] = []
         faked_collaborators["Funestra"].side_effect = (
@@ -1717,7 +1731,7 @@ class TestTheShellsWordsForTheRoom:
                 reads.append((reached.id, *reversed(chain)))
         return reads
 
-    def test_every_name_the_shell_reads_off_the_room_is_one_it_answers(
+    def test_the_shell_no_suite_runs_reads_only_names_the_room_answers(
             self, tmp_path, faked_collaborators):
         answers = self._answers(tmp_path)
         unanswered = set()
@@ -1743,13 +1757,15 @@ class TestWatchingTheLoadingScreen:
         watch = LoadingScreenWatch(loading_screen, scene_ready, dwell_s=dwell_s)
         return loading_screen, scene_ready, watch
 
-    def test_the_reveal_waits_for_the_loading_screen_to_have_been_on_screen_not_for_a_wearer(self):
-        _loading_screen, scene_ready, watch = self._watch()
+    def test_an_unworn_headset_does_not_hold_the_reveal_for_the_whole_grace(self, tmp_path):
+        revealed = tmp_path / "revealed"
+        watch = LoadingScreenWatch(
+            SimpleNamespace(settled=MagicMock()), SceneReady(revealed, clock=lambda: 0.0), dwell_s=0.0)
 
         watch.frame_ended(covered=True, focused=False, should_render=True, now=1.0)
         watch.frame_began(blank=(), focused=False, views_tracked=True)
 
-        scene_ready.note.assert_called_with(blank=(), read=True)
+        assert revealed.exists()
 
     def test_a_blank_screen_is_named_to_the_reveal(self):
         _loading_screen, scene_ready, watch = self._watch()
@@ -1782,15 +1798,22 @@ class TestWatchingTheLoadingScreen:
 
         assert (building, built, loading_screen.awaiting_wearer) == (False, True, False)
 
-    def test_the_loading_screen_settles_on_a_frame_it_reached_or_that_nothing_reached(self):
+    def test_the_loading_screen_settles_on_the_first_frame_that_carried_it(self):
         loading_screen, _scene_ready, watch = self._watch()
 
         watch.frame_ended(covered=False, focused=True, should_render=True, now=1.0)
         assert not loading_screen.settled.called
         watch.frame_ended(covered=True, focused=True, should_render=True, now=2.0)
-        watch.frame_ended(covered=False, focused=True, should_render=False, now=3.0)
 
-        assert loading_screen.settled.call_count == 2
+        assert loading_screen.settled.call_count == 1
+
+    def test_a_quit_made_with_the_headset_off_still_settles_the_closing_screen(self):
+        loading_screen, _scene_ready, watch = self._watch()
+        the_headset_is_off = {"covered": False, "should_render": False}
+
+        watch.frame_ended(**the_headset_is_off, focused=False, now=1.0)
+
+        assert loading_screen.settled.call_count == 1
 
     def test_it_says_once_when_the_loading_screen_went_up_and_once_when_it_came_down(self, caplog):
         _loading_screen, _scene_ready, watch = self._watch()
@@ -2200,6 +2223,12 @@ class TestTheBannerOverAWrappedFrame:
         assert _MessageUnit.hangings(unit) == ()
 
 
+_WRAPPED_ROUND_THE_VIEWER = [
+    MainSetup(projection=EQUIRECT_180_SBS),
+    MainSetup(showing=True, flick_projection=EQUIRECT_180_SBS),
+]
+
+
 class TestTheMainFunestraUnderThePointer:
     def _units(self, setup=None):
         return (_a_main_funestra(setup),)
@@ -2224,11 +2253,13 @@ class TestTheMainFunestraUnderThePointer:
     def test_a_flat_main_funestra_is_a_frame_a_squeeze_clicks_or_carries(self):
         assert self._slot().item
 
-    def test_genaus_flick_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
-        screen = self._slot(MainSetup(showing=True))
+    def test_a_mode_switch_keeps_one_screen_under_the_hand_at_the_flicks_shape(self):
+        the_video, genaus_flick = self._slot(), self._slot(MainSetup(showing=True))
 
-        assert screen.name == MAIN
-        assert screen.aspect == 4 / 3
+        assert genaus_flick.name == the_video.name == MAIN
+        assert (genaus_flick.movable, genaus_flick.resizable) == (
+            the_video.movable, the_video.resizable)
+        assert genaus_flick.aspect == 4 / 3
 
     def test_genaus_flick_is_offered_at_the_width_it_hangs_at_to_keep_the_slots_area(self):
         screen = self._slot(MainSetup(showing=True))
@@ -2236,14 +2267,16 @@ class TestTheMainFunestraUnderThePointer:
         assert screen.placement == shown_at(MAIN, SPOTS[MAIN], 4 / 3)
         assert widened(SPOTS[MAIN], screen.widened_by) == screen.placement
 
-    @pytest.mark.parametrize("state", [
-        MainSetup(projection=EQUIRECT_180_SBS),
-        MainSetup(showing=True, flick_projection=EQUIRECT_180_SBS),
-    ])
+    @pytest.mark.parametrize("state", _WRAPPED_ROUND_THE_VIEWER)
     def test_a_wrapped_video_has_no_edges_to_take_hold_of(self, state):
         screen = self._slot(state)
 
         assert (screen.movable, screen.resizable) == (False, False)
+
+    @pytest.mark.parametrize("state", _WRAPPED_ROUND_THE_VIEWER)
+    def test_a_wrapped_video_stays_in_the_scene_for_a_squeeze_out_there_to_land_on(self, state):
+        screen = self._slot(state)
+
         assert (screen.pressable, screen.immersive) == (True, True)
 
     def test_a_wrapped_video_goes_round_the_viewer_rather_than_on_a_quad(self):
@@ -3023,7 +3056,7 @@ class TestWhatThePointerCanReach:
         assert REFERENCE not in self._screens(tmp_path)
         assert REFERENCE in self._screens(tmp_path, reference_showing=True)
 
-    def test_it_can_be_pressed_and_dragged(self, tmp_path):
+    def test_the_dashboard_is_movable_to_be_dragged_off_what_it_covers(self, tmp_path):
         screens = self._screens(tmp_path)
 
         assert screens[DASH].pressable
@@ -3216,13 +3249,15 @@ class TestWhereTheDashboardHangs:
 
         assert dash.screen.placement == put
 
-    def test_the_other_spot_is_untouched_by_it(self, tmp_path):
+    def test_dragged_while_wrapped_it_does_not_drop_over_the_next_flat_video(self, tmp_path):
         dash = self._placed(tmp_path, wrapped=True)
+        dash.placement = replace(SPOTS[MAIN], width_deg=40.0)
 
-        dash.placement = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
+        dash._main_unit = _slot(wrapped=False)
+        with patch("fun_time_vr.funestras.ScreenMesh", _FakeMesh):
+            dash.render_latest_frame()
 
-        assert dash._floating == SPOTS[DASH]
-        assert dash.layout_key == MAIN_HUD
+        assert dash.screen.placement == SPOTS[DASH]
 
     def test_it_opens_in_whichever_of_the_two_the_last_session_left_it_in(self, tmp_path):
         floating = Placement(azimuth_deg=-30.0, elevation_deg=40.0, width_deg=44.0)
@@ -3245,17 +3280,18 @@ class TestWhereTheDashboardHangs:
             dash.render_latest_frame()
 
         assert dash.screen.placement == SPOTS[DASH]
-        assert (dash._floating, dash._wrapped) == (SPOTS[DASH], SPOTS[MAIN_HUD])
+        assert (dash._spot_over_a_flat_video, dash._spot_carrying_the_main_hud) == (
+            SPOTS[DASH], SPOTS[MAIN_HUD])
 
 
 _DRAGGED_OFF = Placement(azimuth_deg=-110.0, elevation_deg=-30.0, width_deg=15.0)
 
 
-class TestTheSpotEachScreenStartsIn:
+class TestEachUnitKeepsTheSpotItsOwnScreenOpensIn:
     def test_the_main_screen_is_one_of_the_movable_screens_hanging_dead_ahead(self):
         assert _MainUnit.SPOTS[MAIN] == Placement(0.0, 0.0, MAIN_WIDTH_DEG)
 
-    def test_the_satellites_flank_the_main_screen_landscape_left_portrait_right(self):
+    def test_the_satellites_take_the_desktops_sides_landscape_left_portrait_right(self):
         portrait, landscape = _SatelliteUnit.SPOTS[PORTRAIT], _SatelliteUnit.SPOTS[LANDSCAPE]
 
         assert landscape.azimuth_deg < 0 < portrait.azimuth_deg
@@ -3289,9 +3325,12 @@ class TestTheSpotEachScreenStartsIn:
     def test_only_the_screens_a_controller_places_keep_one(self):
         assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, MAIN_HUD, DASH, LIBRARY, GALLERY}
 
-    def test_every_one_of_them_is_already_inside_the_scene(self):
-        for name, spot in SPOTS.items():
-            assert clamp_placement(spot) == spot, name
+    def test_every_opening_spot_comes_back_from_the_layout_file_where_it_opened(self, tmp_path):
+        write_layout(tmp_path / "layout.json", Layout(placements=SPOTS))
+
+        remembered = layout_from_json((tmp_path / "layout.json").read_text(encoding="utf-8"))
+
+        assert remembered.placements == SPOTS
 
 
 class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:

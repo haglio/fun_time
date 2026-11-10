@@ -478,6 +478,14 @@ class TestThePointerOverTheScene:
 
         assert frame.hover.screen == "panel"
 
+    def test_a_screen_that_is_not_movable_offers_no_bar_to_drag_it_by(self):
+        _du, dv = handle_extent(_MAIN_HUD.placement, _MAIN_HUD.aspect)
+        over_its_top_edge = _aim_at_uv(_MAIN_HUD, 0.5, 1 + dv / 2)
+
+        frame = self._frame(Pointer(), _hands(right=over_its_top_edge), screens=[_MAIN_HUD])
+
+        assert frame.hover is None
+
     def test_a_squeeze_on_the_bar_drags_the_screen_and_letting_go_leaves_it_there(self):
         pointer = Pointer()
         _du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)

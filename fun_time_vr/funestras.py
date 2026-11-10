@@ -639,10 +639,18 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
     return users
 
 
+_SATELLITE_WIDTH_DEG = 28.0
+_FLUSH_BESIDE_THE_MAIN_DEG = (MAIN_WIDTH_DEG + _SATELLITE_WIDTH_DEG) / 2
+_TUCKED_IN_FROM_PERIPHERAL_VISION_DEG = 12.0
+_OVER_THE_MAINS_EDGE_DEG = _FLUSH_BESIDE_THE_MAIN_DEG - _TUCKED_IN_FROM_PERIPHERAL_VISION_DEG
+
+
 class _SatelliteUnit(_VideoUnit):
     SPOTS: ClassVar[dict[str, Placement]] = {
-        LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
-        PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
+        LANDSCAPE: Placement(azimuth_deg=-_OVER_THE_MAINS_EDGE_DEG, elevation_deg=10.0,
+                             width_deg=_SATELLITE_WIDTH_DEG),
+        PORTRAIT: Placement(azimuth_deg=_OVER_THE_MAINS_EDGE_DEG, elevation_deg=10.0,
+                            width_deg=_SATELLITE_WIDTH_DEG),
     }
 
     def __init__(
@@ -887,8 +895,10 @@ class _DashUnit:
         self._messages = messages
         self._state_file = Path(commands.dashboard_state_file)
         self._reference_flag = reference_flag
-        self._floating = _at_the_dashs_own_width(remembered.get(DASH, self.SPOTS[DASH]))
-        self._wrapped = _at_the_dashs_own_width(remembered.get(MAIN_HUD, self.SPOTS[MAIN_HUD]))
+        self._spot_over_a_flat_video = _at_the_dashs_own_width(
+            remembered.get(DASH, self.SPOTS[DASH]))
+        self._spot_carrying_the_main_hud = _at_the_dashs_own_width(
+            remembered.get(MAIN_HUD, self.SPOTS[MAIN_HUD]))
         self._pointer = DashPointer(
             post=lambda command: append_command(Path(commands.dashboard_cmd_file), command))
         self._shown_as = preview_marker.shown_as()
@@ -901,7 +911,7 @@ class _DashUnit:
         self._key = None
         self._uploaded = None
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(self._floating)
+        self.screen = _HangingScreen(self._spot_over_a_flat_video)
 
     @property
     def carrying_the_main_hud(self) -> bool:
@@ -919,12 +929,13 @@ class _DashUnit:
     def placement(self, placement: Placement) -> None:
         self.screen.placement = placement
         if self.carrying_the_main_hud:
-            self._wrapped = placement
+            self._spot_carrying_the_main_hud = placement
         else:
-            self._floating = placement
+            self._spot_over_a_flat_video = placement
 
     def put_back(self) -> None:
-        self._floating, self._wrapped = self.SPOTS[DASH], self.SPOTS[MAIN_HUD]
+        self._spot_over_a_flat_video = self.SPOTS[DASH]
+        self._spot_carrying_the_main_hud = self.SPOTS[MAIN_HUD]
         self.placement = self.SPOTS[self.layout_key]
 
     def hangings(self) -> tuple[Hanging, ...]:
@@ -979,7 +990,8 @@ class _DashUnit:
 
     def render_latest_frame(self) -> None:
         self.screen.placement = (
-            self._wrapped if self.carrying_the_main_hud else self._floating)
+            self._spot_carrying_the_main_hud if self.carrying_the_main_hud
+            else self._spot_over_a_flat_video)
         if _upload(self):
             self.screen.rehang(self.texture.aspect)
 
@@ -1237,8 +1249,12 @@ class _MessageUnit:
         self.screen.close()
 
 
+_WIDTH_HE_DRAGGED_THE_GALLERY_OUT_TO_DEG = 95.0
+
+
 class _GalleryUnit:
-    SPOTS: ClassVar[dict[str, Placement]] = {GALLERY: Placement(azimuth_deg=-100.0, elevation_deg=2.0, width_deg=95.0)}
+    SPOTS: ClassVar[dict[str, Placement]] = {GALLERY: Placement(
+        azimuth_deg=-100.0, elevation_deg=2.0, width_deg=_WIDTH_HE_DRAGGED_THE_GALLERY_OUT_TO_DEG)}
 
     def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
                  shared_state_file: Path) -> None:
@@ -1784,7 +1800,8 @@ class LoadingScreenWatch:
         if self._up_at is not None and not covered and not self._down_said:
             self._down_said = True
             logger.info("Loading screen down after %.1fs on screen", now - self._up_at)
-        if covered or not should_render:
+        no_frame_can_reach_a_headset_that_is_off = not should_render
+        if covered or no_frame_can_reach_a_headset_that_is_off:
             self._loading_screen.settled()
 
 
