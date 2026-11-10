@@ -172,7 +172,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     )
     start = {name: kwargs.pop(name) for name in (
         "rfb_shortcut", "rfb_slideshow", "press_and_caret_watch", "origenerator_already_open",
-        "origenerator_slideshow_on") if name in kwargs}
+        "origenerator_showing_a_slideshow") if name in kwargs}
     publishing = {name: kwargs.pop(name) for name in (
         "dashboard_enabled", "hud_publisher", "sync_interval_ms", "secondary_rects")
         if name in kwargs}
@@ -3336,7 +3336,7 @@ class TestOpeningInOrigeneratorMode:
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config,
                              origenerator_already_open=True,
-                             origenerator_slideshow_on=(FunTimeFunestra.PORTRAIT,))
+                             origenerator_showing_a_slideshow=True)
 
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
@@ -3345,35 +3345,6 @@ class TestOpeningInOrigeneratorMode:
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
-
-    def test_the_satellite_a_slideshow_taken_over_is_not_on_opens_as_it_was_left(
-            self, tmp_path):
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(), FunTimeFunestra.PORTRAIT))
-        config = _hosting(tmp_path)
-        runner = make_runner(tmp_path, config=config,
-                             origenerator_already_open=True,
-                             origenerator_slideshow_on=(FunTimeFunestra.LANDSCAPE,))
-
-        runner.activate_origenerator(
-            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
-
-        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "portrait_open_slideshow", "landscape_open_slideshow"]
-
-    def test_a_slideshow_from_an_app_that_names_no_monitor_puts_origenerator_on_all_of_it(
-            self, tmp_path):
-        config = _hosting(tmp_path)
-        runner = make_runner(tmp_path, config=config,
-                             origenerator_already_open=True,
-                             origenerator_slideshow_on=FunTimeFunestra.SATELLITES)
-
-        runner.activate_origenerator(
-            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
-
-        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
-        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
 
     def test_a_session_left_with_its_satellites_in_kino_opens_both_in_the_hosted_app(
             self, tmp_path):

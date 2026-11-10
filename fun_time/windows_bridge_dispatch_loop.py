@@ -33,6 +33,7 @@ from .dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
     LIBRARY_OPEN_FILENAME,
+    ORIGENERATOR_ACTIVATE,
     REFERENCE_OPEN_FILENAME,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
@@ -63,8 +64,8 @@ from .origenerator_opening import (
     OrigeneratorOpening,
     holding_nothing,
 )
-from .origenerator_switches import RfbMode
-from .runtime_flow import write_flag_file
+from .origenerator_switches import ORIGENERATOR_MODE, RfbMode
+from .runtime_flow import hand_the_satellite_to_the_app, write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .session_end import mark_session_end
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -153,7 +154,7 @@ class DispatchLoopRunner:
         self.state = holding_nothing(left_in)
         self.opening = OrigeneratorOpening(
             config, left_in, already_open=start.origenerator_already_open,
-            slideshow_on=start.origenerator_slideshow_on)
+            showing_a_slideshow=start.origenerator_showing_a_slideshow)
         self._last_sync = 0.0
         self._last_dashboard_warning = float("-inf")
         self._stop = threading.Event()
@@ -196,13 +197,16 @@ class DispatchLoopRunner:
         self.latest_arrivals = LatestArrivals(config)
 
     def activate_origenerator(self, *, wait_for_the_app) -> None:
-        owed = self.opening.take_what_is_owed(wait_for_the_app)
-        if not owed:
+        if not self.opening.opens_now(wait_for_the_app):
             return
         self.state = self.opening.app_as_it_is(self.state)
         self.departures.expect(FunTimeFunestra.SATELLITES, self.config)
-        for command in owed:
-            self._dispatch(parse_command(command))
+        for funestra in FunTimeFunestra.SATELLITES:
+            hand_the_satellite_to_the_app(funestra, self.config.satellite(funestra),
+                                          self.config.origenerator_cmd_file)
+            self.state = self.state.with_satellite(funestra, mode=ORIGENERATOR_MODE)
+        if self.opening.puts_origenerator_in_the_browsers_place:
+            self._dispatch(parse_command(ORIGENERATOR_ACTIVATE))
         if not wait_for_the_app(self._the_app_has_every_satellite):
             raise OrigeneratorNeverCameUp
 

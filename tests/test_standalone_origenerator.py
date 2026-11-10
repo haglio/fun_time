@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 from app_support import origenerator_handoff as handoff
 
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.standalone_origenerator import (
     OpenOrigenerator,
     claim_the_osr2,
@@ -29,7 +28,7 @@ def test_an_open_app_is_the_process_its_offer_names(tmp_path):
     _offer(tmp_path)
 
     assert the_open_origenerator(tmp_path) == OpenOrigenerator(
-        handoff.this_process().pid, starting=False, place=tmp_path / "state", slideshow_on=())
+        handoff.this_process().pid, starting=False, place=tmp_path / "state", showing_a_slideshow=False)
 
 
 def test_an_app_still_starting_says_so_in_its_offer(tmp_path):
@@ -44,16 +43,12 @@ def test_an_open_app_is_taken_over_through_the_checkout_its_offer_stood_in(tmp_p
     assert the_open_origenerator(tmp_path).checkout == tmp_path
 
 
-@pytest.mark.parametrize(("shape", "satellites"), [
-    ("portrait", (FunTimeFunestra.PORTRAIT,)),
-    ("landscape", (FunTimeFunestra.LANDSCAPE,)),
-    ("both", FunTimeFunestra.SATELLITES)])
-def test_an_open_app_showing_a_slideshow_names_the_satellites_of_its_shape(
-        tmp_path, shape, satellites):
+@pytest.mark.parametrize("shape", ["portrait", "landscape", "both"])
+def test_an_open_app_showing_a_slideshow_of_any_shape_says_so(tmp_path, shape):
     _offer(tmp_path)
     _mark_a_slideshow(tmp_path, shape)
 
-    assert the_open_origenerator(tmp_path).slideshow_on == satellites
+    assert the_open_origenerator(tmp_path).showing_a_slideshow
 
 
 def test_a_hosted_worktree_finds_the_one_copy_its_library_allows(tmp_path):
@@ -62,7 +57,7 @@ def test_a_hosted_worktree_finds_the_one_copy_its_library_allows(tmp_path):
     _offer(everyday)
 
     assert the_open_origenerator(worktree) == OpenOrigenerator(
-        handoff.this_process().pid, starting=False, place=everyday / "state", slideshow_on=())
+        handoff.this_process().pid, starting=False, place=everyday / "state", showing_a_slideshow=False)
 
 
 def test_a_session_hosting_a_worktree_claims_the_osr2_in_its_primary_checkout_too(tmp_path):

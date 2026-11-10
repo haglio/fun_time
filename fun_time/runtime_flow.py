@@ -185,19 +185,13 @@ def apply_satellite_switch(
             append_command(Path(origenerator_cmd_file), said_about(funestra.label, CLOSE_SLIDESHOW))
     else:
         keep_aside(channel)
-        _hand_the_satellites_lock_to_the_app(channel)
-        _open_the_mode_playing_not_empty(funestra, origenerator_cmd_file)
+        hand_the_satellite_to_the_app(funestra, channel, origenerator_cmd_file)
     return SatelliteSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
         log_message=f"{satellite} switched to {target_mode} mode")
 
 
-def _hand_the_satellites_lock_to_the_app(channel: SatelliteChannel) -> None:
+def hand_the_satellite_to_the_app(funestra: FunTimeFunestra, channel: SatelliteChannel,
+                                  origenerator_cmd_file: str | Path) -> None:
     append_command(Path(channel.cmd_file), LOCK_OFF)
-
-
-def _open_the_mode_playing_not_empty(
-    funestra: FunTimeFunestra, origenerator_cmd_file: str | Path | None,
-) -> None:
-    if origenerator_cmd_file is not None:
-        append_command(Path(origenerator_cmd_file), said_about(funestra.label, OPEN_SLIDESHOW))
+    append_command(Path(origenerator_cmd_file), said_about(funestra.label, OPEN_SLIDESHOW))

@@ -4,7 +4,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import FunTimeWindows
 from .hud_transport import HudPublisher
 from .rfb_slideshow import RfbSlideshow
@@ -30,7 +29,7 @@ class SessionStart:
     rfb_slideshow: RfbSlideshow | None = None
     press_and_caret_watch: Sightings | None = None
     origenerator_already_open: bool = False
-    origenerator_slideshow_on: tuple[FunTimeFunestra, ...] = ()
+    origenerator_showing_a_slideshow: bool = False
 
 
 @dataclass(frozen=True)
