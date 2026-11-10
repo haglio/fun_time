@@ -63,7 +63,7 @@ class TestTheSharedStateFile:
         for old in ("locked2", "locked3", "active_side", "f_mode"):
             assert old not in text, old
 
-    def test_a_dropped_mode_word_is_left_untranslated_and_reads_as_kino(self, tmp_path: Path):
+    def test_no_table_translates_a_dropped_mode_word(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
 

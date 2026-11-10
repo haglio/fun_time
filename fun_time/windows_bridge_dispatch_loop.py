@@ -322,8 +322,8 @@ class DispatchLoopRunner:
         self._pending_rfb_urls = []
         if not urls or not self.rfb_shortcut.target:
             return
-        chrome_would_open_them_in_a_window_of_his_own = not window_exists(self.windows.rfb_hwnd)
-        if chrome_would_open_them_in_a_window_of_his_own:
+        no_window_of_our_own = not window_exists(self.windows.rfb_hwnd)
+        if no_window_of_our_own:
             logger.warning(
                 "%d RFB tab(s) skipped: no Random Favs Browser window to open into", len(urls))
             return
@@ -517,8 +517,7 @@ def _enter_omnipause_unless_paused(runner: DispatchLoopRunner, spoken_at: float 
         _enter_omnipause(ENTER_OMNIPAUSE, runner, spoken_at)
 
 
-def _retract_though_a_pause_already_holds(runner: DispatchLoopRunner,
-                                          spoken_at: float | None) -> None:
+def _relieve_even_under_a_pause(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
     _enter_omnipause("relief_omnipause", runner, spoken_at)
 
 
@@ -604,7 +603,7 @@ _LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = 
     "omnirestore": _omnirestore,
     "omnipause_toggle": _toggle_omnipause,
     ENTER_OMNIPAUSE: _enter_omnipause_unless_paused,
-    "relief_omnipause": _retract_though_a_pause_already_holds,
+    "relief_omnipause": _relieve_even_under_a_pause,
     "browse_library": _browse_the_library,
     BROWSE_LIBRARY_CLOSE: _close_the_browse,
     BROKER_PRESS: _press_the_broker,
