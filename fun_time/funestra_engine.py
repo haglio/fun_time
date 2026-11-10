@@ -19,15 +19,17 @@ _WHERE_IT_LOOKS_FIRST = (
 _WHERE_THE_SHARED_COPY_IS = (
     "from funestra.libmpv_loader import machine_libmpv_dir; print(machine_libmpv_dir())")
 
+_THE_VENVS_OWN_FUNESTRA = ""
+
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 
-def _ask(exe, code: str, sibling_checkouts: str, *, run: Runner):
+def _ask(exe, code: str, the_funestra_on_its_path: str, *, run: Runner):
     return run(
         [str(exe), "-c", code],
         capture_output=True,
         text=True,
-        **sibling_checkouts_kwargs(sibling_checkouts),
+        **sibling_checkouts_kwargs(the_funestra_on_its_path),
         **hidden_subprocess_kwargs(),
     )
 
@@ -38,21 +40,23 @@ def _one_path(result) -> Path | None:
 
 
 def _shared_engine_copy(python_exe, *, run: Runner) -> Path | None:
-    found = _one_path(_ask(python_exe, _WHERE_THE_SHARED_COPY_IS, "", run=run))
+    found = _one_path(_ask(python_exe, _WHERE_THE_SHARED_COPY_IS, _THE_VENVS_OWN_FUNESTRA,
+                           run=run))
     return found / ENGINE_DLL if found else None
 
 
-def _vendor_the_engine(exe, sibling_checkouts: str, *, shared: Path | None, run: Runner) -> None:
+def _vendor_the_engine(exe, the_funestra_they_import: str, *, shared: Path | None,
+                       run: Runner) -> None:
     if shared is None or not shared.is_file():
         return
-    looks_in = _one_path(_ask(exe, _WHERE_IT_LOOKS_FIRST, sibling_checkouts, run=run))
+    looks_in = _one_path(_ask(exe, _WHERE_IT_LOOKS_FIRST, the_funestra_they_import, run=run))
     if looks_in is None or (looks_in / ENGINE_DLL).is_file():
         return
     looks_in.mkdir(parents=True, exist_ok=True)
     shutil.copy2(shared, looks_in / ENGINE_DLL)
 
 
-def _why(stderr: str) -> str:
+def _its_own_error_without_the_traceback_frames(stderr: str) -> str:
     return "\n".join(line for line in stderr.strip().splitlines()
                      if line.strip() and not line.startswith((" ", "\t", "Traceback")))
 
@@ -69,12 +73,16 @@ def _refusal(exe, said: str) -> str:
 
 
 def engine_error(config, *, run: Runner = subprocess.run) -> str | None:
-    exe, sibling_checkouts = Path(config.paths.python_exe), config.paths.sibling_checkouts_path
-    if _ask(exe, _IMPORT_THE_ENGINE, sibling_checkouts, run=run).returncode == 0:
+    exe = Path(config.paths.python_exe)
+    the_funestra_they_import = config.paths.sibling_checkouts_path
+    if _ask(exe, _IMPORT_THE_ENGINE, the_funestra_they_import, run=run).returncode == 0:
         return None
-    _vendor_the_engine(exe, sibling_checkouts, run=run, shared=_shared_engine_copy(exe, run=run))
-    result = _ask(exe, _IMPORT_THE_ENGINE, sibling_checkouts, run=run)
-    return None if result.returncode == 0 else _refusal(exe, _why(result.stderr))
+    _vendor_the_engine(exe, the_funestra_they_import, run=run,
+                       shared=_shared_engine_copy(exe, run=run))
+    result = _ask(exe, _IMPORT_THE_ENGINE, the_funestra_they_import, run=run)
+    if result.returncode == 0:
+        return None
+    return _refusal(exe, _its_own_error_without_the_traceback_frames(result.stderr))
 
 
 def show_engine_alert(text: str) -> None:

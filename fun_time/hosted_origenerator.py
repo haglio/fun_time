@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 HAND_OVER = "HAND_OVER"
 TAKE_BACK = "TAKE_BACK"
 
+_NO_GRAB_WHERE_THE_WINDOW_ITSELF_SHOWS = (None, None)
+
 ANSWER_BUDGET_S = 20.0
 BOOTING_ANSWER_BUDGET_S = 90.0
 _PUBLISH_POLL_S = 0.25
@@ -65,7 +67,7 @@ def _budget_for(open_app: OpenOrigenerator) -> float:
     return BOOTING_ANSWER_BUDGET_S if open_app.starting else ANSWER_BUDGET_S
 
 
-def _it_took_the_takeover(open_app: OpenOrigenerator) -> bool:
+def _it_proved_alive_by_reading_the_takeover(open_app: OpenOrigenerator) -> bool:
     give_up_at = time.monotonic() + _budget_for(open_app)
     while handoff.a_takeover_waits_in(open_app.place):
         if time.monotonic() >= give_up_at:
@@ -88,10 +90,13 @@ def _the_funestras_it_is_handed(m: LaunchManifest) -> dict[str, HandedFunestra]:
 
 def the_session_it_is_handed(m: LaunchManifest, plan: WindowLayoutPlan, *,
                              in_a_headset: bool) -> OrigeneratorSession:
+    frames_file, input_file = (
+        (m.commands.origenerator_frames_file, m.commands.origenerator_input_file)
+        if in_a_headset else _NO_GRAB_WHERE_THE_WINDOW_ITSELF_SHOWS)
     return OrigeneratorSession(
         layout_plan=plan,
-        frames_file=m.commands.origenerator_frames_file if in_a_headset else None,
-        input_file=m.commands.origenerator_input_file if in_a_headset else None,
+        frames_file=frames_file,
+        input_file=input_file,
         command_file=m.commands.origenerator_cmd_file,
         paused_file=m.commands.origenerator_paused_file,
         status_file=m.commands.origenerator_status_file,
@@ -113,11 +118,15 @@ def _clear_last_sessions_huds(session: OrigeneratorSession) -> None:
         Path(funestra.hud_file).unlink(missing_ok=True)
 
 
-def _clear_what_an_earlier_app_left(m: LaunchManifest) -> None:
+def _clear_a_frame_and_presses_that_would_read_as_live(m: LaunchManifest) -> None:
     for name in (m.commands.origenerator_frames_file,
                  m.commands.origenerator_input_file):
         with contextlib.suppress(OSError):
             Path(name).unlink(missing_ok=True)
+
+
+def _the_monitor_layout_core_is_parked_in(m: LaunchManifest) -> WindowLayoutPlan:
+    return screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator).plan
 
 
 def bring_up_the_hosted_app(
@@ -131,10 +140,10 @@ def bring_up_the_hosted_app(
     if not origenerator_dir:
         return None
     if plan is None:
-        plan = screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator).plan
+        plan = _the_monitor_layout_core_is_parked_in(m)
     claim_the_osr2(origenerator_dir)
     if in_a_headset:
-        _clear_what_an_earlier_app_left(m)
+        _clear_a_frame_and_presses_that_would_read_as_live(m)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
         crossing = what_an_adopted_app_is_told(m.commands.origenerator_frames_file,
@@ -158,7 +167,7 @@ def bring_up_the_hosted_app(
         logger.info("Took over the Origenerator %s from %s (pid %d)",
                     "still starting" if open_app.starting else "already open",
                     open_app.checkout, open_app.pid)
-        if _it_took_the_takeover(open_app):
+        if _it_proved_alive_by_reading_the_takeover(open_app):
             return HostedApp(open_app.pid, already_open=not open_app.starting,
                              taken_over=True, slideshow_on=open_app.slideshow_on)
         logger.warning("The Origenerator we took over (pid %d) never read the takeover "

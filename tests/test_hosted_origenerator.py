@@ -50,6 +50,13 @@ def _a_copy_from_before_the_pair(checkout: Path) -> list[str]:
     return flags
 
 
+def _a_stand_in_launch_that_takes_any_argument(captured: dict):
+    return lambda **kw: captured.update(kw) or 91
+
+
+_TWO_MONITORS = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
+
+
 def _manifest_for(cfg_factory, tmp_path, overrides):
     config = load_config(cfg_factory(overrides))
     return config, LaunchManifest.read(
@@ -57,30 +64,42 @@ def _manifest_for(cfg_factory, tmp_path, overrides):
 
 
 class TestWhereTheAppsOwnWindowGoes:
-    def test_the_window_takes_the_random_favs_browsers_rect_under_the_strip(
-            self, cfg_factory, tmp_path):
+    def _where_core_is_put(self, cfg_factory, tmp_path, *, in_a_headset):
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         config, manifest = _manifest_for(
             cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
-        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
         captured = {}
 
-        with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
+        with patch("fun_time.window_layout.enumerate_monitors", return_value=_TWO_MONITORS), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
-                   side_effect=lambda **kw: captured.update(kw) or 91):
-            bring_up_the_hosted_app(manifest, sibling_checkouts="")
+                   side_effect=_a_stand_in_launch_that_takes_any_argument(captured)):
+            bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
+            the_browsers_rect = screen_layout(
+                config.layout, rfb_mode_selector=True).plan.random_favs_browser
+        return captured["session"].layout_plan.random_favs_browser, the_browsers_rect
 
-        with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors):
-            expected = screen_layout(config.layout, rfb_mode_selector=True).plan.random_favs_browser
-        assert captured["session"].layout_plan.random_favs_browser == expected
+    def test_the_window_takes_the_random_favs_browsers_rect_under_the_strip(
+            self, cfg_factory, tmp_path):
+        core, the_browsers_rect = self._where_core_is_put(
+            cfg_factory, tmp_path, in_a_headset=False)
 
-    def test_a_session_hosting_none_never_asks_the_monitors_anything(
+        assert core == the_browsers_rect
+
+    def test_a_headset_session_parks_core_where_the_monitors_will_find_it(
+            self, cfg_factory, tmp_path):
+        core, the_browsers_rect = self._where_core_is_put(
+            cfg_factory, tmp_path, in_a_headset=True)
+
+        assert core == the_browsers_rect
+
+    def test_a_session_hosting_none_runs_where_there_are_no_monitors(
             self, cfg_factory, tmp_path):
         _config, manifest = _manifest_for(cfg_factory, tmp_path, {})
+        as_on_the_merge_gate = OSError("a headless run has no monitors to read")
 
         with patch("fun_time.window_layout.enumerate_monitors",
-                   side_effect=AssertionError("the monitors were read")):
+                   side_effect=as_on_the_merge_gate):
             assert bring_up_the_hosted_app(manifest, sibling_checkouts="") is None
 
 
@@ -90,12 +109,11 @@ class TestHandingTheWindowToTheHeadset:
         origenerator.mkdir()
         config, manifest = _manifest_for(
             cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
-        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
         captured = {}
         looking = patch("fun_time.window_layout.enumerate_monitors",
-                        return_value=monitors)
+                        return_value=_TWO_MONITORS)
         launching = patch("fun_time.hosted_origenerator.launch_origenerator",
-                          side_effect=lambda **kw: captured.update(kw) or 91)
+                          side_effect=_a_stand_in_launch_that_takes_any_argument(captured))
         with looking, launching:
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
         return config, captured
@@ -106,7 +124,8 @@ class TestHandingTheWindowToTheHeadset:
         assert captured["session"].frames_file == str(config.origenerator_frames_file)
         assert captured["session"].input_file == str(config.origenerator_input_file)
 
-    def test_a_session_on_the_monitors_names_neither(self, cfg_factory, tmp_path):
+    def test_a_session_on_the_monitors_asks_for_no_grab_of_the_window(
+            self, cfg_factory, tmp_path):
         _config, captured = self._launch(cfg_factory, tmp_path, in_a_headset=False)
 
         assert captured["session"].frames_file is None
@@ -163,20 +182,20 @@ class TestHandingTheWindowToTheHeadset:
 
 
 class TestTellingAKeptAppWhereItsWindowGoes:
-    def _adopt(self, cfg_factory, tmp_path, *, in_a_headset, left_over=False):
+    def _adopt(self, cfg_factory, tmp_path, *, in_a_headset,
+               an_earlier_session_left_a_frame_and_presses=False):
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         config, manifest = _manifest_for(
             cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
-        if left_over:
+        if an_earlier_session_left_a_frame_and_presses:
             frames = Path(config.origenerator_frames_file)
             frames.parent.mkdir(parents=True, exist_ok=True)
             frames.write_bytes(bytes([2]) + bytes(63))
             Path(config.origenerator_input_file).write_text(
                 "press 1 1\n", encoding="utf-8")
         keep_the_origenerator(config.paths.state_dir, pid=6060, created_at=44)
-        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
-        looking = patch("fun_time.window_layout.enumerate_monitors", return_value=monitors)
+        looking = patch("fun_time.window_layout.enumerate_monitors", return_value=_TWO_MONITORS)
         alive = patch("fun_time.hosted_origenerator.process_started",
                       return_value=44)
         with looking, alive:
@@ -191,10 +210,11 @@ class TestTellingAKeptAppWhereItsWindowGoes:
         assert said == [(f"{HAND_OVER}|{config.origenerator_frames_file}"
                         f"|{config.origenerator_input_file}")]
 
-    def test_a_headset_session_starts_with_no_frame_and_no_presses(
+    def test_a_headset_session_reads_no_earlier_frame_or_presses_as_live(
             self, cfg_factory, tmp_path):
         config, _said = self._adopt(
-            cfg_factory, tmp_path, in_a_headset=True, left_over=True)
+            cfg_factory, tmp_path, in_a_headset=True,
+            an_earlier_session_left_a_frame_and_presses=True)
 
         assert not Path(config.origenerator_frames_file).exists()
         assert not Path(config.origenerator_input_file).exists()
@@ -244,7 +264,7 @@ class TestAdoptingAKeptOrigenerator:
     def test_an_ordinary_startup_adopts_nothing(self, tmp_path: Path):
         assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
-    def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
+    def _adopt_one_with_a_status_and_a_command_waiting(self, tmp_path: Path):
         status = tmp_path / "origenerator_status.txt"
         status.write_text("ready\n", encoding="utf-8")
         (tmp_path / "origenerator_cmd.txt").write_text("CLOSE_SLIDESHOWS\n", encoding="utf-8")
@@ -253,9 +273,17 @@ class TestAdoptingAKeptOrigenerator:
         with patch("fun_time.hosted_origenerator.process_started",
                    return_value=44):
             _adopt_a_kept_origenerator(self._manifest(tmp_path))
+        return status
+
+    def test_adoption_clears_the_channel(self, tmp_path: Path):
+        self._adopt_one_with_a_status_and_a_command_waiting(tmp_path)
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
+    def test_adoption_keeps_the_status_the_app_rewrites_only_on_a_change(self, tmp_path: Path):
+        status = self._adopt_one_with_a_status_and_a_command_waiting(tmp_path)
 
         assert status.read_text(encoding="utf-8") == "ready\n"
-        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
 
 
 class TestWhenTheAppWeTookOverNeverAnswers:
@@ -271,8 +299,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
             if it_reads_the_takeover:
                 take_the_takeover(place)
 
-        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
-        with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
+        with patch("fun_time.window_layout.enumerate_monitors", return_value=_TWO_MONITORS), \
              patch("fun_time.hosted_origenerator.ANSWER_BUDGET_S", 0.05), \
              patch("fun_time.hosted_origenerator.BOOTING_ANSWER_BUDGET_S", 0.05), \
              patch("fun_time.hosted_origenerator.the_open_origenerator",
@@ -281,7 +308,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
                                                  slideshow_on=())), \
              origenerator_handed_over(side_effect=answer), \
              patch("fun_time.hosted_origenerator.launch_origenerator",
-                   side_effect=lambda **kw: launched.update(kw) or 91):
+                   side_effect=_a_stand_in_launch_that_takes_any_argument(launched)):
             app = bring_up_the_hosted_app(manifest, sibling_checkouts="")
         return config, app, launched
 
@@ -302,8 +329,7 @@ class TestWhenTheAppWeTookOverNeverAnswers:
         _config, manifest = _manifest_for(
             cfg_factory, tmp_path, {"paths": {"origenerator_dir": str(origenerator)}})
         handed = {}
-        monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
-        with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors), \
+        with patch("fun_time.window_layout.enumerate_monitors", return_value=_TWO_MONITORS), \
              patch("fun_time.hosted_origenerator.the_open_origenerator",
                    return_value=OpenOrigenerator(6060, starting=False,
                                                  place=origenerator / "state",
@@ -313,10 +339,12 @@ class TestWhenTheAppWeTookOverNeverAnswers:
 
         assert [word for word in handed["args"] if word.startswith("--")] == flags
 
-    def test_one_that_answers_is_the_app_this_session_hosts(self, cfg_factory, tmp_path):
-        _config, app, launched = self._bring_up(
+    def test_one_that_reads_the_takeover_is_hosted_with_no_status_published(
+            self, cfg_factory, tmp_path):
+        config, app, launched = self._bring_up(
             cfg_factory, tmp_path, it_reads_the_takeover=True)
 
+        assert not Path(config.origenerator_status_file).exists()
         assert not launched, "a second copy was launched beside the one we took over"
         assert app is not None
         assert app.taken_over

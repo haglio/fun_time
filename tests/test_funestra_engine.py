@@ -31,12 +31,14 @@ def _runner(returncodes, *, stdout=""):
 class _Funestras:
     def __init__(self, looks_in: Path, shared: Path, *, reason: str = "no engine"):
         self.looks_in, self.shared, self.reason = looks_in, shared, reason
+        self.appdata_only_an_agents_shell_sees = shared.parent / "AppData"
         self.probed: list[str] = []
         self.asked_without_pythonpath: list[str] = []
 
     def __call__(self, cmd, **kwargs):
         code = cmd[2]
-        if not kwargs.get("env", {}).get("PYTHONPATH"):
+        asked_of_an_older_pinned_checkout = bool(kwargs.get("env", {}).get("PYTHONPATH"))
+        if not asked_of_an_older_pinned_checkout:
             self.asked_without_pythonpath.append(code)
         if "_import_mpv" in code:
             self.probed.append(cmd[0])
@@ -46,7 +48,9 @@ class _Funestras:
         if "libmpv_dirs" in code:
             return subprocess.CompletedProcess(cmd, 0, stdout=f"{self.looks_in}\n", stderr="")
         if "machine_libmpv_dir" in code:
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{self.shared}\n", stderr="")
+            answer = (self.appdata_only_an_agents_shell_sees
+                      if asked_of_an_older_pinned_checkout else self.shared)
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{answer}\n", stderr="")
         raise AssertionError(f"unexpected command: {code}")
 
 
@@ -58,11 +62,13 @@ def _shared_engine(tmp_path: Path, contents: bytes = b"engine") -> Path:
 
 
 def test_a_funestra_that_cannot_load_gets_the_shared_copy_where_it_looks_first(tmp_path: Path):
-    looks_in = tmp_path / "funestra" / "vendor"
-    funestras = _Funestras(looks_in, _shared_engine(tmp_path))
+    the_vendor_folder_a_pinned_checkout_never_fetched = tmp_path / "funestra" / "vendor"
+    funestras = _Funestras(the_vendor_folder_a_pinned_checkout_never_fetched,
+                           _shared_engine(tmp_path))
 
     assert engine_missing_abort(_config(), run=funestras, alert=lambda _text: None) is False
-    assert (looks_in / "libmpv-2.dll").read_bytes() == b"engine"
+    assert (the_vendor_folder_a_pinned_checkout_never_fetched
+            / "libmpv-2.dll").read_bytes() == b"engine"
 
 
 def test_where_the_shared_copy_is_comes_from_the_funestra_this_repo_pins(tmp_path: Path):
@@ -70,15 +76,16 @@ def test_where_the_shared_copy_is_comes_from_the_funestra_this_repo_pins(tmp_pat
     pinned.mkdir()
     funestras = _Funestras(pinned / "vendor", _shared_engine(tmp_path))
 
-    engine_missing_abort(_config(pinned), run=funestras, alert=lambda _text: None)
+    assert engine_missing_abort(_config(pinned), run=funestras, alert=lambda _text: None) is False
 
+    assert (pinned / "vendor" / "libmpv-2.dll").read_bytes() == b"engine"
     assert [code for code in funestras.asked_without_pythonpath
             if "machine_libmpv_dir" in code]
     assert not [code for code in funestras.asked_without_pythonpath
                 if "_import_mpv" in code or "libmpv_dirs" in code]
 
 
-def test_the_funestras_are_probed_with_the_pythonpath_they_are_launched_with(tmp_path: Path):
+def test_the_probe_imports_the_funestra_the_funestras_import_not_the_venvs(tmp_path: Path):
     pinned = tmp_path / "funestra"
     pinned.mkdir()
     run = _runner([0])
@@ -88,7 +95,7 @@ def test_the_funestras_are_probed_with_the_pythonpath_they_are_launched_with(tmp
         str(pinned)]
 
 
-def test_a_funestra_that_loads_the_engine_is_left_alone(tmp_path: Path):
+def test_a_funestra_that_loads_is_spared_a_copy_of_the_large_engine(tmp_path: Path):
     looks_in = tmp_path / "vendor"
     looks_in.mkdir()
     (looks_in / "libmpv-2.dll").write_bytes(b"the one it already has")
@@ -99,7 +106,7 @@ def test_a_funestra_that_loads_the_engine_is_left_alone(tmp_path: Path):
     assert funestras.probed == [str(Path("fun_time/py.exe"))]
 
 
-def test_the_alert_carries_what_the_funestra_itself_said(tmp_path: Path):
+def test_the_alert_says_where_the_funestra_looked_in_its_own_words(tmp_path: Path):
     said = ('Traceback (most recent call last):\n'
             '  File "<string>", line 1, in <module>\n'
             "OSError: The engine (libmpv) could not be loaded. Looked in: "

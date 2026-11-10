@@ -8,10 +8,13 @@ from fun_time.filter_vocab import (
     set_commands_for_scope,
 )
 
+AN_ACT_THE_SPEECH_MODEL_HAS_NO_WORD_FOR = "delta"
+WHAT_IS_SAID_FOR_IT = "delta form"
+
 ACTS = {
     "alpha": ("alpha",),
     "beta gamma": ("beta gamma",),
-    "delta": ("delta form",),
+    AN_ACT_THE_SPEECH_MODEL_HAS_NO_WORD_FOR: (WHAT_IS_SAID_FOR_IT,),
 }
 
 
@@ -52,9 +55,11 @@ def test_satellites_names_the_pair_before_or_after_the_act():
 
 def test_spoken_form_can_differ_from_the_matched_query():
     voice = filter_voice_commands(ACTS)
-    assert "delta" not in voice
-    assert voice["delta form"] == set_command("satellites", "delta")
-    assert _decoded(voice["delta form"]) == ("satellites", "delta")
+    assert AN_ACT_THE_SPEECH_MODEL_HAS_NO_WORD_FOR not in voice
+    assert voice[WHAT_IS_SAID_FOR_IT] == set_command(
+        "satellites", AN_ACT_THE_SPEECH_MODEL_HAS_NO_WORD_FOR)
+    assert _decoded(voice[WHAT_IS_SAID_FOR_IT]) == (
+        "satellites", AN_ACT_THE_SPEECH_MODEL_HAS_NO_WORD_FOR)
 
 
 def test_multi_word_query_round_trips():
@@ -88,8 +93,8 @@ def test_set_commands_for_scope_lists_every_act():
 def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
     forms = display_forms(ACTS)
     assert set(forms) == set(ACTS)
-    assert "delta" in forms
-    assert "delta form" not in forms
+    assert AN_ACT_THE_SPEECH_MODEL_HAS_NO_WORD_FOR in forms
+    assert WHAT_IS_SAID_FOR_IT not in forms
     assert "beta gamma" in forms
 
 
