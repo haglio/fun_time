@@ -42,7 +42,7 @@ from .desktop_session import (
     release_of,
     silence_the_funestras,
 )
-from .event_log import THE_LISTENERS_LOGGERS
+from .event_log import LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
@@ -461,7 +461,7 @@ class _AppendOnWriteHandler(logging.Handler):
 def log_into_the_hotkey_scripts_log(log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
-    for name in ("fun_time", *THE_LISTENERS_LOGGERS):
+    for name in ("fun_time", *LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME):
         lg = logging.getLogger(name)
         lg.setLevel(logging.DEBUG)
         lg.addHandler(handler)
@@ -1099,7 +1099,8 @@ def run_session(
                 if not (key == "origenerator_pid" and result.origenerator_taken_over)]
     started = LaunchedSoFar(launched, result.rfb_hwnd, release_of(launch, result.origenerator_taken_over))
 
-    if progress.cancelled:
+    esc_landed_after_the_last_checkpoint = progress.cancelled
+    if esc_landed_after_the_last_checkpoint:
         return _take_down_the_startup(
             StartupEnd("Startup cancelled by user", canceled=True),
             started, launch, loading_screen, hotkey_script)
