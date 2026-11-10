@@ -112,12 +112,20 @@ def drain(config: BridgeConfig) -> dict[str, list[str]]:
 
 def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
     drain(config)
+    _hold_every_funestra_halfway_through_an_hour(config)
+    return _what_every_command_sent(config, satellites_modes)
+
+
+def _hold_every_funestra_halfway_through_an_hour(config: BridgeConfig) -> None:
     for status_file in (config.main_funestra_status_file,
                         *(config.satellite(funestra).status_file for funestra in FunTimeFunestra.SATELLITES)):
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text(
             "video=C:/v/scene one.mp4\nduration_ms=3600000\nposition_ms=1800000\n",
             encoding="utf-8")
+
+
+def _what_every_command_sent(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
     landed: dict[str, dict[str, list[str]]] = {}
     for main_mode in MAIN_MODES:
         for satellites_mode in satellites_modes:
