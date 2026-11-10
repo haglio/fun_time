@@ -100,7 +100,7 @@ class TestThePhases:
         assert reported | {"controls"} == {phase.key for phase in VR_SHUTDOWN_PHASES}
 
     def test_only_the_last_phase_claims_no_time(self):
-        weights = [phase.weight for phase in VR_STARTUP_PHASES]
+        weights = [phase.seconds for phase in VR_STARTUP_PHASES]
 
         assert weights[-1] == 0.0
         assert all(weight > 0 for weight in weights[:-1])

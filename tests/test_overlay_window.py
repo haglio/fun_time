@@ -18,6 +18,7 @@ from shared_ui.palette import LOADING_ACCENT
 
 from fun_time import overlay_window, preview_marker
 from fun_time.overlay_progress import (
+    TORN_OR_NOT_YET_FLUSHED,
     Progress,
     cancel_file_for,
     parse_progress,
@@ -35,14 +36,14 @@ class TestParseProgress:
     def test_parses_done(self):
         assert parse_progress("DONE").done is True
 
-    def test_an_empty_file_is_a_line_it_cannot_read(self):
-        assert parse_progress("") == Progress(malformed=True)
+    def test_a_line_written_but_not_yet_flushed_reads_the_same_as_torn(self):
+        assert parse_progress("") == parse_progress("3/") == TORN_OR_NOT_YET_FLUSHED
 
-    def test_so_is_a_fragment(self):
+    def test_a_fragment_is_a_line_it_cannot_read(self):
         assert parse_progress("garbage data") == Progress(malformed=True)
 
 
-class _FakeRoot:
+class _TheOffscreenRootTkLacks:
     def __init__(self, screen=(2560, 1440)):
         self.destroyed = False
         self.rearmed = []
@@ -88,14 +89,14 @@ def _loading_screen(tmp_path: Path, *, stale_timeout_s: float = 5.0,
            title: str = "Fun Time Loading", taking_over: TakingOver | None = None) -> OverlayWindow:
     return OverlayWindow(
         tmp_path / "progress.txt",
-        OverlaySurface(_FakeRoot(), _FakeCanvas(), title),
+        OverlaySurface(_TheOffscreenRootTkLacks(), _FakeCanvas(), title),
         panel=LoadingPanel(wordmark="Fun Time", status="Starting..."),
         stale_timeout_s=stale_timeout_s,
         taking_over=taking_over or TakingOver(None),
     )
 
 
-class TestTheLoadingScreenComesDown:
+class TestTheOnlyTwoWaysDownFromOverEveryMonitor:
     def test_the_done_marker_takes_the_loading_screen_down(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._progress_file.write_text("DONE", encoding="utf-8")
@@ -175,7 +176,7 @@ def test_the_label_holds_the_picture_it_shows():
     label.configure.assert_called_once_with(image=picture)
 
 
-def test_a_loading_screen_process_loads_no_qt():
+def test_the_screen_the_launch_waits_on_loads_no_qt():
     loaded = subprocess.run(
         [sys.executable, "-c",
          ("import sys, fun_time.overlay_window\n"
@@ -230,7 +231,7 @@ class TestTheLoadingScreenKeepsTheTopOfItsBand:
 
         assert window._root.rearmed[-1][0] == TOPMOST_POLL_MS
 
-    def test_a_destroyed_window_stops_rather_than_raising(self, tmp_path: Path):
+    def test_a_window_the_other_timer_took_down_stops_rather_than_raising(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._root.after = MagicMock(side_effect=tk.TclError("destroyed"))
 
@@ -248,7 +249,7 @@ class TestWhatEscWouldCancel:
 
         assert window.panel.hint == "Press Esc to cancel opening Fun Time"
 
-    def test_an_esc_the_screen_never_saw_still_turns_it_to_canceling(self, tmp_path: Path):
+    def test_an_esc_only_the_hotkey_script_heard_still_turns_it_to_canceling(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -280,7 +281,7 @@ class TestWhatEscWouldCancel:
         assert window.panel.status == "Launching companions..."
         assert window.panel.hint == ""
 
-    def test_esc_on_a_loading_screen_offering_it_drops_the_flag_itself(self, tmp_path: Path):
+    def test_an_esc_too_early_for_the_hotkey_script_drops_the_flag_itself(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -304,7 +305,7 @@ class TestWhatEscWouldCancel:
 
         assert not cancel_file_for(window._progress_file).exists()
 
-    def test_the_words_hold_against_a_phase_still_in_flight(self, tmp_path: Path):
+    def test_canceling_holds_against_a_phase_written_just_before_the_esc(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -327,7 +328,7 @@ class TestWhatEscWouldCancel:
         assert not cancel_file_for(window._progress_file).exists()
         assert window.panel.status == "Closing Funestras..."
 
-    def test_esc_never_takes_a_loading_screen_down(self, tmp_path: Path):
+    def test_esc_never_uncovers_the_fun_time_the_screen_is_hiding(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         for line in ("1/6|Preparing services...|Press Esc to cancel opening Fun Time",
                      "2/4|Closing Funestras..."):
@@ -339,7 +340,7 @@ class TestWhatEscWouldCancel:
 
 
 class TestALineTheLoadingScreenCannotRead:
-    def test_the_bar_holds_where_it_was(self, tmp_path: Path):
+    def test_a_line_torn_before_its_total_never_reads_as_zero_percent(self, tmp_path: Path):
         window = _loading_screen(tmp_path)
         window._progress_file.write_text("3/6|Waiting for Funestras...", encoding="utf-8")
         window._poll()
@@ -351,7 +352,7 @@ class TestALineTheLoadingScreenCannotRead:
         assert window.panel.fraction == 0.5
         assert window.panel.status == "Waiting for Funestras..."
 
-    def test_a_line_torn_inside_a_character_leaves_the_loading_screen_looking(self, tmp_path: Path):
+    def test_a_line_torn_inside_a_character_leaves_the_way_down_polling(self, tmp_path: Path):
         window = _loading_screen(tmp_path, stale_timeout_s=60.0)
         window._progress_file.write_bytes("2/6|Waiting for Funestras…".encode()[:-1])
 
@@ -372,8 +373,8 @@ class TestALineTheLoadingScreenCannotRead:
         assert parse_progress("nonsense").malformed is True
         assert parse_progress("").malformed is True
 class TestTheLoadingScreenFollowsTheMonitorsItCovers:
-    BEFORE = Screens(virtual=(0, 0, 2560, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
-    AFTER = Screens(virtual=(-1920, 0, 4480, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
+    AS_FOUND_AT_STARTUP = Screens(virtual=(0, 0, 2560, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
+    AS_THE_HEADSETS_RUNTIME_LEFT_THEM = Screens(virtual=(-1920, 0, 4480, 1440), primary=(2560, 1440), pointer_work_area=(0, 0, 2560, 1410))
 
     def _covering(self, tmp_path: Path, measured):
         loading_screen = _loading_screen(tmp_path)
@@ -383,22 +384,22 @@ class TestTheLoadingScreenFollowsTheMonitorsItCovers:
                 loading_screen._poll()
         return loading_screen
 
-    def test_a_display_set_that_changes_is_covered_again(self, tmp_path: Path):
-        loading_screen = self._covering(tmp_path, [self.BEFORE, self.AFTER])
+    def test_displays_the_headsets_runtime_rearranges_are_covered_again(self, tmp_path: Path):
+        loading_screen = self._covering(tmp_path, [self.AS_FOUND_AT_STARTUP, self.AS_THE_HEADSETS_RUNTIME_LEFT_THEM])
 
         assert loading_screen._root.geometries == ["2560x1440+0+0", "4480x1440+-1920+0"]
 
     def test_a_display_set_that_has_not_moved_is_left_alone(self, tmp_path: Path):
-        moved_the_pointer = replace(self.BEFORE, pointer_work_area=(2560, 0, 1440, 3410))
+        moved_the_pointer = replace(self.AS_FOUND_AT_STARTUP, pointer_work_area=(2560, 0, 1440, 3410))
 
-        loading_screen = self._covering(tmp_path, [self.BEFORE, moved_the_pointer, self.BEFORE])
+        loading_screen = self._covering(tmp_path, [self.AS_FOUND_AT_STARTUP, moved_the_pointer, self.AS_FOUND_AT_STARTUP])
 
         assert loading_screen._root.geometries == ["2560x1440+0+0"]
 
     def test_the_panel_is_centered_again_on_the_main_monitor_of_the_new_set(self, tmp_path: Path):
         width, height = size()
 
-        loading_screen = self._covering(tmp_path, [self.BEFORE, self.AFTER])
+        loading_screen = self._covering(tmp_path, [self.AS_FOUND_AT_STARTUP, self.AS_THE_HEADSETS_RUNTIME_LEFT_THEM])
 
         on_its_middle = (1280 - width // 2, 720 - height // 2)
         assert loading_screen._canvas.placed == [on_its_middle, (on_its_middle[0] + 1920, on_its_middle[1])]

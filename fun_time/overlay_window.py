@@ -18,6 +18,7 @@ from . import preview_marker
 from .overlay_progress import (
     CANCEL_WORD,
     CANCELING,
+    TORN_OR_NOT_YET_FLUSHED,
     Progress,
     cancel_file_for,
     parse_progress,
@@ -88,7 +89,7 @@ class OverlayWindow:
         self._title = surface.title
         self._stale_timeout_s = stale_timeout_s
         self._unmoved_since = time.time()
-        self._status_held = False
+        self._canceling_holds_against_later_phases = False
         self._offering = False
         self._hwnd = 0
         self._placement: Placement | None = None
@@ -142,14 +143,14 @@ class OverlayWindow:
         self._root.focus_force()
 
     def _on_escape(self, _event: object = None) -> None:
-        if not self._offering or self._status_held:
+        if not self._offering or self._canceling_holds_against_later_phases:
             return
         self._say_canceling()
         with contextlib.suppress(OSError):
             cancel_file_for(self._progress_file).write_text(f"{CANCEL_WORD}\n", encoding="utf-8")
 
     def _say_canceling(self) -> None:
-        self._status_held = True
+        self._canceling_holds_against_later_phases = True
         self._redraw(status=CANCELING, hint="")
 
     def _cover_every_monitor(self) -> None:
@@ -169,7 +170,7 @@ class OverlayWindow:
         self._cover_every_monitor()
         progress = self._read_progress()
         try:
-            if progress.done or self._unmoved_too_long():
+            if self._one_of_its_two_ways_down_is_open(progress):
                 self._root.destroy()
                 return
             if not progress.malformed:
@@ -183,9 +184,12 @@ class OverlayWindow:
             moved_at = self._progress_file.stat().st_mtime
             progress = parse_progress(self._progress_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return Progress(malformed=True)
+            return TORN_OR_NOT_YET_FLUSHED
         self._unmoved_since = moved_at
         return progress
+
+    def _one_of_its_two_ways_down_is_open(self, progress: Progress) -> bool:
+        return progress.done or self._unmoved_too_long()
 
     def _unmoved_too_long(self) -> bool:
         return time.time() - self._unmoved_since > self._stale_timeout_s
@@ -194,11 +198,13 @@ class OverlayWindow:
         self._offering = bool(progress.hint)
         if progress.total > 0:
             self._redraw(fraction=self._taking_over.carried(progress.step / progress.total))
-        if progress.hint and what_the_flag_asks(
-                cancel_file_for(self._progress_file)) == CANCEL_WORD:
+        if progress.hint and self._an_esc_reached_the_hotkey_script():
             self._say_canceling()
-        if not self._status_held:
+        if not self._canceling_holds_against_later_phases:
             self._redraw(status=progress.message or self._panel.status, hint=progress.hint)
+
+    def _an_esc_reached_the_hotkey_script(self) -> bool:
+        return what_the_flag_asks(cancel_file_for(self._progress_file)) == CANCEL_WORD
 
     def _redraw(self, **changes) -> None:
         panel = replace(self._panel, **changes)

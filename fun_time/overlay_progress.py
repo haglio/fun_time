@@ -38,6 +38,9 @@ class Progress:
     malformed: bool = False
 
 
+TORN_OR_NOT_YET_FLUSHED = Progress(malformed=True)
+
+
 def parse_progress(text: str) -> Progress:
     text = text.strip()
     if text == "DONE":
@@ -47,7 +50,7 @@ def parse_progress(text: str) -> Progress:
         step_str, total_str = position.split("/")
         return Progress(step=int(step_str), total=int(total_str), message=message, hint=hint)
     except (ValueError, IndexError):
-        return Progress(malformed=True)
+        return TORN_OR_NOT_YET_FLUSHED
 
 
 def cancel_file_for(progress_file: str | Path) -> Path:
@@ -100,40 +103,40 @@ def startup_still_building(state_dir: Path) -> bool:
 class Phase:
     key: str
     message: str
-    weight: float
+    seconds: float
 
 
 LAUNCH_PHASES: tuple[Phase, ...] = (
-    Phase("starting", "Starting...", 0.3),
-    Phase("engine", "Checking the video engine...", 1.0),
+    Phase("starting", "Starting...", seconds=0.3),
+    Phase("engine", "Checking the video engine...", seconds=1.0),
 )
 
-ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", 0.5)
-STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", 0.5)
+ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", seconds=0.5)
+STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", seconds=0.5)
 
 APP_PHASES: tuple[Phase, ...] = (
-    Phase("services", "Preparing services...", 0.7),
-    Phase("browser", "Launching browser...", 0.4),
-    Phase("companions", "Launching companions...", 1.3),
-    Phase("funestras", "Waiting for Funestras...", 0.5),
-    Phase("windows", "Positioning windows...", 0.5),
+    Phase("services", "Preparing services...", seconds=0.7),
+    Phase("browser", "Launching browser...", seconds=0.4),
+    Phase("companions", "Launching companions...", seconds=1.3),
+    Phase("funestras", "Waiting for Funestras...", seconds=0.5),
+    Phase("windows", "Positioning windows...", seconds=0.5),
     ACTIVATING_ORIGENERATOR,
     STARTING_VOICE_COMMANDS,
-    Phase("finalizing", "Finalizing...", 0.0),
+    Phase("finalizing", "Finalizing...", seconds=0.0),
 )
 
 STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)
 
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
-    Phase("controls", "Closing...", 1.0),
-    Phase("browser", "Closing browser...", 1.0),
-    Phase("funestras", "Closing Funestras...", 1.0),
-    Phase("companions", "Closing companions...", 1.0),
+    Phase("controls", "Closing...", seconds=1.0),
+    Phase("browser", "Closing browser...", seconds=1.0),
+    Phase("funestras", "Closing Funestras...", seconds=1.0),
+    Phase("companions", "Closing companions...", seconds=1.0),
 )
 
 
 def _hundredths_of_a_second(phases: tuple[Phase, ...]) -> int:
-    return round(sum(phase.weight for phase in phases) * 100)
+    return round(sum(phase.seconds for phase in phases) * 100)
 
 
 @runtime_checkable

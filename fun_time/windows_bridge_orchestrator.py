@@ -628,7 +628,7 @@ def _reveal_the_app(
     loading_screen.progress.advance("finalizing")
 
     hwnds_by_window = _fix_post_loading_windows(
-        result, overlay_hwnd=loading_screen.window(), rfb_mode=rfb_mode)
+        result, overlay_hwnd=loading_screen.visible_window(), rfb_mode=rfb_mode)
     seat_the_secondary_monitor(manifest, hwnds_by_window)
 
     loading_screen.take_it_down()

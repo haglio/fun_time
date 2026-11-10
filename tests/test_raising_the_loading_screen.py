@@ -110,7 +110,7 @@ def test_the_loading_screens_timing_is_written_into_the_launchs_own_log(tmp_path
     assert any(line.startswith("Loading screen launched") for line in lines)
 
 
-def test_the_loading_screen_goes_the_moment_the_fun_time_that_raised_it_does(tmp_path: Path):
+def test_a_crashed_fun_times_loading_screen_never_waits_out_its_minute(tmp_path: Path):
     screen = MagicMock()
 
     with patch("fun_time.raising_the_loading_screen.tie_to_this_process") as tie:
@@ -128,13 +128,21 @@ class TestTakingTheLoadingScreenDown:
         loading_screen.process.wait.assert_called_once()
         assert not loading_screen.progress_file.exists()
 
-    def test_a_screen_that_will_not_go_is_killed(self, tmp_path: Path):
+    def test_a_screen_left_hiding_what_the_launch_says_is_killed(self, tmp_path: Path):
         loading_screen = _opened_loading_screen(tmp_path)
         loading_screen.process.wait.side_effect = subprocess.TimeoutExpired("loading_screen", 3.0)
 
         loading_screen.take_it_down()
 
         loading_screen.process.kill.assert_called_once()
+
+    def test_an_integration_run_with_no_loading_screen_still_announces_its_phases(
+            self, tmp_path: Path):
+        loading_screen = open_the_loading_screen(tmp_path, show_overlays=False, sibling_checkouts="")
+
+        loading_screen.progress.announce("engine")
+
+        assert not loading_screen.progress_file.exists()
 
     def test_a_session_with_no_loading_screen_takes_nothing_down(self, tmp_path: Path):
         loading_screen = open_the_loading_screen(tmp_path, show_overlays=False, sibling_checkouts="")
@@ -159,12 +167,12 @@ class TestWhatEscCancelsAtTheLoadingScreen:
 
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
 
-    def test_a_launch_on_the_way_back_offers_no_esc(self, tmp_path):
+    def test_a_launch_esc_already_turned_back_offers_no_esc_to_turn_it_again(self, tmp_path):
         raise_transition_screen(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path, cancelable=False).hint == ""
 
-    def test_an_esc_pressed_while_the_app_changed_over_calls_the_arrival_off(
+    def test_an_esc_the_old_sessions_hotkey_script_heard_calls_the_arrival_off(
         self, tmp_path,
     ):
         raise_transition_screen(tmp_path, DESKTOP)
@@ -258,5 +266,5 @@ class TestTheWayBackFromVr:
         assert clock.now == pytest.approx(raising_the_loading_screen.WINDOW_WAIT_UNDER_A_CROSSING_S, abs=0.2)
 
 
-def test_the_way_back_leaves_fun_time_most_of_the_time_the_crossing_gives_it():
+def test_waiting_for_the_screen_leaves_half_the_crossings_time_to_report_in():
     assert raising_the_loading_screen.WINDOW_WAIT_UNDER_A_CROSSING_S <= STARTUP_TIMEOUT_S / 2
