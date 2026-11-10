@@ -1115,7 +1115,7 @@ class TestTakingTheOsr2:
         assert after.osr2_funestra == funestra
         assert ops == []
 
-    def test_a_satellite_funestra_takes_it_in_origenerator_mode_too(self, tmp_path: Path):
+    def test_a_satellite_funestra_takes_it_too(self, tmp_path: Path):
         config = _make_config(tmp_path)
         state = _handed_over()
 
@@ -2447,7 +2447,7 @@ class TestAClickInACorner:
         assert state.main_hud_corner is HudCorner.UPPER_RIGHT
         assert state.main_hud_minimized is False
 
-    def test_in_origenerator_mode_the_show_wearing_the_hud_is_told_both(self, tmp_path):
+    def test_the_show_wearing_a_satellites_hud_is_told_both(self, tmp_path):
         config = _make_config(tmp_path)
 
         dispatch_command("landscape_hud_restore_at|lower_left",
@@ -2573,7 +2573,7 @@ class TestTheEnhancementLevel:
         assert builds.asked[-1].settings.enhancement is EnhancementLevel.BOTH
 
 
-    def test_said_to_a_satellite_in_origenerator_mode_each_level_is_said_to_the_hosted_app(
+    def test_said_to_a_satellite_each_level_is_said_to_the_hosted_app(
             self, tmp_path):
         config = _make_config(tmp_path)
         state = _handed_over()
@@ -2600,7 +2600,7 @@ class TestAHudSaidToACorner:
         assert state.satellite(FunTimeFunestra.PORTRAIT).hud_minimized is True
         assert state.main_hud_corner is HudCorner.UPPER_RIGHT
 
-    def test_in_origenerator_mode_the_slideshow_wearing_the_hud_is_told(self, tmp_path):
+    def test_the_slideshow_wearing_a_satellites_hud_is_told(self, tmp_path):
         config = _make_config(tmp_path)
 
         dispatch_command("landscape_hud_upper_right", _handed_over(FunTimeFunestra.LANDSCAPE), config)
@@ -2654,7 +2654,7 @@ class TestASatellitesSound:
         assert (state.satellite(FunTimeFunestra.LANDSCAPE).volume,
                 state.satellite(FunTimeFunestra.LANDSCAPE).muted) == (50, False)
 
-    def test_in_origenerator_mode_the_sound_is_still_the_funestras_own(self, tmp_path):
+    def test_on_a_satellite_the_sound_is_still_the_funestras_own(self, tmp_path):
         config = _make_config(tmp_path)
 
         dispatch_command("portrait_mute", _handed_over(FunTimeFunestra.PORTRAIT), config)

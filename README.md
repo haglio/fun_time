@@ -66,7 +66,7 @@ Every section `fun_time/config.py` reads. The first three are required and the r
 - `regen`
 - `vr`
 
-The Satellite Funestras play Kino's upscales, from the folder `kino_dir` names in the settings all of Haglio shares (`~/.haglio/settings.json`): the Portrait Satellite plays `2D/AI/portrait` in it and the Landscape Satellite `2D/AI/landscape`, and a video sent to Trash goes to the `trash` folder in it, the way Genau's go to the one in Genau's folder.
+Kino's upscales sit in the folder `kino_dir` names in the settings all of Haglio shares (`~/.haglio/settings.json`), the portrait ones in `2D/AI/portrait` and the landscape ones in `2D/AI/landscape`, and a video sent to Trash goes to the `trash` folder in it, the way Genau's go to the one in Genau's folder.
 
 The Main Funestra's video library folders are configured with `paths.main_player_library_dirs` (a list of one or more folders):
 
@@ -433,7 +433,7 @@ F-mode is **per Funestra** — the Main Funestra, portrait and landscape each ha
 - each satellite plays only items that are in its normal portrait/landscape pool *and* marked a favorite on their metadata sidecar
 - Genau, which has the Main Funestra in Genau mode, keeps only the flicks marked a favorite on their sidecar — a lock on Genau marks its flick, as a satellite's lock does — and is told over `SET_GENAU_F_MODE`, since it rescans its own folder rather than playing a list; its F-mode is its own, apart from the Main Funestra's, the way its browse order is
 
-Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control row, the Main Funestra's HUD's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-mode **on** unless every Funestra is already in it, so the whole-app gesture can never leave half Fun Time narrowed. In Origenerator mode the portrait and Landscape Funestras' part of it is each slideshow's own F-mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its shape's "favorites" — "portrait favorites", "landscape favorites" — as its F-mode, the word Origenerator's shows answer with their own F-mode switch in Origenerator mode.
+Every Funestra carries its own F button in the first row of icons on its own HUD (the satellites' control row, the Main Funestra's HUD's transport row), with that Funestra's reset button just past it. The dashboard's F button, the `F` key and the spoken "all f mode" reach all three at once — they turn F-mode **on** unless every Funestra is already in it, so the whole-app gesture can never leave half Fun Time narrowed. The Portrait and Landscape Funestras' part of it is each slideshow's own F-mode switch, and the dashboard's F button lights off those. A bare spoken "f mode" reaches the Funestra last addressed, and naming a Funestra narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites. A satellite also takes its shape's "favorites" — "portrait favorites", "landscape favorites" — as its F-mode, the word Origenerator's shows answer with their own F-mode switch.
 
 At startup a session with nothing to resume writes the satellites' playlists with F-mode off (`build_satellite_playlists`), and every session writes the Main Funestra's list from the F-mode and the other buttons it carries (`fun_time.main_list`); `apply_fmode` rebuilds the named Funestras after that.
 
@@ -508,7 +508,7 @@ The Main Funestra and Genau decide what a press holds, so their item is the one
 each reports holding once it has read the press (`fun_time.lock_follower`). The
 the session's own holds — a session reopening locked, a loop left with one video by a
 discard, Genau holding its flick when no shape is left — add nothing, and nor
-does a satellite's lock in its Origenerator mode, which the hosted app stars in
+does a satellite's lock, which the hosted app stars in
 its own gallery (see `origenerator_cmd.txt` below).
 
 A lock also counts as a lock in the watch stats, and opens where more of the

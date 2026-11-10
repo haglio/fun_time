@@ -3035,8 +3035,8 @@ def _the_hosted_app_answers(tmp_path):
         "portrait_active=0\nlandscape_active=0\n", encoding="utf-8")
 
 
-class TestOrigeneratorModeOpensWhenTheAppDoes:
-    def test_the_mode_is_closed_until_the_app_publishes_a_status(self, tmp_path):
+class TestOrigeneratorIsReadyWhenTheAppAnswers:
+    def test_it_is_not_ready_until_the_app_publishes_a_status(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
 
         runner.tick()
@@ -3046,7 +3046,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         runner.tick()
         assert runner.state.origenerator_ready is True
 
-    def test_an_app_already_open_when_the_session_began_opens_the_mode_at_once(
+    def test_an_app_already_open_when_the_session_began_is_ready_at_once(
             self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path),
                              origenerator_already_open=True)
@@ -3066,13 +3066,6 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         runner.tick()
 
         assert runner.state.origenerator_ready is True
-
-    def test_a_session_hosting_none_is_never_waiting_on_one(self, tmp_path):
-        runner = make_runner(tmp_path)
-
-        runner.tick()
-
-        assert runner.state.origenerator_ready is False
 
     def test_the_apps_boot_is_noticed_on_a_tick_that_read_no_state_file(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
@@ -3141,7 +3134,7 @@ def _the_app_takes_each_satellite_asked_of_it(config):
     return the_wait
 
 
-class TestOpeningInOrigeneratorMode:
+class TestOpeningOrigenerator:
     @staticmethod
     def _the_app_answers(has_answered):
         return has_answered()
