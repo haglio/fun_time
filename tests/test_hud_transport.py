@@ -6,7 +6,7 @@ from unittest.mock import patch
 from funestra.hud_button import Button
 from funestra.satellite_hud import HudModel
 
-from fun_time.hud_transport import ORIGENERATOR_MODE_LABEL, HudPublisher, hosted_model
+from fun_time.hud_transport import HudPublisher, hosted_model
 from fun_time.shared_state import SatelliteState
 
 
@@ -25,11 +25,11 @@ def test_a_hosted_hud_leads_with_the_funestras_own_minimize_button_and_crown():
     assert _rows(worn(in_vr=True)) == [["portrait_next"]]
 
 
-def test_before_the_app_has_shown_its_hud_a_satellite_wears_a_title_and_its_own_buttons():
+def test_a_satellite_the_app_has_not_filled_wears_only_its_own_window_buttons():
     model = hosted_model("landscape", None, SatelliteState(hud_minimized=True), in_vr=False,
                          crowned=False, active=True)
 
-    assert (model.title, model.hud_minimized, model.active) == (ORIGENERATOR_MODE_LABEL, True, True)
+    assert (model.title, model.hud_minimized, model.active) == ("", True, True)
     assert _rows(model) == [["landscape_minimize"]]
 
 

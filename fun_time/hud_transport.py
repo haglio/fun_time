@@ -10,8 +10,6 @@ from .osr2_section import DeviceBlock
 from .satellite_buttons import window_buttons
 from .shared_state import SatelliteState
 
-ORIGENERATOR_MODE_LABEL = "Origenerator mode"
-
 
 def worn(model: HudModel, device: DeviceBlock | None) -> HudModel:
     return model if device is None else device.worn_by(model)
@@ -19,7 +17,7 @@ def worn(model: HudModel, device: DeviceBlock | None) -> HudModel:
 
 def hosted_model(funestra: str, hosted: HudModel | None, held: SatelliteState, *,
                  in_vr: bool, crowned: bool, active: bool) -> HudModel:
-    hud = hosted or HudModel(funestra=funestra, title=ORIGENERATOR_MODE_LABEL)
+    hud = hosted or HudModel(funestra=funestra)
     own = window_buttons(funestra, in_vr=in_vr, crowned=crowned)
     return replace(hud, funestra=funestra, active=active, hud_corner=held.hud_corner,
                    hud_edge=held.hud_edge, hud_minimized=held.hud_minimized,
