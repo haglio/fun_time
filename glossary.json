@@ -243,7 +243,7 @@
     },
     {
       "id": "mode_selector",
-      "thing": "a pair of buttons that picks a mode: Kino and Genau on the Main Funestra, Kino and Origenerator on a Satellite, Random Faves Browser and Origenerator under the Dashboard's log",
+      "thing": "a pair of buttons that picks a mode: Kino and Genau on the Main Funestra, Random Faves Browser and Origenerator under the Dashboard's log",
       "screen": [
         "Kino",
         "Genau",
