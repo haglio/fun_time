@@ -28,6 +28,7 @@ from .modes import (
     collect_video_files,
     plays_in_f_mode,
     rotated_onto,
+    same_file_to_windows,
     sort_paths_by_recency,
     source_roots,
     write_playlist_file,
@@ -74,6 +75,9 @@ _KINDS_OF_LENGTH = {
     LengthMode.FULL: frozenset({FULL_LENGTH}),
 }
 
+_EVOLVER_RECORDS_NO_VR_VIDEO: dict = {}
+
+
 def new_shuffle_seed() -> int:
     return random.getrandbits(32)
 
@@ -106,8 +110,7 @@ def _shuffled(videos: list[str], seed: int) -> list[str]:
 def _the_one_on_screen(every: list[str], on_screen: str) -> list[str]:
     if not on_screen:
         return []
-    key = normalize_path_key(on_screen)
-    return [video for video in every if normalize_path_key(video) == key][:1]
+    return [video for video in every if same_file_to_windows(video, on_screen)][:1]
 
 
 @dataclass(frozen=True)
@@ -135,15 +138,17 @@ class MainList:
         narrows_length = settings.length is not LengthMode.MIXED
         if not narrows_length and settings.plays_portrait and settings.plays_landscape:
             return True
-        if in_a_vr_folder(video, source_roots(self.vr_dirs)):
-            kind, record = FULL_LENGTH, {}
-        else:
-            record = recorded_for(video, self.metadata_root)
-            kind = video_type_of(record) or FULL_LENGTH
+        record = self._what_evolver_recorded_of(video)
+        kind = video_type_of(record) or FULL_LENGTH
         if narrows_length and kind not in _KINDS_OF_LENGTH.get(settings.length, frozenset()):
             return False
         portrait = recorded_orientation(record) == PORTRAIT
         return settings.plays_portrait if portrait else settings.plays_landscape
+
+    def _what_evolver_recorded_of(self, video: str) -> dict:
+        if in_a_vr_folder(video, source_roots(self.vr_dirs)):
+            return _EVOLVER_RECORDS_NO_VR_VIDEO
+        return recorded_for(video, self.metadata_root)
 
     def lets_through(self, videos: list[str], settings: MainListSettings) -> list[str]:
         kept = [video for video in self.shapes(settings).keep(videos)

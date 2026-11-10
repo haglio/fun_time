@@ -45,7 +45,7 @@ from .satellite_groups import (
     navigate_hud,
     no_loop,
     play_video,
-    same_video,
+    same_file_to_windows,
     satellite_current,
     satellite_source,
     send_satellite,
@@ -109,7 +109,7 @@ def _discard(
     if not condemned:
         logger.info("Nothing discarded on Funestra %d: it has not said which clip it is showing", funestra)
         return state, []
-    already_moved_on = bool(target_path) and not same_video(target_path, current_path)
+    already_moved_on = bool(target_path) and not same_file_to_windows(target_path, current_path)
     plan = build_discard_plan(funestra=funestra, current_path=condemned,
                               is_favorite=is_favorite(condemned, config.regen_metadata_root))
     if locked:

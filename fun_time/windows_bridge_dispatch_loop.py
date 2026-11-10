@@ -232,7 +232,7 @@ class DispatchLoopRunner:
         held = self.lock_follower.held()
         if held:
             self._take(*a_lock_holds(held, self.state, self.config))
-        self.watch.sample_due(now=now, paused=self.state.omni_paused)
+        self.watch.sample_due(now=now, omni_paused=self.state.omni_paused)
         self.hud.publish_due(self.state, now=now)
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.tick(now=now, held=self.state.omni_paused

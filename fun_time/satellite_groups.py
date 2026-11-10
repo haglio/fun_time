@@ -27,7 +27,13 @@ from .media_metadata import (
     cached_group_index,
     recorded_for,
 )
-from .modes import SatelliteBuild, collect_video_files, scripted_item, write_playlist_file
+from .modes import (
+    SatelliteBuild,
+    collect_video_files,
+    same_file_to_windows,
+    scripted_item,
+    write_playlist_file,
+)
 from .runtime_flow import satellite_browse_paths
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
@@ -37,10 +43,6 @@ logger = logging.getLogger(__name__)
 
 def satellite_source(funestra: FunTimeFunestra) -> str:
     return FunTimeFunestra(funestra).label
-
-
-def same_video(left: str, right: str) -> bool:
-    return normalize_path_key(left) == normalize_path_key(right)
 
 
 def satellite_current(config: BridgeConfig, funestra: FunTimeFunestra) -> str:
@@ -67,7 +69,7 @@ def lock_on_what_was_meant(funestra: FunTimeFunestra, config: BridgeConfig, aime
                            already_locked: bool = False) -> str:
     on_screen = satellite_current(config, funestra)
     item = aimed_at or on_screen
-    if not same_video(item, on_screen):
+    if not same_file_to_windows(item, on_screen):
         play_video(config, funestra, item)
         logger.info("Lock moved Funestra %d onto %s", funestra, item)
     if not already_locked:
@@ -203,7 +205,7 @@ def _loop_items(
     funestra: FunTimeFunestra, axis: str, state: BridgeState, config: BridgeConfig, current: str
 ) -> tuple[list[str], bool]:
     index = _satellite_group_index(funestra, config, current)
-    widened = axis == "seed" and same_video(state.satellite(funestra).widen_video, current)
+    widened = axis == "seed" and same_file_to_windows(state.satellite(funestra).widen_video, current)
     gather = widened_seed_items if widened else (
         action_group_items if axis == "action" else seed_group_items
     )
@@ -243,7 +245,7 @@ def lock_a_loop_left_with_one_video(
     if not axis:
         return state, []
     items, _widened = _loop_items(funestra, axis, state, config, video_that_left)
-    if len([item for item in items if not same_video(item, video_that_left)]) > 1:
+    if len([item for item in items if not same_file_to_windows(item, video_that_left)]) > 1:
         return state, []
     send_satellite(config, funestra, LOCK_ON)
     state = clear_satellite_grouping(state.with_satellite(funestra, locked=True), funestra)
@@ -285,7 +287,7 @@ def _loop_and_lock_off(
 
 
 def _browse_after(browse: list[str], current: str) -> list[str]:
-    if not current or any(same_video(path, current) for path in browse):
+    if not current or any(same_file_to_windows(path, current) for path in browse):
         return browse
     return [current, *browse]
 
@@ -329,7 +331,7 @@ def cycle_version(
     if not family:
         return state, [WindowOp(op="message", key="No other version",
                                 source=satellite_source(funestra), level=logging.WARNING)]
-    if target_path and not same_video(target_path, current):
+    if target_path and not same_file_to_windows(target_path, current):
         play_video(config, funestra, target_path)
     send_satellite(config, funestra, step_version(delta, family))
     return state, []
@@ -367,7 +369,7 @@ def navigate_hud(
         seeds, actions = nav_map_cells(index, root)
     target_cell = navigate_cell(cell, direction, action_count=len(actions))
     target = cell_path(target_cell, root, seeds, actions)
-    if target_cell == cell or not target or same_video(target, current):
+    if target_cell == cell or not target or same_file_to_windows(target, current):
         state = state.with_satellite(funestra, nav_anchor=anchor)
         return state, [WindowOp(op="message", key="No video that way", source=source, level=logging.WARNING)]
     state = state.with_satellite(funestra, nav_anchor=root)

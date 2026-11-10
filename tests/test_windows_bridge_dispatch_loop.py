@@ -458,12 +458,12 @@ class TestDispatchLoopRunner:
 
         with patch.object(runner.watch, "sample_due") as sample:
             runner.tick()
-            assert sample.call_args.kwargs["paused"] is False
+            assert sample.call_args.kwargs["omni_paused"] is False
 
             runner.state = BridgeState(omni_paused=True)
             write_shared_state(tmp_path / "shared_state.ini", runner.state)
             runner.tick()
-            assert sample.call_args.kwargs["paused"] is True
+            assert sample.call_args.kwargs["omni_paused"] is True
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         runner = make_runner(tmp_path)

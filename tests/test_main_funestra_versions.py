@@ -32,6 +32,15 @@ def _playing(playlist: list[Path], version_index) -> tuple[Versions, Playback, F
     return Versions(playback, version_index), playback, engine
 
 
+class _APlaybackThatStepsThroughWhateverItIsHanded:
+    def __init__(self, *, showing: Path) -> None:
+        self.showing = showing
+        self.families_handed: list[list[Path]] = []
+
+    def step_version(self, family: list[Path], _step: int) -> None:
+        self.families_handed.append(family)
+
+
 class TestWhetherThereIsAnythingToCycleTo:
     def test_the_main_hud_draws_its_version_button_lit_only_where_a_press_would_do_something(self, tmp_path):
         big, small, solo = _videos(tmp_path, "Jane-1080p.mp4", "Jane-540.mp4", "solo.mp4")
@@ -102,14 +111,17 @@ class TestCycling:
 
         assert engine.opened[opened_before:] == [upscale]
 
-    def test_a_version_the_index_does_not_know_is_left_alone(self, tmp_path):
+    def test_a_video_fun_time_listed_outside_the_index_never_takes_anothers_family(self, tmp_path):
         stranger, original, upscale = _videos(tmp_path, "Ann Bly - scene two.mp4", *_SCENE_ONE)
         versions, playback, _engine = _playing(
             [stranger], {stranger: [PlaylistItem(original), PlaylistItem(upscale)]})
 
         versions.cycle(1)
+        asked_to_step = _APlaybackThatStepsThroughWhateverItIsHanded(showing=stranger)
+        Versions(asked_to_step, {stranger: [PlaylistItem(original), PlaylistItem(upscale)]}).cycle(1)
 
         assert playback.showing == stranger
+        assert asked_to_step.families_handed == []
 
     def test_the_default_is_the_version_the_playlist_gave_not_the_largest(self, tmp_path):
         original, upscale, other = _videos(tmp_path, *_SCENE_ONE, "Ann Bly - scene two.mp4")

@@ -15,7 +15,7 @@ from main_funestra.input import Input
 
 REPO = Path(__file__).resolve().parents[1]
 
-FUNESTRA_LOOPS = {
+THE_CALL_EACH_LINK_OF_A_CLOSE_MAKES = {
     REPO / "main_funestra" / "window.py": "deal",
     REPO / "main_funestra" / "input.py": "close_requested",
 }
@@ -53,11 +53,14 @@ def test_a_close_with_no_session_around_it_ends_the_one_window_there_is(tmp_path
     assert _closed_from_its_window(tmp_path, Channels()).stopped
 
 
-def test_the_loop_routes_its_quit_through_the_session():
-    missing = [
+def test_a_close_passes_both_links_from_the_loop_to_the_session():
+    bypassed = [
         source.relative_to(REPO).as_posix()
-        for source, call in FUNESTRA_LOOPS.items()
+        for source, call in THE_CALL_EACH_LINK_OF_A_CLOSE_MAKES.items()
         if not _calls(source, call)
     ]
 
-    assert not missing, f"these end themselves instead of asking the session: {missing}"
+    assert not bypassed, (
+        f"{bypassed} no longer hand a close on, and a window that ends itself "
+        "leaves the session running around a gap nothing refills"
+    )

@@ -87,7 +87,7 @@ def _users(args, *, kino):
     return users
 
 
-def _set_aumid(taskbar_identity: str | None) -> None:
+def _take_fun_times_taskbar_identity(taskbar_identity: str | None) -> None:
     if not taskbar_identity:
         return
     try:
@@ -109,7 +109,7 @@ def _open_window(args):
 
 
 def _run(args) -> int:
-    _set_aumid(args.taskbar_identity)
+    _take_fun_times_taskbar_identity(args.taskbar_identity)
     screen = _open_window(args)
     wid = pygame.display.get_wm_info()["window"]
     memory = mode_memory(args)

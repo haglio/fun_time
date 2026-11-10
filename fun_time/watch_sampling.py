@@ -39,11 +39,11 @@ class WatchSampler:
                                                        3: OnScreenHistory()}
         self._last_sample = 0.0
 
-    def sample_due(self, *, now: float, paused: bool) -> None:
+    def sample_due(self, *, now: float, omni_paused: bool) -> None:
         if now - self._last_sample < SAMPLE_INTERVAL_S:
             return
         self._last_sample = now
-        if paused:
+        if omni_paused:
             return
         self._sample_satellites(now=now)
         self._sample_main()

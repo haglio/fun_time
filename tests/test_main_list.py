@@ -76,21 +76,21 @@ class TestTheEnhancementLevel:
 
 
 class TestFMode:
-    def test_it_keeps_the_hand_scripted_video_and_drops_the_bulk_scripted_one(self, tmp_path):
+    def test_both_have_scripts_and_only_the_hand_made_one_keeps_its_video(self, tmp_path):
         root = tmp_path / "videos" / "videos" / "primary"
-        hand, bulk, _plain = _videos(root, "a.mp4", "b.mp4", "c.mp4")
+        hand_scripted, bulk_scripted, _unscripted = _videos(root, "a.mp4", "b.mp4", "c.mp4")
         scripts = tmp_path / "videos" / "scripts" / "scripts" / "primary"
         scripts.mkdir(parents=True)
-        for video in (hand, bulk):
+        for video in (hand_scripted, bulk_scripted):
             (scripts / f"{video.stem}.funscript").write_text("{}", encoding="utf-8")
-        marker = Path(build_generated_marker_path(str(bulk)))
-        marker.parent.mkdir(parents=True)
-        marker.touch()
+        left_by_the_bulk_run = Path(build_generated_marker_path(str(bulk_scripted)))
+        left_by_the_bulk_run.parent.mkdir(parents=True)
+        left_by_the_bulk_run.touch()
 
         videos = _the_list(tmp_path, str(root)).videos(
             MainListSettings(scripted_filter=True))
 
-        assert videos == [str(hand)]
+        assert videos == [str(hand_scripted)]
 
     def test_off_it_holds_every_video(self, tmp_path):
         root = tmp_path / "vids"
