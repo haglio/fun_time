@@ -39,7 +39,7 @@ def _deal(window_input, *events) -> None:
 
 
 class TestTheWindowBeingClosed:
-    def test_a_quit_gesture_is_the_funestras_to_answer(self):
+    def test_the_close_button_and_alt_f4_are_the_funestras_to_answer(self):
         window_input, funestra = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.QUIT))
@@ -94,7 +94,7 @@ class TestTheMouse:
         assert funestra.calls == [("motion", 300, 200, False, WINDOW)]
 
 
-class TestTheKeyboard:
+class TestTheKeyboardIsFunTimesAlone:
     def test_a_key_pressed_on_the_window_reaches_nothing(self):
         window_input, funestra = _input()
 

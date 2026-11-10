@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pygame
 import pytest
 
 import main_funestra.library_source
 from main_funestra.library import LibraryEntry
 from main_funestra.library_source import PHASE_DISCOVER, LibrarySource, build_library_source
+from main_funestra.loading import LoadingCanceled, stop_if_asked
 
 
 def _make_video(path: Path, body: str = "x") -> Path:
@@ -29,7 +31,7 @@ class TestBuildLibrarySource:
 
 
 class TestTheVersionIndexIsBuiltOnce:
-    def test_reading_it_twice_walks_the_sidecars_once(self, tmp_path, monkeypatch):
+    def test_startups_two_readers_share_one_read_of_each_videos_sidecar(self, tmp_path, monkeypatch):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         entries = []
         for name in ("one", "two", "three"):
@@ -44,12 +46,11 @@ class TestTheVersionIndexIsBuiltOnce:
             lambda video, root: (reads.append(video), real(video, root))[1])
         source = LibrarySource(entries=entries, metadata_root=meta)
 
-        first = source.version_index
-        second = source.version_index
+        the_playlists_collapse = source.version_index
+        the_sessions_index = source.version_index
 
         assert len(reads) == 3, "one walk, not one per reader"
-        assert first == second
-        assert second is first
+        assert the_sessions_index is the_playlists_collapse
 
 
 class TestBuildProgress:
@@ -63,18 +64,16 @@ class TestBuildProgress:
 
         assert seen == [PHASE_DISCOVER]
 
-    def test_a_raising_callback_stops_the_build(self, tmp_path):
-        vids = tmp_path / "videos"
-        vids.mkdir()
+    def test_a_window_closed_mid_wait_ends_the_build_before_its_walk(self, tmp_path, monkeypatch):
+        walked: list[Path] = []
+        monkeypatch.setattr(main_funestra.library_source, "discover_entries",
+                            lambda videos_dir, **_kwargs: walked.append(videos_dir) or [])
+        monkeypatch.setattr(pygame.event, "get", lambda: [pygame.event.Event(pygame.QUIT)])
 
-        class GaveUp(Exception):
-            pass
+        with pytest.raises(LoadingCanceled):
+            build_library_source(tmp_path, on_progress=lambda _phase: stop_if_asked())
 
-        def give_up(_phase):
-            raise GaveUp
-
-        with pytest.raises(GaveUp):
-            build_library_source(vids, on_progress=give_up)
+        assert walked == []
 
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):

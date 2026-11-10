@@ -6,7 +6,7 @@ from funestra.modes import LoopState
 from main_funestra.loop_machine import LoopMachine
 
 
-def _funscript() -> Funscript:
+def _script_whose_bases_are_at_0_2000_and_4000() -> Funscript:
     return Funscript(actions=[
         (0, 100), (1000, 0), (2000, 100), (3000, 0), (4000, 100),
     ])
@@ -30,27 +30,27 @@ def _loops(*, scripted: bool = True):
     playback = FakePlayback()
     seeks: list[float] = []
     takeovers: list[int] = []
-    marks: list[int | None] = []
+    floors: list[int | None] = []
     loops = LoopMachine(
         playback,
         seek_to=seeks.append,
         take_the_device_over=lambda: takeovers.append(1),
-        mark=marks.append,
+        floor_seeks_at=floors.append,
     )
-    loops.open(_funscript() if scripted else None)
-    marks.clear()
-    return loops, playback, seeks, takeovers, marks
+    loops.open(_script_whose_bases_are_at_0_2000_and_4000() if scripted else None)
+    floors.clear()
+    return loops, playback, seeks, takeovers, floors
 
 
 class TestOpeningAVideo:
     def test_it_starts_idle_with_no_range_on_the_funestra(self):
-        loops, playback, _seeks, _takeovers, _marks = _loops()
+        loops, playback, _seeks, _takeovers, _floors = _loops()
 
         assert loops.state is LoopState.NORMAL
         assert playback.ab_loop is None
 
     def test_it_clears_a_range_the_last_video_left_running(self):
-        loops, playback, _seeks, _takeovers, _marks = _loops()
+        loops, playback, _seeks, _takeovers, _floors = _loops()
         loops.restore(2000, 4000)
 
         loops.open(None)
@@ -59,17 +59,17 @@ class TestOpeningAVideo:
         assert loops.state is LoopState.NORMAL
 
     def test_it_drops_a_mark_the_last_video_left_open(self):
-        loops, _playback, _seeks, _takeovers, marks = _loops()
+        loops, _playback, _seeks, _takeovers, floors = _loops()
         loops.record_down(2500)
 
         loops.open(None)
 
-        assert marks == [2500, None]
+        assert floors == [2500, None]
 
 
 class TestTheRecordGesture:
     def test_a_settled_loop_is_handed_to_mpv_snapped_to_the_bases(self):
-        loops, playback, seeks, _takeovers, _marks = _loops()
+        loops, playback, seeks, _takeovers, _floors = _loops()
 
         loops.record_down(2500)
         assert loops.state is LoopState.RECORDING
@@ -81,58 +81,60 @@ class TestTheRecordGesture:
         assert seeks[-1] == 2000, "the playhead lands on the loop's start"
 
     def test_an_unscripted_video_loops_the_raw_range(self):
-        loops, playback, _seeks, _takeovers, _marks = _loops(scripted=False)
+        loops, playback, _seeks, _takeovers, _floors = _loops(scripted=False)
 
         loops.record_down(2500)
         loops.record_up(3500)
 
         assert playback.ab_loop == (2500, 3500)
 
-    def test_an_out_point_before_the_start_floors_to_the_start(self):
-        loops, playback, seeks, _takeovers, _marks = _loops(scripted=False)
-        loops.record_down(5000)
+    def test_a_release_just_after_the_file_wrapped_floors_to_the_mark(self):
+        loops, playback, seeks, _takeovers, _floors = _loops(scripted=False)
+        playback.duration_ms = 10_000.0
+        loops.record_down(9_000)
+        loops.observe(9_800)
 
-        loops.record_up(2000)
+        loops.record_up(20)
 
-        assert playback.ab_loop == (5000, 5500)
-        assert seeks[-1] == 5000
+        assert playback.ab_loop == (9_000, 9_500)
+        assert seeks[-1] == 9_000
 
     def test_letting_go_without_having_pressed_asks_for_nothing(self):
-        loops, playback, seeks, _takeovers, marks = _loops()
+        loops, playback, seeks, _takeovers, floors = _loops()
 
         loops.record_up(3500)
 
-        assert (loops.state, playback.ab_loop, seeks, marks) == (LoopState.NORMAL, None, [], [])
+        assert (loops.state, playback.ab_loop, seeks, floors) == (LoopState.NORMAL, None, [], [])
 
     def test_the_in_point_is_kept_only_while_the_mark_is_open(self):
-        loops, _playback, _seeks, _takeovers, marks = _loops()
-        assert marks == []
+        loops, _playback, _seeks, _takeovers, floors = _loops()
+        assert floors == []
 
         loops.record_down(2500)
-        assert marks == [2500]
+        assert floors == [2500]
 
         loops.record_up(3500)
-        assert marks == [2500, None], "looping now, not marking"
+        assert floors == [2500, None], "looping now, not marking"
 
-    def test_the_funestra_is_told_where_the_mark_starts_and_when_it_closes(self):
-        loops, _playback, _seeks, _takeovers, marks = _loops()
+    def test_seeks_are_floored_at_the_mark_from_its_opening_until_it_closes(self):
+        loops, _playback, _seeks, _takeovers, floors = _loops()
 
         loops.record_down(2500)
         loops.record_up(3500)
 
-        assert marks == [2500, None]
+        assert floors == [2500, None]
 
 
 class TestTheOneButtonGesture:
     def test_the_first_tap_opens_a_mark(self):
-        loops, _playback, _seeks, _takeovers, marks = _loops()
+        loops, _playback, _seeks, _takeovers, floors = _loops()
 
         loops.record_tap(2500)
 
-        assert (loops.marking, marks) == (True, [2500])
+        assert (loops.marking, floors) == (True, [2500])
 
     def test_the_second_closes_the_loop_and_starts_it(self):
-        loops, playback, seeks, _takeovers, _marks = _loops()
+        loops, playback, seeks, _takeovers, _floors = _loops()
         loops.record_tap(2500)
 
         loops.record_tap(3500)
@@ -140,7 +142,7 @@ class TestTheOneButtonGesture:
         assert (loops.running, playback.ab_loop, seeks[-1]) == (True, (2000, 4000), 2000)
 
     def test_the_third_drops_it(self):
-        loops, playback, _seeks, takeovers, _marks = _loops()
+        loops, playback, _seeks, takeovers, _floors = _loops()
         loops.record_tap(2500)
         loops.record_tap(3500)
         takeovers.clear()
@@ -152,14 +154,14 @@ class TestTheOneButtonGesture:
 
 class TestTheBoundsItPublishes:
     def test_nothing_while_no_loop_is_running(self):
-        loops, _playback, _seeks, _takeovers, _marks = _loops()
+        loops, _playback, _seeks, _takeovers, _floors = _loops()
         assert loops.bounds is None
 
         loops.record_down(2500)
         assert loops.bounds is None, "a mark in progress is not a loop yet"
 
     def test_the_snapped_pair_while_one_is(self):
-        loops, _playback, _seeks, _takeovers, _marks = _loops()
+        loops, _playback, _seeks, _takeovers, _floors = _loops()
         loops.record_down(2500)
         loops.record_up(3500)
 
@@ -168,7 +170,7 @@ class TestTheBoundsItPublishes:
 
 class TestPuttingALoopBack:
     def test_the_finished_bounds_go_straight_to_mpv_and_the_playhead(self):
-        loops, playback, seeks, _takeovers, _marks = _loops()
+        loops, playback, seeks, _takeovers, _floors = _loops()
 
         loops.restore(2000, 4000)
 
@@ -177,7 +179,7 @@ class TestPuttingALoopBack:
             (2000, 4000), (2000, 4000), 2000)
 
     def test_an_empty_range_is_no_loop_to_put_back(self):
-        loops, playback, seeks, _takeovers, _marks = _loops()
+        loops, playback, seeks, _takeovers, _floors = _loops()
 
         loops.restore(0, 0)
         loops.restore(4000, 2000)
@@ -187,7 +189,7 @@ class TestPuttingALoopBack:
 
 class TestLeavingALoop:
     def test_cancelling_clears_the_range_and_takes_the_device_back(self):
-        loops, playback, _seeks, takeovers, _marks = _loops()
+        loops, playback, _seeks, takeovers, _floors = _loops()
         loops.restore(2000, 4000)
         takeovers.clear()
 
@@ -196,15 +198,15 @@ class TestLeavingALoop:
         assert (loops.state, playback.ab_loop, takeovers) == (LoopState.NORMAL, None, [1])
 
     def test_cancelling_an_open_mark_drops_it_and_takes_nothing_back(self):
-        loops, playback, _seeks, takeovers, marks = _loops()
+        loops, playback, _seeks, takeovers, floors = _loops()
         loops.record_down(2500)
 
         loops.cancel()
 
-        assert (loops.state, playback.ab_loop, takeovers, marks) == (LoopState.NORMAL, None, [], [2500, None])
+        assert (loops.state, playback.ab_loop, takeovers, floors) == (LoopState.NORMAL, None, [], [2500, None])
 
     def test_pressing_record_again_leaves_it_the_same_way(self):
-        loops, playback, _seeks, takeovers, _marks = _loops()
+        loops, playback, _seeks, takeovers, _floors = _loops()
         loops.restore(2000, 4000)
         takeovers.clear()
 
@@ -213,7 +215,7 @@ class TestLeavingALoop:
         assert (loops.state, playback.ab_loop, takeovers) == (LoopState.NORMAL, None, [1])
 
     def test_cancelling_when_nothing_is_running_asks_for_nothing(self):
-        loops, playback, _seeks, takeovers, _marks = _loops()
+        loops, playback, _seeks, takeovers, _floors = _loops()
         clears_before = playback.clears
 
         loops.cancel()
@@ -224,14 +226,14 @@ class TestLeavingALoop:
 
 class TestWhatEachTickOfThePlayheadDoes:
     def test_a_tick_while_nothing_is_marked_or_running_asks_for_nothing(self):
-        loops, _playback, _seeks, takeovers, _marks = _loops()
+        loops, _playback, _seeks, takeovers, _floors = _loops()
 
         assert loops.observe(1000) is False
         assert loops.observe(2000) is False
         assert takeovers == []
 
     def test_a_mark_that_reaches_the_end_of_the_file_closes_and_starts_there(self):
-        loops, playback, seeks, _takeovers, _marks = _loops(scripted=False)
+        loops, playback, seeks, _takeovers, _floors = _loops(scripted=False)
         playback.duration_ms = 10_000.0
         loops.record_down(9_000)
 
@@ -239,7 +241,7 @@ class TestWhatEachTickOfThePlayheadDoes:
         assert (loops.running, playback.ab_loop, seeks[-1]) == (True, (9_000, 9_950), 9_000)
 
     def test_a_mark_the_wrap_beat_closes_where_the_playhead_last_was(self):
-        loops, playback, seeks, _takeovers, _marks = _loops(scripted=False)
+        loops, playback, seeks, _takeovers, _floors = _loops(scripted=False)
         playback.duration_ms = 10_000.0
         loops.record_down(9_000)
         loops.observe(9_800)
@@ -248,7 +250,7 @@ class TestWhatEachTickOfThePlayheadDoes:
         assert (playback.ab_loop, seeks[-1]) == ((9_000, 9_800), 9_000)
 
     def test_a_backward_seek_mid_mark_goes_on_marking(self):
-        loops, playback, _seeks, _takeovers, _marks = _loops(scripted=False)
+        loops, playback, _seeks, _takeovers, _floors = _loops(scripted=False)
         loops.record_down(30_000)
         loops.observe(40_000)
 
@@ -256,7 +258,7 @@ class TestWhatEachTickOfThePlayheadDoes:
         assert (loops.marking, playback.ab_loop) == (True, None)
 
     def test_a_running_loop_wraps_in_mpv_with_no_seek_from_here(self):
-        loops, _playback, seeks, _takeovers, _marks = _loops()
+        loops, _playback, seeks, _takeovers, _floors = _loops()
         loops.restore(2000, 4000)
         seeks.clear()
 
@@ -264,8 +266,8 @@ class TestWhatEachTickOfThePlayheadDoes:
         assert loops.observe(4100) is False
         assert seeks == []
 
-    def test_a_rewound_clock_is_not_the_loops_to_answer(self):
-        loops, _playback, _seeks, takeovers, _marks = _loops()
+    def test_a_wrap_asks_no_second_takeover_beside_the_playbacks_own(self):
+        loops, _playback, _seeks, takeovers, _floors = _loops()
         loops.restore(2000, 4000)
         loops.observe(3900)
         takeovers.clear()

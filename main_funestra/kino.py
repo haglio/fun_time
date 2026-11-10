@@ -30,7 +30,7 @@ class Kino:
         self._memory = memory
         self._loops = LoopMachine(
             playback, seek_to=playback.seek_to,
-            take_the_device_over=playback.take_the_device_over, mark=playback.set_mark)
+            take_the_device_over=playback.take_the_device_over, floor_seeks_at=playback.set_mark)
         entries = source.entries if source is not None else []
         self._jumps = ClipJumps(library.clip_nav, playback, {e.video: e.funscript for e in entries}, messages)
         self._jumps.resume(remembered.compilation,

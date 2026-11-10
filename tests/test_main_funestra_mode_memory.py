@@ -8,7 +8,7 @@ INSIDE = RememberedMode(compilation="Vol6", video="C:/v/clip.mp4")
 
 
 class TestTheRecord:
-    def test_the_record_it_writes_is_the_one_it_reads_back(self, tmp_path):
+    def test_the_files_own_keys_and_order_are_pinned_not_only_the_round_trip(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
 
         ModeMemory(path).write(RememberedMode(compilation="Volume Six", video="C:/x/y.mp4"))
@@ -35,7 +35,7 @@ class TestTheRecord:
         assert memory.read() == RememberedMode()
 
 
-class TestWritingItDownWheneverItMoves:
+class TestAskedEveryFrameItWritesOnlyWhatMoved:
     def test_a_record_that_has_not_moved_is_not_written_again(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
         memory = ModeMemory(path)
@@ -55,7 +55,7 @@ class TestWritingItDownWheneverItMoves:
 
         assert memory.read() == RememberedMode()
 
-    def test_a_record_it_wrote_itself_is_not_written_again_either(self, tmp_path):
+    def test_a_record_it_wrote_itself_is_not_written_again_the_next_frame(self, tmp_path):
         path = tmp_path / "main_player_mode.txt"
         memory = ModeMemory(path)
         memory.sync(INSIDE)

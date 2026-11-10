@@ -109,7 +109,7 @@ class TestLoopController:
         assert lc.state == LoopState.LOOPING
         assert (lc.in_ms, lc.out_ms) == (2000, 4000)
 
-    def test_restore_does_not_snap_the_bounds_it_is_given(self):
+    def test_a_restored_loop_is_not_snapped_again_to_the_script_beside_the_video_now(self):
         lc = LoopController(_make_fs())
 
         lc.restore(2500, 3500)
