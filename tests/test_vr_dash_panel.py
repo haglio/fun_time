@@ -73,6 +73,7 @@ from fun_time_vr.dash_panel import (
     log_lines,
     osr2_part_rect,
     paint_dash,
+    size_it_hangs_still_at,
     verbosity_name,
     with_the_osr2_part,
 )
@@ -584,7 +585,7 @@ class TestWhatItDraws:
         quiet = paint_dash(DashState(), [])
         busy = paint_dash(DashState(), [_record(f"line {i}") for i in range(LOG_ROWS * 3)])
 
-        assert quiet.size == busy.size == (DASH_WIDTH_PX, dash_height())
+        assert quiet.size == busy.size == size_it_hangs_still_at()
 
     def test_a_line_shows_up_on_it(self):
         quiet = np.asarray(paint_dash(DashState(), []))

@@ -98,6 +98,10 @@ class _ASession:
         self.closed = True
 
 
+def _a_ready_session_whose_every_frame_ends_unshown() -> _ASession:
+    return _ASession(ready=True)
+
+
 class _ARenderer:
     def __init__(self) -> None:
         self.begun: list[tuple] = []
@@ -251,7 +255,7 @@ class TestRaisingTheLoadingScreen:
 
     def test_it_gives_up_once_the_first_frame_has_had_its_time(self):
         clock = _AClock()
-        session = _ASession(ready=True)
+        session = _a_ready_session_whose_every_frame_ends_unshown()
 
         raise_the_loading_screen(_a_headset(session), _ALoadingScreen(), clock=clock, sleep=clock.sleep)
 
@@ -510,11 +514,13 @@ class TestShowingTheRoom:
     def test_it_shows_frames_until_the_room_is_stopped(self):
         the_room = _ARoom()
         session = _ASession(_a_frame(), _a_frame(), _a_frame())
-        session.poll_events = lambda: the_room.stop.set() if len(session.ended) == 2 else None
+        drawn_before_the_stop, the_pass_that_hears_the_stop = 2, 1
+        session.poll_events = lambda: (
+            the_room.stop.set() if len(session.ended) == drawn_before_the_stop else None)
 
         loop, glfw = self._show(session, the_room)
 
-        assert len(loop.arranging.asked) == 3
+        assert len(loop.arranging.asked) == drawn_before_the_stop + the_pass_that_hears_the_stop
         assert glfw.polled == 3
 
     def test_a_closed_window_ends_it(self):
@@ -579,8 +585,10 @@ class TestTearingDown:
         ask_for_the_hold(tmp_path, stop_runtime=False)
         session, the_room = _ASession(_a_frame(), _a_frame()), _ARoom(_ALoadingScreen())
         polls = []
+        the_closing_screens_one_poll = 1
         session.poll_events = lambda: (
-            polls.append(1), release_the_headset(tmp_path) if len(polls) == 2 else None)
+            polls.append(1),
+            release_the_headset(tmp_path) if len(polls) == the_closing_screens_one_poll + 1 else None)
         stopped = []
 
         tear_down(_a_headset(session), the_room, tmp_path, clock=_AClock(),

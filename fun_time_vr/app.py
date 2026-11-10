@@ -85,8 +85,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
 
     from .vr_session import VRSession  # noqa: PLC0415
 
+    said_ready_before_its_graphics_device_was_up = xr.exception.GraphicsDeviceInvalidError
     opened = open_vr_session(
-        VRSession, device_not_ready=xr.exception.GraphicsDeviceInvalidError)
+        VRSession, device_not_ready=said_ready_before_its_graphics_device_was_up)
     if opened.session is None:
         _say_why_the_headset_never_lit_up(opened.message)
         return 1

@@ -68,8 +68,11 @@ def message_placement_in_a_frame(flashed: Image.Image, width: int, height: int) 
     return max(0, (width - flashed.width) // 2), round(height * TOP_MARGIN_FRACTION)
 
 
+_A_TARGET_MPV_HAS_NOT_SIZED_YET_PX = 1
+
+
 def message_bgra(message: str, level: int, *, width: int, height: int):
-    if width <= 1 or height <= 1:
+    if width <= _A_TARGET_MPV_HAS_NOT_SIZED_YET_PX or height <= _A_TARGET_MPV_HAS_NOT_SIZED_YET_PX:
         return None
     flashed = paint_message(
         message, level, max_width=round(width * WIDTH_FRACTION), size=font_px(height),

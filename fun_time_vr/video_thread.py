@@ -14,7 +14,7 @@ from .scheduling import scheduled_as_a_game
 logger = logging.getLogger(__name__)
 
 PAINT_POLL_S = 0.002
-STILL_SIZE_PX = (512, 256)
+STILL_ENOUGH_FOR_A_FISHEYES_EDGE_PX = (512, 256)
 CLOSE_TIMEOUT_S = 10.0
 
 
@@ -75,7 +75,7 @@ class VideoThread:
         try:
             targets = [self._new_target() for _ in range(SLOTS)]
             still = self._new_target()
-            still.ensure(*STILL_SIZE_PX)
+            still.ensure(*STILL_ENOUGH_FOR_A_FISHEYES_EDGE_PX)
             self.engine = build_engine()
             painting = Painting(self.engine, self._frames, gpu=self._new_gpu(), perf=self._perf)
         except BaseException as fault:  # noqa: BLE001 -- raised again on the frame loop's thread

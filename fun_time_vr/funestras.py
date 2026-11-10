@@ -74,6 +74,7 @@ from .dash_panel import (
     DashPointer,
     dash_height,
     paint_dash,
+    size_it_hangs_still_at,
     with_the_osr2_part,
 )
 from .frame_look import FrameLook
@@ -953,7 +954,7 @@ class _DashUnit:
         self._presses.point(frame)
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        size = (DASH_WIDTH_PX, dash_height())
+        size = size_it_hangs_still_at()
         for event in self._presses.drain():
             at = surface_pixel(event.u, event.v, size)
             if event.kind == PRESS:
