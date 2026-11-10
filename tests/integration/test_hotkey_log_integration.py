@@ -18,14 +18,19 @@ from fun_time.windows_bridge_orchestrator import _AppendOnWriteHandler
 from tests.ahk_script import function_source
 
 from .hidden_desktop import run_where_nothing_is_focused
-from .integration_support import ended_within, seen_within, the_machines_config_path
+from .integration_support import (
+    STARTUP_FINISHED,
+    ended_within,
+    seen_within,
+    the_machines_config_path,
+)
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
     reason="AutoHotkey is the Windows side of the bridge",
 )
 
-LINE = "Session up; startup hold released"
+THE_LINE_A_START_WAITS_ON = STARTUP_FINISHED
 SCRIPT_LINES = 2000
 
 _kernel32 = load_dll("kernel32", use_last_error=True)
@@ -64,13 +69,13 @@ def _ahk_exe() -> str:
 def test_a_logged_line_lands_while_the_log_is_open_elsewhere(tmp_path: Path, mode: str):
     log = tmp_path / "windows_bridge.log"
     log.touch()
-    script = _logging_script(tmp_path, f'Log("{LINE}")')
+    script = _logging_script(tmp_path, f'Log("{THE_LINE_A_START_WAITS_ON}")')
 
     with log.open(mode, encoding="utf-8"):
         exit_code = run_where_nothing_is_focused([_ahk_exe(), str(script), str(log)])
 
     assert exit_code == 0, "the hotkey script did not run to completion"
-    assert LINE in log.read_text(encoding="utf-8"), "the line was dropped"
+    assert THE_LINE_A_START_WAITS_ON in log.read_text(encoding="utf-8"), "the line was dropped"
 
 
 def test_neither_writer_loses_a_line_to_the_other(tmp_path: Path):
@@ -157,7 +162,7 @@ def test_a_logged_line_leaves_no_handle_on_the_log_behind(tmp_path: Path):
     logged, finished = tmp_path / "logged.flag", tmp_path / "finished.flag"
     script = _logging_script(
         tmp_path,
-        f'loop 3\n    Log("{LINE}")\n'
+        f'loop 3\n    Log("{THE_LINE_A_START_WAITS_ON}")\n'
         'FileAppend("", A_Args[2])\n'
         "deadline := A_TickCount + 120000\n"
         "while !FileExist(A_Args[3]) && A_TickCount < deadline\n"

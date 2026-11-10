@@ -9,8 +9,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image, ImageDraw
-from PyQt6.QtCore import QEvent, QPointF, Qt, QTimer
-from PyQt6.QtGui import QFontDatabase, QMouseEvent
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from fun_time.config import load_config
@@ -36,6 +35,7 @@ from fun_time.win32 import (
 )
 from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
 from tests.integration.integration_support import await_window, joined_within, wait_for
+from tests.test_library_browser import a_double_click_as_the_mouse_sends_it
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -63,7 +63,7 @@ def _handles(tmp_path: Path, cache: Path) -> list[LibraryHandle]:
     return handles
 
 
-def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
+def test_the_grid_paints_its_titles_and_stills(tmp_path: Path, real_fonts_where_offscreen_paints_tofu):
     cache = tmp_path / "cache"
     cache.mkdir()
     handles = _handles(tmp_path, cache)
@@ -75,7 +75,6 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
         window.show()
         painted = window.grab().toImage()
 
-        assert QFontDatabase.families(), "native platform must have real fonts"
         metrics = window.grid.fontMetrics()
         assert metrics.horizontalAdvance(TITLES[0]) > 0
         for character in set("".join(TITLES + SECTIONS)):
@@ -109,20 +108,6 @@ def test_the_browser_window_owns_no_taskbar_button(tmp_path: Path):
         window.close()
 
 
-def _double_click(window: LibraryBrowserWindow, row: int) -> None:
-    point = QPointF(window.grid.visualItemRect(window.grid.item(row)).center())
-    for kind in (
-        QEvent.Type.MouseButtonPress,
-        QEvent.Type.MouseButtonRelease,
-        QEvent.Type.MouseButtonDblClick,
-        QEvent.Type.MouseButtonRelease,
-    ):
-        QApplication.sendEvent(window.grid.viewport(), QMouseEvent(
-            kind, point, Qt.MouseButton.LeftButton,
-            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-        ))
-
-
 def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
     cache = tmp_path / "cache"
     cache.mkdir()
@@ -139,7 +124,7 @@ def test_a_double_click_reaches_the_pick_and_ends_the_browse(tmp_path: Path):
     app.processEvents()
 
     row = window.grid.rows.index(handles[0])
-    QTimer.singleShot(0, lambda: _double_click(window, row))
+    QTimer.singleShot(0, lambda: a_double_click_as_the_mouse_sends_it(window.grid, row))
     QTimer.singleShot(4000, app.quit)
     app.exec()
 
@@ -159,7 +144,7 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
         window.show()
         QApplication.instance().processEvents()
 
-        _double_click(window, 0)
+        a_double_click_as_the_mouse_sends_it(window.grid, 0)
 
         words = window.header.plain_text()
         assert words == f"{TOP_LEVEL_NAME} / {SECTIONS[0]}"
@@ -168,6 +153,8 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
 
 
 STAND_IN_TITLE = "FUNTIMEMARK-MAIN-FUNESTRA"
+
+_A_REAL_INTERPRETER_NOT_THE_CONFIGS_STUB_EXE = sys.executable
 
 # A whole interpreter, Qt, and a walk of the library stand between the launch
 # and the window.  Generous rather than tuned: a cold run is the slow one, and
@@ -180,7 +167,12 @@ def _until_no_browse_is_open() -> None:
              desc="the browse an earlier test opened to finish closing")
 
 
-def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, cfg_factory):
+def _dropped_from_the_band_as_the_bridge_does_for_a_browse(hwnd: int) -> None:
+    set_always_on_top(hwnd, True)
+    set_always_on_top(hwnd, False)
+
+
+def test_the_browse_opens_in_front_where_nothing_holds_the_foreground(tmp_path: Path, cfg_factory):
     config = load_config(cfg_factory())
     library = config.paths.main_funestra_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
@@ -195,11 +187,11 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     stand_in.show()
     QApplication.instance().processEvents()
     stand_in_hwnd = int(stand_in.winId())
-    set_always_on_top(stand_in_hwnd, True)
-    set_always_on_top(stand_in_hwnd, False)
+    _dropped_from_the_band_as_the_bridge_does_for_a_browse(stand_in_hwnd)
 
     browsing = threading.Thread(
-        target=lambda: browse_library(manifest, sys.executable, BrowseOpening(over=(100, 100, 900, 700))),
+        target=lambda: browse_library(
+            manifest, _A_REAL_INTERPRETER_NOT_THE_CONFIGS_STUB_EXE, BrowseOpening(over=(100, 100, 900, 700))),
         daemon=True,
     )
     browsing.start()
@@ -247,7 +239,8 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
 
     browsing = threading.Thread(
         target=lambda: browse_library(
-            manifest, sys.executable, BrowseOpening(over=(100, 100, 900, 700)), runner=runner),
+            manifest, _A_REAL_INTERPRETER_NOT_THE_CONFIGS_STUB_EXE,
+            BrowseOpening(over=(100, 100, 900, 700)), runner=runner),
         daemon=True,
     )
     browsing.start()

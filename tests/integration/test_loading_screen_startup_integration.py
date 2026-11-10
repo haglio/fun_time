@@ -35,21 +35,30 @@ pytestmark = [
 
 _SATELLITE_TITLES = ("Portrait AI Funestra", "Landscape AI Funestra")
 
+_STARTUP_UNDER_A_LOADING_SCREEN_S = 90.0
 
-def test_the_satellites_end_startup_frontmost_over_their_rects():
+
+def _this_startup_took_the_loading_screen_path_every_other_run_skips(session) -> None:
+    events = event_log_path(session.config.paths.state_dir)
+    text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
+    assert "Loading screen launched" in text, (
+        "the session did not take the loading-screen path; "
+        "FUN_TIME_INTEGRATION_OVERLAYS did not reach the orchestrator"
+    )
+    assert "Post-loading window state corrected" in text, (
+        "start returned before the post-loading pass had run, so the z-order read next "
+        "says nothing about it"
+    )
+
+
+def test_the_satellites_end_startup_frontmost_over_their_rects_not_merely_topmost():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
     try:
-        session.start(wait_seconds=90.0,
+        session.start(wait_seconds=_STARTUP_UNDER_A_LOADING_SCREEN_S,
                       env_overrides={"FUN_TIME_INTEGRATION_OVERLAYS": "1"})
-        events = event_log_path(session.config.paths.state_dir)
-        text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
-        assert "Loading screen launched" in text, (
-            "the session did not take the loading-screen path; "
-            "FUN_TIME_INTEGRATION_OVERLAYS did not reach the orchestrator"
-        )
-        assert "Post-loading window state corrected" in text
+        _this_startup_took_the_loading_screen_path_every_other_run_skips(session)
 
         hwnds = {
             title: await_window(title, 10, exact=True)

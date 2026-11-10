@@ -60,6 +60,23 @@ def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
     )
 
 
+THE_FOUR_EVENTS_OF_A_MOUSES_DOUBLE_CLICK = (
+    QEvent.Type.MouseButtonPress,
+    QEvent.Type.MouseButtonRelease,
+    QEvent.Type.MouseButtonDblClick,
+    QEvent.Type.MouseButtonRelease,
+)
+
+
+def a_double_click_as_the_mouse_sends_it(view: QListWidget, row: int) -> None:
+    point = QPointF(view.visualItemRect(view.item(row)).center())
+    for kind in THE_FOUR_EVENTS_OF_A_MOUSES_DOUBLE_CLICK:
+        QApplication.sendEvent(view.viewport(), QMouseEvent(
+            kind, point, Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        ))
+
+
 def _labels(view: QListWidget) -> list[str]:
     return [view.item(row).text() for row in range(view.count())]
 
@@ -1080,6 +1097,31 @@ def test_closing_the_browse_tells_the_process_it_is_over(browser, tmp_path: Path
     window.close()
 
     assert ended == ["over"]
+
+
+def test_a_lone_double_click_event_reaches_no_pick_the_mouses_four_do(browser, tmp_path: Path):
+    handles = [_handle("alpha scene", "C:/videos/alpha.mp4", section="main")]
+    lone_picked: list[str] = []
+    picked: list[str] = []
+
+    def shown(on_pick) -> LibraryBrowserWindow:
+        window = browser(handles, thumbnail_cache=tmp_path, on_pick=on_pick)
+        window.open_folder(("main",))
+        window.resize(800, 500)
+        window.show()
+        QApplication.processEvents()
+        return window
+
+    lone = shown(lone_picked.append)
+    row = lone.grid.rows.index(handles[0])
+    point = QPointF(lone.grid.visualItemRect(lone.grid.item(row)).center())
+    QApplication.sendEvent(lone.grid.viewport(), QMouseEvent(
+        QEvent.Type.MouseButtonDblClick, point, Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+    a_double_click_as_the_mouse_sends_it(shown(picked.append).grid, row)
+
+    assert lone_picked == []
+    assert picked == ["C:/videos/alpha.mp4"]
 
 
 def test_picking_a_video_ends_the_browse_as_well_as_reporting_it(browser, tmp_path: Path):

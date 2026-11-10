@@ -48,7 +48,10 @@ def test_closing_a_funestra_raises_nothing_its_host_reads_as_a_crash(tmp_path: P
         f"opening and closing {TEARDOWNS} Funestras ended the process "
         f"({probe.returncode}): {probe.stderr.strip() or caught.strip()}"
     )
-    assert probe.stdout.strip() == f"{TEARDOWNS} opened and closed", probe.stdout
+    assert probe.stdout.strip() == f"{TEARDOWNS} opened and closed", (
+        f"the probe did not open and close {TEARDOWNS} Funestras, and an empty crash "
+        f"log is also what a probe that opened nothing leaves: {probe.stdout!r}"
+    )
     assert caught == "", (
         f"libmpv raised something faulthandler reported while {TEARDOWNS} Funestras "
         f"were closing, and the next one to land while a thread is exiting takes "
