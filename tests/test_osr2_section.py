@@ -124,10 +124,8 @@ class TestTheWordTheSessionPublishesAndThePainterTogether:
         return left + x + w // 2, top + y + h // 2
 
     def test_a_funscript_on_the_parked_main_funestra_leaves_genaus_readout_pressable(self, tmp_path):
-        on_the_video_the_parked_main_funestra_holds = True
         painter = self._painted_from_what_the_session_publishes(
-            MainMode.GENAU, funscript_driving=on_the_video_the_parked_main_funestra_holds,
-            tmp_path=tmp_path)
+            MainMode.GENAU, funscript_driving=True, tmp_path=tmp_path)
 
         marks = {b.command: r for r, b in painter.buttons
                  if b.command.startswith(("robot_hand_amplitude", "robot_hand_center", "robot_hand_speed"))}

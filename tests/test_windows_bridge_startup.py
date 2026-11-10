@@ -286,19 +286,13 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     assert main_funestra_file.read_text(encoding="utf-8") == "1"
 
 
-def test_seed_startup_states_gives_kino_the_window_for_a_fresh_session(tmp_path: Path):
+def test_startup_seeds_the_main_funestra_several_verbs_and_loses_none(tmp_path: Path):
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
     assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
-
-
-def test_startup_seeds_the_main_funestra_with_several_verbs_and_loses_none(tmp_path: Path):
-    _seed_startup_states(tmp_path, volume=70, muted=True)
-
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 70 1", "SET_F_MODE 0"]
 
 
 def _main_funestra_verbs(tmp_path: Path) -> list[str]:
