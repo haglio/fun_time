@@ -108,7 +108,7 @@ def test_regen_url_video_uses_video_base():
 def _setup(tmp_path: Path, orient: str, name: str, meta: dict) -> tuple[Path, Path, Path]:
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "2_outbox" / "upscaled_by_orientation" / orient / "provider" / name
+    video = media_root / "upscales" / orient / "provider" / name
     meta_file = metadata_path_for(video, metadata_root)
     meta_file.parent.mkdir(parents=True, exist_ok=True)
     meta_file.write_text(json.dumps(meta), encoding="utf-8")
@@ -130,7 +130,7 @@ def test_a_video_made_from_a_source_image_regenerates_from_that_image(tmp_path: 
 
 def test_a_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
     media_root, metadata_root, _ = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
-    provider2 = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider2" / "x.mp4"
+    provider2 = media_root / "upscales" / "portrait" / "provider2" / "x.mp4"
 
     url = regen_url_for_video(
         provider2, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
@@ -170,7 +170,7 @@ def test_a_sidecar_holding_only_the_stamps_offers_no_regenerate_link(tmp_path: P
 def test_a_video_with_no_sidecar_offers_no_regenerate_link(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "missing_topaz.mp4"
+    video = media_root / "upscales" / "portrait" / "provider" / "missing_topaz.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_text("x", encoding="utf-8")
 

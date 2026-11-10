@@ -73,11 +73,11 @@ VIDEO_ONLY_META = {
 def test_metadata_path_mirrors_media_tree_under_metadata_root(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "abc_topaz.mp4"
+    video = media_root / "upscales" / "portrait" / "provider" / "abc_topaz.mp4"
 
     result = metadata_path_for(video, metadata_root)
 
-    assert result == metadata_root / "2D" / "AI" / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "abc_topaz.json"
+    assert result == metadata_root / "2D" / "AI" / "upscales" / "portrait" / "provider" / "abc_topaz.json"
 
 
 def test_a_video_outside_the_library_has_no_metadata_file(tmp_path: Path):
