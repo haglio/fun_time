@@ -49,7 +49,7 @@ from fun_time.win32_process import (
 from fun_time.window_names import MANAGED_WINDOWS, ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import SATELLITE_LANDSCAPE_TITLE, SATELLITE_PORTRAIT_TITLE
 from tests.child_reports import an_interpreter_asleep
-from tests.conftest import _MUTATING_USER32_CALLS
+from tests.conftest import _USER32_CALLS_THAT_CHANGE_A_WINDOW
 from tests.sleeps import sleeps_in
 
 SWP_ASYNCWINDOWPOS = 0x4000
@@ -540,7 +540,7 @@ class TestLiveWindowMutationGuard:
         return isinstance(getattr(win32._user32, name), ctypes._CFuncPtr)
 
     def test_no_unit_test_moves_raises_activates_or_closes_a_real_window(self):
-        for name in _MUTATING_USER32_CALLS:
+        for name in _USER32_CALLS_THAT_CHANGE_A_WINDOW:
             # Stubbed to an inert no-op for the whole unit suite: callable, returns the
             # sentinel, and can never reach the real Win32 API on any hwnd.
             assert not self._reaches_windows(name), name

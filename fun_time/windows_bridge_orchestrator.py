@@ -43,7 +43,7 @@ from .desktop_session import (
     silence_the_funestras,
 )
 from .event_log import (
-    EVERYTHING_FOR_THE_LOG_PANEL_TO_FILTER,
+    EVERYTHING_THE_DIAL_CAN_SHOW,
     LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME,
 )
 from .fun_time_funestras import FunTimeFunestra
@@ -466,7 +466,7 @@ def log_into_the_hotkey_scripts_log(log_path: Path) -> None:
     handler = _AppendOnWriteHandler(log_path)
     for name in ("fun_time", *LOGGERS_THE_LISTENER_KEEPS_UNDER_ITS_OWN_NAME):
         lg = logging.getLogger(name)
-        lg.setLevel(EVERYTHING_FOR_THE_LOG_PANEL_TO_FILTER)
+        lg.setLevel(EVERYTHING_THE_DIAL_CAN_SHOW)
         lg.addHandler(handler)
 
 
