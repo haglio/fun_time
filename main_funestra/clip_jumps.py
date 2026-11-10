@@ -17,8 +17,8 @@ class ClipJumps:
         self._funscripts = funscripts
         self._messages = messages
         self._compilation = ""
-        self._asked_about: Path | None = None
-        self._reachable: tuple[bool, str, str] = (False, "", "")
+        self._video_the_answers_are_for: Path | None = None
+        self._answers: tuple[bool, str, str] = (False, "", "")
 
     @property
     def compilation(self) -> str:
@@ -26,27 +26,30 @@ class ClipJumps:
 
     @property
     def has_compilation(self) -> bool:
-        return self._reach()[0]
+        return self._answers_for_the_video_on_screen()[0]
 
     @property
     def jump_to(self) -> str:
-        return self._reach()[1]
+        return self._answers_for_the_video_on_screen()[1]
 
     @property
     def title(self) -> str:
-        return self._reach()[2]
+        return self._answers_for_the_video_on_screen()[2]
 
-    def _reach(self) -> tuple[bool, str, str]:
+    def _answers_for_the_video_on_screen(self) -> tuple[bool, str, str]:
         current = self._playback.current_video
-        if current != self._asked_about:
-            self._asked_about = current
-            self._reachable = (
-                bool(self._nav.compilation_of(current)),
-                "scene" if self._nav.full_vid_of(current) is not None
-                else "clip" if self._nav.clip_of(current) is not None else "",
-                self._nav.title_of(current),
-            )
-        return self._reachable
+        if current != self._video_the_answers_are_for:
+            self._video_the_answers_are_for = current
+            self._answers = self._walk_the_library_for(current)
+        return self._answers
+
+    def _walk_the_library_for(self, video: Path) -> tuple[bool, str, str]:
+        return (
+            bool(self._nav.compilation_of(video)),
+            "scene" if self._nav.full_vid_of(video) is not None
+            else "clip" if self._nav.clip_of(video) is not None else "",
+            self._nav.title_of(video),
+        )
 
     def _item(self, video: Path) -> PlaylistItem:
         return PlaylistItem(video, self._funscripts.get(video))

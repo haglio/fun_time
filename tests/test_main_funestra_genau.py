@@ -28,7 +28,11 @@ from main_funestra.genau import (
     GenauSeams,
 )
 from main_funestra.genau_verbs import genau_f_mode, genau_orientations
-from tests.genau_fakes import FakeNotifier, FakeSink
+from tests.genau_fakes import (
+    FakeNotifier,
+    FakeSink,
+    every_thread_now_but_the_port_binding_udp_reader,
+)
 
 
 class FakeMessages:
@@ -51,19 +55,13 @@ def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray
     return [np.full((height, width, 3), i, dtype=np.uint8) for i in range(count)]
 
 
-def _run_now(*, target, args=(), name=""):
-    if name == "genau-udp":
-        return
-    target(*args)
-
-
 class _CondemningInTheBackground:
     def __init__(self) -> None:
         self.threads: list[threading.Thread] = []
 
     def __call__(self, *, target, args=(), name=""):
         if name != "genau-condemn":
-            _run_now(target=target, args=args, name=name)
+            every_thread_now_but_the_port_binding_udp_reader(target=target, args=args, name=name)
             return
         thread = threading.Thread(target=target, args=args, name=name)
         self.threads.append(thread)
@@ -80,7 +78,7 @@ class WorldSetup:
     metadata_root: Path | None = None
     turned: tuple = ()
     orientations: tuple = BOTH
-    start_thread: Callable = _run_now
+    start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
     origenerator_commands: Path | None = None
 
 
