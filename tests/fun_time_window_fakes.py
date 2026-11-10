@@ -21,7 +21,10 @@ PID_TO_HWND = {
     DASHBOARD_PID: DASHBOARD_HWND,
 }
 
-TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_FUNESTRA_HWND}
+_EVERY_MANAGED_HWND = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
+                       MAIN_FUNESTRA_HWND, HOSTED_HWND}
+_HWNDS_SHARING_THE_BROWSERS_RECT = {HOSTED_HWND}
+TOPMOST_HWNDS = _EVERY_MANAGED_HWND - _HWNDS_SHARING_THE_BROWSERS_RECT
 
 
 def lookup_pid(pid):
@@ -33,13 +36,14 @@ def lookup_title(title, exact=False):
 
 
 def lookup_hosted(pid, title, *, include_hidden=False, caption="Origenerator"):
-    if pid != HOSTED_PID or not include_hidden:
+    overlooks_a_window_parked_since_it_booted = not include_hidden
+    if pid != HOSTED_PID or overlooks_a_window_parked_since_it_booted:
         return 0
     accepted = title(caption) if callable(title) else title == caption
     return HOSTED_HWND if accepted else 0
 
 
-class FakeClock:
+class HandDrivenClock:
     def __init__(self) -> None:
         self.now = 1000.0
 

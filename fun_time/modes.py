@@ -226,7 +226,7 @@ def _collapse_and_weigh(
                            group_of=_group_of(index, by_seed_group), rng=rng or random.Random())
 
 
-def _collapse_recent(
+def _collapse_by_arrival_alone(
     paths: list[str],
     metadata_root: Path | None,
     *,
@@ -277,7 +277,7 @@ def build_satellite_playlist_paths(
     if metadata_root is None:
         return order_paths(files, recent=build.recent, rng=rng)
     if build.recent:
-        return _collapse_recent(files, metadata_root, by_seed_group=the_filter_already_pinned_the_act)
+        return _collapse_by_arrival_alone(files, metadata_root, by_seed_group=the_filter_already_pinned_the_act)
     return _collapse_and_weigh(files, metadata_root, rng, by_seed_group=the_filter_already_pinned_the_act)
 
 

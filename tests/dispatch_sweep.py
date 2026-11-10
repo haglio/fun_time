@@ -20,13 +20,18 @@ from fun_time_vr.orchestrator import build_vr_manifest
 from tests.made_up_genau import with_made_up_genau
 
 
-def _channels(config: BridgeConfig) -> dict[str, Path | None]:
+def _channels_of_verbs(config: BridgeConfig) -> dict[str, Path | None]:
     return {
         "main_funestra_cmd_file": config.main_funestra_cmd_file,
         "genau_cmd_file": config.genau_cmd_file,
         "portrait_cmd_file": config.portrait.cmd_file,
         "landscape_cmd_file": config.landscape.cmd_file,
         "origenerator_cmd_file": config.origenerator_cmd_file,
+    }
+
+
+def _channels_with_no_vocabulary_of_their_own(config: BridgeConfig) -> dict[str, Path | None]:
+    return {
         "broker_cmd_file": config.broker_cmd_file,
         "main_funestra_paused_file": config.main_funestra_paused_file,
         "genau_paused_file": config.genau_paused_file,
@@ -35,6 +40,10 @@ def _channels(config: BridgeConfig) -> dict[str, Path | None]:
         "landscape_paused_file": config.landscape.paused_file,
         "origenerator_paused_file": config.origenerator_paused_file,
     }
+
+
+def _channels(config: BridgeConfig) -> dict[str, Path | None]:
+    return {**_channels_of_verbs(config), **_channels_with_no_vocabulary_of_their_own(config)}
 
 
 def headset_config(root: Path, *, names_an_origenerator: bool = True) -> BridgeConfig:
@@ -83,13 +92,13 @@ TOLD_ACTIONS = {"alpha": ("alpha",)}
 
 
 def every_command() -> list[str]:
-    commands = {
+    behind_every_key_and_phrase_of_the_reference = {
         command
         for section in build_reference_sections(TOLD_ACTIONS)
         for row in section.rows
         for command in row.commands
     }
-    return sorted(commands | set(VOICE_COMMANDS.values())
+    return sorted(behind_every_key_and_phrase_of_the_reference | set(VOICE_COMMANDS.values())
                   | set(filter_voice_commands(TOLD_ACTIONS).values()))
 
 
@@ -108,6 +117,10 @@ def drain(config: BridgeConfig) -> dict[str, list[str]]:
             written[name] = lines
         Path(path).unlink()
     return written
+
+
+def _named_with_both_modes(main_mode, satellites_mode, command: str) -> str:
+    return f"{main_mode}/{satellites_mode}/{command}"
 
 
 def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
@@ -138,5 +151,5 @@ def _what_every_command_sent(config: BridgeConfig, satellites_modes) -> dict[str
                 _state, ops = dispatch_command(command, state, config, target_path="")
                 written = drain(config)
                 written["__ops__"] = sorted({op.op for op in ops})
-                landed[f"{main_mode}/{satellites_mode}/{command}"] = written
+                landed[_named_with_both_modes(main_mode, satellites_mode, command)] = written
     return landed

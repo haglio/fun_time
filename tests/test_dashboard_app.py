@@ -1497,8 +1497,8 @@ def test_the_funestra_rects_come_from_the_layout_startup_positions_with(
     layout = dashboard_app_config.layout
 
     primary, secondary = get_logical_monitor_rects(
-        _monitors(), primary_index=layout.primary_monitor,
-        secondary_index=layout.secondary_monitor)
+        _monitors(), configured_primary_number=layout.primary_monitor,
+        configured_secondary_number=layout.secondary_monitor)
     plan = compute_window_layout(
         primary_monitor=primary, secondary_monitor=secondary, layout_config=layout)
     main = compute_main_media_rect(secondary_monitor=secondary, layout_config=layout)
@@ -1556,8 +1556,8 @@ def test_a_main_funestra_message_lands_on_the_main_funestra_wherever_the_crown_h
         window.close()
     layout = dashboard_app_config.layout
     _primary, secondary = get_logical_monitor_rects(
-        _monitors(), primary_index=layout.primary_monitor,
-        secondary_index=layout.secondary_monitor)
+        _monitors(), configured_primary_number=layout.primary_monitor,
+        configured_secondary_number=layout.secondary_monitor)
     assert target == secondary_monitor_rects(secondary, layout, majority=Crown.MAIN).main
 
 

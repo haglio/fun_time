@@ -92,7 +92,7 @@ from tests.fun_time_window_fakes import (
     PORTRAIT_PID,
     RFB_HWND,
     TOPMOST_HWNDS,
-    FakeClock,
+    HandDrivenClock,
     lookup_hosted,
     lookup_pid,
     lookup_title,
@@ -825,7 +825,7 @@ class TestDispatchLoopRunner:
             "parking one Funestra must not hand the foreground to the next")
 
     def test_a_huds_minimize_button_parks_the_window_still_showing_its_video(self, tmp_path):
-        clock = FakeClock()
+        clock = HandDrivenClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("landscape_minimize", encoding="utf-8")

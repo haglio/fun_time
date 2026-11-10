@@ -81,6 +81,22 @@ def test_the_launch_loads_nothing_the_loading_screen_does_not_need():
     )
 
 
+def test_the_module_that_applies_the_override_imports_only_the_standard_library():
+    tree = ast.parse((PROJECT_DIR / "fun_time" / "project_paths.py").read_text(encoding="utf-8"))
+    imported = {
+        "." * node.level + (node.module or "")
+        for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+    } | {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import)
+         for alias in node.names}
+
+    beyond_the_standard_library = {
+        name for name in imported
+        if name.split(".")[0] not in {*sys.stdlib_module_names, "__future__"}
+    }
+
+    assert beyond_the_standard_library == set()
+
+
 @pytest.mark.parametrize("package", ["fun_time", "fun_time_vr"])
 def test_the_sys_path_override_is_applied_before_the_package_imports_anything_else(package):
     tree = ast.parse((PROJECT_DIR / package / "__init__.py").read_text(encoding="utf-8"))

@@ -6,8 +6,10 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+_WHAT_NO_ERROR_HANDLER_CATCHES = BaseException
 
-class DriveNeverAnswered(BaseException):
+
+class DriveNeverAnswered(_WHAT_NO_ERROR_HANDLER_CATCHES):
     pass
 
 

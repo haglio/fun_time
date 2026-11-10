@@ -13,11 +13,11 @@ def test_write_then_read_roundtrips_the_level(tmp_path: Path):
     assert read_volume(path) == 30
 
 
-def test_an_unpublished_level_reads_as_full_volume(tmp_path: Path):
+def test_a_companion_started_before_any_level_is_published_reads_full_volume(tmp_path: Path):
     assert read_volume(tmp_path / "missing.txt") == MAX_VOLUME
 
 
-def test_a_corrupt_level_reads_as_full_volume(tmp_path: Path):
+def test_a_half_written_level_reads_as_full_volume(tmp_path: Path):
     path = tmp_path / "audio_volume.txt"
     path.write_text("", encoding="utf-8")
 

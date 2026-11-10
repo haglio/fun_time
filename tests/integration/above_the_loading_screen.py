@@ -18,11 +18,12 @@ _user32.IsWindowVisible.argtypes = [wt.HWND]
 _user32.GetWindowTextW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 GW_HWNDPREV = 3
 
-VISIBLE_MS = 34.0
+_FRAME_AT_60HZ_MS = 17.0
+VISIBLE_MS = 2 * _FRAME_AT_60HZ_MS
 
 POLL_S = 0.002
 
-_LOST_SAMPLE_MS = 6.0
+_LONGEST_GAP_COUNTED_AS_WATCHED_MS = 6.0
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ def stays_from(samples: list[tuple[float, int, str]]) -> list[Stay]:
             out.append(Stay(f"{above[1]!r} (hwnd={above[0]})", (previous - start) * 1000))
 
     for when, hwnd, title in samples:
-        unwatched = above[0] and (when - previous) * 1000 > _LOST_SAMPLE_MS
+        unwatched = above[0] and (when - previous) * 1000 > _LONGEST_GAP_COUNTED_AS_WATCHED_MS
         if (hwnd, title) != above or unwatched:
             close()
             above, start = (hwnd, title), when

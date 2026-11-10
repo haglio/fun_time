@@ -34,8 +34,8 @@ class ScreenLayout:
 def screen_layout(layout_config: LayoutConfig, *, rfb_mode_selector: bool = False) -> ScreenLayout:
     primary_rect, secondary_rect = get_logical_monitor_rects(
         enumerate_monitors(),
-        primary_index=layout_config.primary_monitor,
-        secondary_index=layout_config.secondary_monitor,
+        configured_primary_number=layout_config.primary_monitor,
+        configured_secondary_number=layout_config.secondary_monitor,
     )
     return ScreenLayout(
         plan=compute_window_layout(
