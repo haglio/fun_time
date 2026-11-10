@@ -31,7 +31,12 @@ from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FIL
 from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra, part_closed_message
+from fun_time.funestra_deaths import (
+    FunestraDied,
+    LaunchedFunestra,
+    origenerator_never_came_up_message,
+    part_closed_message,
+)
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
     HostedVocabulary,
@@ -3140,6 +3145,10 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
 
 class TestARoomLeftInOrigeneratorMode:
     def _run(self, cfg_factory, tmp_path, *, the_app_answers: bool) -> list[str]:
+        return self._session(cfg_factory, tmp_path, the_app_answers=the_app_answers)[0]
+
+    def _session(self, cfg_factory, tmp_path, *,
+                 the_app_answers: bool) -> tuple[list[str], SessionOver]:
         (tmp_path / "origenerator").mkdir(exist_ok=True)
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
@@ -3185,15 +3194,16 @@ class TestARoomLeftInOrigeneratorMode:
              patch("fun_time.windows_bridge_orchestrator.release_the_funestras"), \
              patch("fun_time.runtime_flow.append_command",
                    side_effect=lambda _path, verb: events.append(verb)), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-            _a_session(
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=lambda pid: events.append(f"killed {pid}")):
+            over = _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
                 state_dir=state_dir,
                 project_dir=tmp_path,
             )
-        return events
+        return events, over
 
     def test_the_app_is_shown_with_the_browser_under_origenerator(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
@@ -3224,14 +3234,17 @@ class TestARoomLeftInOrigeneratorMode:
             "the dashboard shows itself on the full bar, and the pass waits for its window"
         )
 
-    def test_an_app_that_never_answers_opens_the_app_in_kino_mode(self, cfg_factory, tmp_path):
+    def test_an_app_that_never_answers_stops_fun_time_starting_up_and_says_why(
+            self, cfg_factory, tmp_path):
         with patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_BUDGET_S", 0.05), \
              patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_POLL_S", 0.01):
-            events = self._run(cfg_factory, tmp_path, the_app_answers=False)
+            events, over = self._session(cfg_factory, tmp_path, the_app_answers=False)
 
-        assert "loading screen gone" in events, "Fun Time never opened"
+        assert over == SessionOver(1, why=origenerator_never_came_up_message())
         assert "portrait_open_slideshow" not in events, (
             "the slideshows were asked for with no app to show them")
+        assert {"killed 200", "killed 300", "killed 400", "killed 800"} <= set(events), (
+            "what the session had launched was left running")
 
     def test_the_wait_writes_the_loading_screen_progress_more_often_than_its_staleness_guard(self):
         assert windows_bridge_orchestrator.ORIGENERATOR_BOOT_POLL_S < STALE_TIMEOUT_S

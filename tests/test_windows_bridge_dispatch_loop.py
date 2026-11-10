@@ -58,6 +58,7 @@ from fun_time.media_metadata import (
     is_favorite,
     metadata_path_for,
 )
+from fun_time.origenerator_opening import OrigeneratorNeverCameUp
 from fun_time.origenerator_switches import RfbMode
 from fun_time.regen import build_regen_url
 from fun_time.rfb_slideshow import RfbSlideshow
@@ -3258,20 +3259,20 @@ class TestOpeningInOrigeneratorMode:
     def _the_app_answers(has_answered):
         return has_answered()
 
-    def test_it_puts_origenerator_back_on_what_it_held_when_the_last_session_was_left(
+    def test_the_browsers_place_goes_back_to_origenerator_when_the_last_session_left_it_there(
             self, tmp_path):
-        write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
-            BridgeState(rfb_mode=RfbMode.ORIGENERATOR), FunTimeFunestra.LANDSCAPE))
+        write_shared_state(tmp_path / "shared_state.ini",
+                           BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
         runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]
+        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "landscape_open_slideshow"]
+            "portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_every_setting_the_app_was_left_in_comes_back_with_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -3285,20 +3286,7 @@ class TestOpeningInOrigeneratorMode:
 
         assert remembered_values(read_shared_state(state_file)) == remembered_values(left_in)
 
-    def test_an_app_left_with_only_the_browsers_place_to_origenerator_waits_for_it_too(
-            self, tmp_path):
-        write_shared_state(tmp_path / "shared_state.ini",
-                           BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
-        _the_hosted_app_answers(tmp_path)
-
-        assert runner.opening.activates
-        runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
-
-        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-
-    def test_a_slideshow_taken_over_opens_on_the_satellite_of_its_monitor_beside_the_app(
+    def test_a_slideshow_taken_over_puts_the_browsers_place_on_origenerator(
             self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path),
                              origenerator_already_open=True,
@@ -3307,10 +3295,10 @@ class TestOpeningInOrigeneratorMode:
         runner.activate_origenerator(
             wait_for_the_app=self._the_app_answers)
 
-        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.KINO]
+        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
-            "portrait_open_slideshow"]
+            "portrait_open_slideshow", "landscape_open_slideshow"]
 
     def test_the_satellite_a_slideshow_taken_over_is_not_on_opens_as_it_was_left(
             self, tmp_path):
@@ -3339,37 +3327,30 @@ class TestOpeningInOrigeneratorMode:
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
 
-    def test_an_app_left_in_kino_mode_holds_its_loading_screen_up_for_nothing(self, tmp_path):
+    def test_a_session_left_with_its_satellites_in_kino_opens_both_in_the_hosted_app(
+            self, tmp_path):
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState())
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
         _the_hosted_app_answers(tmp_path)
-        waits: list[bool] = []
 
-        def wait_for_the_app(has_answered):
-            waits.append(True)
-            return has_answered()
+        runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
 
-        runner.activate_origenerator(wait_for_the_app=wait_for_the_app)
-
-        assert not waits, "an ordinary room was held under its loading screen for the hosted app"
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert not (tmp_path / "origenerator_cmd.txt").exists()
-
-    def test_an_app_turning_up_after_the_loading_screen_came_off_switches_nothing(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        write_shared_state(state_file, _in_origenerator_mode(
-            BridgeState(rfb_mode=RfbMode.ORIGENERATOR)))
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
-
-        runner.activate_origenerator(wait_for_the_app=lambda _: False)
-        assert _modes(read_shared_state(state_file)) == [SatellitesMode.KINO, SatellitesMode.KINO]
-        assert read_shared_state(state_file).rfb_mode is RfbMode.RFB
-
-        _the_hosted_app_answers(tmp_path)
-        runner.tick()
-        runner.tick()
-
-        assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.KINO]
+        assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.RFB
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
+            "portrait_open_slideshow", "landscape_open_slideshow"]
+
+    def test_an_app_the_wait_gave_up_on_stops_the_session_opening_and_leaves_what_was_saved(
+            self, tmp_path):
+        state_file = tmp_path / "shared_state.ini"
+        left_in = BridgeState(rfb_mode=RfbMode.ORIGENERATOR)
+        write_shared_state(state_file, left_in)
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+
+        with pytest.raises(OrigeneratorNeverCameUp):
+            runner.activate_origenerator(wait_for_the_app=lambda _: False)
+
+        assert read_shared_state(state_file) == left_in
         assert not (tmp_path / "origenerator_cmd.txt").exists()
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):

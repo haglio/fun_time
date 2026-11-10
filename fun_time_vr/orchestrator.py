@@ -27,6 +27,7 @@ from fun_time.event_log import open_event_log
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_deaths import (
+    origenerator_never_came_up_message,
     part_closed_message,
     show_funestra_died_alert,
     the_part_that_closed,
@@ -63,6 +64,7 @@ from fun_time.orchestrator import (
     tell_the_hidden_launcher_startup_resolved,
     validate_config,
 )
+from fun_time.origenerator_opening import OrigeneratorNeverCameUp
 from fun_time.overlay_progress import (
     CANCEL_CLOSING_FUN_TIME_VR,
     CANCEL_FILENAME,
@@ -502,6 +504,13 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
 
     try:
         running = _open_the_room(launch, launched, carried, hud_publisher)
+    except OrigeneratorNeverCameUp:
+        logger.error("Origenerator never finished starting; tearing down %d launched "
+                     "child(ren)", len(launched.children))
+        _take_down_the_launch(launch, launched, ahk_proc)
+        drop_transition_screen(launch.state_dir)
+        show_funestra_died_alert(origenerator_never_came_up_message())
+        return 1
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",
                     len(launched.children))
