@@ -463,8 +463,7 @@ def launch_main_funestra(
         cmd.append("--genau-f-mode")
     if genau.orientations != BOTH:
         cmd += ["--genau-orientations", *orientation_words(genau.orientations)]
-    if m.runtime.hosts_origenerator:
-        cmd += ["--origenerator-command-file", str(commands.origenerator_cmd_file)]
+    cmd += ["--origenerator-command-file", str(commands.origenerator_cmd_file)]
     if commands.main_funestra_notice_file:
         cmd += ["--notice-file", str(commands.main_funestra_notice_file)]
     if commands.osr2_slot_port:

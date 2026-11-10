@@ -854,12 +854,9 @@ def _build_the_dispatch_loop(
             ),
             rfb_shortcut=rfb_shortcut,
             rfb_slideshow=rfb_slideshow_on(result.rfb_hwnd) if result.rfb_hwnd else None,
-            press_and_caret_watch=(
-                PressAndCaretWatch()
-                if result.rfb_hwnd or manifest.runtime.origenerator_dir.strip() else None),
+            press_and_caret_watch=PressAndCaretWatch(),
             origenerator_already_open=result.origenerator_already_open,
-            origenerator_showing_a_slideshow=result.origenerator_showing_a_slideshow,
-            hosts_origenerator=manifest.runtime.hosts_origenerator),
+            origenerator_showing_a_slideshow=result.origenerator_showing_a_slideshow),
         Publishing(
             dashboard_enabled=manifest.dashboard_enabled,
             hud_publisher=hud_publisher,

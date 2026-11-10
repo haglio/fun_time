@@ -131,6 +131,5 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
 RFB_MODE_SELECTOR_HEIGHT = PAD * 2 + BUTTON
 
 
-def dashboard_window_height(*, rfb_mode_selector: bool = False) -> int:
-    strip = RFB_MODE_SELECTOR_HEIGHT if rfb_mode_selector else 0
-    return compute_dashboard_bar_layout().height + LOG_HEIGHT + strip
+def dashboard_window_height() -> int:
+    return compute_dashboard_bar_layout().height + LOG_HEIGHT + RFB_MODE_SELECTOR_HEIGHT

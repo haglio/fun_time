@@ -24,9 +24,10 @@ from fun_time import (
     win32_events,
     windows_bridge_orchestrator,
 )
-from fun_time.config import DEFAULT_CONFIG_PATH
+from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time_vr import orchestrator as vr_orchestrator
 from tests.headset_refusal import his_headset_refused
+from tests.hosted_shows import an_origenerator_that_answers
 from tests.logging_state import logging_given_back
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 from tests.process_state import the_guard_for
@@ -239,11 +240,13 @@ def _cleanup_tmp_root():
 def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     (tmp_path / "state").mkdir(exist_ok=True)
     (tmp_path / "videos" / "videos" / "main_player_library").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "origenerator").mkdir(exist_ok=True)
 
     cfg: dict = {
         "paths": {
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
+            "origenerator_dir": str(tmp_path / "origenerator"),
             "main_player_library_dirs": [str(tmp_path / "videos" / "videos" / "main_player_library")],
             "state_dir": str(tmp_path / "state"),
         },
@@ -285,6 +288,11 @@ def genaus_folder(tmp_path: Path, monkeypatch) -> Path:
 @pytest.fixture
 def cfg_path(tmp_path: Path, genaus_folder: Path) -> Path:
     return _write_config(tmp_path)
+
+
+@pytest.fixture
+def hosted_origenerator(cfg_path: Path, monkeypatch) -> list[str]:
+    return an_origenerator_that_answers(load_config(cfg_path), monkeypatch)
 
 
 @pytest.fixture

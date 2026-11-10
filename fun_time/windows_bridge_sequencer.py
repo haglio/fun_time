@@ -208,7 +208,7 @@ def _log_for_a_funestra_pythonw_gives_no_console(state_dir: Path, funestra: str)
 
 
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
-    return screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator)
+    return screen_layout(m.layout)
 
 
 def _launch_the_satellites(
@@ -306,7 +306,7 @@ def _start_the_hosted_apps_long_boot(
     launched: _LaunchedChildren,
 ) -> int:
     app = bring_up_the_hosted_app(m, plan=plan, sibling_checkouts=sibling_checkouts)
-    return 0 if app is None else launched.hosts(app)
+    return launched.hosts(app)
 
 
 def _launch_core_media(

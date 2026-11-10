@@ -116,7 +116,7 @@ def test_an_integration_run_never_hosts_the_real_origenerator_this_checkout_name
 
     config = apply_this_checkouts_overrides(load_config(cfg_path), integration=True)
 
-    assert config.paths.origenerator_dir is None
+    assert config.paths.origenerator_dir == tmp_path / "origenerator"
 
 
 def test_a_session_runs_the_sibling_checkouts_its_own_checkout_names(tmp_path, monkeypatch, cfg_path):

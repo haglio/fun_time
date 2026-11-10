@@ -266,7 +266,6 @@ class TestOrigeneratorInVr:
                        verbs)):
             _end_a_vr_session(
                 orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
-                bring_up_the_hosted_app=MagicMock(return_value=None),
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
@@ -1549,6 +1548,9 @@ class TestTheHotkeyScriptsArguments:
         assert Path(self._launched(config)[1]) == config.project_dir / HOTKEY_SCRIPT_NAME
 
 
+A_LAUNCHED_APP = HostedApp(303, already_open=False, taken_over=False, showing_a_slideshow=False)
+
+
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     stand_ins = {
         "open_event_log": MagicMock(),
@@ -1556,6 +1558,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         "leave_a_park_for_the_brokers_next_tick": MagicMock(),
         "ensure_broker": MagicMock(),
         "reap_orphaned_satellites": MagicMock(),
+        "bring_up_the_hosted_app": MagicMock(return_value=A_LAUNCHED_APP),
         "open_the_main_funestras_list": MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
         "launch_audio_companion": MagicMock(return_value=MagicMock(pid=101)),
         "launch_vr_funestras": MagicMock(return_value=MagicMock(pid=202)),
@@ -1633,7 +1636,7 @@ class TestOpeningAVrSession:
 
         assert exit_code == 1
         assert said == [origenerator_never_came_up_message()]
-        assert torn_down == ["hotkeys", 101, 202, "runtime"]
+        assert torn_down == ["hotkeys", A_LAUNCHED_APP.pid, 101, 202, "runtime"]
 
     def test_a_failure_takes_down_what_it_launched_and_gives_the_monitors_back(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
@@ -1647,7 +1650,7 @@ class TestOpeningAVrSession:
              pytest.raises(TypeError):
             orchestrator.run_vr_bridge(config, SessionEnvironment())
 
-        assert torn_down == ["hotkeys", 101, 202, "runtime"]
+        assert torn_down == ["hotkeys", A_LAUNCHED_APP.pid, 101, 202, "runtime"]
         assert pending_handoff(config.paths.state_dir) is None
 
     def test_a_funestra_that_never_comes_up_is_ended_with_the_loading_screen_kept_up(self, config):

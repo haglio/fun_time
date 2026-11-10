@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from fun_time import load_config
 from fun_time.crown import Crown
-from fun_time.dashboard_layout import RFB_MODE_SELECTOR_HEIGHT, dashboard_window_height
+from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
     MonitorRect,
@@ -152,23 +152,6 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     assert plan.dashboard.width == plan.random_faves_browser.width
     assert plan.random_faves_browser.y == plan.dashboard.y + plan.dashboard.height
     assert plan.random_faves_browser.height > plan.dashboard.height
-
-
-def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_path: Path):
-    def plan(**strip):
-        return compute_window_layout(
-            primary_monitor=MonitorRect(0, 0, 2560, 1392),
-            secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
-            layout_config=load_config(cfg_path).layout, **strip)
-
-    without, with_mode_selector = plan(), plan(rfb_mode_selector=True)
-
-    taller = with_mode_selector.dashboard.height - without.dashboard.height
-    assert taller == RFB_MODE_SELECTOR_HEIGHT
-    assert without.random_faves_browser.height - with_mode_selector.random_faves_browser.height == taller
-    assert with_mode_selector.random_faves_browser.y == (
-        with_mode_selector.dashboard.y + with_mode_selector.dashboard.height)
-    assert with_mode_selector.dashboard.height == dashboard_window_height(rfb_mode_selector=True)
 
 
 def test_a_main_funestra_given_most_of_the_screen_trades_sizes_with_the_portrait_funestra(

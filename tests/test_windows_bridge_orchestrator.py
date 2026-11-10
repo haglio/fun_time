@@ -126,6 +126,8 @@ from tests.loading_screen_beats import heard_from_again_once_stale
 from tests.sleeps import sleeps_in
 from tests.test_windows_bridge_dispatch_loop import make_config
 
+pytestmark = pytest.mark.usefixtures("hosted_origenerator")
+
 
 def _a_session(**kwargs) -> SessionOver:
     env = kwargs.get("env", ORDINARY_SESSION)
@@ -750,49 +752,26 @@ class TestRunPythonOrchestratedBridge:
         slideshow_on.assert_not_called()
         assert mock_runner.call_args.args[2].rfb_slideshow is None
 
-    def _the_watch_a_session_hands_its_loop(self, cfg, tmp_path, *, rfb_hwnd=0):
+    def test_every_session_watches_for_clicks_into_text_fields(self, cfg_factory, tmp_path):
         manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         fake_proc = MagicMock()
         fake_proc.wait.return_value = 0
 
         with (
             patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                  side_effect=lambda **kwargs: replace(_fake_startup_result(), rfb_hwnd=rfb_hwnd)),
+                  side_effect=lambda **kwargs: replace(_fake_startup_result(), rfb_hwnd=0)),
             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),
             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),
-            patch("fun_time.windows_bridge_orchestrator.rfb_slideshow_on"),
             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner,
         ):
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
-        return mock_runner.call_args.args[2].press_and_caret_watch
 
-    def test_a_session_with_its_own_browser_window_watches_for_clicks_into_text_fields(
-            self, cfg_factory, tmp_path):
-        watch = self._the_watch_a_session_hands_its_loop(
-            load_config(cfg_factory()), tmp_path, rfb_hwnd=55555)
-
-        assert isinstance(watch, PressAndCaretWatch)
-
-    def test_a_session_that_hosts_origenerator_watches_for_clicks_into_text_fields(
-            self, cfg_factory, tmp_path):
-        (tmp_path / "origenerator").mkdir()
-        cfg = load_config(cfg_factory({"paths": {
-            "origenerator_dir": str(tmp_path / "origenerator"),
-            "origenerator_python_exe": str(tmp_path / "python.exe"),
-        }}))
-
-        watch = self._the_watch_a_session_hands_its_loop(cfg, tmp_path)
-
-        assert isinstance(watch, PressAndCaretWatch)
-
-    def test_a_session_with_no_browser_window_and_no_origenerator_watches_nothing(
-            self, cfg_factory, tmp_path):
-        assert self._the_watch_a_session_hands_its_loop(load_config(cfg_factory()), tmp_path) is None
+        assert isinstance(mock_runner.call_args.args[2].press_and_caret_watch, PressAndCaretWatch)
 
     def test_a_session_beside_another_can_serve_on_a_port_of_its_own(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({"loopback_port": 54321}))
@@ -1214,7 +1193,7 @@ class TestKeepingTheHostedApp:
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
         assert channel.exists(), "the parked app was never told to close its slideshows"
-        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
+        assert channel.read_text(encoding="utf-8").splitlines()[-1] == "CLOSE_SLIDESHOWS"
 
     def test_esc_on_the_closing_screen_parks_it_for_fun_time_coming_back(
         self, cfg_factory, tmp_path,
@@ -1230,7 +1209,7 @@ class TestKeepingTheHostedApp:
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
         assert channel.exists(), "the hosted app was closed rather than parked"
-        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
+        assert channel.read_text(encoding="utf-8").splitlines()[-1] == "CLOSE_SLIDESHOWS"
 
     def test_a_quit_that_goes_on_after_all_closes_what_esc_had_parked(
         self, cfg_factory, tmp_path,
@@ -1289,7 +1268,7 @@ class TestKeepingTheHostedApp:
 
         channel = Path(LaunchManifest.read(
             tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
-        assert channel.read_text(encoding="utf-8").split() == ["RELEASE"]
+        assert channel.read_text(encoding="utf-8").splitlines()[-1] == "RELEASE"
         assert "kill:800" not in events
 
     def test_a_crossing_keeps_a_taken_over_app_as_one_to_hand_back(self, tmp_path):
@@ -1305,7 +1284,7 @@ class TestKeepingTheHostedApp:
                 farewell=HostedAppFarewell(channel, keep=True, taken_over=True))
 
         assert kept_origenerator(tmp_path).taken_over
-        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SLIDESHOWS"]
+        assert channel.read_text(encoding="utf-8").splitlines()[-1] == "CLOSE_SLIDESHOWS"
 
     def test_a_crossing_keeps_an_origenerator_he_had_open_as_a_preview(self, tmp_path):
         the_preview = partial(lookup_hosted, caption=window_title(
@@ -1574,7 +1553,7 @@ class TestClosingScreenLifecycle:
         self, cfg_factory, tmp_path,
     ):
         state_dir = tmp_path / "state"
-        state_dir.mkdir(parents=True)
+        state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir), BridgeState(osr2_control=OSR2_RETRACTED))
         broker_at_loading_screen_up: list[str] = []
 
@@ -1873,7 +1852,7 @@ class _AStarvedClosingScreen:
 
 def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosingScreen, bool]:
     state_dir = tmp_path / "state"
-    state_dir.mkdir()
+    state_dir.mkdir(exist_ok=True)
     screen = _AStarvedClosingScreen(state_dir / SHUTDOWN_PROGRESS_FILENAME)
     with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=screen), \
          patch("fun_time.windows_bridge_orchestrator.tie_to_this_process"), \
@@ -2733,7 +2712,7 @@ class TestVoiceControlIntegration:
 class TestOpenEventLog:
     def test_truncates_the_previous_session_and_tails_every_fun_time_logger(self, tmp_path):
         state_dir = tmp_path / "state"
-        state_dir.mkdir()
+        state_dir.mkdir(exist_ok=True)
         event_log_path(state_dir).write_text('{"ts":1,"level":20,"source":"dash","msg":"stale"}\n',
                                              encoding="utf-8")
         package_logger = logging.getLogger("fun_time")
@@ -3104,22 +3083,15 @@ class TestARoomLeftInOrigeneratorMode:
 
     def _session(self, cfg_factory, tmp_path, *,
                  the_app_answers: bool) -> tuple[list[str], SessionOver]:
-        (tmp_path / "origenerator").mkdir(exist_ok=True)
-        cfg = load_config(cfg_factory({"paths": {
-            "origenerator_dir": str(tmp_path / "origenerator"),
-            "origenerator_python_exe": str(tmp_path / "python.exe"),
-        }}))
+        cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         manifest = LaunchManifest.read(manifest_path)
         state_dir = tmp_path / "state"
-        state_dir.mkdir(parents=True, exist_ok=True)
         write_shared_state(shared_state_path(state_dir), BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
-        if the_app_answers:
-            status = Path(manifest.commands.origenerator_status_file)
-            status.parent.mkdir(parents=True, exist_ok=True)
-            status.write_text("paused = 0\n", encoding="utf-8")
+        if not the_app_answers:
+            Path(manifest.commands.origenerator_status_file).unlink()
 
         events: list[str] = []
         fake_ahk_proc = MagicMock()

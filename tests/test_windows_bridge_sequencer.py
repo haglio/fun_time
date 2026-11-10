@@ -73,9 +73,9 @@ FAKE_MONITORS = [
 ]
 
 
-def fake_screen_layout(layout_config, **strip):
+def fake_screen_layout(layout_config):
     with patch("fun_time.window_layout.enumerate_monitors", return_value=FAKE_MONITORS):
-        return screen_layout(layout_config, **strip)
+        return screen_layout(layout_config)
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
@@ -179,6 +179,7 @@ def _sequencer_stubs(**overrides):
         "move_window": {},
         "set_always_on_top": {},
         "is_process_alive": {"return_value": True},
+        "launch_origenerator": {"side_effect": _fake_origenerator},
     }
     spec.update(overrides)
     with contextlib.ExitStack() as stack:
@@ -316,14 +317,11 @@ class TestRunStartupSequence:
         assert all(
             isinstance(value, int) for value in ui_called["plan"].random_faves_browser)
 
-    def test_a_session_hosting_origenerator_opens_the_dashboard_tall_enough_for_its_strip(
-            self, cfg_factory, tmp_path):
-        _cfg, _result, _core, ui_called = self._captured_launch(
-            cfg_factory, tmp_path, paths={"origenerator_dir": str(tmp_path / "origenerator")},
-            launch_origenerator={"side_effect": _fake_origenerator})
+    def test_the_dashboard_opens_tall_enough_for_its_strip(self, cfg_factory, tmp_path):
+        _cfg, _result, _core, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
         dashboard = ui_called["plan"].dashboard
-        assert dashboard.height == dashboard_window_height(rfb_mode_selector=True)
+        assert dashboard.height == dashboard_window_height()
         assert ui_called["plan"].random_faves_browser.y == dashboard.y + dashboard.height
 
     def test_launches_the_main_funestra_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
@@ -683,7 +681,7 @@ class TestRunStartupSequenceCancellation:
             )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID}
+        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, ORIGENERATOR_PID}
         assert exc.rfb_hwnd == 0
         ui.assert_not_called()
 
@@ -700,7 +698,7 @@ class TestRunStartupSequenceCancellation:
             )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, 50, 70}
+        assert set(exc.launched_pids) == {30, 40, MAIN_FUNESTRA_PID, ORIGENERATOR_PID, 50, 70}
         assert exc.rfb_hwnd == 7777
 
 
@@ -1294,15 +1292,6 @@ class TestOrigeneratorLaunch:
         assert Path(captured["python_exe"]) == named.resolve()
         install_lookup.assert_not_called()
 
-    def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
-        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        with _sequencer_stubs(launch_origenerator={}) as stubs:
-            launch = stubs.launch_origenerator
-            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
-
-        launch.assert_not_called()
-        assert result.origenerator_pid == 0
-
     def _checkout_with_an_open_app(self, cfg_factory, tmp_path, offer=None, *, hosting=None):
         offer = offer or Offer()
         checkout = tmp_path / "origenerator"
@@ -1438,14 +1427,6 @@ class TestOrigeneratorLaunch:
 
         assert handoff.a_session_claims_the_osr2(checkout / "state"), (
             "a window the takeover missed would keep its own switch and drive the OSR2 too")
-
-    def test_a_session_with_no_checkout_claims_nothing(self, cfg_factory, tmp_path):
-        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        with _sequencer_stubs(launch_origenerator={}):
-            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
-
-        assert not list(tmp_path.glob(f"**/{handoff.SESSION}"))
 
     def test_an_app_taken_over_before_a_crossing_is_adopted_as_one_to_hand_back(
         self, cfg_factory, tmp_path
