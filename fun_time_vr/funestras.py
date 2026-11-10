@@ -1371,8 +1371,8 @@ class LoadingScreenUnit:
     def point(self, frame: Frame) -> None:
         pass
 
-    def closing_now(self) -> None:
-        self._watcher.closing_now()
+    def closing_unasked(self) -> None:
+        self._watcher.closing_unasked()
 
     @property
     def wanted(self) -> bool:

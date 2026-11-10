@@ -11,9 +11,9 @@ import pytest
 from fun_time.session_handoff import headset_is_held, release_the_headset
 from fun_time.session_handoff import hold_the_headset as ask_for_the_hold
 from fun_time_vr.frame_loop import (
-    FIRST_LOADING_SCREEN_TIMEOUT_S,
-    HEADSET_HOLD_TIMEOUT_S,
-    TEARDOWN_LOADING_SCREEN_TIMEOUT_S,
+    CLOSING_SCREEN_WORTH_WAITING_S,
+    NO_NEXT_SESSION_COMES_AFTER_S,
+    SESSION_READY_EVENT_TIMEOUT_S,
     FrameLoop,
     Headset,
     QuadLayer,
@@ -147,7 +147,7 @@ class _ALoadingScreen:
     def refresh(self) -> None:
         self.told.append("refreshed")
 
-    def closing_now(self) -> None:
+    def closing_unasked(self) -> None:
         self.told.append("closing")
 
     def settled(self) -> None:
@@ -247,7 +247,7 @@ class TestRaisingTheLoadingScreen:
 
         raise_the_loading_screen(_a_headset(session), _ALoadingScreen(), clock=clock, sleep=clock.sleep)
 
-        assert clock.t >= FIRST_LOADING_SCREEN_TIMEOUT_S
+        assert clock.t >= SESSION_READY_EVENT_TIMEOUT_S
         assert session.ended, "it never tried"
 
 
@@ -290,7 +290,7 @@ class TestHoldingTheHeadset:
 
         hold_the_headset(_a_headset(session), _ALoadingScreen(), tmp_path, clock=clock)
 
-        assert clock.t >= HEADSET_HOLD_TIMEOUT_S
+        assert clock.t >= NO_NEXT_SESSION_COMES_AFTER_S
 
 
 class TestCoveringTheTeardown:
@@ -311,7 +311,7 @@ class TestCoveringTheTeardown:
 
         closing_screen_over_the_teardown(_a_headset(session), loading_screen, clock=clock)
 
-        assert clock.t >= TEARDOWN_LOADING_SCREEN_TIMEOUT_S
+        assert clock.t >= CLOSING_SCREEN_WORTH_WAITING_S
         assert loading_screen.told[-1] == "settled"
 
     def test_a_loading_screen_that_cannot_be_read_still_settles(self):
@@ -607,3 +607,14 @@ class TestTearingDown:
 
         assert stopped == [tmp_path]
         assert session.closed
+
+    def test_a_hold_released_meanwhile_still_ends_the_runtime_it_named(self, tmp_path):
+        ask_for_the_hold(tmp_path, stop_runtime=True)
+        session = _ASession(_a_frame())
+        session.poll_events = lambda: release_the_headset(tmp_path) if headset_is_held(tmp_path) else None
+        stopped = []
+
+        tear_down(_a_headset(session), _ARoom(_ALoadingScreen()), tmp_path, clock=_AClock(),
+                  stop_the_runtime=stopped.append)
+
+        assert stopped == [tmp_path]

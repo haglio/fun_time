@@ -18,7 +18,7 @@ def shape_of(luma: np.ndarray) -> str | None:
 
 
 def _eye_shape(eye: np.ndarray) -> str | None:
-    out = _distance_out(*eye.shape)
+    out = _in_radii_of_the_inscribed_circle(*eye.shape)
     if _lit(eye, out, _JUST_INSIDE_THE_CIRCLE) < MOSTLY:
         return None
     past_the_circle = _lit(eye, out, _JUST_PAST_THE_CIRCLE)
@@ -27,7 +27,7 @@ def _eye_shape(eye: np.ndarray) -> str | None:
     return FULL_FRAME if past_the_circle > MOSTLY else None
 
 
-def _distance_out(height: int, width: int) -> np.ndarray:
+def _in_radii_of_the_inscribed_circle(height: int, width: int) -> np.ndarray:
     ys = (np.arange(height) + 0.5) / height * 2 - 1
     xs = (np.arange(width) + 0.5) / width * 2 - 1
     return np.hypot(*np.meshgrid(xs, ys))

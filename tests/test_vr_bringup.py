@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from fun_time_vr.bringup import open_vr_session
 
 
@@ -97,3 +100,14 @@ def test_the_deadline_is_measured_from_the_first_attempt():
     )
 
     assert tried == [0.0, 2.0, 4.0, 6.0]
+
+
+def test_it_imports_without_loading_glfw_or_openxr():
+    code = (
+        "import fun_time_vr.bringup, sys; "
+        "loaded = [m for m in sys.modules if m in ('glfw', 'xr')]; "
+        "assert not loaded, loaded"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                            check=False)
+    assert result.returncode == 0, result.stderr

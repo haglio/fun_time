@@ -92,7 +92,7 @@ class LoadingScreenWatcher:
         self._seen: dict[str, tuple[tuple[str, float], float]] = {}
         self._gave_up: set[str] = set()
 
-    def closing_now(self) -> None:
+    def closing_unasked(self) -> None:
         self._closing_locally = True
 
     def read(self) -> LoadingScreen | None:

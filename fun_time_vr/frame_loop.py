@@ -36,11 +36,13 @@ from .render import SceneRenderer
 
 logger = logging.getLogger(__name__)
 
-TEARDOWN_LOADING_SCREEN_TIMEOUT_S = 1.0
+CLOSING_SCREEN_WORTH_WAITING_S = 1.0
 
-FIRST_LOADING_SCREEN_TIMEOUT_S = 5.0
+SESSION_READY_EVENT_TIMEOUT_S = 5.0
 
-HEADSET_HOLD_TIMEOUT_S = 180.0
+NO_NEXT_SESSION_COMES_AFTER_S = 180.0
+
+FILE_CHANNELS_SETTLE_S = 2.0
 
 Clock = Callable[[], float]
 Sleep = Callable[[float], None]
@@ -148,7 +150,7 @@ def raise_the_loading_screen(
 ) -> None:
     if not loading_screen.wanted:
         return
-    deadline = clock() + FIRST_LOADING_SCREEN_TIMEOUT_S
+    deadline = clock() + SESSION_READY_EVENT_TIMEOUT_S
     while headset.session.running and clock() < deadline:
         headset.session.poll_events()
         if headset.session.session_ready and present_the_loading_screen(headset, loading_screen):
@@ -160,7 +162,7 @@ def hold_the_headset(
     headset: Headset, loading_screen: LoadingScreenUnit, state_dir: Path, *, clock: Clock = time.monotonic,
 ) -> None:
     report_the_headset_held(state_dir)
-    deadline = clock() + HEADSET_HOLD_TIMEOUT_S
+    deadline = clock() + NO_NEXT_SESSION_COMES_AFTER_S
     try:
         while headset.session.running and clock() < deadline:
             if not headset_hold_asked(state_dir):
@@ -175,10 +177,10 @@ def hold_the_headset(
 
 
 def closing_screen_over_the_teardown(headset: Headset, loading_screen: LoadingScreenUnit, *, clock: Clock = time.monotonic) -> None:
-    loading_screen.closing_now()
+    loading_screen.closing_unasked()
     try:
         loading_screen.refresh()
-        deadline = clock() + TEARDOWN_LOADING_SCREEN_TIMEOUT_S
+        deadline = clock() + CLOSING_SCREEN_WORTH_WAITING_S
         while headset.session.running and clock() < deadline:
             headset.session.poll_events()
             if not headset.session.session_ready:
@@ -212,14 +214,17 @@ class FrameLoop:
             if loading_screen.holding:
                 break
             if not session.session_ready:
-                loading_screen.settled()
-                glfw.poll_events()
-                self._sleep(0.01)
+                self._idle_while_the_pump_thread_answers(glfw)
                 continue
             now = clock()
             self.show_a_frame(elapsed_s=now - last_frame_time, now=now)
             last_frame_time = now
             glfw.poll_events()
+
+    def _idle_while_the_pump_thread_answers(self, glfw) -> None:
+        self._room.loading_screen.settled()
+        glfw.poll_events()
+        self._sleep(0.01)
 
     def show_a_frame(self, *, elapsed_s: float, now: float) -> None:
         headset, the_room = self._headset, self._room
@@ -233,7 +238,7 @@ class FrameLoop:
             blank=the_room.still_blank(), focused=session.focused,
             views_tracked=session.views_tracked)
         t2 = time.perf_counter()
-        quads: list[QuadLayer] = []
+        quads_over_our_layer: list[QuadLayer] = []
         project = covered = False
         t3 = t2
         if should_render and views and loading_screen.showing:
@@ -246,12 +251,13 @@ class FrameLoop:
                 the_room.route_audio()
             session.sync_controller(display_time)
             arranged = self.arranging.arrange(session.hands, views, elapsed_s=elapsed_s, now=now)
-            quads, as_quads = self.quads_the_runtime_holds_steady(arranged) if self._use_layers else ([], set())
+            quads_over_our_layer, as_quads = (
+                self.quads_the_runtime_holds_steady(arranged) if self._use_layers else ([], set()))
             project = True
             t3 = time.perf_counter()
             draw_eyes(headset, arranged, the_room.pointing, views, as_quads=as_quads)
         t4 = time.perf_counter()
-        session.frame_end(display_time, views, project=project, quads=quads)
+        session.frame_end(display_time, views, project=project, quads=quads_over_our_layer)
         t5 = time.perf_counter()
         the_room.loading_screen_watch.frame_ended(
             covered=covered, focused=session.focused, should_render=should_render, now=now)
@@ -283,9 +289,9 @@ def tear_down(headset: Headset, the_room: TheRoom, state_dir: Path, *,
     closing_screen_over_the_teardown(headset, the_room.loading_screen, clock=clock)
     the_room.stop.set()
     for worker in the_room.workers:
-        worker.join(timeout=2.0)
+        worker.join(timeout=FILE_CHANNELS_SETTLE_S)
     held = headset_hold_asked(state_dir)
-    stop_runtime = held and headset_hold_stops_the_runtime(state_dir)
+    the_runtime_is_ours_to_stop = held and headset_hold_stops_the_runtime(state_dir)
     the_room.close(keep_the_loading_screen=held)
     if held:
         hold_the_headset(headset, the_room.loading_screen, state_dir, clock=clock)
@@ -294,5 +300,5 @@ def tear_down(headset: Headset, the_room: TheRoom, state_dir: Path, *,
     headset.renderer.close()
     headset.session.close()
     logger.info("Shutdown complete")
-    if stop_runtime:
+    if the_runtime_is_ours_to_stop:
         stop_the_runtime(state_dir)
