@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from dataclasses import replace
 
@@ -29,6 +30,22 @@ def test_a_rebuild_writes_the_list_from_the_video_on_screen(tmp_path):
     build.run()
 
     assert build.main_list.file.read_text(encoding="utf-8").splitlines()[0] == str(videos[3])
+
+
+def test_a_latest_list_started_at_the_top_opens_on_the_newest_arrival(tmp_path):
+    library = tmp_path / "library"
+    library.mkdir()
+    on_screen, arrival = library / "video one.mp4", library / "video two.mp4"
+    for arrived, video in enumerate((on_screen, arrival)):
+        video.write_text("x", encoding="utf-8")
+        os.utime(video, (1_000_000_000 + arrived, 1_000_000_000 + arrived))
+    build = _main_list_build(tmp_path, MainListSettings(latest=True), on_screen=str(on_screen),
+                             start_at_top=True)
+
+    build.run()
+
+    assert build.main_list.file.read_text(encoding="utf-8").splitlines()[0] == str(arrival)
+    assert str(arrival) in build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[-1]
 
 
 def test_a_rebuild_tells_the_main_funestra_its_f_mode_on_the_write_the_reload_rides(tmp_path):
@@ -110,14 +127,14 @@ class _Build:
         return _Build(f"{self.name} after {waiting.name}", self._ran)
 
 
-def test_a_build_is_handed_off_and_never_waited_for():
+def test_a_build_held_up_by_a_slow_drive_is_never_waited_for():
     ran: list[str] = []
     gate = threading.Event()
-    slow = _Build("slow", ran, gate=gate)
+    on_a_slow_drive = _Build("slow", ran, gate=gate)
 
-    BuildsOffTheLoop().build(slow)
+    BuildsOffTheLoop().build(on_a_slow_drive)
 
-    assert slow.started.wait(SETTLE_S)
+    assert on_a_slow_drive.started.wait(SETTLE_S)
     assert ran == []
     gate.set()
     wait_until(lambda: ran == ["slow"], timeout=SETTLE_S)

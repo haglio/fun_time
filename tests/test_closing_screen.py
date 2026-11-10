@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from fun_time import closing_screen
+from fun_time import closing_screen, loading_screen
 from fun_time.closing_screen import WINDOW_TITLE
 from fun_time.overlay_progress import ready_file_for
 
@@ -24,6 +24,10 @@ class TestWindowTitle:
         assert "Fun Time" in WINDOW_TITLE
 
 
+def test_it_waits_for_news_far_less_long_than_startups_loading_screen():
+    assert closing_screen.STALE_TIMEOUT_S * 2 < loading_screen.STALE_TIMEOUT_S
+
+
 class TestMain:
     def _run_main(self, tmp_path, monkeypatch) -> tuple[Path, FakeOverlay]:
         progress_file = tmp_path / "shutdown_progress.txt"
@@ -37,7 +41,13 @@ class TestMain:
         monkeypatch.setattr(sys, "argv", ["closing_screen", str(progress_file)])
 
         closing_screen.main()
-        return progress_file, built[0]
+        (the_one_panel,) = built
+        return progress_file, the_one_panel
+
+    def test_the_session_ends_under_one_panel_over_every_monitor(self, tmp_path, monkeypatch):
+        _progress_file, the_one_panel = self._run_main(tmp_path, monkeypatch)
+
+        assert isinstance(the_one_panel, FakeOverlay)
 
     def test_covers_the_progress_file_it_was_given(self, tmp_path, monkeypatch):
         progress_file, overlay = self._run_main(tmp_path, monkeypatch)

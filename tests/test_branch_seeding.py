@@ -139,3 +139,22 @@ def test_no_real_config_lands_where_a_session_given_no_config_would_read_it(tmp_
     branch_seeding.mirror_private_overlays(primary, worktree)
 
     assert not (worktree / DEFAULT_CONFIG_PATH.name).exists()
+
+
+def test_a_branch_writing_its_seeded_cache_leaves_the_live_sessions_alone(live, branch_state):
+    as_the_live_session_left_it = (live / "watch_stats.json").read_text(encoding="utf-8")
+    branch_seeding.seed_derived_caches(live, branch_state)
+
+    with (branch_state / "watch_stats.json").open("r+", encoding="utf-8") as seeded:
+        seeded.write(json.dumps({"unfinished": {}}))
+
+    assert (live / "watch_stats.json").read_text(encoding="utf-8") == as_the_live_session_left_it
+
+
+def test_a_branch_writing_a_topped_up_thumbnail_leaves_the_live_sessions_alone(live, branch_state):
+    branch_seeding.top_up_thumbnails(live, branch_state)
+
+    with (branch_state / "hud_thumbnails" / "abc123.jpg").open("r+b") as topped_up:
+        topped_up.write(b"unfinished")
+
+    assert (live / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"thumbnail"

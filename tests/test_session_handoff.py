@@ -356,6 +356,15 @@ class TestStartingTheIncomingSession:
         ]
         assert popen.call_args.kwargs["cwd"] == str(tmp_path / "worktree")
 
+    def test_a_launcher_log_that_cannot_be_opened_still_starts_the_session(self, tmp_path: Path):
+        (tmp_path / VR.launcher_log).mkdir()
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            start_the_session(
+                VR, SessionLaunch("py.exe", tmp_path, tmp_path, tmp_path / "c.json"),
+            )
+
+        popen.assert_called_once()
+
     def test_a_way_back_starts_the_session_offering_no_esc(self, tmp_path: Path):
         with patch.object(session_handoff.subprocess, "Popen") as popen:
             start_the_session(
