@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
+from types import MappingProxyType
 
 from app_support.video_names import stable_title, strip_processing_suffixes
 from funestra.funestra_verbs import SET_F_MODE
@@ -75,7 +76,7 @@ _KINDS_OF_LENGTH = {
     LengthMode.FULL: frozenset({FULL_LENGTH}),
 }
 
-_EVOLVER_RECORDS_NO_VR_VIDEO: dict = {}
+_NOTHING_ASKED_OF_THE_VR_DRIVE: Mapping = MappingProxyType({})
 
 
 def new_shuffle_seed() -> int:
@@ -145,9 +146,9 @@ class MainList:
         portrait = recorded_orientation(record) == PORTRAIT
         return settings.plays_portrait if portrait else settings.plays_landscape
 
-    def _what_evolver_recorded_of(self, video: str) -> dict:
+    def _what_evolver_recorded_of(self, video: str) -> Mapping:
         if in_a_vr_folder(video, source_roots(self.vr_dirs)):
-            return _EVOLVER_RECORDS_NO_VR_VIDEO
+            return _NOTHING_ASKED_OF_THE_VR_DRIVE
         return recorded_for(video, self.metadata_root)
 
     def lets_through(self, videos: list[str], settings: MainListSettings) -> list[str]:

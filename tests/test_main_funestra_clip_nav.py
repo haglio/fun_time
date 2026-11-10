@@ -154,7 +154,7 @@ class TestTheSceneEvolverMatchedByFrames:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         mine = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill", full_video_id=_scene_id(lib, meta, scene), scene_offset=808.2))
-        other = _clip(lib, meta, "w/Nora Quill - Cockeyed.mp4", ClipRecord("Vol2", 3, "Cockeyed", "Nora Quill", full_video_id=_scene_id(lib, meta, lib / "other" / "redacted_540-EhWGJW62.mp4"), scene_offset=12.0))
+        other = _clip(lib, meta, "w/Nora Quill - Crooked Lane.mp4", ClipRecord("Vol2", 3, "Crooked Lane", "Nora Quill", full_video_id=_scene_id(lib, meta, lib / "other" / "redacted_540-EhWGJW62.mp4"), scene_offset=12.0))
         nav = ClipNav.build([mine, other, scene], meta)
 
         assert nav.clip_of(scene) == mine
@@ -189,11 +189,11 @@ class TestMatchingOnNames:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         named_for_her = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", ClipRecord("Vol1", 11, "Nora Quill To the Brink", "Nora Quill"))
         named_for_her.write_bytes(b"x" * 400)
-        cockeyed = _clip(lib, meta, "w/Nora Quill - Cockeyed.mp4", ClipRecord("Vol2", 3, "Cockeyed", "Nora Quill"))
-        scene = _sidecar(lib, meta, "other/Nora Quill - Cockeyed 1080p.mp4", {})
-        nav = ClipNav.build([named_for_her, cockeyed, scene], meta)
+        crooked_lane = _clip(lib, meta, "w/Nora Quill - Crooked Lane.mp4", ClipRecord("Vol2", 3, "Crooked Lane", "Nora Quill"))
+        scene = _sidecar(lib, meta, "other/Nora Quill - Crooked Lane 1080p.mp4", {})
+        nav = ClipNav.build([named_for_her, crooked_lane, scene], meta)
 
-        assert nav.clip_of(scene) == cockeyed
+        assert nav.clip_of(scene) == crooked_lane
 
     def test_a_file_sharing_only_the_performer_is_not_the_clips_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"

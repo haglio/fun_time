@@ -57,7 +57,7 @@ def test_each_pass_measures_the_window_deals_the_events_then_ticks_then_paces():
                             ("paced",), ("closed",)]
 
 
-def test_each_pass_deals_its_events_against_the_window_as_fun_time_left_it_for_that_pass():
+def test_each_pass_deals_its_events_against_that_passs_window_size():
     spy = _Spy(passes=2)
     sizes = iter([(640, 480), (1280, 1024)])
 

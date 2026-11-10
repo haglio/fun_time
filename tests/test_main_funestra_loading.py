@@ -23,7 +23,7 @@ class TestWhatEndsTheWaitUnderTheLoadingScreen:
     def test_closing_the_window_quits(self):
         assert quit_requested([pygame.event.Event(pygame.QUIT)])
 
-    def test_ctrl_q_quits_nothing_the_quit_chord_is_fun_times_ctrl_alt_q(self):
+    def test_ctrl_q_quits_nothing_under_the_loading_screen(self):
         event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q, mod=pygame.KMOD_CTRL)
         assert not quit_requested([event])
 

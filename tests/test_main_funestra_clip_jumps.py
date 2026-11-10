@@ -257,7 +257,7 @@ class TestSingleVideoJumps:
         assert session.played == []
         assert messages.said == [("full video not available", MessageLevel.WARNING)]
 
-    def test_a_jump_to_one_video_replaces_no_list_so_the_volume_stays_named(self, tmp_path):
+    def test_a_jump_to_one_video_keeps_the_volumes_list_and_name(self, tmp_path):
         nav, _first, second, _scene = _world(tmp_path)
         jumps, session, _messages = _jumps(nav, second)
         jumps.play_compilation()
