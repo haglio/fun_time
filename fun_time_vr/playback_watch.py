@@ -16,7 +16,8 @@ class PlaybackWatch:
         self._said = ""
 
     def note(self, *, position_ms: float, playing: bool, now: float) -> str | None:
-        if not playing:
+        held_on_purpose_or_still_opening = not playing
+        if held_on_purpose_or_still_opening:
             self._position, self._said = None, ""
             return None
         if position_ms != self._position:
@@ -24,6 +25,9 @@ class PlaybackWatch:
             return None
         if now - self._since < self._seconds or self._said == STILL_STALLED:
             return None
-        self._since = now
+        self._give_the_callers_reopen_a_full_window_from(now)
         self._said = STALLED if not self._said else STILL_STALLED
         return self._said
+
+    def _give_the_callers_reopen_a_full_window_from(self, now: float) -> None:
+        self._since = now

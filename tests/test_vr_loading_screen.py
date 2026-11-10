@@ -9,14 +9,12 @@ import pytest
 from shared_ui.palette import LOADING_ACCENT, LOADING_STATUS
 
 from fun_time.overlay_progress import (
-    ACTIVATING_ORIGENERATOR,
     CANCEL_FILENAME,
     CANCELING,
     LOADING_SCREEN_HEARTBEAT_S,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
-    STARTING_VOICE_COMMANDS,
     STARTUP_PHASES,
     PhaseProgress,
     StartupCancelled,
@@ -30,6 +28,7 @@ from fun_time.session_handoff import (
     say_the_crossing_is_cancelled,
 )
 from fun_time_vr.loading_screen import (
+    ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS,
     CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL,
     CLOSING_STATUS,
     HELD_STATUS,
@@ -96,13 +95,14 @@ class TestThePhases:
         reported = self._advanced_keys(r'\bprogress\.advance\("([a-z_]+)"\)')
 
         assert reported == {phase.key for phase in VR_STARTUP_PHASES} - {
-            ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key}
+            phase.key for phase in ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS}
 
-    def test_it_carries_the_waits_the_desktops_own_steps_announce(self):
-        keys = [phase.key for phase in VR_STARTUP_PHASES]
+    def test_the_desktop_helpers_waits_end_the_list_as_they_end_the_desktops(self):
+        the_helpers_steps_then_the_last_line = slice(-3, None)
 
-        assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
-                             "finalizing"]
+        assert (VR_STARTUP_PHASES[the_helpers_steps_then_the_last_line]
+                == STARTUP_PHASES[the_helpers_steps_then_the_last_line]
+                == (*ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS, VR_STARTUP_PHASES[-1]))
 
     def test_a_launch_that_opens_no_browser_or_windows_has_no_phase_for_them(self):
         the_desktops_alone = {phase.key for phase in STARTUP_PHASES} - {
@@ -113,7 +113,7 @@ class TestThePhases:
     def test_no_shutdown_phase_the_orchestrator_reports_is_a_keyerror_in_the_headset(self):
         reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')
 
-        assert reported | {"controls"} == {phase.key for phase in VR_SHUTDOWN_PHASES}
+        assert reported == {phase.key for phase in VR_SHUTDOWN_PHASES}
 
     def test_only_the_last_phase_claims_no_time(self):
         seconds = [phase.seconds for phase in VR_STARTUP_PHASES]
@@ -469,9 +469,15 @@ class TestPainting:
         assert image.size == LOADING_SCREEN_SIZE_PX
         assert image.mode == "RGBA"
 
-    def test_the_bar_is_clamped_to_the_panel(self):
-        for fraction in (-1.0, 2.0):
-            assert paint_loading_screen(LoadingScreen(status="x", fraction=fraction)).size == LOADING_SCREEN_SIZE_PX
+    def test_a_count_past_its_total_or_below_zero_fills_no_further_than_the_bar(self):
+        def painted_at(fraction: float) -> bytes:
+            return paint_loading_screen(LoadingScreen(status="x", fraction=fraction)).tobytes()
+
+        a_count_its_total_has_not_caught_up_with, a_negative_count = 2.0, -1.0
+
+        assert painted_at(a_count_its_total_has_not_caught_up_with) == painted_at(1.0)
+        assert painted_at(a_negative_count) == painted_at(0.0)
+        assert painted_at(1.0) != painted_at(0.0)
 
     def test_it_is_the_familys_loading_panel_on_that_ground(self):
         image = paint_loading_screen(LoadingScreen(status="Waiting for Funestras...", fraction=0.5))
@@ -487,7 +493,7 @@ class TestPainting:
         assert tuple(round(c * 255) for c in CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL[:3]) == image.getpixel((0, 0))[:3]
 
 
-def test_a_checkpoint_still_raises_for_the_vr_phases(tmp_path: Path):
+def test_the_loading_screens_cancel_raises_what_the_desktops_launch_unwinds_on(tmp_path: Path):
     progress = _the_orchestrators_startup_writer(tmp_path)
     (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -580,7 +586,7 @@ class TestTheRoomComingUp:
 
 
 class TestWhereTheLoadingScreenHangs:
-    def test_the_first_heading_is_the_one_it_keeps(self):
+    def test_it_hangs_out_in_the_world_rather_than_turning_with_the_eyes(self):
         anchor = LoadingScreenAnchor()
 
         assert anchor.heading(1.2) == pytest.approx(1.2)
@@ -604,12 +610,15 @@ class TestWhereTheLoadingScreenHangs:
     def test_it_follows_him_until_the_panel_has_been_read(self):
         anchor = LoadingScreenAnchor()
 
-        assert anchor.heading(1.2, settled=False) == pytest.approx(1.2)
-        assert anchor.heading(2.9, settled=False) == pytest.approx(2.9)
+        whatever_pose_the_runtime_had_on_the_first_frame = 1.2
+
+        assert anchor.heading(whatever_pose_the_runtime_had_on_the_first_frame,
+                              has_been_in_front_of_him=False) == pytest.approx(1.2)
+        assert anchor.heading(2.9, has_been_in_front_of_him=False) == pytest.approx(2.9)
         assert anchor.held is None
 
-        assert anchor.heading(-0.4, settled=True) == pytest.approx(-0.4)
-        assert anchor.heading(2.9, settled=True) == pytest.approx(-0.4)
+        assert anchor.heading(-0.4, has_been_in_front_of_him=True) == pytest.approx(-0.4)
+        assert anchor.heading(2.9, has_been_in_front_of_him=True) == pytest.approx(-0.4)
 
     def test_what_it_holds_is_readable_so_the_log_can_say_where_it_went(self):
         anchor = LoadingScreenAnchor()
@@ -652,12 +661,15 @@ class TestBeingSeen:
 
         assert seen.dwelt
 
-    def test_a_gap_before_the_dwell_is_done_starts_it_over(self):
+    def test_only_unbroken_time_on_screen_counts_toward_the_dwell(self):
         clock = _Clock()
         seen = LoadingScreenDwell(clock=clock)
 
-        seen.note(True)
-        clock.now += LOADING_SCREEN_DWELL_S - 0.1
+        the_one_frame_drawn_as_the_screen_is_raised = True
+        while_the_units_are_built_nothing_is_submitted = LOADING_SCREEN_DWELL_S - 0.1
+
+        seen.note(the_one_frame_drawn_as_the_screen_is_raised)
+        clock.now += while_the_units_are_built_nothing_is_submitted
         seen.note(False)
         clock.now += 1.0
 

@@ -14,12 +14,12 @@ class TestWhileItIsMoving:
         assert _run(watch, (0, True, 0.0), (500, True, 5.0), (1000, True, 10.0)) == [
             None, None, None]
 
-    def test_a_paused_funestra_is_not_stalled(self):
+    def test_a_funestra_held_on_one_frame_on_purpose_is_not_stalled(self):
         watch = PlaybackWatch(seconds=5.0)
 
         assert _run(watch, (900, False, 0.0), (900, False, 30.0)) == [None, None]
 
-    def test_a_funestra_with_nothing_open_is_not_stalled(self):
+    def test_a_funestra_still_opening_its_file_is_not_stalled(self):
         watch = PlaybackWatch(seconds=5.0)
 
         assert _run(watch, (0, False, 0.0), (0, False, 60.0), (0, True, 61.0)) == [

@@ -19,7 +19,7 @@ from shared_ui.type_scale import in_pixels
 from .main_hud import level_color
 from .surfaces import red_and_blue_swapped
 
-FONT_FRACTION = 0.030
+TYPE_OVER_A_DECODED_FRAMES_HEIGHT = 0.030
 MIN_FONT_PX = in_pixels(MESSAGE_TYPE_SIZE)
 _PAD_X = MESSAGE_PAD_H / MIN_FONT_PX
 _PAD_Y = MESSAGE_PAD_V / MIN_FONT_PX
@@ -34,8 +34,8 @@ MAX_LINES = 3
 _LINE_GAP = GAP_SMALL / MIN_FONT_PX
 
 
-def font_px(height: int) -> int:
-    return max(MIN_FONT_PX, round(height * FONT_FRACTION))
+def font_px(decoded_frame_height: int) -> int:
+    return max(MIN_FONT_PX, round(decoded_frame_height * TYPE_OVER_A_DECODED_FRAMES_HEIGHT))
 
 
 def paint_message(message: str, level: int, *, max_width: int, size: int) -> Image.Image:

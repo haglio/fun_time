@@ -149,7 +149,7 @@ class _ALoadingScreen:
         self.texture = SimpleNamespace(texture=7)
         self.told: list[str] = []
 
-    def _heading(self, yaw, *, settled):
+    def _heading(self, yaw, *, has_been_in_front_of_him):
         self.anchor.held = yaw
         return yaw
 

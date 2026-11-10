@@ -127,7 +127,8 @@ class TestAGpuThatIsSlow:
             painting.paint(targets, None)
             painting.paint(targets, None)
 
-        assert gpu.flushes == 2
+        the_draws_own, the_one_that_chased_it = 1, 1
+        assert gpu.flushes == the_draws_own + the_one_that_chased_it
         assert caplog.messages == ["The main-video video's frame has waited 1s for the GPU; flushing"]
 
     def test_a_frame_the_gpu_never_finishes_is_shown_anyway(self, caplog):

@@ -580,9 +580,11 @@ class _MainUnit(_VideoUnit):
 
     def _watch_progress(self, now: float) -> None:
         playback = self.funestra.playback
+        held_by_genau_mode_or_omnipause = playback.is_paused
+        still_opening = not playback.duration_ms > 0
         verdict = self._watch.note(
             position_ms=playback.position_ms,
-            playing=not playback.is_paused and playback.duration_ms > 0,
+            playing=not held_by_genau_mode_or_omnipause and not still_opening,
             now=now,
         )
         if verdict is None:
