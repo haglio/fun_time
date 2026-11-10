@@ -6,7 +6,7 @@ import threading
 import pytest
 
 from fun_time_vr.frame_relay import SLOTS
-from fun_time_vr.video_thread import STILL_ENOUGH_FOR_A_FISHEYES_EDGE_PX, VideoThread
+from fun_time_vr.video_thread import A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX, VideoThread
 from tests.paint_fakes import AGpu, AnEngine, ATarget
 
 A_WINDOW = "the video's context"
@@ -113,7 +113,7 @@ def test_it_builds_a_target_for_each_slot_and_one_for_stills_at_the_stills_size(
     thread.close()
 
     assert len(contexts.targets) == SLOTS + 1
-    assert (contexts.targets[-1].width, contexts.targets[-1].height) == STILL_ENOUGH_FOR_A_FISHEYES_EDGE_PX
+    assert (contexts.targets[-1].width, contexts.targets[-1].height) == A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX
 
 
 def test_closing_it_lets_go_of_the_engine_the_targets_and_the_context():
@@ -186,7 +186,7 @@ def test_a_still_asked_for_is_painted_and_handed_over():
     still = _soon(thread.take_a_still)
     thread.close()
 
-    assert still == ("pixels", *STILL_ENOUGH_FOR_A_FISHEYES_EDGE_PX)
+    assert still == ("pixels", *A_STILL_JUST_ENOUGH_FOR_A_FISHEYES_EDGE_PX)
 
 
 def test_showing_the_newest_frame_copies_what_was_painted():

@@ -67,13 +67,14 @@ class TestTheCylinderThePointerIsReadOn:
         assert point.distance == pytest.approx(RADIUS_M)
 
     def test_a_ray_from_the_hand_lands_where_it_points_not_where_the_head_does(self):
-        half_a_meter_right_of_the_eye, aimed_back_toward_the_center_line = 0.5, -0.25
+        half_a_meter_right_of_the_eye, aimed_back_across_the_center_line = 0.5, -0.3
         ray = Ray(origin=(half_a_meter_right_of_the_eye, -0.3, 0.0),
-                  direction=(aimed_back_toward_the_center_line, 0.0, -1.0))
+                  direction=(aimed_back_across_the_center_line, 0.0, -1.0))
 
         point = cylinder_hit(ray)
 
-        x = 0.5 - 0.25 * point.distance / math.hypot(0.25, 1.0)
+        x = half_a_meter_right_of_the_eye + aimed_back_across_the_center_line * (
+            point.distance / math.hypot(aimed_back_across_the_center_line, 1.0))
         assert point.azimuth_deg == pytest.approx(math.degrees(math.asin(x / RADIUS_M)), abs=1e-6)
         assert point.y == pytest.approx(-0.3)
         assert point.distance > 0
@@ -369,7 +370,6 @@ class TestAGrab:
             grab.dragged_to(_on_the_cylinder(widest.azimuth_deg + side * turn, widest.y))
             for turn in (0.0, 40.0, 70.0, 100.0)]
 
-        assert MIN_WIDTH_DEG not in [p.width_deg for p in placements]
         assert [p.width_deg for p in placements] == pytest.approx([MAX_WIDTH_DEG] * 4)
         assert self._upper(placements[-1], -side) == pytest.approx(anchor)
 
@@ -679,14 +679,14 @@ class TestThePointerOverTheScene:
     def test_the_wrap_is_never_hovered_and_takes_nothing_but_a_press(self):
         pointer = Pointer()
         where_a_flat_frame_of_its_size_would_be_under_the_ray = _aim_at(10.0, -0.6)
-        away = _hands(right=where_a_flat_frame_of_its_size_would_be_under_the_ray)
+        aimed_into_the_wrap = _hands(right=where_a_flat_frame_of_its_size_would_be_under_the_ray)
         scene = [_WRAPPED, _MAIN_HUD]
 
-        resting = self._frame(pointer, away, screens=scene)
+        resting = self._frame(pointer, aimed_into_the_wrap, screens=scene)
         held = self._frame(pointer, _hands(
             right=where_a_flat_frame_of_its_size_would_be_under_the_ray, right_trigger=1.0),
             screens=scene)
-        released = self._frame(pointer, away, screens=scene)
+        released = self._frame(pointer, aimed_into_the_wrap, screens=scene)
 
         assert resting.hover is None
         assert held.hover is None

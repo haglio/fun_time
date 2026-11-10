@@ -25,8 +25,8 @@ def _eye_shape(eye: np.ndarray) -> str | None:
     past_the_circle = _lit(eye, out, _JUST_PAST_THE_CIRCLE)
     if past_the_circle < 1 - MOSTLY:
         return FISHEYE_CIRCLE
-    cropped_from_a_circle_wider_than_its_square = past_the_circle <= MOSTLY
-    return None if cropped_from_a_circle_wider_than_its_square else FULL_FRAME
+    past_the_circle_neither_black_nor_lit = past_the_circle <= MOSTLY
+    return None if past_the_circle_neither_black_nor_lit else FULL_FRAME
 
 
 def _in_radii_of_the_inscribed_circle(height: int, width: int) -> np.ndarray:
