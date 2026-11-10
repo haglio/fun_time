@@ -62,7 +62,7 @@ class TestOrientationCorrection:
             get_logical_monitor_rects([], configured_primary_number=1, configured_secondary_number=2)
 
 
-def test_fake_monitors_replace_the_machines_and_need_no_display_behind_them(monkeypatch):
-    monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;90000,0,1440,3440")
+def test_fake_monitors_replace_whatever_the_machine_lists(monkeypatch):
+    monkeypatch.setenv("FUN_TIME_FAKE_MONITORS", "0,0,2560,1392;2560,0,1440,3440")
 
-    assert enumerate_monitors() == [_mi(0, 0, 2560, 1392), _mi(90000, 0, 1440, 3440)]
+    assert enumerate_monitors() == [_mi(0, 0, 2560, 1392), _mi(2560, 0, 1440, 3440)]

@@ -7,8 +7,8 @@ from app_support.launcher import launchers
 from app_support.process_identity_check import ProcessName, assert_the_process_is_named
 
 from fun_time.process_identity import (
+    LAUNCH_VBS_INTERPRETER,
     NAMER,
-    THE_INTERPRETER_LAUNCH_VBS_RUNS_NEVER_ITS_NAMED_COPY,
     prepare_orchestrator_launcher,
 )
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
@@ -37,13 +37,12 @@ class TestTheStringsOtherLanguagesMatchOn:
 
         assert ended == [51]
 
-    def test_the_launcher_looks_for_the_name_the_namer_gives_the_orchestrator(self):
+    def test_the_launcher_would_silently_run_unnamed_without_the_namers_exact_name(self):
         (desktop,) = [spec for spec in launchers(PROJECT_DIR) if spec.file == "launch.vbs"]
         named = NAMER.exe_name(desktop.interpreter, "Orchestrator")
-        run_if_found_else_the_plain_interpreter_silently = desktop.named_interpreter
 
         assert named == "FunTime-Orchestrator.exe"
-        assert run_if_found_else_the_plain_interpreter_silently == named
+        assert desktop.named_interpreter == named
 
 
 class TestTheRolesThisRepoLaunches:
@@ -80,10 +79,11 @@ class TestTheRolesThisRepoLaunches:
 
 
 class TestTheOneCopyFunTimeMakesAheadOfASession:
-    def test_it_is_made_from_the_interpreter_the_launcher_runs(self):
+    def test_it_is_made_from_the_launchers_interpreter_never_from_a_named_copy(self):
         (desktop,) = [spec for spec in launchers(PROJECT_DIR) if spec.file == "launch.vbs"]
 
-        assert desktop.interpreter == THE_INTERPRETER_LAUNCH_VBS_RUNS_NEVER_ITS_NAMED_COPY
+        assert desktop.interpreter == LAUNCH_VBS_INTERPRETER
+        assert not NAMER.owns_exe_name(LAUNCH_VBS_INTERPRETER)
 
     def test_app_supports_check_of_its_machinery_is_handed_fun_times_answers(self, tmp_path: Path):
         assert_the_process_is_named(
@@ -91,7 +91,7 @@ class TestTheOneCopyFunTimeMakesAheadOfASession:
             ProcessName(
                 app_name="Fun Time",
                 role="Orchestrator",
-                interpreter=THE_INTERPRETER_LAUNCH_VBS_RUNS_NEVER_ITS_NAMED_COPY,
+                interpreter=LAUNCH_VBS_INTERPRETER,
                 row="Fun Time \u2013 Orchestrator",
                 icon=PROJECT_ICON,
             ),
