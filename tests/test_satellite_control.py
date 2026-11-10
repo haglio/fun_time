@@ -15,8 +15,7 @@ class TestReadSatelliteStatus:
     def test_parses_the_status_fields(self, tmp_path):
         status = tmp_path / "portrait_status.txt"
         status.write_text(
-            "video=C:/clips/a.mp4\nposition_ms=1500\nduration_ms=5000\npaused=0\nlocked=1\n"
-            "playlist_length=3\n",
+            "video=C:/clips/a.mp4\nposition_ms=1500\nduration_ms=5000\npaused=0\nlocked=1\n",
             encoding="utf-8",
         )
 
@@ -28,7 +27,6 @@ class TestReadSatelliteStatus:
             duration_ms=5000,
             paused=False,
             locked=True,
-            playlist_length=3,
         )
 
     def test_missing_file_is_an_empty_status(self, tmp_path):
@@ -64,10 +62,6 @@ class TestReadSatelliteStatus:
         read = read_satellite_status(status)
         assert (read.volume, read.muted) == (35, True)
 
-    def test_a_playlist_length_that_is_not_a_number_reads_as_zero(self, tmp_path):
-        status = tmp_path / "s.txt"
-        status.write_text("video=v\nplaylist_length=many\n", encoding="utf-8")
-        assert read_satellite_status(status).playlist_length == 0
 
     def test_a_status_file_with_no_speed_is_not_yet_published(self, tmp_path):
         status = tmp_path / "s.txt"

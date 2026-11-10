@@ -9,6 +9,7 @@ from dataclasses import fields
 from pathlib import Path
 
 import pytest
+from funestra.hud_placement import HudCorner
 from funestra.modes import MainMode
 
 from fun_time import shared_state
@@ -110,77 +111,6 @@ class TestSharedState:
         assert loaded.volume == 30
         assert loaded.muted is True
 
-    def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(
-            main_mode=MainMode.KINO,
-            portrait=SatelliteState(filter="beta gamma"),
-            landscape=SatelliteState(filter="alpha"),
-        )
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).filter == "beta gamma"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).filter == "alpha"
-
-    def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait=SatelliteState(loop="seed"),
-                            landscape=SatelliteState(loop="action"))
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
-
-    def test_roundtrip_preserves_the_nav_map_anchor(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait=SatelliteState(nav_map_anchor="C:/v/a.mp4"),
-                            landscape=SatelliteState(nav_map_anchor="C:/v/b.mp4"))
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).nav_map_anchor == "C:/v/b.mp4"
-
-    def test_roundtrip_preserves_the_widen_video(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait=SatelliteState(widen_video="C:/v/a.mp4"),
-                            landscape=SatelliteState(widen_video="C:/v/b.mp4"))
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/a.mp4"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).widen_video == "C:/v/b.mp4"
-
-    def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait=SatelliteState(nav_anchor="C:/v/a.mp4"),
-                            landscape=SatelliteState(nav_anchor="C:/v/b.mp4"))
-
-        write_shared_state(state_file, state)
-        loaded = read_shared_state(state_file)
-
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).nav_anchor == "C:/v/a.mp4"
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).nav_anchor == "C:/v/b.mp4"
-
-    def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state_file.write_text(
-            "[state]\nportrait_locked = 0\nlandscape_locked = 0\nmain_mode = video\n"
-            "omni_paused = 0\n",
-            encoding="utf-8",
-        )
-
-        loaded = read_shared_state(state_file)
-
-        assert loaded is not None
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).loop == ""
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).loop == ""
 
     def test_a_switch_that_starts_on_reads_on_from_a_file_written_before_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
@@ -189,20 +119,6 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert (loaded.main_plays_vr, loaded.main_plays_flat) == (True, True)
-
-    def test_state_files_without_filter_keys_load_as_unfiltered(self, tmp_path):
-        state_file = tmp_path / "shared_state.ini"
-        state_file.write_text(
-            "[state]\nportrait_locked = 0\nlandscape_locked = 0\nmain_mode = video\n"
-            "omni_paused = 0\n",
-            encoding="utf-8",
-        )
-
-        loaded = read_shared_state(state_file)
-
-        assert loaded is not None
-        assert loaded.satellite(FunTimeFunestra.PORTRAIT).filter == ""
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).filter == ""
 
 
 def test_the_state_file_sits_under_both_startup_and_the_dispatch_loop():
@@ -255,29 +171,25 @@ def test_no_satellite_value_is_a_field_of_the_whole_state():
 class TestTheSideLens:
     def test_satellite_reads_the_state_of_that_satellite_alone(self):
         state = BridgeState(
-            portrait=SatelliteState(
-                locked=True, filter="alpha", favorites_filter=True, latest=True, loop="seed",
-                nav_map_anchor="a.mp4", widen_video="w.mp4", nav_anchor="n.mp4"),
-            landscape=SatelliteState(filter="beta gamma"),
+            portrait=SatelliteState(hud_corner=HudCorner.LOWER_RIGHT, hud_minimized=True,
+                                    volume=40, muted=False),
+            landscape=SatelliteState(volume=60),
         )
         portrait = state.satellite(FunTimeFunestra.PORTRAIT)
-        assert (portrait.locked, portrait.filter, portrait.favorites_filter) == (True, "alpha", True)
-        assert (portrait.latest, portrait.loop) == (True, "seed")
-        assert (portrait.nav_map_anchor, portrait.widen_video, portrait.nav_anchor) == (
-            "a.mp4", "w.mp4", "n.mp4")
+        assert (portrait.hud_corner, portrait.hud_minimized) == (HudCorner.LOWER_RIGHT, True)
+        assert (portrait.volume, portrait.muted) == (40, False)
         landscape = state.satellite(FunTimeFunestra.LANDSCAPE)
-        assert landscape.filter == "beta gamma"
-        assert landscape.locked is False
+        assert landscape.volume == 60
+        assert landscape.hud_minimized is False
 
     def test_with_satellite_leaves_the_other_satellite_where_it_was(self):
-        state = BridgeState(landscape=SatelliteState(filter="delta"))
+        state = BridgeState(landscape=SatelliteState(volume=60))
 
-        state = state.with_satellite(FunTimeFunestra.PORTRAIT, locked=True, loop="action",
-                                nav_map_anchor="x.mp4")
+        state = state.with_satellite(FunTimeFunestra.PORTRAIT, hud_minimized=True, volume=40)
 
         assert state.satellite(FunTimeFunestra.PORTRAIT) == SatelliteState(
-            locked=True, loop="action", nav_map_anchor="x.mp4")
-        assert state.satellite(FunTimeFunestra.LANDSCAPE) == SatelliteState(filter="delta")
+            hud_minimized=True, volume=40)
+        assert state.satellite(FunTimeFunestra.LANDSCAPE) == SatelliteState(volume=60)
 
     def test_with_satellite_refuses_a_name_no_satellite_carries(self):
         with pytest.raises(TypeError):
@@ -285,13 +197,13 @@ class TestTheSideLens:
 
     def test_a_default_satellite_state_means_the_satellite_sits_at_its_defaults(self):
         assert BridgeState().satellite(FunTimeFunestra.LANDSCAPE) == SatelliteState()
-        assert BridgeState(landscape=SatelliteState(loop="seed")).satellite(
+        assert BridgeState(landscape=SatelliteState(hud_minimized=True)).satellite(
             FunTimeFunestra.LANDSCAPE) != SatelliteState()
 
     def test_the_lens_survives_the_ini_round_trip(self, tmp_path):
         state_file = tmp_path / "shared_bridge_state.ini"
         state = BridgeState().with_satellite(
-            FunTimeFunestra.LANDSCAPE, filter="delta", favorites_filter=True, latest=True)
+            FunTimeFunestra.LANDSCAPE, hud_corner=HudCorner.LOWER_LEFT, volume=35, muted=False)
 
         write_shared_state(state_file, state)
 
@@ -362,11 +274,6 @@ _EXPECTED_STATE_KEYS = {
     "genau_plays_portrait": "1", "genau_plays_landscape": "1",
     "genau_favorites_filter": "0",
     "active_funestra": "1",
-    "portrait_filter": "", "landscape_filter": "",
-    "portrait_loop": "", "landscape_loop": "",
-    "portrait_nav_map_anchor": "", "landscape_nav_map_anchor": "",
-    "portrait_widen_video": "", "landscape_widen_video": "",
-    "portrait_nav_anchor": "", "landscape_nav_anchor": "",
     "volume": "100", "muted": "0", "max_intensity": "100",
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",

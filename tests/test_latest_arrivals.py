@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -9,14 +8,11 @@ from funestra.funestra_verbs import play_next
 from funestra.modes import MainMode
 from funestra.playlist import PlaylistItem
 
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.latest_arrivals import LatestArrivals
-from fun_time.lock_hud import prime_group_indexes
-from fun_time.media_metadata import cached_group_index, mark_favorite, metadata_path_for
+from fun_time.media_metadata import metadata_path_for
 from fun_time.shared_state import BridgeState
 from tests.test_windows_bridge_dispatch_loop import make_config
 
-PORTRAIT_LATEST = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, latest=True)
 MAIN_LATEST = replace(BridgeState(), main_latest=True)
 
 
@@ -27,14 +23,10 @@ def _video(folder: Path, name: str) -> str:
     return str(path)
 
 
-def _watching(tmp_path, *, portrait_sources: str = "", landscape_sources: str = "",
-              **config) -> tuple[LatestArrivals, object]:
+def _watching(tmp_path, **config) -> tuple[LatestArrivals, object]:
     config = make_config(tmp_path, **config)
-    config = replace(config, portrait=replace(config.portrait, sources=portrait_sources),
-                     landscape=replace(config.landscape, sources=landscape_sources))
-    for sources in (config.main_sources, config.portrait.sources, config.landscape.sources):
-        if sources:
-            _video(Path(sources), "already there.mp4")
+    if config.main_sources:
+        _video(Path(config.main_sources), "already there.mp4")
     arrivals = LatestArrivals(config)
     arrivals.look()
     return arrivals, config
@@ -46,81 +38,6 @@ def _queued(cmd_file: Path) -> list[str]:
 
 def _next(path: str, funscript: Path | None = None) -> str:
     return play_next(PlaylistItem(Path(path), funscript))
-
-
-class TestASatellitePlayingItsLatestList:
-    def test_puts_what_arrives_in_its_library_up_next(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        newcomer = _video(library, "scene two.mp4")
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
-
-    def test_its_hud_knows_the_groups_of_what_it_put_up_without_a_rescan(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        prime_group_indexes((config.portrait.sources,), config.regen_metadata_root)
-        newcomer = _video(library, "scene two.mp4")
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert cached_group_index(config.portrait.sources, paths_supplier=list,
-                                  metadata_root=None).contains(newcomer)
-
-    def test_in_f_mode_puts_up_only_the_favorites_among_what_arrives(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        favorite, _other = _video(library, "alpha.mp4"), _video(library, "beta.mp4")
-        config.regen_metadata_root = tmp_path / "metadata"
-        mark_favorite(favorite, config.regen_metadata_root, True)
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST.with_satellite(
-            FunTimeFunestra.PORTRAIT, favorites_filter=True))
-
-        assert _queued(config.portrait.cmd_file) == [_next(favorite)]
-
-    def test_hands_several_over_oldest_first_so_the_newest_comes_up_first(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        newer, older = _video(library, "alpha.mp4"), _video(library, "beta.mp4")
-        os.utime(older, (1_000_000_000, 1_000_000_000))
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert _queued(config.portrait.cmd_file) == [_next(older), _next(newer)]
-
-    def test_holds_what_arrives_through_a_loop_and_puts_it_up_next_when_the_loop_ends(
-            self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        newcomer = _video(library, "scene two.mp4")
-        arrivals.look()
-
-        arrivals.deliver(PORTRAIT_LATEST.with_satellite(FunTimeFunestra.PORTRAIT, loop="seed"))
-        held = _queued(config.portrait.cmd_file)
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert held == []
-        assert _queued(config.portrait.cmd_file) == [_next(newcomer)]
-
-
-class TestASatelliteShuffling:
-    def test_is_handed_nothing_and_nothing_that_came_meanwhile_waits_for_its_latest(self, tmp_path):
-        library = tmp_path / "portrait"
-        arrivals, config = _watching(tmp_path, portrait_sources=str(library))
-        _video(library, "scene two.mp4")
-        arrivals.look()
-
-        arrivals.deliver(BridgeState())
-        arrivals.deliver(PORTRAIT_LATEST)
-
-        assert _queued(config.portrait.cmd_file) == []
 
 
 class TestTheMainFunestraPlayingItsLatestList:

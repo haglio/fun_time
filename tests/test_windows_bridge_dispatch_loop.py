@@ -18,7 +18,6 @@ from app_support.state_files import OSR2_SERIAL_RX
 from app_support.threading_utils import wait_until
 from funestra.file_channel import publish_whole
 from funestra.funestra_status import status_fields
-from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_PARKED
 from funestra.modes import MainMode
 from funestra.playlist import PlaylistItem, write_playlist
@@ -38,7 +37,6 @@ from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
-from fun_time.event_log import FAVORITE
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import (
     MAIN_BLANK_SETTLE_S,
@@ -1212,10 +1210,6 @@ class TestWhatASpokenCommandFlashes:
 
         assert len(flashed) == 1, flashed
 
-    def test_favorites_said_to_a_satellite_in_kino_mode_flashes_its_f_mode_going_on(self, tmp_path):
-        flashed = self._run_for_real(tmp_path, "landscape_say_favorites", "landscape favorites")
-
-        assert flashed == [(f"{F_MODE_LABEL} enabled", "landscape", FAVORITE)]
 
     def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(self, tmp_path):
         flashed = self._run_for_real(
@@ -2442,26 +2436,17 @@ class TestIdempotentVoiceCommands:
             runner._update_dashboard()
 
     def test_the_snapshot_says_whether_every_funestra_has_nothing_to_reset(self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True)
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
         runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
+        for funestra in FunTimeFunestra.SATELLITES:
+            publish_the_show(runner.config, funestra, nothing_to_reset=True)
 
         runner._update_dashboard()
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is True
 
-        runner.state = replace(runner.state, portrait=SatelliteState(locked=True))
+        publish_the_show(runner.config, FunTimeFunestra.LANDSCAPE, nothing_to_reset=False)
         runner._update_dashboard()
-        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
-
-    def test_a_satellite_off_normal_speed_leaves_the_app_something_to_reset(self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True)
-        runner.config.main_funestra_status_file.write_text(
-            "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
-        runner.config.landscape.status_file.write_text(
-            "video=C:/v/l.mp4\nspeed=0.5\n", encoding="utf-8")
-
-        runner._update_dashboard()
-
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
 
     def test_the_dashboard_is_told_what_holds_the_browsers_place_and_whether_origenerator_is_up(
@@ -2475,17 +2460,15 @@ class TestIdempotentVoiceCommands:
         snapshot = load_dashboard_snapshot(runner.config.dashboard_state_file)
         assert (snapshot.rfb_mode, snapshot.origenerator_ready) == (RfbMode.ORIGENERATOR, True)
 
-    def test_an_app_hosting_origenerator_never_says_it_has_nothing_to_reset(self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(
-            tmp_path, origenerator_enabled=True,
-            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
+    def test_a_slideshow_that_has_shown_no_hud_yet_leaves_the_reset_light_to_the_rest(
+            self, tmp_path):
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
         runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
-        runner.state = _handed_over(runner.state, FunTimeFunestra.LANDSCAPE)
 
         runner._update_dashboard()
 
-        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is True
 
     def test_the_dashboards_f_mode_lights_off_the_hosted_shows_handed_over(
         self, tmp_path,
@@ -2498,15 +2481,6 @@ class TestIdempotentVoiceCommands:
         runner._update_dashboard()
 
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).f_mode is True
-
-    def test_the_bars_one_f_mode_light_stays_dark_while_any_funestra_is_out_of_it(self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True)
-        runner.state = replace(runner.state, main_scripted_filter=True).with_satellite(
-            FunTimeFunestra.PORTRAIT, favorites_filter=True)
-
-        runner._update_dashboard()
-
-        assert load_dashboard_snapshot(runner.config.dashboard_state_file).f_mode is False
 
 
     def test_an_unknown_op_is_an_error_not_an_ahk_verb(self, tmp_path, caplog):
@@ -2815,31 +2789,6 @@ class TestSatellitesCommands:
 
         commands = [c[0][0].text for c in mock_dispatch.call_args_list]
         assert commands == ["portrait_next", "landscape_next"]
-
-    def test_lock_satellites_locks_each_unlocked_satellite(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
-
-        runner.tick()
-
-        assert [_told(runner, funestra) for funestra in FunTimeFunestra.SATELLITES] == [[], ["LOCK_ON"]]
-        assert runner.state.satellite(FunTimeFunestra.LANDSCAPE).locked is True
-
-    def test_unlock_satellites_unlocks_each_locked_satellite(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=True), portrait=SatelliteState(locked=True))
-        (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_off", encoding="utf-8")
-
-        runner.tick()
-
-        assert [_told(runner, funestra) for funestra in FunTimeFunestra.SATELLITES] == [
-            ["LOCK_OFF", "NEXT"], ["LOCK_OFF", "NEXT"]]
-
-
-def _told(runner, funestra) -> list[str]:
-    cmd_file = runner.config.satellite(funestra).cmd_file
-    return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
 
 class TestHudPublishing:
@@ -3430,7 +3379,7 @@ class TestTheAppTakesAFunestra:
     def _asked(self, tmp_path):
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
-            {"portrait": tmp_path / "portrait_hud.json"}, tmp_path / "thumbs"))
+            {"portrait": tmp_path / "portrait_hud.json"}))
         runner.state = replace(runner.state, origenerator_ready=True)
         channel = config.satellite(FunTimeFunestra.PORTRAIT)
         write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])

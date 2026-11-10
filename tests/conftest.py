@@ -25,7 +25,6 @@ from fun_time import (
     windows_bridge_orchestrator,
 )
 from fun_time.config import DEFAULT_CONFIG_PATH
-from fun_time.media_metadata import SESSION_INDEXES
 from fun_time_vr import orchestrator as vr_orchestrator
 from tests.headset_refusal import his_headset_refused
 from tests.logging_state import logging_given_back
@@ -139,11 +138,6 @@ _WHERE_A_SESSION_LOOKS_UP_ITS_HEARTBEAT = (orchestrator, session_handoff, vr_orc
 def _no_heartbeat_outlives_its_test_reading_its_tmp_path(monkeypatch):
     for looks_it_up in _WHERE_A_SESSION_LOOKS_UP_ITS_HEARTBEAT:
         monkeypatch.setattr(looks_it_up, "keep_the_transition_screen", lambda _state_dir: None)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_group_index_cache():
-    SESSION_INDEXES.clear()
 
 
 @pytest.fixture(autouse=True)

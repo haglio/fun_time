@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from app_support import osr2_device
-from app_support.media_renditions import renditions
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
-from funestra.hud_controls import longer_than_a_step
 from funestra.main_hud import main_hud_text
 from funestra.modes import MainMode, Osr2State
 from funestra.osr2_visualizer import read_drive
@@ -21,58 +17,26 @@ from .funestra_status import (
     read_genau_status,
     read_main_funestra_status,
 )
-from .hud_transport import HudPublisher, HudState, hosted_model, worn
-from .lock_hud import SatelliteInputs, build_satellite_hud
+from .hud_transport import HudPublisher, hosted_model, worn
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
     main_funestra_at_defaults,
     main_video_shapes,
 )
-from .media_metadata import favorite_recorded_in, metadata_path_for
 from .origenerator_switches import hosts
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
     Osr2PartFacts,
-    forget_what_a_satellite_was_told_of_the_osr2,
     funestra_with_the_osr2,
     osr2_part,
     tell_a_hosted_satellite_whose_the_osr2_is,
 )
-from .satellite_commands import satellite_at_defaults
-from .satellite_control import SatelliteStatus, read_satellite_status
+from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
 
 PUBLISH_INTERVAL_S = 3 * LOOP_TICK_S
-
-
-def _has_not_started_yet(status: SatelliteStatus, last_named: SatelliteStatus | None) -> bool:
-    return last_named is None and not status.video
-
-
-def _read_lost_a_race_with_the_republish(
-        status: SatelliteStatus, last_named: SatelliteStatus | None) -> bool:
-    return last_named is not None and not status.video
-
-
-class _FavoritesReadOnceUntilTheRecordMoves:
-    def __init__(self) -> None:
-        self._read: dict[Path, tuple[tuple[int, int], bool]] = {}
-
-    def of(self, video: str, metadata_root: Path | None) -> bool:
-        record = metadata_path_for(video, metadata_root) if video else None
-        if record is None:
-            return False
-        try:
-            stat = record.stat()
-        except OSError:
-            return False
-        stamp = (stat.st_mtime_ns, stat.st_size)
-        read = self._read.get(record)
-        if read is None or read[0] != stamp:
-            read = self._read[record] = (stamp, favorite_recorded_in(record))
-        return read[1]
 
 
 def _bare_words_reach(funestra: FunTimeFunestra, state: BridgeState) -> bool:
@@ -84,8 +48,6 @@ class HudFeed:
         self.config = config
         self.publisher = publisher
         self._last_publish = 0.0
-        self._favorites = _FavoritesReadOnceUntilTheRecordMoves()
-        self._last_satellite_status: dict[str, SatelliteStatus] = {}
         self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
         self._last_worn_hosted: dict[FunTimeFunestra, HudModel | None] = {}
         self._osr2_told: dict[FunTimeFunestra, bool] = {}
@@ -112,50 +74,14 @@ class HudFeed:
                 return DeviceBlock.offered_to(funestra)
             return DeviceBlock.held_by(funestra, osr2)
 
-        def satellite(funestra: FunTimeFunestra) -> SatelliteInputs:
-            name = funestra.label
-            status = self._satellite_status(name, self.config.satellite(funestra).status_file)
-            current = status.video
-            values = state.satellite(funestra)
-            return SatelliteInputs(
-                funestra=name, sources=self.config.satellite(funestra).sources,
-                current=current, locked=values.locked,
-                hud_corner=values.hud_corner, hud_edge=values.hud_edge,
-                hud_minimized=values.hud_minimized,
-                filter_query=values.filter,
-                loop_axis=values.loop,
-                nav_map_anchor=values.nav_map_anchor,
-                widen_video=values.widen_video,
-                nav_anchor=values.nav_anchor,
-                latest=values.latest,
-                favorites_filter=values.favorites_filter,
-                is_favorite=self._favorites.of(current, self.config.regen_metadata_root),
-                nothing_to_reset=satellite_at_defaults(values, status),
-                has_other_versions=bool(renditions(current, self.config.regen_media_root)),
-                longer_than_a_step=longer_than_a_step(status.duration_ms),
-                has_osr2=funestra is with_the_osr2,
-                has_funscript=status.has_funscript,
-                active=_bare_words_reach(funestra, state),
-                in_vr=self.config.vr_main_funestra,
-                crowned=state.crowned == name,
-            )
-
-        told = self._osr2_told
         for funestra in FunTimeFunestra.SATELLITES:
             if hosts(funestra, self.config):
-                tell_a_hosted_satellite_whose_the_osr2_is(self.config, told, funestra,
-                                                     funestra is with_the_osr2)
-                held = state.satellite(funestra)
-                self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
-                    funestra.label, self._worn_hosted_hud(funestra), held,
-                    HudState(in_vr=self.config.vr_main_funestra,
-                             crowned=state.crowned == funestra.label),
-                    active=_bare_words_reach(funestra, state)), device(funestra))))
-                continue
-            forget_what_a_satellite_was_told_of_the_osr2(told, funestra)
-            self.publisher.publish(funestra.label, build_satellite_hud(
-                satellite(funestra), self.config.regen_metadata_root,
-            ), device(funestra))
+                tell_a_hosted_satellite_whose_the_osr2_is(self.config, self._osr2_told, funestra,
+                                                          funestra is with_the_osr2)
+            self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
+                funestra.label, self._worn_hosted_hud(funestra), state.satellite(funestra),
+                in_vr=self.config.vr_main_funestra, crowned=state.crowned == funestra.label,
+                active=_bare_words_reach(funestra, state)), device(funestra))))
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
         self.publisher.publish_text("main_funestra", main_hud_text(main_hud_model(MainFunestraInputs(
@@ -227,16 +153,6 @@ class HudFeed:
     def _genau_pace_s(self) -> int:
         drive = read_drive(self.config.genau_drive_file)
         return drive.advance_interval if drive is not None else 0
-
-    def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
-        status = read_satellite_status(status_file)
-        last_named = self._last_satellite_status.get(funestra)
-        if _has_not_started_yet(status, last_named):
-            return status
-        if _read_lost_a_race_with_the_republish(status, last_named):
-            return last_named if last_named is not None else status
-        self._last_satellite_status[funestra] = status
-        return status
 
     def osr2_mode(self) -> Osr2Mode:
         return osr2_device.mode(self.config.broker_state)

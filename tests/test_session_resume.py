@@ -180,27 +180,6 @@ class TestResumeSharedState:
         assert (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter,
                 state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
 
-    def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
-        state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", nav_map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", nav_map_anchor="C:/v/a.mp4", widen_video="C:/v/a.mp4")))
-
-        state = resume_shared_state(state_file, resumed=True)
-
-        assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-        assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
-        assert state.satellite(FunTimeFunestra.PORTRAIT).widen_video == "C:/v/a.mp4"
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).loop == "action"
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).nav_map_anchor == "C:/v/b.mp4"
-
-    def test_carries_each_satellite_s_filter_and_order(self, tmp_path: Path):
-        state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(filter="beta gamma", latest=True), portrait=SatelliteState(filter="alpha", latest=True)))
-
-        state = resume_shared_state(state_file, resumed=True)
-
-        assert (state.satellite(FunTimeFunestra.PORTRAIT).filter, state.satellite(FunTimeFunestra.LANDSCAPE).filter) == ("alpha", "beta gamma")
-        assert state.satellite(FunTimeFunestra.PORTRAIT).latest is True
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
 
     def test_carries_the_main_funestra_s_order(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -254,7 +233,7 @@ class TestResumeSharedState:
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(nav_anchor="C:/v/b.mp4"), portrait=SatelliteState(nav_anchor="C:/v/a.mp4"), omni_paused=True, active_funestra=3))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(handed_over=True), portrait=SatelliteState(handed_over=True), omni_paused=True, active_funestra=3))
 
         state = resume_shared_state(state_file, resumed=True)
 

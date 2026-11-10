@@ -6,7 +6,6 @@ import logging
 import os
 import re
 import subprocess
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -95,7 +94,6 @@ from fun_time.window_names import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
-    HUD_PRIME_TIMEOUT_S,
     POST_LOADING_RESOLVE_TIMEOUT_S,
     SETTLE_PASSES,
     SETTLE_WAIT_S,
@@ -658,46 +656,6 @@ class TestRunPythonOrchestratedBridge:
         assert 500 in killed_pids
         assert 700 in killed_pids
 
-    def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path):
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-
-        fake_proc = MagicMock()
-        fake_proc.wait.return_value = 0
-        primed = threading.Event()
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
-                   return_value=(MagicMock(), primed)) as start_priming,              patch.object(primed, "wait", return_value=True) as mock_wait:
-            _a_session(
-                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
-                state_dir=tmp_path / "state", project_dir=tmp_path,
-            )
-
-        start_priming.assert_called_once()
-        mock_wait.assert_called_once_with(timeout=20.0)
-
-    def test_does_not_wait_on_the_hud_when_it_is_disabled(self, cfg_factory, tmp_path):
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-
-        fake_proc = MagicMock()
-        fake_proc.wait.return_value = 0
-        primed = threading.Event()
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
-                   return_value=(None, primed)),              patch.object(primed, "wait") as mock_wait:
-            _a_session(
-                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
-                state_dir=tmp_path / "state", project_dir=tmp_path,
-            )
-
-        mock_wait.assert_not_called()
 
     def test_a_session_without_the_dashboard_scans_no_library_and_grabs_no_frames(
             self, cfg_factory, tmp_path):
@@ -709,14 +667,13 @@ class TestRunPythonOrchestratedBridge:
                    side_effect=lambda **kwargs: _fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.prime_group_indexes") as scanned, \
+\
              patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails") as grabbed:
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
 
-        scanned.assert_not_called()
         grabbed.assert_not_called()
 
     def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
@@ -2260,7 +2217,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
-                   return_value=(None, threading.Event())) as mock_priming, \
+                   return_value=None) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
@@ -2300,7 +2257,7 @@ class TestStartupCancellation:
                    side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
-                   return_value=(None, threading.Event())), \
+                   return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
             _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
@@ -2369,7 +2326,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
-                   return_value=(None, threading.Event())), \
+                   return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
             ended = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
@@ -2957,8 +2914,7 @@ class TestOrigeneratorGracefulClose:
 class TestTheFinishingPassFitsUnderTheLoadingScreen:
     def test_it_cannot_outlast_the_covers_staleness_guard(self):
         budget = (
-            HUD_PRIME_TIMEOUT_S
-            + 4 * POST_LOADING_RESOLVE_TIMEOUT_S
+            4 * POST_LOADING_RESOLVE_TIMEOUT_S
             + SETTLE_PASSES * SETTLE_WAIT_S
         )
         assert budget < STALE_TIMEOUT_S
@@ -3577,7 +3533,7 @@ class TestTheHudPublisherASessionStarts:
         warmed: list[str] = []
 
         with patch("fun_time.windows_bridge_orchestrator.HudPublisher"), \
-             patch("fun_time.windows_bridge_orchestrator.prime_group_indexes"), \
+\
              patch("fun_time.windows_bridge_orchestrator.prewarm_thumbnails",
                    side_effect=lambda videos, _cache: warmed.extend(videos)), \
              patch("fun_time.windows_bridge_orchestrator.threading.Thread") as thread:

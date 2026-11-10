@@ -30,29 +30,22 @@ from .bridge_records import (
 )
 from .command_value import SAY, Command, Scope, parse_command
 from .fun_time_funestras import FunTimeFunestra
+from .funestra_handover import show_has_something_to_reset
 from .funestra_status import MainFunestraStatus
 from .genau_commands import about_genaus_flick
 from .hosted_contract import written_for_the_hosted_app
 from .hosted_words import (
     a_lock_said_in_the_hosted_apps_words,
+    about_a_satellite,
     line_said_bare_to_the_hosted_app,
     routes_to_origenerator,
     told_to_the_hosted_app,
 )
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
-from .satellite_commands import is_hud_nav_command, satellite_at_defaults
-from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
-
-
-def _addressed(funestra: FunTimeFunestra, command: Command, state: BridgeState) -> BridgeState:
-    state = replace(state, active_funestra=funestra)
-    if funestra is FunTimeFunestra.MAIN or is_hud_nav_command(command):
-        return state
-    return state.with_satellite(funestra, nav_anchor="")
 
 
 def dispatch_command(
@@ -67,7 +60,7 @@ def dispatch_command(
     if isinstance(command, str):
         command = parse_command(command)
     if command.funestra is not None:
-        state = _addressed(command.funestra, command, state)
+        state = replace(state, active_funestra=command.funestra)
     reworded = a_lock_said_in_the_hosted_apps_words(command, config)
     if reworded is not command:
         command, hosted = reworded, None
@@ -108,11 +101,8 @@ def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
 
 def app_at_defaults(state: BridgeState, config: BridgeConfig, status: MainFunestraStatus) -> bool:
     return (main_funestra_at_defaults(state, config, status)
-            and not config.hosts_origenerator
-            and all(satellite_at_defaults(
-                        state.satellite(funestra),
-                        read_satellite_status(config.satellite(funestra).status_file))
-                    for funestra in FunTimeFunestra.SATELLITES))
+            and not any(show_has_something_to_reset(config.satellite(funestra))
+                        for funestra in FunTimeFunestra.SATELLITES))
 
 
 def _ignoring_the_command(handler: Handler) -> Route:
@@ -162,5 +152,5 @@ ROUTES: dict[tuple[Scope, str], Route] = _bound_once(_DOMAINS)
 
 
 def handles(text: str) -> bool:
-    return all(half.key in ROUTES
+    return all(half.key in ROUTES or about_a_satellite(half)
                for each in parse_command(text).each() for half in each.halves())

@@ -89,12 +89,6 @@ def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
                  (False, True))
 
 
-@pytest.fixture(scope=_ONE_SLOW_SWEEP_SERVES_EVERY_TEST)
-def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
-    root = tmp_path_factory.mktemp("vr_parity_hosting_none")
-    return sweep(headset_config(root, names_an_origenerator=False), (True,))
-
-
 def test_the_sweep_sends_the_main_funestra_its_ten_second_steps(landed):
     assert {"SEEK_FWD", "SEEK_BACK"} <= set(_sent_to(landed, "main_funestra_cmd_file"))
 
@@ -309,14 +303,6 @@ class TestTheLoopInFrontOfTheDispatch:
 
 
 class TestWhatAHeadsetDoesNotHost:
-    def test_neither_the_manifest_nor_a_carried_mode_stands_in_for_the_config(self, landed_hosting_none):
-        routed = {
-            where: written["origenerator_cmd_file"]
-            for where, written in landed_hosting_none.items()
-            if written.get("origenerator_cmd_file")
-        }
-        assert not routed, f"these reached an Origenerator the config names none of: {routed}"
-
     def test_every_window_op_raised_is_one_a_headset_has_an_answer_for(self, landed):
         known = _OPS_WITH_NO_WINDOWS | _OPS_THAT_STILL_ACT
         unclassified = {

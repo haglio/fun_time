@@ -29,14 +29,9 @@ class SatelliteState:
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
-    filter: str = ""
     favorites_filter: bool = False
     enhancement: EnhancementLevel = EnhancementLevel.BOTH
     latest: bool = False
-    loop: str = ""
-    nav_map_anchor: str = ""
-    widen_video: str = ""
-    nav_anchor: str = ""
     handed_over: bool = False
     speed: float = 1.0
     volume: int = MAX_VOLUME
@@ -192,10 +187,6 @@ _LAST_SESSIONS_KEYS = {
     "osr2_player": ("osr2_funestra",),
     "satellites_mode": ("rfb_mode",),
     "rfb_slot": ("rfb_mode",),
-    "portrait_map_anchor": ("portrait_nav_map_anchor",),
-    "landscape_map_anchor": ("landscape_nav_map_anchor",),
-    "portrait_widen_clip": ("portrait_widen_video",),
-    "landscape_widen_clip": ("landscape_widen_video",),
 }
 
 

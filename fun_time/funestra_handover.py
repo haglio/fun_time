@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from funestra.file_channel import append_command
+from funestra.hud_button import Button
 from funestra.satellite_hud import parse_hud
 
 from .bridge_records import BridgeConfig, WindowOp
@@ -28,7 +29,7 @@ def hud_stamp(channel: SatelliteChannel) -> HudStamp:
     return stat.st_ino, stat.st_mtime_ns
 
 
-def _slideshows_switch(channel: SatelliteChannel, switch: str) -> bool | None:
+def _slideshows_button(channel: SatelliteChannel, verb: str) -> Button | None:
     if channel.origenerator_hud_file is None:
         return None
     try:
@@ -37,12 +38,18 @@ def _slideshows_switch(channel: SatelliteChannel, switch: str) -> bool | None:
         return None
     if hud is None:
         return None
-    return next((button.lit for row in hud.rows for button in row
-                 if button.command == f"{hud.funestra}_{switch}"), None)
+    return next((button for row in hud.rows for button in row
+                 if button.command == f"{hud.funestra}_{verb}"), None)
 
 
 def show_f_mode(channel: SatelliteChannel) -> bool | None:
-    return _slideshows_switch(channel, "fmode")
+    button = _slideshows_button(channel, "fmode")
+    return None if button is None else button.lit
+
+
+def show_has_something_to_reset(channel: SatelliteChannel) -> bool:
+    button = _slideshows_button(channel, "reset")
+    return button is not None and not button.dim
 
 
 def slideshows_enhancement(

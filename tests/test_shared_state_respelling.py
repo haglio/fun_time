@@ -42,7 +42,6 @@ class TestTheSharedStateFile:
         assert state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is True
         assert state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter is False
         assert (state.volume, state.muted) == (40, True)
-        assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
         assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
 
     def test_the_mode_selector_under_the_log_keeps_its_mode_under_its_new_key(self, tmp_path: Path):

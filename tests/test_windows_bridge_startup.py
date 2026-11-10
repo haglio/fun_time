@@ -693,17 +693,14 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(landscape=SatelliteState(latest=True), portrait=SatelliteState(favorites_filter=True, filter="alpha", loop="seed", nav_map_anchor="C:/v/a.mp4"), main_scripted_filter=True))
+    write_shared_state(state_file, BridgeState(landscape=SatelliteState(latest=True), portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True))
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(state_file)
     assert state is not None
     assert (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter) == (True, True)
-    assert state.satellite(FunTimeFunestra.PORTRAIT).filter == "alpha"
     assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
-    assert state.satellite(FunTimeFunestra.PORTRAIT).loop == "seed"
-    assert state.satellite(FunTimeFunestra.PORTRAIT).nav_map_anchor == "C:/v/a.mp4"
     assert "SET_F_MODE 1" in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
