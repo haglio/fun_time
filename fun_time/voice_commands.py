@@ -11,6 +11,7 @@ from .command_value import main_funestras_own, say_command
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
+from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL
 from .origenerator_switches import KINO_MODE, ORIGENERATOR_MODE, mode_command
 
 logger = logging.getLogger(__name__)
@@ -145,9 +146,8 @@ def _group_cycle_and_mode_phrases(commands: dict[str, str]) -> None:
     commands.update(named_first_or_last("all", "reset", "all_reset"))
 
     _ENHANCEMENT_PHRASES: dict[str, str] = {
-        "enhanced only": "enhancement_enhanced",
-        "original only": "enhancement_original",
-        "enhanced and original": "enhancement_both",
+        **{words: f"enhancement_{level}"
+           for level, words in SAID_FOR_AN_ENHANCEMENT_LEVEL.items()},
         "original and enhanced": "enhancement_both",
     }
     for _phrase, _act in _ENHANCEMENT_PHRASES.items():

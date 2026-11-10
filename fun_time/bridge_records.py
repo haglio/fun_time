@@ -131,7 +131,6 @@ IN_KINO_MODE = "in Kino mode"
 
 IN_GENAU_MODE = "in Genau mode"
 
-IN_ORIGENERATOR_MODE = "in Origenerator mode"
 
 
 OUTSIDE_VR = "outside VR"

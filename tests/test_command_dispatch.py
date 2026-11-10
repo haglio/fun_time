@@ -5198,19 +5198,19 @@ class TestTheEnhancementLevel:
 
         assert state.satellite(FunTimeFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
 
-    def test_said_to_a_satellite_in_origenerator_mode_it_is_the_slideshows_own_switch(self, tmp_path):
+    def test_said_to_a_satellite_in_origenerator_mode_each_level_is_said_to_the_hosted_app(
+            self, tmp_path):
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
         state, _ops = dispatch_command("portrait_enhancement_enhanced", state, config)
-        publish_the_show(config, FunTimeFunestra.PORTRAIT, f_mode=False, enhanced=True)
         state, _ops = dispatch_command("portrait_enhancement_both", state, config)
-        publish_the_show(config, FunTimeFunestra.PORTRAIT, f_mode=False, enhanced=False)
-        state, _ops = dispatch_command("portrait_enhancement_both", state, config)
-        state, ops = dispatch_command("portrait_enhancement_original", state, config)
+        state, ops = dispatch_command("landscape_enhancement_original", state, config)
 
-        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:enhanced only", "portrait_enhanced"]
-        assert ops == [WindowOp(op=Op.IGNORED, key="in Origenerator mode")]
+        assert _origenerator_cmds(config) == [
+            "PORTRAIT_SAY:enhanced only", "PORTRAIT_SAY:enhanced and original",
+            "LANDSCAPE_SAY:original only"]
+        assert ops == []
         assert state.satellite(FunTimeFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
 
 
