@@ -288,7 +288,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
 def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
-    rel = Path("2_outbox") / "upscaled_by_orientation" / "landscape" / "provider"
+    rel = Path("upscales") / "landscape" / "provider"
     video = media_root / rel / "vid_topaz.mp4"
     meta_file = metadata_root / "2D" / "AI" / rel / "vid_topaz.json"
     meta_file.parent.mkdir(parents=True, exist_ok=True)
