@@ -80,56 +80,38 @@ windows where they always open, and the session's first ticks seat them from
 the crown, which does come back, and the shape of what the Main Funestra shows,
 whether that is a video or one of Genau's flicks.
 
-Whatever Origenerator held comes back — each Satellite Funestra's own
-Origenerator mode, and Origenerator in the Random Faves Browser's place — and it
-comes back UNDER THE LOADING SCREEN. Every session is built with both Funestras in Kino mode
-and the browser in its place, so a session left otherwise has to be switched back,
-and switching it once Fun Time is already his is what this must never do: the
-Funestras would rearrange themselves under whatever he had started, which was
-tried and rejected. So the loading screen stays up instead. The phase before its
-last, read on the loading screen as "Activating Origenerator...", comes after the
-room is built and banded and waits for the hosted Origenerator to publish its
-status — re-written while it waits, since a loading screen takes itself down on a progress
+Every session that hosts Origenerator opens with the app holding both Satellite
+Funestras (Satellite mode, their one mode), and with Origenerator back in the Random
+Faves Browser's place if the last session left it there, and both happen UNDER THE
+LOADING SCREEN: rearranging the Funestras once Fun Time is already his, under
+whatever he had started, was tried and rejected. The phase before the loading
+screen's last, read on it as "Activating Origenerator...", comes after the room is
+built and banded and waits for the hosted Origenerator to publish its status —
+re-written while it waits, since a loading screen takes itself down on a progress
 file nothing has touched for a minute (`overlay_progress`). The moment the app
-answers, the very commands the switches send are sent, one for each thing
-Origenerator held, and only then does the loading screen come down — on a session already
-the way it was left. A session Origenerator held nothing of waits for nothing.
+answers, the session asks it for both Satellites' slideshows (and for the
+browser's place, when that is owed), and the loading screen comes down only once
+the app has taken both Satellites.
 
 The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
-died on its way up would otherwise hold Fun Time shut; a session that gave up opens
-with Origenerator holding nothing and stays that way for the session, and the
-state file is corrected to say so, since that is what the satellite HUDs and the
-dashboard's strip draw and what the switches act on. An Origenerator that was
-already open when the session began — one he opened himself and the session took
-over, or one a crossing kept — has no boot to wait out, so what it held is there
-as the loading screen lifts.
+died on its way up would otherwise hold Fun Time shut; a session that gave up
+ends its startup with the reason, and the state file is left as it was. An
+Origenerator that was already open when the session began — one he opened himself
+and the session took over, or one a crossing kept — has no boot to wait out.
 
-A session also opens with Origenerator in the browser's place and on one satellite,
-whatever the last one was left in, when the Origenerator it takes over is showing
-a slideshow: he was watching it, so Fun Time comes up with that show on the
-satellite of its shape and the other satellite as the last session left it (his
-calls, 2026-10-13 and 2026-10-17). A slideshow of both shapes puts Origenerator
-on both satellites instead, each playing the slideshow's items of its own
-shape, since only landscape content ever shows on the landscape satellite and
-only portrait on the portrait one (his call, 2026-10-25). The app holds the show
-through the takeover and plays each Satellite's part there when that Satellite's show is
-asked for. It says it is showing one beside its offer, in `fun_time_showing.txt`,
-naming its own process the way the offer does, so the mark of an app that has
-since closed is never believed, and then the shape of its items, `portrait`,
-`landscape` or `both`; a mark naming no shape is from an app older than that, and
-puts Origenerator on both satellites too.
+A session also opens with Origenerator in the browser's place, whatever the last
+one was left in, when the Origenerator it takes over is showing a slideshow: he
+was watching it (his calls, 2026-10-13 and 2026-10-17). The app holds the show
+through the takeover and plays each Satellite's part there when that Satellite's
+show is asked for. It says it is showing one beside its offer, in
+`fun_time_showing.txt`, naming its own process the way the offer does, so the
+mark of an app that has since closed is never believed.
 
-Coming back to a Funestra's Origenerator mode means putting back what the mode took. While the hosted app
-has a satellite, that Funestra's playlist file holds the app's images and the
-session's own list waits beside it (`fun_time.funestra_handover`). A session quit
-there, or killed there, never brings the Funestra home — so `resume_playlists`
-takes every kept list back before it reads anything, and a session built in video
-mode opens on video lists, at the video each Satellite was showing when it left.
-Without that, the session after a quit in Origenerator mode opened in Kino mode
-on two locked images, each with a one-square map and nothing to step to
-(2026-09-19). The kept lists are taken back even when the resume goes on to find
-nothing to resume: one that outlived the rebuild would be dealt over it the next
-time that Funestra came home.
+An older Fun Time kept a Satellite's own list beside its playlist while the app
+held it (`portrait_playlist.kept.tsv`, `landscape_playlist.kept.tsv`) and put it
+back when the Satellite came home to Kino mode. No Satellite goes back to a list
+of Fun Time's own any more, so `resume_playlists` deletes any such file it finds
+instead.
 
 ## The Main Funestra's one list
 
