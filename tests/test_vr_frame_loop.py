@@ -583,6 +583,20 @@ class TestTearingDown:
         assert the_room.loading_screen.told[-1] == "closed"
         assert stopped == []
 
+    def test_it_answers_held_only_once_its_channels_are_closed(self, tmp_path):
+        ask_for_the_hold(tmp_path, stop_runtime=False)
+        the_room = _ARoom(_ALoadingScreen())
+        answered_as_the_channels_closed = []
+        close_the_channels = the_room.close
+        the_room.close = lambda **how: (
+            answered_as_the_channels_closed.append(headset_is_held(tmp_path)),
+            close_the_channels(**how))
+
+        tear_down(_a_headset(_ASession(ready=False)), the_room, tmp_path, clock=_AClock())
+
+        assert answered_as_the_channels_closed == [False]
+        assert headset_is_held(tmp_path)
+
     def test_a_hold_that_ends_the_runtime_ends_it_once_everything_is_closed(self, tmp_path):
         ask_for_the_hold(tmp_path, stop_runtime=True)
         session = _ASession(ready=False)
