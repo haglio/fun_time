@@ -44,6 +44,7 @@ from fun_time.media_metadata import (
 from fun_time.mode_plan import EnhancementLevel
 from fun_time.modes import write_playlist_file
 from fun_time.origenerator_switches import RfbMode, hosted_satellites
+from fun_time.satellite_buttons import STILL_STARTING_TOOLTIP
 from fun_time.satellite_commands import _discard, _toggle_lock
 from fun_time.satellite_groups import _satellite_group_index, cancel_lock, send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
@@ -2449,12 +2450,15 @@ def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
     assert ceilinged.volume == 100
 
 
-def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
+def test_the_main_funestra_is_told_muted_apart_from_turned_all_the_way_down(tmp_path: Path):
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70), config)
-
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
+
+    dispatch_command("audio_set_volume|0", _make_state(volume=70), config)
+    assert config.main_funestra_cmd_file.read_text(encoding="utf-8").split("\n")[1] == "SET_VOLUME 0 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
 
 
@@ -2470,7 +2474,7 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
     assert ops == [WindowOp(op="message", key="Volume 35%", source="main")]
 
 
-def test_the_level_reaches_both_funestras_that_draw_it(tmp_path: Path):
+def test_both_funestras_that_draw_the_level_are_told_it_a_hidden_genau_too(tmp_path: Path):
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70, main_mode=MainMode.KINO), config)
@@ -2600,7 +2604,7 @@ class TestOsr2ControlState:
             assert after.osr2_control == state_name, command
             assert ops == []
 
-    def test_a_park_sends_the_device_home(self, tmp_path: Path):
+    def test_a_park_tells_the_broker_alone_and_leaves_the_engines_to_the_arbiter(self, tmp_path: Path):
         config = _make_config(tmp_path)
 
         _after, ops = dispatch_command("robot_hand_park", _make_state(), config)
@@ -2888,7 +2892,7 @@ def test_a_leave_omnipause_verb_no_producer_can_send_is_inert(tmp_path: Path):
     assert new_state.omni_paused is True
 
 
-def test_leaving_omnipause_brings_back_the_funestras_a_button_parked(tmp_path: Path):
+def test_leaving_omnipause_brings_back_a_funestra_parked_from_the_hud_it_took_down(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
@@ -2896,7 +2900,7 @@ def test_leaving_omnipause_brings_back_the_funestras_a_button_parked(tmp_path: P
     assert any(op.op == "restore_parked" for op in ops)
 
 
-def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
+def test_the_restack_and_the_raise_land_on_windows_already_back_on_screen(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
@@ -3130,7 +3134,7 @@ def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(tmp_path: 
     assert not any("portrait_say_experiments" in record.message for record in caplog.records)
 
 
-def test_genaumacher_save_raises_a_save_video_op_and_runs_nothing_inline(tmp_path: Path):
+def test_the_ten_second_genaumacher_save_is_asked_for_not_run_on_the_tick(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.KINO)
 
@@ -3295,7 +3299,7 @@ def test_a_loop_of_one_video_puts_it_in_the_favorites_as_every_lock_does(tmp_pat
     assert is_favorite(paths["only"], config.regen_metadata_root)
 
 
-def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
+def test_an_action_loop_records_its_axis_where_the_hud_feed_reads_it(tmp_path: Path):
     config, a, _b = _loop_config(tmp_path, axis="action")
 
     _set_current(config, 2, a)
@@ -3305,7 +3309,7 @@ def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     assert state.satellite(FunTimeFunestra.LANDSCAPE).loop == ""
 
 
-def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
+def test_a_seed_loop_records_its_axis_where_the_hud_feed_reads_it(tmp_path: Path):
     config, a, _b = _loop_config(tmp_path, axis="seed", funestra=3)
 
     _set_current(config, 3, a)
@@ -3315,7 +3319,7 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
     assert state.satellite(FunTimeFunestra.PORTRAIT).loop == ""
 
 
-def test_a_loop_anchors_on_the_video_it_started_on(tmp_path: Path):
+def test_a_loops_nav_map_anchor_is_the_head_of_the_queue_it_wrote(tmp_path: Path):
     config, a, b = _loop_config(tmp_path, axis="seed")
 
     _set_current(config, 2, b)
@@ -3428,14 +3432,14 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
 
 def test_no_loop_keeps_the_video_on_screen_by_heading_the_restored_browse(tmp_path: Path):
     config = _make_config(tmp_path)
-    playing = r"C:\v\seed_4.mp4"
+    looped_video_the_browse_leaves_out = r"C:\v\seed_4.mp4"
     browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
-    _set_current(config, 2, playing)
+    _set_current(config, 2, looped_video_the_browse_leaves_out)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait=SatelliteState(loop="seed")), config)
 
-    assert _playlist(config, 2) == [playing, *browse]
+    assert _playlist(config, 2) == [looped_video_the_browse_leaves_out, *browse]
 
 
 def test_no_loop_leaves_a_browse_that_already_holds_the_video_untouched(tmp_path: Path):
@@ -3833,13 +3837,14 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path):
     assert builds.asked == []
 
 
-def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path):
-    config, _builds = _recording(_make_config(tmp_path))
+def test_a_genau_reorder_does_not_make_the_next_main_rebuild_a_latest_one(tmp_path):
+    config, builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert state.genau_latest is True
-    assert state.main_latest is False
+    assert (state.genau_latest, state.main_latest) == (True, False)
+    dispatch_command("main_fmode_on", replace(state, main_mode=MainMode.KINO), config)
+    assert builds.asked[-1].settings.latest is False
 
     state, _ops = dispatch_command("main_shuffle", state, config)
     assert state.genau_latest is False
@@ -3956,7 +3961,8 @@ def test_asking_for_the_shapes_already_running_reshuffles_nothing(tmp_path):
     ("main_funestra_length_none", BridgeState()),
     ("main_funestra_length_clips", BridgeState(main_plays_flat=False)),
 ])
-def test_every_press_that_leaves_no_video_ends_the_same_way(tmp_path, caplog, command, state):
+def test_every_press_that_leaves_no_video_sends_the_one_on_screen_never_an_empty_list(
+        tmp_path, caplog, command, state):
     config = _vr_config(tmp_path)
     on_screen = tmp_path / "primary" / "vr" / "scene one.mp4"
     on_screen.parent.mkdir(parents=True)
@@ -4293,7 +4299,8 @@ class TestEachSatellitesOwnMode:
         assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
         assert any(op.op == "message" and op.level == logging.WARNING for op in ops)
 
-    def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
+    def test_a_switch_asked_before_origenerators_windows_exist_is_refused_in_the_dim_buttons_words(
+            self, tmp_path):
         config = _origenerator_config(tmp_path)
 
         for command in ("portrait_origenerator_activate", "satellites_origenerator_activate"):
@@ -4301,6 +4308,7 @@ class TestEachSatellitesOwnMode:
             assert _modes(state) == [SatellitesMode.KINO, SatellitesMode.KINO]
             assert [(op.op, op.key) for op in ops] == [
                 ("message", "Origenerator is still starting")]
+            assert STILL_STARTING_TOOLTIP.startswith("Origenerator is still starting")
             assert _origenerator_cmds(config) == []
 
     def test_a_switch_clicked_while_paused_still_hands_the_funestra_to_the_hosted_app(
@@ -4403,7 +4411,8 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == []
         assert _cmds(config, 3) == []
 
-    def test_a_satellite_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path, rebuilt_satellite):
+    def test_a_hosted_satellites_filter_goes_to_the_app_whose_list_a_rebuild_would_overwrite(
+            self, tmp_path, rebuilt_satellite):
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
 
@@ -4479,7 +4488,7 @@ class TestOrigeneratorTransport:
         assert state.main_scripted_filter is False
         assert _origenerator_cmds(config) == ["portrait_fmode_off"]
 
-    def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
+    def test_fun_time_hears_for_the_hosted_app_and_posts_it_the_words_to_match(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state = _in_origenerator_mode()
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",

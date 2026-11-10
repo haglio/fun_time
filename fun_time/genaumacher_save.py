@@ -14,6 +14,8 @@ from .funestra_status import read_main_funestra_status
 
 logger = logging.getLogger(__name__)
 
+A_SAVE_IN_GENAUMACHERS_VENV_TAKES_UP_TO_S = 10
+
 
 @functools.lru_cache(maxsize=1)
 def _genaumacher_project_dir() -> Path:
@@ -51,7 +53,7 @@ def save_clip_session(config: BridgeConfig) -> str:
             ],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=A_SAVE_IN_GENAUMACHERS_VENV_TAKES_UP_TO_S,
             cwd=str(_genaumacher_project_dir()),
             check=False,
             **hidden_subprocess_kwargs(),

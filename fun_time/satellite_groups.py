@@ -217,6 +217,10 @@ def _loop_items(
     return [item for item in gather(index, current) if Path(item).exists()], widened
 
 
+def _queued_from_the_video_on_screen(items: list[str], current: str) -> list[str]:
+    return [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
+
+
 def group_loop(
     funestra: FunTimeFunestra, state: BridgeState, config: BridgeConfig, target_path: str = "",
     *, axis: str,
@@ -231,13 +235,13 @@ def group_loop(
         return _locked_by_a_loop_control(funestra, with_nothing_held_on_the_queue(state, funestra),
                                          config, current)
     state = cancel_lock(funestra, state, config)
-    items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
-    write_playlist_file(config.satellite(funestra).playlist_file, items,
+    queue = _queued_from_the_video_on_screen(items, current)
+    write_playlist_file(config.satellite(funestra).playlist_file, queue,
                         metadata_root=config.regen_metadata_root)
     send_satellite(config, funestra, RELOAD_PLAYLIST)
-    message = f"Loop {FunTimeFunestra(funestra).label}: {len(items)} {axis}s"
+    message = f"Loop {FunTimeFunestra(funestra).label}: {len(queue)} {axis}s"
     logger.info(message)
-    state = state.with_satellite(funestra, loop=axis, nav_map_anchor=current)
+    state = state.with_satellite(funestra, loop=axis, nav_map_anchor=queue[0])
     state = state.with_satellite(funestra, widen_video=current if widened else "")
     ops.append(WindowOp(op="message", key=message, source=source))
     return state, ops

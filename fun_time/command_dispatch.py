@@ -109,7 +109,7 @@ def _about_a_satellite(command: Command) -> bool:
 _CLEAR_FILTER = "clear filter"
 
 
-def _words_for_the_hosted_app(command: Command) -> tuple[str, str] | None:
+def _words_for_the_hosted_app_to_match(command: Command) -> tuple[str, str] | None:
     if command.satellite is None:
         return None
     if command.action == SAY:
@@ -128,7 +128,7 @@ def _a_lock_said_in_the_hosted_apps_words(command: Command, state: BridgeState,
 def routes_to_origenerator(command: str | Command, state: BridgeState, config: BridgeConfig) -> bool:
     if isinstance(command, str):
         command = parse_command(command)
-    spoken = _words_for_the_hosted_app(command)
+    spoken = _words_for_the_hosted_app_to_match(command)
     if spoken is not None:
         return hosts(command.satellite, state, config)
     return all(_about_a_satellite(said) and hosts(said.satellite, state, config)
@@ -137,7 +137,7 @@ def routes_to_origenerator(command: str | Command, state: BridgeState, config: B
 
 def _told_to_the_hosted_app(command: Command, config: BridgeConfig,
                             spoken_at: float | None) -> list:
-    spoken = _words_for_the_hosted_app(command)
+    spoken = _words_for_the_hosted_app_to_match(command)
     return written_for_the_hosted_app(
         [said_to_the_hosted_app(*spoken)] if spoken is not None
         else [half.text for half in command.halves()], config, spoken_at)

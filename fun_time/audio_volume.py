@@ -27,11 +27,14 @@ def volume_verb(volume: int, muted: bool) -> str:
     return f"{SET_VOLUME} {volume} {int(muted)}"
 
 
+def _the_one_number_a_sink_needs(volume: int, muted: bool) -> int:
+    return MIN_VOLUME if muted else volume
+
+
 def publish_audio_level(
     *, main_funestra_cmd_file: Path, genau_cmd_file: Path, audio_volume_file: Path,
     volume: int, muted: bool,
 ) -> None:
-    verb = volume_verb(volume, muted)
-    append_command(main_funestra_cmd_file, verb)
-    append_command(genau_cmd_file, verb)
-    write_volume(audio_volume_file, MIN_VOLUME if muted else volume)
+    for funestra_that_draws_the_level in (main_funestra_cmd_file, genau_cmd_file):
+        append_command(funestra_that_draws_the_level, volume_verb(volume, muted))
+    write_volume(audio_volume_file, _the_one_number_a_sink_needs(volume, muted))
