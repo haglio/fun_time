@@ -550,7 +550,7 @@ class TestWritePidsFile:
 
 
 class TestHotkeySuspendDuringIntegration:
-    def _mailbox_at_startup(self, cfg_factory, tmp_path, **session_kwargs):
+    def _mailbox_before_teardown_writes_its_exit(self, cfg_factory, tmp_path, **session_kwargs):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -582,13 +582,13 @@ class TestHotkeySuspendDuringIntegration:
         return seen
 
     def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path):
-        seen = self._mailbox_at_startup(
+        seen = self._mailbox_before_teardown_writes_its_exit(
             cfg_factory, tmp_path, env=SessionEnvironment(integration=True, show_overlays=False))
 
         assert seen == ["suspend_hotkeys"]
 
     def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path):
-        assert self._mailbox_at_startup(cfg_factory, tmp_path) == [None]
+        assert self._mailbox_before_teardown_writes_its_exit(cfg_factory, tmp_path) == [None]
 
 
 class TestRunPythonOrchestratedBridge:
@@ -611,6 +611,9 @@ class TestRunPythonOrchestratedBridge:
         fake_loading_proc = MagicMock()
         fake_loading_proc.wait.return_value = 0
 
+        def launched_by_another_thread_at_no_fixed_moment():
+            return MagicMock(wait=MagicMock(return_value=0))
+
         def fake_popen(cmd, **kwargs):
             if "loading_screen" in str(cmd):
                 calls.append("launch_loading")
@@ -621,7 +624,7 @@ class TestRunPythonOrchestratedBridge:
             if "ahk.exe" in str(cmd):
                 calls.append("launch_ahk")
                 return fake_ahk_proc
-            return MagicMock(wait=MagicMock(return_value=0))
+            return launched_by_another_thread_at_no_fixed_moment()
 
         killed_pids: list[int] = []
 
@@ -828,7 +831,7 @@ class TestRunPythonOrchestratedBridge:
             self, cfg_factory, tmp_path):
         assert self._the_watch_a_session_hands_its_loop(load_config(cfg_factory()), tmp_path) is None
 
-    def test_serves_on_the_port_its_own_config_named(self, cfg_factory, tmp_path):
+    def test_a_session_beside_another_can_serve_on_a_port_of_its_own(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({"loopback_port": 54321}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -849,7 +852,7 @@ class TestRunPythonOrchestratedBridge:
 
         assert mock_serve.call_args.kwargs["port"] == 54321
 
-    def test_the_loopback_server_goes_down_with_the_session(self, cfg_factory, tmp_path):
+    def test_a_session_that_ends_frees_the_loopback_port_for_the_next(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1063,7 +1066,7 @@ class TestLoadingScreenLifecycle:
 
         assert not [c for c in popen_calls if "loading_screen" in str(c)]
 
-    def test_the_startup_sequence_is_handed_the_same_record(self, cfg_factory, tmp_path):
+    def test_the_sequencers_window_moves_get_the_sessions_own_record(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1089,7 +1092,7 @@ class TestLoadingScreenLifecycle:
 
         assert sequence.call_args.kwargs["env"] == env
 
-    def test_the_dispatch_loop_is_handed_the_same_record(self, cfg_factory, tmp_path):
+    def test_the_dispatch_loops_activations_get_the_sessions_own_record(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1726,10 +1729,10 @@ class TestClosingScreenLifecycle:
 
     def test_a_teardown_stuck_anywhere_but_ending_a_part_still_lets_the_closing_screen_go(
             self, cfg_factory, tmp_path):
-        heard: list[bool] = []
+        kept_covering_every_monitor: list[bool] = []
 
         def a_hotkey_script_that_will_not_go(_proc, _mailbox):
-            heard.append(heard_from_again_once_stale(
+            kept_covering_every_monitor.append(heard_from_again_once_stale(
                 tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME,
                 stale_after_s=closing_screen.STALE_TIMEOUT_S, within_s=2.5))
 
@@ -1737,7 +1740,7 @@ class TestClosingScreenLifecycle:
                    side_effect=a_hotkey_script_that_will_not_go):
             _run_a_session(cfg_factory, tmp_path)
 
-        assert heard == [False]
+        assert kept_covering_every_monitor == [False]
 
     def test_a_crossing_wears_the_transition_screen_and_leaves_it_standing(
         self, cfg_factory, tmp_path,
@@ -1846,7 +1849,7 @@ class TestClosingScreenLifecycle:
 
 @pytest.mark.real_startup_waits
 class TestWaitForClosingScreen:
-    def test_returns_as_soon_as_the_flag_lands(self, tmp_path, caplog):
+    def test_only_the_flag_landing_ends_the_wait_without_a_warning(self, tmp_path, caplog):
         ready_file = tmp_path / "shutdown_ready.flag"
         ready_file.write_text("", encoding="utf-8")
         proc = MagicMock()
@@ -2642,7 +2645,7 @@ class TestMainFunestraObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Funestra", 2020, ignore=1010)
+            _log_window_obstruction("Main Funestra", 2020, covers_it_by_design=1010)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]
 
@@ -2655,7 +2658,7 @@ class TestMainFunestraObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Main Funestra", 2020, ignore=1010)
+            _log_window_obstruction("Main Funestra", 2020, covers_it_by_design=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
         assert "Fun Time is starting" not in caplog.text
