@@ -177,7 +177,7 @@ class TestWhatEscCancelsAtTheLoadingScreen:
 
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
 
-    def test_a_launch_esc_already_turned_back_offers_no_esc_to_turn_it_again(self, tmp_path):
+    def test_a_launch_an_esc_turned_back_offers_no_esc_to_turn_or_close_it(self, tmp_path):
         raise_transition_screen(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path, cancelable=False).hint == ""
