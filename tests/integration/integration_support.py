@@ -28,13 +28,13 @@ from app_support.siblings import primary_checkout_of
 from app_support.state_files import OSR2_SERIAL_RX
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
-from funestra.file_channel import append_command
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.playlist import PlaylistItem
 
 from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_filename
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, SIBLING_CHECKOUTS_KEY, load_config
+from fun_time.dashboard_app import write_dashboard_command as press_as_the_dashboard_does
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import (
@@ -88,12 +88,19 @@ def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
     }
 
 
+_LEFT_ALONE_SO_THE_FUNESTRAS_REPLACE_IS_NOT_REFUSED_S = 0.01
+
+
+def _is_the_empty_record_a_read_inside_the_replace_gets(status) -> bool:
+    return status == type(status)()
+
+
 def published_status(read, path: Path, *, budget_s: float = 2.0,
                      now=run_clock.now, sleep=time.sleep):
     deadline = now() + budget_s
     status = read(path)
-    while status == type(status)() and now() < deadline:
-        sleep(0.01)
+    while _is_the_empty_record_a_read_inside_the_replace_gets(status) and now() < deadline:
+        sleep(_LEFT_ALONE_SO_THE_FUNESTRAS_REPLACE_IS_NOT_REFUSED_S)
         status = read(path)
     return status
 
@@ -359,7 +366,7 @@ class FunTimeIntegrationSession:
         self._reap_leftover_runtime_processes()
 
     def write_dashboard_command(self, action: str) -> None:
-        append_command(self.dashboard_cmd_file, action)
+        press_as_the_dashboard_does(self.dashboard_cmd_file, action)
 
     def is_favorite(self, path: Path) -> bool:
         return is_favorite(path, self.config.regen.metadata_root)

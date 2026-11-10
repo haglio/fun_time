@@ -28,12 +28,20 @@ def test_a_bare_target_has_no_folder_or_arguments(tmp_path):
     assert resolve_shortcut(made) == Shortcut(AN_EXE)
 
 
-def test_a_shortcut_that_cannot_be_read_says_so_and_launches_nothing(tmp_path, caplog):
-    with caplog.at_level(logging.DEBUG, logger="windows_bridge"):
-        resolved = resolve_shortcut(str(tmp_path / "gone.lnk"))
+def test_a_shortcut_that_cannot_be_read_launches_nothing(tmp_path):
+    assert resolve_shortcut(str(tmp_path / "gone.lnk")) == Shortcut()
 
-    assert resolved == Shortcut()
-    assert "Could not read the shortcut" in caplog.text
+
+def test_a_shortcut_that_cannot_be_read_is_logged_by_path_with_the_error(tmp_path, caplog):
+    the_link_that_broke = str(tmp_path / "gone.lnk")
+
+    with caplog.at_level(logging.DEBUG, logger="windows_bridge"):
+        resolve_shortcut(the_link_that_broke)
+
+    [said] = [record for record in caplog.records if "Could not read the shortcut" in record.message]
+    how_it_broke = said.exc_info[1]
+    assert the_link_that_broke in said.message
+    assert isinstance(how_it_broke, OSError)
 
 
 def test_a_folder_is_read_by_the_pattern_alone(tmp_path):

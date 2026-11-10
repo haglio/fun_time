@@ -72,6 +72,8 @@ OSR2_SLOT_PORT = 50558
 GENAU_INBOUND_PORT = 50555
 AUDIO_COMPANION_PORT = 50556
 
+A_KEY_OLD_CONFIGS_KEEP_FROM_GENAUS_OWN_PROGRAM = "notify_port"
+
 EXAMPLE_CONFIG = Path(__file__).resolve().parent.parent / "fun_time_config.example.json"
 
 
@@ -80,7 +82,7 @@ def _the_users_config() -> dict:
     config["paths"]["broker_state_dir"] = "C:/Users/Example/workspace/fun_time/state"
     config["voice_control"]["enabled"] = True
     config["loopback_port"] = LOOPBACK_PORT
-    config["genau"]["notify_port"] = AUDIO_COMPANION_PORT
+    config["genau"][A_KEY_OLD_CONFIGS_KEEP_FROM_GENAUS_OWN_PROGRAM] = AUDIO_COMPANION_PORT
     return config
 
 

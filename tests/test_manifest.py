@@ -32,7 +32,7 @@ _A_SATELLITES_CHANNEL = {
     "origenerator_hud_file", "sources",
 }
 
-_EXPECTED_KEYS: dict[str, set[str]] = {
+_KEYS_EVERY_READER_SPELLS_VERBATIM: dict[str, set[str]] = {
     "runtime": {
         "config_path", "windows_bridge_log_file", "sibling_checkouts", "origenerator_dir",
     },
@@ -75,10 +75,10 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
 }
 
 
-def test_the_manifest_carries_exactly_the_documented_schema(cfg_path):
+def test_no_key_is_added_dropped_or_respelled_unnoticed(cfg_path):
     data = build_windows_bridge_manifest(load_config(cfg_path))
 
-    assert {section: set(keys) for section, keys in data.items()} == _EXPECTED_KEYS
+    assert {section: set(keys) for section, keys in data.items()} == _KEYS_EVERY_READER_SPELLS_VERBATIM
 
 
 def test_every_key_the_ahk_shell_demands_is_written(cfg_path):
@@ -90,6 +90,22 @@ def test_every_key_the_ahk_shell_demands_is_written(cfg_path):
     for section, key in demanded:
         assert data.get(section, {}).get(key), (
             f"AHK demands [{section}] {key}, which the manifest does not carry"
+        )
+
+
+_READERS_THAT_SPELL_KEYS_THEMSELVES = ("fun_time/dashboard_app.py", "fun_time/library_browser.py")
+
+
+@pytest.mark.parametrize("reader", _READERS_THAT_SPELL_KEYS_THEMSELVES)
+def test_every_key_a_reader_spells_for_itself_is_written(reader, cfg_path):
+    source = (_REPO_ROOT / reader).read_text(encoding="utf-8")
+    spelled = re.findall(r'\.get(?:int|float)?\(\s*"([^"]+)",\s*"([^"]+)"', source)
+    assert spelled, f"{reader} no longer reads the manifest for itself?"
+
+    data = build_windows_bridge_manifest(load_config(cfg_path))
+    for section, key in spelled:
+        assert key in data.get(section, {}), (
+            f"{reader} reads [{section}] {key}, which the manifest never carries"
         )
 
 
@@ -125,15 +141,17 @@ class TestReadingItBack:
         covered["dashboard"] = {"enabled"}
         covered["loopback"] = {"port"}
 
-        assert covered == _EXPECTED_KEYS
+        assert covered == _KEYS_EVERY_READER_SPELLS_VERBATIM
 
-    def test_the_values_come_back_exactly_as_the_file_carries_them(self, cfg_path, tmp_path):
-        cfg = load_config(cfg_path)
-        path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
-        raw = build_windows_bridge_manifest(cfg)
+    def test_a_value_reaches_a_childs_command_line_as_the_writer_wrote_it(self, cfg_path, tmp_path):
+        raw = build_windows_bridge_manifest(load_config(cfg_path))
+        one_a_path_round_trip_would_rewrite = "C:/example/films/|D:\\example\\more\\"
+        raw["media"]["genau_flicks"] = one_a_path_round_trip_would_rewrite
+        path = write_manifest_data(raw, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
         manifest = LaunchManifest.read(path)
 
+        assert manifest.media.genau_flicks == one_a_path_round_trip_would_rewrite
         assert manifest.commands.main_funestra_cmd_file == raw["commands"]["main_funestra_cmd_file"]
         assert manifest.media.main_funestra_library_sources == raw["media"]["main_funestra_library_sources"]
         assert manifest.executables.python_exe == raw["executables"]["python_exe"]
@@ -160,7 +178,7 @@ class TestReadingItBack:
         assert manifest.satellite(FunTimeFunestra.PORTRAIT).sources == "|".join(
             str(path) for path in cfg.paths.portrait_dirs)
 
-    def test_a_missing_key_names_the_key_and_the_file(self, cfg_path, tmp_path):
+    def test_a_missing_key_says_which_of_the_machines_manifests_lacks_it(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)
         path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
         path.write_text(
@@ -173,11 +191,12 @@ class TestReadingItBack:
         assert "main_funestra_cmd_file" in str(raised.value)
         assert str(path) in str(raised.value)
 
-    def test_the_message_survives_str_without_repr_escaping(self):
+    def test_unlike_a_keyerror_the_error_keeps_a_windows_paths_backslashes_single(self):
         message = r"[runtime] main_funestra_cmd_file missing from D:\a\fun_time\state\bridge.ini"
         assert str(ManifestKeyMissing(message)) == message
+        assert r"D:\\a\\fun_time" in str(KeyError(message))
 
-    def test_a_section_this_session_does_not_read_is_left_alone(self, cfg_path, tmp_path):
+    def test_the_section_fun_time_vr_adds_for_itself_is_passed_over(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)
         data = build_windows_bridge_manifest(cfg)
         data["vr"] = {"osr2_slot_port": "8000"}
@@ -185,7 +204,7 @@ class TestReadingItBack:
 
         assert LaunchManifest.read(path).commands.main_funestra_cmd_file
 
-    def test_the_keys_a_reader_has_always_defaulted_stay_defaulted(self, cfg_path, tmp_path):
+    def test_a_manifest_the_readers_before_this_one_accepted_is_not_refused(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)
         data = build_windows_bridge_manifest(cfg)
         for key in ("broker_state_dir", "broker_tray_launcher",

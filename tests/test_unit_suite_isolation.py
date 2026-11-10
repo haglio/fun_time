@@ -22,7 +22,7 @@ from fun_time_vr import vr_runtime
 from tests.conftest import TMP_ROOT
 from tests.headset_refusal import his_headset_refused
 
-REAL_STARTUP_TIMEOUTS = {
+STARTUP_TIMEOUTS_READ_BEFORE_ANY_FIXTURE_ZEROED_THEM = {
     "CLOSING_SCREEN_READY_CEILING_S": windows_bridge_orchestrator.CLOSING_SCREEN_READY_CEILING_S,
     "POST_LOADING_RESOLVE_TIMEOUT_S": windows_bridge_orchestrator.POST_LOADING_RESOLVE_TIMEOUT_S,
 }
@@ -46,7 +46,7 @@ def test_a_unit_test_never_waits_out_a_startup_timeout():
 
 @pytest.mark.real_startup_waits
 def test_the_waits_are_stubbed_per_test_and_not_edited_out_of_the_module():
-    for name, real in REAL_STARTUP_TIMEOUTS.items():
+    for name, real in STARTUP_TIMEOUTS_READ_BEFORE_ANY_FIXTURE_ZEROED_THEM.items():
         assert getattr(windows_bridge_orchestrator, name) == real
         assert real > 0
     assert windows_bridge_orchestrator.wait_for_window_by_title is (
