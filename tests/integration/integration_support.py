@@ -88,7 +88,7 @@ def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
     }
 
 
-_LEFT_ALONE_SO_THE_FUNESTRAS_REPLACE_IS_NOT_REFUSED_S = 0.01
+_GAP_THAT_LETS_THE_FUNESTRAS_REPLACE_LAND_S = 0.01
 
 
 def _is_the_empty_record_a_read_inside_the_replace_gets(status) -> bool:
@@ -100,7 +100,7 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
     deadline = now() + budget_s
     status = read(path)
     while _is_the_empty_record_a_read_inside_the_replace_gets(status) and now() < deadline:
-        sleep(_LEFT_ALONE_SO_THE_FUNESTRAS_REPLACE_IS_NOT_REFUSED_S)
+        sleep(_GAP_THAT_LETS_THE_FUNESTRAS_REPLACE_LAND_S)
         status = read(path)
     return status
 

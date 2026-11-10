@@ -193,13 +193,17 @@ def pids_with_window_on_current_desktop() -> set[int]:
     return pids
 
 
+def _is_the_hidden_desktop(name: str) -> bool:
+    return name == HIDDEN_DESKTOP_NAME
+
+
 def on_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> bool:
-    return desktop_name() == HIDDEN_DESKTOP_NAME
+    return _is_the_hidden_desktop(desktop_name())
 
 
 def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> None:
     current = desktop_name()
-    if not on_hidden_desktop(lambda: current):
+    if not _is_the_hidden_desktop(current):
         raise RuntimeError(
             f"The integration suite must run on the '{HIDDEN_DESKTOP_NAME}' desktop, "
             f"not '{current}'.  Run it with:\n\n"
