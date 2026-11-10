@@ -68,7 +68,7 @@ def _run(units, *, turns):
 
 
 class TestOneUnitsFaultIsNotTheOthers:
-    def test_the_worker_survives_and_the_rest_keep_pumping(self, recorded_funestra_log):
+    def test_the_worker_whose_pumps_tick_the_osr2_outlives_a_units_fault(self, recorded_funestra_log):
         broken = _Unit(raises=lambda _turn: RuntimeError("channel is wedged"))
         healthy = _Unit()
 

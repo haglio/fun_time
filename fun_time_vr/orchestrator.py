@@ -333,13 +333,13 @@ def _take_down_the_launch(
 ) -> None:
     say_the_crossing_is_cancelled(launch.state_dir)
     stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
-    funestra = launched.children.get("vr_funestras_pid")
+    still_showing_the_loading_screen = launched.children.get("vr_funestras_pid")
     with launch.progress.loading_screen_kept_up():
         for key, child in launched.children.items():
             if key != "vr_funestras_pid":
                 kill_recorded_child(child)
-        if funestra is not None:
-            kill_recorded_child(funestra)
+        if still_showing_the_loading_screen is not None:
+            kill_recorded_child(still_showing_the_loading_screen)
     _release_vr_runtime(launched.runtime_was_up, launch.state_dir)
     launch.loading_screen.clear()
 
@@ -520,8 +520,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
         manifest.modules.satellite_module,
         [manifest.portrait.status_file, manifest.landscape.status_file],
     )
-    reap_orphaned_satellites(VR_FUNESTRAS_MODULE, [str(launch.manifest_path)])
-    release_the_headset(state_dir)
+    _end_a_funestra_left_holding_the_headset(launch)
 
     portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
@@ -555,6 +554,11 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     resume_main_loop(Path(commands.main_funestra_cmd_file), carried,
                      bridge_config.main_list.file)
     return carried
+
+
+def _end_a_funestra_left_holding_the_headset(launch: _Launch) -> None:
+    reap_orphaned_satellites(VR_FUNESTRAS_MODULE, [str(launch.manifest_path)])
+    release_the_headset(launch.state_dir)
 
 
 def _launch_the_children(launch: _Launch, config, launched: _Launched) -> None:
