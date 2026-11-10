@@ -33,7 +33,7 @@ from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.origenerator_switches import KINO_MODE as SATELLITE_KINO_MODE
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState, SatelliteState
-from fun_time.windows_bridge_dispatch_loop import HANDOFF_COMMANDS
+from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, HANDOFF_COMMANDS
 from fun_time_vr import headset_verbs
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from fun_time_vr.headset_verbs import HeadsetVerbs
@@ -51,27 +51,48 @@ from tests.genau_fakes import (
 )
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
-_OPS_WITH_NO_WINDOWS = frozenset({
-    Op.MESSAGE, Op.SHOW_WINDOW, Op.HIDE_WINDOW, Op.ACTIVATE_WINDOW, Op.MINIMIZE_WINDOW,
-    Op.RESTORE_PARKED, Op.RESTACK_RFB,
+_OPS_ON_WINDOWS_THE_ONE_VR_PROCESS_HAS_NONE_OF = frozenset({
+    Op.SHOW_WINDOW, Op.HIDE_WINDOW, Op.ACTIVATE_WINDOW, Op.MINIMIZE_WINDOW,
     Op.DISABLE_ALL_TOPMOST, Op.RESTORE_ALL_TOPMOST,
 })
-
-_OPS_THAT_STILL_ACT = frozenset({
-    Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
-    Op.HAND_OVER_FUNESTRAS, Op.TAKE_BACK_FUNESTRAS, Op.FOLLOW_THE_LOCK, Op.IGNORED, Op.NARROWING_ANSWERS,
+_OPS_ON_PARKED_AND_BROWSER_WINDOWS_THE_LOOP_IS_HANDED_NONE_OF = frozenset({
+    Op.RESTORE_PARKED, Op.RESTACK_RFB,
 })
+_OPS_WITH_NO_WINDOWS = (
+    _OPS_ON_WINDOWS_THE_ONE_VR_PROCESS_HAS_NONE_OF
+    | _OPS_ON_PARKED_AND_BROWSER_WINDOWS_THE_LOOP_IS_HANDED_NONE_OF
+)
+
+_OPS_FOR_THE_HOTKEY_SCRIPT_A_HEADSET_LAUNCHES_TOO = frozenset(_AHK_PASSTHROUGH_OPS)
+_OPS_THE_GENAUMACHER_DOES_IN_A_PROCESS_OF_ITS_OWN = frozenset({Op.SAVE_CLIP})
+_OPS_SKIPPED_WHERE_NO_BROWSER_WINDOW_IS_OPEN = frozenset({Op.OPEN_RFB_TAB})
+_OPS_THAT_ARE_FILE_WORK_ON_THE_FUNESTRAS_CHANNELS = frozenset({
+    Op.HAND_OVER_FUNESTRAS, Op.TAKE_BACK_FUNESTRAS, Op.FOLLOW_THE_LOCK,
+})
+_OPS_THAT_ONLY_CHANGE_THE_LINE_THE_LOOP_FLASHES = frozenset({Op.IGNORED, Op.NARROWING_ANSWERS})
+_OPS_THE_HEADSET_PAINTS_OFF_THE_EVENT_LOG = frozenset({Op.MESSAGE})
+_OPS_THAT_STILL_ACT = (
+    _OPS_FOR_THE_HOTKEY_SCRIPT_A_HEADSET_LAUNCHES_TOO
+    | _OPS_THE_GENAUMACHER_DOES_IN_A_PROCESS_OF_ITS_OWN
+    | _OPS_SKIPPED_WHERE_NO_BROWSER_WINDOW_IS_OPEN
+    | _OPS_THAT_ARE_FILE_WORK_ON_THE_FUNESTRAS_CHANNELS
+    | _OPS_THAT_ONLY_CHANGE_THE_LINE_THE_LOOP_FLASHES
+    | _OPS_THE_HEADSET_PAINTS_OFF_THE_EVENT_LOG
+)
 
 _OPS_A_HEADSET_NEVER_RAISES = frozenset({Op.MAIN_FUNESTRA_ANSWERS})
 
 
-@pytest.fixture(scope="module")
+_ONE_SLOW_SWEEP_SERVES_EVERY_TEST = "module"
+
+
+@pytest.fixture(scope=_ONE_SLOW_SWEEP_SERVES_EVERY_TEST)
 def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     return sweep(headset_config(tmp_path_factory.mktemp("vr_parity")),
                  (SATELLITE_KINO_MODE, ORIGENERATOR_MODE))
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope=_ONE_SLOW_SWEEP_SERVES_EVERY_TEST)
 def landed_hosting_none(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     root = tmp_path_factory.mktemp("vr_parity_hosting_none")
     return sweep(headset_config(root, names_an_origenerator=False), (ORIGENERATOR_MODE,))
@@ -195,7 +216,7 @@ class TestTheMainFunestra:
 
 
 def _a_whole_line(verb: str) -> str:
-    if verb not in _VERBS_THAT_TAKE_A_VALUE:
+    if verb not in _VERBS_REFUSED_WHEN_SENT_BARE:
         return verb
     return f"{verb} {_WORDS_FOR.get(verb, 1)}"
 
@@ -204,7 +225,7 @@ _WORDS_FOR = {SHOW: MAIN_KINO_MODE,
               genaus_verbs_on_the_main_funestra.SET_GENAU_ORIENTATIONS: PORTRAIT}
 
 
-_VERBS_THAT_TAKE_A_VALUE = frozenset(
+_VERBS_REFUSED_WHEN_SENT_BARE = frozenset(
     spelling
     for registry in (main_funestra_controls.VERBS, genaus_verbs_on_the_main_funestra.VERBS,
                      headset_verbs.VERBS, funestra_controls.VERBS)
@@ -298,7 +319,7 @@ _THE_LOOPS_OWN = frozenset({
 
 
 class TestTheLoopInFrontOfTheDispatch:
-    def test_every_other_command_reaches_the_dispatch_as_it_was_said(self, tmp_path):
+    def test_every_other_command_reaches_the_dispatch_as_the_sweep_sent_it(self, tmp_path):
         runner = make_runner(tmp_path)
         rewritten = {}
         for command in every_command():
@@ -314,7 +335,7 @@ class TestTheLoopInFrontOfTheDispatch:
 
 
 class TestWhatAHeadsetDoesNotHost:
-    def test_a_config_naming_no_origenerator_sends_one_nothing(self, landed_hosting_none):
+    def test_neither_the_manifest_nor_a_carried_mode_stands_in_for_the_config(self, landed_hosting_none):
         routed = {
             where: written["origenerator_cmd_file"]
             for where, written in landed_hosting_none.items()

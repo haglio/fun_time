@@ -24,15 +24,15 @@ from fun_time.voice_control import (
     command_rules,
 )
 
-SPOKEN = 2000
+A_PEAK_FAR_ABOVE_ANY_SILENCE_FLOOR = 2000
 
 
-def _heard(recognition: Recognition) -> Heard:
-    return Heard(recognition, spoken_at=1.0, peak=SPOKEN, audio=b"", candidates={})
+def _as_voice_core_heard(recognition: Recognition) -> Heard:
+    return Heard(recognition, spoken_at=1.0, peak=A_PEAK_FAR_ABOVE_ANY_SILENCE_FLOOR, audio=b"", candidates={})
 
 
 def _formed(recognition: Recognition) -> Heard:
-    return replace(_heard(recognition), words_formed=True)
+    return replace(_as_voice_core_heard(recognition), words_formed=True)
 
 
 HELD_FROM = 0.0
@@ -138,7 +138,7 @@ class TestHandleHeard:
         seen = []
         monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
 
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape next")))
 
         assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\tlandscape next\n"
         assert seen == []
@@ -146,7 +146,7 @@ class TestHandleHeard:
     def test_a_sound_alike_phrase_is_handed_on_under_its_friendly_name(self, tmp_path):
         vc = _controller(tmp_path)
 
-        vc.handle_heard(_heard(Recognition(phrase="go now")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="go now")))
 
         [line] = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
         assert parse_command_line(line).said == "genau"
@@ -158,7 +158,7 @@ class TestHandleHeard:
         monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape next")))
 
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == [("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
@@ -167,7 +167,7 @@ class TestHandleHeard:
         vc = _controller(tmp_path)
         vc.suspend()
 
-        vc.handle_heard(replace(_heard(Recognition(phrase="landscape next")),
+        vc.handle_heard(replace(_as_voice_core_heard(Recognition(phrase="landscape next")),
                                 spoken_at=HELD_FROM - 1))
 
         [line] = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
@@ -184,7 +184,7 @@ class TestHandleHeard:
         now[0] = 20.0
         vc.unsuspend()
 
-        vc.handle_heard(replace(_heard(Recognition(phrase="landscape next")), spoken_at=15.0))
+        vc.handle_heard(replace(_as_voice_core_heard(Recognition(phrase="landscape next")), spoken_at=15.0))
 
         assert not (tmp_path / "cmd.txt").exists()
 
@@ -195,7 +195,7 @@ class TestHandleHeard:
         monkeypatch.setattr(voice_control, "flash_message",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc.handle_heard(_heard(Recognition(phrase="pause")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="pause")))
 
         assert not (tmp_path / "cmd.txt").exists()
         assert [msg for msg, _source, _level in seen] == ["ignored while not wearing headset: pause"]
@@ -205,7 +205,7 @@ class TestHandleHeard:
         vc.suspend(WHILE_NOT_WEARING_HEADSET)
 
         for phrase in ("trash", "play", "stop", "quit"):
-            vc.handle_heard(_heard(Recognition(phrase=phrase)))
+            vc.handle_heard(_as_voice_core_heard(Recognition(phrase=phrase)))
 
         written = (tmp_path / "cmd.txt").read_text(encoding="utf-8").splitlines()
         assert [parse_command_line(line).command for line in written] == ["quit"]
@@ -217,7 +217,7 @@ class TestHandleHeard:
         seen = []
         monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
 
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape next")))
 
         assert seen == []
 
@@ -227,7 +227,7 @@ class TestHandleHeard:
         seen = []
         monkeypatch.setattr(voice_control, "flash_message", lambda *a, **k: seen.append(a))
 
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape next")))
 
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
@@ -325,7 +325,7 @@ class TestHandleHeard:
         monkeypatch.setattr(voice_control, "flash_unlogged", lambda *a, **k: flashed.append(a))
 
         with caplog.at_level(logging.DEBUG):
-            vc.handle_heard(_heard(recognition))
+            vc.handle_heard(_as_voice_core_heard(recognition))
 
         assert (caplog.records, flashed) == ([], [])
         assert not (tmp_path / "cmd.txt").exists()
@@ -726,7 +726,7 @@ def test_a_phrase_of_the_hosted_apps_is_heard_and_handed_on_as_said_to_its_satel
         hosted=HostedVoice(vocabulary=HostedVocabulary(frozenset({"fabricated order"}))),
     )
 
-    vc.handle_heard(_heard(Recognition(phrase="landscape fabricated order")))
+    vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape fabricated order")))
 
     assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == (
         "landscape_say_fabricated_order @1.000\tlandscape fabricated order\n")
@@ -753,14 +753,14 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
         vc.request_opened("landscape")
 
-        assert vc.wants_words(_heard(Recognition(phrase="landscape next")))
-        assert vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
+        assert vc.wants_words(_as_voice_core_heard(Recognition(phrase="landscape next")))
+        assert vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="alpha beta")))
 
     def test_the_words_of_an_open_request_go_to_its_satellite_and_are_acted_on_by_nothing_here(
             self, tmp_path):
         vc = self._controller(tmp_path)
         vc.request_opened("landscape")
-        heard = _heard(Recognition(phrase="landscape next"))
+        heard = _as_voice_core_heard(Recognition(phrase="landscape next"))
 
         vc.handle_heard(heard)
         vc.handle_speech("No feet.", heard)
@@ -774,7 +774,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         vc = self._controller(tmp_path, said_at_suffix=" @{said_at_epoch_seconds}")
         vc.request_opened("landscape")
         on_the_wall, spoken_at = time.time() - 2.0, time.monotonic() - 2.0
-        heard = replace(_heard(Recognition(phrase="landscape next")), spoken_at=spoken_at)
+        heard = replace(_as_voice_core_heard(Recognition(phrase="landscape next")), spoken_at=spoken_at)
 
         vc.handle_speech("No feet.", heard)
 
@@ -788,7 +788,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
             self, tmp_path, phrase, command):
         vc = self._controller(tmp_path)
         vc.request_opened("landscape")
-        heard = _heard(Recognition(phrase=phrase))
+        heard = _as_voice_core_heard(Recognition(phrase=phrase))
 
         wanted = vc.wants_words(heard)
         vc.handle_heard(heard)
@@ -802,7 +802,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         vc.request_opened("landscape")
 
         vc.request_closed("landscape")
-        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
+        vc.handle_heard(_as_voice_core_heard(Recognition(phrase="landscape next")))
 
         assert parse_command_line((tmp_path / "cmd.txt").read_text(
             encoding="utf-8").strip()).command == "landscape_next"
@@ -812,7 +812,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
         vc.request_opened("landscape")
 
-        assert not vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
+        assert not vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="alpha beta")))
 
     def test_a_muted_app_takes_no_words_down_for_one(self, tmp_path):
         vc = self._controller(tmp_path)
@@ -820,7 +820,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
         vc.mute()
 
-        assert not vc.wants_words(_heard(Recognition(unrecognized_text="alpha beta")))
+        assert not vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="alpha beta")))
 
     def test_its_words_said_before_omnipause_are_taken_down_though_heard_during_it(
             self, tmp_path):
@@ -828,7 +828,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
         vc.request_opened("landscape")
         vc.suspend()
 
-        assert vc.wants_words(replace(_heard(Recognition(unrecognized_text="alpha beta")),
+        assert vc.wants_words(replace(_as_voice_core_heard(Recognition(unrecognized_text="alpha beta")),
                                       spoken_at=HELD_FROM - 1))
 
     def test_one_said_whole_in_one_breath_goes_to_the_satellite_it_names(self, tmp_path):
@@ -860,7 +860,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
             self, tmp_path):
         vc = self._controller(tmp_path)
 
-        assert vc.wants_words(_heard(Recognition(unrecognized_text="portrait gamma",
+        assert vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="portrait gamma",
                                                  heard="portrait gamma")))
 
     def test_words_of_it_that_are_one_of_the_apps_phrases_go_on_as_that_command(self, tmp_path):
@@ -887,7 +887,7 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
     def test_one_led_by_a_satellite_showing_something_else_takes_no_words(self, tmp_path):
         vc = self._controller(tmp_path, hosting=("landscape",))
 
-        assert not vc.wants_words(_heard(Recognition(unrecognized_text="portrait gamma",
+        assert not vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="portrait gamma",
                                                      heard="portrait gamma")))
 
     def test_the_listener_takes_words_down_when_asked_with_the_hint_the_app_gave(self, tmp_path):
