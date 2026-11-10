@@ -156,9 +156,11 @@ class TestWhereOnAScreenAPointLands:
         assert near[1] < 0
 
     def test_a_spot_on_the_far_side_of_the_viewer_is_nowhere_on_the_screen(self):
-        far_side = _on_the_cylinder(_A_SCREEN.azimuth_deg - 180.0, -_lift(_A_SCREEN))
+        where_the_screens_plane_carried_on_would_put_its_middle = _on_the_cylinder(
+            _A_SCREEN.azimuth_deg - 180.0, -_lift(_A_SCREEN))
 
-        u, v = screen_uv(far_side, _A_SCREEN, aspect=16 / 9)
+        u, v = screen_uv(
+            where_the_screens_plane_carried_on_would_put_its_middle, _A_SCREEN, aspect=16 / 9)
 
         assert handle_at(u, v, _A_SCREEN, aspect=16 / 9) is None
         assert math.isfinite(u)
@@ -173,8 +175,10 @@ class TestWhereOnAScreenAPointLands:
 
 
 _LEVEL = (0.0, 0.0, 0.0, 1.0)
-_FACING_LEFT = (0.0, math.sin(math.pi / 4), 0.0, math.cos(math.pi / 4))
+_A_QUARTER_TURN_LEFT = math.pi / 2
+_FACING_LEFT = (0.0, math.sin(_A_QUARTER_TURN_LEFT / 2), 0.0, math.cos(_A_QUARTER_TURN_LEFT / 2))
 _NO_TURN = np.eye(4, dtype=np.float32)
+_THE_SCENES_OWN_FORWARD = (0.0, 0.0, -1.0)
 
 
 class TestTheRayInTheScene:
@@ -182,7 +186,7 @@ class TestTheRayInTheScene:
         ray = scene_ray(((0.3, -0.2, -0.1), _LEVEL), head=(0.0, 0.0, 0.0), scene_rotation=_NO_TURN)
 
         assert ray.origin == pytest.approx((0.3, -0.2, -0.1))
-        assert ray.direction == pytest.approx((0.0, 0.0, -1.0))
+        assert ray.direction == pytest.approx(_THE_SCENES_OWN_FORWARD)
 
     def test_the_hand_is_measured_from_the_head_since_the_scene_is_drawn_around_it(self):
         ray = scene_ray(
@@ -191,14 +195,16 @@ class TestTheRayInTheScene:
         assert ray.origin == pytest.approx((0.3, -0.2, -0.1))
 
     def test_a_recentered_scene_is_pointed_at_where_it_now_hangs(self):
-        turned = yaw_rotation_matrix(math.pi / 2)
+        recentered_to_face_left = yaw_rotation_matrix(_A_QUARTER_TURN_LEFT)
 
-        ray = scene_ray(((0.0, 0.0, 0.0), _FACING_LEFT), head=(0.0, 0.0, 0.0), scene_rotation=turned)
+        ray = scene_ray(((0.0, 0.0, 0.0), _FACING_LEFT), head=(0.0, 0.0, 0.0),
+                        scene_rotation=recentered_to_face_left)
 
-        assert ray.direction == pytest.approx((0.0, 0.0, -1.0), abs=1e-6)
+        toward_the_main_funestras_middle = _THE_SCENES_OWN_FORWARD
+        assert ray.direction == pytest.approx(toward_the_main_funestras_middle, abs=1e-6)
 
     def test_the_hand_position_turns_with_the_scene_too(self):
-        turned = yaw_rotation_matrix(math.pi / 2)
+        turned = yaw_rotation_matrix(_A_QUARTER_TURN_LEFT)
 
         ray = scene_ray(((-0.5, 0.0, 0.0), _LEVEL), head=(0.0, 0.0, 0.0), scene_rotation=turned)
 
@@ -208,7 +214,7 @@ class TestTheRayInTheScene:
         assert head_position([(-0.03, 1.6, 0.0), (0.03, 1.6, 0.1)]) == pytest.approx((0.0, 1.6, 0.05))
 
     def test_each_tracked_hand_holds_a_controller_where_it_is_and_as_it_is_turned(self):
-        turned = yaw_rotation_matrix(math.pi / 2)
+        turned = yaw_rotation_matrix(_A_QUARTER_TURN_LEFT)
         hands = {LEFT: HandInput(), RIGHT: HandInput(aim=((-0.5, 0.0, 0.0), _FACING_LEFT))}
 
         ((origin, rotation),) = held_controllers(hands, head=(0.0, 0.0, 0.0), scene_rotation=turned)
@@ -225,7 +231,7 @@ class TestTheHandles:
     def _at(self, u: float, v: float) -> str | None:
         return handle_at(u, v, _A_SCREEN, aspect=self._ASPECT)
 
-    def test_the_frame_itself_is_the_surface(self):
+    def test_the_handles_take_nothing_from_the_frame(self):
         assert self._at(0.5, 0.5) == SURFACE
         assert self._at(0.0, 1.0) == SURFACE
 
@@ -241,12 +247,13 @@ class TestTheHandles:
         assert self._at(0.5, -self._DV / 2) is None
         assert self._at(1.0 + self._DU / 2, self._DV / 4) is None
 
-    def test_a_handle_is_the_same_size_on_every_screen_whatever_its_shape(self):
-        portrait = Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=12.0)
-        dv = _HANDLE / _drawn_size(portrait, 9 / 16)[1]
+    def test_a_tall_thin_screen_far_to_the_side_offers_as_big_a_handle(self):
+        tall_thin_and_far_to_the_side = Placement(
+            azimuth_deg=-38.0, elevation_deg=10.0, width_deg=12.0)
+        dv = _HANDLE / _drawn_size(tall_thin_and_far_to_the_side, 9 / 16)[1]
 
-        assert handle_at(0.5, 1.0 + dv * 0.9, portrait, aspect=9 / 16) == MOVE
-        assert handle_at(0.5, 1.0 + dv * 1.1, portrait, aspect=9 / 16) is None
+        assert handle_at(0.5, 1.0 + dv * 0.9, tall_thin_and_far_to_the_side, aspect=9 / 16) == MOVE
+        assert handle_at(0.5, 1.0 + dv * 1.1, tall_thin_and_far_to_the_side, aspect=9 / 16) is None
 
     def test_a_screen_that_cannot_be_resized_offers_no_corners(self):
         assert handle_at(1.0 + self._DU / 4, -self._DV / 4, _A_SCREEN, aspect=self._ASPECT,
@@ -263,7 +270,7 @@ class TestAGrab:
     _ASPECT = 16 / 9
 
     def test_dragging_the_bar_sideways_turns_the_screen_with_the_pointer(self):
-        grab = Grab(MOVE, _A_SCREEN, start=_on_the_cylinder(30.0, 0.9))
+        grab = Grab(MOVE, _A_SCREEN, start=_on_the_cylinder(30.0, 0.9), aspect=self._ASPECT)
 
         moved = grab.dragged_to(_on_the_cylinder(35.0, 0.9))
 
@@ -272,7 +279,7 @@ class TestAGrab:
         assert moved.width_deg == _A_SCREEN.width_deg
 
     def test_dragging_the_bar_up_raises_the_screen_by_the_same_height(self):
-        grab = Grab(MOVE, _A_SCREEN, start=_on_the_cylinder(38.0, 0.9))
+        grab = Grab(MOVE, _A_SCREEN, start=_on_the_cylinder(38.0, 0.9), aspect=self._ASPECT)
 
         raised = grab.dragged_to(_on_the_cylinder(38.0, 1.4))
 
@@ -281,16 +288,19 @@ class TestAGrab:
         assert raised.width_deg == _A_SCREEN.width_deg
 
     def test_the_spot_taken_hold_of_stays_under_the_pointer_as_it_is_dragged(self):
-        start = _seen_at(_A_SCREEN, self._ASPECT, 0.15, 1.02)
+        off_the_middle_where_the_flat_frame_stands_out_past_the_cylinder = (0.15, 1.02)
+        start = _seen_at(_A_SCREEN, self._ASPECT,
+                         *off_the_middle_where_the_flat_frame_stands_out_past_the_cylinder)
         grab = Grab(MOVE, _A_SCREEN, start=start, aspect=self._ASPECT)
         end = _on_the_cylinder(start.azimuth_deg + 5.0, start.y + 0.4)
 
-        held = _seen_at(grab.dragged_to(end), self._ASPECT, 0.15, 1.02)
+        held = _seen_at(grab.dragged_to(end), self._ASPECT,
+                        *off_the_middle_where_the_flat_frame_stands_out_past_the_cylinder)
 
         assert (held.azimuth_deg, held.y) == pytest.approx((end.azimuth_deg, end.y), abs=1e-6)
 
     def test_a_move_stops_at_the_scenes_limits(self):
-        grab = Grab(MOVE, _A_SCREEN, start=_on_the_cylinder(38.0, 0.9))
+        grab = Grab(MOVE, _A_SCREEN, start=_on_the_cylinder(38.0, 0.9), aspect=self._ASPECT)
 
         flung = grab.dragged_to(_on_the_cylinder(-170.0, 40.0))
 
@@ -299,7 +309,8 @@ class TestAGrab:
 
     def test_a_move_across_the_seam_takes_the_short_way(self):
         across_the_seam = Placement(azimuth_deg=140.0, elevation_deg=0.0, width_deg=20.0)
-        grab = Grab(MOVE, across_the_seam, start=_on_the_cylinder(175.0, 0.0))
+        grab = Grab(MOVE, across_the_seam, start=_on_the_cylinder(175.0, 0.0),
+                    aspect=self._ASPECT)
 
         assert grab.dragged_to(_on_the_cylinder(-175.0, 0.0)).azimuth_deg == pytest.approx(150.0)
 
@@ -336,7 +347,7 @@ class TestAGrab:
         assert grown.azimuth_deg > AZIMUTH_LIMIT_DEG
         assert self._upper(grown, -1.0) == pytest.approx(anchor)
 
-    def test_the_two_corners_carry_the_screen_opposite_ways(self):
+    def test_the_same_growth_from_each_corner_leaves_the_screen_somewhere_different(self):
         wider = 2 * _A_SCREEN.width_deg
         pulled = {}
         for side in (1.0, -1.0):
@@ -349,7 +360,7 @@ class TestAGrab:
         assert pulled[-1.0].azimuth_deg < _A_SCREEN.azimuth_deg < pulled[1.0].azimuth_deg
 
     @pytest.mark.parametrize("side", [1.0, -1.0])
-    def test_a_corner_swung_on_past_the_half_turn_holds_the_widest(self, side):
+    def test_a_corner_swung_on_past_the_half_turn_never_collapses_to_the_narrowest(self, side):
         anchor = self._upper(_A_SCREEN, -side)
         grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, side), aspect=self._ASPECT)
         widest = self._grabbed_corner_at(anchor, side, MAX_WIDTH_DEG)
@@ -358,6 +369,7 @@ class TestAGrab:
             grab.dragged_to(_on_the_cylinder(widest.azimuth_deg + side * turn, widest.y))
             for turn in (0.0, 40.0, 70.0, 100.0)]
 
+        assert MIN_WIDTH_DEG not in [p.width_deg for p in placements]
         assert [p.width_deg for p in placements] == pytest.approx([MAX_WIDTH_DEG] * 4)
         assert self._upper(placements[-1], -side) == pytest.approx(anchor)
 
@@ -456,7 +468,7 @@ _PORTRAIT = Screen("portrait", Placement(-38.0, 10.0, 28.0), aspect=9 / 16,
                    movable=True, resizable=True, pressable=True, item=True)
 _MAIN_HUD = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
 _GALLERY = Screen("gallery", Placement(-68.0, 2.0, 26.0), aspect=0.7,
-                  movable=True, resizable=True, pressable=True, right_clicks=True)
+                  movable=True, resizable=True, pressable=True, has_a_right_click_menu=True)
 _WRAPPED = Screen("primary", Placement(0.0, 0.0, 72.0), aspect=16 / 9,
                   pressable=True, immersive=True)
 _SCENE = [_LANDSCAPE, _MAIN_HUD]
@@ -634,7 +646,7 @@ class TestThePointerOverTheScene:
         assert let_go.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
                                  PressEvent(RELEASE, "primary"))
 
-    def test_a_trigger_pulled_with_the_stick_held_in_is_a_right_click(self):
+    def test_the_stick_held_in_makes_the_one_trigger_a_right_click(self):
         pointer = Pointer()
         aimed = _aim_at_uv(_GALLERY, 0.25, 0.75)
 
@@ -647,7 +659,7 @@ class TestThePointerOverTheScene:
         assert (click.u, click.v) == pytest.approx((0.25, 0.75), abs=1e-6)
         assert let_go.events == ()
 
-    def test_a_screen_that_takes_no_right_click_is_pressed_as_ever(self):
+    def test_a_hud_never_gets_the_right_click_it_would_read_as_a_release(self):
         pointer = Pointer()
         aimed = _aim_at_uv(_MAIN_HUD, 0.25, 0.75)
 
@@ -666,12 +678,14 @@ class TestThePointerOverTheScene:
 
     def test_the_wrap_is_never_hovered_and_takes_nothing_but_a_press(self):
         pointer = Pointer()
-        away = _hands(right=_aim_at(140.0, -0.6))
+        where_a_flat_frame_of_its_size_would_be_under_the_ray = _aim_at(10.0, -0.6)
+        away = _hands(right=where_a_flat_frame_of_its_size_would_be_under_the_ray)
         scene = [_WRAPPED, _MAIN_HUD]
 
         resting = self._frame(pointer, away, screens=scene)
-        held = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
-                           screens=scene)
+        held = self._frame(pointer, _hands(
+            right=where_a_flat_frame_of_its_size_would_be_under_the_ray, right_trigger=1.0),
+            screens=scene)
         released = self._frame(pointer, away, screens=scene)
 
         assert resting.hover is None

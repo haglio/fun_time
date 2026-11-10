@@ -3379,7 +3379,7 @@ class TestTheHostedAppsScreenTakesTheSameHandlesAsAPlayer:
         assert self._hanging().resizable
 
     def test_it_is_the_one_screen_that_takes_a_right_click(self):
-        assert self._hanging().right_clicks
+        assert self._hanging().has_a_right_click_menu
 
 
 class TestCoreShowsInTheHeadsetWheneverOrigeneratorIsUp:

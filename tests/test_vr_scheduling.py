@@ -15,7 +15,13 @@ A_PROCESS = 0x5678
 ERROR_SERVICE_NOT_ACTIVE = 1062
 REALTIME = 5
 ABOVE_NORMAL = 3
-STATUS_PRIVILEGE_NOT_HELD = -1073741727
+
+
+def _as_the_signed_long_an_ntstatus_arrives_as(status: int) -> int:
+    return ctypes.c_long(status).value
+
+
+STATUS_PRIVILEGE_NOT_HELD = _as_the_signed_long_an_ntstatus_arrives_as(0xC0000061)
 
 
 class _FakeFunction:
