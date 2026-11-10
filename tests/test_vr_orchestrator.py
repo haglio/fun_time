@@ -1930,6 +1930,8 @@ class TestOpeningAVrSession:
 def test_a_headset_launch_that_names_no_origenerator_stops_before_anything_starts(config):
     with patch.object(orchestrator, "load_config",
                       return_value=replace(config, paths=replace(config.paths, origenerator_dir=None))), \
+         patch.object(orchestrator, "apply_this_checkouts_overrides",
+                      side_effect=lambda config, **_: config), \
          patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
          patch.object(orchestrator, "install_exception_logging"), \
          mutex_free(), \

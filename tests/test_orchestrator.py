@@ -768,7 +768,8 @@ class TestALaunchThatNamesNoOrigenerator:
         config_path = cfg_factory({"paths": {"origenerator_dir": ""}})
 
         with _a_launch_with_the_machine_held_off(
-                no_origenerator_set_up=no_origenerator_set_up) as launch:
+                no_origenerator_set_up=no_origenerator_set_up,
+                apply_this_checkouts_overrides=lambda config, **_: config) as launch:
             result = main(["--config", str(config_path)])
 
         assert result == 1
