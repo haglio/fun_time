@@ -8,7 +8,7 @@ from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra import broker
 from funestra.hud_controls import longer_than_a_step
 from funestra.main_hud import main_hud_text
-from funestra.modes import MainMode, Osr2State, SatellitesMode
+from funestra.modes import MainMode, Osr2State
 from funestra.osr2_visualizer import read_drive
 from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
@@ -136,9 +136,7 @@ class HudFeed:
                 longer_than_a_step=longer_than_a_step(status.duration_ms),
                 has_osr2=funestra is with_the_osr2,
                 has_funscript=status.has_funscript,
-                mode=SatellitesMode.KINO if self.config.origenerator_enabled else None,
                 active=_bare_words_reach(funestra, state),
-                origenerator_ready=state.origenerator_ready,
                 in_vr=self.config.vr_main_funestra,
                 crowned=state.crowned == name,
             )
@@ -151,8 +149,7 @@ class HudFeed:
                 held = state.satellite(funestra)
                 self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
                     funestra.label, self._worn_hosted_hud(funestra), held,
-                    HudState(origenerator_ready=state.origenerator_ready,
-                             in_vr=self.config.vr_main_funestra,
+                    HudState(in_vr=self.config.vr_main_funestra,
                              crowned=state.crowned == funestra.label),
                     active=_bare_words_reach(funestra, state)), device(funestra))))
                 continue

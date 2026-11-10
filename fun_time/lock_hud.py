@@ -12,7 +12,6 @@ from funestra.hud_title import (
     hud_title,
     looping_label,
 )
-from funestra.modes import SatellitesMode
 from funestra.video_groups import (
     GroupIndex,
     action_group_items,
@@ -59,8 +58,6 @@ class SatelliteHud:
     active: bool = False
     active_loop: str = ""
     playing: str = ""
-    mode: SatellitesMode | None = None
-    origenerator_ready: bool = True
     in_vr: bool = False
     nothing_to_reset: bool = False
     has_other_versions: bool = False
@@ -201,11 +198,9 @@ class SatelliteInputs:
     nothing_to_reset: bool = False
     has_other_versions: bool = False
     longer_than_a_step: bool = False
-    mode: SatellitesMode | None = None
     has_osr2: bool = False
     has_funscript: bool = False
     active: bool = False
-    origenerator_ready: bool = True
     in_vr: bool = False
     crowned: bool = False
 
@@ -361,8 +356,6 @@ def build_hud(inputs: SatelliteInputs, *, index: GroupIndex | None) -> Satellite
         active=inputs.active,
         active_loop=hold.active_loop,
         playing=drawn.playing,
-        mode=inputs.mode,
-        origenerator_ready=inputs.origenerator_ready,
         in_vr=inputs.in_vr,
         nothing_to_reset=inputs.nothing_to_reset,
         has_other_versions=inputs.has_other_versions,

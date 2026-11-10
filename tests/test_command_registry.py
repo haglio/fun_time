@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from funestra.drive_layout import MAX_INTENSITY
 from funestra.main_hud import osr2_controls
-from funestra.modes import LengthMode, MainMode, SatellitesMode
+from funestra.modes import LengthMode, MainMode
 
 from fun_time import (
     command_dispatch,
@@ -115,8 +115,7 @@ def _satellite_verbs() -> frozenset[str]:
         button.command
         for funestra in ("portrait", "landscape")
         for latest in (None, False, True)
-        for mode in (None, *SatellitesMode)
-        for row in funestra_rows(funestra, HudState(locked=True, favorites_filter=True, latest=latest, mode=mode))
+        for row in funestra_rows(funestra, HudState(locked=True, favorites_filter=True, latest=latest))
         for button in row
     )
 
