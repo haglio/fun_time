@@ -7,7 +7,7 @@ from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.overlay_progress import startup_still_building
 from fun_time.win32 import (
     find_window_by_title,
-    hide_own_window,
+    hide_own_window_without_animation,
     set_always_on_top,
     show_own_window,
 )
@@ -28,7 +28,7 @@ class LoadingReveal:
     def attach(self, hwnd: int, window: Showable) -> None:
         self._hwnd, self._window = hwnd, window
         if self.deferred:
-            hide_own_window(hwnd)
+            hide_own_window_without_animation(hwnd)
         else:
             window.show()
             show_own_window(hwnd)

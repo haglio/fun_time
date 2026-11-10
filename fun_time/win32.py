@@ -158,10 +158,10 @@ def find_window_for_process(
     # recorded pid can be a launcher's.
     if not pid:
         return 0
-    pids = {pid, *list_child_pids(pid)}
+    pids_one_launcher_deep = {pid, *list_child_pids(pid)}
 
     def matches(hwnd: int) -> bool:
-        if window_process(hwnd) not in pids:
+        if window_process(hwnd) not in pids_one_launcher_deep:
             return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
@@ -464,7 +464,7 @@ def show_own_window(hwnd: int) -> None:
     _user32.ShowWindow(hwnd, SW_SHOW)
 
 
-def hide_own_window(hwnd: int) -> None:
+def hide_own_window_without_animation(hwnd: int) -> None:
     _user32.ShowWindow(hwnd, SW_HIDE)
 
 

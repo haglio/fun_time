@@ -14,6 +14,7 @@ from fun_time.window_layout import (
     screen_layout,
     secondary_monitor_rects,
 )
+from fun_time.window_names import FIXED_TOPMOST_WINDOWS
 
 
 def test_screen_layout_plans_for_the_monitors_this_machine_has(cfg_path: Path):
@@ -196,3 +197,32 @@ def test_a_portrait_funestra_given_most_of_the_screen_sits_where_startup_puts_bo
         primary_monitor=MonitorRect(0, 0, 2560, 1392), secondary_monitor=secondary,
         layout_config=layout).portrait
     assert rects.main == compute_main_media_rect(secondary_monitor=secondary, layout_config=layout)
+
+
+def _overlap(one, other) -> bool:
+    return (one.x < other.x + other.width and other.x < one.x + one.width
+            and one.y < other.y + other.height and other.y < one.y + one.height)
+
+
+def test_the_always_topmost_windows_never_overlap_whatever_their_order(cfg_path: Path):
+    config = load_config(cfg_path)
+    secondary = MonitorRect(2560, 0, 1440, 3440)
+    plan = compute_window_layout(
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
+        secondary_monitor=secondary,
+        layout_config=config.layout,
+    )
+
+    for majority in Crown:
+        on_the_secondary = secondary_monitor_rects(secondary, config.layout, majority=majority)
+        rects = {
+            "portrait": on_the_secondary.portrait,
+            "landscape": plan.landscape,
+            "dashboard": plan.dashboard,
+            "main_funestra": on_the_secondary.main,
+        }
+        assert set(rects) == set(FIXED_TOPMOST_WINDOWS)
+        overlapping = [
+            (one, other) for one in rects for other in rects
+            if one < other and _overlap(rects[one], rects[other])]
+        assert overlapping == [], majority

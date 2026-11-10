@@ -47,7 +47,7 @@ class TestOrigeneratorRoles:
         assert window_is_topmost(ORIGENERATOR_WINDOW, RfbMode.ORIGENERATOR) is True
         assert window_is_topmost(ORIGENERATOR_WINDOW, RfbMode.RFB) is False
 
-    def test_the_browser_leaves_the_band_while_the_hosted_window_covers_it(self):
+    def test_a_late_promotion_finds_the_covered_browser_out_of_the_band(self):
         assert window_is_topmost("rfb", RfbMode.RFB) is True
         assert window_is_topmost("rfb", RfbMode.ORIGENERATOR) is False
 

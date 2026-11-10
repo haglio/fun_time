@@ -88,7 +88,7 @@ class TestFindWindowByPid:
             self._mock_user32(mock, hwnd=777, pid=42, visible=True)
             assert find_window_by_pid(42) == 777
 
-    def test_untitled_window_skipped_even_when_hidden_included(self):
+    def test_an_untitled_direct3d_surface_is_skipped_even_when_hidden_included(self):
         with _user32_mocked() as mock:
             self._mock_user32(mock, hwnd=555, pid=42, visible=False, title_len=0)
             assert find_window_by_pid(42, include_hidden=True) == 0
@@ -949,7 +949,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
 
     def test_showing_and_hiding_an_own_window(self):
         with _user32_mocked() as mock:
-            win32.hide_own_window(4242)
+            win32.hide_own_window_without_animation(4242)
             win32.show_own_window(4242)
 
         assert mock.ShowWindow.call_args_list == [

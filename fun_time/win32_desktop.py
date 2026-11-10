@@ -42,19 +42,20 @@ def _name_of(handle: int | None) -> str | None:
 def current_desktop_name() -> str | None:
     if not WIN32_AVAILABLE:
         return None
-    return _name_of(_user32.GetThreadDesktop(_kernel32.GetCurrentThreadId()))
+    windows_own_handle_never_closed = _user32.GetThreadDesktop(_kernel32.GetCurrentThreadId())
+    return _name_of(windows_own_handle_never_closed)
 
 
 def input_desktop_name() -> str | None:
     if not WIN32_AVAILABLE:
         return None
-    handle = _user32.OpenInputDesktop(0, False, _DESKTOP_READOBJECTS)
-    if not handle:
+    a_handle_of_our_own = _user32.OpenInputDesktop(0, False, _DESKTOP_READOBJECTS)
+    if not a_handle_of_our_own:
         return None
     try:
-        return _name_of(handle)
+        return _name_of(a_handle_of_our_own)
     finally:
-        _user32.CloseDesktop(handle)
+        _user32.CloseDesktop(a_handle_of_our_own)
 
 
 def _is_off_screen(mine: str | None, active: str | None) -> bool:

@@ -12,7 +12,8 @@ from fun_time.fun_time_windows import (
 )
 from fun_time.origenerator_switches import RfbMode
 from fun_time.window_layout import WindowRect
-from fun_time.window_names import ORIGENERATOR_TITLE
+from fun_time.window_names import ORIGENERATOR_TITLE, ORIGENERATOR_WINDOW
+from fun_time.windows_bridge_sequencer import apply_topmost_bands
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
@@ -170,6 +171,30 @@ class TestTopmostBands:
                    side_effect=lambda h, v: calls.append((h, v))):
             getattr(windows, method)(**kwargs)
         return calls
+
+    @staticmethod
+    def _startup_bands(rfb_mode) -> dict[int, bool]:
+        hwnds_by_window = {
+            "portrait": PORTRAIT_HWND, "landscape": LANDSCAPE_HWND, "dashboard": DASHBOARD_HWND,
+            "main_funestra": MAIN_FUNESTRA_HWND, "rfb": RFB_HWND, ORIGENERATOR_WINDOW: HOSTED_HWND,
+        }
+        bands: dict[int, bool] = {}
+        with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
+                   side_effect=lambda hwnd, on, *, under=0: bands.update({hwnd: on})):
+            apply_topmost_bands(hwnds_by_window, rfb_mode=rfb_mode)
+        return bands
+
+    def test_startup_leaving_omnipause_and_a_mode_switch_agree_on_every_band(self):
+        for rfb_mode in RfbMode:
+            windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
+            startup_bands = self._startup_bands(rfb_mode)
+
+            for later in ("restore_all_topmost", "restack_rfb_mode"):
+                disagreements = [
+                    (later, hwnd, on)
+                    for hwnd, on in self._promotions(windows, later, rfb_mode=rfb_mode)
+                    if startup_bands[hwnd] is not on]
+                assert disagreements == [], rfb_mode
 
     def test_remove_all_topmost_drops_every_managed_window(self):
         windows = make_windows(rfb_hwnd=RFB_HWND)
