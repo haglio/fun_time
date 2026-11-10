@@ -316,6 +316,21 @@ class TestKeepingTheLoadingScreenUp:
 
         assert progress_file.stat().st_mtime > long_ago + 50
 
+    def test_a_beat_never_writes_the_line_a_screen_could_read_torn(
+            self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(overlay_progress, "LOADING_SCREEN_HEARTBEAT_S", 0.01)
+        progress_file = tmp_path / PROGRESS_FILENAME
+        progress_file.write_text("70/340|Launching companions...", encoding="utf-8")
+        written: list[Path] = []
+        monkeypatch.setattr(Path, "write_text", lambda path, *_a, **_kw: written.append(path))
+        monkeypatch.setattr(Path, "write_bytes", lambda path, *_a, **_kw: written.append(path))
+
+        stop = keep_the_loading_screen_up(progress_file, name="test-heartbeat")
+        time.sleep(0.1)
+        stop()
+
+        assert written == []
+
 
 class TestStartupStillBuilding:
     def _state_dir(self, tmp_path: Path, text: str | None) -> Path:

@@ -214,9 +214,12 @@ def raise_transition_screen(state_dir: str | Path, target: HandoffTarget) -> Pat
 
 
 def returning_from_a_crossing(state_dir: str | Path) -> bool:
-    path = crossing_progress_path(state_dir)
+    return _its_screen_could_still_be_up(crossing_progress_path(state_dir))
+
+
+def _its_screen_could_still_be_up(crossing_progress: Path) -> bool:
     try:
-        return time.time() - path.stat().st_mtime < LOADING_SCREEN_STALE_S
+        return time.time() - crossing_progress.stat().st_mtime < LOADING_SCREEN_STALE_S
     except OSError:
         return False
 

@@ -303,6 +303,16 @@ class TestStartingTheIncomingSession:
 
         assert popen.call_args.args[0][-1] == "--no-cancel"
 
+    def test_the_relay_starts_the_session_though_its_log_cannot_be_opened(self, tmp_path: Path):
+        (tmp_path / DESKTOP.launcher_log).mkdir()
+
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            start_the_session(
+                DESKTOP, SessionLaunch("py.exe", tmp_path, tmp_path, tmp_path / "c.json"),
+            )
+
+        popen.assert_called_once()
+
 
 class TestWatchingItComeUp:
     def _session(self, *, returncode=None):

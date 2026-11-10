@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -20,6 +21,7 @@ from fun_time.overlay_progress import (
 from fun_time.raising_the_loading_screen import open_the_loading_screen
 from fun_time.session_handoff import (
     DESKTOP,
+    LOADING_SCREEN_STALE_S,
     STARTUP_TIMEOUT_S,
     VR,
     crossing_progress_path,
@@ -167,6 +169,14 @@ class TestWhatEscCancelsAtTheLoadingScreen:
 
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
 
+    def test_a_crossing_file_leaked_by_a_dead_crossing_leaves_esc_canceling_the_launch(
+            self, tmp_path):
+        leaked = raise_transition_screen(tmp_path, DESKTOP)
+        long_after_its_screen_gave_up = time.time() - LOADING_SCREEN_STALE_S - 1
+        os.utime(leaked, (long_after_its_screen_gave_up,) * 2)
+
+        assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
+
     def test_a_launch_esc_already_turned_back_offers_no_esc_to_turn_it_again(self, tmp_path):
         raise_transition_screen(tmp_path, DESKTOP)
 
@@ -247,7 +257,7 @@ class TestTheWayBackFromVr:
         assert seen_from <= clock.now < seen_from + 1.0, (
             f"handed over at {clock.now:.1f}s, to a loading screen seen from {seen_from:.1f}s")
 
-    def test_a_launch_with_nothing_to_hand_over_waits_only_the_usual_few_seconds(
+    def test_a_launch_no_transition_screen_waits_on_is_held_only_a_few_seconds(
             self, tmp_path, clock, monkeypatch):
         self._a_screen_seen_from(clock, raising_the_loading_screen.WINDOW_WAIT_S + 3.0, monkeypatch)
 
