@@ -70,6 +70,10 @@ class _FavoritesReadOnceUntilTheRecordMoves:
         return read[1]
 
 
+def _bare_words_reach(funestra: FunTimeFunestra, state: BridgeState) -> bool:
+    return state.active_funestra == funestra
+
+
 class HudFeed:
     def __init__(self, *, config: BridgeConfig, publisher: HudPublisher | None) -> None:
         self.config = config
@@ -128,7 +132,7 @@ class HudFeed:
                 has_osr2=funestra is with_the_osr2,
                 has_funscript=status.has_funscript,
                 mode=SatellitesMode.KINO if self.config.origenerator_enabled else None,
-                active=state.active_funestra == funestra,
+                active=_bare_words_reach(funestra, state),
                 origenerator_ready=state.origenerator_ready,
                 in_vr=self.config.vr_main_funestra,
                 crowned=state.crowned == name,
@@ -145,7 +149,7 @@ class HudFeed:
                     HudState(origenerator_ready=state.origenerator_ready,
                              in_vr=self.config.vr_main_funestra,
                              crowned=state.crowned == funestra.label),
-                    active=state.active_funestra == funestra), device(funestra))))
+                    active=_bare_words_reach(funestra, state)), device(funestra))))
                 continue
             forget_what_a_satellite_was_told_of_the_osr2(told, funestra)
             self.publisher.publish(funestra.label, build_satellite_hud(
@@ -158,7 +162,7 @@ class HudFeed:
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,
             hud_minimized=state.main_hud_minimized,
-            active=state.active_funestra == FunTimeFunestra.MAIN,
+            active=_bare_words_reach(FunTimeFunestra.MAIN, state),
             scripted_filter=state.main_scripted_filter,
             genau_favorites_filter=state.genau_favorites_filter,
             latest=state.main_latest,

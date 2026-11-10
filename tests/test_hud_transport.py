@@ -155,7 +155,7 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
     assert payload.active_loop == "seed"
 
 
-def test_a_running_loop_publishes_every_item_it_cycles():
+def test_a_loop_is_published_whole_the_funestra_windows_it_round_the_video():
     seeds = [f"C:/v/s{i}.mp4" for i in range(12)]
     hud = _hud(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
 
@@ -197,7 +197,7 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_video():
     assert payload.playing == ("corner", 0)
 
 
-def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
+def test_an_unchanged_hud_is_not_rewritten_the_funestra_redraws_on_every_write(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
 
@@ -209,7 +209,7 @@ def test_publish_writes_the_file_only_when_the_hud_changes(tmp_path: Path):
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is False
 
 
-def test_publish_republishes_a_hud_whose_write_never_landed(tmp_path: Path):
+def test_a_write_that_never_landed_is_retried_a_locked_hud_may_never_change(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
 
