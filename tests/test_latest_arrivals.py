@@ -13,7 +13,6 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import prime_group_indexes
 from fun_time.media_metadata import cached_group_index, mark_favorite, metadata_path_for
-from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.shared_state import BridgeState
 from tests.test_windows_bridge_dispatch_loop import make_config
 
@@ -119,7 +118,7 @@ class TestASatellitePlayingItsLatestList:
         arrivals.look()
 
         arrivals.deliver(PORTRAIT_LATEST.with_satellite(
-            FunTimeFunestra.PORTRAIT, mode=ORIGENERATOR_MODE))
+            FunTimeFunestra.PORTRAIT, handed_over=True))
         held = _queued(config.portrait.cmd_file)
         arrivals.deliver(PORTRAIT_LATEST)
 

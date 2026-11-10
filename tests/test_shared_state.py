@@ -15,8 +15,6 @@ from fun_time import shared_state
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES, build_mode_switch_plan
 from fun_time.origenerator_switches import KINO_MODE as SATELLITES_KINO_MODE
-from fun_time.origenerator_switches import ORIGENERATOR_MODE as SATELLITES_ORIGENERATOR_MODE
-from fun_time.origenerator_switches import RfbMode
 from fun_time.shared_state import (
     _LAST_SESSIONS_KEYS,
     SHARED_STATE_FILENAME,
@@ -290,22 +288,6 @@ class TestTheSideLens:
         assert BridgeState().satellite(FunTimeFunestra.LANDSCAPE) == SatelliteState()
         assert BridgeState(landscape=SatelliteState(loop="seed")).satellite(
             FunTimeFunestra.LANDSCAPE) != SatelliteState()
-
-    @pytest.mark.parametrize(("portrait", "landscape", "holds"), [
-        (SATELLITES_KINO_MODE, SATELLITES_KINO_MODE, False),
-        (SATELLITES_ORIGENERATOR_MODE, SATELLITES_KINO_MODE, True),
-        (SATELLITES_KINO_MODE, SATELLITES_ORIGENERATOR_MODE, True),
-        (SATELLITES_ORIGENERATOR_MODE, SATELLITES_ORIGENERATOR_MODE, True),
-    ])
-    def test_origenerator_holds_a_satellite_while_either_is_in_its_origenerator_mode(
-            self, portrait, landscape, holds):
-        state = BridgeState(portrait=SatelliteState(mode=portrait),
-                            landscape=SatelliteState(mode=landscape))
-
-        assert state.origenerator_holds_a_satellite() is holds
-
-    def test_origenerator_in_the_browsers_place_holds_no_satellite(self):
-        assert not BridgeState(rfb_mode=RfbMode.ORIGENERATOR).origenerator_holds_a_satellite()
 
     def test_the_lens_survives_the_ini_round_trip(self, tmp_path):
         state_file = tmp_path / "shared_bridge_state.ini"
