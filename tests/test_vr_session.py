@@ -52,12 +52,12 @@ def test_an_unlocated_view_is_not_renderable():
     assert views_are_renderable(xr.ViewStateFlags.POSITION_VALID_BIT) is False
 
 
-def test_renderable_is_not_the_same_question_as_tracked():
-    valid_only = xr.ViewStateFlags.ORIENTATION_VALID_BIT
+def test_a_pose_the_runtime_only_guessed_is_valid_and_follows_no_head():
+    a_guessed_pose = xr.ViewStateFlags.ORIENTATION_VALID_BIT
 
-    assert views_are_renderable(valid_only) is True
-    assert views_are_tracked(valid_only) is False
-    assert views_are_tracked(valid_only | xr.ViewStateFlags.ORIENTATION_TRACKED_BIT) is True
+    assert views_are_renderable(a_guessed_pose) is True
+    assert views_are_tracked(a_guessed_pose) is False
+    assert views_are_tracked(a_guessed_pose | xr.ViewStateFlags.ORIENTATION_TRACKED_BIT) is True
 
 
 def test_an_untracked_view_is_still_worth_drawing():

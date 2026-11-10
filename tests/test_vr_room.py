@@ -201,7 +201,7 @@ class TestTheGatesOnTheRoomsAssembly:
 
     @pytest.mark.parametrize("step", [
         frame_loop.FrameLoop.show_the_room, frame_loop.FrameLoop.show_a_frame,
-        frame_loop.FrameLoop.quad_layers,
+        frame_loop.FrameLoop.quads_the_runtime_holds_steady,
         funestras.Arrangement.arrange, funestras.Arrangement._move,
     ])
     def test_the_frame_loop_names_no_screen_of_its_own(self, step):

@@ -105,7 +105,7 @@ def test_probe_releases_the_instance_when_no_headset_answers():
     stub.destroy_instance.assert_called_once_with(stub.create_instance.return_value)
 
 
-def test_launcher_for_runtime_finds_the_pimax_client_beside_the_runtime(tmp_path):
+def test_the_pimax_client_is_found_under_the_root_its_runtime_registers_in(tmp_path):
     runtime_json, client = _pimax_tree(tmp_path)
     assert launcher_for_runtime(runtime_json) == client
 
@@ -138,11 +138,15 @@ def test_ensure_ready_starts_nothing_when_a_headset_already_answers():
     start.assert_not_called()
 
 
-def test_ensure_ready_starts_the_runtime_and_waits_for_the_headset(tmp_path):
+def test_a_cold_runtime_is_polled_as_its_client_then_service_come_up(tmp_path):
     launcher = tmp_path / "PimaxClient.exe"
+    nothing_runs_yet = the_client_is_still_starting = Probe(Readiness.NO_RUNTIME)
+    its_service_is_up_and_no_headset_answers_yet = Probe(Readiness.NO_HEADSET)
     with (
         patch("fun_time_vr.vr_runtime.probe",
-              side_effect=[Probe(Readiness.NO_HEADSET), Probe(Readiness.READY)]),
+              side_effect=[nothing_runs_yet, the_client_is_still_starting,
+                           its_service_is_up_and_no_headset_answers_yet,
+                           Probe(Readiness.READY)]),
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=launcher),
         patch("fun_time_vr.vr_runtime.process_running", return_value=False),
         patch("fun_time_vr.vr_runtime.start_runtime") as start,
@@ -152,17 +156,18 @@ def test_ensure_ready_starts_the_runtime_and_waits_for_the_headset(tmp_path):
     start.assert_called_once_with(launcher)
 
 
-def test_ensure_ready_does_not_restart_a_runtime_that_is_already_up(tmp_path):
+def test_a_running_runtimes_missing_headset_is_reported_with_no_restart_or_wait(tmp_path):
     launcher = tmp_path / "PimaxClient.exe"
     with (
         patch("fun_time_vr.vr_runtime.probe", return_value=Probe(Readiness.NO_HEADSET)),
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=launcher),
         patch("fun_time_vr.vr_runtime.process_running", return_value=True),
         patch("fun_time_vr.vr_runtime.start_runtime") as start,
-        sleeps_in(vr_runtime),
+        sleeps_in(vr_runtime) as slept,
     ):
         assert ensure_ready().readiness is Readiness.NO_HEADSET
     start.assert_not_called()
+    slept.assert_not_called()
 
 
 def test_ensure_ready_gives_up_when_nothing_can_be_started():
@@ -313,7 +318,7 @@ def test_runtime_quit_tool_is_none_when_the_vendor_ships_no_such_tool(tmp_path):
         assert runtime_quit_tool() is None
 
 
-def test_stop_runtime_kills_the_client_then_quits_both_services(tmp_path):
+def test_the_client_is_killed_before_the_services_it_would_restart_are_quit(tmp_path):
     runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
     tool = runtime_json.parent / "launcher.exe"
     with (

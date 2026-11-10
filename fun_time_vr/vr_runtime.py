@@ -29,13 +29,14 @@ POLL_S = 1.0
 
 _OPENXR_KEY = r"SOFTWARE\Khronos\OpenXR\1"
 
-_LAUNCHER_RELATIVE_PATHS = (
+_CLIENTS_UNDER_THE_VENDOR_ROOT = (
     Path("PimaxClient") / "pimaxui" / "PimaxClient.exe",
 )
-_QUIT_TOOL_NAME = "launcher.exe"
+_QUIT_TOOL_BESIDE_THE_REGISTRATION = "launcher.exe"
 _QUIT_SERVICES = ("PiPlatformService", "PiPlayService")
 _DISPLAY_SERVER_NAME = "pi_server.exe"
-QUIT_TIMEOUT_S = 15.0
+_PI_SERVER_USUALLY_GOES_IN_S = 3.0
+QUIT_TIMEOUT_S = 5 * _PI_SERVER_USUALLY_GOES_IN_S
 
 _UNKNOWN_FAILURE = "VR could not be started."
 
@@ -117,10 +118,14 @@ def active_runtime_json() -> Path | None:
     return Path(value)
 
 
+def _vendor_root(runtime_json: Path) -> Path:
+    the_runtime_folder_it_registers_in = runtime_json.parent
+    return the_runtime_folder_it_registers_in.parent
+
+
 def launcher_for_runtime(runtime_json: Path) -> Path | None:
-    vendor_root = runtime_json.parent.parent
-    for relative in _LAUNCHER_RELATIVE_PATHS:
-        candidate = vendor_root / relative
+    for relative in _CLIENTS_UNDER_THE_VENDOR_ROOT:
+        candidate = _vendor_root(runtime_json) / relative
         if candidate.is_file():
             return candidate
     return None
@@ -147,7 +152,7 @@ def runtime_quit_tool() -> Path | None:
     runtime_json = active_runtime_json()
     if runtime_json is None:
         return None
-    candidate = runtime_json.parent / _QUIT_TOOL_NAME
+    candidate = runtime_json.parent / _QUIT_TOOL_BESIDE_THE_REGISTRATION
     return candidate if candidate.is_file() else None
 
 

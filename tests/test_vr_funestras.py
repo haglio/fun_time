@@ -271,7 +271,7 @@ def _manifest_for_a_vr_session(tmp_path, *, osr2_slot_port: int = ports.OSR2_SLO
     return LaunchManifest.read(path)
 
 
-def test_a_test_sessions_channel_files_live_in_its_own_folder(tmp_path):
+def test_no_real_session_can_leave_a_command_where_a_test_unit_reads(tmp_path):
     manifest = _manifest_for_a_vr_session(tmp_path)
 
     assert Path(manifest.commands.main_funestra_cmd_file).is_relative_to(tmp_path)
@@ -293,7 +293,8 @@ def _a_main_unit(tmp_path, *, remembered=None, vr=_A_SESSION, manifest=None) -> 
                      remembered=remembered or Layout(), stop=threading.Event())
 
 
-def test_the_main_funestra_opens_where_the_last_session_left_it(tmp_path, faked_collaborators):
+def test_the_slot_the_video_and_genaus_flick_share_opens_where_it_was_left(
+        tmp_path, faked_collaborators):
     moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
 
     unit = _a_main_unit(tmp_path, remembered=Layout({MAIN: moved}))
@@ -301,14 +302,14 @@ def test_the_main_funestra_opens_where_the_last_session_left_it(tmp_path, faked_
     assert unit.screen.placement == moved
 
 
-def test_the_main_funestra_opens_at_the_tilt_the_last_session_left_it_at(
+def test_the_main_funestra_carries_the_whole_rooms_tilt_over_from_the_last_session(
         tmp_path, faked_collaborators):
     _a_main_unit(tmp_path, remembered=Layout(tilt_deg=-17.5))
 
     assert faked_collaborators["HeadsetVerbs"].call_args.kwargs["tilt_deg"] == -17.5
 
 
-def test_the_main_funestra_is_handed_every_file_it_needs_out_of_the_manifest(
+def test_a_manifest_name_the_main_funestra_misspells_fails_here_not_in_the_headset(
         tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path)
     vr = replace(_A_SESSION, audio_device="Example Headset")
@@ -465,12 +466,13 @@ class TestGenauOnTheMainFunestra:
         assert handed["seams"].stop_event is built.stop
         assert flicks.metadata_root == Path(built.manifest.regen.metadata_root)
 
-    def test_it_opens_in_the_order_the_last_session_left_it_browsing(self, tmp_path):
+    def test_the_order_left_browsing_is_handed_in_with_the_flick_never_sent_after(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path, resumed=BridgeState(genau_latest=True))
 
         assert built.read_state.call_args.args == (
             shared_state_path(Path(built.manifest.commands.state_dir)),)
         assert built.fakes["GenauInTheHeadset"].call_args.args[0].latest is True
+        assert not Path(built.manifest.commands.genau_cmd_file).exists()
 
     def test_it_opens_in_the_f_mode_it_was_left_in_over_the_rooms_favorites(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path,
@@ -515,7 +517,7 @@ def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_v
 
 
 @pytest.mark.parametrize("funestra", ["portrait", "landscape"])
-def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
+def test_a_manifest_name_a_satellite_misspells_fails_here_not_in_the_headset(
         funestra, tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path)
 
@@ -783,12 +785,6 @@ class TestASqueezeOnAHangingHud:
         assert presses == []
 
 
-_EVERYTHING_THE_WORKER_IS_HANDED = [
-    MessageBoard, _MainUnit, _SatelliteUnit, _DashUnit, _MainHudUnit, _ReferenceUnit,
-    _LibraryUnit, _MessageUnit, LoadingScreenUnit, _LayoutKeeper, _ControllerPosts,
-]
-
-
 class TestWhatEveryVideoUnitOwes:
     def test_the_base_refuses_to_be_pumped(self):
         unit = _VideoUnit.__new__(_VideoUnit)
@@ -808,11 +804,6 @@ class TestWhatEveryVideoUnitOwes:
         assert unit_class.close is not _VideoUnit.close
         assert list(inspect.signature(unit_class.pump).parameters) == [
             "self", "stop", "now"]
-
-    @pytest.mark.parametrize("pumped_class", _EVERYTHING_THE_WORKER_IS_HANDED)
-    def test_everything_the_worker_is_handed_answers_both_calls(self, pumped_class):
-        assert callable(getattr(pumped_class, "pump", None))
-        assert callable(getattr(pumped_class, "close", None))
 
 
 class _FakeMesh:
@@ -1064,7 +1055,7 @@ class TestTheConsoleUnderTheSlot:
 
         assert p.unit.texture.uploaded.shape == (120, HUD_WIDTH_PX, 4)
 
-    def test_the_main_hud_rides_under_the_main_funestra_wherever_it_goes(self):
+    def test_the_main_hud_follows_the_main_funestra_on_frames_that_repaint_nothing(self):
         p = self._unit()
 
         docked = self._placed(p.unit)
@@ -1284,7 +1275,7 @@ class TestTheLoadingScreenUnit:
         assert not unit.showing
         assert not unit.closing
 
-    def test_a_launch_in_progress_is_covered_from_the_first_frame(
+    def test_the_first_frame_is_covered_before_the_worker_has_pumped_once(
             self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
@@ -1310,7 +1301,7 @@ class TestTheLoadingScreenUnit:
 
         assert len(unit.texture.uploads) == 2
 
-    def test_it_says_it_is_waiting_on_him_once_the_room_is_up(
+    def test_a_finished_room_asks_for_its_wearer_while_the_headset_is_still_off(
             self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / PROGRESS_FILENAME,
                       phases=VR_STARTUP_PHASES).advance("funestras")
@@ -1369,7 +1360,7 @@ class TestTheLoadingScreenUnit:
 
         assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
-    def test_a_closing_screen_answers_teardown_before_a_frame_is_drawn(
+    def test_a_painted_closing_screen_answers_teardown_though_no_frame_may_come(
             self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("controls")
@@ -1381,7 +1372,8 @@ class TestTheLoadingScreenUnit:
         unit.settled()
         assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
-    def test_an_idle_state_dir_wants_no_loading_screen_at_all(self, tmp_path, loading_screen_graphics):
+    def test_a_funestra_run_with_no_orchestrator_waits_for_no_loading_screen(
+            self, tmp_path, loading_screen_graphics):
         assert not LoadingScreenUnit(tmp_path).wanted
 
     def test_a_launch_in_progress_wants_one(self, tmp_path, loading_screen_graphics):
@@ -1585,13 +1577,15 @@ class TestHangingTheRoom:
 
         assert isinstance(the_room.pumped[0], MessageBoard)
 
-    def test_everything_it_closes_when_it_ends_has_a_close(self, tmp_path, faked_collaborators):
+    def test_what_rides_the_workers_list_as_no_screen_answers_pump_and_close_too(
+            self, tmp_path, faked_collaborators):
         the_room = _hang_a_room(tmp_path)
 
-        assert any(isinstance(one, MessageBoard) for one in the_room.closing)
-        assert the_room.posts in the_room.closing
-        assert [type(one).__name__ for one in the_room.closing
-                if not callable(getattr(one, "close", None))] == []
+        riding_as_no_screen = [one for one in the_room.closing if one not in the_room.units]
+        assert [type(one).__name__ for one in riding_as_no_screen] == [
+            "MessageBoard", "_LayoutKeeper", "_ControllerPosts"]
+        assert [(type(one).__name__, asked) for one in the_room.closing
+                for asked in ("pump", "close") if not callable(getattr(one, asked, None))] == []
 
     def _closed_by(self, the_room, *, keep_the_loading_screen: bool) -> list:
         closed: list = []
