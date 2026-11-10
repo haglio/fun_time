@@ -153,7 +153,8 @@ class _LaunchedChildren:
 
 
 def release_the_funestras(m: LaunchManifest, main_mode: MainMode) -> None:
-    write_flag_file(m.commands.main_funestra_paused_file, not kino_shows(main_mode))
+    kinos_video_stays_held_under_genau = not kino_shows(main_mode)
+    write_flag_file(m.commands.main_funestra_paused_file, kinos_video_stays_held_under_genau)
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
         write_flag_file(flag_file, False)
 
@@ -202,6 +203,10 @@ class _CoreSession:
     main_funestra_status_file: Path
 
 
+def _log_for_a_funestra_pythonw_gives_no_console(state_dir: Path, funestra: str) -> Path:
+    return state_dir / f"{funestra}.log"
+
+
 def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
     return screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator)
 
@@ -226,7 +231,8 @@ def _launch_the_satellites(
                     channel, m.commands, satellite,
                     play_points=state_dir / play_points_filename(satellite)),
                 playlist=build_playlist_file_path(state_dir, playlist)),
-            log_file=state_dir / f"{satellite}_satellite.log",
+            log_file=_log_for_a_funestra_pythonw_gives_no_console(
+                state_dir, f"{satellite}_satellite"),
             rect=rect,
         )
 
@@ -270,7 +276,7 @@ def _launch_the_main_funestra(
     state = read_shared_state(shared_state_path(state_dir)) or BridgeState()
     main_funestra_status_file = Path(m.commands.main_funestra_status_file)
     main_funestra_status_file.unlink(missing_ok=True)
-    main_funestra_log = state_dir / "main_funestra.log"
+    main_funestra_log = _log_for_a_funestra_pythonw_gives_no_console(state_dir, "main_funestra")
     main_funestra_logs = logs_as_they_stand(main_funestra_log)
     main_funestra_pid = launch_main_funestra(
         m,

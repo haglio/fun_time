@@ -85,7 +85,13 @@ CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
 MAIN_FUNESTRA_PID = 25
 
-PRIMARY_MEDIA_RECT = {"x": 2560, "y": 2500, "width": 1440, "height": 940}
+SECONDARY_MONITOR = FAKE_MONITORS[1]
+PORTRAIT_HEIGHT_AT_THE_CONFTESTS_MAIN_TOP_RATIO = 2500
+PRIMARY_MEDIA_RECT = {
+    "x": SECONDARY_MONITOR.x, "y": PORTRAIT_HEIGHT_AT_THE_CONFTESTS_MAIN_TOP_RATIO,
+    "width": SECONDARY_MONITOR.width,
+    "height": SECONDARY_MONITOR.height - PORTRAIT_HEIGHT_AT_THE_CONFTESTS_MAIN_TOP_RATIO,
+}
 
 
 def _make_manifest(cfg_factory, tmp_path, overrides: dict | None = None):
@@ -186,16 +192,24 @@ def _sequencer_stubs(**overrides):
                 patch(f"{_STUB_MODULES.get(name, SEQUENCER)}.{name}", **kwargs)))
         stack.enter_context(patch(
             "fun_time.windows_bridge_sequencer.time",
-            SimpleNamespace(monotonic=lambda: 0.0, sleep=lambda _s: None)))
+            _a_frozen_clock_that_fails_any_new_time_call()))
         yield mocks
+
+
+def _a_frozen_clock_that_fails_any_new_time_call():
+    return SimpleNamespace(monotonic=lambda: 0.0, sleep=lambda _s: None)
 
 
 def _fake_ui(m, **kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
-def _fake_main_funestra(m, **kwargs):
+def _put_up_the_kino_video_every_loading_screen_waits_for(m):
     Path(m.commands.main_funestra_status_file).write_text("video=this_session.mp4\n", encoding="utf-8")
+
+
+def _fake_main_funestra(m, **kwargs):
+    _put_up_the_kino_video_every_loading_screen_waits_for(m)
     return MAIN_FUNESTRA_PID
 
 
@@ -212,9 +226,9 @@ def _fake_origenerator(**kwargs):
 
 
 def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
-    ticks = iter([12.001, 47.002])
-    monkeypatch.setattr(windows_bridge_sequencer, "time",
-                        SimpleNamespace(monotonic=lambda: next(ticks)))
+    two_readings_where_the_frozen_clock_gives_one = iter([12.001, 47.002])
+    monkeypatch.setattr(windows_bridge_sequencer, "time", SimpleNamespace(
+        monotonic=lambda: next(two_readings_where_the_frozen_clock_gives_one)))
 
     first = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
     second = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
@@ -347,7 +361,8 @@ class TestRunStartupSequence:
         assert commands.osr2_slot_port == str(ports.OSR2_SLOT)
         assert given.runtime.sibling_checkouts == ""
         assert main_funestra_kwargs["log_file"] == tmp_path / "main_funestra.log"
-        assert main_funestra_kwargs["state_dir"] == tmp_path
+        assert main_funestra_kwargs["state_dir"] == tmp_path, (
+            "left to itself it keeps its mode and play points beside its config, in the checkout")
         assert main_funestra_kwargs["rect"] == WindowRect(**PRIMARY_MEDIA_RECT)
         assert main_funestra_kwargs["genau"] == GenauStart()
 
@@ -398,7 +413,7 @@ class TestRunStartupSequence:
 
         assert main_funestra_kwargs["m"].runtime.sibling_checkouts == str(checkout)
 
-    def test_the_satellites_start_with_the_named_checkouts(self, cfg_factory, tmp_path):
+    def test_the_satellites_import_funestra_from_the_checkouts_the_session_names(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         checkout = _name_a_sibling_checkout(manifest_path, tmp_path / "a_worktree")
 
@@ -497,7 +512,7 @@ class TestRunStartupSequence:
 
         assert stubs.launch_main_funestra.call_args.args[0].commands.osr2_slot_port == "50599"
 
-    def test_a_genau_session_opens_with_the_main_funestra_up_and_in_the_band(self, cfg_factory, tmp_path):
+    def test_a_genau_session_bands_the_one_window_genau_and_kino_share(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
             "Main Funestra": 2525,
@@ -510,15 +525,6 @@ class TestRunStartupSequence:
 
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 2525}
         assert result.main_mode is MainMode.GENAU
-
-    def test_a_genau_session_is_revealed_by_starting_genau_not_main_funestra(self, cfg_factory, tmp_path):
-        paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
-
-        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
-
-        assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "1"
-        assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
-        assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_kino_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
@@ -542,12 +548,13 @@ class TestRunStartupSequence:
 
         assert genau_cmd.read_text(encoding="utf-8") == ""
 
-    def test_a_genau_session_leaves_kinos_video_held_at_the_reveal(self, cfg_factory, tmp_path):
+    def test_a_genau_reveal_leaves_kinos_video_held_under_genaus_flick(self, cfg_factory, tmp_path):
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-        assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["main_funestra_paused_file"].read_text(encoding="utf-8").strip() == "1", (
+            "Kino's video playing under Genau's flick would be a second driver of the OSR2")
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
