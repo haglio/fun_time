@@ -7,6 +7,7 @@ from pathlib import Path
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
+from fun_time.command_value import parse_command
 from fun_time.config import load_config
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -123,6 +124,10 @@ def _named_with_both_modes(main_mode, satellites_mode, command: str) -> str:
     return f"{main_mode}/{satellites_mode}/{command}"
 
 
+def _the_funestra_it_is_said_to(command: str) -> FunTimeFunestra:
+    return parse_command(command).satellite or FunTimeFunestra.MAIN
+
+
 def sweep(config: BridgeConfig, satellites_modes) -> dict[str, dict[str, list[str]]]:
     drain(config)
     _hold_every_funestra_halfway_through_an_hour(config)
@@ -143,7 +148,8 @@ def _what_every_command_sent(config: BridgeConfig, satellites_modes) -> dict[str
     for main_mode in MAIN_MODES:
         for satellites_mode in satellites_modes:
             for command in every_command():
-                state = BridgeState(main_mode=main_mode, origenerator_ready=True)
+                state = BridgeState(main_mode=main_mode, origenerator_ready=True,
+                                    osr2_funestra=_the_funestra_it_is_said_to(command))
                 for funestra in FunTimeFunestra.SATELLITES:
                     state = state.with_satellite(
                         funestra, mode=satellites_mode,

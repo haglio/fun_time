@@ -32,7 +32,7 @@ from .shared_state import BridgeState
 logger = logging.getLogger(__name__)
 
 
-_PLAYHEAD_ACTS = {
+PLAYHEAD_ACTS = {
     "nudge_prev": SEEK_BACK,
     "nudge_next": SEEK_FWD,
 }
@@ -68,20 +68,34 @@ MAIN_LOCK_COMMANDS = {
 _PLAYHEAD_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
     f"{funestra.label}_{act}": (funestra, verb)
     for funestra in FunTimeFunestra
-    for act, verb in _PLAYHEAD_ACTS.items()
+    for act, verb in PLAYHEAD_ACTS.items()
 }
 
 
-def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
-                  _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+def step_refused(funestra: FunTimeFunestra, verb: str, config: BridgeConfig) -> list[WindowOp]:
     if funestra is FunTimeFunestra.MAIN:
         status = read_main_funestra_status(config.main_funestra_status_file)
     else:
         status = read_satellite_status(config.satellite(funestra).status_file)
     cannot = why_it_cannot_step(verb, status, NOUN)
-    if cannot is not None:
-        return state, [WindowOp(op="message", key=cannot.capitalize(),
-                                source=FUNESTRA_SOURCES[funestra], level=logging.WARNING)]
+    if cannot is None:
+        return []
+    return [WindowOp(op="message", key=cannot.capitalize(),
+                     source=FUNESTRA_SOURCES[funestra], level=logging.WARNING)]
+
+
+def refused_on_a_satellite(funestra: FunTimeFunestra, act: str, state: BridgeState,
+                           config: BridgeConfig) -> list[WindowOp]:
+    if FUNSCRIPT_MOVES.get(act) == JUMP_TO_FUNSCRIPT:
+        return skip_ahead_refused(funestra, state)
+    verb = PLAYHEAD_ACTS.get(act)
+    return step_refused(funestra, verb, config) if verb else []
+
+
+def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+                  _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if refused := step_refused(funestra, verb, config):
+        return state, refused
     if funestra is FunTimeFunestra.MAIN:
         append_command(config.main_funestra_cmd_file, verb)
     else:
