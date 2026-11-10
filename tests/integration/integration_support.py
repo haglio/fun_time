@@ -78,6 +78,7 @@ from .hidden_desktop import (
 )
 from .line_record import KEPT_FOR, forget_what_was_kept_before, this_run
 from .run_clock import Budget
+from .stand_in_origenerator import host_the_stand_in, write_stand_in_checkout
 
 
 def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
@@ -731,6 +732,10 @@ def build_integration_config(tmp_path: Path) -> Path:
     point_the_main_funestra_at(config, primary_dir)
     config.setdefault("regen", {})["metadata_root"] = str(metadata_root)
     strip_what_the_desktop_does_not_isolate(config)
+    host_the_stand_in(config, write_stand_in_checkout(
+        integration_root / "origenerator_stand_in",
+        {"portrait": [str(path) for path in portrait_paths],
+         "landscape": [str(path) for path in landscape_paths]}))
     the_runs_osr2(config["osr2_slot_port"]).reports_switched_on_to(state_dir)
 
     config_path = integration_root / INTEGRATION_CONFIG_NAME

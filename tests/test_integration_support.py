@@ -526,6 +526,24 @@ def test_a_run_that_points_genau_at_a_made_up_folder_still_plays_the_machines_ki
 
     assert {path.name for path in config.paths.portrait_dirs[0].iterdir()} == {"alpha.mp4", "beta.mp4"}
 
+def test_a_run_hosts_a_stand_in_origenerator_that_plays_the_runs_own_satellite_videos(
+        tmp_path, monkeypatch):
+    machine = _a_machines_config_over_a_made_up_library(tmp_path / "machine", monkeypatch)
+    monkeypatch.setattr(integration_support, "the_machines_config_path", lambda: machine)
+    run = tmp_path / "run"
+    try:
+        config = load_integration_config(build_integration_config(run))
+    finally:
+        close_the_runs_osr2s()
+
+    stand_in = config.paths.origenerator_dir
+    assert run in stand_in.parents
+    assert (stand_in / "origenerator" / "__main__.py").is_file()
+    slides = json.loads((stand_in / "slides.json").read_text(encoding="utf-8"))
+    assert {Path(slide).parent for slide in slides["portrait"]} == {config.paths.portrait_dirs[0]}
+    assert {Path(slide).parent for slide in slides["landscape"]} == {config.paths.landscape_dirs[0]}
+
+
 def test_the_runs_slot_listens_so_the_runs_senders_have_somewhere_to_connect(isolated_ports):
     config = isolated_ports
 
