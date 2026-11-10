@@ -199,7 +199,7 @@ def on_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) ->
 
 def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> None:
     current = desktop_name()
-    if current != HIDDEN_DESKTOP_NAME:
+    if not on_hidden_desktop(lambda: current):
         raise RuntimeError(
             f"The integration suite must run on the '{HIDDEN_DESKTOP_NAME}' desktop, "
             f"not '{current}'.  Run it with:\n\n"
@@ -437,8 +437,12 @@ def _a_place_in_line(*, short: bool, what: list[str]) -> Iterator[Visit]:
         visit.leave()
 
 
+def _the_gates_install_downloaded_before_joining_the_line() -> Path:
+    return flake_gate_python(_repo_root() / "state")
+
+
 def _repeat_what_changed(base: str) -> int:
-    gate_python = flake_gate_python(_repo_root() / "state")
+    gate_python = _the_gates_install_downloaded_before_joining_the_line()
     files = files_with_a_changed_test(gate_python, base, _repo_root())
     with _a_place_in_line(short=True, what=[REPEAT_CHANGED_FLAG, base]) as visit:
         minutes_left = REPEAT_BUDGET_MINUTES

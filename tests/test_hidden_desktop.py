@@ -54,10 +54,14 @@ from tests.made_up_clocks import StarvedRun
 from tests.thread_state import TIME_TO_END_S
 
 
-def _run_in_a_run_job(probe: str) -> None:
+def _a_folder_no_teardown_removes_under_a_dying_child() -> str:
+    return str(_repo_root())
+
+
+def _run_in_a_run_job_until_its_report_is_whole(probe: str) -> None:
     with create_run_job() as job:
         pi = _launch_on_desktop(subprocess.list2cmdline([sys.executable, "-c", probe]),
-                                None, str(_repo_root()), job)
+                                None, _a_folder_no_teardown_removes_under_a_dying_child(), job)
         try:
             hidden_desktop._wait_for_the_run(pi.hProcess, ceiling_s=A_STARVED_CHILDS_START_S)
         finally:
@@ -79,8 +83,8 @@ def test_a_hidden_desktop_launch_keeps_the_environment_it_was_handed():
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
 def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environment(tmp_path):
     report = tmp_path / "mute.txt"
-    _run_in_a_run_job(f"import os, pathlib; pathlib.Path({str(report)!r})"
-                      ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
+    _run_in_a_run_job_until_its_report_is_whole(f"import os, pathlib; pathlib.Path({str(report)!r})"
+                                                ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
 
     assert report.read_text() == "1"
 
@@ -144,7 +148,7 @@ def test_a_run_stays_below_normal_priority_though_a_process_in_it_raises_itself(
         f"kernel32.SetPriorityClass(me, {subprocess.ABOVE_NORMAL_PRIORITY_CLASS})\n"
         f"pathlib.Path({str(report)!r}).write_text(str(kernel32.GetPriorityClass(me)))\n"
     )
-    _run_in_a_run_job(probe)
+    _run_in_a_run_job_until_its_report_is_whole(probe)
 
     assert int(report.read_text()) == subprocess.BELOW_NORMAL_PRIORITY_CLASS
 
@@ -665,7 +669,7 @@ def _answer(event: _DEBUG_EVENT) -> None:
 
 
 @contextlib.contextmanager
-def _held_in_its_exit(pid: int, release: Path):
+def _held_in_its_exit_as_a_stuck_driver_holds_one(pid: int, release: Path):
     if not _kernel32.DebugActiveProcess(pid):
         raise ctypes.WinError(ctypes.get_last_error())
     event = _DEBUG_EVENT()
@@ -709,7 +713,7 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
             _python(str(stand_in)), sys.executable, hidden_desktop.RUN_CEILING_S)), daemon=True)
         run.start()
         try:
-            with _held_in_its_exit(pid_written_to(pid_file), release):
+            with _held_in_its_exit_as_a_stuck_driver_holds_one(pid_written_to(pid_file), release):
                 run.join(timeout=30)
                 assert ended == [3]
         finally:
@@ -754,7 +758,7 @@ def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 job objects")
-def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
+def test_a_broker_started_inside_a_run_outlives_it_as_the_service_others_use(tmp_path):
     pid_file = tmp_path / "broker_pid.txt"
     spawn_broker = (
         "import pathlib, subprocess;"
@@ -767,7 +771,8 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     )
     with create_run_job() as job:
         pi = _launch_on_desktop(subprocess.list2cmdline(_python("-c", spawn_broker)), None,
-                                str(_repo_root()), job, _environment_as_the_venvs_launcher_sets_it(sys.executable))
+                                _a_folder_no_teardown_removes_under_a_dying_child(), job,
+                                _environment_as_the_venvs_launcher_sets_it(sys.executable))
         try:
             run = StartedProcess.of(pi.dwProcessId)
             broker = StartedProcess.of(pid_written_to(pid_file))

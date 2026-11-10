@@ -124,7 +124,7 @@ def _is_leftover_app(pid: int) -> bool:
     return name.lower() in _APP_IMAGE_NAMES or NAMER.owns_exe_name(name)
 
 
-def _kill_leftover_app_processes() -> None:
+def _kill_every_app_left_on_the_desktop_all_runs_share() -> None:
     if current_desktop_name() != HIDDEN_DESKTOP_NAME:
         return
     window_pids = pids_with_window_on_current_desktop()
@@ -479,7 +479,7 @@ class FunTimeIntegrationSession:
                 time.sleep(0.2)
 
     def _reap_leftover_runtime_processes(self) -> None:
-        _kill_leftover_app_processes()
+        _kill_every_app_left_on_the_desktop_all_runs_share()
         self._wait_for_orchestrators_to_exit()
 
     def _wait_for_orchestrators_to_exit(self, timeout: float = 15.0) -> None:
@@ -596,14 +596,30 @@ def close_the_runs_osr2s() -> None:
         osr2.close()
 
 
-def _isolate_shared_ports(config: dict) -> None:
+def _leave_his_audio_companion_its_port(config: dict) -> None:
     config["audio_companion"]["port"] = _free_udp_port()
 
+
+def _give_genau_a_socket_of_the_runs_own(config: dict) -> None:
     genaus_own = {field.name for field in dataclasses.fields(GenauSettings)}
     config["genau"] = {key: value for key, value in config.get("genau", {}).items()
                        if key in genaus_own} | {"udp_port": _free_udp_port()}
 
+
+def _never_drive_the_osr2_he_is_using(config: dict) -> None:
     config["osr2_slot_port"] = _a_slot_of_the_runs_own()
+
+
+def _leave_his_userscript_and_tab_pages_their_loopback_port(config: dict) -> None:
+    config["loopback_port"] = _free_tcp_port()
+
+
+def _start_and_stop_no_broker_by_naming_no_launcher(config: dict) -> None:
+    config["paths"]["broker_tray_launcher"] = ""
+
+
+def _never_command_the_broker_he_is_using_through_a_copied_pin(config: dict) -> None:
+    config["paths"].pop("broker_state_dir", None)
 
 
 def the_machines_config_path() -> Path:
@@ -619,13 +635,12 @@ def load_the_machines_config():
 
 
 def strip_what_the_desktop_does_not_isolate(config: dict) -> None:
-    _isolate_shared_ports(config)
-
-    config["loopback_port"] = _free_tcp_port()
-
-    config["paths"]["broker_tray_launcher"] = ""
-
-    config["paths"].pop("broker_state_dir", None)
+    _leave_his_audio_companion_its_port(config)
+    _give_genau_a_socket_of_the_runs_own(config)
+    _never_drive_the_osr2_he_is_using(config)
+    _leave_his_userscript_and_tab_pages_their_loopback_port(config)
+    _start_and_stop_no_broker_by_naming_no_launcher(config)
+    _never_command_the_broker_he_is_using_through_a_copied_pin(config)
 
     # There is one microphone.  Windows shares an input device between listeners
     # rather than refusing the second, so a run that opened it would not fail —
@@ -945,10 +960,14 @@ def _safe_link(src: Path, dest: Path) -> None:
 
 
 def window_is_quiet(frame_ms, *, budget_ms: float) -> bool:
+    return _the_frame_nine_in_ten_come_in_under(frame_ms) < budget_ms
+
+
+def _the_frame_nine_in_ten_come_in_under(frame_ms) -> float:
     ordered = sorted(frame_ms)
-    return ordered[len(ordered) * 9 // 10] < budget_ms
+    return ordered[len(ordered) * 9 // 10]
 
 
 def stall_per_transition(passes) -> float:
-    worst = sorted(max(one) for one in passes)
-    return worst[len(worst) // 2]
+    the_worst_frame_of_each_pass = sorted(max(one) for one in passes)
+    return the_worst_frame_of_each_pass[len(the_worst_frame_of_each_pass) // 2]

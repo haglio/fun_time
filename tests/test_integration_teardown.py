@@ -31,7 +31,7 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
          patch.object(integration_support, "get_process_image_name", images.get), \
          patch.object(integration_support, "command_line_of", command_line_of), \
          patch.object(integration_support, "kill_process_tree") as kill:
-        integration_support._kill_leftover_app_processes()
+        integration_support._kill_every_app_left_on_the_desktop_all_runs_share()
 
     killed = {call.args[0] for call in kill.call_args_list}
     assert killed == {222, 333, 666}
@@ -45,7 +45,7 @@ def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
          patch.object(integration_support, "pids_with_window_on_current_desktop") as pids, \
          patch.object(integration_support, "kill_process_tree") as kill, \
          patch.object(integration_support, "command_line_of") as asked:
-        integration_support._kill_leftover_app_processes()
+        integration_support._kill_every_app_left_on_the_desktop_all_runs_share()
 
     kill.assert_not_called()
     pids.assert_not_called()

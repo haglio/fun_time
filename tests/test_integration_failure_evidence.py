@@ -65,7 +65,7 @@ def test_a_root_that_will_not_go_is_named_and_the_others_still_do(tmp_path: Path
     assert not goes.exists()
 
 
-def test_a_funestra_still_on_its_way_out_is_waited_for(tmp_path: Path):
+def test_a_killed_funestra_still_holding_its_log_is_waited_for(tmp_path: Path):
     root = _a_session_root(tmp_path, "going")
 
     with (root / "integration_runtime" / "state" / "main_funestra.log").open("a") as log:
@@ -74,8 +74,11 @@ def test_a_funestra_still_on_its_way_out_is_waited_for(tmp_path: Path):
     assert not root.exists()
 
 
+THE_SLOWEST_FUNESTRA_GONE_UNDER_THE_FLAKE_GATE_S = 59
+
+
 def test_the_wait_outlasts_the_slowest_funestra_measured_on_a_busy_machine():
-    assert integration_support.RELEASE_BUDGET_S >= 2 * 59
+    assert integration_support.RELEASE_BUDGET_S >= 2 * THE_SLOWEST_FUNESTRA_GONE_UNDER_THE_FLAKE_GATE_S
 
 
 def test_a_failed_run_keeps_each_sessions_logs(tmp_path: Path):
