@@ -2669,12 +2669,68 @@ class TestASatellitesSound:
         assert parse_command("active_volume_up").aimed_at_the_active(3).text == "landscape_volume_up"
 
 
-def test_the_hosted_apps_own_words_said_bare_with_the_main_funestra_targeted_reach_it(tmp_path):
-    config = _make_config(tmp_path)
+class TestALineInTheHostedAppsWordsSaidBare:
+    @staticmethod
+    def _said_bare(state: BridgeState, config: BridgeConfig):
+        return dispatch_command(say_command("active", "populate on"), state, config)
 
-    _new_state, ops = dispatch_command(say_command("active", "populate on"), _up(), config)
+    @staticmethod
+    def _named(state: BridgeState, config: BridgeConfig, *commands: str) -> BridgeState:
+        for command in commands:
+            state, _ops = dispatch_command(command, state, config)
+        return state
 
-    assert ops == []
-    assert _origenerator_cmds(config) == ["PORTRAIT_SAY:populate on"]
+    @pytest.mark.parametrize(("naming", "line"), [
+        ("portrait_mute", "PORTRAIT_SAY:populate on"),
+        ("landscape_mute", "LANDSCAPE_SAY:populate on"),
+    ])
+    def test_it_goes_to_the_satellite_named_last(self, tmp_path, naming, line):
+        config = _make_config(tmp_path)
+        state = self._named(_up(), config, naming)
 
+        _state, ops = self._said_bare(state, config)
 
+        assert ops == []
+        assert _origenerator_cmds(config) == [line]
+
+    def test_after_core_is_picked_it_goes_to_core(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = self._named(_up(), config, "portrait_mute", "origenerator_activate")
+
+        self._said_bare(state, config)
+
+        assert _origenerator_cmds(config) == ["SAY:populate on"]
+
+    def test_naming_a_satellite_after_core_takes_it_back_to_that_satellite(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = self._named(_up(), config, "origenerator_activate", "landscape_mute")
+
+        self._said_bare(state, config)
+
+        assert _origenerator_cmds(config) == ["LANDSCAPE_SAY:populate on"]
+
+    def test_with_nothing_named_it_is_ignored_on_the_main_funestra(self, tmp_path):
+        config = _make_config(tmp_path)
+
+        _state, ops = self._said_bare(_up(), config)
+
+        assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
+        assert _origenerator_cmds(config) == []
+
+    def test_naming_the_main_funestra_after_core_leaves_it_ignored_there(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = self._named(_up(), config, "origenerator_activate", "main_hud_minimize")
+
+        _state, ops = self._said_bare(state, config)
+
+        assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
+        assert _origenerator_cmds(config) == []
+
+    def test_core_named_while_the_browser_holds_its_place_is_not_told(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = self._named(_up(), config, "origenerator_activate", "rfb_activate")
+
+        _state, ops = self._said_bare(state, config)
+
+        assert ops == [WindowOp(op=Op.IGNORED, key="on the Main Funestra")]
+        assert _origenerator_cmds(config) == []

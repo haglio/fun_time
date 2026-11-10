@@ -86,6 +86,7 @@
     "PORTRAIT_SAY:original only",
     "PORTRAIT_SAY:{words}",
     "RELEASE",
+    "SAY:{words}",
     "TAKE_BACK",
     "TRASH_FILE|C:/v/scene one.mp4|C:/t/scene one.mp4",
     "filter_landscape_{row}",

@@ -50,6 +50,7 @@ from .funestra_status import read_genau_status, read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
 from .hosted_contract import said_at_suffix_of
+from .hosted_words import aimed_at_the_tracked_target
 from .hud_feed import HudFeed
 from .latest_arrivals import LatestArrivals
 from .library_browser import BrowseOpening, browse_library
@@ -65,6 +66,7 @@ from .origenerator_opening import (
     OrigeneratorOpening,
     with_the_browser_in_its_place,
 )
+from .rfb_mode import switch_the_rfb_mode
 from .rfb_modes import RfbMode
 from .runtime_flow import hand_the_satellite_to_the_app, write_flag_file
 from .satellite_speeds import SatelliteSpeeds
@@ -207,7 +209,7 @@ class DispatchLoopRunner:
 
     def _give_core_the_browsers_place_if_owed(self) -> None:
         if self.opening.gives_core_the_browsers_place_now(self.state):
-            self._dispatch(parse_command(ORIGENERATOR_ACTIVATE))
+            self._take(*switch_the_rfb_mode(RfbMode.ORIGENERATOR, self.state, self.config))
 
     def _the_app_has_every_satellite(self) -> bool:
         if self.hand_overs.taken(self.config):
@@ -276,7 +278,7 @@ class DispatchLoopRunner:
         source = said.message_source(self.state.active_funestra)
         answers_before = self._answers
         self._ignored_because = ""
-        for command in said.aimed_at_the_active(self.state.active_funestra).each():
+        for command in aimed_at_the_tracked_target(said, self.state).each():
             self._handle_command(command, line.spoken_at)
         if not line.said:
             return
