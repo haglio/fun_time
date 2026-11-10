@@ -71,10 +71,6 @@ def validate_config(config) -> None:
         require_file(config.random_faves_browser.shortcut_path)
     for main_funestra_library_dir in config.paths.main_funestra_library_dirs:
         require_dir(main_funestra_library_dir)
-    for portrait_dir in config.paths.portrait_dirs:
-        require_dir(portrait_dir)
-    for landscape_dir in config.paths.landscape_dirs:
-        require_dir(landscape_dir)
     require_dir(config.paths.flicks_dir)
     require_dir(config.paths.genau_audio_dir)
     require_file(config.project_dir / HOTKEY_SCRIPT_NAME)

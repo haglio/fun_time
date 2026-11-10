@@ -3489,8 +3489,7 @@ class TestTheHudPublisherASessionStarts:
     @staticmethod
     def _started(cfg_factory, tmp_path) -> tuple[MagicMock, Path]:
         manifest_path = write_windows_bridge_manifest(load_config(cfg_factory({})))
-        bridge_config = SimpleNamespace(portrait=SimpleNamespace(sources=""),
-                                        landscape=SimpleNamespace(sources=""), state_dir=tmp_path)
+        bridge_config = SimpleNamespace(state_dir=tmp_path)
 
         with patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
             windows_bridge_orchestrator.start_hud_priming(
@@ -3512,9 +3511,8 @@ class TestTheHudPublisherASessionStarts:
         video.touch()
         manifest = LaunchManifest.read(write_windows_bridge_manifest(
             config, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
-        bridge_config = SimpleNamespace(portrait=SimpleNamespace(sources=""),
-                                        landscape=SimpleNamespace(sources=""), main_sources="",
-                                        regen_metadata_root=None, state_dir=tmp_path)
+        bridge_config = SimpleNamespace(main_sources="", regen_metadata_root=None,
+                                        state_dir=tmp_path)
         warmed: list[str] = []
 
         with patch("fun_time.windows_bridge_orchestrator.HudPublisher"), \

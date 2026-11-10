@@ -12,10 +12,6 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     state_dir = tmp_path / "state"
     return made_up_bridge_config(
         state_dir,
-        portrait=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
-                                               sources=str(tmp_path / "portrait")),
-        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
-                                                sources=str(tmp_path / "landscape")),
         trash_dir=tmp_path / "trash",
         main_sources=str(tmp_path / "primary"),
     )
@@ -26,14 +22,13 @@ def test_each_satellite_is_asked_for_by_its_funestra(tmp_path: Path):
 
     assert config.satellite(FunTimeFunestra.PORTRAIT) is config.portrait
     assert config.satellite(FunTimeFunestra.LANDSCAPE) is config.landscape
-    assert config.satellite(2).sources == str(tmp_path / "portrait")
+    assert config.satellite(2) is config.portrait
 
 
 def test_a_satellites_channel_is_spelled_once_from_its_state_dir(tmp_path: Path):
     state_dir = tmp_path / "state"
 
-    channel = SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
-                                            sources="D:/clips|E:/more")
+    channel = SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE)
 
     assert channel == SatelliteChannel(
         cmd_file=state_dir / "landscape_cmd.txt",
@@ -43,7 +38,6 @@ def test_a_satellites_channel_is_spelled_once_from_its_state_dir(tmp_path: Path)
         notice_file=state_dir / "landscape_notice.txt",
         hud_file=state_dir / "landscape_hud.json",
         origenerator_hud_file=state_dir / "origenerator_landscape_hud.json",
-        sources="D:/clips|E:/more",
     )
 
 

@@ -26,8 +26,8 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
                side_effect=[202, 303]) as launched:
         launch_core_apps(
             desktop_manifest(tmp_path / "app"),
-            _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), tmp_path, rect),
-            _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), tmp_path, rect),
+            _launch(FunTimeFunestra.PORTRAIT, tmp_path, rect),
+            _launch(FunTimeFunestra.LANDSCAPE, tmp_path, rect),
             tmp_path / "core_apps.ini",
         )
 

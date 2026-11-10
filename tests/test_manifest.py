@@ -29,7 +29,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _A_SATELLITES_CHANNEL = {
     "cmd_file", "paused_file", "status_file", "playlist_file", "notice_file", "hud_file",
-    "origenerator_hud_file", "sources",
+    "origenerator_hud_file",
 }
 
 _KEYS_EVERY_READER_SPELLS_VERBATIM: dict[str, set[str]] = {
@@ -177,8 +177,6 @@ class TestReadingItBack:
 
         for funestra in FunTimeFunestra.SATELLITES:
             assert manifest.satellite(funestra) == cfg.satellite(funestra)
-        assert manifest.satellite(FunTimeFunestra.PORTRAIT).sources == "|".join(
-            str(path) for path in cfg.paths.portrait_dirs)
 
     def test_a_missing_key_says_which_of_the_machines_manifests_lacks_it(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)
