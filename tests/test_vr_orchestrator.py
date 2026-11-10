@@ -24,13 +24,14 @@ from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time.config import load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.funestra_deaths import origenerator_never_came_up_message
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
 from fun_time.mode_plan import show_verb
 from fun_time.modes import VideoShapes
-from fun_time.origenerator_switches import ORIGENERATOR_MODE
+from fun_time.origenerator_opening import OrigeneratorNeverCameUp
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCELING,
@@ -263,11 +264,11 @@ class TestOrigeneratorInVr:
 
         assert bridge.origenerator_enabled is False
 
-    def test_a_room_left_in_the_mode_asks_for_the_slideshows_as_it_opens(self, hosted, tmp_path):
+    def test_a_room_asks_for_both_satellites_slideshows_as_it_opens_whatever_it_was_left_in(
+            self, hosted, tmp_path):
         state_dir = hosted.paths.state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
-        write_shared_state(shared_state_path(state_dir),
-                           BridgeState(landscape=SatelliteState(mode=ORIGENERATOR_MODE)))
+        write_shared_state(shared_state_path(state_dir), BridgeState())
         manifest = LaunchManifest.read(
             write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini"))
         Path(manifest.commands.origenerator_status_file).write_text(
@@ -283,8 +284,8 @@ class TestOrigeneratorInVr:
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
-        assert "landscape_open_slideshow" in verbs, "the headset's room opened in kino mode"
-        assert "portrait_open_slideshow" not in verbs
+        assert {"portrait_open_slideshow", "landscape_open_slideshow"} <= set(verbs), (
+            "the headset's room opened in kino mode")
 
     def test_a_room_that_took_over_an_app_showing_a_slideshow_asks_for_the_slideshows_as_it_opens(
             self, hosted, tmp_path):
@@ -1634,6 +1635,23 @@ def _asked_then_esc(config):
 
 
 class TestOpeningAVrSession:
+    def test_an_origenerator_that_never_comes_up_ends_the_launch_and_says_why(self, config):
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        torn_down: list = []
+        said: list[str] = []
+
+        with _launch_stand_ins(
+            orchestrator, torn_down,
+            finish_under_the_loading_screen=MagicMock(side_effect=OrigeneratorNeverCameUp),
+            show_funestra_died_alert=said.append,
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"):
+            exit_code = orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert exit_code == 1
+        assert said == [origenerator_never_came_up_message()]
+        assert torn_down == ["hotkeys", 101, 202, "runtime"]
+
     def test_a_failure_takes_down_what_it_launched_and_gives_the_monitors_back(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         torn_down: list = []

@@ -51,6 +51,7 @@ from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_wind
 from .funestra_deaths import (
     FunestraDied,
     funestra_died_message,
+    origenerator_never_came_up_message,
     part_closed_message,
     the_part_that_closed,
 )
@@ -68,6 +69,7 @@ from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
+from .origenerator_opening import OrigeneratorNeverCameUp
 from .origenerator_switches import CLOSE_SLIDESHOWS, RfbMode, hosted_satellites
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
@@ -1027,6 +1029,41 @@ def _take_the_session_down(
             let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
 
 
+def _open_the_session(
+    result: StartupResult,
+    launch: SessionLaunch,
+    loading_screen: RaisedLoadingScreen,
+    hud,
+    prepared_voice,
+    *,
+    ahk_cmd_file: Path,
+    pids_file: Path,
+    env: SessionEnvironment,
+) -> RunningSession:
+    manifest = launch.manifest
+    dispatch_runner = _build_the_dispatch_loop(
+        result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud[0], env=env)
+    voice_controller, voice_thread = start_voice_control(
+        prepared_voice, dispatch_runner=dispatch_runner)
+
+    finish = partial(finish_under_the_loading_screen, dispatch_runner, voice_controller,
+                     progress=loading_screen.progress)
+
+    if env.show_overlays:
+        _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
+                        hud=hud, before_the_loading_screen_goes=finish)
+    else:
+        finish()
+
+    children = identify_children(result)
+    write_pids_file(pids_file, children)
+
+    dispatch_thread = _start_the_dispatch_loop(dispatch_runner)
+    loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
+    return RunningSession(children, (voice_controller, voice_thread),
+                          (dispatch_runner, dispatch_thread), loopback_server)
+
+
 def run_session(
     *,
     manifest_path: str | Path,
@@ -1071,7 +1108,6 @@ def run_session(
         ahk_cmd_file)
 
     hud = start_hud_priming(bridge_config, manifest, dashboard_enabled=dashboard_enabled)
-    hud_publisher = hud[0]
 
     logger.info("Running startup sequence")
     try:
@@ -1116,25 +1152,16 @@ def run_session(
     )
 
     try:
-        dispatch_runner = _build_the_dispatch_loop(
-            result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud_publisher, env=env)
-        voice_controller, voice_thread = start_voice_control(
-            prepared_voice, dispatch_runner=dispatch_runner)
-
-        finish = partial(finish_under_the_loading_screen, dispatch_runner, voice_controller,
-                         progress=progress)
-
-        if env.show_overlays:
-            _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
-                            hud=hud, before_the_loading_screen_goes=finish)
-        else:
-            finish()
-
-        children = identify_children(result)
-        write_pids_file(pids_file, children)
-
-        dispatch_thread = _start_the_dispatch_loop(dispatch_runner)
-        loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
+        running = _open_the_session(
+            result, launch, loading_screen, hud, prepared_voice,
+            ahk_cmd_file=ahk_cmd_file, pids_file=pids_file, env=env)
+    except OrigeneratorNeverCameUp:
+        _take_down_the_startup(
+            StartupEnd("Origenerator never finished starting"),
+            started, launch, loading_screen, hotkey_script)
+        said = origenerator_never_came_up_message()
+        logger.error(said)
+        return SessionOver(1, why=said)
     except BaseException:
         _take_down_the_startup(
             StartupEnd("The session failed while opening"),
@@ -1142,8 +1169,4 @@ def run_session(
         raise
 
     return _run_until_the_hotkeys_exit(
-        launch, hotkey_script, result,
-        RunningSession(children, (voice_controller, voice_thread),
-                       (dispatch_runner, dispatch_thread), loopback_server),
-        show_overlays=env.show_overlays,
-    )
+        launch, hotkey_script, result, running, show_overlays=env.show_overlays)

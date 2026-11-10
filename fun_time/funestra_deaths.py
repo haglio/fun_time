@@ -101,6 +101,11 @@ def part_closed_message(part: str) -> str:
             f"so the whole session was closed with it.")
 
 
+def origenerator_never_came_up_message() -> str:
+    return ("Fun Time stopped starting up: Origenerator Core never finished starting, "
+            "so the Satellite Funestras would have had nothing to play.")
+
+
 def funestra_died_message(funestra: LaunchedFunestra, said: str) -> str:
     return (
         f"Fun Time stopped starting up: {funestra.name} closed itself before Fun Time "

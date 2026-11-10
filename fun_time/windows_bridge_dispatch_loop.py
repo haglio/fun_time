@@ -192,7 +192,7 @@ class DispatchLoopRunner:
         self.latest_arrivals = LatestArrivals(config)
 
     def activate_origenerator(self, *, wait_for_the_app) -> None:
-        owed = self.opening.take_what_is_owed(wait_for_the_app, self.shared_state_file)
+        owed = self.opening.take_what_is_owed(wait_for_the_app)
         if owed:
             self.state = self.opening.app_as_it_is(self.state)
         for command in owed:

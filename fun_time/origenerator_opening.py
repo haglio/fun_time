@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import replace
-from pathlib import Path
 
 from .bridge_records import BridgeConfig
 from .dashboard_actions import ORIGENERATOR_ACTIVATE
@@ -14,11 +13,14 @@ from .origenerator_switches import (
     ORIGENERATOR_MODE,
     RfbMode,
     mode_command,
-    origenerator_shows,
 )
-from .shared_state import BridgeState, read_shared_state, write_shared_state
+from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
+
+
+class OrigeneratorNeverCameUp(Exception):
+    pass
 
 
 def holding_nothing(state: BridgeState) -> BridgeState:
@@ -30,8 +32,7 @@ def holding_nothing(state: BridgeState) -> BridgeState:
 def what_origenerator_held(left_in: BridgeState, *,
                            slideshow_on: tuple[FunTimeFunestra, ...]) -> tuple[str, ...]:
     satellites = tuple(
-        mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in FunTimeFunestra.SATELLITES
-        if funestra in slideshow_on or origenerator_shows(left_in.satellite(funestra).mode))
+        mode_command(funestra.label, ORIGENERATOR_MODE) for funestra in FunTimeFunestra.SATELLITES)
     in_the_rfb_mode = bool(slideshow_on) or left_in.rfb_mode is RfbMode.ORIGENERATOR
     return (*satellites, *((ORIGENERATOR_ACTIVATE,) if in_the_rfb_mode else ()))
 
@@ -64,15 +65,11 @@ class OrigeneratorOpening:
             return state
         return holding_nothing(state)
 
-    def take_what_is_owed(self, wait_for_the_app: Callable[[Callable[[], bool]], bool],
-                          shared_state_file: Path) -> tuple[str, ...]:
+    def take_what_is_owed(
+            self, wait_for_the_app: Callable[[Callable[[], bool]], bool]) -> tuple[str, ...]:
         owed, self._owed = self._owed, ()
         if not owed:
             return ()
         if wait_for_the_app(self.has_answered):
             return owed
-        logger.info("Origenerator did not finish starting, so Fun Time opens in kino mode")
-        left_in = read_shared_state(shared_state_file)
-        if left_in is not None:
-            write_shared_state(shared_state_file, holding_nothing(left_in))
-        return ()
+        raise OrigeneratorNeverCameUp
