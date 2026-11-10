@@ -40,6 +40,15 @@ class SwapchainInfo:
     images: list[int] = field(default_factory=list)
 
 
+def _whole_image_never_a_sub_rect(info: SwapchainInfo) -> xr.SwapchainSubImage:
+    return xr.SwapchainSubImage(
+        swapchain=info.handle,
+        image_rect=xr.Rect2Di(
+            offset=xr.Offset2Di(0, 0), extent=xr.Extent2Di(info.width, info.height)),
+        image_array_index=0,
+    )
+
+
 class VRSession(SessionStates):
     def __init__(self, *, app_name: str = APP_NAME) -> None:
         self._window = None
@@ -367,14 +376,7 @@ class VRSession(SessionStates):
             xr.CompositionLayerProjectionView(
                 pose=view.pose,
                 fov=view.fov,
-                sub_image=xr.SwapchainSubImage(
-                    swapchain=self.swapchains[i].handle,
-                    image_rect=xr.Rect2Di(
-                        offset=xr.Offset2Di(0, 0),
-                        extent=xr.Extent2Di(self.swapchains[i].width, self.swapchains[i].height),
-                    ),
-                    image_array_index=0,
-                ),
+                sub_image=_whole_image_never_a_sub_rect(self.swapchains[i]),
             )
             for i, view in enumerate(views)
         ]
@@ -386,17 +388,7 @@ class VRSession(SessionStates):
             xr.CompositionLayerQuad(
                 space=self._space,
                 eye_visibility=xr.EyeVisibility.BOTH,
-                sub_image=xr.SwapchainSubImage(
-                    swapchain=self._quads[quad.swapchain_index].handle,
-                    image_rect=xr.Rect2Di(
-                        offset=xr.Offset2Di(0, 0),
-                        extent=xr.Extent2Di(
-                            self._quads[quad.swapchain_index].width,
-                            self._quads[quad.swapchain_index].height,
-                        ),
-                    ),
-                    image_array_index=0,
-                ),
+                sub_image=_whole_image_never_a_sub_rect(self._quads[quad.swapchain_index]),
                 pose=xr.Posef(
                     orientation=xr.Quaternionf(*quad.orientation),
                     position=xr.Vector3f(*quad.position),

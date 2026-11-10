@@ -290,7 +290,7 @@ class _VideoUnit:
         self.screen = _HangingScreen(placement)
         self.layer_dirty = False
         self.layer_rect: tuple[int, int] | None = None
-        self._message_shown: tuple | None = None
+        self._message_the_pump_painted: tuple | None = None
         self._audio_routed = False
         self._held = False
 
@@ -360,9 +360,9 @@ class _VideoUnit:
             return
         width, height = self.target.width, self.target.height
         shown = None if flashed is None else (flashed.message, flashed.level, width, height)
-        if shown == self._message_shown:
+        if shown == self._message_the_pump_painted:
             return
-        self._message_shown = shown
+        self._message_the_pump_painted = shown
         if shown is None:
             self.engine.remove_overlay(MESSAGE_OVERLAY_ID)
             return
@@ -1339,14 +1339,19 @@ class _GalleryUnit:
         self.screen.close()
 
 
+@dataclass(frozen=True)
+class SeenByTheFrameLoop:
+    awaiting_wearer: bool = False
+    anchor_settled: bool = False
+
+
 class LoadingScreenUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
         self.holding = False
-        self.awaiting_wearer = False
-        self.anchor_settled = False
+        self.seen_by_the_frame_loop = SeenByTheFrameLoop()
         self._watcher = LoadingScreenWatcher(state_dir)
         self._lock = threading.Lock()
         self._pending: tuple[object, bool] | None = None
@@ -1387,7 +1392,8 @@ class LoadingScreenUnit:
     def refresh(self) -> None:
         self.holding = headset_hold_asked(self._state_dir)
         loading_screen = self._watcher.read()
-        if loading_screen is not None and not loading_screen.closing and self.awaiting_wearer:
+        if (loading_screen is not None and not loading_screen.closing
+                and self.seen_by_the_frame_loop.awaiting_wearer):
             loading_screen = replace(loading_screen, status=WEARER_STATUS)
         if loading_screen == self._loading_screen:
             return
@@ -1596,7 +1602,7 @@ def _pump_channels(units: list, stop: threading.Event, perf: FramePerf,
             else:
                 faults.worked(unit)
         perf.note("pump", (time.monotonic() - started) * 1e3)
-        perf.maybe_flush()
+        perf.flush_off_the_render_thread()
         stop.wait(max(0.0, period - (time.monotonic() - started)))
 
 
@@ -1784,8 +1790,9 @@ class LoadingScreenWatch:
         self._down_said = False
 
     def frame_began(self, *, blank: Sequence[str], focused: bool, views_tracked: bool) -> None:
-        self._loading_screen.anchor_settled = self._worn.dwelt and views_tracked
-        self._loading_screen.awaiting_wearer = not blank and not focused
+        self._loading_screen.seen_by_the_frame_loop = SeenByTheFrameLoop(
+            awaiting_wearer=not blank and not focused,
+            anchor_settled=self._worn.dwelt and views_tracked)
         self._scene_ready.note(blank=blank, read=self._on_screen.dwelt)
 
     def drawing(self, now: float) -> None:

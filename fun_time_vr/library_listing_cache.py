@@ -11,13 +11,13 @@ _VIDEOS = "videos"
 
 
 def remembered_listing(
-    kept: Path, read: Callable[[], list[str]], *, afresh: bool = False,
+    kept: Path, list_the_syncing_drive: Callable[[], list[str]], *, afresh: bool = False,
 ) -> list[str]:
     if not afresh:
         videos = _kept(kept)
         if videos is not None:
             return videos
-    found = read()
+    found = list_the_syncing_drive()
     if found or _kept(kept) is None:
         _keep(kept, found)
     return found

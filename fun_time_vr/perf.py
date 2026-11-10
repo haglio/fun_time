@@ -29,7 +29,7 @@ class FramePerf:
         with self._lock:
             self._frames += 1
 
-    def maybe_flush(self) -> None:
+    def flush_off_the_render_thread(self) -> None:
         now = self._clock()
         with self._lock:
             elapsed = now - self._window_started

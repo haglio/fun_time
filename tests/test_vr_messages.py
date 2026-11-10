@@ -190,6 +190,15 @@ class TestWordsFlashedWithNoLogLine:
             "unrecognized voice command (2 words)"]
         assert board.flashed(MAIN) is None
 
+    def test_a_record_of_any_level_is_kept_for_the_dash_to_filter(self, tmp_path):
+        path = _log(tmp_path)
+        board = MessageBoard(path)
+        _write(path, _event("a detail", level=logging.DEBUG, flashes=False))
+
+        board.pump(None, now=1.0)
+
+        assert [record.level for record in board.records] == [logging.DEBUG]
+
     def test_the_dash_lists_the_words_heard_in_place_of_their_count(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path, unlogged=_Unlogged(EventRecord(

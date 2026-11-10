@@ -7,7 +7,8 @@ import xr
 
 logger = logging.getLogger(__name__)
 
-_DRAWS_FRAMES = (xr.SessionState.VISIBLE, xr.SessionState.FOCUSED)
+_PROVES_A_WEARER = xr.SessionState.FOCUSED
+_DRAWS_FRAMES = (xr.SessionState.VISIBLE, _PROVES_A_WEARER)
 _CAN_BE_ASKED_TO_END = (xr.SessionState.READY, xr.SessionState.SYNCHRONIZED, *_DRAWS_FRAMES)
 _OVER = (xr.SessionState.LOSS_PENDING, xr.SessionState.EXITING)
 
@@ -34,7 +35,7 @@ class SessionStates:
 
     @property
     def focused(self) -> bool:
-        return self._state == xr.SessionState.FOCUSED
+        return self._state == _PROVES_A_WEARER
 
     @property
     def draws_frames(self) -> bool:

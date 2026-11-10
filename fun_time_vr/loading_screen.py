@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
+from shared_ui.loading_panel import DESKTOP as DESKTOP_PANEL
 from shared_ui.loading_panel import LoadingPanel, Metrics, icon_image, render
 from shared_ui.palette import LOADING_GROUND
 from shared_ui.spacing import GAP_DIALOG
-from shared_ui.type_scale import SIZE_BODY, SIZE_HEADING, SIZE_SMALL, in_pixels
+from shared_ui.type_scale import SIZES, in_pixels
 
 from fun_time import preview_marker
 from fun_time.overlay_progress import (
@@ -284,8 +285,17 @@ class LoadingScreenAnchor:
 
 _WORDMARK = "Fun Time VR"
 
-HEADSET = Metrics(icon=96, wordmark_px=in_pixels(SIZE_HEADING), status_px=in_pixels(SIZE_BODY),
-                  hint_px=in_pixels(SIZE_SMALL), gaps=(GAP_DIALOG,) * 4)
+_FAMILY_TYPE_PX = tuple(in_pixels(size) for size in sorted(SIZES))
+
+
+def _read_at_arms_length(desktop_px: int) -> int:
+    a_step_larger = _FAMILY_TYPE_PX.index(desktop_px) + 1
+    return _FAMILY_TYPE_PX[min(a_step_larger, len(_FAMILY_TYPE_PX) - 1)]
+
+
+HEADSET = Metrics(icon=96, wordmark_px=_read_at_arms_length(DESKTOP_PANEL.wordmark_px),
+                  status_px=_read_at_arms_length(DESKTOP_PANEL.status_px),
+                  hint_px=_read_at_arms_length(DESKTOP_PANEL.hint_px), gaps=(GAP_DIALOG,) * 4)
 
 LOADING_SCREEN_CLEAR = (*(channel / 255.0 for channel in LOADING_GROUND), 1.0)
 

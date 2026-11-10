@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 from shared_ui.reference import CONTROLLER_HEADER, HOTKEY_HEADER, VOICE_HEADER
 
+from fun_time import command_reference
 from fun_time.command_reference import build_reference_sections
 from fun_time_vr.reference_panel import (
     _KEY_X,
@@ -35,6 +36,12 @@ class TestItIsTheSameReference:
     def test_it_shows_the_sections_the_desktop_shows(self):
         assert page_of(ReferenceState(page=0)) == 0
         assert len(build_reference_sections()) > 1
+
+    def test_every_page_is_painted_without_the_html_a_browser_would_show(self, monkeypatch):
+        monkeypatch.delattr(command_reference, "_render")
+
+        for page in range(len(build_reference_sections())):
+            paint_reference(ReferenceState(page=page))
 
     def test_it_paints_the_action_names_its_session_was_told_of(self):
         pages = build_reference_sections({"alphaname": ("alphaname",)})

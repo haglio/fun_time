@@ -103,6 +103,12 @@ class TestThePhases:
         assert keys[-3:] == [ACTIVATING_ORIGENERATOR.key, STARTING_VOICE_COMMANDS.key,
                              "finalizing"]
 
+    def test_a_launch_that_opens_no_browser_or_windows_has_no_phase_for_them(self):
+        the_desktops_alone = {phase.key for phase in STARTUP_PHASES} - {
+            phase.key for phase in VR_STARTUP_PHASES}
+
+        assert {"browser", "windows"} <= the_desktops_alone
+
     def test_every_shutdown_phase_the_orchestrator_reports_exists(self):
         reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')
 

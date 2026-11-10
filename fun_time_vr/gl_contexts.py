@@ -22,18 +22,18 @@ def hidden_gl_window(title: str, *, share=None):
 
 class GpuMark:
     def __init__(self) -> None:
-        self._query = int(GL.glGenQueries(1)[0])
+        self._query_standing_in_for_a_fence = int(GL.glGenQueries(1)[0])
 
     def set(self) -> None:
-        GL.glBeginQuery(GL.GL_TIME_ELAPSED, self._query)
+        GL.glBeginQuery(GL.GL_TIME_ELAPSED, self._query_standing_in_for_a_fence)
         GL.glEndQuery(GL.GL_TIME_ELAPSED)
 
     @property
     def reached(self) -> bool:
-        return bool(GL.glGetQueryObjectiv(self._query, GL.GL_QUERY_RESULT_AVAILABLE))
+        return bool(GL.glGetQueryObjectiv(self._query_standing_in_for_a_fence, GL.GL_QUERY_RESULT_AVAILABLE))
 
     def close(self) -> None:
-        GL.glDeleteQueries(1, [self._query])
+        GL.glDeleteQueries(1, [self._query_standing_in_for_a_fence])
 
 
 class Gpu:
