@@ -76,7 +76,7 @@ class TestTheSharedStateFile:
         assert state.active_funestra == 1
         assert state.main_scripted_filter is False
 
-    def test_a_room_left_in_origenerator_mode_comes_back_with_origenerator_in_the_browsers_place(
+    def test_a_satellites_mode_left_on_origenerator_comes_back_as_origenerator_in_the_browsers_place(
             self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text("[state]\nsatellites_mode = origenerator\n", encoding="utf-8")

@@ -32,7 +32,7 @@ in either orchestrator:
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
 | The mic being off | yes, from Fun Time's state |
-| Each satellite's mode (Kino / Origenerator), and what holds the Random Faves Browser's place | yes, entered under the loading screen before Fun Time is shown |
+| What holds the Random Faves Browser's place | yes, entered under the loading screen before Fun Time is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included

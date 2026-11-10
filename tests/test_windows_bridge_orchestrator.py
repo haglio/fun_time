@@ -3175,7 +3175,7 @@ class TestARoomLeftInOrigeneratorMode:
     def test_the_slideshows_are_asked_for_before_the_loading_screen_comes_down(self, cfg_factory, tmp_path):
         events = self._run(cfg_factory, tmp_path, the_app_answers=True)
 
-        assert "portrait_open_slideshow" in events, "Fun Time never came back to origenerator mode"
+        assert "portrait_open_slideshow" in events, "the Satellites were never handed to Origenerator"
         assert events.index("portrait_open_slideshow") < events.index("loading screen gone"), (
             "the mode was taken up after Fun Time was already his"
         )

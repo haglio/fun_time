@@ -665,8 +665,8 @@ def strip_what_the_desktop_does_not_isolate(config: dict) -> None:
     # The hosted Origenerator brings a second app with machine ends of its own:
     # the one ComfyUI server on its fixed port (which it would START if absent),
     # the GPU that server generates on, and the app's one database.  None has a
-    # per-desktop or per-directory version, so a run hosts none — with the key
-    # gone the session simply has no origenerator mode.
+    # per-desktop or per-directory version, so a run never hosts his: the keys
+    # go here, and host_the_stand_in names the stand-in Origenerator instead.
     config["paths"].pop("origenerator_dir", None)
     config["paths"].pop("origenerator_python_exe", None)
 
