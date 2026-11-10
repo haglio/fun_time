@@ -63,6 +63,10 @@ class TestItIsSizedToTheFrameItGoesOn:
     def test_the_type_grows_with_the_frame(self):
         assert font_px(MAIN_VIDEO_CAP_PX) > font_px(SATELLITE_VIDEO_CAP_PX) > font_px(720)
 
+    def test_on_a_funestras_decoded_frame_the_desktops_type_would_be_too_small(self):
+        for thousands_of_pixels_not_a_windows_size in (SATELLITE_VIDEO_CAP_PX, MAIN_VIDEO_CAP_PX):
+            assert font_px(thousands_of_pixels_not_a_windows_size) > 3 * MIN_FONT_PX
+
     def test_it_never_goes_under_the_desktops_own_size(self):
         assert font_px(100) == MIN_FONT_PX
 

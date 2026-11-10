@@ -26,20 +26,22 @@ def _the_main_hud_in(mode: str) -> MainHud:
 
 
 class TestTheHeldWidth:
-    def test_it_covers_the_widest_row_the_main_hud_can_build(self):
-        widest = max(
-            _row_width(main_hud_rows(MainFunestraFacts(main_mode=mode, latest=False,
-                                             plays_vr=True, plays_flat=True), in_vr=True))
+    def test_no_row_is_wide_enough_to_make_the_painter_widen_past_it(self):
+        widest_row_in = {
+            mode: _row_width(main_hud_rows(MainFunestraFacts(main_mode=mode, latest=False,
+                                                   plays_vr=True, plays_flat=True), in_vr=True))
             for mode in ("kino", "genau")
-        )
+        }
+        kinos_transport_row = widest_row_in["kino"]
 
-        assert widest + 2 * _PAD <= HUD_WIDTH_PX
+        assert kinos_transport_row == max(widest_row_in.values())
+        assert kinos_transport_row + 2 * _PAD <= HUD_WIDTH_PX
 
     def test_it_clears_the_widest_mode(self):
         for mode in ("kino", "genau"):
             assert MainHudPainter().rgba(_the_main_hud_in(mode))[1][0] <= HUD_WIDTH_PX
 
-    def test_the_two_modes_paint_the_same_size_at_it(self):
+    def test_a_change_of_mode_never_resizes_it_in_the_scene(self):
         painter = MainHudPainter(width=HUD_WIDTH_PX)
 
         kino = painter.rgba(_the_main_hud_in("kino"))[1]

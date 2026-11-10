@@ -25,5 +25,9 @@ def level_color(level: int) -> tuple[int, int, int]:
     return TEXT_MUTED
 
 
+_UNDER_THE_DASHBOARD = HudEdge.LOWER
+
+
 def hud_hangs_from(edge: HudEdge, *, wrapped: bool) -> HudEdge:
-    return HudEdge.LOWER if wrapped else edge
+    the_video_has_no_edge_to_hang_against = wrapped
+    return _UNDER_THE_DASHBOARD if the_video_has_no_edge_to_hang_against else edge

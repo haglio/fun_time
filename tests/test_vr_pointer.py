@@ -67,7 +67,9 @@ class TestTheCylinderThePointerIsReadOn:
         assert point.distance == pytest.approx(RADIUS_M)
 
     def test_a_ray_from_the_hand_lands_where_it_points_not_where_the_head_does(self):
-        ray = Ray(origin=(0.5, -0.3, 0.0), direction=(-0.25, 0.0, -1.0))
+        half_a_meter_right_of_the_eye, aimed_back_toward_the_center_line = 0.5, -0.25
+        ray = Ray(origin=(half_a_meter_right_of_the_eye, -0.3, 0.0),
+                  direction=(aimed_back_toward_the_center_line, 0.0, -1.0))
 
         point = cylinder_hit(ray)
 

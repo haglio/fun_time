@@ -246,12 +246,13 @@ class TestWordsFlashedWithNoLogLine:
         assert "kettle" not in path.read_text(encoding="utf-8")
 
 
-    def test_a_banner_is_timed_from_when_the_board_saw_it(self, tmp_path):
+    def test_a_banner_is_timed_on_the_pumps_clock_not_by_the_records_wall_stamp(self, tmp_path):
         path = _log(tmp_path)
         board = MessageBoard(path, message_seconds=5.0)
         _write(path, _event("landscape next"))
+        a_monotonic_now_far_from_the_writers_wall_time = 9_999.0
 
-        board.pump(None, now=9_999.0)
+        board.pump(None, now=a_monotonic_now_far_from_the_writers_wall_time)
 
         assert board.flashed(MAIN) is not None
 

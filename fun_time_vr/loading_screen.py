@@ -34,12 +34,13 @@ from fun_time.session_handoff import DESKTOP, crossing_progress_path, headset_ho
 
 logger = logging.getLogger(__name__)
 
+ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS = (ACTIVATING_ORIGENERATOR, STARTING_VOICE_COMMANDS)
+
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
     Phase("funestras", "Waiting for Funestras...", 9.0),
-    ACTIVATING_ORIGENERATOR,
-    STARTING_VOICE_COMMANDS,
+    *ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS,
     FINALIZING_UNDER_A_FULL_BAR,
 )
 
@@ -183,18 +184,18 @@ class LoadingScreenDwell:
     ) -> None:
         self._dwell_s = dwell_s
         self._clock = clock
-        self._first: float | None = None
+        self._there_unbroken_since: float | None = None
 
     def note(self, shown: bool) -> None:
         if shown:
-            if self._first is None:
-                self._first = self._clock()
+            if self._there_unbroken_since is None:
+                self._there_unbroken_since = self._clock()
         elif not self.dwelt:
-            self._first = None
+            self._there_unbroken_since = None
 
     @property
     def dwelt(self) -> bool:
-        return self._first is not None and self._clock() - self._first >= self._dwell_s
+        return self._there_unbroken_since is not None and self._clock() - self._there_unbroken_since >= self._dwell_s
 
 
 def scene_ready_file(state_dir: str | Path) -> Path:
@@ -272,8 +273,8 @@ class LoadingScreenAnchor:
     def __init__(self) -> None:
         self._yaw: float | None = None
 
-    def heading(self, yaw: float, *, settled: bool = True) -> float:
-        if not settled:
+    def heading(self, yaw: float, *, has_been_in_front_of_him: bool = True) -> float:
+        if not has_been_in_front_of_him:
             return yaw
         if self._yaw is None:
             self._yaw = yaw

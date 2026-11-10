@@ -31,7 +31,7 @@ class FlashedMessage:
     message: str
     level: int
     screen: str
-    seen_at: float
+    seen_at_on_the_pumps_clock: float
 
 
 class MessageBoard:
@@ -60,7 +60,7 @@ class MessageBoard:
                 self._flashed_messages[flashed.screen] = flashed
             self._flashed_messages = {
                 screen: flashed for screen, flashed in self._flashed_messages.items()
-                if now - flashed.seen_at < self._banner_seconds
+                if now - flashed.seen_at_on_the_pumps_clock < self._banner_seconds
             }
 
     def flash(self, message: str, *, level: int, screen: str, now: float) -> None:
