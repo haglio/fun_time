@@ -1765,7 +1765,7 @@ class TestResolveRole:
 
 
 class TestBrowseLibrary:
-    def test_browsing_pauses_nothing_so_a_pick_leaves_nothing_frozen(self, tmp_path):
+    def test_a_browse_leaves_the_satellites_and_voice_playing(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 

@@ -337,7 +337,7 @@ def _launch_core_media(
     )
 
 
-_UNPROVEN_DELAY_THE_HOSTED_WINDOWS_BAND_ONCE_NEEDED_S = 1.2
+_UNPROVEN_BANDING_DELAY_S = 1.2
 
 
 def _the_dashboard_hidden_under_the_loading_screen(dashboard_pid: int) -> int:
@@ -373,7 +373,7 @@ def _launch_the_companions(
     manifest_path: Path,
     launched: _LaunchedChildren,
 ) -> dict[str, int]:
-    time.sleep(_UNPROVEN_DELAY_THE_HOSTED_WINDOWS_BAND_ONCE_NEEDED_S)
+    time.sleep(_UNPROVEN_BANDING_DELAY_S)
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
         m,

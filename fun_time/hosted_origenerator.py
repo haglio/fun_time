@@ -108,7 +108,7 @@ def _lift_the_pause_an_earlier_omnipause_stranded(m: LaunchManifest) -> None:
     write_flag_file(m.commands.origenerator_paused_file, False)
 
 
-def _take_down_the_huds_of_a_show_no_longer_running(session: OrigeneratorSession) -> None:
+def _clear_last_sessions_huds(session: OrigeneratorSession) -> None:
     for funestra in session.funestras.values():
         Path(funestra.hud_file).unlink(missing_ok=True)
 
@@ -149,7 +149,7 @@ def bring_up_the_hosted_app(
     origenerator_cmd_file.write_text("", encoding="utf-8")
     Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
     session = the_session_it_is_handed(m, plan, in_a_headset=in_a_headset)
-    _take_down_the_huds_of_a_show_no_longer_running(session)
+    _clear_last_sessions_huds(session)
     open_app = the_open_origenerator(origenerator_dir)
     if open_app is not None:
         handoff.hand_over(open_app.place, pid=open_app.pid,
@@ -175,8 +175,12 @@ def bring_up_the_hosted_app(
 
 
 def _its_interpreter(m: LaunchManifest, origenerator_dir: str) -> str | Path:
-    the_install_its_pinned_libraries_are_in = origenerator_interpreter(origenerator_dir)
-    return m.executables.origenerator_python_exe.strip() or the_install_its_pinned_libraries_are_in
+    return (m.executables.origenerator_python_exe.strip()
+            or _the_install_its_pinned_libraries_are_in(origenerator_dir))
+
+
+def _the_install_its_pinned_libraries_are_in(origenerator_dir: str) -> Path:
+    return origenerator_interpreter(origenerator_dir)
 
 
 def what_it_answers_by_voice_in(m: LaunchManifest, **asking) -> HostedVocabulary:

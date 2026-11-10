@@ -152,13 +152,13 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
 
 THE_LISTENERS_LOGGERS = ("voice_core",)
 
-_LOGGERS_GIVEN_A_CONSOLE_OF_THEIR_OWN = ("fun_time.orchestrator",)
+_NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
 
 
 def open_event_log(state_dir: Path) -> None:
     handler = EventLogHandler(start_event_log(state_dir))
     handler.setLevel(EVERYTHING_THE_DIAL_CAN_SHOW)
-    for name in ("fun_time", *_LOGGERS_GIVEN_A_CONSOLE_OF_THEIR_OWN, *THE_LISTENERS_LOGGERS):
+    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *THE_LISTENERS_LOGGERS):
         target = logging.getLogger(name)
         for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
             target.removeHandler(existing)

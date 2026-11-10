@@ -204,12 +204,12 @@ def _fake_ui(m, **kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
-def _put_up_the_kino_video_every_loading_screen_waits_for(m):
+def _write_the_status_the_reveal_waits_for(m):
     Path(m.commands.main_funestra_status_file).write_text("video=this_session.mp4\n", encoding="utf-8")
 
 
 def _fake_main_funestra(m, **kwargs):
-    _put_up_the_kino_video_every_loading_screen_waits_for(m)
+    _write_the_status_the_reveal_waits_for(m)
     return MAIN_FUNESTRA_PID
 
 
@@ -976,7 +976,8 @@ class TestMainFunestraGatesTheReveal:
 
     def test_the_wait_for_the_funestras_cannot_outlast_the_overlay(self):
         assert WINDOW_RESOLVE_CEILING_UNDER_LOAD_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S, (
-            PROGRESS_IS_WRITTEN_ONLY_AS_A_PHASE_STARTS)
+            "one window lookup and the Main Funestra's wait, under the one progress write, "
+            "would let the loading screen go stale mid-wait")
 
     def test_the_windows_phase_cannot_outlast_it_either(self):
         assert 3 * WINDOW_RESOLVE_CEILING_UNDER_LOAD_S < STALE_TIMEOUT_S, (
@@ -1240,6 +1241,28 @@ class TestOrigeneratorLaunch:
         assert Path(captured["python_exe"]) == (
             tmp_path / "origenerator" / ".venv" / "Scripts" / "python.exe")
 
+    def test_a_named_interpreter_never_looks_up_the_install(self, cfg_factory, tmp_path):
+        named = tmp_path / "py" / "python.exe"
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+            "origenerator_python_exe": str(named),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        captured = {}
+
+        def capture(**kwargs):
+            captured.update(kwargs)
+            return 91
+
+        with _sequencer_stubs(launch_origenerator={"side_effect": capture}), patch(
+                "fun_time.hosted_origenerator.origenerator_interpreter") as install_lookup:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert Path(captured["python_exe"]) == named.resolve()
+        install_lookup.assert_not_called()
+
     def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         with _sequencer_stubs(launch_origenerator={}) as stubs:
@@ -1353,7 +1376,7 @@ class TestOrigeneratorLaunch:
             assert args[args.index(flag) + 1] == str(path), flag
         assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
 
-    def test_a_hung_app_whose_offer_still_stands_is_replaced_by_our_own(
+    def test_a_frozen_app_whose_offer_still_stands_is_replaced_by_our_own(
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
@@ -1529,7 +1552,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
                 rfb_mode=RfbMode.ORIGENERATOR))
         return cfg, manifest_path
 
-    def test_every_session_opens_its_satellites_in_kino_mode_even_one_left_in_origenerator(
+    def test_every_session_opens_its_satellites_in_kino_mode(
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path, left_in_origenerator=True)
