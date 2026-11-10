@@ -56,6 +56,8 @@ class MainFunestraStatus(ScriptedStatus):
 
 __all__ = ["read_key_values"]
 
+_A_MAIN_FUNESTRA_WITH_NOTHING_TO_SAY = FunestraStatus(locked=MAIN_FUNESTRA_OPENS_LOCKED)
+
 
 def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None = None) -> MainFunestraStatus:
     if not path.exists():
@@ -68,7 +70,7 @@ def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None
 
 def _main_funestra_status_from(values: dict) -> MainFunestraStatus:
     return MainFunestraStatus(
-        **asdict(parse_status(values, default=FunestraStatus(locked=MAIN_FUNESTRA_OPENS_LOCKED))),
+        **asdict(parse_status(values, default=_A_MAIN_FUNESTRA_WITH_NOTHING_TO_SAY)),
         loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
         **scripted_fields(values),
         loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
@@ -108,8 +110,8 @@ class GenauStatus:
     portrait: bool | None = None
 
 
-def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
-    return values.get(key, "1" if default else "0").strip() not in ("0", "false", "")
+def _status_bool(values: dict[str, str], key: str, *, on_at_rest: bool = False) -> bool:
+    return values.get(key, "1" if on_at_rest else "0").strip() not in ("0", "false", "")
 
 
 def read_genau_status(path: Path) -> GenauStatus:
@@ -132,7 +134,7 @@ def published_genau_status(path: Path) -> GenauStatus | None:
 def _genau_status_from(values: dict) -> GenauStatus:
     return GenauStatus(
         learned_active=_status_bool(values, "learned"),
-        locked=_status_bool(values, "locked", default=GENAU_OPENS_LOCKED),
+        locked=_status_bool(values, "locked", on_at_rest=GENAU_OPENS_LOCKED),
         shape=values.get("shape", "sine").strip(),
         flick=values.get("flick", "").strip(),
         flipped=_status_bool(values, "flipped"),

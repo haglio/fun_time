@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import ast
 import subprocess
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import pytest
+from app_support.logging_utils import configure_logging
 
-from fun_time.child_launch import no_child_log, no_console_window, open_child_log
+from fun_time.child_launch import (
+    CHILD_LOG_MAX_BYTES,
+    no_child_log,
+    no_console_window,
+    open_child_log,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = (ROOT / "fun_time", ROOT / "satellite", ROOT / "fun_time_vr", ROOT / "main_funestra")
@@ -146,6 +153,16 @@ class TestOpenChildLog:
 
         assert (tmp_path / "portrait_satellite.log.1").read_text(encoding="utf-8") == "x" * 200
         assert "x" * 200 not in log_file.read_text(encoding="utf-8")
+
+    def test_a_childs_log_is_capped_where_the_apps_own_logs_are(self, tmp_path: Path):
+        app_log = configure_logging("fun_time.test_child_launch", tmp_path / "app.log")
+        try:
+            assert [handler.maxBytes for handler in app_log.handlers
+                    if isinstance(handler, RotatingFileHandler)] == [CHILD_LOG_MAX_BYTES]
+        finally:
+            for handler in list(app_log.handlers):
+                app_log.removeHandler(handler)
+                handler.close()
 
     def test_a_log_that_cannot_be_opened_hands_back_a_handle_that_discards_instead_of_raising(self, tmp_path: Path):
         blocker = tmp_path / "state"

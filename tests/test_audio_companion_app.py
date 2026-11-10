@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 import types
 from pathlib import Path
 from typing import ClassVar
@@ -13,6 +15,15 @@ from funestra.testing import software_outputs_are
 
 from fun_time import audio_companion_app
 from fun_time.audio_companion_app import AudioPlaybackController, find_audio, init_mixer
+
+
+def test_the_audio_companion_never_imports_the_dispatcher():
+    probe = ("import sys, fun_time.audio_companion_app; "
+             "print('fun_time.command_dispatch' in sys.modules)")
+    result = subprocess.run([sys.executable, "-c", probe],
+                            capture_output=True, text=True, check=True)
+
+    assert result.stdout.split()[-1] == "False"
 
 
 class TestFindAudio:
