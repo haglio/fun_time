@@ -926,10 +926,6 @@ def _every_satellite_sample_starts_as_a_favorite(samples: list[Path], metadata_r
         mark_favorite(path.resolve(), metadata_root, True)
 
 
-def no_longer_the_favorite_every_satellite_sample_starts_as(video: str, metadata_root: Path) -> None:
-    mark_favorite(video, metadata_root, False)
-
-
 def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,
                           count: int = 5) -> list[Path]:
     machines_metadata_root = real_config.regen.metadata_root

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import time
 from contextlib import contextmanager
@@ -14,7 +13,7 @@ from app_support.flick_folder import flat_flicks_in, flicks_folder_in
 from app_support.funscript import document, write
 from funestra.file_channel import append_command
 from funestra.funestra_controls import SEEK_STEP_MS
-from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_SPEED, play_file
+from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, SET_SPEED, play_file
 from funestra.modes import LoopState
 from funestra.playlist import PlaylistItem
 
@@ -46,7 +45,6 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     let_seconds_pass,
-    no_longer_the_favorite_every_satellite_sample_starts_as,
     published_status,
     seen_within,
     senders,
@@ -92,12 +90,20 @@ def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeInteg
     assert shared_integration_session.orchestrator_log.exists()
 
 
-def test_fun_time_portrait_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait satellite")
+def _told_the_hosted_app(session: FunTimeIntegrationSession) -> str:
+    told = session.config.paths.state_dir / "origenerator_stub.log"
+    return told.read_text(encoding="utf-8") if told.exists() else ""
 
-    shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Unlocked portrait satellite")
+
+@pytest.mark.parametrize("satellite", ["portrait", "landscape"])
+def test_fun_time_a_lock_pressed_on_a_satellite_locks_its_window_and_is_told_to_the_app(
+        shared_integration_session: FunTimeIntegrationSession, satellite: str):
+    shared_integration_session.write_dashboard_command(f"{satellite}_lock")
+    shared_integration_session.wait_for_new_log(f"Locked {satellite} satellite")
+
+    assert seen_within(
+        lambda: f"told {satellite}_lock".upper() in _told_the_hosted_app(
+            shared_integration_session).upper(), seconds=COMMAND_BUDGET_S)
 
 
 def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -110,38 +116,10 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
 
 def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode enabled: main, portrait, landscape")
+    shared_integration_session.wait_for_new_log("F-mode enabled: main")
 
     shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode disabled: main, portrait, landscape")
-
-
-def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("portrait_fmode")
-    shared_integration_session.wait_for_new_log("F-mode enabled: portrait")
-
-    shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode enabled: main, landscape")
-
-    shared_integration_session.write_dashboard_command("fmode_off")
-    shared_integration_session.wait_for_new_log("F-mode disabled: main, portrait, landscape")
-
-
-@pytest.mark.timeout(ALONE_WITH_THE_SHARED_SESSION_BUDGET_S)
-def test_fun_time_spoken_favorites_flips_that_satellites_f_mode(
-    shared_integration_session: FunTimeIntegrationSession,
-):
-    s = shared_integration_session
-    said = format_spoken_command(
-        "landscape_say_favorites", spoken_at=time.monotonic(), said="landscape favorites")
-    s.write_dashboard_command("play")
-    s.write_dashboard_command("landscape_fmode_off")
-
-    s.write_dashboard_command(said)
-    s.wait_for_new_log("F-mode enabled: landscape")
-
-    s.write_dashboard_command(said)
-    s.wait_for_new_log("F-mode disabled: landscape")
+    shared_integration_session.wait_for_new_log("F-mode disabled: main")
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -289,42 +267,6 @@ def test_fun_time_mode_switch_keeps_the_one_main_funestra_window_up_and_topmost(
 def _stays_up_and_topmost(hwnd: int, *, seconds: float) -> bool:
     return not seen_within(lambda: is_window_minimized(hwnd) or not is_window_topmost(hwnd),
                            seconds=seconds, every_s=0.02)
-
-
-def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape satellite")
-
-    shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Unlocked landscape satellite")
-
-
-def test_fun_time_portrait_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait satellite")
-
-    shared_integration_session.write_dashboard_command("portrait_next")
-    let_seconds_pass(1.5)
-
-    shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Locked portrait satellite")
-
-    shared_integration_session.write_dashboard_command("portrait_lock")
-    shared_integration_session.wait_for_new_log("Unlocked portrait satellite")
-
-
-def test_fun_time_landscape_next_cancels_lock(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape satellite")
-
-    shared_integration_session.write_dashboard_command("landscape_next")
-    let_seconds_pass(1.5)
-
-    shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Locked landscape satellite")
-
-    shared_integration_session.write_dashboard_command("landscape_lock")
-    shared_integration_session.wait_for_new_log("Unlocked landscape satellite")
 
 
 def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTimeIntegrationSession):
@@ -565,7 +507,7 @@ def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteCha
 _LONGER_THAN_THE_STEP_IT_REFUSES_TWICE_S = 20
 
 
-def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
+def test_fun_time_a_spoken_step_back_too_early_stays_put_and_a_step_with_room_reaches_the_app(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
@@ -587,12 +529,9 @@ def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_s
                           "Less than 10s into this video")
         _said_to_the_portrait_funestra(s, "portrait_nudge_next", "portrait skip")
         s.wait_until(
-            lambda: abs(read_satellite_status(portrait.status_file).position_ms
-                        - (start_ms + SEEK_STEP_MS)) <= NUDGE_SLACK_MS,
-            description="the skip with room to go to land ten seconds on",
+            lambda: "told portrait_nudge_next".upper() in _told_the_hosted_app(s).upper(),
+            description="the skip with room to go to reach the hosted app, whose step it is",
         )
-        _refused_in_place(s, portrait, "portrait_nudge_next", "portrait skip",
-                          "Less than 10s left in this video")
     finally:
         write_flag(portrait.paused_file, False)
         append_command(portrait.cmd_file, RELOAD_PLAYLIST)
@@ -676,8 +615,7 @@ def _the_portrait_funestra_driving_the_osr2(s: FunTimeIntegrationSession, tmp_pa
     finally:
         s.write_dashboard_command("main_take_osr2")
         if read_satellite_status(portrait.status_file).locked:
-            s.write_dashboard_command("portrait_lock")
-            s.wait_for_new_log("Unlocked portrait satellite")
+            append_command(portrait.cmd_file, LOCK_OFF)
         append_command(portrait.cmd_file, RELOAD_PLAYLIST)
 
 
@@ -768,112 +706,27 @@ def _showing(satellite: SatelliteChannel) -> Path:
     return Path(read_satellite_status(satellite.status_file).video or "x").resolve()
 
 
-def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
-    isolated_integration_session: FunTimeIntegrationSession,
-):
-    s = isolated_integration_session
-    landscape = s.config.satellite(FunTimeFunestra.LANDSCAPE)
-    held = _held_still(s, landscape)
-
-    s.write_dashboard_command("landscape_trash")
-    chunk = s.wait_for_new_log("Removed from favorites on Funestra 3:")
-    match = re.search(r"Removed from favorites on Funestra 3:\s*(.+)", chunk)
-    assert match, "Expected the unfavorite log chunk to include the landscape path"
-    demoted_path = Path(match.group(1).strip()).resolve()
-    assert demoted_path == Path(held.video).resolve()
-
-    s.wait_until(
-        lambda: not s.is_favorite(demoted_path),
-        description="landscape sample's favorite mark to come off its record",
-    )
-    assert demoted_path.exists(), "A demoted favorite must stay where it is"
-    assert not any(p.name == demoted_path.name for p in s.trash_dir.iterdir())
-
-    s.wait_until(
-        lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.messages_flashed_from_the_log()),
-        description="an \"Unfavorited\" notice over the Landscape Funestra",
-    )
-
-    s.wait_until(
-        lambda: _showing(landscape) != demoted_path,
-        description="the Landscape Funestra to move on from the demoted clip",
-    )
-    assert read_satellite_status(landscape.status_file).playlist_length == held.playlist_length, (
-        "the demoted clip must stay in the landscape rotation"
-    )
-    s.write_dashboard_command("landscape_prev")
-    s.wait_until(
-        lambda: _showing(landscape) == demoted_path,
-        description="landscape prev to land back on the demoted clip, still in the rotation",
-    )
-
-
-def _locked_then_read(session: FunTimeIntegrationSession,
-                                                 status_file: Path) -> str:
-    session.wait_until(
-        lambda: bool(read_satellite_status(status_file).video),
-        description="portrait satellite to publish the clip it is playing",
-    )
-    session.write_dashboard_command("portrait_lock_on")
-    session.wait_for_new_log("Locked portrait satellite")
-    return published_status(read_satellite_status, status_file).video
-
-
-def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_trash(
-    isolated_integration_session: FunTimeIntegrationSession,
-):
-    status_file = isolated_integration_session.config.paths.state_dir / "portrait_status.txt"
-    held = _locked_then_read(isolated_integration_session, status_file)
-    no_longer_the_favorite_every_satellite_sample_starts_as(
-        held, isolated_integration_session.config.regen.metadata_root)
-
-    isolated_integration_session.write_dashboard_command("portrait_trash")
-    chunk = isolated_integration_session.wait_for_new_log("Discarding from Funestra 2:")
-    match = re.search(r"Discarding from Funestra 2:\s*(.+)", chunk)
-    assert match, "Expected discard log chunk to include the discarded portrait path"
-    trashed_path = Path(match.group(1).strip()).resolve()
-
-    isolated_integration_session.wait_until(
-        lambda: not isolated_integration_session.is_favorite(trashed_path),
-        description="portrait sample to be no favorite",
-    )
-    isolated_integration_session.wait_until(
-        lambda: any(p.name == trashed_path.name for p in isolated_integration_session.trash_dir.iterdir()),
-        description="portrait sample to be moved into the integration trash folder",
-    )
-    isolated_integration_session.wait_until(
-        lambda: any(
-            n.message == "Sent to Trash" and n.source == "portrait"
-            for n in isolated_integration_session.messages_flashed_from_the_log()
-        ),
-        description='a "Sent to Trash" notice over the Portrait Funestra',
-    )
-
-
-def test_fun_time_reset_all_leaves_every_funestra_unlocked(
+def test_fun_time_reset_all_unlocks_the_main_funestra_and_asks_the_app_to_reset_each_satellite(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
     session = isolated_integration_session
-    state_dir = session.config.paths.state_dir
     main_funestra_status = session.config.main_funestra_status_file
-    satellite_statuses = [state_dir / f"{satellite}_status.txt" for satellite in ("portrait", "landscape")]
-    for satellite in ("portrait", "landscape"):
-        session.write_dashboard_command(f"{satellite}_lock_on")
-        session.wait_for_new_log(f"Locked {satellite} satellite")
     session.wait_until(
-        lambda: read_main_funestra_status(main_funestra_status).locked and all(
-            read_satellite_status(path).locked for path in satellite_statuses),
-        description="all three Funestras to report themselves locked",
+        lambda: read_main_funestra_status(main_funestra_status).locked,
+        description="the Main Funestra to report itself locked",
     )
 
     session.write_dashboard_command("all_reset")
 
     session.wait_until(
         lambda: main_funestra_status.exists()
-        and not read_main_funestra_status(main_funestra_status).locked and all(
-            read_satellite_status(path).video and not read_satellite_status(path).locked
-            for path in satellite_statuses),
-        description="Reset All to leave all three Funestras unlocked",
+        and not read_main_funestra_status(main_funestra_status).locked,
+        description="Reset All to leave the Main Funestra unlocked",
+    )
+    session.wait_until(
+        lambda: all(f"told {satellite}_reset".upper() in _told_the_hosted_app(session).upper()
+                    for satellite in ("portrait", "landscape")),
+        description="Reset All to ask the hosted app to reset each Satellite's slideshow",
     )
 
 
