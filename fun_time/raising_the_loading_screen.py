@@ -47,7 +47,7 @@ class RaisedLoadingScreen:
     cancel_file: Path
     turns_back_to: HandoffTarget | None
 
-    def window(self) -> int:
+    def visible_window(self) -> int:
         return find_window_for_process(self.process.pid, WINDOW_TITLE)
 
     def take_it_down(self) -> None:
@@ -70,7 +70,8 @@ def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_che
     turns_back_to = VR if returning and esc_cancels else None
     progress_file = state_dir / PROGRESS_FILENAME
     cancel_file = state_dir / CANCEL_FILENAME
-    if turns_back_to is None:
+    keeps_an_esc_pressed_during_the_changeover = turns_back_to is not None
+    if not keeps_an_esc_pressed_during_the_changeover:
         cancel_file.unlink(missing_ok=True)
     if not show_overlays:
         return RaisedLoadingScreen(None, NullProgress(), progress_file, cancel_file, turns_back_to)
@@ -93,7 +94,7 @@ def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_che
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
     loading_screen = RaisedLoadingScreen(loading_proc, progress, progress_file, cancel_file, turns_back_to)
     wait_s = WINDOW_WAIT_UNDER_A_CROSSING_S if returning else WINDOW_WAIT_S
-    if overlay_hwnd := wait_for_window(loading_screen.window, wait_s):
+    if overlay_hwnd := wait_for_window(loading_screen.visible_window, wait_s):
         logger.info("Loading screen resolved (hwnd=%d)", overlay_hwnd)
     else:
         logger.warning("The loading screen's window was not up after %.0fs; the launch "

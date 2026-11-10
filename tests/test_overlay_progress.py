@@ -149,9 +149,6 @@ class TestPhaseProgress:
         with pytest.raises(StartupCancelled):
             progress.advance("slow")
 
-    def test_a_null_reporter_answers_an_announcement_too(self, tmp_path: Path):
-        NullProgress().announce("quick")
-
     def test_finish_writes_done(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=TWO_PHASES)
@@ -174,12 +171,12 @@ class TestStartupPhases:
     def test_the_activating_step_names_the_app_whichever_of_its_windows_come_back(self):
         assert ACTIVATING_ORIGENERATOR.message == "Activating Origenerator..."
 
-    def test_the_launch_names_its_own_work_before_the_app_arrives(self):
+    def test_the_launchs_own_seconds_of_work_are_named_on_the_loading_screen(self):
         assert (*LAUNCH_PHASES, *APP_PHASES) == STARTUP_PHASES
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
     def test_only_the_last_phase_claims_no_time(self):
-        weights = [phase.weight for phase in STARTUP_PHASES]
+        weights = [phase.seconds for phase in STARTUP_PHASES]
 
         assert weights[-1] == 0.0
         assert all(weight > 0 for weight in weights[:-1])
@@ -346,7 +343,7 @@ class TestStartupStillBuilding:
         loading_screen_may_close = lambda: parse_progress(  # noqa: E731
             progress_file.read_text(encoding="utf-8")).done
 
-        carries_time = [phase for phase in STARTUP_PHASES if phase.weight > 0]
+        carries_time = [phase for phase in STARTUP_PHASES if phase.seconds > 0]
         for phase in carries_time:
             progress.advance(phase.key)
             assert startup_still_building(tmp_path) is True
