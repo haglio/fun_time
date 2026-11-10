@@ -113,6 +113,7 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
 
 ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", seconds=0.5)
 STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", seconds=0.5)
+FINALIZING_UNDER_A_FULL_BAR: Phase = Phase("finalizing", "Finalizing...", seconds=0.0)
 
 APP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", seconds=0.7),
@@ -122,7 +123,7 @@ APP_PHASES: tuple[Phase, ...] = (
     Phase("windows", "Positioning windows...", seconds=0.5),
     ACTIVATING_ORIGENERATOR,
     STARTING_VOICE_COMMANDS,
-    Phase("finalizing", "Finalizing...", seconds=0.0),
+    FINALIZING_UNDER_A_FULL_BAR,
 )
 
 STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)

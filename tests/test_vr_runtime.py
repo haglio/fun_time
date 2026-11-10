@@ -12,7 +12,7 @@ import pytest
 from fun_time_vr import vr_runtime
 from fun_time_vr.vr_runtime import (
     _EXPLANATIONS,
-    _QUIT_SERVICES,
+    _SERVICES_THE_CLIENTS_OWN_EXIT_QUITS,
     Probe,
     Readiness,
     _run_quietly,
@@ -30,16 +30,16 @@ from fun_time_vr.windows_sound import SoundDevice
 from tests.sleeps import sleeps_in
 
 
-def _xr_exceptions():
+def _pyopenxrs_own_exceptions_where_it_imports():
     try:
         import xr  # noqa: PLC0415 — only the cases that need the loader should load it
 
         return xr.exception
     except Exception:
-        return _FALLBACK_EXCEPTIONS
+        return _STAND_INS_WHERE_ITS_LOADER_WILL_NOT_IMPORT
 
 
-class _FALLBACK_EXCEPTIONS:
+class _STAND_INS_WHERE_ITS_LOADER_WILL_NOT_IMPORT:
     class RuntimeUnavailableError(Exception):
         pass
 
@@ -49,7 +49,7 @@ class _FALLBACK_EXCEPTIONS:
 
 def _xr_stub(*, create_error=None, system_error=None) -> MagicMock:
     stub = MagicMock()
-    stub.exception = _xr_exceptions()
+    stub.exception = _pyopenxrs_own_exceptions_where_it_imports()
     if create_error is not None:
         stub.create_instance.side_effect = create_error
     if system_error is not None:
@@ -80,13 +80,13 @@ def test_probe_reports_ready_when_a_headset_answers():
 
 
 def test_probe_reports_no_runtime_when_the_loader_finds_none():
-    error = _xr_exceptions().RuntimeUnavailableError()
+    error = _pyopenxrs_own_exceptions_where_it_imports().RuntimeUnavailableError()
     with _with_xr(_xr_stub(create_error=error)):
         assert probe().readiness is Readiness.NO_RUNTIME
 
 
 def test_probe_reports_no_headset_when_the_device_is_off():
-    error = _xr_exceptions().FormFactorUnavailableError()
+    error = _pyopenxrs_own_exceptions_where_it_imports().FormFactorUnavailableError()
     with _with_xr(_xr_stub(system_error=error)):
         assert probe().readiness is Readiness.NO_HEADSET
 
@@ -99,7 +99,7 @@ def test_probe_reports_failed_and_keeps_the_detail_of_an_unexpected_error():
 
 
 def test_probe_releases_the_instance_when_no_headset_answers():
-    stub = _xr_stub(system_error=_xr_exceptions().FormFactorUnavailableError())
+    stub = _xr_stub(system_error=_pyopenxrs_own_exceptions_where_it_imports().FormFactorUnavailableError())
     with _with_xr(stub):
         probe()
     stub.destroy_instance.assert_called_once_with(stub.create_instance.return_value)
@@ -235,7 +235,7 @@ def _loader(stub):
 
 
 @contextmanager
-def _a_loader_that_will_not_load(exc):
+def _a_load_failure_the_gates_machine_never_has(exc):
     real_import = builtins.__import__
 
     def _import(name, *args, **kwargs):
@@ -254,7 +254,7 @@ def _a_loader_that_will_not_load(exc):
     ids=["off_windows", "unusable_loader_dll"],
 )
 def test_a_loader_that_will_not_load_answers_rather_than_raises(exc):
-    with _a_loader_that_will_not_load(exc):
+    with _a_load_failure_the_gates_machine_never_has(exc):
         result = probe()
 
     assert result.readiness is Readiness.FAILED
@@ -460,7 +460,7 @@ def test_a_sound_device_moved_on_from_where_the_runtime_put_it_is_left_alone(tmp
     made_default.assert_not_called()
 
 
-class TestShuttingDownCannotWaitForever:
+class TestAShutdownThatNeverEndsLocksLaterLaunchesOut:
     def test_asking_what_is_running_starts_no_program(self):
         with patch("subprocess.Popen", side_effect=AssertionError("started a program")):
             assert process_running(Path(sys.executable).name) is True
@@ -491,5 +491,5 @@ def test_stop_runtime_survives_a_quit_command_that_will_not_run(tmp_path):
         patch("fun_time_vr.vr_runtime.subprocess.run", side_effect=OSError("gone")) as run,
     ):
         stop_runtime()
-    assert run.call_count == len(_QUIT_SERVICES)
+    assert run.call_count == len(_SERVICES_THE_CLIENTS_OWN_EXIT_QUITS)
 

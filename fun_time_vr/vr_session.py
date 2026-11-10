@@ -95,10 +95,14 @@ class VRSession(SessionStates):
             raise
         glfw.make_context_current(self._window)
         hwnd = glfw.get_win32_window(self._window)
-        set_window_icon(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
-        preview_marker.dress_the_window(hwnd)
+        self._wear_the_taskbar_button_before_openxr_takes_the_thread(hwnd)
         draw_nothing_at_all(hwnd)
         minimize_window(hwnd, activate=False)
+
+    @staticmethod
+    def _wear_the_taskbar_button_before_openxr_takes_the_thread(hwnd: int) -> None:
+        set_window_icon(hwnd, preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as()))
+        preview_marker.dress_the_window(hwnd)
 
     def _init_openxr(self, app_name: str) -> None:
         self._instance = xr.create_instance(

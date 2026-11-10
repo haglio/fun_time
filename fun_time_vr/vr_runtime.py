@@ -33,12 +33,14 @@ _CLIENTS_UNDER_THE_VENDOR_ROOT = (
     Path("PimaxClient") / "pimaxui" / "PimaxClient.exe",
 )
 _QUIT_TOOL_BESIDE_THE_REGISTRATION = "launcher.exe"
-_QUIT_SERVICES = ("PiPlatformService", "PiPlayService")
-_DISPLAY_SERVER_NAME = "pi_server.exe"
+_SERVICES_THE_CLIENTS_OWN_EXIT_QUITS = ("PiPlatformService", "PiPlayService")
+_DISPLAY_SERVER_THAT_KEEPS_THE_HEADSET_ON = "pi_server.exe"
 _PI_SERVER_USUALLY_GOES_IN_S = 3.0
 QUIT_TIMEOUT_S = 5 * _PI_SERVER_USUALLY_GOES_IN_S
 
 _UNKNOWN_FAILURE = "VR could not be started."
+
+_NO_PIPES_TO_OUTLAST_THE_DEADLINE = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 class Readiness(Enum):
     READY = "ready"
@@ -145,7 +147,7 @@ def start_runtime(launcher: Path) -> None:
 
 
 def runtime_was_running() -> bool:
-    return process_running(_DISPLAY_SERVER_NAME)
+    return process_running(_DISPLAY_SERVER_THAT_KEEPS_THE_HEADSET_ON)
 
 
 def runtime_quit_tool() -> Path | None:
@@ -165,7 +167,7 @@ def stop_runtime() -> None:
     if tool is None:
         logger.info("No VR runtime quit tool to run")
         return
-    for service in _QUIT_SERVICES:
+    for service in _SERVICES_THE_CLIENTS_OWN_EXIT_QUITS:
         logger.info("Quitting VR runtime service: %s", service)
         _run_quietly([str(tool), service, "quit"], cwd=tool.parent)
 
@@ -218,8 +220,7 @@ def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
         ended = subprocess.run(
             command,
             check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            **_NO_PIPES_TO_OUTLAST_THE_DEADLINE,
             timeout=QUIT_TIMEOUT_S,
             cwd=None if cwd is None else str(cwd),
             **hidden_subprocess_kwargs(),

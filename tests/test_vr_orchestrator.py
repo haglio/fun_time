@@ -247,7 +247,7 @@ class TestOrigeneratorInVr:
 
         assert calls["bring_up_the_hosted_app"] < calls["launch_vr_funestras"]
 
-    def test_the_app_runs_the_checkouts_this_session_names(self):
+    def test_the_app_can_import_the_checkouts_this_session_names(self):
         tree = ast.parse(_the_session_as_one_source())
         (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
                    and ast.unparse(n.func) == "bring_up_the_hosted_app"]
@@ -891,14 +891,14 @@ class TestHandingTheHeadsetOver:
         with patch("fun_time_vr.orchestrator.headset_is_held", return_value=True):
             assert _wait_for_the_headset_hold(tmp_path, self._Alive()) is True
 
-    def test_a_funestra_that_never_answers_is_closed_as_before(self, tmp_path: Path):
+    def test_a_hold_never_taken_is_given_up_for_the_session_to_come(self, tmp_path: Path):
         hold_the_headset(tmp_path, stop_runtime=False)
 
         with patch.object(orchestrator, "HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S", 0.0):
             assert orchestrator._wait_for_the_headset_hold(
-                tmp_path, self._Alive()) is False
+                tmp_path, self._Alive()) is False, "the caller closes a Funestra that holds nothing"
 
-        assert headset_hold_asked(tmp_path) is False
+        assert headset_hold_asked(tmp_path) is False, "the next launch must not read it"
 
     def test_a_funestra_that_has_already_gone_is_not_waited_out(self, tmp_path: Path, caplog):
         hold_the_headset(tmp_path, stop_runtime=False)
@@ -1388,11 +1388,11 @@ class TestTheClosingScreen:
 
         assert heard == [False]
 
-    def test_a_session_the_funestra_ended_gets_no_loading_screen(self, tmp_path):
+    def test_a_headset_cut_to_the_runtimes_environment_gets_no_closing_screen(self, tmp_path):
         with _closing_screen(tmp_path, _AliveFunestra(alive=False), enabled=False) as shutdown:
             shutdown.advance("funestras")
 
-        assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
+            assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_no_closing_screen_when_the_funestra_that_would_draw_it_has_gone(self, config):
         died = MagicMock(pid=202)
@@ -1779,7 +1779,7 @@ class TestOpeningAVrSession:
         assert taken is not None, "Esc let the quit go on"
         assert (taken.target, taken.cancelable) == (VR, False)
 
-    def test_that_loading_screen_runs_the_sibling_checkouts_the_session_names(self, config):
+    def test_the_way_backs_only_screen_can_import_the_sessions_siblings(self, config):
         sibling = config.paths.state_dir.parent / "sibling_checkout"
         sibling.mkdir(parents=True, exist_ok=True)
         named = replace(config, paths=replace(config.paths, sibling_checkouts=(sibling,)))

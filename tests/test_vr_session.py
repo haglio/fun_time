@@ -43,7 +43,7 @@ def test_a_fully_tracked_view_is_renderable():
     assert views_are_renderable(flags) is True
 
 
-def test_orientation_alone_is_enough():
+def test_a_dim_room_that_loses_position_still_draws_from_orientation():
     assert views_are_renderable(xr.ViewStateFlags.ORIENTATION_VALID_BIT) is True
 
 
@@ -89,10 +89,12 @@ def test_a_stopped_session_is_no_longer_ready_to_submit_frames():
     assert states.begun is False
 
 
-def test_a_session_that_comes_back_is_ready_again():
+def test_a_headset_worn_again_readies_the_stopped_session_once_more():
     states, _calls = _states()
+    what_the_runtime_says_when_it_is_worn_again = xr.SessionState.READY
 
-    for state in (xr.SessionState.READY, xr.SessionState.STOPPING, xr.SessionState.READY):
+    for state in (xr.SessionState.READY, xr.SessionState.STOPPING,
+                  what_the_runtime_says_when_it_is_worn_again):
         states.heard(state)
 
     assert states.begun is True
@@ -371,7 +373,8 @@ def test_the_scene_window_wears_the_sessions_button_before_it_reaches_the_taskba
              for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(VRSession._init_glfw))))
              if isinstance(node, ast.Call)}
 
-    assert calls["preview_marker.dress_the_window"] < calls["minimize_window"]
+    assert (calls["self._wear_the_taskbar_button_before_openxr_takes_the_thread"]
+            < calls["minimize_window"])
 
 
 class _SessionStateEvents:
