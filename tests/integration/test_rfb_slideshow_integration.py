@@ -63,5 +63,9 @@ def test_a_slide_leaves_his_own_window_the_one_chrome_hands_his_links_to(chrome,
     assert await_window(SECOND_SLIDE, FIRST_SLIDE_TIMEOUT_S) == rfb
 
     assert chrome.hand_over(AFTER_THE_SLIDE) == his_window
+    assert _a_real_activation_would_have_moved_his_links(chrome, rfb)
+
+
+def _a_real_activation_would_have_moved_his_links(chrome, rfb: int) -> bool:
     force_foreground_window(rfb)
-    assert chrome.hand_over(AFTER_AN_ACTIVATION) == rfb
+    return chrome.hand_over(AFTER_AN_ACTIVATION) == rfb

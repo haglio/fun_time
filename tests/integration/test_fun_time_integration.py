@@ -562,12 +562,16 @@ def _refused_in_place(session: FunTimeIntegrationSession, portrait: SatelliteCha
     ), read_satellite_status(portrait.status_file)
 
 
+_LONGER_THAN_THE_STEP_IT_REFUSES_TWICE_S = 20
+
+
 def test_fun_time_a_spoken_step_with_less_than_ten_seconds_to_go_stays_put_and_says_why(
     shared_integration_session: FunTimeIntegrationSession, tmp_path: Path,
 ):
     s = shared_integration_session
     portrait = s.config.satellite(FunTimeFunestra.PORTRAIT)
-    video = video_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640", seconds=20)
+    video = video_of_a_test_pattern(tmp_path / "twenty seconds.mp4", size="360x640",
+                                    seconds=_LONGER_THAN_THE_STEP_IT_REFUSES_TWICE_S)
     s.write_dashboard_command("play")
     append_command(portrait.cmd_file, play_file(PlaylistItem(video)))
     try:
