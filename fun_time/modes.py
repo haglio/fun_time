@@ -6,8 +6,9 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support import funscript
 from app_support.media_renditions import renditions
-from app_support.mirrored_tree import LIBRARY_DIR_NAME, mirrored_path
+from app_support.mirrored_tree import LIBRARY_DIR_NAME
 from app_support.watch_weights import dealt_by_weight, newest_of_each_group
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.funscript import load as load_funscript
@@ -80,30 +81,41 @@ def _videos_under(root: Path) -> Iterator[str]:
             yield entry.path
 
 
-SCRIPTS_TREE = Path("scripts", "scripts")
-GENERATED_TREE = Path("scripts", "generated")
-
-
 def _library_folder_of(video: Path) -> Path | None:
     return next((folder for folder in reversed(video.parents)
                  if folder.name.lower() == folder.parent.name.lower() == LIBRARY_DIR_NAME), None)
 
 
-def _mirrored_path(video_path: str, tree: Path, suffix: str, metadata_root: Path | None) -> str:
+@dataclass(frozen=True)
+class _ScriptTrees:
+    script: Path
+    scripts_tree: Path
+    marks_tree: Path
+
+
+def _script_trees_of(video_path: str, metadata_root: Path | None) -> _ScriptTrees | None:
     video = Path(video_path)
     library = _library_folder_of(video)
     if library is None:
-        return ""
+        return None
     trees_beside = metadata_root.parent if metadata_root is not None else library.parent
-    return str(mirrored_path(video, roots=(library,), mirror_root=trees_beside / tree, suffix=suffix))
+    scripts_tree = funscript.scripts_tree_in(trees_beside)
+    script = funscript.script_of(video, library=library, scripts_tree=scripts_tree)
+    if script is None:
+        return None
+    return _ScriptTrees(script, scripts_tree, funscript.generated_marks_tree_in(trees_beside))
 
 
 def build_mirrored_funscript_path(video_path: str, metadata_root: Path | None = None) -> str:
-    return _mirrored_path(video_path, SCRIPTS_TREE, ".funscript", metadata_root)
+    trees = _script_trees_of(video_path, metadata_root)
+    return "" if trees is None else str(trees.script)
 
 
 def build_generated_marker_path(video_path: str, metadata_root: Path | None = None) -> str:
-    return _mirrored_path(video_path, GENERATED_TREE, ".generated", metadata_root)
+    trees = _script_trees_of(video_path, metadata_root)
+    mark = None if trees is None else funscript.generated_mark_of(
+        trees.script, scripts_tree=trees.scripts_tree, marks_tree=trees.marks_tree)
+    return "" if mark is None else str(mark)
 
 
 def matching_funscript(video_path: str, metadata_root: Path | None = None) -> str | None:
