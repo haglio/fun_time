@@ -30,7 +30,8 @@ def _config_files_in_the_order_this_pytest_looks_for_them() -> list[str]:
         node.value for node in ast.walk(ast.parse(inspect.getsource(findpaths.locate_config)))
         if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "config_names"]
     assert len(looked_for) == 1, "pytest no longer lists its config files where this reads them"
-    return ast.literal_eval(looked_for[0])
+    as_pytest_itself_computes_it = compile(ast.Expression(looked_for[0]), findpaths.__file__, "eval")
+    return list(eval(as_pytest_itself_computes_it, vars(findpaths)))
 
 
 def _files_pytest_would_read_instead_of_pyproject(root: Path) -> list[str]:
