@@ -53,7 +53,7 @@ def test_title_defaults_to_satellite():
     assert build_parser().parse_args([]).title == "Satellite"
 
 
-def test_title_is_taken_from_the_flag():
+def test_a_session_titles_a_satellite_through_the_flag():
     args = build_parser().parse_args(["--title", "Portrait AI Funestra"])
     assert args.title == "Portrait AI Funestra"
 

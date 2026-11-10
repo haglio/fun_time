@@ -6,6 +6,7 @@ from pathlib import Path
 from funestra.session_quit import SESSION_QUIT
 
 from fun_time.dashboard_actions import QUIT_BUTTON
+from fun_time.windows_bridge_dispatch_loop import _LOOP_COMMANDS
 
 ROOT = Path(__file__).resolve().parents[1]
 SATELLITE = ROOT / "satellite" / "app.py"
@@ -16,6 +17,12 @@ ALLOWED_EVENTS = {"QUIT", "MOUSEBUTTONDOWN", "MOUSEBUTTONUP", "MOUSEMOTION", "WI
 
 def test_the_ask_is_the_dashboards_own_quit_verb():
     assert SESSION_QUIT == QUIT_BUTTON
+
+
+def test_a_closed_satellite_asks_for_something_the_session_answers():
+    assert SESSION_QUIT in _LOOP_COMMANDS, (
+        f"a closed satellite asks for {SESSION_QUIT!r} and nothing answers: "
+        "the close goes quiet instead of ending the session")
 
 
 def _tree(source: Path = WINDOW_INPUT) -> ast.Module:
@@ -55,10 +62,11 @@ def test_the_loop_answers_no_keyboard_event():
     )
 
 
-def test_nothing_else_has_crept_into_the_loop_either():
+def test_an_event_the_loop_newly_answers_is_never_assumed_harmless():
     assert _pygame_event_names() <= ALLOWED_EVENTS, (
         f"main_funestra/input.py answers {sorted(_pygame_event_names() - ALLOWED_EVENTS)}; "
-        "if that is right, say why here and add it to ALLOWED_EVENTS"
+        "the Ctrl+Q that was taken out looked like a convenience too, so if that is right, "
+        "say why here and add it to ALLOWED_EVENTS"
     )
 
 
