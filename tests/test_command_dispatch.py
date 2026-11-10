@@ -21,7 +21,7 @@ from funestra.video_groups import normalize_path_key
 
 from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
-from fun_time.command_dispatch import dispatch_command, routes_to_origenerator
+from fun_time.command_dispatch import dispatch_command
 from fun_time.command_value import parse_command, say_command
 from fun_time.config import SatelliteChannel
 from fun_time.content import Noun, WebProvider, load_content, load_web_providers
@@ -30,6 +30,7 @@ from fun_time.device_arbiter import TCODE_OFF
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genaumacher_save import _genaumacher_project_dir
+from fun_time.hosted_words import routes_to_origenerator
 from fun_time.lock_hud import nav_map_cells
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list import MainListSettings
@@ -4420,6 +4421,37 @@ class TestOrigeneratorTransport:
         state, _ = dispatch_command("portrait_next", state, config)
         assert _origenerator_cmds(config) == ["portrait_next"]
         assert _cmds(config, 2) == []
+
+    def test_a_ten_second_step_a_hosted_satellite_cannot_take_says_why_and_reaches_no_one(
+            self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        _publish_status(config.portrait.status_file, duration_ms=60_000, position_ms=6_000)
+
+        _state, ops = dispatch_command("portrait_nudge_prev", _in_origenerator_mode(), config)
+
+        assert [(op.op, op.key, op.source) for op in ops] == [
+            ("message", "Less than 10s into this video", SOURCE_PORTRAIT)]
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, 2) == []
+
+    def test_skip_ahead_on_a_hosted_satellite_without_the_osr2_says_so_and_reaches_no_one(
+            self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = _in_origenerator_mode(osr2_funestra=FunTimeFunestra.MAIN)
+
+        _state, ops = dispatch_command("portrait_funscript_jump", state, config)
+
+        assert ops == [WindowOp(op="message", key="The portrait Satellite doesn't have the OSR2",
+                                level=logging.WARNING)]
+        assert _origenerator_cmds(config) == []
+
+    def test_skip_ahead_reaches_the_hosted_app_for_the_satellite_that_has_the_osr2(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = _in_origenerator_mode(osr2_funestra=FunTimeFunestra.PORTRAIT)
+
+        dispatch_command("portrait_funscript_jump", state, config)
+
+        assert _origenerator_cmds(config) == ["portrait_funscript_jump"]
 
     def test_every_press_on_a_hosted_satellite_routes_as_it_was_posted(self, tmp_path):
         config = _origenerator_config(tmp_path)

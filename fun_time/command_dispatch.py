@@ -32,12 +32,17 @@ from .command_value import SAY, Command, Scope, parse_command
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import MainFunestraStatus
 from .genau_commands import about_genaus_flick
-from .hosted_contract import said_to_the_hosted_app, written_for_the_hosted_app
-from .hosted_words import line_said_bare_to_the_hosted_app
+from .hosted_contract import written_for_the_hosted_app
+from .hosted_words import (
+    a_lock_said_in_the_hosted_apps_words,
+    line_said_bare_to_the_hosted_app,
+    routes_to_origenerator,
+    told_to_the_hosted_app,
+)
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
-from .origenerator_switches import hosts, hosts_a_satellite
-from .satellite_commands import THE_FUNESTRAS_OWN, is_hud_nav_command, satellite_at_defaults
+from .origenerator_switches import hosts_a_satellite
+from .satellite_commands import is_hud_nav_command, satellite_at_defaults
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
 
@@ -64,7 +69,7 @@ def dispatch_command(
         command = parse_command(command)
     if command.funestra is not None:
         state = _addressed(command.funestra, command, state)
-    reworded = _a_lock_said_in_the_hosted_apps_words(command, state, config)
+    reworded = a_lock_said_in_the_hosted_apps_words(command, state, config)
     if reworded is not command:
         command, hosted = reworded, None
     if about_genaus_flick(command) and kino_shows(state.main_mode):
@@ -72,7 +77,7 @@ def dispatch_command(
     if hosted is None:
         hosted = routes_to_origenerator(command, state, config)
     if hosted:
-        return state, _told_to_the_hosted_app(command, config, spoken_at)
+        return state, told_to_the_hosted_app(command, state, config, spoken_at)
 
     if len(command.halves()) > 1:
         return _half_by_half(command, state, config, target_path, spoken_at)
@@ -100,47 +105,6 @@ def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
         return ignored(state, IN_KINO_MODE)
     logger.warning("no handler for command %r", command.text)
     return state, []
-
-
-def _about_a_satellite(command: Command) -> bool:
-    return command.satellite is not None and command.action not in THE_FUNESTRAS_OWN
-
-
-_CLEAR_FILTER = "clear filter"
-
-
-def _words_for_the_hosted_app_to_match(command: Command) -> tuple[str, str] | None:
-    if command.satellite is None:
-        return None
-    if command.action == SAY:
-        return command.said_to, command.argument
-    return (command.said_to, _CLEAR_FILTER) if command.action == "no_filter" else None
-
-
-def _a_lock_said_in_the_hosted_apps_words(command: Command, state: BridgeState,
-                                          config: BridgeConfig) -> Command:
-    if (command.action != SAY or command.argument not in config.origenerator_lock_phrases
-            or not routes_to_origenerator(command, state, config)):
-        return command
-    return Command.to(command.satellite, "lock_on")
-
-
-def routes_to_origenerator(command: str | Command, state: BridgeState, config: BridgeConfig) -> bool:
-    if isinstance(command, str):
-        command = parse_command(command)
-    spoken = _words_for_the_hosted_app_to_match(command)
-    if spoken is not None:
-        return hosts(command.satellite, state, config)
-    return all(_about_a_satellite(said) and hosts(said.satellite, state, config)
-               for said in command.halves())
-
-
-def _told_to_the_hosted_app(command: Command, config: BridgeConfig,
-                            spoken_at: float | None) -> list:
-    spoken = _words_for_the_hosted_app_to_match(command)
-    return written_for_the_hosted_app(
-        [said_to_the_hosted_app(*spoken)] if spoken is not None
-        else [half.text for half in command.halves()], config, spoken_at)
 
 
 def app_at_defaults(state: BridgeState, config: BridgeConfig, status: MainFunestraStatus) -> bool:
