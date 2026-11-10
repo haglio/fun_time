@@ -68,7 +68,7 @@ class GalleryPanel:
                 self._said_it_went_quiet = False
         return frame
 
-    def went_quiet(self, now: float) -> str | None:
+    def silence_only_the_room_can_report(self, now: float) -> str | None:
         if self._said_it_went_quiet:
             return None
         if self._answered_at is None:
@@ -96,7 +96,8 @@ class GalleryPanel:
         append_command(self._input, line)
 
     def press(self, event: PressEvent) -> None:
-        if self._size is None:
+        no_frame_has_said_how_big_the_window_is = self._size is None
+        if no_frame_has_said_how_big_the_window_is:
             return
         self.send(event_line(event, self._size))
 

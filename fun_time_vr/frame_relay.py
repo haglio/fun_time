@@ -3,7 +3,11 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 
-SLOTS = 3
+_ONE_THE_CARD_IS_STILL_COPYING_OUT_OF = 1
+_ONE_HOLDING_THE_NEWEST_FRAME = 1
+_ONE_ALWAYS_FREE_TO_PAINT_INTO = 1
+SLOTS = (_ONE_THE_CARD_IS_STILL_COPYING_OUT_OF + _ONE_HOLDING_THE_NEWEST_FRAME
+         + _ONE_ALWAYS_FREE_TO_PAINT_INTO)
 
 
 class StillAsked:
@@ -61,11 +65,11 @@ class FrameRelay:
         self._lock = threading.Lock()
         self._newest: RelayedFrame | None = None
         self._shown = 0
-        self._copying: int | None = None
+        self._the_card_may_still_be_copying: int | None = None
 
     def slot_to_paint(self) -> int:
         with self._lock:
-            spoken_for = {self._copying, None if self._newest is None else self._newest.slot}
+            spoken_for = {self._the_card_may_still_be_copying, None if self._newest is None else self._newest.slot}
         return next(slot for slot in range(SLOTS) if slot not in spoken_for)
 
     def painted(self, slot: int, *, texture: int, width: int, height: int, video: str) -> None:
@@ -76,15 +80,15 @@ class FrameRelay:
     def take(self) -> RelayedFrame | None:
         with self._lock:
             newest = self._newest
-            if self._copying is not None or newest is None or newest.number == self._shown:
+            if self._the_card_may_still_be_copying is not None or newest is None or newest.number == self._shown:
                 return None
             self._shown = newest.number
-            self._copying = newest.slot
+            self._the_card_may_still_be_copying = newest.slot
             return newest
 
     def copied(self) -> None:
         with self._lock:
-            self._copying = None
+            self._the_card_may_still_be_copying = None
 
 
 @dataclass(frozen=True)

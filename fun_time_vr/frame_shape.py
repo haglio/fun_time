@@ -14,7 +14,8 @@ _JUST_INSIDE_THE_CIRCLE = (0.80, 0.93)
 def shape_of(luma: np.ndarray) -> str | None:
     middle = luma.shape[1] // 2
     left, right = _eye_shape(luma[:, :middle]), _eye_shape(luma[:, middle:])
-    return left if left == right else None
+    a_recordings_two_eyes_match = left == right
+    return left if a_recordings_two_eyes_match else None
 
 
 def _eye_shape(eye: np.ndarray) -> str | None:
@@ -24,7 +25,8 @@ def _eye_shape(eye: np.ndarray) -> str | None:
     past_the_circle = _lit(eye, out, _JUST_PAST_THE_CIRCLE)
     if past_the_circle < 1 - MOSTLY:
         return FISHEYE_CIRCLE
-    return FULL_FRAME if past_the_circle > MOSTLY else None
+    cropped_from_a_circle_wider_than_its_square = past_the_circle <= MOSTLY
+    return None if cropped_from_a_circle_wider_than_its_square else FULL_FRAME
 
 
 def _in_radii_of_the_inscribed_circle(height: int, width: int) -> np.ndarray:

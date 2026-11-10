@@ -104,32 +104,32 @@ class TestSayingWhenTheAppHasGoneQuiet:
         writer.write(TOKEN, 2, 2, _pixels(2, 2, 9))
         panel.frame(now=QUIET_S * 2)
 
-        assert panel.went_quiet(now=QUIET_S * 2) is None
+        assert panel.silence_only_the_room_can_report(now=QUIET_S * 2) is None
 
     def test_a_silence_with_presses_waiting_is_said_once(self, tmp_path):
         panel, _writer = self._panel(tmp_path)
         panel.send(hover_line(1, 1))
 
-        said = panel.went_quiet(now=QUIET_S + 1)
+        said = panel.silence_only_the_room_can_report(now=QUIET_S + 1)
 
         assert said is not None, said
         assert "1 lines" in said, said
-        assert panel.went_quiet(now=QUIET_S + 2) is None, "it said the same thing twice"
+        assert panel.silence_only_the_room_can_report(now=QUIET_S + 2) is None, "it said the same thing twice"
 
     def test_a_silence_with_nothing_waiting_is_not_a_silence(self, tmp_path):
         panel, _writer = self._panel(tmp_path)
 
-        assert panel.went_quiet(now=QUIET_S + 1) is None
+        assert panel.silence_only_the_room_can_report(now=QUIET_S + 1) is None
 
 
     def test_an_app_that_has_published_nothing_at_all_is_said_once(self, tmp_path):
         panel = GalleryPanel(tmp_path)
         assert panel.frame(now=0.0) is None
 
-        said = panel.went_quiet(now=QUIET_S + 1)
+        said = panel.silence_only_the_room_can_report(now=QUIET_S + 1)
 
         assert said is not None
-        assert panel.went_quiet(now=QUIET_S + 2) is None, "it said the same thing twice"
+        assert panel.silence_only_the_room_can_report(now=QUIET_S + 2) is None, "it said the same thing twice"
 
 
 class TestTheOtherWaysTheRoomReachesIt:

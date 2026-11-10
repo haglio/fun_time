@@ -211,6 +211,13 @@ def read_the_flicks(config) -> list[LibraryHandle]:
         return []
 
 
+def _read_a_syncing_drive_off_the_serving_thread(config, kept: Path, landed: list) -> None:
+    start_daemon_thread(
+        target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
+    start_daemon_thread(
+        target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
+
+
 def _listing_key(sources: str) -> str:
     return hashlib.sha256(sources.encode("utf-8")).hexdigest()[:12]
 
@@ -245,10 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         kept = args.input.with_name(LISTING_FILENAME)
         landed: list[Sequence[LibraryHandle]] = []
-        start_daemon_thread(
-            target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
-        start_daemon_thread(
-            target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
+        _read_a_syncing_drive_off_the_serving_thread(config, kept, landed)
         ticks = 0
 
         def parent_alive() -> bool:

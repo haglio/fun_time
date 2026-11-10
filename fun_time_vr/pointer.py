@@ -328,9 +328,11 @@ class PressEvent:
 
 def surface_pixel(u: float, v: float, size: tuple[int, int]) -> tuple[int, int]:
     width, height = size
+    up_from_the_screens_lower_edge = v
+    down_from_the_windows_top = 1.0 - up_from_the_screens_lower_edge
     return (
         min(width - 1, max(0, int(u * width))),
-        min(height - 1, max(0, int((1.0 - v) * height))),
+        min(height - 1, max(0, int(down_from_the_windows_top * height))),
     )
 
 

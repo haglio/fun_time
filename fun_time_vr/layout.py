@@ -32,10 +32,15 @@ FUNESTRAS = (MAIN, LANDSCAPE, PORTRAIT)
 USUAL_ASPECT = {MAIN: 16 / 9, LANDSCAPE: 16 / 9, PORTRAIT: 9 / 16}
 
 
-AZIMUTH_LIMIT_DEG = 150.0
-ELEVATION_LIMIT_DEG = 75.0
-MIN_WIDTH_DEG = 10.0
-MAX_WIDTH_DEG = 120.0
+_SHORT_OF_THE_VIEWERS_BACK_DEG = 150.0
+_SHORT_OF_THE_ZENITH_DEG = 75.0
+_SMALLEST_STILL_GRABBED_DEG = 10.0
+_WIDEST_WITH_CORNERS_STILL_IN_REACH_DEG = 120.0
+
+AZIMUTH_LIMIT_DEG = _SHORT_OF_THE_VIEWERS_BACK_DEG
+ELEVATION_LIMIT_DEG = _SHORT_OF_THE_ZENITH_DEG
+MIN_WIDTH_DEG = _SMALLEST_STILL_GRABBED_DEG
+MAX_WIDTH_DEG = _WIDEST_WITH_CORNERS_STILL_IN_REACH_DEG
 TILT_LIMIT_DEG = 90.0
 
 
@@ -138,6 +143,10 @@ def _remembered_tilt(written: object) -> float:
         return 0.0
 
 
+def _a_spot_a_hand_may_have_edited(spot: dict) -> Placement:
+    return clamp_placement(Placement(**{part: float(spot[part]) for part in _FIELDS}))
+
+
 def layout_from_json(text: str) -> Layout:
     try:
         raw = json.loads(text)
@@ -155,8 +164,7 @@ def layout_from_json(text: str) -> Layout:
         if not isinstance(spot, dict):
             continue
         try:
-            remembered[name] = clamp_placement(
-                Placement(**{part: float(spot[part]) for part in _FIELDS}))
+            remembered[name] = _a_spot_a_hand_may_have_edited(spot)
         except (KeyError, TypeError, ValueError):
             logger.warning("Ignoring the remembered %s placement", name)
     return Layout(placements=remembered, tilt_deg=tilt_deg)

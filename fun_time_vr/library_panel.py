@@ -86,6 +86,10 @@ class ShownWhileAsked:
         self.showing = False
 
 
+def _hidden_yet_never_starved_by_a_busy_machine() -> dict:
+    return hidden_subprocess_kwargs()
+
+
 class LibraryHost:
     def __init__(
         self, *, manifest_path: Path, state_dir: Path, python_exe: str = sys.executable,
@@ -102,7 +106,7 @@ class LibraryHost:
             [NAMER.named_exe(python_exe, "LibraryBrowser"), "-m", HOST_MODULE, str(manifest_path),
              "--input", str(self._input), "--output", str(self._output),
              "--frames", str(frames), "--parent", str(os.getpid())],
-            **hidden_subprocess_kwargs(),
+            **_hidden_yet_never_starved_by_a_busy_machine(),
         )
 
     def send(self, line: str) -> None:

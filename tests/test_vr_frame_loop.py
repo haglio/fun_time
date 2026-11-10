@@ -26,7 +26,7 @@ from fun_time_vr.frame_loop import (
     tear_down,
 )
 from fun_time_vr.funestras import Arranged
-from fun_time_vr.loading_screen import LOADING_SCREEN_CLEAR
+from fun_time_vr.loading_screen import CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL
 
 
 def _a_view(*, yaw_deg: float = 0.0):
@@ -191,7 +191,7 @@ class TestPresentingTheLoadingScreen:
         session, renderer, loading_screen = _ASession(_a_frame(at=5)), _ARenderer(), _ALoadingScreen()
 
         assert present_the_loading_screen(_a_headset(session, renderer), loading_screen) is True
-        assert renderer.begun == [LOADING_SCREEN_CLEAR, LOADING_SCREEN_CLEAR]
+        assert renderer.begun == [CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL, CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL]
         assert renderer.screens == [("loading-screen-mesh", 7), ("loading-screen-mesh", 7)]
         assert session.ended == [(5, True, [])]
 
@@ -230,7 +230,7 @@ class TestPresentingTheLoadingScreen:
 
         present_the_loading_screen(_a_headset(_ASession(_a_frame()), renderer), _ALoadingScreen(screen_ready=False))
 
-        assert renderer.begun == [LOADING_SCREEN_CLEAR, LOADING_SCREEN_CLEAR]
+        assert renderer.begun == [CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL, CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL]
         assert renderer.screens == []
 
 
