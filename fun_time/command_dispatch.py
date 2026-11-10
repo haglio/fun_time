@@ -67,7 +67,7 @@ def dispatch_command(
     if about_genaus_flick(command) and kino_shows(state.main_mode):
         return ignored(state, IN_KINO_MODE)
     if hosted is None:
-        hosted = routes_to_origenerator(command, config)
+        hosted = routes_to_origenerator(command)
     if hosted:
         return state, told_to_the_hosted_app(command, state, config, spoken_at)
 
@@ -90,7 +90,7 @@ def _half_by_half(command: Command, state: BridgeState, config: BridgeConfig,
 def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> Result:
     if command.said_to is Scope.ACTIVE:
-        bare = line_said_bare_to_the_hosted_app(command, config)
+        bare = line_said_bare_to_the_hosted_app(command)
         return ((state, written_for_the_hosted_app([bare], config, None)) if bare
                 else ignored(state, ON_THE_MAIN_FUNESTRA))
     if command.action == SAY:

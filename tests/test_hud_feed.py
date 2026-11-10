@@ -17,7 +17,6 @@ from funestra.osr2_visualizer import DriveHud, publish_drive
 from funestra.satellite_hud import HudCell, HudModel, PaintedFoot, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.config import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -25,40 +24,17 @@ from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
+from tests.bridge_configs import made_up_bridge_config
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
-    settings = {
-        "portrait": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT),
-        "landscape": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.LANDSCAPE),
-        "trash_dir": tmp_path / "trash",
-        "state_dir": tmp_path,
-        "main_sources": "",
-        "broker_mode_file": tmp_path / "rh_mode.txt",
-        "genau_cmd_file": tmp_path / "rh_cmd.txt",
-        "genau_paused_file": tmp_path / "rh_paused.txt",
-        "genau_status_file": tmp_path / "genau_status.txt",
-        "audio_paused_file": tmp_path / "audio_paused.txt",
-        "audio_volume_file": tmp_path / "audio_volume.txt",
-        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
-        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
-        "main_funestra_status_file": tmp_path / "main_player_status.txt",
-        "dashboard_state_file": tmp_path / "dashboard_state.ini",
-    }
-    settings.update(overrides)
-    return BridgeConfig(**settings)
+    return made_up_bridge_config(tmp_path, **overrides)
 
 
 def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
     for funestra in funestras or ("portrait", "landscape"):
         state = state.with_satellite(FunTimeFunestra[funestra.upper()])
     return state
-
-
-def hosting_config(tmp_path) -> BridgeConfig:
-    return make_config(
-        tmp_path, origenerator_enabled=True,
-        origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
 
 
 def make_feed(tmp_path, *, config=None) -> HudFeed:
@@ -68,7 +44,7 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
          "main_funestra": tmp_path / "main_player_console.json",
          DASHBOARD_OSR2_PART: osr2_part_path(tmp_path)},
     )
-    return HudFeed(config=config or hosting_config(tmp_path), publisher=publisher)
+    return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
 
 
 def publish_satellite_status(path: Path, video, *,
@@ -117,7 +93,7 @@ def broker_is_up(published: dict) -> bool:
 
 class TestHudPublishing:
     def test_a_satellite_the_hosted_app_has_wears_that_apps_own_hud(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         hosted = HudModel(
             funestra="portrait", title="Unlocked · Shuffle",
             corner=HudCell(path="C:/g/scene one.png"),
@@ -139,7 +115,7 @@ class TestHudPublishing:
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
     def test_core_hidden_behind_the_browser_shows_its_job_queue_on_the_satellites_hud(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         foot = PaintedFoot(file=str(tmp_path / "origenerator_portrait_hud_foot_a1.png"),
                            width=200, height=40, stamp="a1",
                            targets=(((4, 4, 40, 18), Button("cancel|j1", "Cancel", "Drop it")),))
@@ -151,7 +127,7 @@ class TestHudPublishing:
         assert parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8")).foot == foot
 
     def test_a_satellite_the_hosted_app_has_not_filled_wears_its_own_buttons_alone(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         (tmp_path / "origenerator_landscape_hud.json").write_text("", encoding="utf-8")
 
@@ -168,7 +144,7 @@ class TestHudPublishing:
 
     def test_a_satellite_the_app_holds_keeps_the_apps_last_hud_over_an_empty_read(
             self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
                                encoding="utf-8")
@@ -180,13 +156,9 @@ class TestHudPublishing:
 
         assert hud(tmp_path, "portrait")["title"] == "Locked"
 
-    @pytest.mark.parametrize(("hosting", "hosted_satellites"), [
-        (False, ()), (True, ()), (True, ("portrait", "landscape"))])
-    def test_no_funestra_in_a_headset_session_offers_to_minimize(
-        self, tmp_path, hosting, hosted_satellites,
-    ):
-        config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
-        feed = make_feed(tmp_path, config=replace(config, vr_main_funestra=True))
+    @pytest.mark.parametrize("hosted_satellites", [(), ("portrait", "landscape")])
+    def test_no_funestra_in_a_headset_session_offers_to_minimize(self, tmp_path, hosted_satellites):
+        feed = make_feed(tmp_path, config=replace(make_config(tmp_path), vr_main_funestra=True))
 
         state = BridgeState()
         for satellite in hosted_satellites:
@@ -200,7 +172,7 @@ class TestHudPublishing:
         assert [command for command in commands if command.endswith("_minimize")] == []
 
     def test_losing_a_read_to_the_apps_republish_is_not_the_app_letting_go(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
                                encoding="utf-8")
@@ -221,7 +193,7 @@ class TestHudPublishing:
     def test_what_the_hosted_app_says_about_the_image_on_screen_reaches_the_funestra(
         self, tmp_path,
     ):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(HudModel(funestra="portrait", item_note="Enhancing…")), encoding="utf-8")
 
@@ -244,7 +216,7 @@ class TestHudPublishing:
 
 
     def test_the_session_never_fades_a_reset_belonging_to_the_hosted_show(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         hosted = HudModel(funestra="portrait", title="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
@@ -580,7 +552,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         assert _published(tmp_path, "portrait").osr2 == Osr2State.FUNSCRIPT
 
     def test_a_satellite_the_hosted_app_has_wears_its_button_too(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
 
@@ -590,7 +562,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
             (osr2_button(FunTimeFunestra.PORTRAIT, has_it=False),),)
 
     def test_the_hosted_apps_skip_ahead_is_told_the_osr2_holder_once_per_change(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
 
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
@@ -675,7 +647,7 @@ class TestWhatTheHudSaysAboutWhereItSits:
         assert console(tmp_path)["hud_minimized"] is True
 
     def test_a_satellite_the_hosted_app_holds_wears_the_sessions_own_corner(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
         hosted = hud_text(HudModel(funestra="portrait", title="Slideshow",
                                    corner=HudCell(path="C:/p/one.png")))
         (tmp_path / "origenerator_portrait_hud.json").write_text(hosted, encoding="utf-8")

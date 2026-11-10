@@ -235,13 +235,6 @@ class TestOrigeneratorInVr:
         assert manifest["runtime"]["origenerator_dir"] == str(tmp_path / "origenerator")
         assert manifest["executables"]["origenerator_python_exe"]
 
-    def test_the_session_reads_back_as_hosting_one(self, hosted, tmp_path):
-        path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
-        bridge = build_bridge_config_from_manifest(
-            LaunchManifest.read(path), vr_main_funestra=True)
-
-        assert bridge.origenerator_enabled is True
-
     def test_the_hosted_app_whose_boot_is_slowest_starts_before_the_funestra(self):
         calls = _call_lines_in_run_vr_bridge()
 
@@ -255,13 +248,6 @@ class TestOrigeneratorInVr:
 
         assert given["sibling_checkouts"] == "manifest.runtime.sibling_checkouts"
         assert given["in_a_headset"] == "True"
-
-    def test_a_session_with_no_checkout_named_still_hosts_none(self, config, tmp_path):
-        path = write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
-        bridge = build_bridge_config_from_manifest(
-            LaunchManifest.read(path), vr_main_funestra=True)
-
-        assert bridge.origenerator_enabled is False
 
     def test_a_room_asks_for_both_satellites_slideshows_as_it_opens_whatever_it_was_left_in(
             self, hosted, tmp_path):

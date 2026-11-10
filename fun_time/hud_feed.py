@@ -24,7 +24,6 @@ from .main_list_commands import (
     main_funestra_at_defaults,
     main_video_shapes,
 )
-from .origenerator_switches import hosts
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
@@ -75,9 +74,8 @@ class HudFeed:
             return DeviceBlock.held_by(funestra, osr2)
 
         for funestra in FunTimeFunestra.SATELLITES:
-            if hosts(funestra, self.config):
-                tell_a_hosted_satellite_whose_the_osr2_is(self.config, self._osr2_told, funestra,
-                                                          funestra is with_the_osr2)
+            tell_a_hosted_satellite_whose_the_osr2_is(self.config, self._osr2_told, funestra,
+                                                      funestra is with_the_osr2)
             self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
                 funestra.label, self._worn_hosted_hud(funestra), state.satellite(funestra),
                 in_vr=self.config.vr_main_funestra, crowned=state.crowned == funestra.label,

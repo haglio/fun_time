@@ -2800,8 +2800,7 @@ class TestOpenEventLog:
         ("main_latest", "Latest: the Main Funestra"),
     ])
     def test_what_a_dispatched_command_says_reaches_the_bridge_log(self, tmp_path, command, said):
-        config = replace(make_config(tmp_path), origenerator_enabled=True,
-                         origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
+        config = make_config(tmp_path)
         before = {name: (list(logging.getLogger(name).handlers), logging.getLogger(name).level)
                   for name in logging.root.manager.loggerDict if name.startswith("fun_time")}
         try:
@@ -3349,20 +3348,6 @@ class TestStartingVoice:
                        hosting=Hosting(said_at_suffix=" @{said_at_epoch_seconds}"))
 
         assert controller.call_args.kwargs["hosted"].said_at_suffix == " @{said_at_epoch_seconds}"
-
-    def test_the_voice_asks_the_app_which_satellites_the_hosted_app_holds(
-        self, cfg_factory, tmp_path,
-    ):
-        config_path = cfg_factory({"voice_control": {"enabled": True}})
-        controller, runner = MagicMock(), MagicMock()
-
-        with patch.object(windows_bridge_orchestrator, "hosted_satellites",
-                          return_value=frozenset({"landscape"})) as asked:
-            self._started(config_path, tmp_path, controller=controller, runner=runner)
-            satellites = controller.return_value.hosted_satellites()
-
-        assert satellites == frozenset({"landscape"})
-        asked.assert_called_once_with(runner.config)
 
     def test_the_app_hears_as_a_lock_the_words_the_hosted_app_takes_as_its_lock(
         self, cfg_factory, tmp_path,

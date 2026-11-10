@@ -40,9 +40,7 @@ def test_a_lock_marks_the_items_record_a_favorite_with_the_page_its_website_made
 
 
 def _hosting(tmp_path):
-    return make_config(tmp_path, regen_metadata_root=tmp_path / "metadata",
-                       origenerator_enabled=True,
-                       origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
+    return make_config(tmp_path, regen_metadata_root=tmp_path / "metadata")
 
 
 def _asked_of_the_hosted_app(config) -> list[str]:

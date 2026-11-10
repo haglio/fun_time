@@ -30,6 +30,7 @@ class SessionStart:
     press_and_caret_watch: Sightings | None = None
     origenerator_already_open: bool = False
     origenerator_showing_a_slideshow: bool = False
+    hosts_origenerator: bool = True
 
 
 @dataclass(frozen=True)

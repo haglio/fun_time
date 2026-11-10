@@ -18,7 +18,6 @@ from .main_list import MainListSettings
 from .main_list_builds import MainListBuild
 from .main_list_commands import on_the_main_funestra
 from .mode_plan import kino_shows
-from .origenerator_switches import hosts
 from .runtime_flow import FMODE_FUNESTRAS, apply_fmode
 from .shared_state import BridgeState
 from .voice_commands import FAVORITES_PHRASE
@@ -80,7 +79,7 @@ def _dispatch_fmode(
     state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
     enabled = _next_f_mode(state, config, asked_for) if target is None else target
-    hosted = tuple(funestra for funestra in asked_for if hosts(funestra, config))
+    hosted = tuple(funestra for funestra in asked_for if funestra in FunTimeFunestra.SATELLITES)
     changed = tuple(funestra for funestra in asked_for
                     if funestra is FunTimeFunestra.MAIN
                     and _funestra_f_mode(state, config, funestra) != enabled)

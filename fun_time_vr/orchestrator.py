@@ -602,7 +602,8 @@ def _open_the_room(
             ahk_cmd=launch.ahk_cmd_file),
         SessionStart(
             windows=_no_windows_on_the_desktop(),
-            origenerator_showing_a_slideshow=hosted is not None and hosted.showing_a_slideshow),
+            origenerator_showing_a_slideshow=hosted is not None and hosted.showing_a_slideshow,
+            hosts_origenerator=manifest.runtime.hosts_origenerator),
         publishing_to_the_dashboard_in_the_room,
     )
     voice_controller, voice_thread = start_voice_control(

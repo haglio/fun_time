@@ -148,12 +148,13 @@ class DispatchLoopRunner:
         self.rfb_shortcut = start.rfb_shortcut or Shortcut()
         self.rfb_slideshow = start.rfb_slideshow
         self.typing = TypingWatch(start.press_and_caret_watch, typed_into=lambda seen: self.windows.takes_typing(
-            seen.window, seen.process, hosted_app=self.config.origenerator_enabled))
+            seen.window, seen.process))
         self.sync_interval_s = publishing.sync_interval_ms / 1000
         left_in = read_shared_state(files.shared_state) or BridgeState()
         self.state = with_the_browser_in_its_place(left_in)
         self.opening = OrigeneratorOpening(
-            config, left_in, already_open=start.origenerator_already_open,
+            config, left_in, hosting=start.hosts_origenerator,
+            already_open=start.origenerator_already_open,
             showing_a_slideshow=start.origenerator_showing_a_slideshow)
         self._last_sync = 0.0
         self._last_dashboard_warning = float("-inf")
@@ -361,8 +362,7 @@ class DispatchLoopRunner:
                         self.state, self.config,
                         read_main_funestra_status(self.config.main_funestra_status_file)),
                     headset_ready=the_headset_is_ready(self.config.state_dir),
-                    origenerator_ready=(self.config.origenerator_enabled
-                                        and self.state.origenerator_ready),
+                    origenerator_ready=self.state.origenerator_ready,
                     rfb_mode=self.state.rfb_mode,
                 ),
             )
@@ -759,10 +759,9 @@ def build_bridge_config_from_manifest(
         regen_metadata_root=Path(v) if (v := manifest.regen.metadata_root.strip()) else None,
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
-        origenerator_enabled=bool(manifest.runtime.origenerator_dir.strip()),
-        origenerator_cmd_file=Path(v) if (v := commands.origenerator_cmd_file.strip()) else None,
+        origenerator_cmd_file=Path(commands.origenerator_cmd_file),
         origenerator_said_at_suffix=(
             said_at_suffix_of(v) if (v := manifest.runtime.origenerator_dir.strip()) else ""),
-        origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
-        origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,
+        origenerator_paused_file=Path(commands.origenerator_paused_file),
+        origenerator_status_file=Path(commands.origenerator_status_file),
     )

@@ -25,6 +25,7 @@ from fun_time.event_log import (
     list_message,
 )
 from fun_time.filter_vocab import filter_voice_commands
+from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hosted_contract import (
     NO_HOSTED_VOCABULARY,
     HostedVocabulary,
@@ -187,7 +188,6 @@ class VoiceController:
         self._hosted_cmd_file = hosted.cmd_file
         self._hosted_said_at_suffix = hosted.said_at_suffix
         self._request_satellite: str | None = None
-        self.hosted_satellites: Callable[[], frozenset[str]] = frozenset
         self._muted = threading.Event()
         self._clock = clock
         self._holds = VoiceHolds()
@@ -230,7 +230,7 @@ class VoiceController:
 
     def _satellite_taking_a_request(self) -> str | None:
         satellite = self._request_satellite
-        return satellite if satellite in self.hosted_satellites() else None
+        return satellite if satellite in FunTimeFunestra.SATELLITE_LABELS else None
 
     def _heard_through_a_request(self, heard: Heard) -> bool:
         phrase = heard.recognition.phrase
@@ -238,7 +238,7 @@ class VoiceController:
 
     def _hosted_satellite_leading(self, text: str | None) -> str | None:
         said = _words(text)
-        return said[0] if said and said[0] in self.hosted_satellites() else None
+        return said[0] if said and said[0] in FunTimeFunestra.SATELLITE_LABELS else None
 
     def _satellite_a_request_opens_on(self, text: str | None) -> str | None:
         match _words(text):
@@ -279,7 +279,7 @@ class VoiceController:
 
     def _said_to_a_hosted_satellite(self, phrase: str) -> bool:
         said = parse_command(self.commands.get(phrase, ""))
-        return said.action == SAY and said.said_to in self.hosted_satellites()
+        return said.action == SAY and said.said_to in FunTimeFunestra.SATELLITE_LABELS
 
     @property
     def is_muted(self) -> bool:

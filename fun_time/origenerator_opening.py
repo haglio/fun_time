@@ -21,11 +21,11 @@ def with_the_browser_in_its_place(state: BridgeState) -> BridgeState:
 
 
 class OrigeneratorOpening:
-    def __init__(self, config: BridgeConfig, left_in: BridgeState, *,
+    def __init__(self, config: BridgeConfig, left_in: BridgeState, *, hosting: bool,
                  already_open: bool, showing_a_slideshow: bool) -> None:
         self._config = config
         self._is_up = already_open
-        self._owed = config.origenerator_enabled
+        self._owed = hosting
         self.puts_origenerator_in_the_browsers_place = (
             showing_a_slideshow or left_in.rfb_mode is RfbMode.ORIGENERATOR)
 
@@ -36,8 +36,6 @@ class OrigeneratorOpening:
     def has_answered(self) -> bool:
         if self._is_up:
             return True
-        if not self._config.origenerator_enabled or self._config.origenerator_status_file is None:
-            return False
         self._is_up = origenerator_has_published(self._config.origenerator_status_file)
         if self._is_up:
             logger.info("Origenerator is up; its mode is open")
@@ -45,7 +43,7 @@ class OrigeneratorOpening:
 
     def app_as_it_is(self, state: BridgeState) -> BridgeState:
         state = replace(state, origenerator_ready=self.has_answered())
-        if self._config.origenerator_enabled and state.origenerator_ready:
+        if state.origenerator_ready:
             return state
         return with_the_browser_in_its_place(state)
 

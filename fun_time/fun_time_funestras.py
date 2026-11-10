@@ -14,3 +14,4 @@ class FunTimeFunestra(IntEnum):
 
 
 FunTimeFunestra.SATELLITES = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
+FunTimeFunestra.SATELLITE_LABELS = frozenset(funestra.label for funestra in FunTimeFunestra.SATELLITES)
