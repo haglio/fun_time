@@ -43,12 +43,18 @@ WINDOW_TIMEOUT_S = 90.0
 TAB_TIMEOUT_S = 30.0
 EXIT_TIMEOUT_S = 90.0
 
+_A_HELPER_OF_THE_CLOSED_BROWSER_STILL_HOLDING_A_PROFILE_FILE = PermissionError
+
 
 def chrome_exe() -> Path:
     for candidate in _CHROME_CANDIDATES:
         if candidate.is_file():
             return candidate
     pytest.skip("Chrome is not installed at either standard location")
+
+
+def _a_browser_of_its_own_apart_from_his(fresh_user_data_dir: Path) -> str:
+    return f"--user-data-dir={fresh_user_data_dir}"
 
 
 class ThrowawayChrome:
@@ -58,7 +64,7 @@ class ThrowawayChrome:
         self._pages.mkdir()
         self._profile = directory / "chrome_user_data"
         self._arguments = [
-            f"--user-data-dir={self._profile}",
+            _a_browser_of_its_own_apart_from_his(self._profile),
             "--no-first-run",
             "--no-default-browser-check",
             "--mute-audio",
@@ -72,7 +78,6 @@ class ThrowawayChrome:
         path.write_text(f"<!doctype html><title>{marker}</title>{body or f'<h1>{marker}</h1>'}",
                         encoding="utf-8")
         return path.as_uri()
-
 
     def shortcut(self) -> Shortcut:
         return Shortcut(target=str(self._exe), work_dir=str(self._exe.parent),
@@ -109,9 +114,15 @@ class ThrowawayChrome:
         if not ended_within(self._browser, EXIT_TIMEOUT_S):
             kill_process_tree(self._browser.pid)
             self._browser.wait()
-        for child in list_child_pids(self._browser.pid):
-            kill_process_tree(child)
+        self._end_the_helpers_that_outlive_the_browser()
         self._remove_the_profile()
+
+    def _end_the_helpers_that_outlive_the_browser(self) -> None:
+        for child in list_child_pids(self._the_pid_the_open_handle_keeps_from_reuse()):
+            kill_process_tree(child)
+
+    def _the_pid_the_open_handle_keeps_from_reuse(self) -> int:
+        return self._browser.pid
 
     def _launch(self, *arguments: str) -> None:
         launched = subprocess.Popen([str(self._exe), *self._arguments, *arguments])
@@ -123,7 +134,7 @@ class ThrowawayChrome:
         while self._profile.exists():
             try:
                 remove_scratch(self._profile)
-            except PermissionError:
+            except _A_HELPER_OF_THE_CLOSED_BROWSER_STILL_HOLDING_A_PROFILE_FILE:
                 if budget.expired():
                     raise
                 time.sleep(0.5)

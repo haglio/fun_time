@@ -35,7 +35,7 @@ class _AtTheReveal(threading.Thread):
         super().__init__(daemon=True)
         self._timeout_s = timeout_s
         self.loading_screen_was_up = False
-        self.lifted_at = 0.0
+        self.lifted_at_on_the_logs_wall_clock = 0.0
         self.on_screen_though_a_message_may_cover_it: dict[str, int] = {}
         self.hidden_hwnds: dict[str, int] = {}
 
@@ -52,7 +52,7 @@ class _AtTheReveal(threading.Thread):
         self._photograph_before_the_session_can_catch_up()
 
     def _photograph_before_the_session_can_catch_up(self) -> None:
-        self.lifted_at = time.time()
+        self.lifted_at_on_the_logs_wall_clock = time.time()
         self.on_screen_though_a_message_may_cover_it = {
             title: find_window_by_title(title, exact=True) for title in SHOWN_TITLES
         }
@@ -111,8 +111,8 @@ def test_the_app_is_finished_when_the_loading_screen_lifts():
 
         banded = [record.ts for record in records if BANDED in record.message]
         assert banded, f"the orchestrator never logged {BANDED!r}"
-        assert banded[0] <= watcher.lifted_at, (
-            f"the room was banded {banded[0] - watcher.lifted_at:.2f}s AFTER the "
+        assert banded[0] <= watcher.lifted_at_on_the_logs_wall_clock, (
+            f"the room was banded {banded[0] - watcher.lifted_at_on_the_logs_wall_clock:.2f}s AFTER the "
             "loading screen lifted, so he watched the z-order sort itself out"
         )
     finally:

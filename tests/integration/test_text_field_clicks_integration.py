@@ -118,9 +118,13 @@ def _clicked_into(clicks: TextFieldClicks, watch: PressAndCaretWatch, *, within:
     return None
 
 
+def _the_text_pointer_a_hidden_desktop_has_none_to_read() -> bool:
+    return True
+
+
 @pytest.fixture
 def watch():
-    watching = PressAndCaretWatch(text_pointer=lambda: True)
+    watching = PressAndCaretWatch(text_pointer=_the_text_pointer_a_hidden_desktop_has_none_to_read)
     watching.start()
     yield watching
     watching.stop()
