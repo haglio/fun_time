@@ -67,16 +67,16 @@ class FunTimeWindows:
     ) -> None:
         self.pids = pids
         self.rfb_hwnd = rfb_hwnd
-        self._hwnds_by_window: dict[str, int] = dict(hwnds_by_window or {})
+        self._hwnds_kept_for_when_hidden: dict[str, int] = dict(hwnds_by_window or {})
         self.clock = clock
         self._pending_hides: dict[str, float] = {}
         self._parked_hwnds: list[int] = []
         self._minimized_hwnds: list[int] = []
 
     def hwnd(self, window_name: str) -> int:
-        hwnd = self._hwnds_by_window.get(window_name, 0)
+        hwnd = self._hwnds_kept_for_when_hidden.get(window_name, 0)
         if hwnd and window_name == ORIGENERATOR_WINDOW and not window_exists(hwnd):
-            self._hwnds_by_window.pop(window_name, None)
+            self._hwnds_kept_for_when_hidden.pop(window_name, None)
             hwnd = 0
         if hwnd:
             return hwnd
@@ -95,7 +95,7 @@ class FunTimeWindows:
         elif window_name == ORIGENERATOR_WINDOW:
             hwnd = find_origenerators_window(self.pids.origenerator)
         if hwnd:
-            self._hwnds_by_window[window_name] = hwnd
+            self._hwnds_kept_for_when_hidden[window_name] = hwnd
         return hwnd
 
     def _dashboard_hwnd(self) -> int:

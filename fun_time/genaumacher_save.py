@@ -34,11 +34,14 @@ def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
     return status.video, status.position_ms / 1000
 
 
+LOGGED_ALREADY_WITH_NOTHING_TO_FLASH = ""
+
+
 def save_clip_session(config: BridgeConfig) -> str:
     video_path, playback_time = _current_main_media(config)
     if not video_path:
         logger.warning("genaumacher_save: no video playing on the Main Funestra")
-        return ""
+        return LOGGED_ALREADY_WITH_NOTHING_TO_FLASH
     try:
         result = subprocess.run(
             [
@@ -59,13 +62,13 @@ def save_clip_session(config: BridgeConfig) -> str:
             name = Path(session_path).stem if session_path else "session"
             return f"Genaumacher: {name}"
         logger.error("genaumacher_save failed: %s", result.stderr.strip())
-        return ""
+        return LOGGED_ALREADY_WITH_NOTHING_TO_FLASH
     except (OSError, subprocess.SubprocessError) as exc:
         logger.error("genaumacher_save error: %s", exc)
-        return ""
+        return LOGGED_ALREADY_WITH_NOTHING_TO_FLASH
 
 
 def save_and_say(config: BridgeConfig) -> None:
     message = save_clip_session(config)
-    if message:
+    if message != LOGGED_ALREADY_WITH_NOTHING_TO_FLASH:
         flash_message(logger, message, source=SOURCE_MAIN)

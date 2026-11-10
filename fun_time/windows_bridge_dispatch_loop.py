@@ -79,7 +79,7 @@ from .windows_bridge_random_favs_browser import open_rfb_tab
 logger = logging.getLogger(__name__)
 
 
-def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
+def raise_a_browse_the_restack_left_underneath(browsing: subprocess.Popen | None) -> int:
     if browsing is None or browsing.poll() is not None:
         return 0
     hwnd = find_window_for_process(browsing.pid)
@@ -100,7 +100,11 @@ REQUEST_NEWS: dict[str, tuple[str, bool]] = {
 }
 
 
-def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 90.0) -> float | None:
+LONGER_THAN_A_STALLED_DISK_HOLDS_A_TICK_S = 90.0
+
+
+def detect_sleep_gap(prev_wall: float, now_wall: float, *,
+                     threshold_s: float = LONGER_THAN_A_STALLED_DISK_HOLDS_A_TICK_S) -> float | None:
     # The thread freezes while Windows sleeps, and AHK's hotkeys are prone to not firing after a
     # wake.
     gap = now_wall - prev_wall
@@ -273,7 +277,7 @@ class DispatchLoopRunner:
         if command.text in HEADSET_SIGNALS:
             _headset(self, command.text)
             return
-        self._send_press(command.text)
+        self._echo_the_press_best_effort(command.text)
         answer = _LOOP_COMMANDS.get(command.text)
         if answer is None:
             self._dispatch(command, spoken_at)
@@ -299,7 +303,7 @@ class DispatchLoopRunner:
                 logger.error("unhandled window op %r", op.op)
                 continue
             handler(self, op)
-        keep_a_browse_on_top(self._browser_process)
+        raise_a_browse_the_restack_left_underneath(self._browser_process)
         write_shared_state(self.shared_state_file, self.state)
         if not self._batching_rfb:
             self._flush_rfb_tabs()
@@ -326,7 +330,7 @@ class DispatchLoopRunner:
         if self.rfb_slideshow is not None:
             self.rfb_slideshow.restart(now=time.monotonic())
 
-    def _send_press(self, action: str) -> None:
+    def _echo_the_press_best_effort(self, action: str) -> None:
         if self.dashboard_enabled:
             post_to_inbox(self.config.state_dir / PRESS_PORT_FILENAME, action)
 
@@ -366,6 +370,9 @@ class DispatchLoopRunner:
     def _log_which_windows_missed_their_startup_promotion(self) -> None:
         self._log_topmost_state("startup")
 
+    def _log_any_window_still_on_top_under_the_pause(self) -> None:
+        self._log_topmost_state("post-enter")
+
     def _log_topmost_state(self, label: str) -> None:
         logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode,
                     self.windows.topmost_report())
@@ -379,20 +386,20 @@ class DispatchLoopRunner:
             self._browse_lock.release()
 
     def _browse_library_inner(self) -> None:
-        manage_session = not self.state.omni_paused
+        omnipause_already_holds_them_down = self.state.omni_paused
 
-        if manage_session:
+        if not omnipause_already_holds_them_down:
             self.windows.remove_all_topmost()
-            append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
+            self._stop_the_hotkeys_eating_the_browsers_keys()
 
         try:
             genau = not kino_shows(self.state.main_mode)
-            funestra_hwnd = self.windows.hwnd("main_funestra")
+            where_the_pick_will_play = self.windows.hwnd("main_funestra")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
                 BrowseOpening(
-                    over=window_rect(funestra_hwnd) if funestra_hwnd else None,
+                    over=window_rect(where_the_pick_will_play) if where_the_pick_will_play else None,
                     playing=(read_genau_status(self.config.genau_status_file).flick if genau
                              else read_main_funestra_status(self.config.main_funestra_status_file).video),
                     flicks=genau,
@@ -404,9 +411,12 @@ class DispatchLoopRunner:
             elif selected:
                 append_command(self.config.main_funestra_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
-            if manage_session:
+            if not omnipause_already_holds_them_down:
                 self.windows.restore_all_topmost(self.state.rfb_mode)
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
+
+    def _stop_the_hotkeys_eating_the_browsers_keys(self) -> None:
+        append_command(self.ahk_cmd_file, Op.SUSPEND_HOTKEYS)
 
     def run(self) -> None:
         self._log_which_windows_missed_their_startup_promotion()
@@ -451,10 +461,14 @@ class DispatchLoopRunner:
 
 
 def _quit(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
-    mark_session_end(
-        runner.config.state_dir,
+    _begin_an_ending_esc_can_call_off(
+        runner,
         "the quit command, spoken" if spoken_at is not None else "the quit command, pressed",
     )
+
+
+def _begin_an_ending_esc_can_call_off(runner: DispatchLoopRunner, asked_by: str) -> None:
+    mark_session_end(runner.config.state_dir, asked_by)
     runner.ahk_cmd_file.write_text("end_session", encoding="utf-8")
 
 
@@ -464,8 +478,7 @@ def _cross(target: HandoffTarget, runner: DispatchLoopRunner, _spoken_at: float 
     if refused:
         runner._flash(refused, source=SOURCE_SYSTEM, level=logging.WARNING)
         return
-    mark_session_end(runner.config.state_dir, f"a crossing to {target.app_name}")
-    runner.ahk_cmd_file.write_text("end_session", encoding="utf-8")
+    _begin_an_ending_esc_can_call_off(runner, f"a crossing to {target.app_name}")
 
 
 def _show_the_reference(toggling: bool, runner: DispatchLoopRunner,
@@ -481,20 +494,27 @@ def _omnirestore(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
     runner.windows.restore_minimized()
 
 
-def _toggle_omnipause(runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
-    was_paused = runner.state.omni_paused
+def _toggle_omnipause(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
+    if not runner.state.omni_paused:
+        _enter_omnipause("omnipause_toggle", runner, spoken_at)
+        return
     runner._dispatch(parse_command("omnipause_toggle"))
-    runner._log_topmost_state("post-leave" if was_paused else "post-enter")
+    runner._log_topmost_state("post-leave")
 
 
 def _enter_omnipause(command: str, runner: DispatchLoopRunner, _spoken_at: float | None) -> None:
     runner._dispatch(parse_command(command))
-    runner._log_topmost_state("post-enter")
+    runner._log_any_window_still_on_top_under_the_pause()
 
 
 def _enter_omnipause_unless_paused(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
     if not runner.state.omni_paused:
         _enter_omnipause(ENTER_OMNIPAUSE, runner, spoken_at)
+
+
+def _retract_though_a_pause_already_holds(runner: DispatchLoopRunner,
+                                          spoken_at: float | None) -> None:
+    _enter_omnipause("relief_omnipause", runner, spoken_at)
 
 
 def _pause(runner: DispatchLoopRunner, spoken_at: float | None) -> None:
@@ -540,10 +560,14 @@ def _toggle_voice(command: str, runner: DispatchLoopRunner, _spoken_at: float | 
     muted = runner.voice.toggle(command)
     if muted is None:
         return
-    runner.state = replace(runner.state, mic_muted=muted)
-    write_shared_state(runner.shared_state_file, runner.state)
+    _keep_the_mute_for_the_next_sessions_listener(runner, muted)
     if runner.dashboard_enabled:
         runner._update_dashboard()
+
+
+def _keep_the_mute_for_the_next_sessions_listener(runner: DispatchLoopRunner, muted: bool) -> None:
+    runner.state = replace(runner.state, mic_muted=muted)
+    write_shared_state(runner.shared_state_file, runner.state)
 
 
 def _accept_what_voice_was_not_sure_of(runner: DispatchLoopRunner,
@@ -575,7 +599,7 @@ _LOOP_COMMANDS: dict[str, Callable[[DispatchLoopRunner, float | None], None]] = 
     "omnirestore": _omnirestore,
     "omnipause_toggle": _toggle_omnipause,
     ENTER_OMNIPAUSE: _enter_omnipause_unless_paused,
-    "relief_omnipause": partial(_enter_omnipause, "relief_omnipause"),
+    "relief_omnipause": _retract_though_a_pause_already_holds,
     "browse_library": _browse_the_library,
     BROWSE_LIBRARY_CLOSE: _close_the_browse,
     BROKER_PRESS: _press_the_broker,

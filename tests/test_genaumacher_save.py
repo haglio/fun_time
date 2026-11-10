@@ -10,7 +10,7 @@ import pytest
 from fun_time.bridge_records import BridgeConfig
 from fun_time.config import SatelliteChannel
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.genaumacher_save import save_clip_session
+from fun_time.genaumacher_save import save_and_say, save_clip_session
 
 
 def _make_config(tmp_path: Path) -> BridgeConfig:
@@ -138,3 +138,11 @@ def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
          patch("fun_time.genaumacher_save.subprocess.run", side_effect=TypeError("bug")), \
          pytest.raises(TypeError):
         save_clip_session(config)
+
+
+def test_a_failed_save_flashes_no_empty_box(tmp_path: Path, caplog):
+    with patch("fun_time.genaumacher_save.save_clip_session", return_value=""), \
+         caplog.at_level(logging.DEBUG, logger="fun_time.genaumacher_save"):
+        save_and_say(_make_config(tmp_path))
+
+    assert [record.message for record in caplog.records] == []
