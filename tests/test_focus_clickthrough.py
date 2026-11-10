@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-WINDOW_OPENERS = (REPO / "satellite" / "app.py", REPO / "main_funestra" / "app.py")
+OPENERS_NEEDING_A_REAL_WINDOW_AND_LIBMPV = (REPO / "satellite" / "app.py", REPO / "main_funestra" / "app.py")
 
 
-def _call_lines(source: Path) -> tuple[list[int], list[int]]:
+def _call_lines_read_off_the_source(source: Path) -> tuple[list[int], list[int]]:
     tree = ast.parse(source.read_text(encoding="utf-8"))
     hint: list[int] = []
     init: list[int] = []
@@ -25,9 +25,9 @@ def _call_lines(source: Path) -> tuple[list[int], list[int]]:
     return hint, init
 
 
-@pytest.mark.parametrize("source", WINDOW_OPENERS, ids=lambda p: p.parent.name)
+@pytest.mark.parametrize("source", OPENERS_NEEDING_A_REAL_WINDOW_AND_LIBMPV, ids=lambda p: p.parent.name)
 def test_the_focusing_click_is_asked_for_before_the_window_exists(source: Path):
-    hint, init = _call_lines(source)
+    hint, init = _call_lines_read_off_the_source(source)
 
     assert hint, f"{source.parent.name}/app.py never calls before_the_window_exists"
     assert init, f"{source.parent.name}/app.py no longer calls pygame.init — move this guard"

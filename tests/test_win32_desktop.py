@@ -3,11 +3,17 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
+from unittest.mock import MagicMock
 
 import pytest
 
 from fun_time import audio_companion_app, win32_desktop
-from fun_time.win32_desktop import _is_off_screen, current_desktop_name, on_hidden_desktop
+from fun_time.win32_desktop import (
+    _is_off_screen,
+    current_desktop_name,
+    input_desktop_name,
+    on_hidden_desktop,
+)
 
 
 def test_a_desktop_that_is_not_the_input_one_is_off_screen():
@@ -38,6 +44,24 @@ def test_on_hidden_desktop_compares_this_thread_desktop_with_the_input_one(monke
     assert on_hidden_desktop() is True
     monkeypatch.setattr(win32_desktop, "current_desktop_name", lambda: "Default")
     assert on_hidden_desktop() is False
+
+
+def test_the_thread_desktops_handle_is_windows_own_and_is_never_closed(monkeypatch):
+    user32 = MagicMock()
+    monkeypatch.setattr(win32_desktop, "_user32", user32)
+
+    current_desktop_name()
+
+    user32.GetThreadDesktop.assert_called_once()
+    user32.CloseDesktop.assert_not_called()
+
+
+def test_a_secure_desktop_windows_will_not_open_has_no_name(monkeypatch):
+    user32 = MagicMock()
+    user32.OpenInputDesktop.return_value = None
+    monkeypatch.setattr(win32_desktop, "_user32", user32)
+
+    assert input_desktop_name() is None
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops")
