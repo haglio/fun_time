@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from funestra.modes import LoopState, SatellitesMode
+from funestra.modes import LoopState
 from funestra.osr2_visualizer import DriveHud
 
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -48,7 +48,7 @@ class TestTheRoomRecordsWhatEachFunestraReports:
             76, 60, 30, "sawtooth", 25, True, False)
 
     def test_not_the_rate_of_a_show_the_hosted_app_plays_on_a_satellite(self):
-        hosting = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
+        hosting = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, handed_over=True)
 
         state = with_what_the_funestras_report(hosting, FunestraReports(
             satellites={FunTimeFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))

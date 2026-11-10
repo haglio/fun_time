@@ -14,7 +14,7 @@ from .main_list import MainListSettings
 from .media_metadata import learn_indexed_video
 from .mode_plan import kino_shows
 from .modes import collect_video_files, satellite_narrowing, scripted_item
-from .origenerator_switches import origenerator_shows
+from .origenerator_switches import hosts
 from .shared_state import BridgeState
 
 
@@ -54,9 +54,8 @@ class _ASatellite:
         return self.state.satellite(self.funestra).latest
 
     def plays_its_own_list(self) -> bool:
-        satellite = self.state.satellite(self.funestra)
-        return not (satellite.loop or self.funestra in self.coming_home
-                    or origenerator_shows(satellite.mode) or satellite.handed_over)
+        return not (self.state.satellite(self.funestra).loop or self.funestra in self.coming_home
+                    or hosts(self.funestra, self.state, self.config))
 
     def lets_through(self, paths: list[str]) -> list[str]:
         satellite = self.state.satellite(self.funestra)

@@ -17,7 +17,7 @@ from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
 from .mode_plan import STARTUP_MAIN_MODE, EnhancementLevel
-from .origenerator_switches import KINO_MODE, RfbMode, origenerator_shows
+from .origenerator_switches import KINO_MODE, RfbMode
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
 logger = logging.getLogger(__name__)
@@ -104,10 +104,6 @@ class BridgeState:
         if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT:
             return replace(self, portrait=satellite)
         return replace(self, landscape=satellite)
-
-    def origenerator_holds_a_satellite(self) -> bool:
-        return any(origenerator_shows(self.satellite(funestra).mode)
-                   for funestra in FunTimeFunestra.SATELLITES)
 
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"

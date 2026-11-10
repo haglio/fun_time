@@ -235,7 +235,7 @@ class TestHudPublishing:
         feed.publish(BridgeState(active_funestra=2))
         assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
 
-    def test_a_satellite_on_its_way_home_keeps_the_apps_last_hud_once_the_app_lets_go(
+    def test_a_satellite_the_app_holds_keeps_the_apps_last_hud_over_an_empty_read(
             self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
@@ -245,7 +245,7 @@ class TestHudPublishing:
         feed.publish(away)
         hosted_file.write_text("", encoding="utf-8")
 
-        feed.publish(away.with_satellite(FunTimeFunestra.PORTRAIT, mode=SatellitesMode.KINO))
+        feed.publish(away)
 
         assert hud(tmp_path, "portrait")["title"] == "Locked"
 

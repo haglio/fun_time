@@ -16,7 +16,6 @@ from .funestra_status import (
     published_genau_status,
     published_main_funestra_status,
 )
-from .origenerator_switches import origenerator_shows
 from .satellite_control import published_satellite_status
 from .shared_state import BridgeState
 
@@ -67,7 +66,7 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
     for funestra, status in reports.satellites.items():
         if status is None:
             continue
-        if not origenerator_shows(state.satellite(funestra).mode):
+        if not state.satellite(funestra).handed_over:
             state = state.with_satellite(funestra, speed=status.speed)
         if status.volume is not None and status.muted is not None:
             state = state.with_satellite(funestra, volume=status.volume, muted=status.muted)

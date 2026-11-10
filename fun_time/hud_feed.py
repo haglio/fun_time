@@ -30,7 +30,7 @@ from .main_list_commands import (
     main_video_shapes,
 )
 from .media_metadata import favorite_recorded_in, metadata_path_for
-from .origenerator_switches import hosts, origenerator_shows
+from .origenerator_switches import hosts
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
@@ -150,7 +150,7 @@ class HudFeed:
                                                      funestra is with_the_osr2)
                 held = state.satellite(funestra)
                 self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
-                    funestra.label, self._worn_hosted_hud(funestra, state), held,
+                    funestra.label, self._worn_hosted_hud(funestra), held,
                     HudState(origenerator_ready=state.origenerator_ready,
                              in_vr=self.config.vr_main_funestra,
                              crowned=state.crowned == funestra.label),
@@ -207,10 +207,8 @@ class HudFeed:
         scripted = read_satellite_status(self.config.satellite(holder).status_file)
         return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
 
-    def _worn_hosted_hud(self, funestra: FunTimeFunestra, state: BridgeState) -> HudModel | None:
-        worn = self._hosted_hud(funestra)
-        if worn is None and not origenerator_shows(state.satellite(funestra).mode):
-            worn = self._last_worn_hosted.get(funestra)
+    def _worn_hosted_hud(self, funestra: FunTimeFunestra) -> HudModel | None:
+        worn = self._hosted_hud(funestra) or self._last_worn_hosted.get(funestra)
         self._last_worn_hosted[funestra] = worn
         return worn
 

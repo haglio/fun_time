@@ -62,5 +62,5 @@ def hosted_satellites(state: BridgeState, config: BridgeConfig) -> frozenset[str
 
 
 def hosts_a_satellite(state: BridgeState, config: BridgeConfig) -> bool:
-    return config.hosts_origenerator and state.origenerator_holds_a_satellite()
+    return bool(hosted_satellites(state, config))
 
