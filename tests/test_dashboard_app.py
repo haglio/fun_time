@@ -103,6 +103,7 @@ from fun_time.window_layout import (
     secondary_monitor_rects,
 )
 from fun_time.windows_bridge_dispatch_loop import poll_dashboard_commands
+from tests.fun_time_window_fakes import HandDrivenClock
 from tests.held_files import held_by_another_program, let_go_soon
 from tests.integration.integration_support import environment_with_this_checkouts_siblings
 from tests.made_up_osr2_parts import a_part, center_of, published
@@ -128,10 +129,16 @@ def dashboard_app_config(cfg_path):
 
 
 @pytest.fixture
-def dashboard_window(dashboard_app_config):
+def flash_clock():
+    return HandDrivenClock()
+
+
+@pytest.fixture
+def dashboard_window(dashboard_app_config, flash_clock):
     window = build_dashboard_window(
         dashboard_app_config,
         launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400),
+        clock=flash_clock,
     )
     try:
         yield window
@@ -888,8 +895,11 @@ def test_help_action_opens_dialog_locally_without_routing_command(dashboard_wind
     assert not cmd_file.exists(), "help_reference should not be written as a command"
 
 
-def _pump_until(holds, *, timeout_s: float = 5.0) -> None:
-    deadline = time.monotonic() + timeout_s
+HANG_GUARD_S = 60.0
+
+
+def _pump_until(holds) -> None:
+    deadline = time.monotonic() + HANG_GUARD_S
     while not holds() and time.monotonic() < deadline:
         QApplication.processEvents()
         time.sleep(0.01)
@@ -900,12 +910,13 @@ def _fill_of(window, action: str):
     return next(item.fill for item in window._widget._scene.rects if item.rect == rect)
 
 
-def test_a_pressed_controls_light_goes_out_by_itself(dashboard_window):
+def test_a_pressed_controls_light_goes_out_by_itself(dashboard_window, flash_clock):
     resting = _fill_of(dashboard_window, VOICE_TOGGLE)
 
     dashboard_window._on_action(VOICE_TOGGLE)
     assert _fill_of(dashboard_window, VOICE_TOGGLE) != resting
 
+    flash_clock.advance(PRESS_FLASH_S)
     _pump_until(lambda: _fill_of(dashboard_window, VOICE_TOGGLE) == resting)
     assert _fill_of(dashboard_window, VOICE_TOGGLE) == resting
 
@@ -1347,9 +1358,9 @@ def _send_press(port: int, payload: bytes) -> None:
         sender.sendto(payload, ("127.0.0.1", port))
 
 
-def _drain(window, expected: str, *, timeout: float = 5.0) -> list[str]:
+def _drain(window, expected: str) -> list[str]:
     seen: list[str] = []
-    deadline = time.monotonic() + timeout
+    deadline = time.monotonic() + HANG_GUARD_S
     while time.monotonic() < deadline:
         seen.extend(window._press_channel.take_all())
         if expected in seen:
