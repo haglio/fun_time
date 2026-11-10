@@ -150,3 +150,13 @@ def origenerator_has_published(path: Path) -> bool:
     except (OSError, ValueError):
         return False
     return True
+
+
+CORE_READY = "core_ready"
+
+
+def origenerator_core_waits(path: Path) -> bool:
+    try:
+        return read_key_values(path).get(CORE_READY, "").strip() == "0"
+    except (OSError, ValueError):
+        return False

@@ -35,6 +35,7 @@ from .dashboard_actions import (
     LIBRARY_OPEN_FILENAME,
     ORIGENERATOR_ACTIVATE,
     REFERENCE_OPEN_FILENAME,
+    RFB_ACTIVATE,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, FunestraFiles, who_drives_the_osr2
@@ -200,10 +201,13 @@ class DispatchLoopRunner:
         for funestra in FunTimeFunestra.SATELLITES:
             hand_the_satellite_to_the_app(funestra, self.config.satellite(funestra),
                                           self.config.origenerator_cmd_file)
-        if self.opening.puts_origenerator_in_the_browsers_place:
-            self._dispatch(parse_command(ORIGENERATOR_ACTIVATE))
+        self._give_core_the_browsers_place_if_owed()
         if not wait_for_the_app(self._the_app_has_every_satellite):
             raise OrigeneratorNeverCameUp
+
+    def _give_core_the_browsers_place_if_owed(self) -> None:
+        if self.opening.gives_core_the_browsers_place_now(self.state):
+            self._dispatch(parse_command(ORIGENERATOR_ACTIVATE))
 
     def _the_app_has_every_satellite(self) -> bool:
         if self.hand_overs.taken(self.config):
@@ -217,6 +221,7 @@ class DispatchLoopRunner:
         if shared is not None:
             self.state = shared
         self.state = self.opening.app_as_it_is(self.state)
+        self._give_core_the_browsers_place_if_owed()
         self.state = self.reporting.recorded(self.state, self.config, now=time.monotonic())
         if shared is not None and shared != self.state:
             write_shared_state(self.shared_state_file, self.state)
@@ -292,6 +297,8 @@ class DispatchLoopRunner:
             _headset(self, command.text)
             return
         self._echo_the_press_best_effort(command.text)
+        if command.text in (RFB_ACTIVATE, ORIGENERATOR_ACTIVATE):
+            self.opening.he_picked_what_shows_in_the_browsers_place()
         answer = _LOOP_COMMANDS.get(command.text)
         if answer is None:
             self._dispatch(command, spoken_at)

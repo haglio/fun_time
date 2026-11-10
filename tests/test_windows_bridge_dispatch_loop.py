@@ -34,7 +34,13 @@ from fun_time.command_value import parse_command
 from fun_time.config import VoiceControlConfig
 from fun_time.content import load_web_providers
 from fun_time.crown import Crown
-from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
+from fun_time.dashboard_actions import (
+    HEADSET_OFF,
+    HEADSET_ON,
+    LIBRARY_OPEN_FILENAME,
+    ORIGENERATOR_ACTIVATE,
+    RFB_ACTIVATE,
+)
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -3030,9 +3036,10 @@ def _handed_over(state: BridgeState, *_funestras: FunTimeFunestra) -> BridgeStat
     return state
 
 
-def _the_hosted_app_answers(tmp_path):
+def _the_hosted_app_answers(tmp_path, *, core_ready: str | None = None):
+    core_line = "" if core_ready is None else f"core_ready={core_ready}\n"
     (tmp_path / "origenerator_status.txt").write_text(
-        "portrait_active=0\nlandscape_active=0\n", encoding="utf-8")
+        f"portrait_active=0\nlandscape_active=0\n{core_line}", encoding="utf-8")
 
 
 class TestOrigeneratorIsReadyWhenTheAppAnswers:
@@ -3043,6 +3050,17 @@ class TestOrigeneratorIsReadyWhenTheAppAnswers:
         assert runner.state.origenerator_ready is False
 
         _the_hosted_app_answers(tmp_path)
+        runner.tick()
+        assert runner.state.origenerator_ready is True
+
+    def test_core_is_not_ready_until_the_app_says_comfyui_has_answered(self, tmp_path):
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
+        _the_hosted_app_answers(tmp_path, core_ready="0")
+
+        runner.tick()
+        assert runner.state.origenerator_ready is False
+
+        _the_hosted_app_answers(tmp_path, core_ready="1")
         runner.tick()
         assert runner.state.origenerator_ready is True
 
@@ -3182,6 +3200,52 @@ class TestOpeningOrigenerator:
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
+
+    def _left_to_origenerator_while_core_waits(self, tmp_path):
+        write_shared_state(tmp_path / "shared_state.ini",
+                           BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
+        config = make_config(tmp_path)
+        runner = make_runner(tmp_path, config=config)
+        _the_hosted_app_answers(tmp_path, core_ready="0")
+        runner.activate_origenerator(
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
+        return runner
+
+    def test_a_place_left_to_origenerator_opens_on_the_browser_while_core_waits(self, tmp_path):
+        with patch("fun_time.windows_bridge_dispatch_loop.flash_message") as flashed:
+            runner = self._left_to_origenerator_while_core_waits(tmp_path)
+
+        assert not runner.hand_overs.still_going()
+        assert runner.state.rfb_mode is RfbMode.RFB
+        flashed.assert_not_called()
+
+    def test_the_place_goes_to_origenerator_the_moment_core_is_ready(self, tmp_path):
+        runner = self._left_to_origenerator_while_core_waits(tmp_path)
+
+        _the_hosted_app_answers(tmp_path, core_ready="1")
+        runner.tick()
+
+        assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
+
+    def test_the_place_goes_to_origenerator_once(self, tmp_path):
+        runner = self._left_to_origenerator_while_core_waits(tmp_path)
+        _the_hosted_app_answers(tmp_path, core_ready="1")
+        runner.tick()
+
+        runner._handle_command(RFB_ACTIVATE)
+        runner.tick()
+
+        assert runner.state.rfb_mode is RfbMode.RFB
+
+    @pytest.mark.parametrize("picked", [RFB_ACTIVATE, ORIGENERATOR_ACTIVATE])
+    def test_his_own_pick_while_core_waits_cancels_the_switch_owed(self, tmp_path, picked):
+        runner = self._left_to_origenerator_while_core_waits(tmp_path)
+        runner._handle_command(picked)
+
+        _the_hosted_app_answers(tmp_path, core_ready="1")
+        runner.tick()
+
+        assert runner.state.rfb_mode is RfbMode.RFB
 
     def test_every_setting_the_app_was_left_in_comes_back_with_it(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
