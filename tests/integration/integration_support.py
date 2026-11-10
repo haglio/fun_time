@@ -609,6 +609,11 @@ def real_config_path() -> Path:
     return primary_checkout_of(PROJECT_DIR) / DEFAULT_CONFIG_PATH.name
 
 
+def load_the_machines_config():
+    with on_the_settings_this_machine_has():
+        return load_config(real_config_path())
+
+
 def isolate_shared_resources(config: dict) -> None:
     _isolate_shared_ports(config)
 
@@ -664,7 +669,7 @@ def state_dir_of(root: Path) -> Path:
 
 
 def build_integration_config(tmp_path: Path) -> Path:
-    real = load_config(real_config_path())
+    real = load_the_machines_config()
     state_dir = state_dir_of(tmp_path)
     integration_root = state_dir.parent
     library = integration_root / "videos"

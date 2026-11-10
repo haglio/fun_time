@@ -11,7 +11,6 @@ from app_support.win32 import process_started
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import QUIT
 
-from fun_time.config import load_config
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.win32_process import is_process_alive
@@ -23,9 +22,9 @@ from .integration_support import (
     RELEASE_BUDGET_S,
     build_integration_temp_root,
     let_seconds_pass,
+    load_the_machines_config,
     published_ago,
     published_status,
-    real_config_path,
     sample_library_videos,
     state_dir_of,
     the_runs_own_pythonw,
@@ -36,7 +35,7 @@ from .run_clock import Budget
 
 
 def library_videos_of(satellite: str, count: int) -> list[str]:
-    folder = getattr(load_config(real_config_path()).paths, f"{satellite}_dirs")[0]
+    folder = getattr(load_the_machines_config().paths, f"{satellite}_dirs")[0]
     return sample_library_videos(
         glob.glob(os.path.join(str(folder), "**", "*.mp4"), recursive=True),
         count, desc=f"{satellite} clips")

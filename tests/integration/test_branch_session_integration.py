@@ -17,6 +17,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    settings_of_the_run_at,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -52,11 +53,13 @@ def _copy_checkout(destination: Path) -> Path:
 def branch_checkout_session():
     temp_root = build_integration_temp_root()
     branch_checkout = _copy_checkout(temp_root / "branch_checkout")
+    primary_config = build_integration_config(temp_root)
     branch_config = build_branch_config(
         branch_checkout,
-        primary_config_path=build_integration_config(temp_root),
+        primary_config_path=primary_config,
         primary=CHECKOUT_DIR,
     )
+    shutil.copyfile(settings_of_the_run_at(primary_config), settings_of_the_run_at(branch_config))
     session = FunTimeIntegrationSession(branch_config)
     try:
         session.start(project_dir=branch_checkout)
