@@ -24,7 +24,7 @@ from fun_time.command_value import MAIN_EQUIVALENTS, Scope, parse_command
 from fun_time.filter_vocab import filter_voice_commands
 from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
-from fun_time.satellite_buttons import HudState, funestra_rows
+from fun_time.satellite_buttons import window_buttons
 from fun_time.voice_commands import build_voice_commands
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from fun_time_vr.thumbs import PROJECTION_BACK
@@ -114,9 +114,8 @@ def _satellite_verbs() -> frozenset[str]:
     return frozenset(
         button.command
         for funestra in ("portrait", "landscape")
-        for latest in (None, False, True)
-        for row in funestra_rows(funestra, HudState(locked=True, favorites_filter=True, latest=latest))
-        for button in row
+        for crowned in (False, True)
+        for button in window_buttons(funestra, in_vr=False, crowned=crowned)
     )
 
 

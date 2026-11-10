@@ -19,8 +19,7 @@ from .main_list_builds import MainListBuild
 from .main_list_commands import on_the_main_funestra
 from .mode_plan import kino_shows
 from .origenerator_switches import hosts
-from .runtime_flow import FMODE_FUNESTRAS, SatelliteFmodeInputs, apply_fmode
-from .satellite_groups import cancel_lock, with_nothing_held_on_the_queue
+from .runtime_flow import FMODE_FUNESTRAS, apply_fmode
 from .shared_state import BridgeState
 from .voice_commands import FAVORITES_PHRASE
 
@@ -45,20 +44,13 @@ _FMODE_COMMANDS: dict[str, tuple[tuple[FunTimeFunestra, ...], bool | None]] = {
 def _funestra_f_mode(state: BridgeState, config: BridgeConfig, funestra: FunTimeFunestra) -> bool | None:
     if funestra is FunTimeFunestra.MAIN:
         return state.main_scripted_filter if kino_shows(state.main_mode) else state.genau_favorites_filter
-    if hosts(funestra, config):
-        return show_f_mode(config.satellite(funestra))
-    return state.satellite(funestra).favorites_filter
+    return show_f_mode(config.satellite(funestra))
 
 
-def _with_f_mode(state: BridgeState, funestras: tuple[FunTimeFunestra, ...], enabled: bool) -> BridgeState:
-    for funestra in funestras:
-        if funestra is not FunTimeFunestra.MAIN:
-            state = state.with_satellite(funestra, favorites_filter=enabled)
-        elif kino_shows(state.main_mode):
-            state = replace(state, main_scripted_filter=enabled)
-        else:
-            state = replace(state, genau_favorites_filter=enabled)
-    return state
+def _with_the_main_funestras_f_mode(state: BridgeState, enabled: bool) -> BridgeState:
+    if kino_shows(state.main_mode):
+        return replace(state, main_scripted_filter=enabled)
+    return replace(state, genau_favorites_filter=enabled)
 
 
 def _genau_among(funestras: tuple[FunTimeFunestra, ...], state: BridgeState) -> tuple[FunTimeFunestra, ...]:
@@ -90,7 +82,8 @@ def _dispatch_fmode(
     enabled = _next_f_mode(state, config, asked_for) if target is None else target
     hosted = tuple(funestra for funestra in asked_for if hosts(funestra, config))
     changed = tuple(funestra for funestra in asked_for
-                    if funestra not in hosted and _funestra_f_mode(state, config, funestra) != enabled)
+                    if funestra is FunTimeFunestra.MAIN
+                    and _funestra_f_mode(state, config, funestra) != enabled)
     _set_the_hosted_shows_f_mode(hosted, enabled, config)
     genau = _genau_among(changed, state)
     if genau:
@@ -105,24 +98,11 @@ def _dispatch_fmode(
             on_screen=on_the_main_funestra(config),
         ),
         main_builds=config.main_list_builds,
-        satellites={
-            funestra: SatelliteFmodeInputs(
-                config.satellite(funestra),
-                recent=state.satellite(funestra).latest,
-                filter_query=state.satellite(funestra).filter,
-                enhancement=state.satellite(funestra).enhancement,
-                media_root=config.regen_media_root,
-            )
-            for funestra in FunTimeFunestra.SATELLITES
-        },
     )
     if result.funestras:
         logger.info(result.log_message)
-    state = _with_f_mode(state, (*result.funestras, *genau), enabled)
-    for funestra in FunTimeFunestra.SATELLITES:
-        if funestra in result.funestras:
-            state = cancel_lock(funestra, state, config)
-            state = with_nothing_held_on_the_queue(state, funestra)
+    if changed:
+        state = _with_the_main_funestras_f_mode(state, enabled)
     source = FUNESTRA_SOURCES[asked_for[0]] if len(asked_for) == 1 else SOURCE_SYSTEM
     message_op = WindowOp(
         op="message",

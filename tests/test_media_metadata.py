@@ -9,9 +9,7 @@ from funestra.satellite_hud import actions_are_filtered
 
 from fun_time.media_metadata import (
     EXCERPT,
-    GroupIndexCache,
     build_group_index,
-    cached_group_index,
     load_metadata,
     matches_query,
     metadata_path_for,
@@ -262,102 +260,6 @@ def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):
         {"two cute dolls", "rainbow bedroom"}
     )
     assert index.entry(paths["no_metadata"]).scene_tags == frozenset()
-
-
-def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Path):
-    media_root, metadata_root, paths = _library(tmp_path, {
-        "known": _i2v_meta(action="Alpha", video_seed="1"),
-    })
-    scans: list[int] = []
-
-    def supplier() -> list[str]:
-        scans.append(1)
-        return list(paths.values())
-
-    first = cached_group_index(
-        "portrait", paths_supplier=supplier, metadata_root=metadata_root,
-        must_contain=paths["known"],
-    )
-    second = cached_group_index(
-        "portrait", paths_supplier=supplier, metadata_root=metadata_root,
-        must_contain=paths["known"],
-    )
-    assert first is second
-    assert len(scans) == 1
-
-    new_arrival = str(media_root / "portrait" / "provider" / "fresh.mp4")
-    cached_group_index(
-        "portrait", paths_supplier=supplier, metadata_root=metadata_root,
-        must_contain=new_arrival,
-    )
-    assert len(scans) == 2
-
-
-def test_a_video_with_no_record_is_no_reason_to_rebuild_the_index(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "known": _i2v_meta(action="Alpha", video_seed="1"),
-        "no_metadata": None,
-    })
-    scans: list[int] = []
-
-    def supplier() -> list[str]:
-        scans.append(1)
-        return list(paths.values())
-
-    cache = GroupIndexCache()
-    for _asked_again in range(2):
-        cache.index_for(
-            "portrait", paths_supplier=supplier, metadata_root=metadata_root,
-            must_contain=paths["no_metadata"],
-        )
-
-    assert len(scans) == 1
-
-
-def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "known": _i2v_meta(action="Alpha", video_seed="1"),
-    })
-    mine, yours = GroupIndexCache(), GroupIndexCache()
-
-    ours = [
-        cache.index_for(
-            "portrait", paths_supplier=lambda: list(paths.values()),
-            metadata_root=metadata_root,
-        )
-        for cache in (mine, yours)
-    ]
-
-    assert ours[0] is not ours[1]
-    assert ours[0] is mine.index_for(
-        "portrait", paths_supplier=list, metadata_root=metadata_root)
-    mine.clear()
-    assert ours[1] is yours.index_for(
-        "portrait", paths_supplier=list, metadata_root=metadata_root)
-
-
-def test_a_cache_learns_a_video_into_the_index_it_holds_for_its_library_without_a_rescan(
-        tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "known": _i2v_meta(action="Alpha", video_seed="1"),
-        "arrived": _i2v_meta(action="Zeta Massage", video_seed="2"),
-    })
-    cache, scans = GroupIndexCache(), []
-
-    def supplier() -> list[str]:
-        scans.append(1)
-        return [paths["known"]]
-
-    held = cache.index_for("portrait", paths_supplier=supplier, metadata_root=metadata_root)
-    cache.learn("portrait", paths["arrived"], metadata_root)
-    cache.learn("landscape", paths["arrived"], metadata_root)
-
-    assert held.contains(paths["arrived"])
-    assert cache.index_for("portrait", paths_supplier=supplier, metadata_root=metadata_root,
-                           must_contain=paths["arrived"]) is held
-    assert len(scans) == 1
-    assert cache.index_for("landscape", paths_supplier=list,
-                           metadata_root=metadata_root).entries == {}
 
 
 def test_a_video_with_actions_is_kept_by_an_action_and_never_by_its_site_action():

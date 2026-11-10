@@ -1,24 +1,17 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, play_file
+from funestra.funestra_verbs import LOCK_OFF
 
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
-from .mode_plan import EnhancementLevel, build_mode_switch_plan
-from .modes import (
-    SatelliteBuild,
-    build_one_satellite_playlist,
-    build_satellite_playlist_paths,
-    scripted_item,
-    write_playlist_file,
-)
+from .mode_plan import build_mode_switch_plan
 from .origenerator_switches import OPEN_SLIDESHOW, said_about
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
@@ -73,43 +66,17 @@ def apply_mode_switch(
     )
 
 
-@dataclass(frozen=True)
-class SatelliteFmodeInputs:
-    channel: SatelliteChannel
-    recent: bool = False
-    filter_query: str = ""
-    enhancement: EnhancementLevel = EnhancementLevel.BOTH
-    media_root: Path | None = None
-
-
-def apply_satellite_fmode(
-    satellite: SatelliteFmodeInputs, *, enabled: bool, metadata_root: Path | None = None,
-) -> None:
-    build = SatelliteBuild(
-        satellite.channel.sources, favorites_filter=enabled, recent=satellite.recent,
-        filter_query=satellite.filter_query, enhancement=satellite.enhancement,
-        media_root=satellite.media_root,
-    )
-    build_one_satellite_playlist(build, satellite.channel.playlist_file, metadata_root=metadata_root)
-    append_command(satellite.channel.cmd_file, RELOAD_PLAYLIST)
-
-
 def apply_fmode(
     *,
     funestras: Sequence[FunTimeFunestra],
     enabled: bool,
     main_build: MainListBuild,
     main_builds: MainListBuilds = BUILDS_HERE,
-    satellites: Mapping[FunTimeFunestra, SatelliteFmodeInputs],
 ) -> FModeFlowResult:
-    named = tuple(funestra for funestra in FMODE_FUNESTRAS if funestra in funestras)
-    if FunTimeFunestra.MAIN in named:
+    named = (FunTimeFunestra.MAIN,) if FunTimeFunestra.MAIN in funestras else ()
+    if named:
         main_builds.build(replace(
             main_build, settings=replace(main_build.settings, scripted_filter=enabled)))
-    for funestra in FunTimeFunestra.SATELLITES:
-        if funestra in named:
-            apply_satellite_fmode(satellites[funestra], enabled=enabled,
-                                  metadata_root=main_build.main_list.metadata_root)
     return FModeFlowResult(
         funestras=named,
         enabled=enabled,
@@ -118,44 +85,6 @@ def apply_fmode(
             f"{', '.join(funestra.label for funestra in named) or 'nothing'}"
         ),
     )
-
-
-def satellite_browse_paths(
-    browse: SatelliteBuild,
-    *,
-    regen_metadata_root: Path | None = None,
-) -> list[str]:
-    return build_satellite_playlist_paths(browse, metadata_root=regen_metadata_root)
-
-
-@dataclass(frozen=True)
-class SatelliteFilterFlowResult:
-    count: int
-    applied: bool
-    log_message: str
-
-
-def apply_satellite_filter(
-    funestra: FunTimeFunestra,
-    channel: SatelliteChannel,
-    build: SatelliteBuild,
-    *,
-    start_at_top: bool = False,
-    regen_metadata_root: Path | None = None,
-) -> SatelliteFilterFlowResult:
-    label = FunTimeFunestra(funestra).label
-    query = build.filter_query
-    enhancement = build.enhancement
-    paths = satellite_browse_paths(build, regen_metadata_root=regen_metadata_root)
-    if (query or enhancement is not EnhancementLevel.BOTH) and not paths:
-        return SatelliteFilterFlowResult(
-            0, False, f"Filter {label}: no matches for '{query or f'{enhancement} only'}'")
-    write_playlist_file(channel.playlist_file, paths, metadata_root=regen_metadata_root)
-    append_command(channel.cmd_file, RELOAD_PLAYLIST)
-    if start_at_top and paths:
-        append_command(channel.cmd_file, play_file(scripted_item(paths[0], regen_metadata_root)))
-    summary = "cleared" if not query else f"'{query}'"
-    return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 
 
 def hand_the_satellite_to_the_app(funestra: FunTimeFunestra, channel: SatelliteChannel,

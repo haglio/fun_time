@@ -9,7 +9,7 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from app_support import osr2_device, wrong_actions
+from app_support import osr2_device
 from app_support.file_channel import consume_command_file, read_flag
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import force_foreground_window, window_exists
@@ -773,5 +773,4 @@ def build_bridge_config_from_manifest(
             said_at_suffix_of(v) if (v := manifest.runtime.origenerator_dir.strip()) else ""),
         origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
         origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,
-        wrong_actions_said_in=wrong_actions.origenerators_state(),
     )

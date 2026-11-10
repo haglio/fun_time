@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
-from .fun_time_funestras import FunTimeFunestra
 from .media_actions import make_web_url_from_path
 from .media_metadata import mark_favorite, metadata_path_for
 from .origenerator_switches import RfbMode
@@ -64,24 +61,3 @@ def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState,
     page = write_lock_tab_page(tabs_dir(config.state_dir), target,
                                loopback_port=config.loopback_port)
     return state, [*ops, WindowOp(op=Op.OPEN_RFB_TAB, key=page)]
-
-
-@dataclass(frozen=True)
-class DiscardPlan:
-    condemns: bool
-    log_message: str
-    message_text: str
-
-
-def build_discard_plan(
-    *, funestra: FunTimeFunestra, current_path: str, is_favorite: bool = False
-) -> DiscardPlan:
-    if is_favorite:
-        return DiscardPlan(
-            condemns=False,
-            log_message=f"Removed from favorites on Funestra {funestra}: {current_path}",
-            message_text="Unfavorited")
-    return DiscardPlan(
-        condemns=True,
-        log_message=f"Discarding from Funestra {funestra}: {current_path}",
-        message_text=SENT_TO_TRASH)

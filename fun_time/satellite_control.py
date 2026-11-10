@@ -11,7 +11,6 @@ from .funestra_status import ScriptedStatus, scripted_fields
 
 @dataclass(frozen=True)
 class SatelliteStatus(ScriptedStatus):
-    playlist_length: int = 0
     volume: int | None = None
     muted: bool | None = None
 
@@ -35,7 +34,6 @@ def _satellite_status_from(fields: dict) -> SatelliteStatus:
     return SatelliteStatus(
         **asdict(parse_status(fields)),
         **scripted_fields(fields),
-        playlist_length=_int(fields.get("playlist_length")),
         volume=int(fields["volume"]) if fields.get("volume", "").strip().isdigit() else None,
         muted={"1": True, "0": False}.get(fields.get("muted", "").strip()),
     )
@@ -49,8 +47,3 @@ def published_satellite_status(status_file: Path) -> SatelliteStatus | None:
     return _satellite_status_from(fields) if "speed" in fields else None
 
 
-def _int(value: str | None) -> int:
-    try:
-        return int(value.strip()) if value is not None else 0
-    except ValueError:
-        return 0

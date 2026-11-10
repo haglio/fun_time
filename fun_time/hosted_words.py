@@ -23,7 +23,7 @@ def line_said_bare_to_the_hosted_app(command: Command, config: BridgeConfig) -> 
     return said_to_the_hosted_app(FunTimeFunestra.PORTRAIT.label, said.argument)
 
 
-def _about_a_satellite(command: Command) -> bool:
+def about_a_satellite(command: Command) -> bool:
     return command.satellite is not None and command.action not in THE_FUNESTRAS_OWN
 
 
@@ -51,7 +51,7 @@ def routes_to_origenerator(command: str | Command, config: BridgeConfig) -> bool
     spoken = _words_for_the_hosted_app_to_match(command)
     if spoken is not None:
         return hosts(command.satellite, config)
-    return all(_about_a_satellite(said) and hosts(said.satellite, config)
+    return all(about_a_satellite(said) and hosts(said.satellite, config)
                for said in command.halves())
 
 

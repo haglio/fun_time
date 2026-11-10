@@ -50,10 +50,10 @@ NOT_RESUMED = (
     | frozenset({"origenerator_ready", "majority"})
 )
 
-NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor", "handed_over"})
+NOT_RESUMED_PER_SATELLITE = frozenset({"handed_over"})
 
 DESCRIBES_THE_PLAYLIST = frozenset({
-    "locked", "filter", "favorites_filter", "latest", "loop", "nav_map_anchor", "widen_video",
+    "locked", "favorites_filter", "latest",
 })
 
 RESUMED_FIELDS: tuple[str, ...] = tuple(

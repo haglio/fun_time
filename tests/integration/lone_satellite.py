@@ -7,6 +7,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 
+from app_support.file_channel import read_key_values
 from app_support.win32 import process_started
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import QUIT
@@ -90,7 +91,7 @@ class LoneSatellite:
             said = (f"last published {published_ago(self.status, time.time())}, at "
                     f"{status.position_ms} of {status.duration_ms} ms, "
                     f"{'paused' if status.paused else 'not paused'}, "
-                    f"{status.playlist_length} in its list")
+                    f"{read_key_values(self.status).get('playlist_length', '?')} in its list")
         else:
             said = "never published"
         running = "is still running" if _still_running(self.process) else "has ended"

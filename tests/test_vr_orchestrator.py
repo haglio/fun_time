@@ -9,7 +9,6 @@ import logging
 import os
 import subprocess
 import textwrap
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields, replace
@@ -1584,7 +1583,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         "process_started": MagicMock(return_value=7),
         "_wait_for_funestra": MagicMock(return_value=True),
         "_wait_for_the_room": MagicMock(),
-        "start_hud_priming": MagicMock(return_value=(None, threading.Event())),
+        "start_hud_priming": MagicMock(return_value=None),
         "stop_hotkey_script": MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
         "kill_recorded_child": MagicMock(side_effect=lambda child: torn_down.append(child.pid)),
         "_release_vr_runtime": MagicMock(side_effect=lambda *_a, **_k: torn_down.append("runtime")),

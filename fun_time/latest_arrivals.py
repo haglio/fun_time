@@ -7,13 +7,10 @@ from funestra.funestra_verbs import play_next
 
 from .arrivals import Arrivals
 from .bridge_records import BridgeConfig
-from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_main_funestra_status
 from .main_list import MainListSettings
-from .media_metadata import learn_indexed_video
 from .mode_plan import kino_shows
-from .modes import collect_video_files, satellite_narrowing, scripted_item
-from .origenerator_switches import hosts
+from .modes import collect_video_files, scripted_item
 from .shared_state import BridgeState
 
 
@@ -38,50 +35,13 @@ class _TheMainFunestra:
                        play_next(scripted_item(path, self.config.regen_metadata_root)))
 
 
-@dataclass(frozen=True)
-class _ASatellite:
-    config: BridgeConfig
-    state: BridgeState
-    funestra: FunTimeFunestra
-
-    @property
-    def name(self) -> str:
-        return f"the {self.funestra.label.capitalize()} Funestra"
-
-    def in_latest(self) -> bool:
-        return self.state.satellite(self.funestra).latest
-
-    def plays_its_own_list(self) -> bool:
-        return not (self.state.satellite(self.funestra).loop
-                    or hosts(self.funestra, self.config))
-
-    def lets_through(self, paths: list[str]) -> list[str]:
-        satellite = self.state.satellite(self.funestra)
-        return satellite_narrowing(paths, satellite.favorites_filter,
-                                   filter_query=satellite.filter,
-                                   metadata_root=self.config.regen_metadata_root)
-
-    def put_up_next(self, path: str) -> None:
-        channel = self.config.satellite(self.funestra)
-        learn_indexed_video(channel.sources, path, self.config.regen_metadata_root)
-        append_command(channel.cmd_file,
-                       play_next(scripted_item(path, self.config.regen_metadata_root)))
-
-
 class LatestArrivals:
     def __init__(self, config: BridgeConfig) -> None:
         self._config = config
         self._main = Arrivals(lambda: collect_video_files(config.main_sources))
-        self._satellites = {
-            funestra: Arrivals(lambda funestra=funestra: collect_video_files(
-                config.satellite(funestra).sources))
-            for funestra in FunTimeFunestra.SATELLITES}
 
     def look(self) -> None:
-        for arrivals in (self._main, *self._satellites.values()):
-            arrivals.look()
+        self._main.look()
 
     def deliver(self, state: BridgeState) -> None:
         self._main.hand_to(_TheMainFunestra(self._config, state))
-        for funestra, arrivals in self._satellites.items():
-            arrivals.hand_to(_ASatellite(self._config, state, funestra))

@@ -64,7 +64,6 @@ from .hosted_contract import (
 from .hosted_origenerator import what_it_answers_by_voice_in
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles, genau_flick_sources
-from .lock_hud import prime_group_indexes
 from .loopback_inbox import PRESS_PORT_FILENAME
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
@@ -472,7 +471,6 @@ def log_into_the_hotkey_scripts_log(log_path: Path) -> None:
         lg.addHandler(handler)
 
 
-HUD_PRIME_TIMEOUT_S = 20.0
 POST_LOADING_RESOLVE_TIMEOUT_S = 3.0
 SETTLE_PASSES = 8
 SETTLE_WAIT_S = 1.5
@@ -574,42 +572,24 @@ def _main_browse_stills(bridge_config) -> list[str]:
     ]
 
 
-def start_hud_priming(
-    bridge_config, manifest, *, dashboard_enabled: bool
-) -> tuple[HudPublisher | None, threading.Event]:
-    primed = threading.Event()
+def start_hud_priming(bridge_config, manifest, *, dashboard_enabled: bool) -> HudPublisher | None:
     if not dashboard_enabled:
-        primed.set()
-        return None, primed
-    sources = (bridge_config.portrait.sources, bridge_config.landscape.sources)
+        return None
     cache_dir = hud_and_browser_thumbnail_cache(bridge_config.state_dir)
-    publisher = HudPublisher(
-        {
-            **{funestra.label: manifest.satellite(funestra).hud_file
-               for funestra in FunTimeFunestra.SATELLITES},
-            "main_funestra": Path(manifest.commands.main_funestra_console_file),
-            DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
-        },
-        cache_dir,
-    )
+    publisher = HudPublisher({
+        **{funestra.label: manifest.satellite(funestra).hud_file
+           for funestra in FunTimeFunestra.SATELLITES},
+        "main_funestra": Path(manifest.commands.main_funestra_console_file),
+        DASHBOARD_OSR2_PART: osr2_part_path(Path(manifest.commands.state_dir)),
+    })
 
     def _warm() -> None:
-        try:
-            prime_group_indexes(sources, bridge_config.regen_metadata_root)
-        finally:
-            primed.set()
-        _decode_every_still_ahead_of_its_first_use()
-
-    def _decode_every_still_ahead_of_its_first_use() -> None:
-        for source in sources:
-            if source:
-                prewarm_thumbnails(collect_video_files(source), cache_dir)
         prewarm_thumbnails(_main_browse_stills(bridge_config), cache_dir)
         prewarm_thumbnails(collect_video_files(genau_flick_sources(manifest.media.genau_flicks)),
                            cache_dir)
 
     threading.Thread(target=_warm, daemon=True, name="hud-warm").start()
-    return publisher, primed
+    return publisher
 
 
 def clear_last_sessions_leftovers(
@@ -647,10 +627,8 @@ def _reveal_the_app(
     *,
     manifest: LaunchManifest,
     loading_screen: RaisedLoadingScreen,
-    hud: tuple[HudPublisher | None, threading.Event],
     before_the_loading_screen_goes: Callable[[], RfbMode] = lambda: RfbMode.RFB,
 ) -> None:
-    _hold_the_reveal_until_no_satellites_map_is_blank(hud)
     rfb_mode = before_the_loading_screen_goes()
     loading_screen.progress.advance("finalizing")
 
@@ -663,14 +641,6 @@ def _reveal_the_app(
     release_the_funestras(manifest, result.main_mode)
     release_the_headset(loading_screen.progress_file.parent)
     _band_again_after_the_overlay_hands_activation_on(hwnds_by_window, rfb_mode)
-
-
-def _hold_the_reveal_until_no_satellites_map_is_blank(
-        hud: tuple[HudPublisher | None, threading.Event]) -> None:
-    hud_publisher, hud_primed = hud
-    if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
-        logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
-                       HUD_PRIME_TIMEOUT_S)
 
 
 def _band_again_after_the_overlay_hands_activation_on(
@@ -1032,7 +1002,7 @@ def _open_the_session(
     result: StartupResult,
     launch: SessionLaunch,
     loading_screen: RaisedLoadingScreen,
-    hud,
+    hud_publisher: HudPublisher | None,
     prepared_voice,
     *,
     ahk_cmd_file: Path,
@@ -1041,7 +1011,7 @@ def _open_the_session(
 ) -> RunningSession:
     manifest = launch.manifest
     dispatch_runner = _build_the_dispatch_loop(
-        result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud[0], env=env)
+        result, launch, ahk_cmd_file=ahk_cmd_file, hud_publisher=hud_publisher, env=env)
     voice_controller, voice_thread = start_voice_control(
         prepared_voice, dispatch_runner=dispatch_runner)
 
@@ -1050,7 +1020,7 @@ def _open_the_session(
 
     if env.show_overlays:
         _reveal_the_app(result, manifest=manifest, loading_screen=loading_screen,
-                        hud=hud, before_the_loading_screen_goes=finish)
+                        before_the_loading_screen_goes=finish)
     else:
         finish()
 
@@ -1106,7 +1076,7 @@ def run_session(
                              project_dir=hotkeys.project_dir),
         ahk_cmd_file)
 
-    hud = start_hud_priming(bridge_config, manifest, dashboard_enabled=dashboard_enabled)
+    hud_publisher = start_hud_priming(bridge_config, manifest, dashboard_enabled=dashboard_enabled)
 
     logger.info("Running startup sequence")
     try:
@@ -1152,7 +1122,7 @@ def run_session(
 
     try:
         running = _open_the_session(
-            result, launch, loading_screen, hud, prepared_voice,
+            result, launch, loading_screen, hud_publisher, prepared_voice,
             ahk_cmd_file=ahk_cmd_file, pids_file=pids_file, env=env)
     except OrigeneratorNeverCameUp:
         _take_down_the_startup(

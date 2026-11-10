@@ -11,7 +11,6 @@ from app_support.osr2_device import Osr2Mode
 from app_support.testing import file_channel_clock_at
 from funestra.hud_button import Button
 from funestra.hud_placement import HudCorner
-from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import OSR2_PARKED, MainHudModel, read_main_hud
 from funestra.modes import MainMode, Osr2State
 from funestra.osr2_visualizer import DriveHud, publish_drive
@@ -24,10 +23,8 @@ from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.media_metadata import favorite_recorded_in, mark_favorite, metadata_path_for
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
-from tests.made_up_genau import kino_upscales_at
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -70,9 +67,8 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
          "landscape": tmp_path / "landscape_hud.json",
          "main_funestra": tmp_path / "main_player_console.json",
          DASHBOARD_OSR2_PART: osr2_part_path(tmp_path)},
-        tmp_path / "thumbs",
     )
-    return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
+    return HudFeed(config=config or hosting_config(tmp_path), publisher=publisher)
 
 
 def publish_satellite_status(path: Path, video, *,
@@ -98,11 +94,6 @@ def dashboard(tmp_path) -> dict:
     return json.loads(osr2_part_path(tmp_path).read_text(encoding="utf-8"))
 
 
-def f_mode_button(published: dict) -> dict:
-    return next(button for row in published["rows"] for button in row
-                if button["command"].endswith("_fmode"))
-
-
 def reset_button(published: dict) -> dict:
     return next(button for row in published["rows"] for button in row
                 if button["command"].endswith("reset"))
@@ -118,11 +109,6 @@ def ten_second_steps(published: dict) -> list[dict]:
             if button.get("command", "").endswith(("_nudge_prev", "_nudge_next"))]
 
 
-def version_button(published: dict) -> dict:
-    return next(button for row in published["rows"] for button in row
-                if button["command"].endswith("_cycle_version"))
-
-
 def broker_is_up(published: dict) -> bool:
     (broker,) = published["osr2_controls"]
     assert broker["command"] == "broker_panel"
@@ -130,24 +116,6 @@ def broker_is_up(published: dict) -> bool:
 
 
 class TestHudPublishing:
-    def test_each_satellites_hud_carries_its_own_video_and_lock(self, tmp_path):
-        feed, state = make_feed(tmp_path), BridgeState()
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-        state = replace(state, portrait=SatelliteState(locked=True, filter="alpha"))
-
-        feed.publish(state)
-
-        portrait = hud(tmp_path, "portrait")
-        landscape = hud(tmp_path, "landscape")
-        assert portrait["funestra"] == "portrait"
-        assert portrait["locked"] is True
-        assert portrait["title"] == "Locked · Shuffle · alpha"
-        assert portrait["corner"]["path"] == "C:/v/p.mp4"
-        assert landscape["locked"] is False
-        assert landscape["corner"]["path"] == "C:/v/l.mp4"
-
-
     def test_a_satellite_the_hosted_app_has_wears_that_apps_own_hud(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(
@@ -261,60 +229,6 @@ class TestHudPublishing:
 
         assert hud(tmp_path, "portrait")["item_note"] == "Enhancing…"
 
-    def test_f_mode_reaches_a_satellite_only_on_its_hud_from_the_sessions_state(self, tmp_path):
-        feed, state = make_feed(tmp_path), BridgeState()
-        for funestra in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{funestra}_status.txt",
-                                     f"C:/v/{funestra}.mp4")
-        state = replace(state, portrait=SatelliteState(favorites_filter=True))
-
-        feed.publish(state)
-
-        portrait = hud(tmp_path, "portrait")
-        landscape = hud(tmp_path, "landscape")
-        assert portrait["title"] == f"Unlocked · Shuffle · {F_MODE_LABEL}"
-        assert f_mode_button(portrait)["lit"] is True
-        assert landscape["title"] == "Unlocked · Shuffle"
-        assert not f_mode_button(landscape).get("lit")
-
-    def test_a_satellite_at_every_default_draws_its_reset_faded(self, tmp_path):
-        feed = make_feed(tmp_path)
-        for satellite in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{satellite}_status.txt", f"C:/v/{satellite}.mp4")
-
-        feed.publish(replace(BridgeState(), portrait=SatelliteState(locked=True)))
-
-        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
-        assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
-
-    def test_a_satellite_playing_off_normal_speed_has_a_reset_to_offer(self, tmp_path):
-        feed = make_feed(tmp_path)
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
-                                 speed=1.5)
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4")
-
-        feed.publish(BridgeState())
-
-        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
-        assert reset_button(hud(tmp_path, "landscape"))["dim"] is True
-
-    def test_a_satellites_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscripted_video(
-            self, tmp_path):
-        feed = make_feed(tmp_path)
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
-                                 has_funscript=True)
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4",
-                                 has_funscript=True)
-
-        feed.publish(BridgeState(osr2_funestra=FunTimeFunestra.PORTRAIT))
-
-        assert not skip_ahead(hud(tmp_path, "portrait")).get("dim")
-        assert skip_ahead(hud(tmp_path, "landscape"))["dim"] is True
-
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4")
-        feed.publish(BridgeState(osr2_funestra=FunTimeFunestra.PORTRAIT))
-
-        assert skip_ahead(hud(tmp_path, "portrait"))["dim"] is True
 
     def test_the_main_funestras_skip_ahead_is_pressable_only_with_the_osr2_and_a_funscript(
             self, tmp_path):
@@ -327,37 +241,6 @@ class TestHudPublishing:
 
         assert not held.get("dim")
         assert skip_ahead(console(tmp_path))["dim"] is True
-
-    def test_a_satellite_on_a_video_of_ten_seconds_or_shorter_dims_its_ten_second_steps(
-            self, tmp_path):
-        feed = make_feed(tmp_path)
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/portrait.mp4",
-                                 duration_ms=10_000)
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/landscape.mp4",
-                                 duration_ms=10_001)
-
-        feed.publish(BridgeState())
-
-        assert [step.get("dim") for step in ten_second_steps(hud(tmp_path, "portrait"))] == [
-            True, True]
-        assert [step.get("dim") for step in ten_second_steps(hud(tmp_path, "landscape"))] == [
-            None, None]
-
-    def test_the_versions_button_lights_for_a_video_the_library_has_twice(self, tmp_path, monkeypatch):
-        media_root = tmp_path / "AI"
-        upscale = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "provider" / "clip_topaz.mp4"
-        original = media_root / "1_sorted" / "provider" / "portrait" / "clip.mp4"
-        for path in (upscale, original):
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("x", encoding="utf-8")
-        feed = make_feed(tmp_path, config=make_config(tmp_path, regen_media_root=media_root))
-        publish_satellite_status(tmp_path / "portrait_status.txt", str(upscale))
-        publish_satellite_status(tmp_path / "landscape_status.txt", str(original))
-
-        feed.publish(BridgeState())
-
-        assert not version_button(hud(tmp_path, "portrait")).get("dim")
-        assert version_button(hud(tmp_path, "landscape"))["dim"] is True
 
 
     def test_the_session_never_fades_a_reset_belonging_to_the_hosted_show(self, tmp_path):
@@ -545,87 +428,21 @@ class TestHudPublishing:
         feed.publish(state)
         assert not reset_button(console(tmp_path)).get("dim")
 
-    def test_each_satellites_hud_says_whether_its_own_video_is_a_favorite(self, tmp_path):
-        feed, state = make_feed(tmp_path), BridgeState()
-        feed.config.regen_metadata_root = tmp_path / "metadata"
-        portrait, landscape = tmp_path / "v" / "p.mp4", tmp_path / "v" / "l.mp4"
-        publish_satellite_status(tmp_path / "portrait_status.txt", str(portrait))
-        publish_satellite_status(tmp_path / "landscape_status.txt", str(landscape))
-        mark_favorite(portrait, feed.config.regen_metadata_root, True)
-
-        feed.publish(state)
-
-        portrait = hud(tmp_path, "portrait")
-        landscape = hud(tmp_path, "landscape")
-        assert portrait["is_favorite"] is True
-        assert landscape["is_favorite"] is False
-
-    def test_a_videos_record_is_re_read_only_when_it_moves(self, tmp_path):
-        feed, state = make_feed(tmp_path), BridgeState()
-        feed.config.regen_metadata_root = tmp_path / "metadata"
-        video = tmp_path / "v" / "p.mp4"
-        publish_satellite_status(tmp_path / "portrait_status.txt", str(video))
-        record = metadata_path_for(video, feed.config.regen_metadata_root)
-        record.parent.mkdir(parents=True)
-        record.write_text('{"video": {}}', encoding="utf-8")
-
-        with patch("fun_time.hud_feed.favorite_recorded_in", side_effect=favorite_recorded_in) as read:
-            feed.publish(state)
-            feed.publish(state)
-            assert read.call_count == 1, "an unmoved record is not read again"
-
-            mark_favorite(video, feed.config.regen_metadata_root, True)
-            feed.publish(state)
-            assert read.call_count == 2
-
-        portrait = hud(tmp_path, "portrait")
-        assert portrait["is_favorite"] is True
 
     def test_publishing_keeps_up_with_five_second_videos_below_the_tick_rate(self, tmp_path):
         a_satellites_video_s = 5.0
         assert LOOP_TICK_S < PUBLISH_INTERVAL_S < a_satellites_video_s / 20
         feed, state = make_feed(tmp_path), BridgeState()
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
 
-        with patch.object(feed.publisher, "publish", return_value=True) as publish:
+        with patch.object(feed.publisher, "publish_text", return_value=True) as publish:
             feed.publish_due(state, now=100.0)
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S / 2)
-            assert publish.call_count == 2, "one publish per Funestra, once"
+            assert publish.call_count == 4, "one publish per Funestra and the OSR2 part, once"
 
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S)
 
-        assert publish.call_count == 4
+        assert publish.call_count == 8
 
-    def test_a_blank_status_is_a_read_that_lost_a_race_not_an_empty_satellite(self, tmp_path):
-        feed, state = make_feed(tmp_path), BridgeState()
-        status = tmp_path / "portrait_status.txt"
-        publish_satellite_status(status, "C:/v/p.mp4")
-        feed.publish(state)
-
-        status.write_text("", encoding="utf-8")
-        feed.publish(state)
-
-        portrait = hud(tmp_path, "portrait")
-        assert portrait["corner"]["path"] == "C:/v/p.mp4"
-
-    def test_a_status_that_cannot_be_read_keeps_the_speed_it_last_named(self, tmp_path):
-        feed, state = make_feed(tmp_path), BridgeState()
-        status = tmp_path / "portrait_status.txt"
-        publish_satellite_status(status, "C:/v/p.mp4", speed=1.5)
-        feed.publish(state)
-
-        status.write_text("", encoding="utf-8")
-        feed.publish(state)
-
-        assert not reset_button(hud(tmp_path, "portrait")).get("dim")
-
-    def test_the_map_stays_up_under_omnipause_to_be_seen_and_clicked(self, tmp_path):
-        feed = make_feed(tmp_path)
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-
-        feed.publish(BridgeState(omni_paused=True))
-
-        assert hud(tmp_path, "portrait")["corner"]["path"] == "C:/v/p.mp4"
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_hud(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()

@@ -51,7 +51,6 @@ class BridgeConfig:
     origenerator_paused_file: Path | None = None
     origenerator_lock_phrases: frozenset[str] = frozenset()
     origenerator_status_file: Path | None = None
-    wrong_actions_said_in: Path | None = None
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None

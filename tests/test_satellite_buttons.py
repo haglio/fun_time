@@ -1,190 +1,29 @@
 from __future__ import annotations
 
-from itertools import pairwise
+from funestra.hud_icons import MINIMIZE_ICON, shared_icon
 
-import pytest
-from funestra.hud_button import Button
-from funestra.hud_icons import (
-    BACK_ICON,
-    FMODE_ICON,
-    FORWARD_ICON,
-    LOCK_ICON,
-    MINIMIZE_ICON,
-    NEXT_ICON,
-    PREVIOUS_ICON,
-    SHARED_ICON,
-    shared_icon,
-    shared_icon_name,
-)
-from shared_ui.icon_geometry import icon_names
-
-from fun_time.satellite_buttons import HudState, funestra_rows
+from fun_time.satellite_buttons import window_buttons
 
 
-def _band(**fields) -> tuple[Button, ...]:
-    return funestra_rows("portrait", HudState(**fields))[-1]
+def test_a_satellites_own_buttons_are_its_minimize_button_and_the_portraits_crown():
+    portrait = window_buttons("portrait", in_vr=False, crowned=False)
 
-
-def _names(buttons: tuple[Button, ...]) -> list[str]:
-    return [button.command.removeprefix("portrait_") for button in buttons]
-
-
-def _faces() -> dict[str, str]:
-    band = _band(latest=False)
-    return dict(zip(_names(band), (button.icon for button in band), strict=True))
-
-
-def test_the_band_is_the_funestras_own_controls_in_the_main_huds_order():
-    assert _names(_band(latest=False)) == [
-        "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "lock", "trash", "fmode",
-        "reset", "shuffle", "latest", "cycle_version", "minimize", "crown"]
-
-
-def test_every_button_posts_that_funestras_own_verb():
-    for funestra in ("portrait", "landscape"):
-        for button in funestra_rows(funestra, HudState(latest=True))[-1]:
-            assert button.command.startswith(f"{funestra}_"), button.command
-            assert button.tooltip, button.command
-
-
-def test_the_band_breaks_into_the_groups_the_main_hud_breaks_into():
-    where_the_controls_change_subject = [
-        button.command.removeprefix("portrait_")
-        for button in _band(latest=False) if button.group_break]
-
-    assert where_the_controls_change_subject == ["lock", "reset", "shuffle", "cycle_version", "minimize"]
-
-
-def test_the_states_light_and_nothing_else_does():
-    band = _band(locked=True, favorites_filter=True, latest=True)
-    lit = dict(zip(_names(band), band, strict=True))
-
-    assert lit["lock"].lit
-    assert lit["lock"].favorite
-    assert lit["fmode"].lit
-    assert lit["fmode"].favorite
-    assert lit["latest"].lit
-    assert not lit["shuffle"].lit
-    assert not any(lit[name].lit for name in (
-        "prev", "nudge_prev", "nudge_next", "next", "funscript_jump", "trash", "reset",
-        "cycle_version", "minimize"))
-    shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False), strict=True))
-    assert shuffled["shuffle"].lit
-    assert not shuffled["latest"].lit
-
-
-def test_the_order_pair_is_declared_only_where_the_order_can_be_switched():
-    with_no_order_to_switch_from_here = _names(_band(latest=None))
-
-    assert "shuffle" not in with_no_order_to_switch_from_here
-    assert "latest" not in with_no_order_to_switch_from_here
-    assert "shuffle" in _names(_band(latest=False))
-
-
-def test_the_bin_takes_something_away():
-    trash = next(b for b in _band() if b.command == "portrait_trash")
-
-    assert trash.danger
-
-
-def test_the_hud_is_one_band_ending_in_the_minimize_button_and_the_crown():
-    rows = funestra_rows("portrait")
-
-    assert len(rows) == 1
-    assert _names(rows[0])[-2:] == ["minimize", "crown"]
-    assert rows[0][-2].icon == MINIMIZE_ICON
+    assert [button.command for button in portrait] == ["portrait_minimize", "portrait_crown"]
+    assert [button.icon for button in portrait] == [MINIMIZE_ICON, shared_icon("crown")]
 
 
 def test_a_funestra_in_the_headset_has_no_window_to_minimize():
-    plain = funestra_rows("portrait", HudState(latest=False, in_vr=True))
-
-    assert _names(plain[-1])[-1] == "cycle_version"
-
-
-def test_the_faces_are_the_familys_marks_where_it_has_them():
-    faces = _faces()
-    named = {name: shared_icon_name(face) for name, face in faces.items()
-             if face.startswith(SHARED_ICON)}
-
-    assert named["trash"] == "trash"
-    assert named["reset"] == "reset"
-    assert not set(named.values()) - set(icon_names())
-    assert faces["fmode"] == FMODE_ICON
-
-
-def test_the_gaps_fall_between_groups_and_nowhere_else():
-    for previous, button in pairwise(_band(latest=False)):
-        assert button.group_break == (
-            previous.command.removeprefix("portrait_")
-            in ("funscript_jump", "fmode", "reset", "latest", "cycle_version"))
-
-
-def test_skip_ahead_rides_the_transport_as_the_main_funestras_does():
-    jump = {b.command: b for b in _band(has_osr2=True, has_funscript=True)}["portrait_funscript_jump"]
-
-    assert shared_icon_name(jump.icon) == "funscript_jump"
-    assert jump.tooltip == "Skip ahead to where this video's scripting starts up again"
-    assert not jump.group_break
-    assert not jump.lit
-    assert not jump.dim
-
-
-@pytest.mark.parametrize(("has_osr2", "has_funscript", "why"), [
-    (False, True, "this Funestra doesn't have the OSR2"),
-    (True, False, "this video has no funscript"),
-    (False, False, "this Funestra doesn't have the OSR2 and this video has no funscript"),
-])
-def test_skip_ahead_grays_out_without_the_osr2_or_a_funscript_and_says_which(
-        has_osr2, has_funscript, why):
-    jump = {b.command: b for b in _band(has_osr2=has_osr2, has_funscript=has_funscript)
-            }["portrait_funscript_jump"]
-
-    assert jump.dim
-    assert jump.tooltip == f"Skip ahead to where this video's scripting starts up again ({why})"
-
-
-def test_no_face_is_typed():
-    assert not {face for face in _faces().values() if len(face) == 1 and not face.isalnum()}
-
-
-def test_the_transport_the_lock_and_the_crown_wear_the_familys_marks():
-    faces = _faces()
-
-    assert [faces[name] for name in ("prev", "nudge_prev", "nudge_next", "next", "lock", "crown")] == [
-        PREVIOUS_ICON, BACK_ICON, FORWARD_ICON, NEXT_ICON, LOCK_ICON, shared_icon("crown")]
-
-
-def test_the_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter():
-    short = {b.command: b for b in _band(longer_than_a_step=False)}
-    longer = {b.command: b for b in _band(longer_than_a_step=True)}
-
-    for step in ("portrait_nudge_prev", "portrait_nudge_next"):
-        assert short[step].dim
-        assert "this video is 10s or shorter" in short[step].tooltip
-        assert not longer[step].dim
-        assert "shorter" not in longer[step].tooltip
-
-
-def test_the_versions_button_is_dim_where_the_video_has_only_itself():
-    alone = {b.command: b for b in _band()}["portrait_cycle_version"]
-    paired = {b.command: b for b in _band(has_other_versions=True)}["portrait_cycle_version"]
-
-    assert alone.dim
-    assert "none for this one" in alone.tooltip
-    assert not paired.dim
-    assert "none" not in paired.tooltip
-    assert shared_icon_name(_faces()["cycle_version"]) == "versions"
+    assert window_buttons("portrait", in_vr=True, crowned=False) == ()
 
 
 def test_the_portrait_funestras_crown_is_lit_while_it_holds_the_crown():
-    held = _band(crowned=True)[-1]
-    given_away = _band(crowned=False)[-1]
+    held = window_buttons("portrait", in_vr=False, crowned=True)[-1]
+    given_away = window_buttons("portrait", in_vr=False, crowned=False)[-1]
 
     assert (held.command, held.lit, given_away.lit) == ("portrait_crown", True, False)
     assert held.tooltip.startswith("Crowned")
 
 
 def test_only_the_portrait_funestra_wears_a_crown():
-    assert "landscape_crown" not in [
-        button.command for row in funestra_rows("landscape", HudState(latest=False))
-        for button in row]
+    assert [button.command for button in window_buttons("landscape", in_vr=False, crowned=False)
+            ] == ["landscape_minimize"]
