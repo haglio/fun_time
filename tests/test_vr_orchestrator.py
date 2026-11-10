@@ -971,7 +971,7 @@ class TestTheOnePin:
         with patch.object(orchestrator, "load_config", return_value=config), \
              mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"), \
-             patch.object(orchestrator, "stamp_shortcut_aumid") as stamp:
+             patch.object(orchestrator, "stamp_the_users_pin_outside_every_checkout") as stamp:
             orchestrator.main(["--check"])
 
         stamp.assert_not_called()
@@ -981,7 +981,7 @@ class TestTheOnePin:
              patch.object(orchestrator, "DEFAULT_CONFIG_PATH", config.config_path), \
              mutex_free(), \
              patch.object(orchestrator, "install_exception_logging"), \
-             patch.object(orchestrator, "stamp_shortcut_aumid") as stamp:
+             patch.object(orchestrator, "stamp_the_users_pin_outside_every_checkout") as stamp:
             orchestrator.main(["--check"])
 
         stamp.assert_called_once_with()

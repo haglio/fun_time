@@ -25,9 +25,9 @@ from fun_time.session_handoff import (
     VR,
     SessionLaunch,
     a_session_is_playing,
-    clear_handoff_request,
     crossing_progress_path,
     drop_transition_screen,
+    forget_a_request_a_crash_left_behind,
     forget_the_kept_origenerator,
     hand_over_if_asked,
     handoff_request_path,
@@ -141,8 +141,8 @@ class TestTheRequestFile:
 
     def test_clearing_is_what_startup_does_to_a_request_a_crash_left(self, tmp_path: Path):
         request_handoff(tmp_path, DESKTOP)
-        clear_handoff_request(tmp_path)
-        clear_handoff_request(tmp_path)
+        forget_a_request_a_crash_left_behind(tmp_path)
+        forget_a_request_a_crash_left_behind(tmp_path)
         assert not handoff_request_path(tmp_path).exists()
 
     def test_a_way_back_is_asked_for_with_no_esc_of_its_own(self, tmp_path: Path):

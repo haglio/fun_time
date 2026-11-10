@@ -148,3 +148,14 @@ def test_both_the_desktop_and_headset_launches_gate_on_the_engine():
     for entry_point in (desktop, headset):
         source = Path(entry_point.__file__).read_text(encoding="utf-8")
         assert "engine_missing_abort(config" in source
+
+
+def test_the_loading_screen_comes_down_before_the_alert_it_would_cover(tmp_path: Path):
+    funestras = _Funestras(tmp_path / "vendor", tmp_path / "no-shared-copy")
+    order: list[str] = []
+
+    engine_missing_abort(_config(), run=funestras,
+                         alert=lambda _text: order.append("alert"),
+                         uncover=lambda: order.append("uncovered"))
+
+    assert order == ["uncovered", "alert"]

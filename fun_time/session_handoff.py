@@ -113,7 +113,7 @@ def request_handoff(
     path.write_text(" ".join(words) + "\n", encoding="utf-8")
 
 
-def clear_handoff_request(state_dir: str | Path) -> None:
+def forget_a_request_a_crash_left_behind(state_dir: str | Path) -> None:
     handoff_request_path(state_dir).unlink(missing_ok=True)
 
 
