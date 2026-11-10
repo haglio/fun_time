@@ -1668,6 +1668,26 @@ class TestOpeningAVrSession:
 
         assert heard == [True]
 
+    def test_the_waits_for_the_headset_and_its_room_keep_the_loading_screen_up(self, config):
+        heard: list[bool] = []
+
+        def waits(result):
+            def wait(*_args, **_kwargs):
+                heard.append(heard_from_again_once_stale(
+                    config.paths.state_dir / PROGRESS_FILENAME,
+                    stale_after_s=STARTUP_STALE_TIMEOUT_S))
+                return result
+            return wait
+
+        _end_a_vr_session(
+            orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+            _wait_for_funestra=MagicMock(side_effect=waits(True)),
+            _wait_for_the_room=MagicMock(side_effect=waits(True)),
+        )
+
+        assert heard == [True, True], (
+            "the two waits add up past the headset's loading screen's patience")
+
     def test_a_session_he_quit_says_esc_cancels_closing_fun_time_vr(self, config):
         offered = _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 
