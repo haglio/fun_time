@@ -135,7 +135,7 @@ class TestQuadLayerPlacement:
         )
         assert height == pytest.approx(width / (9 / 16), rel=1e-6)
 
-    def test_orientation_is_yaw_only_and_unit_length(self):
+    def test_a_lifted_screens_quad_does_not_lean_back(self):
         _position, orientation, _size = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
         x, y, z, w = orientation
         assert x == 0.0

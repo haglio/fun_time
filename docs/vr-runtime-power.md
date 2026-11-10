@@ -33,7 +33,7 @@ had no one left to quit it, and nothing on screen to quit it with.
 
 ## What the fix runs
 
-Pimax publishes no CLI for this. `_QUIT_SERVICES` are the commands its own
+Pimax publishes no CLI for this. `_SERVICES_THE_CLIENTS_OWN_EXIT_QUITS` are the commands its own
 client logs itself running on Exit, through `Runtime\launcher.exe`, in that
 order — `PiPlatformService` then `PiPlayService`, whose quit signals
 `pi_server` and blocks until it has gone. The client is killed first because

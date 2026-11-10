@@ -18,6 +18,7 @@ from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCEL_WORD,
     CANCELING,
+    FINALIZING_UNDER_A_FULL_BAR,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     STARTING_VOICE_COMMANDS,
@@ -38,7 +39,7 @@ VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("funestras", "Waiting for Funestras...", 9.0),
     ACTIVATING_ORIGENERATOR,
     STARTING_VOICE_COMMANDS,
-    Phase("finalizing", "Finalizing...", 0.0),
+    FINALIZING_UNDER_A_FULL_BAR,
 )
 
 VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
