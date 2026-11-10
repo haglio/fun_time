@@ -103,7 +103,8 @@ class TestResolveRole:
              patch("fun_time.fun_time_windows.find_window_by_title", side_effect=title_lookup):
             assert windows.hwnd("dashboard") == 9999
 
-    def test_each_satellite_falls_back_to_its_own_exact_caption(self):
+    def test_satellites_one_word_apart_are_each_found_by_the_whole_caption(self):
+        assert SATELLITE_PORTRAIT_TITLE.split()[1:] == SATELLITE_LANDSCAPE_TITLE.split()[1:]
         windows = make_windows()
 
         def title_lookup(title, exact=False):
@@ -120,9 +121,11 @@ class TestResolveRole:
     def test_a_dead_hosted_window_handle_is_dropped_and_re_resolved(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
 
+        its_loading_screen_found_first = 8888
+
         with patch("fun_time.fun_time_windows.find_window_for_process",
-                   return_value=8888):
-            assert windows.hwnd("origenerator") == 8888
+                   return_value=its_loading_screen_found_first):
+            assert windows.hwnd("origenerator") == its_loading_screen_found_first
 
         with patch("fun_time.fun_time_windows.window_exists", return_value=False), \
              patch("fun_time.fun_time_windows.find_window_for_process",
@@ -230,7 +233,7 @@ class TestTopmostBands:
         assert self._promotions(windows, "restack_rfb_mode",
                                 rfb_mode=RfbMode.ORIGENERATOR, paused=True) == []
 
-    def test_origenerator_in_the_browsers_place_takes_the_browser_out_of_the_band(self):
+    def test_a_late_restore_finds_the_browser_already_out_of_the_band(self):
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restack_rfb_mode",

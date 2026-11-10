@@ -154,15 +154,17 @@ class TestSetAlwaysOnTop:
 
 
 class TestAWindowThatHasStoppedAnswering:
-    @staticmethod
+    WHAT_A_CALL_THAT_NEVER_GAVE_UP_WOULD_COST_S = 10
+
+    @classmethod
     @contextlib.contextmanager
-    def _stalled(monkeypatch):
+    def _stalled(cls, monkeypatch):
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         released = threading.Event()
 
         def block(*_args):
-            released.wait(10)
+            released.wait(cls.WHAT_A_CALL_THAT_NEVER_GAVE_UP_WOULD_COST_S)
 
         try:
             with _user32_mocked() as mock:
@@ -192,7 +194,7 @@ class TestAWindowThatHasStoppedAnswering:
             restore_window(111, activate=False)
             move_window(111, Rect(0, 0, 10, 10))
 
-            assert time.monotonic() - started < 5
+            assert time.monotonic() - started < self.WHAT_A_CALL_THAT_NEVER_GAVE_UP_WOULD_COST_S / 2
 
     def test_a_pass_over_every_managed_window_stalled_costs_a_few_seconds(self):
         assert len(MANAGED_WINDOWS) * win32.STALLED_WINDOW_TIMEOUT_S < 10
@@ -231,23 +233,31 @@ class TestAWindowThatHasStoppedAnswering:
         assert order == [1, 2, 3]
         assert time.monotonic() - started < 5
 
-    def test_a_call_that_outlasted_the_wait_still_lands_when_the_window_answers(
+    def test_a_call_given_up_on_lands_after_whatever_was_placed_meanwhile(
             self, monkeypatch):
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        stalled, answers_at_once = 111, 222
         answering = threading.Event()
-        landed = threading.Event()
+        late_one_landed = threading.Event()
+        landed: list[int] = []
 
-        def block(*_args):
-            answering.wait(10)
-            landed.set()
+        def place(hwnd, *_args):
+            if hwnd == stalled:
+                answering.wait(10)
+            landed.append(hwnd)
+            if hwnd == stalled:
+                late_one_landed.set()
 
         with _user32_mocked() as mock:
-            mock.SetWindowPos.side_effect = block
-            set_always_on_top(111, True)
-            assert not landed.is_set()
+            mock.SetWindowPos.side_effect = place
+            set_always_on_top(stalled, True)
+            set_always_on_top(answers_at_once, True)
+            assert landed == [answers_at_once]
             answering.set()
-            assert landed.wait(5), "the call the caller gave up on never happened"
+            assert late_one_landed.wait(5), "the call the caller gave up on never happened"
+
+        assert landed == [answers_at_once, stalled]
 
     def test_a_window_that_is_not_answering_takes_its_calls_in_the_order_they_were_made(
             self, monkeypatch):
@@ -808,7 +818,10 @@ class TestListChildPids:
             assert win32_process.list_child_pids(500) == []
             mock.CloseHandle.assert_not_called()
 
-    def test_the_snapshot_answers_as_a_handle_not_a_32_bit_int(self):
+    def test_a_failed_snapshot_equals_invalid_handle_value_only_declared_a_handle(self):
+        as_an_undeclared_restype_answers_it = -1
+
+        assert as_an_undeclared_restype_answers_it != win32_process._INVALID_HANDLE_VALUE
         assert win32_process._kernel32.CreateToolhelp32Snapshot.restype is (
             ctypes.wintypes.HANDLE)
         assert win32_process._kernel32.CreateToolhelp32Snapshot.argtypes == [

@@ -47,6 +47,10 @@ def find_origenerators_window(pid: int) -> int:
     return find_window_for_process(pid, is_origenerators_caption, include_hidden=True)
 
 
+def _by_pid_else_by_its_whole_caption(pid: int, caption: str) -> int:
+    return find_window_by_pid(pid) or find_window_by_title(caption, exact=True)
+
+
 def _minimize_to_its_taskbar_button(hwnd: int) -> None:
     minimize_window(hwnd, activate_the_next_window=False)
 
@@ -82,20 +86,17 @@ class FunTimeWindows:
         self._minimized_hwnds: list[int] = []
 
     def hwnd(self, window_name: str) -> int:
+        if window_name == ORIGENERATOR_WINDOW:
+            self._forget_origenerators_loading_screen_once_it_closes()
         hwnd = self._hwnds_kept_for_when_hidden.get(window_name, 0)
-        if hwnd and window_name == ORIGENERATOR_WINDOW and not window_exists(hwnd):
-            self._hwnds_kept_for_when_hidden.pop(window_name, None)
-            hwnd = 0
         if hwnd:
             return hwnd
         if window_name == "main_funestra":
-            hwnd = find_window_by_pid(self.pids.main_funestra) or find_window_by_title("Main Funestra", exact=True)
+            hwnd = _by_pid_else_by_its_whole_caption(self.pids.main_funestra, "Main Funestra")
         elif window_name == "portrait":
-            hwnd = (find_window_by_pid(self.pids.portrait)
-                    or find_window_by_title(SATELLITE_PORTRAIT_TITLE, exact=True))
+            hwnd = _by_pid_else_by_its_whole_caption(self.pids.portrait, SATELLITE_PORTRAIT_TITLE)
         elif window_name == "landscape":
-            hwnd = (find_window_by_pid(self.pids.landscape)
-                    or find_window_by_title(SATELLITE_LANDSCAPE_TITLE, exact=True))
+            hwnd = _by_pid_else_by_its_whole_caption(self.pids.landscape, SATELLITE_LANDSCAPE_TITLE)
         elif window_name == "dashboard":
             hwnd = self._dashboard_hwnd()
         elif window_name == "rfb":
@@ -105,6 +106,11 @@ class FunTimeWindows:
         if hwnd:
             self._hwnds_kept_for_when_hidden[window_name] = hwnd
         return hwnd
+
+    def _forget_origenerators_loading_screen_once_it_closes(self) -> None:
+        hwnd = self._hwnds_kept_for_when_hidden.get(ORIGENERATOR_WINDOW, 0)
+        if hwnd and not window_exists(hwnd):
+            del self._hwnds_kept_for_when_hidden[ORIGENERATOR_WINDOW]
 
     def _dashboard_hwnd(self) -> int:
         hwnd = find_window_by_pid(self.pids.dashboard) if self.pids.dashboard else 0
