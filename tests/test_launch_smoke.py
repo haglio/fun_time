@@ -38,7 +38,7 @@ def test_the_launchers_name_modules_to_check():
     assert [module for launcher, module in LAUNCHED if launcher.endswith(".vbs")]
 
 
-def test_every_launcher_is_checked_none_listed_here_by_hand():
+def test_the_checked_launchers_are_read_from_their_own_specs():
     launchers_checked = {launcher for launcher, _module in LAUNCHED if launcher.endswith(".vbs")}
 
     assert launchers_checked == {

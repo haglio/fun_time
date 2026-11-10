@@ -469,7 +469,7 @@ def sibling_checkouts_line(
     dirs = checkouts[SIBLING_CHECKOUTS_KEY]
     siblings_line = (
         f"{SIBLING_CHECKOUTS_KEY}: (empty — every program of the session runs the "
-        "shared code its venv installs, so a branch of that code would show nothing here)"
+        "shared code its venv installs, so the session would show no branch of that code)"
         if not dirs else f"{SIBLING_CHECKOUTS_KEY}: " + os.pathsep.join(dirs)
     )
     origenerator = checkouts["origenerator_dir"]

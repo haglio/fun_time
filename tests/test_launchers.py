@@ -21,7 +21,7 @@ STATE = PROJECT_DIR / "state"
 on_windows = pytest.mark.skipif(sys.platform != "win32", reason="the Windows script host")
 
 
-def test_main_sh_never_runs_a_path_python_that_dies_importing_the_siblings():
+def test_main_sh_never_runs_a_path_python_that_dies_before_any_log():
     text = (PROJECT_DIR / "main.sh").read_text(encoding="utf-8")
 
     assert ".venv/Scripts/python.exe" in text

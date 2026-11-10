@@ -55,7 +55,7 @@ def test_every_entry_point_has_the_one_logging_step_a_new_one_copies(
 
 
 @pytest.mark.parametrize("module_name", ENTRY_POINTS)
-def test_each_logging_step_really_runs_none_naming_a_helper_it_never_imported(
+def test_each_logging_step_is_run_not_only_found(
         module_name, hooks_restored, tmp_path):
     _run_its_logging_step(_entry_point(module_name), tmp_path)
 
