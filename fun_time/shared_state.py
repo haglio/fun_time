@@ -44,7 +44,7 @@ class SatelliteState:
     muted: bool = True
 
 
-def _satellite_key(name: str, funestra: FunTimeFunestra) -> str:
+def _the_files_spelling(name: str, funestra: FunTimeFunestra) -> str:
     return f"{funestra.label}_{name}"
 
 
@@ -119,7 +119,7 @@ def shared_state_path(state_dir: Path) -> Path:
 
 def _written_satellites(state: BridgeState) -> dict[str, str]:
     return {
-        _satellite_key(f.name, funestra): _written(getattr(state.satellite(funestra), f.name))
+        _the_files_spelling(f.name, funestra): _written(getattr(state.satellite(funestra), f.name))
         for funestra in FunTimeFunestra.SATELLITES
         for f in fields(SatelliteState)
     }
@@ -165,7 +165,7 @@ def _publish(state_file: Path, parser: configparser.ConfigParser) -> None:
 
 def _read_satellite(section, funestra: FunTimeFunestra) -> SatelliteState:
     return SatelliteState(**{
-        f.name: _read_back(section.get(_satellite_key(f.name, funestra)), f.default)
+        f.name: _read_back(section.get(_the_files_spelling(f.name, funestra)), f.default)
         for f in fields(SatelliteState)
     })
 

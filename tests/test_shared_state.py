@@ -13,7 +13,7 @@ from funestra.modes import MainMode
 
 from fun_time import shared_state
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES
+from fun_time.mode_plan import MAIN_KINO_MODE, MAIN_MODES, build_mode_switch_plan
 from fun_time.origenerator_switches import KINO_MODE as SATELLITES_KINO_MODE
 from fun_time.origenerator_switches import ORIGENERATOR_MODE as SATELLITES_ORIGENERATOR_MODE
 from fun_time.origenerator_switches import RfbMode
@@ -53,7 +53,7 @@ def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path:
     assert read_shared_state(state_file).omni_paused is True
 
 
-def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
+def test_every_field_survives_the_round_trip_the_loop_makes_each_tick(tmp_path: Path):
     state_file = tmp_path / "shared_state.ini"
     state = shifted_state(BridgeState())
 
@@ -222,8 +222,9 @@ def test_the_state_file_sits_under_both_startup_and_the_dispatch_loop():
 
     assert pulled_in == "-", f"fun_time.shared_state imports what writes it: {pulled_in}"
     assert int(count) <= 10, (
-        f"reading the shared state file now imports {count} fun_time modules; "
-        "lower this ceiling when it drops, never raise it")
+        f"reading the shared state file now imports {count} fun_time modules; startup, the "
+        "dashboard and the headset each read it from a process that wants none of the "
+        "dispatcher — lower this ceiling when it drops, never raise it")
 
 
 def test_the_round_trip_spells_no_field_of_the_record_by_hand():
@@ -236,7 +237,9 @@ def test_the_round_trip_spells_no_field_of_the_record_by_hand():
     written_today = {key for keys in _LAST_SESSIONS_KEYS.values() for key in keys}
     assert spelled_out == sorted(written_today & {f.name for f in fields(BridgeState)}), (
         "the round trip names these fields by hand: " + ", ".join(spelled_out)
-        + " — derive them from the record instead, so one added to it is carried."
+        + " — derive them from the record instead, so one added to it is carried: a field "
+        "spelled in the record, the writer and the reader as three lists was saved never or "
+        "reset at every resume when one list fell behind."
     )
 
 
@@ -247,7 +250,8 @@ def test_no_satellite_value_is_a_field_of_the_whole_state():
 
     assert stray == [], (
         "these say a satellite's name in the state record: " + ", ".join(stray)
-        + " — put them on SatelliteState and reach them through BridgeState.Funestra."
+        + " — put them on SatelliteState and reach them through BridgeState.satellite: "
+        "a field of its own beside the session's is one more place a 2 is written where a 3 belongs."
     )
 
 
@@ -314,7 +318,7 @@ class TestTheSideLens:
             FunTimeFunestra.LANDSCAPE)
 
 
-def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp_path: Path):
+def test_an_old_mode_word_comes_back_as_a_mode_the_switch_plan_accepts(tmp_path: Path):
     state_file = tmp_path / SHARED_STATE_FILENAME
     for saved_main, saved_satellite in (("main_player", "player"), ("hybrid", "player"),
                                         ("video", "video")):
@@ -325,6 +329,8 @@ def test_a_state_saved_under_an_old_name_of_the_mode_comes_back_in_kino_mode(tmp
 
         assert (resumed.main_mode, resumed.satellite(FunTimeFunestra.PORTRAIT).mode) == (
             MAIN_KINO_MODE, SATELLITES_KINO_MODE), saved_main
+        build_mode_switch_plan(current_mode=resumed.main_mode, target_mode=MainMode.GENAU,
+                               omni_paused=False)
 
 
 def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
@@ -384,7 +390,9 @@ def test_the_file_carries_exactly_these_keys_spelled_exactly_this_way(tmp_path: 
     parser.optionxform = str
     parser.read(state_file, encoding="utf-8")
 
-    assert dict(parser["state"]) == _EXPECTED_STATE_KEYS
+    assert dict(parser["state"]) == _EXPECTED_STATE_KEYS, (
+        "the dashboard and the resume read this file by key name: a key respelled here comes "
+        "back at its default with nothing said, so rename it here in the same commit")
 
 
 def test_a_number_a_hand_edit_spoiled_reads_as_that_fields_default(tmp_path):

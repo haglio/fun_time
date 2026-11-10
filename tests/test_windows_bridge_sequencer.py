@@ -56,10 +56,13 @@ from fun_time.window_layout import (
     screen_layout,
 )
 from fun_time.windows_bridge_sequencer import (
+    _PLAY_POLL_S,
     MAIN_FUNESTRA_LOAD_TIMEOUT_S,
-    WINDOW_RESOLVE_TIMEOUT_S,
+    SATELLITE_PLAY_TIMEOUT_S,
+    WINDOW_RESOLVE_CEILING_UNDER_LOAD_S,
     _maybe_launch_random_favs_browser,
     _resolve_satellite_hwnds,
+    _wait_for_funestras_drawing,
     _wait_for_main_funestra_loaded,
     release_the_funestras,
     run_startup_sequence,
@@ -782,6 +785,21 @@ class TestLoadingScreenStartup:
             "dashboard": 5050, "rfb": 0,
         }
 
+    def test_the_dashboard_is_found_hidden_under_the_loading_screen(self, cfg_factory, tmp_path):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        def only_a_hidden_lookup_finds_the_dashboard(title, **kw):
+            if title == "Fun Time":
+                return 5050 if kw.get("include_hidden") else 0
+            return 88888
+
+        with _sequencer_stubs(wait_for_window_by_title={
+                "side_effect": only_a_hidden_lookup_finds_the_dashboard}):
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert result.hwnds_by_window["dashboard"] == 5050
+
 
 class TestTheRoomIsBandedUnderTheLoadingScreen:
     HWNDS_BY_WINDOW: ClassVar[dict] = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
@@ -927,10 +945,10 @@ class TestMainFunestraGatesTheReveal:
         assert seen["stale_at_launch"] is False
 
     def test_the_wait_for_the_funestras_cannot_outlast_the_overlay(self):
-        assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
+        assert WINDOW_RESOLVE_CEILING_UNDER_LOAD_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
     def test_the_windows_phase_cannot_outlast_it_either(self):
-        assert 3 * WINDOW_RESOLVE_TIMEOUT_S < STALE_TIMEOUT_S
+        assert 3 * WINDOW_RESOLVE_CEILING_UNDER_LOAD_S < STALE_TIMEOUT_S
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
@@ -1053,6 +1071,24 @@ class TestResolveSatelliteHwnds:
         resolved = {call.args[0] for call in by_title.call_args_list}
         assert resolved == {"Portrait AI Funestra", "Landscape AI Funestra"}
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
+
+
+class TestWaitForFunestrasDrawing:
+    def test_the_wait_ends_under_a_clock_that_never_moves(self, tmp_path):
+        status_file = tmp_path / "portrait_status.txt"
+        status_file.write_text("position_ms=0\n", encoding="utf-8")
+        polls = int(SATELLITE_PLAY_TIMEOUT_S / _PLAY_POLL_S)
+        slept: list[float] = []
+
+        def sleep(seconds):
+            slept.append(seconds)
+            assert len(slept) <= polls, "still polling under a clock that never moves"
+
+        with patch.object(windows_bridge_sequencer, "time",
+                          SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)):
+            assert _wait_for_funestras_drawing([status_file], NullProgress()) is False
+
+        assert len(slept) == polls
 
 
 class TestWaitForMainFunestraLoaded:
@@ -1460,7 +1496,7 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
                 rfb_mode=RfbMode.ORIGENERATOR))
         return cfg, manifest_path
 
-    def test_a_session_resumed_into_origenerator_mode_still_opens_in_kino_mode(
+    def test_every_session_opens_its_satellites_in_kino_mode_even_one_left_in_origenerator(
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path = self._hosted(cfg_factory, tmp_path, left_in_origenerator=True)

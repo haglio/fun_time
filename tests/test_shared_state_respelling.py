@@ -63,16 +63,29 @@ class TestTheSharedStateFile:
         for old in ("locked2", "locked3", "active_side", "f_mode"):
             assert old not in text, old
 
-    def test_a_mode_word_this_app_has_dropped_comes_back_as_kino(self, tmp_path: Path):
+    def test_a_dropped_mode_word_is_left_untranslated_and_reads_as_kino(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
 
         migrate_shared_state(state_file)
 
+        rewritten = state_file.read_text(encoding="utf-8")
+        assert "main_mode = hybrid" in rewritten
+        assert "portrait_mode = player" in rewritten
         state = read_shared_state(state_file)
         assert (state.main_mode, *(state.satellite(funestra).mode
                                    for funestra in FunTimeFunestra.SATELLITES), state.rfb_mode) == (
             MainMode.KINO, SatellitesMode.KINO, SatellitesMode.KINO, RfbMode.RFB)
+
+    def test_the_reader_knows_no_old_key_before_the_rewrite(self, tmp_path: Path):
+        state_file = tmp_path / SHARED_STATE_FILENAME
+        state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
+
+        state = read_shared_state(state_file)
+
+        assert state.satellite(FunTimeFunestra.PORTRAIT).locked is False
+        assert state.active_funestra == 1
+        assert state.main_scripted_filter is False
 
     def test_a_room_left_in_origenerator_mode_comes_back_with_all_three_in_it(
             self, tmp_path: Path):

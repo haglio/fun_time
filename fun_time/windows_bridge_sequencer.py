@@ -64,7 +64,7 @@ from .windows_bridge_startup import (
 
 logger = logging.getLogger(__name__)
 
-WINDOW_RESOLVE_TIMEOUT_S = 15.0
+WINDOW_RESOLVE_CEILING_UNDER_LOAD_S = 15.0
 
 MAIN_FUNESTRA_LOAD_TIMEOUT_S = 40.0
 
@@ -327,7 +327,16 @@ def _launch_core_media(
     )
 
 
-_COMPANION_LAUNCH_DELAY_S = 1.2
+_UNPROVEN_DELAY_THE_HOSTED_WINDOWS_BAND_ONCE_NEEDED_S = 1.2
+
+
+def _the_dashboard_hidden_under_the_loading_screen(dashboard_pid: int) -> int:
+    if not dashboard_pid:
+        return 0
+    return wait_for_window_by_title(
+        preview_marker.app_title(preview_marker.shown_as()),
+        timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True, include_hidden=True,
+    )
 
 
 def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) -> dict[str, int]:
@@ -340,7 +349,7 @@ def _position_windows_now(plan: WindowLayoutPlan, *, env: SessionEnvironment) ->
     hwnds_by_window = apply_startup_window_state(StartupWindows(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
     ))
     logger.info("Startup window state applied")
     return hwnds_by_window
@@ -354,7 +363,7 @@ def _launch_the_companions(
     manifest_path: Path,
     launched: _LaunchedChildren,
 ) -> dict[str, int]:
-    time.sleep(_COMPANION_LAUNCH_DELAY_S)
+    time.sleep(_UNPROVEN_DELAY_THE_HOSTED_WINDOWS_BAND_ONCE_NEEDED_S)
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
         m,
@@ -404,20 +413,12 @@ def _place_the_windows_under_the_loading_screen(
     _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
     logger.info("Core windows positioned (deferred reveal)")
 
-    dash_hwnd = (
-        wait_for_window_by_title(
-            preview_marker.app_title(preview_marker.shown_as()),
-            timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
-        )
-        if dashboard_pid
-        else 0
-    )
     hwnds_by_window = StartupWindows(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-        dashboard_hwnd=dash_hwnd,
+        main_funestra_hwnd=wait_for_window_by_title("Main Funestra", timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
+        dashboard_hwnd=_the_dashboard_hidden_under_the_loading_screen(dashboard_pid),
     ).by_name()
     logger.info("Startup windows resolved (bands deferred past the overlay)")
     return hwnds_by_window
@@ -514,8 +515,8 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 
 def _resolve_satellite_hwnds() -> tuple[int, int]:
     return (
-        wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-        wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
+        wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_CEILING_UNDER_LOAD_S, exact=True),
     )
 
 
@@ -529,7 +530,7 @@ def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
     files = [Path(path) for path in status_files if path]
     if not files:
         return True
-    for _ in range(max(1, int(timeout_s / _PLAY_POLL_S))):
+    for _ in _polls_counted_rather_than_clocked(timeout_s):
         if progress.cancelled:
             raise StartupCancelled()
         raise_if_a_funestra_died(funestras)
@@ -537,6 +538,10 @@ def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
             return True
         time.sleep(_PLAY_POLL_S)
     return False
+
+
+def _polls_counted_rather_than_clocked(timeout_s: float) -> range:
+    return range(max(1, int(timeout_s / _PLAY_POLL_S)))
 
 
 def _wait_for_main_funestra_loaded(
