@@ -116,10 +116,11 @@ def test_the_zero_pid_of_a_child_that_was_never_launched_is_left_alone():
     assert windows.asked_for == []
 
 
-def test_ending_a_tree_starts_no_main_hud_program_of_its_own():
+def test_ending_a_tree_starts_no_program_that_would_open_a_console_window():
     windows = FakeWindows({10: (1, 100), 11: (10, 101)})
 
-    with patch("subprocess.Popen", side_effect=AssertionError("started a program")):
+    with patch("subprocess.Popen", side_effect=AssertionError(
+            "a program started from a session under pythonw.exe gets a console window on screen")):
         kill_process_tree(10, windows=windows)
 
     assert windows.running == {}

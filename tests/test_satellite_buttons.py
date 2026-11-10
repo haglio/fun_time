@@ -49,10 +49,11 @@ def test_every_button_posts_that_funestras_own_verb():
 
 
 def test_the_band_breaks_into_the_groups_the_main_hud_breaks_into():
-    starts = [button.command.removeprefix("portrait_")
-              for button in _band(latest=False) if button.group_break]
+    where_the_controls_change_subject = [
+        button.command.removeprefix("portrait_")
+        for button in _band(latest=False) if button.group_break]
 
-    assert starts == ["lock", "reset", "shuffle", "cycle_version", "minimize"]
+    assert where_the_controls_change_subject == ["lock", "reset", "shuffle", "cycle_version", "minimize"]
 
 
 def test_the_states_light_and_nothing_else_does():
@@ -74,8 +75,10 @@ def test_the_states_light_and_nothing_else_does():
 
 
 def test_the_order_pair_is_declared_only_where_the_order_can_be_switched():
-    assert "shuffle" not in _names(_band())
-    assert "latest" not in _names(_band())
+    with_no_order_to_switch_from_here = _names(_band(latest=None))
+
+    assert "shuffle" not in with_no_order_to_switch_from_here
+    assert "latest" not in with_no_order_to_switch_from_here
     assert "shuffle" in _names(_band(latest=False))
 
 

@@ -27,7 +27,8 @@ def _fields(block: str) -> set[str]:
 
 
 def test_the_kind_this_app_bands_videos_by_is_one_evolver_records():
-    assert media_metadata.EXCERPT in _record()["video_kinds"]
+    assert media_metadata.EXCERPT in _record()["video_kinds"], (
+        "a kind that never matches raises nothing: every carved scene lands in the wrong band")
 
 
 def test_the_act_and_its_rejection_are_where_evolver_says():
@@ -53,8 +54,12 @@ def test_what_a_video_is_called_and_what_it_was_cut_from_are_promised():
 
 
 def test_the_orientation_the_portrait_and_landscape_buttons_read_is_promised():
-    assert media_metadata.ORIENTATION_FIELD in _fields("video")
-    assert set(_record()["video_orientations"]) == set(ORIENTATIONS)
+    every_video_would_count_as_landscape = "an orientation this app cannot read is landscape"
+
+    assert media_metadata.ORIENTATION_FIELD in _fields("video"), (
+        every_video_would_count_as_landscape)
+    assert set(_record()["video_orientations"]) == set(ORIENTATIONS), (
+        every_video_would_count_as_landscape)
 
 
 def test_the_running_time_f_mode_measures_a_funscript_against_is_promised():
@@ -66,7 +71,9 @@ def test_the_playback_weight_this_app_draws_by_is_promised():
 
 
 def test_the_favorite_f_mode_keeps_is_the_mark_evolver_promises():
-    assert favorites.FAVORITE_KEY in _record()["top_level_keys"]
+    assert favorites.FAVORITE_KEY in _record()["top_level_keys"], (
+        "a favorite this app cannot read raises nothing: F-mode keeps no video "
+        "and the HUD's star stays dark")
 
 
 def test_the_id_this_app_counts_by_and_writes_and_the_scene_a_clip_names_are_promised():

@@ -137,15 +137,16 @@ class TestReadEvents:
         assert read_events(tmp_path / "absent.jsonl") == ([], 0)
 
     def test_a_truncated_file_is_re_read_from_the_start(self, log_path: Path):
-        log_path.write_text(
-            '{"ts": 1.0, "level": 25, "source": "main", "msg": "a long line from the old session"}\n',
-            encoding="utf-8",
-        )
+        stamped_by_hand_to_a_known_length = (
+            '{"ts": 1.0, "level": 25, "source": "main", "msg": "a long line from the old session"}\n')
+        stamped_by_hand_to_a_shorter_one = (
+            '{"ts": 2.0, "level": 25, "source": "main", "msg": "new"}\n')
+        log_path.write_text(stamped_by_hand_to_a_known_length, encoding="utf-8")
         _records, stale_offset = read_events(log_path)
 
-        log_path.write_text(
-            '{"ts": 2.0, "level": 25, "source": "main", "msg": "new"}\n', encoding="utf-8",
-        )
+        log_path.write_text(stamped_by_hand_to_a_shorter_one, encoding="utf-8")
+        assert log_path.stat().st_size < stale_offset, (
+            "read_events knows a new session's file only by its being shorter")
 
         records, _offset = read_events(log_path, stale_offset)
         assert [r.message for r in records] == ["new"]

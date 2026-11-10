@@ -69,7 +69,7 @@ def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tm
     assert "test" in message
 
 
-def test_a_failed_save_answers_empty(tmp_path: Path):
+def test_a_failed_save_says_nothing_but_its_log_line(tmp_path: Path):
     config = _make_config(tmp_path)
     config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
@@ -128,7 +128,7 @@ def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
     assert message == ""
 
 
-def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
+def test_a_bug_of_our_own_is_never_reported_as_genaumachers(tmp_path: Path):
     config = _make_config(tmp_path)
     config.main_funestra_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
