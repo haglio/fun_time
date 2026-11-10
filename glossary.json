@@ -644,18 +644,6 @@
       "ruled": "his ruling of 2026-11-05, given with the command reference's lines for the Satellites' loops and cycles"
     },
     {
-      "id": "seed_group",
-      "thing": "the items one set of settings made with different seeds, which Loop seeds plays",
-      "screen": null,
-      "his_word": "seed group, never seed family (2026-11-05)",
-      "code_today": [
-        "seed group"
-      ],
-      "code_word": "seed group",
-      "status": "ruled",
-      "ruled": "his ruling of 2026-11-05, given with the command reference's lines for the Satellites' loops and cycles; the code said seed family until 2026-11-07"
-    },
-    {
       "id": "actions",
       "thing": "the actions Origenerator gives a video, its image actions and video actions, that a Satellite's rows show beside each video and its filter keeps a video by",
       "screen": null,

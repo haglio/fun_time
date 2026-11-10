@@ -52,10 +52,8 @@ from fun_time.manifest import (
 from fun_time.modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_PORTRAIT,
-    SatelliteBuild,
     VideoShapes,
     build_playlist_file_path,
-    build_satellite_playlists,
 )
 from fun_time.orchestrator import (
     ensure_runtime_files,
@@ -80,7 +78,6 @@ from fun_time.overlay_progress import (
     what_the_flag_asks,
 )
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
-from fun_time.satellite_control import read_satellite_status
 from fun_time.session_end import session_end_marker_path
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -101,10 +98,9 @@ from fun_time.session_handoff import (
     say_the_crossing_is_cancelled,
 )
 from fun_time.session_resume import (
+    empty_the_satellites_lists,
     open_the_main_list,
     resume_main_loop,
-    resume_playlists,
-    resume_satellite_locks,
     resume_shared_state,
     resume_what_lives_in_a_funestra,
 )
@@ -269,22 +265,8 @@ def _wait_for_the_room(
     return False
 
 
-def stock_the_playlists(
-    launch: _Launch,
-    *,
-    resumed: bool,
-    carried: BridgeState,
-    main_video: str = "",
-) -> BridgeState:
-    if not resumed:
-        build_satellite_playlists(
-            portrait=SatelliteBuild(sources=launch.manifest.portrait.sources),
-            landscape=SatelliteBuild(sources=launch.manifest.landscape.sources),
-            state_dir=launch.state_dir,
-            metadata_root=launch.bridge_config.regen_metadata_root,
-        )
-    logger.info("Resumed last session's playlists" if resumed
-                else "Nothing to resume; built fresh playlists")
+def open_the_main_funestras_list(launch: _Launch, *, carried: BridgeState,
+                                 main_video: str = "") -> BridgeState:
     main_list = MainList(sources=launch.manifest.media.main_funestra_library_sources,
                          state_dir=launch.state_dir,
                          vr_dirs=launch.manifest.media.vr_library_dirs,
@@ -536,25 +518,12 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
     landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
     main_funestra_status = read_main_funestra_status(launch.main_funestra_status_file)
-    portrait_status = read_satellite_status(manifest.portrait.status_file)
-    landscape_status = read_satellite_status(manifest.landscape.status_file)
-    resumed = resume_playlists([
-        (portrait_playlist, portrait_status.video),
-        (landscape_playlist, landscape_status.video),
-    ])
-    carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed,
+    empty_the_satellites_lists([portrait_playlist, landscape_playlist])
+    carried = resume_shared_state(shared_state_path(state_dir),
                                   last_reported=read_funestra_reports(bridge_config))
-    carried = stock_the_playlists(
-        launch,
-        resumed=resumed,
-        carried=carried,
-        main_video=main_funestra_status.video,
-    )
+    carried = open_the_main_funestras_list(launch, carried=carried,
+                                           main_video=main_funestra_status.video)
     seed_startup_states(manifest, carried)
-    resume_satellite_locks([
-        (manifest.satellite(funestra).cmd_file, carried.satellite(funestra).locked)
-        for funestra in FunTimeFunestra.SATELLITES
-    ])
     resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),

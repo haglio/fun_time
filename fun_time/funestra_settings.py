@@ -66,8 +66,6 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
     for funestra, status in reports.satellites.items():
         if status is None:
             continue
-        if not state.satellite(funestra).handed_over:
-            state = state.with_satellite(funestra, speed=status.speed)
         if status.volume is not None and status.muted is not None:
             state = state.with_satellite(funestra, volume=status.volume, muted=status.muted)
     if reports.genau_drive is not None:

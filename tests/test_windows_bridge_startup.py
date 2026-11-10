@@ -15,6 +15,7 @@ from urllib.request import url2pathname
 import pytest
 from app_support import osr2_hold
 from funestra.modes import LengthMode, MainMode
+from funestra.playlist import read_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
@@ -32,13 +33,11 @@ from fun_time.funestra_deaths import (
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import mark_favorite
-from fun_time.modes import SatelliteBuild
 from fun_time.process_identity import NAMER
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_launch import SatelliteLaunch
 from fun_time.shared_state import (
     BridgeState,
-    SatelliteState,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -503,9 +502,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         "fun_time.windows_bridge_startup.seed_startup_states"
     ) as seed, patch(
         "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ) as prepare, patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
-    ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
+    ) as prepare, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
         _start_core_session(kwargs)
 
     reap.assert_called_once_with(
@@ -520,12 +517,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     assert MainListSettings.of(carried) == MainListSettings.of(
         read_shared_state(shared_state_path(state_dir)))
     prepare.assert_called_once_with("fun_time_config.json", str(tmp_path / "browser_manifest.txt"))
-    build.assert_called_once_with(
-        portrait=SatelliteBuild(sources=kwargs["portrait"].sources),
-        landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
-        state_dir=state_dir,
-        metadata_root=tmp_path / "metadata",
-    )
     launch.assert_called_once_with(
         _manifest_from(kwargs), kwargs["portrait"], kwargs["landscape"], result_file)
 
@@ -554,44 +545,28 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     return left_on
 
 
-def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_path: Path, caplog):
-    kwargs = _start_core_session_kwargs(tmp_path)
-    state_dir = kwargs["state_dir"]
-    left_on = _seed_resumable_session(kwargs)
-
-    with (
-        patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"),
-        patch(
-        "fun_time.windows_bridge_startup.ensure_broker"
-    ),
-        patch("fun_time.windows_bridge_startup.seed_startup_states"),
-        patch(
-        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ),
-        patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
-    ) as build,
-        patch("fun_time.windows_bridge_startup.launch_core_apps"),
-        caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"),
-    ):
-        _start_core_session(kwargs)
-
-    build.assert_not_called()
-    for name, (first, second) in left_on.items():
-        playlist = state_dir / f"{name}_playlist.tsv"
-        assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
-    assert "Resumed last session's playlists" in caplog.text
-
-
 def _run_start_core_session(kwargs: dict) -> str:
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch(
         "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         return _start_core_session(kwargs)
+
+
+def test_each_satellite_opens_on_an_empty_list_until_the_app_hands_it_its_slideshow(
+        tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(kwargs)
+    kept_aside = kwargs["state_dir"] / "portrait_playlist.kept.tsv"
+    kept_aside.write_text("C:/v/old.mp4\n", encoding="utf-8")
+
+    _run_start_core_session(kwargs)
+
+    for launch in (kwargs["portrait"], kwargs["landscape"]):
+        assert read_playlist(Path(launch.channels.playlist)) == []
+        assert not Path(launch.channels.command).exists()
+    assert not kept_aside.exists()
 
 
 def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
@@ -623,10 +598,8 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     ).splitlines()
 
 
-def _left_playing_at(kwargs: dict, *, main: float, portrait: float, landscape: float) -> None:
-    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
-        main_speed=main, portrait=SatelliteState(speed=portrait),
-        landscape=SatelliteState(speed=landscape)))
+def _left_playing_at(kwargs: dict, *, main: float) -> None:
+    write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(main_speed=main))
 
 
 def _queued(command_file) -> list[str]:
@@ -634,17 +607,17 @@ def _queued(command_file) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
 
 
-def test_a_reopen_hands_each_funestra_the_rate_it_was_playing_at(tmp_path: Path):
+def test_a_reopen_hands_the_main_funestra_the_rate_it_was_playing_at(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
-    _left_playing_at(kwargs, main=0.25, portrait=0.5, landscape=1.0)
+    _left_playing_at(kwargs, main=0.25)
 
     _run_start_core_session(kwargs)
 
     assert "SET_SPEED 0.25" in _queued(kwargs["main_funestra_cmd_file"])
-    assert "SET_SPEED 0.5" in _queued(kwargs["portrait"].channels.command)
     assert not any(verb.startswith("SET_SPEED")
-                   for verb in _queued(kwargs["landscape"].channels.command))
+                   for launch in (kwargs["portrait"], kwargs["landscape"])
+                   for verb in _queued(launch.channels.command))
 
 
 def test_a_reopen_hands_the_main_funestra_back_the_unlock_it_was_left_in(tmp_path: Path):
@@ -687,20 +660,19 @@ def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
     assert _run_start_core_session(kwargs) == "kino"
 
 
-def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built_in(
+def test_start_core_session_reopens_the_main_funestra_in_the_f_mode_it_was_left_in(
     tmp_path: Path,
 ):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(landscape=SatelliteState(latest=True), portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True))
+    write_shared_state(state_file, BridgeState(main_scripted_filter=True))
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter) == (True, True)
-    assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
+    assert state.main_scripted_filter is True
     assert "SET_F_MODE 1" in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
@@ -719,21 +691,6 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     assert kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()[1] == (
         "SET_VOLUME 40 1"
     )
-
-
-def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path):
-    kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(kwargs)
-    write_shared_state(
-        shared_state_path(kwargs["state_dir"]), BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
-    )
-
-    _run_start_core_session(kwargs)
-
-    state = read_shared_state(shared_state_path(kwargs["state_dir"]))
-    assert (state.satellite(FunTimeFunestra.PORTRAIT).locked, state.satellite(FunTimeFunestra.LANDSCAPE).locked) == (True, False)
-    assert kwargs["portrait"].channels.command.read_text(encoding="utf-8").split() == ["LOCK_ON"]
-    assert not kwargs["landscape"].channels.command.exists()
 
 
 def test_start_core_session_clears_an_omnipause_a_crashed_session_left_set(tmp_path: Path):
@@ -804,9 +761,6 @@ def test_start_core_session_rebuilds_a_main_list_the_headset_wrote_vr_videos_int
         patch(
         "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ),
-        patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
-    ) as build,
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time"),
     ):
@@ -814,11 +768,6 @@ def test_start_core_session_rebuilds_a_main_list_the_headset_wrote_vr_videos_int
 
     rebuilt = main_funestra_playlist.read_text(encoding="utf-8").splitlines()
     assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
-    build.assert_not_called()
-    for name in ("portrait", "landscape"):
-        first, second = left_on[name]
-        playlist = state_dir / f"{name}_playlist.tsv"
-        assert playlist.read_text(encoding="utf-8").splitlines() == [second, first]
     assert "opens at the top of its list" in caplog.text
 
 
@@ -894,8 +843,6 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         _start_core_session(kwargs)
 
@@ -911,8 +858,6 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
         "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
-    ), patch(
-        "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         _start_core_session(kwargs)
 

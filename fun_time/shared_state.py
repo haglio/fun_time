@@ -25,15 +25,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class SatelliteState:
-    locked: bool = False
     hud_corner: HudCorner = HudCorner.UPPER_LEFT
     hud_edge: HudEdge = HudEdge.LOWER
     hud_minimized: bool = False
-    favorites_filter: bool = False
-    enhancement: EnhancementLevel = EnhancementLevel.BOTH
-    latest: bool = False
-    handed_over: bool = False
-    speed: float = 1.0
     volume: int = MAX_VOLUME
     muted: bool = True
 
@@ -177,12 +171,8 @@ def _read_back(written: str | None, default: bool | int | float | str) -> bool |
 
 
 _LAST_SESSIONS_KEYS = {
-    "locked2": ("portrait_locked",),
-    "locked3": ("landscape_locked",),
     "active_side": ("active_funestra",),
     "main_f_mode": ("main_scripted_filter",),
-    "portrait_f_mode": ("portrait_favorites_filter",),
-    "landscape_f_mode": ("landscape_favorites_filter",),
     "active_player": ("active_funestra",),
     "osr2_player": ("osr2_funestra",),
     "satellites_mode": ("rfb_mode",),

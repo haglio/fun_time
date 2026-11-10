@@ -1,32 +1,24 @@
 from __future__ import annotations
 
 import os
-import random
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import funscript
-from app_support.media_renditions import renditions
 from app_support.mirrored_tree import LIBRARY_DIR_NAME
-from app_support.watch_weights import dealt_by_weight, newest_of_each_group
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from funestra.funscript import load as load_funscript
 from funestra.playlist import PlaylistItem, write_playlist
 from funestra.video_groups import (
-    GroupIndex,
     normalize_path_key,
 )
 
 from .folder_listings import FolderListings
 from .media_metadata import (
-    build_group_index,
-    is_favorite,
-    path_matches_query,
     recorded_duration_seconds,
     recorded_for,
 )
-from .mode_plan import EnhancementLevel
 from .vr_videos import keep_shapes
 
 PLAYLIST_PORTRAIT = "portrait_playlist"
@@ -36,10 +28,6 @@ PLAYLIST_MAIN_FUNESTRA = "main_player_playlist"
 
 def is_supported_video_path(path: str) -> bool:
     return Path(path).suffix.lower() in SUPPORTED_VIDEO_EXTS
-
-
-def has_an_upscale(media_root: str | Path | None) -> Callable[[str], bool]:
-    return lambda video_path: bool(renditions(video_path, media_root))
 
 
 def source_roots(source_spec: str) -> list[Path]:
@@ -153,30 +141,11 @@ def plays_in_f_mode(video_path: str, metadata_root: Path | None = None, *,
     return script.active_ms(duration_ms) >= LEAST_SCRIPTED_SHARE * duration_ms
 
 
-def keep_favorites[P: (str, Path)](paths: Iterable[P], metadata_root: Path | None) -> list[P]:
-    return [path for path in paths if is_favorite(path, metadata_root)]
-
-
-def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list[str]:
-    result = list(paths)
-    if len(result) <= 1:
-        return result
-    randomizer = rng or random.Random()
-    randomizer.shuffle(result)
-    return result
-
-
 def sort_paths_by_recency(
     paths: list[str], listings: FolderListings | None = None
 ) -> list[str]:
     dates = listings or FolderListings()
     return sorted(paths, key=dates.modified, reverse=True)
-
-
-def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = None) -> list[str]:
-    if recent:
-        return sort_paths_by_recency(paths)
-    return shuffle_paths(paths, rng=rng)
 
 
 @dataclass(frozen=True)
@@ -198,87 +167,6 @@ class VideoShapes:
             return list(paths)
         return keep_shapes(paths, vr_dirs=source_roots(self.vr_dirs),
                            plays_vr=self.plays_vr, plays_flat=self.plays_flat)
-
-
-def _group_of(index: GroupIndex, by_seed_group: bool) -> Callable[[str], str | None]:
-    if by_seed_group:
-        def the_videos_only_a_seed_tells_apart(path: str) -> str | None:
-            seed_key = index.entry(path).seed_key
-            return seed_key[0] if seed_key is not None else None
-
-        return the_videos_only_a_seed_tells_apart
-
-    def the_videos_only_an_action_tells_apart(path: str) -> str | None:
-        return index.entry(path).action_key
-
-    return the_videos_only_an_action_tells_apart
-
-
-def _collapse_and_weigh(
-    paths: list[str],
-    metadata_root: Path | None,
-    rng: random.Random | None,
-    *,
-    by_seed_group: bool = False,
-) -> list[str]:
-    index = build_group_index(paths, metadata_root)
-    return dealt_by_weight(paths, weight_of=index.weight_of,
-                           group_of=_group_of(index, by_seed_group), rng=rng or random.Random())
-
-
-def _collapse_by_arrival_alone(
-    paths: list[str],
-    metadata_root: Path | None,
-    *,
-    by_seed_group: bool = False,
-) -> list[str]:
-    dates = FolderListings()
-    ordered = sort_paths_by_recency(paths, dates)
-    index = build_group_index(ordered, metadata_root)
-    return newest_of_each_group(
-        ordered, _group_of(index, by_seed_group),
-        newest=lambda group: max(sorted(group), key=dates.modified))
-
-
-def satellite_narrowing(
-    files: list[str],
-    favorites_filter: bool,
-    *,
-    filter_query: str = "",
-    metadata_root: Path | None = None,
-) -> list[str]:
-    if favorites_filter:
-        files = keep_favorites(files, metadata_root)
-    if filter_query and metadata_root is not None:
-        files = [path for path in files if path_matches_query(path, metadata_root, filter_query)]
-    return files
-
-
-@dataclass(frozen=True)
-class SatelliteBuild:
-    sources: str
-    favorites_filter: bool = False
-    recent: bool = False
-    filter_query: str = ""
-    enhancement: EnhancementLevel = EnhancementLevel.BOTH
-    media_root: Path | None = None
-
-
-def build_satellite_playlist_paths(
-    build: SatelliteBuild,
-    *,
-    rng: random.Random | None = None,
-    metadata_root: Path | None = None,
-) -> list[str]:
-    files = satellite_narrowing(collect_video_files(build.sources), build.favorites_filter,
-                                filter_query=build.filter_query, metadata_root=metadata_root)
-    files = build.enhancement.keep(files, has_an_upscale(build.media_root))
-    the_filter_already_pinned_the_act = bool(build.filter_query) and metadata_root is not None
-    if metadata_root is None:
-        return order_paths(files, recent=build.recent, rng=rng)
-    if build.recent:
-        return _collapse_by_arrival_alone(files, metadata_root, by_seed_group=the_filter_already_pinned_the_act)
-    return _collapse_and_weigh(files, metadata_root, rng, by_seed_group=the_filter_already_pinned_the_act)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:
@@ -307,27 +195,3 @@ def scripted_item(video_path: str, metadata_root: Path | None = None) -> Playlis
     return PlaylistItem(Path(video_path), Path(funscript) if funscript else None)
 
 
-def build_one_satellite_playlist(
-    build: SatelliteBuild,
-    playlist_file: Path,
-    *,
-    rng: random.Random | None = None,
-    metadata_root: Path | None = None,
-) -> None:
-    paths = build_satellite_playlist_paths(build, rng=rng, metadata_root=metadata_root)
-    write_playlist_file(playlist_file, paths, metadata_root=metadata_root)
-
-
-def build_satellite_playlists(
-    *,
-    portrait: SatelliteBuild,
-    landscape: SatelliteBuild,
-    state_dir: Path,
-    rng: random.Random | None = None,
-    metadata_root: Path | None = None,
-) -> None:
-    for satellite, name in ((portrait, PLAYLIST_PORTRAIT), (landscape, PLAYLIST_LANDSCAPE)):
-        build_one_satellite_playlist(
-            satellite, build_playlist_file_path(state_dir, name),
-            rng=rng, metadata_root=metadata_root,
-        )

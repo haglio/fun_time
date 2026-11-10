@@ -51,7 +51,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def _hosted(state: BridgeState, *funestras: str) -> BridgeState:
     for funestra in funestras or ("portrait", "landscape"):
-        state = state.with_satellite(FunTimeFunestra[funestra.upper()], handed_over=True)
+        state = state.with_satellite(FunTimeFunestra[funestra.upper()])
     return state
 
 

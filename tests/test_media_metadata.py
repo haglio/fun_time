@@ -5,15 +5,11 @@ import json
 from pathlib import Path
 
 import pytest
-from funestra.satellite_hud import actions_are_filtered
 
 from fun_time.media_metadata import (
     EXCERPT,
-    build_group_index,
     load_metadata,
-    matches_query,
     metadata_path_for,
-    path_matches_query,
     recorded_for,
     recorded_orientation,
     video_title,
@@ -32,26 +28,6 @@ SOURCE_IMAGE = {
     "style": "Default",
     "creativity": "7",
 }
-
-
-def _i2v_meta(*, action: str, video_seed: str, image_overrides: dict | None = None) -> dict:
-    source = dict(SOURCE_IMAGE)
-    if image_overrides:
-        source.update(image_overrides)
-    return {
-        "video": {
-            "prompt": f"prompt for {action}",
-            "model": "Realism",
-            "action": action,
-            "labels": [action],
-            "resolution": "720x560",
-            "aspect_ratio": "9:7",
-            "quality": "720p",
-            "seed": video_seed,
-            "created": "2025-12-05",
-        },
-        "source_image": source,
-    }
 
 
 VIDEO_ONLY_META = {
@@ -170,214 +146,6 @@ def test_a_video_kept_on_another_drive_is_read_through_its_outlying_folder(tmp_p
     record.write_text(json.dumps(VIDEO_ONLY_META), encoding="utf-8")
 
     assert recorded_for(away / "scene one.mp4", metadata_root, outlying_dirs=[away]) == VIDEO_ONLY_META
-
-
-def _library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
-    media_root = tmp_path / "videos" / "videos"
-    metadata_root = tmp_path / "videos" / "metadata"
-    paths: dict[str, str] = {}
-    for name, meta in videos.items():
-        video = media_root / "portrait" / "provider" / f"{name}.mp4"
-        video.parent.mkdir(parents=True, exist_ok=True)
-        video.write_text("x", encoding="utf-8")
-        paths[name] = str(video)
-        if meta is not None:
-            sidecar = metadata_path_for(video, metadata_root)
-            sidecar.parent.mkdir(parents=True, exist_ok=True)
-            sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    return media_root, metadata_root, paths
-
-
-def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "subject1_zeta": _i2v_meta(action="Zeta Massage", video_seed="1"),
-        "subject1_alpha": _i2v_meta(action="Alpha", video_seed="2"),
-        "subject2_alpha": _i2v_meta(action="Alpha", video_seed="3", image_overrides={"seed": "999"}),
-        "no_metadata": None,
-    })
-
-    index = build_group_index(paths.values(), metadata_root)
-
-    subject1_key = index.entry(paths["subject1_zeta"]).action_key
-    assert sorted(index.action_items[subject1_key]) == sorted(
-        [paths["subject1_zeta"], paths["subject1_alpha"]]
-    )
-    group, seed = index.entry(paths["subject1_alpha"]).seed_key
-    assert set(index.seed_items[group]) == {
-        paths["subject1_zeta"], paths["subject1_alpha"], paths["subject2_alpha"]
-    }
-    assert seed != index.entry(paths["subject2_alpha"]).seed_key[1]
-    assert index.entry(paths["no_metadata"]).action_key is None
-    assert index.contains(paths["no_metadata"])
-    assert not index.contains(str(tmp_path / "media" / "new_arrival.mp4"))
-
-
-def test_the_index_holds_one_record_per_video(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "subject": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
-        "no_metadata": None,
-    })
-
-    index = build_group_index(paths.values(), metadata_root)
-
-    entry = index.entry(paths["subject"])
-    assert entry.path == paths["subject"]
-    assert entry.action == "Alpha"
-    assert entry.weight == 4.0
-    assert entry.from_image
-    assert entry.action_key is not None
-    assert entry.seed_key is not None
-    bare = index.entry(paths["no_metadata"])
-    assert (bare.path, bare.action, bare.weight, bare.from_image) == (
-        paths["no_metadata"], "", 1.0, False
-    )
-    assert index.entry("C:/never/indexed.mp4").path == ""
-
-
-def test_build_group_index_carries_each_videos_watch_weight(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "loved": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
-        "plain": _i2v_meta(action="Alpha", video_seed="2"),
-        "no_metadata": None,
-    })
-
-    index = build_group_index(paths.values(), metadata_root)
-
-    assert index.weight_of(paths["loved"]) == 4.0
-    assert index.weight_of(paths["plain"]) == 1.0
-    assert index.weight_of(paths["no_metadata"]) == 1.0
-
-
-def test_build_group_index_reads_each_videos_scene_tags(tmp_path: Path):
-    _media_root, metadata_root, paths = _library(tmp_path, {
-        "subject": _i2v_meta(action="Alpha", video_seed="1"),
-        "no_metadata": None,
-    })
-
-    index = build_group_index(paths.values(), metadata_root)
-
-    assert index.entry(paths["subject"]).scene_tags == frozenset(
-        {"two cute dolls", "rainbow bedroom"}
-    )
-    assert index.entry(paths["no_metadata"]).scene_tags == frozenset()
-
-
-def test_a_video_with_actions_is_kept_by_an_action_and_never_by_its_site_action():
-    meta = {"video": {"action": "Gamma", "labels": ["alpha", "XYZ"]}}
-
-    assert [matches_query(meta, query) for query in ("alpha", "xyz", "gamma")] == [True, True, False]
-
-
-def test_matches_query_is_a_case_insensitive_substring_of_the_act():
-    meta = {
-        "video": {"labels": ["Side Epsilon"], "prompt": "subject subject"},
-        "source_image": {"positive_prompt": "pool party"},
-    }
-    assert matches_query(meta, "epsilon")
-    assert matches_query(meta, "Epsilon")
-    assert not matches_query(meta, "subject")
-    assert not matches_query(meta, "pool")
-    assert not matches_query(meta, "delta")
-
-
-def test_matches_query_drops_a_video_that_has_no_act_recorded():
-    in_the_backfill_tools_backlog = {
-        "video": {"prompt": "epsilon, by the pool"},
-        "source_image": {"positive_prompt": "epsilon"},
-    }
-    assert not matches_query(in_the_backfill_tools_backlog, "epsilon")
-    assert matches_query(in_the_backfill_tools_backlog, "")
-
-
-def test_a_query_of_several_actions_keeps_a_video_carrying_all_of_them_in_any_order():
-    meta = {"video": {"labels": ["alpha", "beta", "XYZ"]}}
-
-    assert [matches_query(meta, query) for query in ("xyz, alpha", "alpha, gamma")] == [True, False]
-
-
-def test_matches_query_empty_matches_everything():
-    assert matches_query({}, "")
-    assert matches_query({}, "   ")
-
-
-def test_matches_query_multiword_must_be_contiguous():
-    joined = {"video": {"labels": ["Beta Gamma"], "prompt": "x"}}
-    assert matches_query(joined, "beta gamma")
-    assert matches_query(joined, "gamma")
-    scattered = {"video": {"labels": ["Beta", "Theta Gamma"], "prompt": "x"}}
-    assert matches_query(scattered, "theta gamma")
-    assert not matches_query(scattered, "beta gamma")
-
-
-def test_path_matches_query_reads_the_sidecar(tmp_path):
-    media_root = tmp_path / "videos" / "videos"
-    metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "portrait" / "provider" / "clip.mp4"
-    video.parent.mkdir(parents=True)
-    video.write_bytes(b"")
-    sidecar = metadata_root / "portrait" / "provider" / "clip.json"
-    sidecar.parent.mkdir(parents=True)
-    sidecar.write_text(json.dumps({"video": {"labels": ["Beta Gamma"], "prompt": "x"}}), encoding="utf-8")
-
-    assert path_matches_query(str(video), metadata_root, "beta gamma")
-    assert not path_matches_query(str(video), metadata_root, "alpha")
-    assert path_matches_query(str(video), metadata_root, "")
-
-
-def test_path_matches_query_excludes_videos_without_a_sidecar(tmp_path):
-    media_root = tmp_path / "videos" / "videos"
-    metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "portrait" / "other" / "no_meta.mp4"
-    video.parent.mkdir(parents=True)
-    video.write_bytes(b"")
-
-    assert not path_matches_query(str(video), metadata_root, "alpha")
-    assert path_matches_query(str(video), metadata_root, "")
-
-
-def test_path_matches_query_excludes_a_sidecar_that_records_no_act(tmp_path):
-    media_root = tmp_path / "videos" / "videos"
-    metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "portrait" / "provider" / "unlabeled.mp4"
-    video.parent.mkdir(parents=True)
-    video.write_bytes(b"")
-    sidecar = metadata_root / "portrait" / "provider" / "unlabeled.json"
-    sidecar.parent.mkdir(parents=True)
-    sidecar.write_text(
-        json.dumps({
-            "video": {"prompt": "alpha, by the pool"},
-            "source_image": {"positive_prompt": "alpha"},
-        }),
-        encoding="utf-8",
-    )
-
-    assert not path_matches_query(str(video), metadata_root, "alpha")
-    assert path_matches_query(str(video), metadata_root, "")
-
-
-def test_a_filter_keeps_a_video_by_its_actions_as_the_satellite_hud_lights_its_rows():
-    cases = [
-        ("Gamma", "gamma", True),
-        ("Side Gamma", "gamma", True),
-        ("Side Gamma", "side gamma", True),
-        ("XYZ Gamma", "side gamma", False),
-        ("Gamma, Theta", "gamma", True),
-        ("Gamma   Theta", "gamma theta", True),
-        ("Gamma, Theta", "gamma, theta", True),
-        ("Gamma", "gamma, theta", False),
-        ("Alpha", "gamma", False),
-        ("Gam", "gamma", False),
-    ]
-    for label, query, expected in cases:
-        labels = [part.strip() for part in label.split(",")]
-        assert matches_query({"video": {"labels": labels}}, query) is expected, (label, query)
-
-
-def test_an_empty_filter_keeps_the_videos_whose_rows_the_hud_leaves_unlit():
-    no_filter = ""
-
-    assert actions_are_filtered("Gamma", no_filter) is False
-    assert matches_query({"video": {"labels": ["Gamma"]}}, no_filter) is True
 
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):

@@ -63,7 +63,6 @@ from fun_time.session_handoff import (
 )
 from fun_time.shared_state import (
     BridgeState,
-    SatelliteState,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -90,8 +89,8 @@ from fun_time_vr.orchestrator import (
     _wait_for_the_room,
     build_vr_manifest,
     launch_vr_funestras,
+    open_the_main_funestras_list,
     resume_genau_shapes,
-    stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
 )
@@ -282,7 +281,6 @@ class TestOrigeneratorInVr:
             _end_a_vr_session(
                 orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
                 bring_up_the_hosted_app=MagicMock(return_value=None),
-                resume_playlists=MagicMock(return_value=True),
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
@@ -307,7 +305,6 @@ class TestOrigeneratorInVr:
                 bring_up_the_hosted_app=MagicMock(return_value=HostedApp(
                     303, already_open=True, taken_over=True,
                     showing_a_slideshow=True)),
-                resume_playlists=MagicMock(return_value=True),
                 DispatchLoopRunner=orchestrator.DispatchLoopRunner,
             )
 
@@ -415,7 +412,7 @@ class TestTheModeASessionComesBackIn:
             "Path(commands.genau_cmd_file)", "genau_flick_shapes(carried, bridge_config)"]
 
     def test_the_playlists_are_stocked_under_the_state_the_session_was_left_in(self):
-        (stock,) = self._calls("run_vr_bridge", "stock_the_playlists")
+        (stock,) = self._calls("run_vr_bridge", "open_the_main_funestras_list")
         given = {kw.arg: ast.unparse(kw.value) for kw in stock.keywords}
 
         assert (given["carried"], given["main_video"]) == (
@@ -427,7 +424,7 @@ class TestTheModeASessionComesBackIn:
             side_effect=lambda _launch, **asked: replace(asked["carried"], main_mode=MainMode.KINO))
 
         queued = _queued_when_the_funestra_launches(
-            config, SessionEnvironment(), stock_the_playlists=the_list_answers_kino)
+            config, SessionEnvironment(), open_the_main_funestras_list=the_list_answers_kino)
 
         assert show_verb(MainMode.KINO) in queued["main"]
         assert show_verb(MainMode.GENAU) not in queued["main"]
@@ -444,7 +441,7 @@ class TestTheModeASessionComesBackIn:
     def test_the_loop_is_queued_once_the_stocked_list_says_which_video_opens(self):
         source = _the_session_as_one_source()
 
-        assert source.index("stock_the_playlists(") < source.index("resume_main_loop(")
+        assert source.index("open_the_main_funestras_list(") < source.index("resume_main_loop(")
 
     def test_the_headset_comes_back_as_quiet_as_the_osr2_was_left(self):
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
@@ -583,7 +580,7 @@ class _ACancelledLaunch:
 
 
 class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
-    def _stock(self, config, tmp_path, *, resumed: bool, carried: BridgeState | None = None,
+    def _stock(self, config, tmp_path, *, carried: BridgeState | None = None,
                main_video: str = "") -> BridgeState:
         manifest = LaunchManifest.read(
             write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini"))
@@ -591,8 +588,8 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
         state.mkdir(exist_ok=True)
         launch = _AStockingLaunch(
             manifest, state, _AConfig(regen_metadata_root=tmp_path / "metadata"))
-        return stock_the_playlists(
-            launch, resumed=resumed, carried=carried or BridgeState(), main_video=main_video)
+        return open_the_main_funestras_list(
+            launch, carried=carried or BridgeState(), main_video=main_video)
 
     @staticmethod
     def _main_list(tmp_path) -> list[str]:
@@ -607,13 +604,6 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
             video.write_bytes(b"")
         return vr_video, flat
 
-    def test_a_fresh_session_gets_all_three(self, config, tmp_path):
-        self._library(tmp_path)
-
-        self._stock(config, tmp_path, resumed=False)
-
-        written = sorted(p.name for p in (tmp_path / "state").glob("*playlist*.tsv"))
-        assert len(written) == 3, written
 
     def test_the_main_list_comes_up_on_the_video_it_was_on_and_the_headsets_library_under_it(
         self, config, tmp_path,
@@ -622,14 +612,14 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
         (tmp_path / "state").mkdir()
         (tmp_path / "state" / "main_player_playlist.tsv").write_text(f"{flat}\n", encoding="utf-8")
 
-        self._stock(config, tmp_path, resumed=True, main_video=str(flat))
+        self._stock(config, tmp_path, main_video=str(flat))
 
         assert self._main_list(tmp_path) == [str(flat), str(vr_video)]
 
     def test_a_video_gone_since_opens_the_main_list_at_its_top(self, config, tmp_path):
         self._library(tmp_path)
 
-        self._stock(config, tmp_path, resumed=True,
+        self._stock(config, tmp_path,
                     main_video=str(tmp_path / "library" / "2D" / "gone since.mp4"))
 
         assert "gone since" not in self._main_list(tmp_path)[0]
@@ -640,7 +630,7 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
         (tmp_path / "state" / "main_player_playlist.tsv").write_text(
             f"{flat}\n{vr_video}\n", encoding="utf-8")
 
-        self._stock(config, tmp_path, resumed=True, main_video=str(flat),
+        self._stock(config, tmp_path, main_video=str(flat),
                     carried=BridgeState(main_plays_flat=False))
 
         assert self._main_list(tmp_path) == [str(vr_video)]
@@ -650,7 +640,7 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
         arrived = tmp_path / "library" / "2D" / "scene three.mp4"
         arrived.write_bytes(b"")
 
-        self._stock(config, tmp_path, resumed=True, main_video=str(flat),
+        self._stock(config, tmp_path, main_video=str(flat),
                     carried=BridgeState(main_plays_vr=False))
 
         assert sorted(self._main_list(tmp_path)) == sorted([str(flat), str(arrived)])
@@ -660,7 +650,7 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
     ):
         vr_video, _flat = self._library(tmp_path)
 
-        self._stock(config, tmp_path, resumed=True, main_video=str(vr_video),
+        self._stock(config, tmp_path, main_video=str(vr_video),
                     carried=BridgeState(main_plays_vr=False, main_plays_flat=False))
 
         assert self._main_list(tmp_path) == [str(vr_video)]
@@ -851,14 +841,14 @@ def _left_in(config, state: BridgeState) -> None:
 
 
 class TestWhatAReopenCarriesIntoTheHeadset:
-    def test_each_funestra_is_handed_the_rate_it_was_playing_at(self, config):
-        _left_in(config, BridgeState(main_speed=0.25, portrait=SatelliteState(speed=0.5)))
+    def test_the_main_funestra_is_handed_the_rate_it_was_playing_at(self, config):
+        _left_in(config, BridgeState(main_speed=0.25))
 
         queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
 
         assert "SET_SPEED 0.25" in queued["main"]
-        assert "SET_SPEED 0.5" in queued["portrait"]
-        assert not any(verb.startswith("SET_SPEED") for verb in queued["landscape"])
+        assert not any(verb.startswith("SET_SPEED")
+                       for satellite in ("portrait", "landscape") for verb in queued[satellite])
 
     def test_the_main_funestra_is_handed_back_the_unlock_it_was_left_in(self, config):
         _left_in(config, BridgeState(main_locked=False))
@@ -1577,7 +1567,7 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         "leave_a_park_for_the_brokers_next_tick": MagicMock(),
         "ensure_broker": MagicMock(),
         "reap_orphaned_satellites": MagicMock(),
-        "stock_the_playlists": MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
+        "open_the_main_funestras_list": MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
         "launch_audio_companion": MagicMock(return_value=MagicMock(pid=101)),
         "launch_vr_funestras": MagicMock(return_value=MagicMock(pid=202)),
         "process_started": MagicMock(return_value=7),

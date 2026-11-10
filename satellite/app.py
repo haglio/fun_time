@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
+import time
+from pathlib import Path
 
 import pygame
 from app_support.logging_utils import install_exception_logging
@@ -9,7 +11,8 @@ from app_support.win32 import set_app_user_model_id
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.funestra_setup import FunestraSetup
-from funestra.playlist import PlaylistItem
+from funestra.funestra_verbs import QUIT
+from funestra.playlist import PlaylistItem, read_playlist
 
 from main_funestra.input import Input
 from main_funestra.window import (
@@ -24,6 +27,8 @@ from .contract import SatelliteChannels, WindowPlacement
 
 logger = logging.getLogger(__name__)
 
+_LOOK_FOR_A_LIST_EVERY_S = 0.1
+
 
 def set_up_logging() -> logging.Logger:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -34,13 +39,11 @@ def set_up_logging() -> logging.Logger:
 def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = build_parser().parse_args(argv)
-    playlist = resolve_playlist(args)
-    if not playlist:
+    if args.playlist is None:
         logger.error("No videos to play (need --playlist)")
         return 1
-    logger.info("Satellite playing %d clip(s)", len(playlist))
     with ahead_on_the_processor():
-        return _run(args, playlist)
+        return _run(args, resolve_playlist(args))
 
 
 def _open_window(placement: WindowPlacement, claim_identity) -> int:
@@ -71,10 +74,35 @@ def _open_window(placement: WindowPlacement, claim_identity) -> int:
     return pygame.display.get_wm_info()["window"]
 
 
+def _the_list_once_it_is_written(channels: SatelliteChannels) -> list[PlaylistItem]:
+    while True:
+        pygame.event.get()
+        if QUIT in _lines_of(channels.command):
+            return []
+        playlist = read_playlist(channels.playlist)
+        if playlist:
+            return playlist
+        time.sleep(_LOOK_FOR_A_LIST_EVERY_S)
+
+
+def _lines_of(path: Path | None) -> list[str]:
+    try:
+        return path.read_text(encoding="utf-8").split() if path else []
+    except OSError:
+        return []
+
+
 def _run(args, playlist: list[PlaylistItem], *, claim_identity=set_app_user_model_id) -> int:
     placement = WindowPlacement.from_args(args)
-    funestra = Funestra.on_window(_open_window(placement, claim_identity), FunestraSetup(
-        channels=SatelliteChannels.from_args(args), playlist=playlist,
+    channels = SatelliteChannels.from_args(args)
+    window = _open_window(placement, claim_identity)
+    playlist = playlist or _the_list_once_it_is_written(channels)
+    if not playlist:
+        pygame.quit()
+        return 0
+    logger.info("Satellite playing %d clip(s)", len(playlist))
+    funestra = Funestra.on_window(window, FunestraSetup(
+        channels=channels, playlist=playlist,
         audible=not audio_muted(args), tiles=placement.tiles,
     ))
     run_the_window(pygame, funestra, Input(funestra).deal)

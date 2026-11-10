@@ -4,7 +4,7 @@ from dataclasses import fields, replace
 from enum import Enum
 
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.session_resume import RESUMED_FIELDS, RESUMED_SATELLITE_FIELDS
+from fun_time.session_resume import RESUMED_FIELDS
 from fun_time.shared_state import BridgeState, SatelliteState
 
 
@@ -35,5 +35,5 @@ def remembered_values(state: BridgeState) -> dict[str, object]:
     for funestra in FunTimeFunestra.SATELLITES:
         satellite = state.satellite(funestra)
         values |= {f"{funestra.label}_{name}": getattr(satellite, name)
-                   for name in RESUMED_SATELLITE_FIELDS}
+                   for name in (field.name for field in fields(SatelliteState))}
     return values

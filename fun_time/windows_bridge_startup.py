@@ -34,20 +34,17 @@ from .main_list import MainList, MainListSettings
 from .manifest import CommandFiles, LaunchManifest
 from .max_intensity import publish_max_intensity
 from .mode_plan import show_verb
-from .modes import SatelliteBuild, build_satellite_playlists
 from .process_identity import NAMER
 from .process_sweep import processes_matching
 from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
 from .random_faves_browser_manifest import prepare_random_faves_browser_manifest
 from .runtime_flow import write_flag_file
-from .satellite_control import read_satellite_status
 from .satellite_launch import SatelliteLaunch, for_funestra
 from .session_resume import (
+    empty_the_satellites_lists,
     open_the_main_list,
     resume_main_loop,
-    resume_playlists,
-    resume_satellite_locks,
     resume_shared_state,
     resume_what_lives_in_a_funestra,
 )
@@ -250,15 +247,9 @@ def start_core_session(
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
     state_path = Path(state_dir)
     main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
-    portrait_status = read_satellite_status(Path(portrait.channels.status))
-    landscape_status = read_satellite_status(Path(landscape.channels.status))
-    resumed = resume_playlists([
-        (Path(portrait.channels.playlist), portrait_status.video),
-        (Path(landscape.channels.playlist), landscape_status.video),
-    ])
+    empty_the_satellites_lists([Path(launch.channels.playlist) for launch in (portrait, landscape)])
     carried = resume_shared_state(
-        shared_state_path(state_path), resumed=resumed,
-        last_reported=reports_published_in(
+        shared_state_path(state_path), last_reported=reports_published_in(
             state_path, main_status_file=Path(commands.main_funestra_status_file),
             satellite_status_files={launch.funestra: Path(launch.channels.status)
                                     for launch in (portrait, landscape)}))
@@ -271,22 +262,6 @@ def start_core_session(
         portrait.channels.paused, landscape.channels.paused)
     prepare_random_faves_browser_manifest(
         m.runtime.config_path, m.random_faves_browser.manifest_file)
-    if not resumed:
-        build_satellite_playlists(
-            portrait=SatelliteBuild(sources=portrait.sources),
-            landscape=SatelliteBuild(sources=landscape.sources),
-            state_dir=state_path,
-            metadata_root=regen_metadata_root,
-        )
-    logger.info(
-        "Resumed last session's playlists"
-        if resumed
-        else "Nothing to resume; built fresh playlists"
-    )
-    resume_satellite_locks([
-        (Path(portrait.channels.command), carried.satellite(FunTimeFunestra.PORTRAIT).locked),
-        (Path(landscape.channels.command), carried.satellite(FunTimeFunestra.LANDSCAPE).locked),
-    ])
     resume_main_loop(Path(commands.main_funestra_cmd_file), carried, main_list.file)
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
