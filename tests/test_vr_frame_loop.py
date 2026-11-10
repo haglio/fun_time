@@ -17,12 +17,12 @@ from fun_time_vr.frame_loop import (
     FrameLoop,
     Headset,
     QuadLayer,
+    _view_from_the_spheres_center,
     closing_screen_over_the_teardown,
     hold_the_headset,
     present_the_loading_screen,
     raise_the_loading_screen,
     refresh_quad_layer,
-    _view_from_the_spheres_center,
     tear_down,
 )
 from fun_time_vr.funestras import Arranged
