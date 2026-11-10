@@ -926,7 +926,7 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
     crown = _the_row_of("main_crown")
 
     assert [group.title for group in funestras.groups] == [
-        "Navigation", "Playlist", "Included video types", "Sound", "HUD", "Playback",
+        "Navigation", "Playlist", "Included video types", "Audio", "HUD", "Playback",
         "Nav Map", "Loops", "Filter", "Other"]
     assert [row.description for row in _group("Funestras", "Nav Map").rows] == [
         "cycle action", "cycle seed", "wrong action"]

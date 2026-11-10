@@ -123,7 +123,7 @@ _HUD_MOVE_KEYS = {
     "up": ("Ctrl+Up", "Ctrl+W", "Ctrl+K"),
     "down": ("Ctrl+Down", "Ctrl+S", "Ctrl+,"),
 }
-_MAIN_SOUND = ("audio_volume_down", "audio_volume_up", "audio_mute", "audio_unmute")
+_MAIN_AUDIO = ("audio_volume_down", "audio_volume_up", "audio_mute", "audio_unmute")
 
 def flip_row(flick: Noun) -> _Row:
     return _Row(
@@ -396,13 +396,13 @@ _SECTIONS: tuple[_Section, ...] = (
                                              "enhancement_both"),
                 ),
             )),
-            _Group("Sound", (
+            _Group("Audio", (
                 _Row(
-                    "volume down / up, in tenths — the Main Funestra's sound is the "
+                    "volume down / up, in tenths — the Main Funestra's audio is the "
                     f"video's in Kino mode and the {_FLICK.one} music in Genau mode",
-                    commands=_sided("volume_down", "volume_up") + _MAIN_SOUND[:2],
+                    commands=_sided("volume_down", "volume_up") + _MAIN_AUDIO[:2],
                 ),
-                _Row("mute / unmute", commands=_sided("mute", "unmute") + _MAIN_SOUND[2:]),
+                _Row("mute / unmute", commands=_sided("mute", "unmute") + _MAIN_AUDIO[2:]),
             )),
             _Group("HUD", (
                 *(_Row(f"move HUD {direction}",
