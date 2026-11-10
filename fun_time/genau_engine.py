@@ -216,7 +216,7 @@ def _rescanned(rescan: Callable[[], list[Path]], log: logging.Logger) -> list[Pa
     try:
         return rescan()
     except (OSError, RuntimeError):
-        log.warning("Could not rescan the flicks folder; keeping the sequence", exc_info=True)
+        log.warning("Could not rescan Genau's folder; keeping the sequence", exc_info=True)
         return None
 
 
@@ -224,7 +224,7 @@ def _reorder(selection: FlickSelectionController, rescan: Rescan, recent: bool,
              log: logging.Logger) -> None:
     if flicks := _rescanned(lambda: rescan(recent), log):
         selection.reorder(flicks)
-        log.info("Browsing %s (%d flicks)", "newest-first" if recent else "reshuffled", len(flicks))
+        log.info("Browsing %s (%d in all)", "newest-first" if recent else "reshuffled", len(flicks))
 
 
 def _narrow(selection: FlickSelectionController, scan: Callable[[], list[Path]],
@@ -263,7 +263,7 @@ def _still_open_after_trying(flick: Path, trash_dir: Path, log: logging.Logger) 
         log.error("Could not move %s to %s", flick.name, trash_dir, exc_info=True)
         return False
     if landed is None:
-        log.info("Flick %s was already gone; nothing to condemn", flick.name)
+        log.info("%s was already gone; nothing to condemn", flick.name)
     else:
         log.info("Condemned %s to %s", flick.name, trash_dir)
     return False

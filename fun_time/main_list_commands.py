@@ -154,8 +154,8 @@ def _dispatch_inclusion(
     if inclusions is None:
         return ignored(state, IN_GENAU_MODE)
     if not inclusions.offered(state, config):
-        logger.info("Nothing but one kind of %s in this session; %s filter ignored",
-                    "video" if on_the_main_funestra else "flick", inclusions.kinds)
+        logger.info("%s has nothing but one kind in this session; %s filter ignored",
+                    "The Main Funestra" if on_the_main_funestra else "Genau", inclusions.kinds)
         return state, []
     if inclusions.read(state) == wanted and not (
             inclusions.a_compilation_is_left_by_asking_again
