@@ -486,9 +486,13 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     try:
         carried = _resume_the_room(launch)
         _launch_the_children(launch, config, launched)
-        if not _wait_for_funestra(launch.main_funestra_status_file, launched.funestra, progress):
+        with progress.loading_screen_kept_up():
+            joined = _wait_for_funestra(
+                launch.main_funestra_status_file, launched.funestra, progress)
+            if joined:
+                _wait_for_the_room(launch.room_ready_file, launched.funestra, progress)
+        if not joined:
             return _end_a_launch_the_headset_never_joined(launch, launched, ahk_proc)
-        _wait_for_the_room(launch.room_ready_file, launched.funestra, progress)
         hud_publisher, _hud_primed = start_hud_priming(
             launch.bridge_config, launch.manifest, dashboard_enabled=True)
         if progress.cancelled:
