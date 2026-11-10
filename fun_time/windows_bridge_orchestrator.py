@@ -571,6 +571,9 @@ def start_hud_priming(
             prime_group_indexes(sources, bridge_config.regen_metadata_root)
         finally:
             primed.set()
+        _decode_every_still_ahead_of_its_first_use()
+
+    def _decode_every_still_ahead_of_its_first_use() -> None:
         for source in sources:
             if source:
                 prewarm_thumbnails(collect_video_files(source), cache_dir)

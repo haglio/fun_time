@@ -23,7 +23,6 @@ from funestra.video_groups import (
 
 from fun_time.media_metadata import cached_group_index
 from fun_time.modes import collect_video_files
-from fun_time.thumbnail_cache import thumbnail_for
 
 
 def _title(
@@ -385,7 +384,7 @@ def hud_thumbnails(
     cache_dir: str | Path,
     *,
     limit: int,
-    thumbnailer: Callable[[str, str | Path], Path | None] = thumbnail_for,
+    thumbnailer: Callable[[str, str | Path], Path | None],
 ) -> list[tuple[str, Path]]:
     resolved: list[tuple[str, Path]] = []
     for path in paths:
