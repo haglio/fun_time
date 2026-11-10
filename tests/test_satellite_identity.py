@@ -14,7 +14,7 @@ from fun_time.windows_bridge_startup import (
     SATELLITE_PORTRAIT_TITLE,
     launch_core_apps,
 )
-from main_funestra.window import wear_the_icon
+from main_funestra.window import replace_pygames_logo_with
 from tests.dispatch_sweep import desktop_manifest
 from tests.test_windows_bridge_startup import _launch
 
@@ -38,8 +38,9 @@ def test_a_session_hands_each_satellite_fun_times_own_icon(tmp_path: Path):
 def test_fun_times_icon_loads_as_a_window_icon():
     worn = []
 
-    wear_the_icon(SimpleNamespace(display=SimpleNamespace(set_icon=worn.append),
-                                  image=pygame.image), PROJECT_ICON)
+    replace_pygames_logo_with(
+        SimpleNamespace(display=SimpleNamespace(set_icon=worn.append), image=pygame.image),
+        PROJECT_ICON)
 
     assert len(worn) == 1
 

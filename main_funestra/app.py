@@ -33,9 +33,9 @@ from .input import Input
 from .loading import LoadingCanceled, LoadingScreen
 from .window import (
     before_the_window_exists,
+    replace_pygames_logo_with,
     run_the_window,
     take_outside_resizes,
-    wear_the_icon,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def _open_window(args):
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
-    wear_the_icon(pygame, args.icon)
+    replace_pygames_logo_with(pygame, args.icon)
     screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
     take_outside_resizes(pygame)
     pygame.display.set_caption("Main Funestra")
