@@ -34,7 +34,7 @@ from fun_time.media_metadata import (
     metadata_path_for,
 )
 from fun_time.mode_plan import EnhancementLevel
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands

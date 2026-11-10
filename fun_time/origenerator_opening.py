@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from .bridge_records import BridgeConfig
 from .funestra_status import origenerator_has_published
-from .origenerator_switches import RfbMode
+from .rfb_modes import RfbMode
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)

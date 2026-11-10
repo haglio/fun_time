@@ -4,7 +4,7 @@ import logging
 from dataclasses import replace
 
 from .bridge_records import BridgeConfig, WindowOp
-from .origenerator_switches import WHAT_THE_DIM_BUTTONS_SAY, RfbMode
+from .rfb_modes import WHAT_THE_DIM_BUTTONS_SAY, RfbMode
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)

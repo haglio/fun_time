@@ -17,8 +17,8 @@ from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
 from .mode_plan import STARTUP_MAIN_MODE, EnhancementLevel
-from .origenerator_switches import RfbMode
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
+from .rfb_modes import RfbMode
 
 logger = logging.getLogger(__name__)
 

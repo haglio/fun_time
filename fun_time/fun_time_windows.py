@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from app_support.win32 import window_exists
 
 from . import preview_marker
-from .origenerator_switches import RfbMode
+from .rfb_modes import RfbMode
 from .win32 import (
     activate_window,
     find_window_by_pid,

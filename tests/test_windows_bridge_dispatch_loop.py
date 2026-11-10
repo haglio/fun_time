@@ -56,8 +56,8 @@ from fun_time.media_metadata import (
     metadata_path_for,
 )
 from fun_time.origenerator_opening import OrigeneratorNeverCameUp
-from fun_time.origenerator_switches import RfbMode
 from fun_time.regen import build_regen_url
+from fun_time.rfb_modes import RfbMode
 from fun_time.rfb_slideshow import RfbSlideshow
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
@@ -3147,7 +3147,7 @@ class TestOpeningOrigenerator:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert not runner.departures.still_going()
+        assert not runner.hand_overs.still_going()
 
     def test_an_app_that_takes_a_satellite_the_instant_it_is_asked_is_seen_to(self, tmp_path):
         config = make_config(tmp_path)
@@ -3158,7 +3158,7 @@ class TestOpeningOrigenerator:
                    side_effect=an_app_that_opens_each_slideshow_asked_of_it(config, [])):
             runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
 
-        assert not runner.departures.still_going()
+        assert not runner.hand_overs.still_going()
 
     def test_an_app_that_never_takes_the_satellites_stops_the_session_opening(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path))
@@ -3178,7 +3178,7 @@ class TestOpeningOrigenerator:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert not runner.departures.still_going()
+        assert not runner.hand_overs.still_going()
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3206,7 +3206,7 @@ class TestOpeningOrigenerator:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert not runner.departures.still_going()
+        assert not runner.hand_overs.still_going()
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3220,7 +3220,7 @@ class TestOpeningOrigenerator:
 
         runner.activate_origenerator(wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert not runner.departures.still_going()
+        assert not runner.hand_overs.still_going()
         assert runner.state.rfb_mode is RfbMode.RFB
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3312,7 +3312,7 @@ class TestTheAppTakesAFunestra:
         channel = config.satellite(FunTimeFunestra.PORTRAIT)
         write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "portrait.mp4")])
         publish_whole(channel.origenerator_hud_file, "")
-        runner.departures.expect((FunTimeFunestra.PORTRAIT,), config)
+        runner.hand_overs.expect((FunTimeFunestra.PORTRAIT,), config)
         return runner, channel
 
     def test_the_satellite_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):

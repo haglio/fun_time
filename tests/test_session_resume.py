@@ -14,7 +14,7 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_settings import FunestraReports
 from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.session_resume import (
     NOT_RESUMED,
     RESUMED_FIELDS,

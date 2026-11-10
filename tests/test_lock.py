@@ -12,7 +12,7 @@ from fun_time.content import WebProvider, load_web_providers
 from fun_time.lock import a_hosted_lock_holds, a_lock_holds, go_to_line
 from fun_time.media_actions import make_web_url_from_path
 from fun_time.media_metadata import metadata_path_for, recorded_for
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.shared_state import BridgeState
 from fun_time.watch_stats import watch_stats_path
 from tests.test_windows_bridge_dispatch_loop import make_config

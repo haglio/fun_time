@@ -42,7 +42,7 @@ from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionS
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import Departures
+from .funestra_handover import HandOvers
 from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
@@ -64,7 +64,7 @@ from .origenerator_opening import (
     OrigeneratorOpening,
     with_the_browser_in_its_place,
 )
-from .origenerator_switches import RfbMode
+from .rfb_modes import RfbMode
 from .runtime_flow import hand_the_satellite_to_the_app, write_flag_file
 from .satellite_speeds import SatelliteSpeeds
 from .session_end import mark_session_end
@@ -168,7 +168,7 @@ class DispatchLoopRunner:
         self.voice = AppVoice()
         self._answers = 0
         self._ignored_because = ""
-        self.departures = Departures()
+        self.hand_overs = HandOvers()
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={funestra: config.satellite(funestra).status_file
@@ -196,7 +196,7 @@ class DispatchLoopRunner:
         if not self.opening.opens_now(wait_for_the_app):
             return
         self.state = self.opening.app_as_it_is(self.state)
-        self.departures.expect(FunTimeFunestra.SATELLITES, self.config)
+        self.hand_overs.expect(FunTimeFunestra.SATELLITES, self.config)
         for funestra in FunTimeFunestra.SATELLITES:
             hand_the_satellite_to_the_app(funestra, self.config.satellite(funestra),
                                           self.config.origenerator_cmd_file)
@@ -206,9 +206,9 @@ class DispatchLoopRunner:
             raise OrigeneratorNeverCameUp
 
     def _the_app_has_every_satellite(self) -> bool:
-        if self.departures.taken(self.config):
+        if self.hand_overs.taken(self.config):
             self.hud.publish(self.state)
-        return not self.departures.still_going()
+        return not self.hand_overs.still_going()
 
     def tick(self) -> None:
         self.messages.flash_new()

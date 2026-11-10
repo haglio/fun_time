@@ -26,7 +26,6 @@ from .funestra_status import read_genau_status, read_main_funestra_status
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
 from .satellite_control import read_satellite_status
-from .satellite_groups import send_satellite
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
@@ -65,10 +64,8 @@ MAIN_LOCK_COMMANDS = {
 }
 
 
-_PLAYHEAD_COMMANDS: dict[str, tuple[FunTimeFunestra, str]] = {
-    f"{funestra.label}_{act}": (funestra, verb)
-    for funestra in FunTimeFunestra
-    for act, verb in PLAYHEAD_ACTS.items()
+_PLAYHEAD_COMMANDS: dict[str, str] = {
+    f"{FunTimeFunestra.MAIN.label}_{act}": verb for act, verb in PLAYHEAD_ACTS.items()
 }
 
 
@@ -92,14 +89,11 @@ def refused_on_a_satellite(funestra: FunTimeFunestra, act: str, state: BridgeSta
     return step_refused(funestra, verb, config) if verb else []
 
 
-def _step_through(funestra: FunTimeFunestra, verb: str, state: BridgeState, config: BridgeConfig,
+def _step_through(verb: str, state: BridgeState, config: BridgeConfig,
                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if refused := step_refused(funestra, verb, config):
+    if refused := step_refused(FunTimeFunestra.MAIN, verb, config):
         return state, refused
-    if funestra is FunTimeFunestra.MAIN:
-        append_command(config.main_funestra_cmd_file, verb)
-    else:
-        send_satellite(config, funestra, verb)
+    append_command(config.main_funestra_cmd_file, verb)
     return state, []
 
 
@@ -179,8 +173,7 @@ _VR_MAIN_FUNESTRA_VERBS = {
 SKIP_AHEAD = "main_funestra_funscript_jump"
 
 HANDLERS: dict[str, Handler] = {
-    **{cmd: partial(_step_through, funestra, verb)
-       for cmd, (funestra, verb) in _PLAYHEAD_COMMANDS.items()},
+    **{cmd: partial(_step_through, verb) for cmd, verb in _PLAYHEAD_COMMANDS.items()},
     **{cmd: partial(_forward_to_whatever_is_on_the_main_funestra, verb)
        for cmd, verb in _MAIN_TRANSPORT.items()},
     **{cmd: partial(_main_lock, verb) for cmd, verb in MAIN_LOCK_COMMANDS.items()},

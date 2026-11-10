@@ -57,6 +57,7 @@ from .funestra_deaths import (
 )
 from .hosted_contract import (
     ASKING_BUDGET_S,
+    CLOSE_SLIDESHOWS,
     NO_HOSTED_VOCABULARY,
     HostedVocabulary,
     publish_actions_heard_as,
@@ -69,7 +70,6 @@ from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .origenerator_opening import OrigeneratorNeverCameUp
-from .origenerator_switches import CLOSE_SLIDESHOWS, RfbMode
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
@@ -89,6 +89,7 @@ from .overlay_progress import (
 from .process_identity import NAMER
 from .process_tree import kill_process_tree
 from .raising_the_loading_screen import OFF_THE_MONITORS_WAIT_S, RaisedLoadingScreen
+from .rfb_modes import RfbMode
 from .rfb_slideshow import rfb_slideshow_on
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment

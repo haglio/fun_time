@@ -9,7 +9,7 @@ from funestra.playlist import read_playlist
 
 from fun_time import polled_files
 from fun_time.modes import write_playlist_file
-from fun_time.origenerator_switches import RfbMode
+from fun_time.rfb_modes import RfbMode
 from fun_time.runtime_flow import write_flag_file
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 

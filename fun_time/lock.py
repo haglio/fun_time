@@ -6,9 +6,9 @@ from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
 from .media_actions import make_web_url_from_path
 from .media_metadata import mark_favorite, metadata_path_for
-from .origenerator_switches import RfbMode
 from .random_faves_browser import FavEntry, target_for_fav
 from .rfb_mode import switch_the_rfb_mode
+from .rfb_modes import RfbMode
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .shared_state import BridgeState
 from .watch_stats import record_watch_event, watch_stats_path

@@ -19,8 +19,6 @@ HudStamp = tuple[int, int] | None
 
 
 def hud_stamp(channel: SatelliteChannel) -> HudStamp:
-    if channel.origenerator_hud_file is None:
-        return None
     try:
         stat = channel.origenerator_hud_file.stat()
     except OSError:
@@ -29,8 +27,6 @@ def hud_stamp(channel: SatelliteChannel) -> HudStamp:
 
 
 def _slideshows_button(channel: SatelliteChannel, verb: str) -> Button | None:
-    if channel.origenerator_hud_file is None:
-        return None
     try:
         hud = parse_hud(channel.origenerator_hud_file.read_text(encoding="utf-8"))
     except OSError:
@@ -72,7 +68,7 @@ def taken_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:
         return False
 
 
-class Departures:
+class HandOvers:
     def __init__(self) -> None:
         self._going: dict[FunTimeFunestra, HudStamp] = {}
 
