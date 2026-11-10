@@ -22,11 +22,13 @@ pytestmark = [
 ]
 
 SEEK_SLACK_MS = 1_000
+_LONGER_THAN_MOST_OF_THE_LIBRARYS_S = 40
 
 
 def test_seek_steps_a_held_video_ten_seconds_either_way():
     satellite = a_lone_satellite()
-    video = video_of_a_test_pattern(satellite.sources / "test_pattern.mp4", size="360x640", seconds=40)
+    video = video_of_a_test_pattern(satellite.sources / "test_pattern.mp4", size="360x640",
+                                    seconds=_LONGER_THAN_MOST_OF_THE_LIBRARYS_S)
     with satellite.launched([str(video)], width=640, height=360, hud=True):
         satellite.wait_until_playing()
         write_flag_file(satellite.paused, True)

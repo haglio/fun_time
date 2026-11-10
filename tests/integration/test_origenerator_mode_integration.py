@@ -695,12 +695,17 @@ def test_a_trash_press_in_kino_hands_the_video_to_the_hosted_apps_trash():
         session.stop()
 
 
-def _the_state_file_a_crashed_real_session_leaves(config_path: Path) -> Path:
+def _end_as_a_crash_does_sparing_the_next_start_a_takeover(
+        session: FunTimeIntegrationSession) -> None:
+    session.stop()
+
+
+def _the_state_beside_the_playlists_a_real_session_leaves(config_path: Path) -> Path:
     first = FunTimeIntegrationSession(config_path)
     try:
         first.start(wait_seconds=_A_START_WITH_EVERY_CORE_BUSY_S)
     finally:
-        first.stop()
+        _end_as_a_crash_does_sparing_the_next_start_a_takeover(first)
     return shared_state_path(first.config.paths.state_dir)
 
 
@@ -711,7 +716,7 @@ def test_an_app_left_in_the_mode_opens_in_it_as_it_was_left():
     config_path = build_integration_config(temp_root)
     _host_stub(config_path, stub_root)
 
-    state_file = _the_state_file_a_crashed_real_session_leaves(config_path)
+    state_file = _the_state_beside_the_playlists_a_real_session_leaves(config_path)
     left = replace(read_shared_state(state_file), rfb_mode=RfbMode.ORIGENERATOR, max_intensity=38)
     for funestra in _FUNESTRAS:
         left = left.with_satellite(funestra, mode=SatellitesMode.ORIGENERATOR)

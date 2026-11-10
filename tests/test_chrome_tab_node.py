@@ -27,7 +27,8 @@ class _FakeElement:
         return self.selected if property_id == _UIA.UIA_SelectionItemIsSelectedPropertyId else None
 
     def GetCurrentPattern(self, pattern_id):
-        assert pattern_id == _UIA.UIA_LegacyIAccessiblePatternId
+        assert pattern_id == _UIA.UIA_LegacyIAccessiblePatternId, (
+            "a tab pressed through its select pattern activates its window")
         return self
 
     def QueryInterface(self, interface):

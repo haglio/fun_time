@@ -26,7 +26,7 @@ def _children_of(automation: Any, element: Any) -> list[UiaNode]:
     return found
 
 
-def _press(automation: Any, element: Any) -> None:
+def _press_without_the_activation_select_brings(automation: Any, element: Any) -> None:
     uia = automation.uia
     element.GetCurrentPattern(uia.UIA_LegacyIAccessiblePatternId).QueryInterface(
         uia.IUIAutomationLegacyIAccessiblePattern).DoDefaultAction()
@@ -48,4 +48,4 @@ class UiaNode:
         return _children_of(self.automation, self.element)
 
     def switch_to(self) -> None:
-        _press(self.automation, self.element)
+        _press_without_the_activation_select_brings(self.automation, self.element)

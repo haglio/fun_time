@@ -27,14 +27,18 @@ pytestmark = [
 ]
 
 
+def _locked_so_only_next_can_change_the_video(satellite: LoneSatellite) -> str:
+    satellite.send(LOCK_ON)
+    satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
+                       desc="the satellite to lock")
+    return satellite.video()
+
+
 def test_native_satellite_plays_and_obeys_commands():
     satellite = a_lone_satellite()
     with satellite.launched(library_videos_of("portrait", 3), width=800, height=600):
         first = satellite.wait_until_playing()
-        satellite.send(LOCK_ON)
-        satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
-                           desc="the satellite to lock")
-        locked_video = satellite.video()
+        locked_video = _locked_so_only_next_can_change_the_video(satellite)
         satellite.send(NEXT)
         satellite.wait_for(
             lambda: read_satellite_status(satellite.status).video not in ("", locked_video),
@@ -52,6 +56,9 @@ def test_native_satellite_plays_and_obeys_commands():
         assert first.video
 
 
+_THE_MODULE_EVERY_SATELLITE_ON_THE_MACHINE_RUNS = "satellite"
+
+
 def test_another_sessions_startup_reap_leaves_this_satellite_alone():
     satellite = a_lone_satellite()
     with satellite.launched(library_videos_of("portrait", 2), width=800, height=600):
@@ -59,19 +66,28 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone():
 
         elsewhere = satellite.folder.parent / "some_other_session"
         reap_orphaned_satellites(
-            "satellite",
+            _THE_MODULE_EVERY_SATELLITE_ON_THE_MACHINE_RUNS,
             [elsewhere / "portrait_status.txt", elsewhere / "landscape_status.txt"],
         )
         let_seconds_pass(2.0)
         assert process_started(satellite.pid) is not None, (
             "another session's startup reap killed this satellite")
 
-        reap_orphaned_satellites("satellite", [satellite.status])
+        reap_orphaned_satellites(_THE_MODULE_EVERY_SATELLITE_ON_THE_MACHINE_RUNS,
+                                 [satellite.status])
         satellite.wait_for(lambda: process_started(satellite.pid) is None,
                            desc="our own reap to clear a satellite stranded on our files")
 
 
-def test_the_satellite_composites_the_published_lock_hud(tmp_path):
+def _still_playing_after_a_hud_mpv_draws_where_nothing_can_read_it(
+        satellite: LoneSatellite) -> bool:
+    before = published_status(read_satellite_status, satellite.status).position_ms
+    let_seconds_pass(2.0)
+    after = published_status(read_satellite_status, satellite.status).position_ms
+    return after != before
+
+
+def test_the_satellite_survives_drawing_the_published_lock_hud(tmp_path):
     videos = library_videos_of("portrait", 2)
     cache_dir = tmp_path / THUMBNAIL_CACHE_DIRNAME
     for video in videos:
@@ -93,11 +109,8 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     with satellite.launched(videos, width=800, height=600, hud=True):
         satellite.wait_until_playing()
         publish(locked=True)
-        before = published_status(read_satellite_status, satellite.status).position_ms
-        let_seconds_pass(2.0)
-        after = published_status(read_satellite_status, satellite.status).position_ms
-        assert after != before, (
-            f"the satellite stopped publishing after the HUD redrew ({before} -> {after})")
+        assert _still_playing_after_a_hud_mpv_draws_where_nothing_can_read_it(satellite), (
+            "the satellite stopped publishing after the HUD redrew")
 
 
 def _images(folder: Path, count: int) -> list[Path]:

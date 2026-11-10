@@ -36,7 +36,7 @@ class _AtTheReveal(threading.Thread):
         self._timeout_s = timeout_s
         self.loading_screen_was_up = False
         self.lifted_at = 0.0
-        self.hwnds: dict[str, int] = {}
+        self.on_screen_though_a_message_may_cover_it: dict[str, int] = {}
         self.hidden_hwnds: dict[str, int] = {}
 
     def run(self) -> None:
@@ -49,8 +49,11 @@ class _AtTheReveal(threading.Thread):
             time.sleep(_POLL_S)
         else:
             return
+        self._photograph_before_the_session_can_catch_up()
+
+    def _photograph_before_the_session_can_catch_up(self) -> None:
         self.lifted_at = time.time()
-        self.hwnds = {
+        self.on_screen_though_a_message_may_cover_it = {
             title: find_window_by_title(title, exact=True) for title in SHOWN_TITLES
         }
         self.hidden_hwnds = {
@@ -59,16 +62,24 @@ class _AtTheReveal(threading.Thread):
         }
 
 
+def _watching_while_start_blocks_past_the_reveal() -> _AtTheReveal:
+    watcher = _AtTheReveal()
+    watcher.start()
+    return watcher
+
+
+_THE_DASHBOARD_WHICH_ONCE_SHOWED_SECONDS_AFTER_THE_LIFT = {"FUN_TIME_DISABLE_DASHBOARD": "0"}
+
+
 def test_the_app_is_finished_when_the_loading_screen_lifts():
     temp_root = build_integration_temp_root()
     config_path = build_integration_config(temp_root)
     session = FunTimeIntegrationSession(config_path)
-    watcher = _AtTheReveal()
-    watcher.start()
+    watcher = _watching_while_start_blocks_past_the_reveal()
     try:
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
-            "FUN_TIME_DISABLE_DASHBOARD": "0",
+            **_THE_DASHBOARD_WHICH_ONCE_SHOWED_SECONDS_AFTER_THE_LIFT,
         })
         joined_within(watcher, 60.0)
 
@@ -79,7 +90,7 @@ def test_the_app_is_finished_when_the_loading_screen_lifts():
             "loading screen to lift and this test proves nothing"
         )
         assert watcher.loading_screen_was_up, "the loading screen never appeared"
-        assert watcher.hwnds, (
+        assert watcher.on_screen_though_a_message_may_cover_it, (
             "the watcher never photographed Fun Time, so the loading screen's window "
             "outlived its wait — nothing here has been measured"
         )
@@ -87,7 +98,7 @@ def test_the_app_is_finished_when_the_loading_screen_lifts():
         missing = [
             f"{title} (a hidden window of that name was up)"
             if watcher.hidden_hwnds.get(title) else f"{title} (no window at all)"
-            for title, hwnd in watcher.hwnds.items() if not hwnd
+            for title, hwnd in watcher.on_screen_though_a_message_may_cover_it.items() if not hwnd
         ]
         pids = session.read_child_pids()
         assert not missing, (

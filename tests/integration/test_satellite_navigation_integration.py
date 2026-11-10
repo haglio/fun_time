@@ -19,7 +19,7 @@ from fun_time.hud_transport import HudPublisher
 from fun_time.latest_arrivals import LatestArrivals
 from fun_time.lock_hud import SatelliteHud
 from fun_time.modes import write_playlist_file
-from fun_time.satellite_control import read_satellite_status
+from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 
@@ -134,13 +134,17 @@ def _bridge_config(satellite: LoneSatellite) -> BridgeConfig:
     )
 
 
+_CLAIMED_BY_RENAME_AND_READ_TO_THE_END = FileNotFoundError
+_WINDOWS_REFUSING_A_READ_MID_RENAME = PermissionError
+
+
 def _drained(satellite: LoneSatellite) -> None:
     def empty() -> bool:
         try:
             return not satellite.cmd.read_text(encoding="utf-8").strip()
-        except FileNotFoundError:
+        except _CLAIMED_BY_RENAME_AND_READ_TO_THE_END:
             return True
-        except PermissionError:
+        except _WINDOWS_REFUSING_A_READ_MID_RENAME:
             return False
 
     satellite.wait_for(empty, desc="the Funestra to drain its command file")
@@ -153,10 +157,12 @@ def test_latest_puts_the_newest_video_on_screen(satellite):
                                       seconds=3)
         os.utime(video, (1000 + i * 1000, 1000 + i * 1000))
         made.append(str(video))
-    oldest, newest = made[0], made[-1]
+    the_oldest_which_a_reload_alone_keeps_playing, newest = made[0], made[-1]
 
-    satellite.send(f"PLAY_FILE {oldest}")
-    satellite.wait_for(lambda: Path(satellite.video()) == Path(oldest), desc="the oldest clip")
+    satellite.send(f"PLAY_FILE {the_oldest_which_a_reload_alone_keeps_playing}")
+    satellite.wait_for(
+        lambda: Path(satellite.video()) == Path(the_oldest_which_a_reload_alone_keeps_playing),
+        desc="the oldest clip")
 
     dispatch_command("portrait_latest", BridgeState(), _bridge_config(satellite))
 
@@ -183,13 +189,21 @@ def test_a_video_that_arrives_under_latest_comes_up_after_the_one_on_screen(sate
     assert still_up == on_screen
 
 
+def _a_browse_sure_to_lack(playing: str, satellite: LoneSatellite) -> list[str]:
+    browse = [v for v in _playlist_videos(satellite) if v != playing]
+    assert playing not in browse
+    return browse
+
+
+def _the_real_librarys_browse_replaced_by(browse: list[str]):
+    return patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse)
+
+
 def test_no_loop_keeps_the_video_on_screen_playing(satellite):
     config = _bridge_config(satellite)
     playing = satellite.video()
-    browse = [v for v in _playlist_videos(satellite) if v != playing]
-    assert playing not in browse
 
-    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
+    with _the_real_librarys_browse_replaced_by(_a_browse_sure_to_lack(playing, satellite)):
         dispatch_command("portrait_no_loop", BridgeState(portrait=SatelliteState(loop="seed")), config)
 
     _drained(satellite)
@@ -200,27 +214,34 @@ def test_no_loop_keeps_the_video_on_screen_playing(satellite):
 def test_next_leaves_a_loop_down_to_one_video_for_another_video(satellite):
     config = _bridge_config(satellite)
     playing = satellite.video()
-    browse = [v for v in _playlist_videos(satellite) if v != playing]
+    browse = _a_browse_sure_to_lack(playing, satellite)
     write_playlist_file(satellite.playlist, [playing])
     satellite.send("RELOAD_PLAYLIST")
     satellite.wait_for(lambda: read_satellite_status(satellite.status).playlist_length == 1,
                        desc="the loop to hold only the clip on screen")
 
-    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
+    with _the_real_librarys_browse_replaced_by(browse):
         dispatch_command("portrait_next", BridgeState(portrait=SatelliteState(loop="seed", locked=True)), config)
 
     assert satellite.wait_for_video(other_than=playing) in browse
 
 
-def _decoding(satellite: LoneSatellite) -> bool:
-    status = published_status(read_satellite_status, satellite.status)
+def _mpv_has_a_file_open(status: SatelliteStatus) -> bool:
     return status.duration_ms > 0 and status.position_ms > 0
 
 
+def _decoding(satellite: LoneSatellite) -> bool:
+    return _mpv_has_a_file_open(published_status(read_satellite_status, satellite.status))
+
+
+_THE_UPSCALED_4K_LIBRARY_WHERE_THE_LOAD_IS = "landscape"
+_A_LANDSCAPE_SLOTS_SIZE = {"width": 1706, "height": 1410}
+
+
 def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
-    videos = library_videos_of("landscape", 8)
+    videos = library_videos_of(_THE_UPSCALED_4K_LIBRARY_WHERE_THE_LOAD_IS, 8)
     satellite = a_lone_satellite()
-    with satellite.launched(videos[:3], width=1706, height=1410, hud=True):
+    with satellite.launched(videos[:3], **_A_LANDSCAPE_SLOTS_SIZE, hud=True):
         satellite.wait_until_playing()
         satellite.send(LOCK_ON)
         satellite.wait_for(lambda: read_satellite_status(satellite.status).locked,
@@ -269,7 +290,7 @@ def test_more_seeds_leaves_the_funestra_decoding(tmp_path):
         blank = None
         while not watching.expired():
             status = read_satellite_status(satellite.status)
-            if status.duration_ms > 0 and status.position_ms > 0:
+            if _mpv_has_a_file_open(status):
                 blank = None
                 seen.add(status.video)
             else:
