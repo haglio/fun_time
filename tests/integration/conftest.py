@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import pytest_timeout
+from PyQt6.QtGui import QFontDatabase
 
 from . import run_clock
 from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
@@ -34,6 +35,11 @@ def draw_real_windows_only_on_the_hidden_desktop(environ: MutableMapping[str, st
 
 
 draw_real_windows_only_on_the_hidden_desktop()
+
+
+@pytest.fixture
+def real_fonts_where_offscreen_paints_tofu() -> None:
+    assert QFontDatabase.families(), "native platform must have real fonts"
 
 
 def refuse_a_run_that_may_not_start() -> None:

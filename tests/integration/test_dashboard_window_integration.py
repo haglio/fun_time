@@ -140,7 +140,9 @@ def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edg
         window.close()
 
 
-def test_log_filters_fit_one_row_inside_the_log_panel_and_lines_word_wrap(cfg_path: Path):
+def test_log_filters_fit_one_row_inside_the_log_panel_and_lines_word_wrap(
+    cfg_path: Path, real_fonts_where_offscreen_paints_tofu,
+):
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         panel = window._log_widget

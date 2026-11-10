@@ -950,6 +950,41 @@ class TestLoadingScreenLifecycle:
         loading_cmd = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmd) == 1, "Loading screen subprocess not launched"
 
+    def test_the_pids_file_is_written_only_after_the_reveal(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        order: list[str] = []
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+        reveal, write_pids = windows_bridge_orchestrator._reveal_the_app, write_pids_file
+
+        def revealing(*args, **kwargs):
+            order.append("reveal")
+            return reveal(*args, **kwargs)
+
+        def writing_pids(*args, **kwargs):
+            order.append("pids file")
+            return write_pids(*args, **kwargs)
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator._reveal_the_app", side_effect=revealing), \
+             patch("fun_time.windows_bridge_orchestrator.write_pids_file", side_effect=writing_pids):
+            _a_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        assert order == ["reveal", "pids file"], (
+            "the hotkey script logs 'Session up' the moment the pids file exists, and a start "
+            "waiting on that line would read windows the reveal had not yet put in order")
+
     def test_loading_screen_skipped_in_integration_mode(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(

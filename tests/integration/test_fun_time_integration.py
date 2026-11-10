@@ -232,13 +232,17 @@ def test_fun_time_the_max_intensity_pushes_the_robot_hand_down_and_leaves_it_the
     assert _osr2_swinging(free), free
 
 
+def _in_kino_mode_and_out_of_omnipause(s: FunTimeIntegrationSession) -> None:
+    s.write_dashboard_command("main_kino_activate")
+    s.write_dashboard_command("play")
+
+
 def test_fun_time_the_max_intensity_holds_a_funscript_down_through_its_gaps_too(
     shared_integration_session: FunTimeIntegrationSession,
 ):
     s = shared_integration_session
     sink = s.config.osr2_slot_port
-    s.write_dashboard_command("main_kino_activate")
-    s.write_dashboard_command("play")
+    _in_kino_mode_and_out_of_omnipause(s)
     s.wait_until(lambda: s.read_main_funestra_status().has_funscript,
                  description="the Main Funestra to play a video with a funscript")
     try:
@@ -376,8 +380,7 @@ def test_fun_time_omnipause_pauses_genau_and_keeps_the_main_funestra_running(
 
 def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_session: FunTimeIntegrationSession):
     s = shared_integration_session
-    s.write_dashboard_command("main_kino_activate")
-    s.write_dashboard_command("play")
+    _in_kino_mode_and_out_of_omnipause(s)
 
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     assert portrait_hwnd, "Portrait satellite window must be resolvable"
@@ -410,8 +413,7 @@ def test_fun_time_omnipause_freezes_the_satellites(
     portrait_status = s.config.paths.state_dir / "portrait_status.txt"
     landscape_status = s.config.paths.state_dir / "landscape_status.txt"
 
-    s.write_dashboard_command("main_kino_activate")
-    s.write_dashboard_command("play")
+    _in_kino_mode_and_out_of_omnipause(s)
     s.wait_until(
         lambda: not read_satellite_status(portrait_status).paused,
         description="Portrait satellite to be playing before OmniPause",
@@ -442,8 +444,7 @@ def test_fun_time_the_satellites_take_the_main_funestras_playback_speed(
     s = shared_integration_session
     statuses = [s.config.paths.state_dir / f"{satellite}_status.txt"
                 for satellite in ("portrait", "landscape")]
-    s.write_dashboard_command("main_kino_activate")
-    s.write_dashboard_command("play")
+    _in_kino_mode_and_out_of_omnipause(s)
     s.wait_until(
         lambda: s.read_main_funestra_status().video != "" and s.read_main_funestra_status().speed == 1.0,
         description="the Main Funestra to be playing at normal speed",
@@ -472,8 +473,7 @@ def _loaded_and_playing(status: MainFunestraStatus) -> bool:
 
 
 def _main_funestra_playing_in_kino_mode(session: FunTimeIntegrationSession) -> None:
-    session.write_dashboard_command("main_kino_activate")
-    session.write_dashboard_command("play")
+    _in_kino_mode_and_out_of_omnipause(session)
     session.wait_until(
         lambda: _loaded_and_playing(session.read_main_funestra_status()),
         description="the Main Funestra to be playing a loaded video in kino mode",
@@ -946,8 +946,7 @@ def test_fun_time_reopens_at_the_speed_and_the_hold_it_was_closed_with():
     first = FunTimeIntegrationSession(config_path)
     try:
         first.start()
-        first.write_dashboard_command("main_kino_activate")
-        first.write_dashboard_command("play")
+        _in_kino_mode_and_out_of_omnipause(first)
         first.wait_until(
             lambda: _loaded_and_playing(first.read_main_funestra_status()),
             description="the Main Funestra to be playing",

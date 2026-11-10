@@ -62,6 +62,8 @@ WS_EX_TOPMOST = 0x00000008
 WM_QUIT = 0x0012
 THREAD_SUSPEND_RESUME = 0x0002
 
+_THE_DASHBOARD_AND_ITS_MESSAGE_OVERLAY_TOPMOST_TOO = {"FUN_TIME_DISABLE_DASHBOARD": "0"}
+
 
 def test_nothing_stays_over_the_loading_screen_long_enough_to_be_seen():
     temp_root = build_integration_temp_root()
@@ -72,7 +74,7 @@ def test_nothing_stays_over_the_loading_screen_long_enough_to_be_seen():
     try:
         session.start(wait_seconds=180.0, env_overrides={
             "FUN_TIME_INTEGRATION_OVERLAYS": "1",
-            "FUN_TIME_DISABLE_DASHBOARD": "0",
+            **_THE_DASHBOARD_AND_ITS_MESSAGE_OVERLAY_TOPMOST_TOO,
         })
         joined_within(watcher, 60.0)
 
@@ -140,7 +142,7 @@ def _a_real_loading_screen(progress_file: Path):
 
 
 @contextmanager
-def _unable_to_run(hwnd: int):
+def _starved_as_on_a_loaded_machine(hwnd: int):
     thread = _kernel32.OpenThread(
         THREAD_SUSPEND_RESUME, False, _user32.GetWindowThreadProcessId(hwnd, None))
     _kernel32.SuspendThread(thread)
@@ -149,6 +151,10 @@ def _unable_to_run(hwnd: int):
     finally:
         _kernel32.ResumeThread(thread)
         _kernel32.CloseHandle(thread)
+
+
+def _in_the_band_while_the_window_still_exists(hwnd: int) -> bool:
+    return is_window_topmost(hwnd)
 
 
 def _sampling(watcher: AboveTheLoadingScreen) -> None:
@@ -162,7 +168,7 @@ def test_an_app_banded_under_a_loading_screen_too_busy_to_answer_never_shows_thr
     with _Windows("portrait", "landscape") as funestras:
         with _a_real_loading_screen(tmp_path / PROGRESS_FILENAME) as loading_screen:
             _sampling(watcher)
-            with _unable_to_run(loading_screen):
+            with _starved_as_on_a_loaded_machine(loading_screen):
                 apply_topmost_bands(funestras, beneath=loading_screen)
         joined_within(watcher, 15.0)
 
@@ -170,7 +176,7 @@ def test_an_app_banded_under_a_loading_screen_too_busy_to_answer_never_shows_thr
             "banded while the loading screen could not answer, these sat over it: "
             + "; ".join(watcher.too_long())
         )
-        assert all(is_window_topmost(hwnd) for hwnd in funestras.values()), (
+        assert all(_in_the_band_while_the_window_still_exists(hwnd) for hwnd in funestras.values()), (
             "Fun Time never made it into the topmost band"
         )
 
@@ -194,7 +200,7 @@ def test_the_panel_revealed_under_a_loading_screen_too_busy_to_answer_never_show
             assert reveal.deferred, "the panel should be waiting under the loading screen"
             reveal.attach(panel, _ShowsItself(panel))
             progress_file.write_text("1/1|Finalizing...", encoding="utf-8")
-            with _unable_to_run(loading_screen):
+            with _starved_as_on_a_loaded_machine(loading_screen):
                 reveal.maybe_reveal()
                 time.sleep(0.2)
             time.sleep(0.2)
@@ -204,7 +210,7 @@ def test_the_panel_revealed_under_a_loading_screen_too_busy_to_answer_never_show
             "revealed while the loading screen could not answer, these sat over it: "
             + "; ".join(watcher.too_long())
         )
-        assert is_window_topmost(panel), "the panel never got back into the band"
+        assert _in_the_band_while_the_window_still_exists(panel), "the panel never got back into the band"
 
 
 class _Launches:
@@ -230,16 +236,23 @@ class _TheWayBack(threading.Thread):
 
     def run(self) -> None:
         while not self.stopped.is_set():
-            crossing = find_window_for_process(self._crossing.pid, transition_screen.WINDOW_TITLE)
-            screen = self._launches.loading_screen
-            loading = bool(screen and find_window_for_process(screen.pid, LOADING_SCREEN_TITLE))
-            self.loading_screen_seen |= loading
-            self.bare_samples += not (crossing or loading)
+            self.bare_samples += self._found_neither_looking_at_the_leaving_screen_first()
             time.sleep(0.005)
+
+    def _found_neither_looking_at_the_leaving_screen_first(self) -> bool:
+        leaving = find_window_for_process(self._crossing.pid, transition_screen.WINDOW_TITLE)
+        screen = self._launches.loading_screen
+        arriving = bool(screen and find_window_for_process(screen.pid, LOADING_SCREEN_TITLE))
+        self.loading_screen_seen |= arriving
+        return not (leaving or arriving)
+
+
+def _every_loading_screen_counts_as_late(monkeypatch) -> None:
+    monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_S", 0.0)
 
 
 def _the_way_back(state_dir: Path, monkeypatch, *, waiting_s: float) -> _TheWayBack:
-    monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_S", 0.0)
+    _every_loading_screen_counts_as_late(monkeypatch)
     monkeypatch.setattr(raising_the_loading_screen, "WINDOW_WAIT_UNDER_A_CROSSING_S", waiting_s)
     launches = _Launches(subprocess.Popen)
     monkeypatch.setattr(subprocess, "Popen", launches)
