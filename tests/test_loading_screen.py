@@ -10,7 +10,7 @@ from fun_time.overlay_progress import STARTUP_PHASES
 
 
 class TestWhatTheScreenOpensOn:
-    def test_it_opens_on_the_launchs_own_first_words_so_its_first_read_changes_nothing(self, tmp_path, monkeypatch):
+    def test_it_opens_on_the_words_its_first_read_will_find(self, tmp_path, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["loading_screen", str(tmp_path / "progress.txt")])
 
         with patch("fun_time.overlay_window.OverlayWindow") as window:

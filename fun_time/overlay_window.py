@@ -41,6 +41,10 @@ def opening_panel(status: str) -> LoadingPanel:
     )
 
 
+def _lay_a_topmost_floor_under_the_screen() -> None:
+    create_hidden_topmost_window()
+
+
 class Canvas(Protocol):
     def show(self, panel: LoadingPanel) -> None: ...
 
@@ -98,7 +102,7 @@ class OverlayWindow:
         cls, progress_file: Path, *, title: str, status: str, stale_timeout_s: float,
         taking_over: TakingOver | None = None,
     ) -> OverlayWindow:
-        create_hidden_topmost_window()
+        _lay_a_topmost_floor_under_the_screen()
 
         ground = as_hex(LOADING_GROUND)
         root = tk.Tk()
@@ -119,8 +123,7 @@ class OverlayWindow:
         canvas.show(window.panel)
         window._cover_every_monitor()
 
-        root.bind("<Escape>", window._on_escape)
-        root.focus_force()
+        window._have_esc_land_on_this_screen()
 
         root.after(POLL_MS, window._poll)
         root.after(TOPMOST_POLL_MS, window._stay_on_top)
@@ -133,6 +136,10 @@ class OverlayWindow:
             set_always_on_top(self._hwnd, True)
         with contextlib.suppress(tk.TclError):
             self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
+
+    def _have_esc_land_on_this_screen(self) -> None:
+        self._root.bind("<Escape>", self._on_escape)
+        self._root.focus_force()
 
     def _on_escape(self, _event: object = None) -> None:
         if not self._offering or self._status_held:
