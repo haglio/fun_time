@@ -8,9 +8,8 @@ from funestra.satellite_hud import HudCell, HudModel, hud_text
 
 from .folder_listings import FolderListings
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, SatelliteHud, hud_thumbnails, locate_cell
-from .origenerator_switches import ORIGENERATOR_MODE
 from .osr2_section import DeviceBlock
-from .satellite_buttons import HudState, funestra_rows, mode_row
+from .satellite_buttons import HudState, funestra_rows, window_buttons
 from .shared_state import SatelliteState
 from .thumbnail_cache import cached_thumbnail
 
@@ -90,12 +89,10 @@ def worn(model: HudModel, device: DeviceBlock | None) -> HudModel:
 def hosted_model(funestra: str, hosted: HudModel | None, held: SatelliteState,
                  state: HudState, *, active: bool) -> HudModel:
     hud = hosted or HudModel(funestra=funestra, title=ORIGENERATOR_MODE_LABEL)
-    row = mode_row(funestra, mode=ORIGENERATOR_MODE,
-                   origenerator_ready=state.origenerator_ready, in_vr=state.in_vr,
-                   crowned=state.crowned)
+    own = window_buttons(funestra, in_vr=state.in_vr, crowned=state.crowned)
     return replace(hud, funestra=funestra, active=active, hud_corner=held.hud_corner,
                    hud_edge=held.hud_edge, hud_minimized=held.hud_minimized,
-                   rows=(row, *hud.rows))
+                   rows=(*((own,) if own else ()), *hud.rows))
 
 
 class HudPublisher:

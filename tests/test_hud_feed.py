@@ -168,9 +168,7 @@ class TestHudPublishing:
         assert portrait.title == "Unlocked · Shuffle"
         assert portrait.active is True
         assert [button.command for button in portrait.rows[0]] == [
-            "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
-            "portrait_crown"]
-        assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
+            "portrait_minimize", "portrait_crown"]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
     def test_core_hidden_behind_the_browser_shows_its_job_queue_on_the_satellites_hud(self, tmp_path):
@@ -185,7 +183,7 @@ class TestHudPublishing:
 
         assert parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8")).foot == foot
 
-    def test_a_satellite_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
+    def test_a_satellite_the_hosted_app_has_not_filled_wears_its_own_buttons_alone(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         (tmp_path / "origenerator_landscape_hud.json").write_text("", encoding="utf-8")
@@ -199,22 +197,7 @@ class TestHudPublishing:
             assert published.title == "Origenerator mode"
             crown = ["portrait_crown"] if funestra == "portrait" else []
             assert [[button.command for button in row] for row in published.rows] == [
-                [f"{funestra}_kino_activate", f"{funestra}_origenerator_activate",
-                 f"{funestra}_minimize", *crown]]
-
-    def test_a_satellite_the_app_is_still_filling_wears_its_own_videos_kino_hud(
-            self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-        asked = BridgeState(origenerator_ready=True).with_satellite(
-            FunTimeFunestra.PORTRAIT, mode=SatellitesMode.ORIGENERATOR)
-
-        feed.publish(asked)
-
-        portrait = hud(tmp_path, "portrait")
-        assert portrait["corner"]["path"] == "C:/v/p.mp4"
-        assert [(button["command"], bool(button.get("lit"))) for button in portrait["rows"][0][:2]] == [
-            ("portrait_kino_activate", True), ("portrait_origenerator_activate", False)]
+                [f"{funestra}_minimize", *crown]]
 
     def test_a_handed_back_satellite_maps_its_video_at_once_not_the_apps_picture(
             self, tmp_path):
@@ -248,19 +231,6 @@ class TestHudPublishing:
         feed.publish(away)
 
         assert hud(tmp_path, "portrait")["title"] == "Locked"
-
-    def test_a_satellite_in_kino_mode_beside_a_hosted_one_keeps_its_own_map(self, tmp_path):
-        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-
-        feed.publish(_hosted(BridgeState(origenerator_ready=True), "portrait"))
-
-        portrait, landscape = (parse_hud((tmp_path / f"{funestra}_hud.json").read_text(
-            encoding="utf-8")) for funestra in ("portrait", "landscape"))
-        assert portrait.title == "Origenerator mode"
-        assert [(button.command, button.lit) for button in landscape.rows[0][:2]] == [
-            ("landscape_kino_activate", True), ("landscape_origenerator_activate", False)]
-        assert landscape.corner.path == "C:/v/l.mp4"
 
     @pytest.mark.parametrize(("hosting", "hosted_satellites"), [
         (False, ()), (True, ()), (True, ("portrait", "landscape"))])
@@ -310,24 +280,6 @@ class TestHudPublishing:
         feed.publish(_hosted(BridgeState()))
 
         assert hud(tmp_path, "portrait")["item_note"] == "Enhancing…"
-
-    def test_the_loop_alone_reads_whether_the_app_is_up_and_dims_its_button(self, tmp_path):
-        feed = make_feed(tmp_path, config=make_config(
-            tmp_path, origenerator_enabled=True,
-            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
-        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-
-        def origenerator_button() -> dict:
-            return next(button for row in hud(tmp_path, "portrait")["rows"]
-                        for button in row
-                        if button["command"] == "portrait_origenerator_activate")
-
-        feed.publish(BridgeState())
-        assert origenerator_button().get("dim") is True
-
-        feed.publish(BridgeState(origenerator_ready=True))
-        assert not origenerator_button().get("dim")
 
     def test_f_mode_reaches_a_satellite_only_on_its_hud_from_the_sessions_state(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()

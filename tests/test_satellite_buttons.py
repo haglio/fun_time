@@ -3,7 +3,7 @@ from __future__ import annotations
 from itertools import pairwise
 
 import pytest
-from funestra.hud_button import FIT_THE_WORD, Button
+from funestra.hud_button import Button
 from funestra.hud_icons import (
     BACK_ICON,
     FMODE_ICON,
@@ -16,7 +16,6 @@ from funestra.hud_icons import (
     shared_icon,
     shared_icon_name,
 )
-from funestra.modes import SatellitesMode
 from shared_ui.icon_geometry import icon_names
 
 from fun_time.satellite_buttons import HudState, funestra_rows
@@ -88,43 +87,18 @@ def test_the_bin_takes_something_away():
     assert trash.danger
 
 
-def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
-    rows = funestra_rows("portrait", HudState(mode=SatellitesMode.ORIGENERATOR))
+def test_the_hud_is_one_band_ending_in_the_minimize_button_and_the_crown():
+    rows = funestra_rows("portrait")
 
-    assert len(rows) == 2
-    assert [b.command for b in rows[0]] == [
-        "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
-        "portrait_crown"]
-    assert [b.icon for b in rows[0][:2]] == ["Kino", "Origenerator"]
-    assert rows[0][0].tooltip == ""
-    assert rows[0][1].tooltip == ""
-    assert [b.lit for b in rows[0]][:3] == [False, True, False]
-    assert [b.width for b in rows[0][:2]] == [FIT_THE_WORD, FIT_THE_WORD]
-    assert rows[0][2].group_break
-    assert rows[0][2].icon == MINIMIZE_ICON
-    assert "minimize" not in _names(rows[1])
-    assert len(funestra_rows("portrait")) == 1
+    assert len(rows) == 1
+    assert _names(rows[0])[-2:] == ["minimize", "crown"]
+    assert rows[0][-2].icon == MINIMIZE_ICON
 
 
 def test_a_funestra_in_the_headset_has_no_window_to_minimize():
     plain = funestra_rows("portrait", HudState(latest=False, in_vr=True))
-    hosting = funestra_rows("portrait", HudState(latest=False, mode=SatellitesMode.KINO, in_vr=True))
 
     assert _names(plain[-1])[-1] == "cycle_version"
-    assert [b.command for b in hosting[0]] == [
-        "portrait_kino_activate", "portrait_origenerator_activate"]
-    assert "minimize" not in _names(hosting[-1])
-
-
-def test_the_origenerator_button_is_dim_until_that_app_is_up():
-    starting = {b.command: b for b in funestra_rows("portrait", HudState(mode=SatellitesMode.KINO, origenerator_ready=False))[0]}
-    ready = {b.command: b for b in funestra_rows("portrait", HudState(mode=SatellitesMode.KINO, origenerator_ready=True))[0]}
-
-    assert starting["portrait_origenerator_activate"].dim
-    assert "starting" in starting["portrait_origenerator_activate"].tooltip
-    assert not starting["portrait_kino_activate"].dim
-    assert not ready["portrait_origenerator_activate"].dim
-    assert "starting" not in ready["portrait_origenerator_activate"].tooltip
 
 
 def test_the_faces_are_the_familys_marks_where_it_has_them():
@@ -212,5 +186,5 @@ def test_the_portrait_funestras_crown_is_lit_while_it_holds_the_crown():
 
 def test_only_the_portrait_funestra_wears_a_crown():
     assert "landscape_crown" not in [
-        button.command for row in funestra_rows("landscape", HudState(latest=False, mode=SatellitesMode.KINO))
+        button.command for row in funestra_rows("landscape", HudState(latest=False))
         for button in row]

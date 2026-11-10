@@ -4,11 +4,13 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from funestra.modes import SatellitesMode
-from funestra.satellite_hud import HudCell
+from funestra.hud_button import Button
+from funestra.satellite_hud import HudCell, HudModel
 
-from fun_time.hud_transport import HudPublisher, hud_model
+from fun_time.hud_transport import HudPublisher, hosted_model, hud_model
 from fun_time.lock_hud import ACTION_LIMIT, SatelliteHud
+from fun_time.satellite_buttons import HudState
+from fun_time.shared_state import SatelliteState
 from fun_time.thumbnail_cache import thumbnail_path
 from tests.drive_fakes import folders_listed
 
@@ -121,16 +123,15 @@ def test_hud_payload_declares_the_satellites_buttons_lit_off_its_own_state():
     assert all(button.command.startswith("portrait_") for button in band.values())
 
 
-def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerator():
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
-        hosted = hud_model(_hud(mode=SatellitesMode.ORIGENERATOR), Path("C:/t"))
-        plain = hud_model(_hud(), Path("C:/t"))
+def test_a_hosted_hud_leads_with_the_funestras_own_minimize_button_and_crown():
+    hosted = HudModel(funestra="portrait", rows=((Button("portrait_next", "N", "Next slide"),),))
 
-    assert [button.command for button in hosted.rows[0]] == [
-        "portrait_kino_activate", "portrait_origenerator_activate", "portrait_minimize",
-        "portrait_crown"]
-    assert hosted.rows[0][1].lit
-    assert len(plain.rows) == 1
+    def rows(state: HudState) -> list[list[str]]:
+        worn = hosted_model("portrait", hosted, SatelliteState(), state, active=False)
+        return [[button.command for button in row] for row in worn.rows]
+
+    assert rows(HudState()) == [["portrait_minimize", "portrait_crown"], ["portrait_next"]]
+    assert rows(HudState(in_vr=True)) == [["portrait_next"]]
 
 
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():

@@ -11,10 +11,11 @@ from shared_ui.fonts import SIZE_BODY, SIZE_TINY
 from shared_ui.palette import BG_PRIMARY
 
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
-from .origenerator_switches import RfbMode
-from .satellite_buttons import STILL_STARTING_TOOLTIP
+from .origenerator_switches import WHAT_THE_DIM_BUTTONS_SAY, RfbMode
 
 Rect = tuple[int, int, int, int]
+
+STILL_STARTING_TOOLTIP = f"{WHAT_THE_DIM_BUTTONS_SAY} — this button becomes enabled when it's ready"
 
 _BUTTONS = (
     (RfbMode.RFB, RFB_ACTIVATE, "Random Faves Browser"),

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import numpy as np
-from funestra.hud_button import FIT_THE_WORD
+from funestra.hud_button import FIT_THE_WORD, Button
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 
 from fun_time.dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
-from fun_time.origenerator_switches import ORIGENERATOR_MODE, RfbMode
+from fun_time.origenerator_switches import RfbMode
 from fun_time.rfb_mode_selector import paint_selector, place_selector, selector_buttons
-from fun_time.satellite_buttons import mode_row
 
 
 def test_the_strip_offers_the_browser_then_origenerator():
@@ -44,9 +43,9 @@ def _rgb_inside_the_corners(pixels: np.ndarray, rect) -> np.ndarray:
     return pixels[y + inset:y + height - inset, x + inset:x + width - inset, :3]
 
 
-def test_the_strips_buttons_are_drawn_as_a_satellites_mode_pair_is():
-    hud = HudRenderer("portrait").render(HudModel(
-        funestra="portrait", rows=(mode_row("portrait", mode=ORIGENERATOR_MODE),)))
+def test_the_strips_buttons_are_drawn_as_a_huds_word_buttons_are():
+    hud = HudRenderer("portrait").render(HudModel(funestra="portrait", rows=((
+        Button("portrait_word", "Origenerator", "", width=FIT_THE_WORD, lit=True),),)))
     hud_rect = next(rect for rect, button in hud.targets.buttons
                     if button.icon == "Origenerator")
     hud_rgb = _rgb_inside_the_corners(hud.bgra[:, :, [2, 1, 0, 3]], hud_rect)
