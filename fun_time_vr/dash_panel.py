@@ -42,9 +42,8 @@ from fun_time.event_log import (
     LEVELS_BY_NAME,
     SOURCE_LABELS,
     SOURCES,
-    EventRecord,
 )
-from fun_time.log_panel_model import format_record
+from fun_time.log_panel_model import LogFilter, format_record, visible_records
 from fun_time.project_paths import PROJECT_ICON
 
 from .main_hud import DEG_PER_PX, level_color
@@ -75,8 +74,8 @@ class DashState:
     dial_open: bool = False
     asking_to_quit: bool = False
 
-    def accepts(self, record: EventRecord) -> bool:
-        return record.level >= self.verbosity and record.source in self.sources
+    def log_filter(self) -> LogFilter:
+        return LogFilter(verbosity=self.verbosity, sources=self.sources)
 
     def controls(self) -> tuple[BarControl, ...]:
         return bar_controls(compute_dashboard_bar_layout(), BarState(
@@ -180,9 +179,7 @@ def log_lines(state: DashState, records) -> list[tuple[str, int]]:
     font, (width, height) = load_font(_LABEL_PX), _log_size()
     room = height // _ROW_H
     shown: list[tuple[str, int]] = []
-    for record in reversed(records):
-        if not state.accepts(record):
-            continue
+    for record in reversed(visible_records(records, state.log_filter())):
         lines = [(line, record.level) for line in wrap_text(font, format_record(record), width)]
         if shown and len(shown) + len(lines) > room:
             break

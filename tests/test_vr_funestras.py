@@ -1409,7 +1409,7 @@ class TestTheLoadingScreenUnit:
         unit.render_latest_frame()
         assert not unit.showing
 
-        unit.closing_now()
+        unit.closing_unasked()
         unit.refresh()
         unit.render_latest_frame()
 
@@ -1462,7 +1462,7 @@ class TestWhenTheRoomIsUp:
         assert _MainUnit.texture_on_the_screen.fget(unit) is unit.users_frame_texture
 
 
-def test_the_loading_screen_goes_up_before_the_funestras_are_built():
+def test_the_loading_screen_is_up_while_the_funestras_are_built():
     tree = ast.parse(inspect.getsource(app._run))
     calls = {}
     for node in ast.walk(tree):

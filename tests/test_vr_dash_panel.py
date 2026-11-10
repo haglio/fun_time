@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 import winsound
 from itertools import pairwise
 
@@ -741,3 +743,14 @@ class TestTheOsr2Part:
         pointer.press(*_on_the_part(5, 6))
 
         assert not pointer.state.dial_open
+
+
+def test_it_is_painted_without_loading_qt():
+    code = (
+        "import fun_time_vr.dash_panel, sys; "
+        "loaded = [m for m in sys.modules if m.split('.')[0] == 'PyQt6']; "
+        "assert not loaded, loaded"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                            check=False)
+    assert result.returncode == 0, result.stderr

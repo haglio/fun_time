@@ -9,8 +9,10 @@ from app_support.threading_utils import start_daemon_thread
 
 from .frame_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
 
+A_FISHEYES_BLACK_OPENING_S = 30.0
+_ROOM_TO_SPARE = 6
 BETWEEN_LOOKS_S = 2.0
-LOOKS = 90
+LOOKS = round(_ROOM_TO_SPARE * A_FISHEYES_BLACK_OPENING_S / BETWEEN_LOOKS_S)
 _LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
 
 

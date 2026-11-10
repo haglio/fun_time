@@ -251,7 +251,7 @@ class TestWhatTheLoadingScreenShows:
         watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read() is None
 
-        watcher.closing_now()
+        watcher.closing_unasked()
 
         loading_screen = watcher.read()
         assert loading_screen is not None
