@@ -326,7 +326,7 @@ def _genau_play_verb(tmp_path: Path) -> str | None:
     return verbs[-1] if verbs else None
 
 
-def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: Path):
+def test_seed_startup_states_pauses_genau_by_verb_as_well_as_by_flag(tmp_path: Path):
     for mode in ("kino", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
@@ -366,7 +366,7 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
-def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
+def test_players_that_launch_at_full_volume_are_told_the_level_it_was_left_at(tmp_path: Path):
     volume_file = tmp_path / "audio_volume.txt"
 
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
@@ -375,14 +375,17 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
     assert _main_funestra_verbs(tmp_path)[1] == "SET_VOLUME 40 0"
 
 
-def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
-    genau_cmd = tmp_path / "genau_cmd.txt"
+def test_seed_startup_states_tells_genau_the_level_in_every_mode(tmp_path: Path):
+    for mode in ("kino", "genau"):
+        genau_cmd = tmp_path / mode / "genau_cmd.txt"
 
-    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, volume=40, muted=True)
+        _seed_startup_states(tmp_path / mode, genau_cmd_file=genau_cmd, mode=mode,
+                             volume=40, muted=True)
 
-    verbs = genau_cmd.read_text(encoding="utf-8").splitlines()
-    assert verbs[-1] == "SET_VOLUME 40 1"
-    assert verbs[-1] == _main_funestra_verbs(tmp_path)[1], "the two Funestras are told the same"
+        verbs = genau_cmd.read_text(encoding="utf-8").splitlines()
+        assert verbs[-1] == "SET_VOLUME 40 1", mode
+        assert verbs[-1] == _main_funestra_verbs(tmp_path / mode)[1], (
+            "the two Funestras are told the same")
 
 
 def test_seed_startup_states_holds_every_funestra_that_can_drive_the_osr2_to_its_max_intensity(
@@ -405,7 +408,7 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
     assert _main_funestra_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
 
 
-def test_seed_startup_states_tells_main_funestra_what_its_list_is_narrowed_to(tmp_path: Path):
+def test_seed_startup_states_queues_the_f_mode_behind_the_verbs_before_it(tmp_path: Path):
     _seed_startup_states(tmp_path, main_scripted_filter=True,
                          main_length_mode=LengthMode.CLIPS)
 
@@ -748,10 +751,10 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     assert not kwargs["landscape"].channels.command.exists()
 
 
-def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):
+def test_start_core_session_clears_an_omnipause_a_crashed_session_left_set(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(main_scripted_filter=True, omni_paused=True))
+    write_shared_state(state_file, BridgeState(omni_paused=True))
 
     _run_start_core_session(kwargs)
 
@@ -777,7 +780,7 @@ def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_
     assert asked == {"on_screen": left_on["main_player"][1]}
 
 
-def test_start_core_session_never_reopens_a_main_list_another_app_left(
+def test_start_core_session_rebuilds_a_main_list_the_headset_wrote_vr_videos_into(
     tmp_path: Path, caplog
 ):
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -1018,7 +1021,7 @@ def test_the_line_it_builds_parses_in_the_main_funestras_own_parser(tmp_path: Pa
     assert args.metadata_dir == (Path(metadata_dir) if metadata_dir else None)
 
 
-def test_the_main_funestra_is_handed_genaus_own_files(tmp_path: Path):
+def test_genaus_files_are_named_by_the_session_never_found_by_genau(tmp_path: Path):
     command = _launched_main_funestra(tmp_path)
 
     assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
@@ -1109,7 +1112,7 @@ def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quot
             in funestra_died_message(died.value.funestra, died.value.said))
 
 
-def test_launch_main_funestra_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
+def test_the_main_funestras_memory_is_kept_out_of_the_checkout_its_config_sits_in(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1381,7 +1384,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
     def _path(popen) -> list[str]:
         return popen.call_args.kwargs["env"]["PYTHONPATH"].split(os.pathsep)
 
-    def test_a_named_checkout_goes_ahead_of_what_the_venv_installed(self, tmp_path: Path):
+    def test_a_siblings_branch_runs_ahead_of_the_install_the_venv_pins(self, tmp_path: Path):
         checkout = tmp_path / "worktree"
         checkout.mkdir()
 
@@ -1391,7 +1394,7 @@ class TestTheCheckoutsTheMainFunestraStartsWith:
 
         assert self._path(popen)[0] == str(checkout)
 
-    def test_several_checkouts_are_run_against_each_other(self, tmp_path: Path):
+    def test_a_change_spanning_two_repos_runs_both_its_branches_together(self, tmp_path: Path):
         fun_time, core = tmp_path / "fun_time", tmp_path / "funestra"
         fun_time.mkdir()
         core.mkdir()
@@ -1830,9 +1833,9 @@ def test_build_satellite_launch_command_omits_an_absent_hud():
     assert "--dashboard-cmd-file" not in cmd
 
 
-class TestEveryChildIsLaunchedUnderAFunTimeName:
+class TestNoChildIsLaunchedAsAnAnonymousPythonw:
     @staticmethod
-    def _interpreter(tmp_path: Path) -> Path:
+    def _an_interpreter_real_enough_to_carry_a_name(tmp_path: Path) -> Path:
         exe = tmp_path / ".venv" / "Scripts" / "pythonw.exe"
         exe.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(sys.executable, exe)
@@ -1851,7 +1854,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         ):
             launch_ui_companions(
                 _a_companions_manifest(tmp_path, dashboard_enabled=False,
-                                       python_exe=self._interpreter(tmp_path)),
+                                       python_exe=self._an_interpreter_real_enough_to_carry_a_name(tmp_path)),
                 plan=_A_UI_PLAN,
                 manifest_path=tmp_path / "manifest.ini",
                 dashboard_log_file=None,
@@ -1869,7 +1872,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         ):
             launch_ui_companions(
                 _a_companions_manifest(tmp_path, dashboard_enabled=True,
-                                       python_exe=self._interpreter(tmp_path)),
+                                       python_exe=self._an_interpreter_real_enough_to_carry_a_name(tmp_path)),
                 plan=_A_UI_PLAN,
                 manifest_path=tmp_path / "manifest.ini",
                 dashboard_log_file=None,
@@ -1887,7 +1890,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
             ):
                 launch_satellite(
-                    ChildProgram(self._interpreter(tmp_path), "satellite"),
+                    ChildProgram(self._an_interpreter_real_enough_to_carry_a_name(tmp_path), "satellite"),
                     channels=_a_satellite_channels(),
                     placement=WindowPlacement(title=title),
                     role=role,
@@ -1905,7 +1908,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         ):
             launch_main_funestra(**_a_main_funestra_launch(
                 tmp_path,
-                python_exe=self._interpreter(tmp_path),
+                python_exe=self._an_interpreter_real_enough_to_carry_a_name(tmp_path),
                 main_funestra_module="main_funestra",
                 config_path=tmp_path / "genau.json",
                 playlist_file="playlist.tsv",
@@ -1937,7 +1940,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
         ):
             launch_origenerator(
-                python_exe=self._interpreter(tmp_path),
+                python_exe=self._an_interpreter_real_enough_to_carry_a_name(tmp_path),
                 origenerator_dir=tmp_path / "origenerator",
                 session=OrigeneratorSession(
                     layout_plan=plan,
@@ -2128,7 +2131,7 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
 
         assert "--audio-device" not in argv
 
-    def test_it_runs_the_checkouts_this_session_names(self, tmp_path: Path):
+    def test_it_runs_the_same_checkouts_as_the_funestras_beside_it(self, tmp_path: Path):
         checkout = tmp_path / "funestra"
         checkout.mkdir()
 
