@@ -123,11 +123,9 @@ class SatelliteChannel:
     notice_file: Path
     hud_file: Path
     origenerator_hud_file: Path
-    sources: str = ""
 
     @classmethod
-    def in_state_dir(cls, state_dir: Path, funestra: FunTimeFunestra, *,
-                     sources: str = "") -> SatelliteChannel:
+    def in_state_dir(cls, state_dir: Path, funestra: FunTimeFunestra) -> SatelliteChannel:
         label = FunTimeFunestra(funestra).label
         return cls(
             cmd_file=state_dir / f"{label}_cmd.txt",
@@ -137,19 +135,17 @@ class SatelliteChannel:
             notice_file=state_dir / f"{label}_notice.txt",
             hud_file=state_dir / f"{label}_hud.json",
             origenerator_hud_file=state_dir / f"origenerator_{label}_hud.json",
-            sources=sources,
         )
 
     @classmethod
     def from_manifest_section(cls, values: Mapping[str, str]) -> SatelliteChannel:
-        return cls(sources=values.get("sources", ""),
-                   **{name: Path(values[name]) for name in _FILES})
+        return cls(**{name: Path(values[name]) for name in _FILES})
 
     def as_manifest_section(self) -> dict[str, str]:
         return {field.name: str(getattr(self, field.name)) for field in fields(self)}
 
 
-_FILES = tuple(field.name for field in fields(SatelliteChannel) if field.name != "sources")
+_FILES = tuple(field.name for field in fields(SatelliteChannel))
 
 
 @dataclass(frozen=True)
@@ -244,10 +240,7 @@ class ProjectConfig:
         return self.paths.state_dir / "random_faves_browser_urls.txt"
 
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
-        dirs = (self.paths.portrait_dirs if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
-                else self.paths.landscape_dirs)
-        return SatelliteChannel.in_state_dir(
-            self.paths.state_dir, funestra, sources="|".join(str(path) for path in dirs))
+        return SatelliteChannel.in_state_dir(self.paths.state_dir, funestra)
 
     @property
     def dashboard_state_file(self) -> Path:

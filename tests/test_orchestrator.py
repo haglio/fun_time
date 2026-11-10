@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from app_support import kino_folder
 from app_support.win32 import stamp_pinned_shortcuts
 
 from fun_time import checkout_overrides, orchestrator
@@ -177,13 +176,6 @@ class TestControllerManifest:
         assert str(tmp_path / "main_player_library") in joined
         assert str(extra) in joined
         assert "|" in joined
-
-    def test_each_satellite_plays_kinos_folder_of_its_own_shape(self, cfg_path: Path):
-        manifest = build_windows_bridge_manifest(load_config(cfg_path))
-        kino = kino_folder.upscales_in(kino_folder.kino_dir())
-
-        assert (manifest["portrait"]["sources"], manifest["landscape"]["sources"]) == (
-            str(kino / "portrait"), str(kino / "landscape"))
 
     def test_audio_companion_module_name_included(self, cfg_path: Path):
         cfg = load_config(cfg_path)

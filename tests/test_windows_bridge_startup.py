@@ -438,9 +438,9 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         "main_funestra_cmd_file": state_dir / "main_player_cmd.txt",
         "satellite_python_exe": "fun_time_python.exe",
         "satellite_module": "satellite",
-        "portrait": _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+        "portrait": _launch(FunTimeFunestra.PORTRAIT, state_dir,
                        WindowRect(x=2560, y=0, width=1440, height=2500)),
-        "landscape": _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+        "landscape": _launch(FunTimeFunestra.LANDSCAPE, state_dir,
                         WindowRect(x=1664, y=0, width=896, height=1392)),
         "main_funestra_status_file": state_dir / "main_player_status.txt",
         "main_sources": f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
@@ -525,8 +525,8 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     state_dir = kwargs["state_dir"]
     state_dir.mkdir(parents=True, exist_ok=True)
     sources = {
-        "portrait": kwargs["portrait"].sources,
-        "landscape": kwargs["landscape"].sources,
+        "portrait": str(state_dir.parent / "portrait_a"),
+        "landscape": str(state_dir.parent / "landscape_a"),
         "main_player": kwargs["main_sources"].split("|")[0],
     }
     left_on = {}
@@ -1279,8 +1279,8 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
                    side_effect=[202, 303]) as launched:
             launch_core_apps(
                 _a_session_manifest(tmp_path),
-                _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "p"), state_dir, rect),
-                _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "l"), state_dir, rect),
+                _launch(FunTimeFunestra.PORTRAIT, state_dir, rect),
+                _launch(FunTimeFunestra.LANDSCAPE, state_dir, rect),
                 tmp_path / "core_apps.ini",
             )
 
@@ -1569,10 +1569,8 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             _a_session_manifest(tmp_path, executables={"python_exe": "fun_time_python.exe"},
                                 modules={"satellite_module": "satellite"}),
-            _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"),
-                    state_dir, portrait_rect),
-            _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"),
-                    state_dir, landscape_rect),
+            _launch(FunTimeFunestra.PORTRAIT, state_dir, portrait_rect),
+            _launch(FunTimeFunestra.LANDSCAPE, state_dir, landscape_rect),
             result_file,
         )
 
@@ -1629,11 +1627,10 @@ def _a_satellite_argv(*, title="Portrait AI Funestra", **channels) -> list[str]:
         placement=WindowPlacement(x=0, y=0, width=1, height=1, title=title))
 
 
-def _launch(funestra, sources, state_dir, rect) -> SatelliteLaunch:
+def _launch(funestra, state_dir, rect) -> SatelliteLaunch:
     satellite = funestra.label
     return SatelliteLaunch(
         funestra=funestra,
-        sources=sources,
         channels=SatelliteChannels(
             playlist=state_dir / f"{satellite}_playlist.tsv",
             command=state_dir / f"{satellite}_cmd.txt",
@@ -2065,9 +2062,9 @@ def test_only_the_portrait_funestra_is_launched_to_tile(tmp_path):
                side_effect=[202, 303]) as launch:
         launch_core_apps(
             _a_session_manifest(tmp_path),
-            _launch(FunTimeFunestra.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+            _launch(FunTimeFunestra.PORTRAIT, state_dir,
                     WindowRect(x=2560, y=0, width=1440, height=2500)),
-            _launch(FunTimeFunestra.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+            _launch(FunTimeFunestra.LANDSCAPE, state_dir,
                     WindowRect(x=1664, y=0, width=896, height=1392)),
             tmp_path / "core_apps.ini",
         )

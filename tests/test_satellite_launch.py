@@ -13,7 +13,6 @@ from satellite.contract import SatelliteChannels
 def _launch(funestra: FunTimeFunestra, tmp_path: Path) -> SatelliteLaunch:
     return SatelliteLaunch(
         funestra=funestra,
-        sources=str(tmp_path / funestra.label),
         channels=SatelliteChannels(
             playlist=tmp_path / f"{funestra.label}_playlist.tsv",
             command=tmp_path / f"{funestra.label}_cmd.txt",

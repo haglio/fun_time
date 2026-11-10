@@ -225,7 +225,6 @@ def _launch_the_satellites(
         channel = m.satellite(funestra)
         return SatelliteLaunch(
             funestra=funestra,
-            sources=channel.sources,
             channels=replace(
                 SatelliteChannels.from_channel(
                     channel, m.commands, satellite,

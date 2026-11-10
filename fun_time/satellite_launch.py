@@ -12,7 +12,6 @@ from .window_layout import WindowRect
 @dataclass(frozen=True)
 class SatelliteLaunch:
     funestra: FunTimeFunestra
-    sources: str
     channels: SatelliteChannels
     log_file: str | Path
     rect: WindowRect

@@ -8,8 +8,6 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.config import SatelliteChannel
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.genaumacher_save import save_and_say, save_clip_session
 from tests.bridge_configs import made_up_bridge_config
 
@@ -19,10 +17,6 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     state_dir.mkdir(parents=True, exist_ok=True)
     return made_up_bridge_config(
         state_dir,
-        portrait=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
-                                               sources=str(tmp_path / "portrait")),
-        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
-                                                sources=str(tmp_path / "landscape")),
         trash_dir=tmp_path / "trash",
         main_sources=str(tmp_path / "primary"),
     )

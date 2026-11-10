@@ -19,7 +19,6 @@ from fun_time import genaumacher_save
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_value import parse_command, say_command
-from fun_time.config import SatelliteChannel
 from fun_time.content import Noun, load_content
 from fun_time.crown import Crown
 from fun_time.device_arbiter import TCODE_OFF
@@ -52,10 +51,6 @@ def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeCon
     return made_up_bridge_config(
         state_dir,
         vr_main_funestra=vr_main_funestra,
-        portrait=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.PORTRAIT,
-                                               sources=str(tmp_path / "portrait")),
-        landscape=SatelliteChannel.in_state_dir(state_dir, FunTimeFunestra.LANDSCAPE,
-                                                sources=str(tmp_path / "landscape")),
         trash_dir=trash_dir,
         main_sources=str(tmp_path / "primary"),
         broker_cmd_file=state_dir / "broker_cmd.txt",
