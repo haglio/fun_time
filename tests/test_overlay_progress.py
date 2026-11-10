@@ -176,10 +176,10 @@ class TestStartupPhases:
         assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
     def test_only_the_last_phase_claims_no_time(self):
-        weights = [phase.seconds for phase in STARTUP_PHASES]
+        seconds = [phase.seconds for phase in STARTUP_PHASES]
 
-        assert weights[-1] == 0.0
-        assert all(weight > 0 for weight in weights[:-1])
+        assert seconds[-1] == 0.0
+        assert all(each > 0 for each in seconds[:-1])
 
 
 class TestShutdownPhases:
