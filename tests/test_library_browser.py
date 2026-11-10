@@ -1115,7 +1115,7 @@ def test_an_abandoned_browse_never_replays_the_previous_pick(tmp_path: Path):
     assert browse_library(manifest, r"C:\python.exe", BrowseOpening(), runner=lambda _c, **_k: None) is None
 
 
-def test_escape_is_omnipauses_and_abandons_no_browse(browser, tmp_path: Path):
+def test_escape_is_left_to_omnipause(browser, tmp_path: Path):
     picked: list[str] = []
     window = browser([_handle("alpha scene")], thumbnail_cache=tmp_path, on_pick=picked.append)
     window.open_folder(("main",))

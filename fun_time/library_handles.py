@@ -181,29 +181,21 @@ def build_library_handles(
 
     families: dict[tuple[str, bool], list[str]] = {}
     for video in videos:
-        kept_apart_from_the_scene_sharing_its_group = is_an_excerpt(
-            paths[video], kinds[video], cuts)
-        families.setdefault(
-            (groups[video], kept_apart_from_the_scene_sharing_its_group), []
-        ).append(video)
+        an_excerpt = is_an_excerpt(paths[video], kinds[video], cuts)
+        families.setdefault((groups[video], an_excerpt), []).append(video)
 
     played = {
         family: _largest_first(videos, sizes) for family, videos in families.items()
     }
-    keys = {
-        family: (source_folder(versions[0], sources), family[1])
-        for family, versions in played.items()
-    }
+    largest = {family: versions[_LARGEST] for family, versions in played.items()}
+    keys = {family: (source_folder(largest[family], sources), family[1]) for family in played}
     bands: dict[tuple[str, bool], list[tuple[str, ...]]] = {}
     for family, key in keys.items():
-        bands.setdefault(key, []).append(source_path(played[family][0], sources))
+        bands.setdefault(key, []).append(source_path(largest[family], sources))
     names = band_names(bands)
 
     handles_in = Counter(folder for folder, _clip in keys.values())
-    shown = {
-        family: video_title(payloads[played[family][0]], played[family][0])
-        for family in played
-    }
+    shown = {family: video_title(payloads[video], video) for family, video in largest.items()}
 
     def opening_on_the_bulk_of_the_library(family: tuple[str, bool]) -> tuple:
         folder, is_clip = keys[family]

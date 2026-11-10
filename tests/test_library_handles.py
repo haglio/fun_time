@@ -411,8 +411,9 @@ def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Pat
 
 def test_a_tile_is_labelled_with_the_name_evolver_recorded(tmp_path: Path):
     videos, metadata = _library(tmp_path)
-    scene = _video(videos, "big_batch/0 unsorted/Jane-Doe_540-hQ2vLm8t.mp4", size=4096)
-    _sidecar(metadata, scene, Sidecar("Jane-Doe_540-hQ2vLm8t", kind="full_length", title="Jane Doe - Alpha Study 3"))
+    scene_filed_under_its_cuts_name = _video(
+        videos, "big_batch/0 unsorted/Jane-Doe_540-hQ2vLm8t.mp4", size=4096)
+    _sidecar(metadata, scene_filed_under_its_cuts_name, Sidecar("Jane-Doe_540-hQ2vLm8t", kind="full_length", title="Jane Doe - Alpha Study 3"))
     carved = _video(videos, "big_batch/cuts/Jane Doe - Alpha Study Part Two.mp4")
     _sidecar(metadata, carved, Sidecar("Jane Doe - Alpha Study Part Two", kind="excerpt", title="Jane Doe - Alpha Study: Part Two"))
 
