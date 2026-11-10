@@ -81,9 +81,13 @@ screen's last, read on it as "Activating Origenerator...", comes after the room 
 built and banded and waits for the hosted Origenerator to publish its status —
 re-written while it waits, since a loading screen takes itself down on a progress
 file nothing has touched for a minute (`overlay_progress`). The moment the app
-answers, the session asks it for both Satellites' slideshows (and for the
-browser's place, when that is owed), and the loading screen comes down only once
-the app has taken both Satellites.
+answers, the session asks it for both Satellites' slideshows, and the loading
+screen comes down only once the app has taken both Satellites. The browser's
+place, when it is owed to Origenerator, does not hold the loading screen: the
+session opens with the Random Favs Browser there and gives the place to
+Origenerator Core the moment Core is ready (once ComfyUI has answered), unless he
+has picked either button of that pair in the meantime. An app that was already
+open is ready at once.
 
 The wait is given up on after `ORIGENERATOR_BOOT_BUDGET_S`, because an app that
 died on its way up would otherwise hold Fun Time shut; a session that gave up
