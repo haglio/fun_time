@@ -85,11 +85,11 @@ from fun_time_vr.dash_panel import (
 )
 from fun_time_vr.frame_loop import Headset, draw_eyes
 from fun_time_vr.funestras import (
-    GENAU_TICK_HZ,
     MESSAGE_OVERLAY_ID,
     OFF_THE_HUD,
     PUMP_HZ,
     SATELLITE_VIDEO_CAP_PX,
+    TICK_HZ_FOR_A_SMOOTH_FLICK,
     Arranged,
     Arrangement,
     LoadingScreenUnit,
@@ -1368,7 +1368,7 @@ class TestTheLoadingScreenUnit:
 
         assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
-    def test_a_painted_closing_screen_answers_teardown_though_no_frame_may_come(
+    def test_a_closing_screen_answers_teardown_once_painted_not_once_drawn(
             self, tmp_path, loading_screen_graphics):
         PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                       phases=VR_SHUTDOWN_PHASES).advance("controls")
@@ -1639,7 +1639,7 @@ class TestHangingTheRoom:
         by_name = self._workers_started(the_room, perf)
 
         assert by_name["main-funestra"]["args"] == ([the_room.main_unit], the_room.stop, perf)
-        assert by_name["main-funestra"]["kwargs"] == {"hz": GENAU_TICK_HZ}
+        assert by_name["main-funestra"]["kwargs"] == {"hz": TICK_HZ_FOR_A_SMOOTH_FLICK}
 
     def test_file_channels_a_sync_drive_may_stall_pump_on_a_worker_of_their_own(
             self, tmp_path, faked_collaborators):
@@ -2180,7 +2180,7 @@ class TestTheBannerOverAWrappedFrame:
     def test_a_flat_frame_takes_its_banner_into_itself(self):
         assert _MainUnit.message_into_the_frame(self._main_unit(wraps=False)) == "a banner"
 
-    def test_a_wrapped_frames_banner_would_sit_on_the_seam_between_the_eyes(self):
+    def test_a_wrapped_frame_keeps_its_banner_off_the_seam_between_the_eyes(self):
         assert _MainUnit.message_into_the_frame(self._main_unit(wraps=True)) is None
 
     def _floating(self, *, wraps, flashed):
@@ -2522,7 +2522,7 @@ class TestWhatThePointerDraws:
             pointing.draw(renderer, np.eye(4, dtype=np.float32))
         return renderer.drawn
 
-    def test_the_controller_in_the_hand_is_drawn_last_being_nearest_of_all(self):
+    def test_the_controller_in_the_hand_is_drawn_nearest_of_all(self):
         laser = Ray(origin=(0.2, -0.3, -0.4), direction=(0.0, 0.0, -1.0))
 
         assert self._drawn((Frame(ray=laser), [_IN_HAND])) == ["flat", "solid"]

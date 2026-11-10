@@ -204,7 +204,7 @@ SATELLITE_VIDEO_CAP_PX = 2048
 LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
 PUMP_HZ = 30.0
-GENAU_TICK_HZ = 120.0
+TICK_HZ_FOR_A_SMOOTH_FLICK = 120.0
 
 OFF_THE_HUD = (-1, -1)
 
@@ -1691,7 +1691,7 @@ class TheRoom:
                 target=_pump_channels, args=(self.pumped, self.stop, perf), name="file-channels"),
             start_daemon_thread(
                 target=_pump_channels, args=([self.main_unit], self.stop, perf),
-                kwargs={"hz": GENAU_TICK_HZ}, name="main-funestra"),
+                kwargs={"hz": TICK_HZ_FOR_A_SMOOTH_FLICK}, name="main-funestra"),
         )
 
     def note_the_wearer(self, worn: bool, *, now: float) -> None:
@@ -1800,8 +1800,8 @@ class LoadingScreenWatch:
         if self._up_at is not None and not covered and not self._down_said:
             self._down_said = True
             logger.info("Loading screen down after %.1fs on screen", now - self._up_at)
-        no_frame_can_reach_a_headset_that_is_off = not should_render
-        if covered or no_frame_can_reach_a_headset_that_is_off:
+        the_headset_is_off = not should_render
+        if covered or the_headset_is_off:
             self._loading_screen.settled()
 
 

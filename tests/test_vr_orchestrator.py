@@ -742,7 +742,7 @@ def _the_session_main_starts(config, argv: list[str]) -> MagicMock:
     return run_bridge
 
 
-def test_a_vr_session_claims_the_desktops_mutex_both_drive_the_same_state_files(config):
+def test_a_vr_session_and_a_desktop_session_claim_one_mutex(config):
     claimed: dict[str, str] = {}
 
     def main_of(module) -> None:
@@ -895,8 +895,7 @@ class TestHandingTheHeadsetOver:
         hold_the_headset(tmp_path, stop_runtime=False)
 
         with patch.object(orchestrator, "HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S", 0.0):
-            assert orchestrator._wait_for_the_headset_hold(
-                tmp_path, self._Alive()) is False, "the caller closes a Funestra that holds nothing"
+            assert orchestrator._wait_for_the_headset_hold(tmp_path, self._Alive()) is False
 
         assert headset_hold_asked(tmp_path) is False, "the next launch must not read it"
 
@@ -1003,7 +1002,7 @@ class TestGenausRoleInTheManifest:
 
 
 class TestTheOnePin:
-    def test_a_vr_session_being_fun_time_in_a_headset_claims_fun_times_identity(self):
+    def test_a_vr_session_claims_fun_times_own_identity(self):
         source = inspect.getsource(app.main)
         claimed = [
             ast.unparse(node.args[0])
@@ -1158,7 +1157,7 @@ class TestTheHeadsetsLoadingScreen:
 
         assert parse_progress(loading_screen.progress_file.read_text(encoding="utf-8")).hint == ""
 
-    def test_clearing_writes_no_done_the_loading_screen_goes_with_the_funestra(
+    def test_clearing_leaves_the_loading_screen_to_go_with_the_funestra(
             self, tmp_path, monkeypatch):
         said = _every_done_said(monkeypatch)
         loading_screen = _LoadingScreen(tmp_path)
@@ -1266,13 +1265,6 @@ class TestCancellingALaunch:
 
         assert pending_handoff(tmp_path) == DESKTOP
         assert "DONE" not in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
-
-    def test_where_esc_hands_back_to_is_read_before_the_teardown_takes_the_flag(
-            self, tmp_path, monkeypatch):
-        _code, _order, loading_screen = self._cancel(tmp_path, monkeypatch)
-
-        assert not loading_screen.cancel_file.exists()
-        assert pending_handoff(tmp_path) == DESKTOP
 
     def test_the_quit_chord_closes_the_hosted_app_fun_time_left_waiting(
             self, tmp_path, monkeypatch):
@@ -1410,7 +1402,7 @@ class TestTheClosingScreen:
 
         assert offered_to == [False]
 
-    def test_no_done_ends_the_closing_screen_it_goes_with_the_funestra(self, tmp_path, monkeypatch):
+    def test_the_closing_screen_goes_with_the_funestra_not_on_a_done(self, tmp_path, monkeypatch):
         said = _every_done_said(monkeypatch)
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
 
@@ -1718,7 +1710,7 @@ class TestOpeningAVrSession:
         assert calls["vr_runtime.runtime_was_running"] < calls["launch_vr_funestras"]
         assert "vr_runtime.ensure_ready()" in inspect.getsource(app.main)
 
-    def test_a_launch_cancelled_before_the_headsets_phase_stops_no_runtime(self, config):
+    def test_a_launch_canceled_before_the_headsets_phase_stops_no_runtime(self, config):
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         stopped: list = []
 

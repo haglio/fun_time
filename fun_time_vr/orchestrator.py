@@ -333,13 +333,13 @@ def _take_down_the_launch(
 ) -> None:
     say_the_crossing_is_cancelled(launch.state_dir)
     stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
-    still_showing_the_loading_screen = launched.children.get("vr_funestras_pid")
+    funestra_showing_the_loading_screen = launched.children.get("vr_funestras_pid")
     with launch.progress.loading_screen_kept_up():
         for key, child in launched.children.items():
             if key != "vr_funestras_pid":
                 kill_recorded_child(child)
-        if still_showing_the_loading_screen is not None:
-            kill_recorded_child(still_showing_the_loading_screen)
+        if funestra_showing_the_loading_screen is not None:
+            kill_recorded_child(funestra_showing_the_loading_screen)
     _release_vr_runtime(launched.runtime_was_up, launch.state_dir)
     launch.loading_screen.clear()
 

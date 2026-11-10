@@ -368,13 +368,20 @@ class TestControllerBindings:
         assert any("htc/vive" in p for p in profiles)
 
 
-def test_the_scene_window_wears_the_sessions_button_before_it_reaches_the_taskbar():
-    calls = {ast.unparse(node.func): node.lineno
-             for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(VRSession._init_glfw))))
-             if isinstance(node, ast.Call)}
+def _call_lines_in(method) -> dict[str, int]:
+    return {ast.unparse(node.func): node.lineno
+            for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(method))))
+            if isinstance(node, ast.Call)}
 
-    assert (calls["self._wear_the_taskbar_button_before_openxr_takes_the_thread"]
-            < calls["minimize_window"])
+
+def test_the_scene_window_wears_its_button_before_openxr_takes_the_thread():
+    showing_the_window = _call_lines_in(VRSession._init_glfw)
+    bringing_the_session_up = _call_lines_in(VRSession.__init__)
+
+    assert (showing_the_window["self._wear_the_sessions_taskbar_button"]
+            < showing_the_window["minimize_window"])
+    assert (bringing_the_session_up["self._init_glfw"]
+            < bringing_the_session_up["self._init_openxr"])
 
 
 class _SessionStateEvents:
