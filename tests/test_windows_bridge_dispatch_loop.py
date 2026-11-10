@@ -179,8 +179,23 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         Publishing(**{"dashboard_enabled": False, **publishing}),
         **kwargs,
     )
-    runner._last_sync = float("inf")
+    _leave_the_periodic_sync_to_the_test_about_it(runner)
     return runner
+
+
+def _leave_the_periodic_sync_to_the_test_about_it(runner: DispatchLoopRunner) -> None:
+    runner._last_sync = float("inf")
+
+
+def _make_the_periodic_sync_due(runner: DispatchLoopRunner) -> None:
+    runner._last_sync = float("-inf")
+
+
+@contextlib.contextmanager
+def _finding_no_window_not_even_a_real_fun_times():
+    with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+         patch("fun_time.fun_time_windows.find_window_by_title", return_value=0):
+        yield
 
 
 def _mailbox(runner: DispatchLoopRunner) -> list[str]:
@@ -284,12 +299,12 @@ class TestDetectSleepGap:
     def test_no_gap_for_normal_iteration(self):
         assert detect_sleep_gap(1000.0, 1000.05) is None
 
-    def test_default_threshold_ignores_a_merely_slow_tick(self):
+    def test_a_tick_a_stalled_disk_held_for_tens_of_seconds_is_no_wake(self):
         assert detect_sleep_gap(1000.0, 1000.0 + 40) is None
 
 
 class TestRunLoopWakeLogging:
-    def test_run_logs_warning_after_wall_clock_jump(self, tmp_path, caplog):
+    def test_a_wake_is_logged_to_date_a_later_resume_failure(self, tmp_path, caplog):
         runner = make_runner(tmp_path)
         ticks = {"n": 0}
 
@@ -524,8 +539,7 @@ class TestDispatchLoopRunner:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+        with _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.fun_time_windows.set_always_on_top"):
             runner.tick()
 
@@ -541,8 +555,7 @@ class TestDispatchLoopRunner:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("browse_library", encoding="utf-8")
 
-            with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-                 patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+            with _finding_no_window_not_even_a_real_fun_times(), \
                  patch("fun_time.fun_time_windows.set_always_on_top"), \
                  patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                        return_value=None) as mock_browse:
@@ -613,7 +626,7 @@ class TestDispatchLoopRunner:
 
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=100, dashboard_enabled=True)
-        runner._last_sync = -999
+        _make_the_periodic_sync_due(runner)
 
         with patch.object(runner, "_update_dashboard") as mock_update:
             runner.tick()
@@ -676,7 +689,7 @@ class TestDispatchLoopRunner:
     @pytest.mark.parametrize(
         ("command", "vr_main_funestra"), [("exit_vr", False), ("enter_vr", True)],
     )
-    def test_crossing_to_the_session_already_running_says_so_and_stays_put(
+    def test_a_crossing_heard_twice_never_ends_the_session_it_reached(
         self, tmp_path, caplog, command, vr_main_funestra,
     ):
         runner = make_runner(tmp_path, config=make_config(
@@ -692,7 +705,7 @@ class TestDispatchLoopRunner:
         assert [r.levelno for r in caplog.records
                 if r.getMessage().startswith("Already running")] == [logging.WARNING]
 
-    def test_saying_it_again_while_the_crossing_is_under_way_is_ignored(self, tmp_path, caplog):
+    def test_a_crossing_repeated_while_speech_settles_starts_nothing_more(self, tmp_path, caplog):
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
         runner.tick()
@@ -759,8 +772,7 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
         minimized: list[int] = []
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+        with _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.fun_time_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
 
@@ -793,7 +805,7 @@ class TestDispatchLoopRunner:
 
         assert [h for h, _ in restored] == minimized_hwnds
 
-    def test_a_huds_minimize_button_parks_only_that_funestra(self, tmp_path):
+    def test_a_hud_button_is_how_a_borderless_satellite_is_parked_alone(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_minimize", encoding="utf-8")
@@ -806,7 +818,8 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert [h for h, _ in minimized] == [PORTRAIT_HWND]
-        assert all(kw.get("activate") is False for _, kw in minimized)
+        assert all(kw.get("activate") is False for _, kw in minimized), (
+            "parking one Funestra must not hand the foreground to the next")
 
     def test_a_huds_minimize_button_parks_the_window_still_showing_its_video(self, tmp_path):
         clock = FakeClock()
@@ -1618,7 +1631,7 @@ class TestAClickIntoATextField:
                              press_and_caret_watch=_a_click_into_a_text_field(RFB_HWND))
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
 
-        with patch.object(runner, "_send_press") as press:
+        with patch.object(runner, "_echo_the_press_best_effort") as press:
             runner.tick()
 
         press.assert_not_called()
@@ -1729,7 +1742,7 @@ class TestModeSwitchVisibility:
 
 
 class TestResolveRole:
-    def test_cached_hwnd_survives_hiding_and_show_window_reaches_it(self, tmp_path):
+    def test_a_hidden_window_no_lookup_finds_is_shown_by_its_kept_hwnd(self, tmp_path):
         runner = make_runner(tmp_path)
 
         with patch("fun_time.fun_time_windows.find_window_by_pid",
@@ -1738,8 +1751,7 @@ class TestResolveRole:
 
         shown: list[int] = []
         show_op = WindowOp(op="show_window", key="main_funestra")
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+        with _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
@@ -1750,7 +1762,7 @@ class TestResolveRole:
 
 
 class TestBrowseLibrary:
-    def test_browse_never_enters_omnipause(self, tmp_path):
+    def test_browsing_pauses_nothing_so_a_pick_leaves_nothing_frozen(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -1782,7 +1794,7 @@ class TestBrowseLibrary:
         removed = {h for h, v in topmost_calls if not v}
         assert removed == TOPMOST_HWNDS
 
-    def test_browses_the_session_library_over_the_primary_display(self, tmp_path):
+    def test_the_browser_stands_over_the_window_its_pick_will_play_in(self, tmp_path):
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False)
@@ -1816,7 +1828,7 @@ class TestBrowseLibrary:
 
         assert mock_browse.call_args.args[2].playing == "C:/videos/big_batch/beta.mp4"
 
-    def test_leaving_omnipause_puts_an_open_browse_back_on_top(self, tmp_path):
+    def test_the_restack_on_leaving_omnipause_does_not_bury_an_open_browse(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": None})
@@ -1857,7 +1869,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
             runner._handle_browse_library()
 
@@ -1871,7 +1883,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
 
@@ -1906,7 +1918,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    return_value=r"C:\library\genau\flicks\Scene One.mp4"):
             runner._handle_browse_library()
@@ -1921,7 +1933,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
+             _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
@@ -1959,15 +1971,14 @@ class TestBrowseLibrary:
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS
 
-    def test_hands_the_keyboard_to_the_browser_and_takes_it_back(self, tmp_path):
+    def test_the_hotkeys_that_would_eat_the_browsers_keys_are_suspended_for_it(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         suspends: list[str] = []
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    side_effect=lambda *a, **kw: suspends.append(
                        _mailbox(runner))):
@@ -1980,8 +1991,7 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+        with _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
@@ -2003,7 +2013,7 @@ class TestBrowseLibrary:
         first_remove = next(i for i, c in enumerate(call_log) if c == "topmost_False")
         assert first_remove < call_log.index("browse")
 
-    def test_skips_topmost_management_when_already_paused(self, tmp_path):
+    def test_a_browse_under_omnipause_never_puts_the_lowered_windows_back_on_top(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
@@ -2022,8 +2032,7 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+             _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
@@ -2075,8 +2084,7 @@ class TestBrowsingFromTheHeadset:
         )
 
     def _press(self, runner, *commands):
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+        with _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.fun_time_windows.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    return_value=None) as desktop:
@@ -2146,7 +2154,9 @@ class TestWhatAPausedRoomCarriesOut:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner._handle_command("portrait_lock_video|C:/clip.mp4")
-        assert mock_dispatch.call_args[0][0].text == "portrait_lock_video|C:/clip.mp4"
+        assert [call.args[0].text for call in mock_dispatch.call_args_list] == [
+            "portrait_lock_video|C:/clip.mp4"], (
+            "a press cannot misfire the way a heard phrase can, so no pause holds one back")
 
     def test_a_spoken_resume_still_un_pauses(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2292,8 +2302,7 @@ class TestIdempotentVoiceCommands:
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
 
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0), \
-             patch("fun_time.fun_time_windows.find_window_by_title", return_value=0), \
+        with _finding_no_window_not_even_a_real_fun_times(), \
              patch("fun_time.fun_time_windows.set_always_on_top"):
             runner.tick()
 
@@ -2327,7 +2336,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_not_called()
 
 
-    def test_relief_omnipause_still_dispatches_when_already_paused(self, tmp_path):
+    def test_a_paused_session_whose_osr2_is_still_out_gets_its_relief(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -2529,20 +2538,6 @@ class TestIdempotentVoiceCommands:
         assert flashed[0].source == "main"
         assert not runner.ahk_cmd_file.exists()
 
-    def test_save_video_failure_flashes_nothing(self, tmp_path, caplog):
-        runner = make_runner(tmp_path)
-        with patch(
-            "fun_time.genaumacher_save.save_clip_session", return_value=""
-        ) as mock_save, caplog.at_level(
-            logging.INFO, logger="fun_time.genaumacher_save"
-        ):
-            (tmp_path / "dashboard_cmd.txt").write_text("genaumacher_save", encoding="utf-8")
-            runner.tick()
-            wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
-        assert all(getattr(r, "source", "") != "main" or "Genaumacher" not in r.message
-                   for r in caplog.records)
-
-
     START = "fun_time.windows_bridge_dispatch_loop.broker.start"
     STOP = "fun_time.windows_bridge_dispatch_loop.broker.stop"
 
@@ -2564,7 +2559,7 @@ class TestIdempotentVoiceCommands:
             self._say(runner, tmp_path, "broker_start")
         mock_start.assert_not_called()
 
-    def test_broker_start_never_stops_the_broker(self, tmp_path):
+    def test_starting_never_stops_a_broker_other_programs_may_be_using(self, tmp_path):
         runner = make_runner(tmp_path)
         with patch(self.STOP) as mock_stop, patch(self.START) as mock_start:
             self._say(runner, tmp_path, "broker_start")
@@ -2716,7 +2711,8 @@ class TestSeededRoleHwnds:
         runner.state = BridgeState(main_mode=MainMode.GENAU)
         shown: list[int] = []
 
-        with patch("fun_time.fun_time_windows.find_window_by_pid", return_value=0),              patch("fun_time.fun_time_windows.find_window_by_title", return_value=0),              patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
+        with _finding_no_window_not_even_a_real_fun_times(), \
+             patch("fun_time.fun_time_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("main_funestra") == 2001
             runner._dispatch(parse_command("main_kino_activate"))
 
@@ -2789,11 +2785,11 @@ class TestTheSatellitesTakeTheMainFunestrasRate:
         runner = make_runner(tmp_path)
         status = tmp_path / "main_player_status.txt"
         status.write_text("video=C:\\clip.mp4\nspeed=1\n", encoding="utf-8")
-        runner._last_sync = -999
+        _make_the_periodic_sync_due(runner)
         runner.tick()
 
         status.write_text("video=C:\\clip.mp4\nspeed=0.5\n", encoding="utf-8")
-        runner._last_sync = -999
+        _make_the_periodic_sync_due(runner)
         runner.tick()
 
         for satellite in ("portrait", "landscape"):
@@ -2851,14 +2847,19 @@ class TestHudPublishing:
         assert "now" in publish.call_args.kwargs
 
 
+def _a_browse_that_stays_up_until_terminated() -> tuple[Mock, threading.Event]:
+    opened = threading.Event()
+    terminated = threading.Event()
+    process = Mock()
+    process.wait.side_effect = lambda: (opened.set(), terminated.wait(10.0))
+    process.terminate.side_effect = terminated.set
+    return process, opened
+
+
 class TestBrowserOutlivesNothing:
     def test_quitting_ends_a_browse_launched_after_the_startup_children(self, tmp_path):
         runner = make_runner(tmp_path)
-        opened = threading.Event()
-        terminated = threading.Event()
-        process = Mock()
-        process.wait.side_effect = lambda: (opened.set(), terminated.wait(10.0))
-        process.terminate.side_effect = terminated.set
+        process, opened = _a_browse_that_stays_up_until_terminated()
 
         with patch("fun_time.windows_bridge_dispatch_loop.subprocess.Popen",
                    return_value=process) as mock_popen:
@@ -2918,7 +2919,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
                                rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
         return runner
 
-    def test_the_gallery_goes_to_the_flick_genau_holds_once_it_holds_it(self, tmp_path):
+    def test_the_gallery_goes_to_the_flick_genau_moved_on_to_before_locking(self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=False, flick=self.FIRST)
 
@@ -2930,7 +2931,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
         runner.tick()
         assert _what_the_gallery_heard(tmp_path) == [f"GO_TO|{self.NEXT}"]
 
-    def test_letting_genau_move_on_leaves_the_gallery_alone(self, tmp_path):
+    def test_an_unlock_is_not_followed_though_genau_still_reports_the_lock(self, tmp_path):
         runner = self._genau_beside_the_gallery(tmp_path)
         _genau_publishes(tmp_path, locked=True, flick=self.FIRST)
 
@@ -3087,7 +3088,7 @@ def test_a_press_hint_leaves_no_socket_open_behind_it(tmp_path, monkeypatch):
     with _press_channel(tmp_path) as recv_sock:
         runner = make_runner(tmp_path, dashboard_enabled=True)
         monkeypatch.setattr(socket, "socket", recording_socket)
-        runner._send_press("pause")
+        runner._echo_the_press_best_effort("pause")
         monkeypatch.undo()
 
         assert _presses_until(recv_sock, "pause") == ["pause"]

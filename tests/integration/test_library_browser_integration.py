@@ -33,7 +33,7 @@ from fun_time.win32 import (
     set_always_on_top,
     windows_obscuring,
 )
-from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
+from fun_time.windows_bridge_dispatch_loop import raise_a_browse_the_restack_left_underneath
 from tests.integration.integration_support import await_window, joined_within, wait_for
 from tests.mouse_events import a_double_click_as_the_mouse_sends_it
 
@@ -254,7 +254,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
         assert covering == [stand_in_hwnd], "the browse should be buried at this point"
 
         wait_for(lambda: started, desc="the browse's process to be handed to the runner")
-        assert keep_a_browse_on_top(started[0]) == browse_hwnd
+        assert raise_a_browse_the_restack_left_underneath(started[0]) == browse_hwnd
 
         def browse_uncovered() -> bool:
             QApplication.processEvents()

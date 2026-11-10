@@ -25,16 +25,16 @@ def what_the_main_funestra_holds(config: BridgeConfig) -> dict[MainMode, Holding
 class LockFollower:
     def __init__(self, holders: Mapping[str, Holding]) -> None:
         self._holders = holders
-        self._following: str | None = None
+        self._awaiting_the_lock_of: str | None = None
 
     def follow(self, holder: str) -> None:
-        self._following = holder
+        self._awaiting_the_lock_of = holder
 
     def held(self) -> str:
-        if self._following is None:
+        if self._awaiting_the_lock_of is None:
             return ""
-        locked, item = self._holders[self._following]()
+        locked, item = self._holders[self._awaiting_the_lock_of]()
         if not (locked and item):
             return ""
-        self._following = None
+        self._awaiting_the_lock_of = None
         return item
