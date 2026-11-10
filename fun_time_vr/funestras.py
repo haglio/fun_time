@@ -121,7 +121,7 @@ from .library_panel import (
 )
 from .loading_screen import (
     LOADING_SCREEN_DWELL_S,
-    LOADING_SCREEN_WIDTH_DEG,
+    LOADING_SCREEN_FIXED_WIDTH_DEG,
     WEARER_STATUS,
     LoadingScreen,
     LoadingScreenAnchor,
@@ -497,7 +497,9 @@ class _MainUnit(_VideoUnit):
         if self.owns_the_slot:
             if not self.target.ready:
                 return ()
-            return _on_the_screen(self.screen, self.target, self.verbs.wrap_of(self.target.video))
+            the_video_whose_frame_is_still_up = self.target.video
+            return _on_the_screen(self.screen, self.target,
+                                  self.verbs.wrap_of(the_video_whose_frame_is_still_up))
         if not self.users_frame_texture.ready:
             return ()
         return _on_the_screen(self.screen, self.users_frame_texture,
@@ -1308,7 +1310,7 @@ class _GalleryUnit:
             self._panel.press(event)
         self._send_the_pointer()
         frame = self._panel.frame(now)
-        gone_quiet = self._panel.went_quiet(now)
+        gone_quiet = self._panel.silence_only_the_room_can_report(now)
         if gone_quiet is not None:
             logger.warning("%s", gone_quiet)
         if frame is None:
@@ -1360,7 +1362,7 @@ class LoadingScreenUnit:
         self._reported = False
         self._uploaded = None
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(Placement(0.0, 0.0, LOADING_SCREEN_WIDTH_DEG))
+        self.screen = _HangingScreen(Placement(0.0, 0.0, LOADING_SCREEN_FIXED_WIDTH_DEG))
         self.showing = False
         self.anchor = LoadingScreenAnchor()
         self.refresh()

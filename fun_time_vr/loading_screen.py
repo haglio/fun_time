@@ -43,10 +43,12 @@ VR_STARTUP_PHASES: tuple[Phase, ...] = (
     FINALIZING_UNDER_A_FULL_BAR,
 )
 
+_THE_ONE_WEARING_THE_SCREEN_CLOSES_LAST = Phase("funestras", "Closing Funestras...", 1.0)
+
 VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
     Phase("controls", "Closing...", 1.0),
     Phase("companions", "Closing companions...", 1.0),
-    Phase("funestras", "Closing Funestras...", 1.0),
+    _THE_ONE_WEARING_THE_SCREEN_CLOSES_LAST,
 )
 
 STARTUP_STALE_TIMEOUT_S = 120.0
@@ -220,7 +222,8 @@ class SceneReady:
         if self._started is None:
             self._started = now
         waited = now - self._started
-        if not blank and read:
+        a_frame_has_reached_every_screen = not blank
+        if a_frame_has_reached_every_screen and read:
             logger.info("Room up and the loading screen read after %.1fs", waited)
         elif waited < self._grace_s:
             return
@@ -262,7 +265,7 @@ def wait_for_loading_screen_painted(
 
 LOADING_SCREEN_SIZE_PX = (512, 320)
 
-LOADING_SCREEN_WIDTH_DEG = 40.0
+LOADING_SCREEN_FIXED_WIDTH_DEG = 40.0
 
 
 class LoadingScreenAnchor:
@@ -297,10 +300,10 @@ HEADSET = Metrics(icon=96, wordmark_px=_read_at_arms_length(DESKTOP_PANEL.wordma
                   status_px=_read_at_arms_length(DESKTOP_PANEL.status_px),
                   hint_px=_read_at_arms_length(DESKTOP_PANEL.hint_px), gaps=(GAP_DIALOG,) * 4)
 
-LOADING_SCREEN_CLEAR = (*(channel / 255.0 for channel in LOADING_GROUND), 1.0)
+CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL = (*(channel / 255.0 for channel in LOADING_GROUND), 1.0)
 
 
-def paint_loading_screen(loading_screen: LoadingScreen, *, size: tuple[int, int] = LOADING_SCREEN_SIZE_PX) -> Image.Image:
+def paint_loading_screen(loading_screen: LoadingScreen) -> Image.Image:
     panel = render(LoadingPanel(
         wordmark=_WORDMARK,
         status=loading_screen.status,
@@ -309,6 +312,7 @@ def paint_loading_screen(loading_screen: LoadingScreen, *, size: tuple[int, int]
         ink=preview_marker.wordmark_ink(preview_marker.shown_as()),
         icon=icon_image(preview_marker.icon_file(PROJECT_VR_ICON, preview_marker.shown_as())),
     ), HEADSET)
-    image = Image.new("RGBA", size, (*LOADING_GROUND, 255))
-    image.paste(panel, ((size[0] - panel.width) // 2, (size[1] - panel.height) // 2))
+    width, height = LOADING_SCREEN_SIZE_PX
+    image = Image.new("RGBA", LOADING_SCREEN_SIZE_PX, (*LOADING_GROUND, 255))
+    image.paste(panel, ((width - panel.width) // 2, (height - panel.height) // 2))
     return image

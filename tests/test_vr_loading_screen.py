@@ -12,6 +12,7 @@ from fun_time.overlay_progress import (
     ACTIVATING_ORIGENERATOR,
     CANCEL_FILENAME,
     CANCELING,
+    LOADING_SCREEN_HEARTBEAT_S,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
@@ -29,9 +30,9 @@ from fun_time.session_handoff import (
     say_the_crossing_is_cancelled,
 )
 from fun_time_vr.loading_screen import (
+    CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL,
     CLOSING_STATUS,
     HELD_STATUS,
-    LOADING_SCREEN_CLEAR,
     LOADING_SCREEN_DWELL_S,
     LOADING_SCREEN_SIZE_PX,
     SCENE_READY_FILENAME,
@@ -63,7 +64,7 @@ ESC_WORDS = "Press Esc to cancel opening Fun Time VR"
 CLOSING_ESC_WORDS = "Press Esc to cancel closing Fun Time VR"
 
 
-def _startup_writer(state_dir: Path, *, cancellable: bool = True) -> PhaseProgress:
+def _the_orchestrators_startup_writer(state_dir: Path, *, cancellable: bool = True) -> PhaseProgress:
     return PhaseProgress(
         state_dir / PROGRESS_FILENAME,
         phases=VR_STARTUP_PHASES,
@@ -72,7 +73,7 @@ def _startup_writer(state_dir: Path, *, cancellable: bool = True) -> PhaseProgre
     )
 
 
-def _shutdown_writer(state_dir: Path) -> PhaseProgress:
+def _the_orchestrators_shutdown_writer(state_dir: Path) -> PhaseProgress:
     return PhaseProgress(state_dir / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES)
 
 
@@ -91,7 +92,7 @@ class TestThePhases:
         source = orchestrator.read_text(encoding="utf-8")
         return set(re.findall(pattern, source))
 
-    def test_every_startup_phase_the_orchestrator_reports_exists(self):
+    def test_no_startup_phase_the_orchestrator_reports_is_a_keyerror_in_the_headset(self):
         reported = self._advanced_keys(r'\bprogress\.advance\("([a-z_]+)"\)')
 
         assert reported == {phase.key for phase in VR_STARTUP_PHASES} - {
@@ -109,7 +110,7 @@ class TestThePhases:
 
         assert {"browser", "windows"} <= the_desktops_alone
 
-    def test_every_shutdown_phase_the_orchestrator_reports_exists(self):
+    def test_no_shutdown_phase_the_orchestrator_reports_is_a_keyerror_in_the_headset(self):
         reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')
 
         assert reported | {"controls"} == {phase.key for phase in VR_SHUTDOWN_PHASES}
@@ -132,7 +133,7 @@ class TestWhatTheLoadingScreenShows:
         assert LoadingScreenWatcher(tmp_path).read() is None
 
     def test_a_startup_phase_shows_its_words_a_bar_and_the_way_out(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
 
         loading_screen = LoadingScreenWatcher(tmp_path).read()
 
@@ -143,7 +144,7 @@ class TestWhatTheLoadingScreenShows:
         assert not loading_screen.closing
 
     def test_the_weightless_last_phase_fills_the_bar(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("finalizing")
+        _the_orchestrators_startup_writer(tmp_path).advance("finalizing")
 
         loading_screen = LoadingScreenWatcher(tmp_path).read()
 
@@ -151,7 +152,7 @@ class TestWhatTheLoadingScreenShows:
         assert loading_screen.fraction == pytest.approx(1.0)
 
     def test_done_takes_the_loading_screen_down(self, tmp_path: Path):
-        progress = _startup_writer(tmp_path)
+        progress = _the_orchestrators_startup_writer(tmp_path)
         progress.advance("funestras")
         watcher = LoadingScreenWatcher(tmp_path)
         assert watcher.read() is not None
@@ -161,7 +162,7 @@ class TestWhatTheLoadingScreenShows:
         assert watcher.read() is None
 
     def test_a_torn_write_holds_the_last_readable_line(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
         watcher = LoadingScreenWatcher(tmp_path)
         settled = watcher.read()
 
@@ -171,7 +172,7 @@ class TestWhatTheLoadingScreenShows:
 
     def test_the_cancel_flag_replaces_the_status_and_takes_the_hint_away(
             self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
         loading_screen = LoadingScreenWatcher(tmp_path).read()
@@ -181,7 +182,7 @@ class TestWhatTheLoadingScreenShows:
         assert loading_screen.hint == ""
 
     def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
 
         loading_screen = LoadingScreenWatcher(tmp_path).read()
@@ -191,7 +192,7 @@ class TestWhatTheLoadingScreenShows:
         assert loading_screen.hint == ESC_WORDS
 
     def test_a_loading_screen_offering_no_esc_goes_on_showing_its_phases(self, tmp_path: Path):
-        _startup_writer(tmp_path, cancellable=False).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path, cancellable=False).advance("funestras")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
         loading_screen = LoadingScreenWatcher(tmp_path).read()
@@ -201,7 +202,7 @@ class TestWhatTheLoadingScreenShows:
         assert loading_screen.hint == ""
 
     def test_a_phase_still_in_flight_cannot_flip_the_words_back(self, tmp_path: Path):
-        progress = _startup_writer(tmp_path)
+        progress = _the_orchestrators_startup_writer(tmp_path)
         progress.advance("companions")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         watcher = LoadingScreenWatcher(tmp_path)
@@ -213,7 +214,7 @@ class TestWhatTheLoadingScreenShows:
         assert watcher.read().status == CANCELING
 
     def test_the_cancelling_words_survive_the_flag_being_cleared(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
         cancel_file = tmp_path / CANCEL_FILENAME
         cancel_file.write_text("cancel\n", encoding="utf-8")
         watcher = LoadingScreenWatcher(tmp_path)
@@ -224,8 +225,8 @@ class TestWhatTheLoadingScreenShows:
         assert watcher.read().status == CANCELING
 
     def test_a_teardown_outranks_a_startup_file_left_lying_around(self, tmp_path: Path):
-        _startup_writer(tmp_path).advance("funestras")
-        _shutdown_writer(tmp_path).advance("companions")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_shutdown_writer(tmp_path).advance("companions")
 
         loading_screen = LoadingScreenWatcher(tmp_path).read()
 
@@ -346,7 +347,7 @@ class TestGivingUp:
     def test_a_startup_file_that_stops_moving_gives_the_headset_back(
             self, tmp_path: Path):
         clock = _Clock()
-        _startup_writer(tmp_path).advance("funestras")
+        _the_orchestrators_startup_writer(tmp_path).advance("funestras")
         watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         assert watcher.read() is not None
 
@@ -356,7 +357,7 @@ class TestGivingUp:
 
     def test_the_clock_restarts_on_every_write(self, tmp_path: Path):
         clock = _Clock()
-        progress = _startup_writer(tmp_path)
+        progress = _the_orchestrators_startup_writer(tmp_path)
         progress.advance("services")
         watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
@@ -371,7 +372,7 @@ class TestGivingUp:
     def test_two_steps_inside_one_filesystem_tick_still_restart_it(
             self, tmp_path: Path):
         clock = _Clock()
-        progress = _startup_writer(tmp_path)
+        progress = _the_orchestrators_startup_writer(tmp_path)
         progress.advance("services")
         watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
@@ -387,7 +388,7 @@ class TestGivingUp:
 
     def test_teardowns_clock_is_the_short_one(self, tmp_path: Path):
         clock = _Clock()
-        _shutdown_writer(tmp_path).advance("controls")
+        _the_orchestrators_shutdown_writer(tmp_path).advance("controls")
         watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         assert watcher.read() is not None
 
@@ -398,22 +399,23 @@ class TestGivingUp:
     def test_a_teardown_still_saying_it_is_going_keeps_the_headset_covered(
             self, tmp_path: Path):
         clock = _Clock()
-        _shutdown_writer(tmp_path).advance("funestras")
+        _the_orchestrators_shutdown_writer(tmp_path).advance("funestras")
         shutdown_file = tmp_path / SHUTDOWN_PROGRESS_FILENAME
         written_at = shutdown_file.stat().st_mtime
         watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
 
-        for beat in range(1, round(SHUTDOWN_STALE_TIMEOUT_S * 2)):
-            clock.now += 1
-            os.utime(shutdown_file, (written_at + beat, written_at + beat))
+        for the_orchestrators_beat in range(1, round(SHUTDOWN_STALE_TIMEOUT_S * 2)):
+            clock.now += LOADING_SCREEN_HEARTBEAT_S
+            touched_at = written_at + the_orchestrators_beat * LOADING_SCREEN_HEARTBEAT_S
+            os.utime(shutdown_file, (touched_at, touched_at))
             watcher.read()
 
         assert watcher.read() is not None
 
     def test_an_end_given_up_on_stays_given_up(self, tmp_path: Path):
         clock = _Clock()
-        progress = _startup_writer(tmp_path)
+        progress = _the_orchestrators_startup_writer(tmp_path)
         progress.advance("funestras")
         watcher = LoadingScreenWatcher(tmp_path, clock=clock)
         watcher.read()
@@ -479,14 +481,14 @@ class TestPainting:
         assert LOADING_STATUS in tones
         assert LOADING_ACCENT in tones
 
-    def test_the_ground_is_the_panels_own_tone(self):
+    def test_the_eye_is_cleared_to_the_panels_own_ground(self):
         image = paint_loading_screen(LoadingScreen(status="x", fraction=0.0))
 
-        assert tuple(round(c * 255) for c in LOADING_SCREEN_CLEAR[:3]) == image.getpixel((0, 0))[:3]
+        assert tuple(round(c * 255) for c in CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL[:3]) == image.getpixel((0, 0))[:3]
 
 
 def test_a_checkpoint_still_raises_for_the_vr_phases(tmp_path: Path):
-    progress = _startup_writer(tmp_path)
+    progress = _the_orchestrators_startup_writer(tmp_path)
     (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
     with pytest.raises(StartupCancelled):
@@ -537,10 +539,11 @@ class TestTheRoomComingUp:
         clock = _Clock()
         marker = tmp_path / SCENE_READY_FILENAME
         ready = SceneReady(marker, grace_s=SCENE_READY_GRACE_S, clock=clock)
-        ready.note(blank=("portrait",), read=True)
+        a_satellite_with_an_empty_playlist = ("portrait",)
+        ready.note(blank=a_satellite_with_an_empty_playlist, read=True)
 
         clock.now += SCENE_READY_GRACE_S + 1
-        ready.note(blank=("portrait",), read=True)
+        ready.note(blank=a_satellite_with_an_empty_playlist, read=True)
 
         assert marker.exists()
 

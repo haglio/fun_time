@@ -24,7 +24,7 @@ from .funestras import (
     TheRoom,
     orientation_of,
 )
-from .loading_screen import LOADING_SCREEN_CLEAR
+from .loading_screen import CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL
 from .matrices import (
     fov_to_projection_matrix,
     pose_to_view_matrix,
@@ -119,7 +119,7 @@ def draw_loading_screen(headset: Headset, loading_screen: LoadingScreenUnit, vie
     hanging = yaw_rotation_matrix(heading)
     for eye_index, view in enumerate(views):
         headset.session.bind_eye_framebuffer(eye_index)
-        headset.renderer.begin_eye(LOADING_SCREEN_CLEAR)
+        headset.renderer.begin_eye(CLEAR_THAT_LEAVES_NO_RING_AROUND_THE_PANEL)
         if loading_screen.screen.ready:
             projection = fov_to_projection_matrix(view.fov, 0.05, 100.0)
             headset.renderer.draw_screen(

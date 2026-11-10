@@ -18,8 +18,10 @@ def remembered_listing(
         if videos is not None:
             return videos
     found = list_the_syncing_drive()
-    if found or _kept(kept) is None:
-        _keep(kept, found)
+    as_an_unreachable_drive_lists = not found
+    if as_an_unreachable_drive_lists and _kept(kept) is not None:
+        return found
+    _keep(kept, found)
     return found
 
 
