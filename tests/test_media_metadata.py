@@ -292,6 +292,27 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
     assert len(scans) == 2
 
 
+def test_a_video_with_no_record_is_no_reason_to_rebuild_the_index(tmp_path: Path):
+    _media_root, metadata_root, paths = _library(tmp_path, {
+        "known": _i2v_meta(action="Alpha", video_seed="1"),
+        "no_metadata": None,
+    })
+    scans: list[int] = []
+
+    def supplier() -> list[str]:
+        scans.append(1)
+        return list(paths.values())
+
+    cache = GroupIndexCache()
+    for _asked_again in range(2):
+        cache.index_for(
+            "portrait", paths_supplier=supplier, metadata_root=metadata_root,
+            must_contain=paths["no_metadata"],
+        )
+
+    assert len(scans) == 1
+
+
 def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
     _media_root, metadata_root, paths = _library(tmp_path, {
         "known": _i2v_meta(action="Alpha", video_seed="1"),

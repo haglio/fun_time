@@ -80,9 +80,11 @@ def downloaded_set_number_of(video: str | Path) -> str:
 
 
 def recorded_group(payload: dict, video: str | Path) -> str:
-    group = version_group_of(payload)
-    number = downloaded_set_number_of(video)
-    return f"{group} {number}" if group and number else group
+    family_evolver_gave_the_whole_set = version_group_of(payload)
+    own_number = downloaded_set_number_of(video)
+    if family_evolver_gave_the_whole_set and own_number:
+        return f"{family_evolver_gave_the_whole_set} {own_number}"
+    return family_evolver_gave_the_whole_set
 
 
 TITLE_FIELD = "title"
@@ -170,7 +172,7 @@ class GroupIndexCache:
         must_contain: str | None = None,
     ) -> GroupIndex:
         index = self._indexes.get(cache_key)
-        if index is None or (must_contain is not None and not index.contains(must_contain)):
+        if index is None or _was_built_before_this_arrived(index, must_contain):
             index = build_group_index(paths_supplier(), metadata_root)
             self._indexes[cache_key] = index
         return index
@@ -186,6 +188,10 @@ class GroupIndexCache:
 
     def clear(self) -> None:
         self._indexes.clear()
+
+
+def _was_built_before_this_arrived(index: GroupIndex, video: str | None) -> bool:
+    return video is not None and not index.contains(video)
 
 
 SESSION_INDEXES = GroupIndexCache()

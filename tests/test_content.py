@@ -86,7 +86,7 @@ class TestLoadWebProviders:
         assert load_web_providers(local, EXAMPLE_CONTENT) == ()
 
 
-def test_importing_the_vocabulary_reads_no_overlay():
+def test_no_overlay_is_read_before_a_caller_names_which():
     probe = (
         "import fun_time.content, fun_time.filter_vocab, fun_time.media_actions; "
         "print(fun_time.content.load_content.cache_info().currsize)"

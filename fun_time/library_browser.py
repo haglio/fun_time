@@ -66,7 +66,7 @@ from .library_handles import (
 )
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
-from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
+from .thumbnail_cache import cached_thumbnail, hud_and_browser_thumbnail_cache, thumbnail_for
 
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
@@ -81,6 +81,7 @@ TILE_HEIGHT = ICON_HEIGHT + ROOM_FOR_TWO_LINES_OF_TITLE
 SIDEBAR_WIDTH = TILE_WIDTH * 11 // 10
 
 NON_LETTER_HEADING = "#"
+SKIPPED_BY_ARROWS_AND_TYPE_AHEAD = Qt.ItemFlag.NoItemFlags
 
 WAY_BACK_UP = None
 UP_LABEL = "back"
@@ -262,7 +263,8 @@ class _MarkAfterTheLetterInItsInk(QStyledItemDelegate):
     def initStyleOption(self, option, index) -> None:
         super().initStyleOption(option, index)
         option.decorationPosition = QStyleOptionViewItem.Position.Right
-        option.state |= QStyle.StateFlag.State_Enabled
+        never_the_gray_qt_gives_a_flagless_row = QStyle.StateFlag.State_Enabled
+        option.state |= never_the_gray_qt_gives_a_flagless_row
 
 
 class FolderIndex(BrowseList):
@@ -314,7 +316,7 @@ class FolderIndex(BrowseList):
 
     def _heading_item(self, letter: str) -> QListWidgetItem:
         item = QListWidgetItem(letter)
-        item.setFlags(Qt.ItemFlag.NoItemFlags)
+        item.setFlags(SKIPPED_BY_ARROWS_AND_TYPE_AHEAD)
         item.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
         return item
 
@@ -336,9 +338,13 @@ class FolderIndex(BrowseList):
     def mousePressEvent(self, event) -> None:
         item = self.itemAt(event.position().toPoint())
         row = self.row(item) if item is not None else -1
-        if not (0 <= row < len(self.lines)) or not self.lines[row].is_heading:
+        qt_signals_no_click_here = 0 <= row < len(self.lines) and self.lines[row].is_heading
+        if qt_signals_no_click_here:
+            self._press_heading(row)
+        else:
             super().mousePressEvent(event)
-            return
+
+    def _press_heading(self, row: int) -> None:
         if not self._has_names(row):
             return
         if row == self._open_heading:
@@ -457,7 +463,8 @@ class LibraryBrowserWindow(QWidget):
         if handle is None:
             self.open_folder(())
             return
-        self.open_folder(folder_of(handle))
+        beside_what_is_up = folder_of(handle)
+        self.open_folder(beside_what_is_up)
         if handle in self.grid.rows:
             row = self.grid.rows.index(handle)
             self.grid.reveal(row)
@@ -673,7 +680,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
         sources=parser.get("media", "main_funestra_library_sources", fallback=""),
         vr_sources=parser.get("media", "vr_library_dirs", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
-        thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
+        thumbnail_cache=hud_and_browser_thumbnail_cache(Path(manifest_path).parent),
     )
 
 
@@ -683,7 +690,7 @@ def load_flick_browser_config(manifest_path: str | Path) -> BrowserConfig:
         sources=genau_flick_sources(flicks_folder),
         vr_sources=genau_vr_flicks(flicks_folder),
         metadata_root=None,
-        thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
+        thumbnail_cache=hud_and_browser_thumbnail_cache(Path(manifest_path).parent),
         top_level_name=FLICKS_TOP_LEVEL_NAME,
     )
 

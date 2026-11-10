@@ -106,7 +106,7 @@ from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
-from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
+from .thumbnail_cache import hud_and_browser_thumbnail_cache, prewarm_thumbnails
 from .unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from .voice_control import HostedVoice, VoiceController
 from .win32 import (
@@ -555,7 +555,7 @@ def start_hud_priming(
         primed.set()
         return None, primed
     sources = (bridge_config.portrait.sources, bridge_config.landscape.sources)
-    cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
+    cache_dir = hud_and_browser_thumbnail_cache(bridge_config.state_dir)
     publisher = HudPublisher(
         {
             **{funestra.label: manifest.satellite(funestra).hud_file
