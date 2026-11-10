@@ -10,35 +10,19 @@ from funestra.testing import FakeEngine
 from main_funestra.mode_memory import RememberedMode
 from main_funestra.modes import Modes, reload_playlist
 from main_funestra.versions import Versions
+from tests.main_funestra_fakes import PlaylistMovesWithRestartsCounted
 
 FIRST = Path("videos/Jane Doe - scene one.mp4")
 SECOND = Path("videos/Ann Bly - scene two.mp4")
 THE_MAIN_LIST = [PlaylistItem(Path("videos/full-1.mp4")), PlaylistItem(Path("videos/full-2.mp4"))]
 
 
-class FakePlayback:
+class FakePlayback(PlaylistMovesWithRestartsCounted):
     def __init__(self, current: Path = FIRST) -> None:
-        self.current_video = current
+        super().__init__(current, [FIRST, SECOND])
         self.showing = current
         self.switching_versions = False
         self.index = 0
-        self.playlist: list[Path] = [FIRST, SECOND]
-        self.loaded: list[list[tuple[Path, Path | None]]] = []
-        self.replaced: list[list[tuple[Path, Path | None]]] = []
-        self.locks: list[bool] = []
-
-    def load_playlist(self, playlist, funscripts=None) -> None:
-        funscripts = funscripts or {}
-        self.loaded.append([(path, funscripts.get(path)) for path in playlist])
-        self.playlist = list(playlist)
-
-    def replace_playlist(self, playlist, funscripts=None) -> None:
-        funscripts = funscripts or {}
-        self.replaced.append([(path, funscripts.get(path)) for path in playlist])
-        self.playlist = list(playlist)
-
-    def set_locked(self, locked: bool) -> None:
-        self.locks.append(locked)
 
 
 class FakeVersions:
@@ -87,7 +71,7 @@ class TestLeavingACompilationWithoutNamingALength:
 
         modes.end_compilation()
 
-        assert playback.loaded == []
+        assert playback.restarts == 0
 
 
 class TestFunTimesOwnFilter:
@@ -199,13 +183,14 @@ class TestWhatIsWrittenDownForTheNextSession:
 
 
 class TestTakingUpAPlaylistFunTimeRewrote:
-    def test_the_new_list_arrives_without_interrupting_the_video(self):
-        playback, jumps = FakePlayback(), FakeJumps()
+    def test_a_new_list_holding_the_video_on_screen_arrives_without_restarting_it(self):
+        playback, jumps = FakePlayback(FIRST), FakeJumps()
+        rewritten = [*THE_MAIN_LIST, PlaylistItem(FIRST)]
 
-        reload_playlist(playback, jumps, lambda: THE_MAIN_LIST)
+        reload_playlist(playback, jumps, lambda: rewritten)
 
-        assert playback.replaced == [THE_MAIN_LIST]
-        assert playback.loaded == []
+        assert playback.replaced == [rewritten]
+        assert playback.restarts == 0
 
     def test_the_volume_is_left_behind(self):
         playback, jumps = FakePlayback(), FakeJumps("Vol6")

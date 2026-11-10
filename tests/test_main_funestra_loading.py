@@ -19,11 +19,11 @@ def _event(kind, **fields):
     return pygame.event.Event(kind, **fields)
 
 
-class TestQuitRequested:
+class TestWhatEndsTheWaitUnderTheLoadingScreen:
     def test_closing_the_window_quits(self):
         assert quit_requested([pygame.event.Event(pygame.QUIT)])
 
-    def test_no_key_does_not_even_ctrl_q(self):
+    def test_ctrl_q_quits_nothing_the_quit_chord_is_fun_times_ctrl_alt_q(self):
         event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_q, mod=pygame.KMOD_CTRL)
         assert not quit_requested([event])
 

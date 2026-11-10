@@ -11,7 +11,7 @@ _EOF_WRAP_START_MS = 250
 _EOF_MARGIN_MS = 100
 
 
-def _nobody_keeps_the_mark(_in_ms: int | None) -> None:
+def _nobody_floors_seeks(_in_ms: int | None) -> None:
     pass
 
 
@@ -22,19 +22,19 @@ class LoopMachine:
         *,
         seek_to: Callable[[float], object],
         take_the_device_over: Callable[[], None],
-        mark: Callable[[int | None], None] = _nobody_keeps_the_mark,
+        floor_seeks_at: Callable[[int | None], None] = _nobody_floors_seeks,
     ) -> None:
         self._playback = playback
         self._seek_to = seek_to
         self._take_the_device_over = take_the_device_over
-        self._mark = mark
+        self._floor_seeks_at = floor_seeks_at
         self._ctrl = LoopController(None)
         self._last_pos_ms = 0.0
 
     def open(self, funscript) -> None:
         self._ctrl = LoopController(funscript)
         self._last_pos_ms = 0.0
-        self._mark(None)
+        self._floor_seeks_at(None)
         self._playback.clear_ab_loop()
 
     @property
@@ -73,7 +73,7 @@ class LoopMachine:
         if was_running:
             self._leave()
         if self.marking:
-            self._mark(position_ms)
+            self._floor_seeks_at(position_ms)
 
     def record_up(self, position_ms: int) -> None:
         if not self.marking:
@@ -90,7 +90,7 @@ class LoopMachine:
 
     def finish_at(self, out_ms: int) -> None:
         self._ctrl.on_record_up(out_ms)
-        self._mark(None)
+        self._floor_seeks_at(None)
         if self.running:
             self._enter()
 
@@ -103,7 +103,7 @@ class LoopMachine:
     def cancel(self) -> None:
         was_running = self.running
         self._ctrl.cancel()
-        self._mark(None)
+        self._floor_seeks_at(None)
         if was_running:
             self._leave()
 

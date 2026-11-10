@@ -2,6 +2,16 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from types import SimpleNamespace
+
+import pygame
+from funestra.funestra import Channels, Funestra
+from funestra.funestra_setup import FunestraSetup
+from funestra.playlist import PlaylistItem
+from funestra.session_quit import SESSION_QUIT
+from funestra.testing import FakeEngine
+
+from main_funestra.input import Input
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -20,6 +30,27 @@ def _calls(source: Path, name: str) -> bool:
         )
         for node in ast.walk(tree)
     )
+
+
+def _closed_from_its_window(tmp_path, channels: Channels) -> Funestra:
+    video = tmp_path / "video one.mp4"
+    video.write_bytes(b"")
+    funestra = Funestra(FakeEngine(), FunestraSetup(channels=channels, playlist=[PlaylistItem(video)]))
+    Input(funestra).deal([SimpleNamespace(type=pygame.QUIT)], (640, 480))
+    return funestra
+
+
+def test_a_close_inside_a_session_asks_fun_time_to_quit_and_leaves_this_window_up(tmp_path):
+    fun_times_commands = tmp_path / "dashboard_cmd.txt"
+
+    funestra = _closed_from_its_window(tmp_path, Channels(dashboard_cmd=fun_times_commands))
+
+    assert not funestra.stopped
+    assert fun_times_commands.read_text(encoding="utf-8").split() == [SESSION_QUIT]
+
+
+def test_a_close_with_no_session_around_it_ends_the_one_window_there_is(tmp_path):
+    assert _closed_from_its_window(tmp_path, Channels()).stopped
 
 
 def test_the_loop_routes_its_quit_through_the_session():

@@ -9,6 +9,7 @@ from funestra.playlist import PlaylistItem
 from main_funestra.clip_jumps import ClipJumps
 from main_funestra.clip_nav import ClipNav
 from tests.clip_records import ClipRecord
+from tests.main_funestra_fakes import PlaylistMovesWithRestartsCounted
 
 
 def _clip(lib: Path, meta: Path, rel: str, record: ClipRecord) -> Path:
@@ -21,24 +22,10 @@ def _clip(lib: Path, meta: Path, rel: str, record: ClipRecord) -> Path:
     return video
 
 
-class FakePlayback:
+class FakePlayback(PlaylistMovesWithRestartsCounted):
     def __init__(self, current: Path, playlist=None) -> None:
-        self.current_video = current
-        self.playlist = [item.path for item in (playlist or [PlaylistItem(current)])]
-        self.replaced: list[list[PlaylistItem]] = []
+        super().__init__(current, [item.path for item in (playlist or [PlaylistItem(current)])])
         self.played: list[tuple[Path, Path | None]] = []
-        self.restarts = 0
-
-    def replace_playlist(self, playlist, funscripts=None) -> None:
-        funscripts = funscripts or {}
-        self.replaced.append([PlaylistItem(path, funscripts.get(path)) for path in playlist])
-        self.playlist = list(playlist)
-        if self.current_video not in self.playlist:
-            self.restarts += 1
-
-    def load_playlist(self, playlist, funscripts=None) -> None:
-        self.replace_playlist(playlist, funscripts)
-        self.restarts += 1
 
     def play_file(self, video, funscript=None) -> None:
         self.played.append((video, funscript))

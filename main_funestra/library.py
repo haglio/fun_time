@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.video_names import normalize_title
 from funestra.playlist import PlaylistItem
+
+from fun_time.media_metadata import REPEATED_TITLE_NUMBER, repeated_title_number_of
 
 
 @dataclass(frozen=True)
@@ -33,17 +34,14 @@ def _title_tokens(stem: str) -> tuple[str, ...]:
     return tuple(normalize_title(stem).split())
 
 
-_COPY_INDEX = re.compile(r"\(\d+\)")
-
-
-def _is_prefix(shorter: tuple[str, ...], longer: tuple[str, ...]) -> bool:
+def _begins_the_same_scene(shorter: tuple[str, ...], longer: tuple[str, ...]) -> bool:
     if len(shorter) > len(longer) or longer[: len(shorter)] != shorter:
         return False
     extra = longer[len(shorter):]
-    return not (extra and _COPY_INDEX.fullmatch(extra[0]))
+    return not (extra and REPEATED_TITLE_NUMBER.fullmatch(extra[0]))
 
 
-def _matching_group(
+def _group_whose_title_begins_this_one(
     groups: list[list[LibraryEntry]],
     group_tokens: list[tuple[str, ...]],
     toks: tuple[str, ...],
@@ -51,7 +49,7 @@ def _matching_group(
     if not toks:
         return None
     for group, gtoks in zip(groups, group_tokens, strict=True):
-        if gtoks and _is_prefix(gtoks, toks):
+        if gtoks and _begins_the_same_scene(gtoks, toks):
             return group
     return None
 
@@ -63,15 +61,6 @@ def group_versions(
     if group_id_of is not None:
         return _group_by_recorded_id(entries, group_id_of)
     return _group_by_name(entries)
-
-
-def _copy_index_of(video: Path) -> str:
-    found = _COPY_INDEX.findall(video.stem)
-    return found[-1] if found else ""
-
-
-def _recorded_family(video: Path, gid: str) -> str:
-    return f"{gid}{_copy_index_of(video)}"
 
 
 def _group_by_recorded_id(
@@ -86,7 +75,7 @@ def _group_by_recorded_id(
         if gid is None:
             unrecorded.append(entry)
             continue
-        gid = _recorded_family(entry.video, gid)
+        gid = f"{gid}{repeated_title_number_of(entry.video)}"
         if gid not in by_id:
             by_id[gid] = []
             order.append(gid)
@@ -106,7 +95,7 @@ def _group_by_name(entries: list[LibraryEntry]) -> list[VersionGroup]:
     group_tokens: list[tuple[str, ...]] = []
     for entry in sorted(entries, key=lambda e: (len(tokens[e]), order[e])):
         toks = tokens[entry]
-        anchor = _matching_group(groups, group_tokens, toks)
+        anchor = _group_whose_title_begins_this_one(groups, group_tokens, toks)
         if anchor is None:
             groups.append([entry])
             group_tokens.append(toks)

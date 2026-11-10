@@ -66,7 +66,7 @@ class TestGroupVersions:
         assert groups[0].alternates == [scripted]
         assert groups[0].alternates[0].funscript == Path("John-Roe.funscript")
 
-    def test_upscale_with_appended_tag_folds_into_original(self):
+    def test_an_upscale_keeping_the_hash_its_original_drops_still_folds_by_prefix(self):
         original = _entry("Richard-Roe-ab12cd34.mp4", size=166)
         upscale = _entry("Richard-Roe-ab12cd34_3_apf2_iris2.mp4", size=6035)
 
@@ -95,7 +95,7 @@ class TestGroupVersions:
         assert len(groups) == 3
         assert all(len(g.entries) == 2 for g in groups)
 
-    def test_bracketed_numbers_mark_different_scenes(self):
+    def test_a_downloaders_number_for_a_repeated_title_marks_another_scene(self):
         plain = _entry("Jane Doe - Example Studio.mp4", size=100)
         second = _entry("Jane Doe - Example Studio (1).mp4", size=110)
         third = _entry("Jane Doe - Example Studio (2).mp4", size=120)
@@ -114,7 +114,7 @@ class TestGroupVersions:
         assert upscaled.alternates == [third]
 
 
-class TestRecordedFamiliesSplitByCopyIndex:
+class TestRecordedFamiliesSplitByRepeatedTitleNumber:
     def _grouped(self, names):
         ids = dict.fromkeys(names, "Jane Doe - Example Studio")
         entries = [_entry(name, size=100 + i) for i, name in enumerate(names)]
@@ -143,10 +143,10 @@ class TestRecordedFamiliesSplitByCopyIndex:
             "Jane Doe - Example Studio (2)_topaz.mp4",
         }
 
-    def test_a_family_with_no_numbers_in_it_is_untouched(self):
+    def test_a_hand_renamed_re_encode_stays_with_its_original_by_the_recorded_id(self):
         groups = self._grouped([
             "Jane Doe - Example Studio.mp4",
-            "a totally different name.mp4",
+            "renamed by hand after a re-encode.mp4",
         ])
 
         assert len(groups) == 1
@@ -175,7 +175,7 @@ class TestVersionIndex:
 
 
 class TestRealWorldNameGrouping:
-    def test_original_with_hash_and_appended_upscale_fold(self):
+    def test_the_usual_upscale_is_its_originals_whole_name_plus_a_pipeline_tag(self):
         original = _entry("redacted_560-XmbgwUF4.mp4", size=289_000_000)
         upscale = _entry("redacted_560-XmbgwUF4_apo8_iris2.mp4", size=31_822_000_000)
 
@@ -221,7 +221,7 @@ class TestCollapsePlaylistVersions:
 
         assert result == [(Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript"))]
 
-    def test_keeps_only_present_member_when_larger_absent(self):
+    def test_a_list_f_mode_left_without_the_upscale_keeps_the_version_it_has(self):
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
         items = [PlaylistItem(Path("Richard.mp4"), Path("Richard.funscript"))]
 

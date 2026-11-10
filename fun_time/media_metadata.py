@@ -67,15 +67,18 @@ def recorded_duration_seconds(payload: dict) -> float | None:
     return float(seconds) if isinstance(seconds, (int, float)) else None
 
 
-_COPY_INDEX = re.compile(r"\(\d+\)")
+REPEATED_TITLE_NUMBER = re.compile(r"\(\d+\)")
+
+
+def repeated_title_number_of(video: str | Path) -> str:
+    found = REPEATED_TITLE_NUMBER.findall(Path(video).stem)
+    return found[-1] if found else ""
 
 
 def recorded_group(payload: dict, video: str | Path) -> str:
     group = version_group_of(payload)
-    if not group:
-        return ""
-    found = _COPY_INDEX.findall(Path(video).stem)
-    return f"{group} {found[-1]}" if found else group
+    number = repeated_title_number_of(video)
+    return f"{group} {number}" if group and number else group
 
 
 TITLE_FIELD = "title"
