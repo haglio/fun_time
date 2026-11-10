@@ -243,9 +243,9 @@ The main stack runs in one of two modes: **Kino** and **Genau** (spoken, or Kino
 
 `M`, `.` and `,` step and hold whatever is on the Main Funestra -- the video in Kino mode, Genau's flick in Genau mode -- and `-`/`+` nudge the video ten seconds. A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded; and wherever a step has less than 10 seconds to go (back in a video's first 10 seconds, forward in its last 10), a key, a press of either button or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` save-loop key reads the current video/time from the Main Funestra's status file in Kino mode.
 
-Spoken, "kino mode" puts both Satellites in Kino mode at once; "main kino mode" and "satellite kino mode" do one Satellite, and "genau mode" or "origenerator mode" puts a Satellite back. Genau is heard said either way, the German word or "go now"; "origenerator" is in no dictionary, so the recognizer listens for "aura generator mode".
+Spoken, "kino mode" and "main kino mode" put the Main Funestra in Kino mode, and "genau mode" puts it in Genau mode. Genau is heard said either way, the German word or "go now".
 
-Each Satellite Funestra has a mode of its own, orthogonal to the two above: **Kino mode** (it plays its own videos) and **Origenerator mode** (it plays Origenerator's slideshows), switched by the Kino / Origenerator pair at the head of its HUD. What holds the Random Faves Browser's place is a switch of its own too: the pair of mode selectors under the dashboard's log, **Random Faves Browser** and **Origenerator**. With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect while that pair says Origenerator (parked under the browser otherwise), and the slideshows it opens play on the portrait or landscape Satellite Funestra by each slideshow's shape; a show started for a Funestra still in Kino mode switches that Funestra to Origenerator mode and plays there. Switching a Funestra to Origenerator mode opens it on the whole Origenerator library of its own shape, shuffled — the same base state it holds in Kino mode, and what its reset button goes back to. That Funestra then wears the app's own nav map and buttons under the session's mode row, and everything said to it — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app for as long as it is in that mode; only minimize, the playback speed and its own mode pair stay the Funestra's. Back in Kino mode it plays its own list again, on the video it was playing when it left. `X` switches both Satellite Funestras at once — into Origenerator mode unless both already are, and back to Kino mode if they are — and so do "origenerator mode" and "satellite kino mode" said aloud; none of the three moves what holds the browser's place. A session hosting no Origenerator draws neither the mode pair nor the pair under the log. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
+The Satellite Funestras have one mode, Satellite mode, which has no switch: each plays Origenerator's slideshows. What holds the Random Faves Browser's place is a switch of its own: the pair of mode selectors under the dashboard's log, **Random Faves Browser** and **Origenerator**. With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag and asks it for both Satellites' slideshows before the loading screen comes down; an app that never answers ends the startup. Its main window sits over the RFB's rect while that pair says Origenerator (parked under the browser otherwise), and each Satellite opens on the whole Origenerator library of its own shape, shuffled, which is what its reset button goes back to. Each Satellite wears the app's own nav map and buttons under a row of its own minimize button (and, on the Portrait Funestra, the crown), and everything said to it — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app; only minimize, the crown and the playback speed stay the Funestra's. A session hosting no Origenerator draws no pair under the log. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface, and a standalone one that the session never took over stands off the device too — the session leaves its pid in `state/fun_time_session.txt` for as long as it runs, in that checkout and in the primary checkout a worktree belongs to, and a window that reads a live one there lets go of the OSR2 and keeps its switch off. A preview of an Origenerator branch reads the primary's as well as its own, so one open beside Fun Time lets go too. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry. Fun Time's hotkeys stay live while Origenerator's window has the keyboard, and clicking into one of its text fields enters OmniPause, which suspends them, so what you type goes into the field.
 
 ### The library browser
 
@@ -617,9 +617,9 @@ for a spoken lock, while a spoken unlock goes on as `portrait_lock_off` alone.
 The app's own padlock says whether a press locks or lets go, since its Funestra
 is also locked while a spoken request or a run holds the image; a lock gets the
 star, the better version and the gallery there. Then there are
-`portrait_open_slideshow` / `landscape_open_slideshow` (that Funestra
-entering its Origenerator mode, which fills it with its base state),
-`portrait_close_slideshow` / `landscape_close_slideshow`, `CLOSE_SLIDESHOWS` (a crossing
+`portrait_open_slideshow` / `landscape_open_slideshow` (sent for both
+Satellites as the session opens, which fills each with its base state),
+`CLOSE_SLIDESHOWS` (a crossing
 parking the app, which lets go of both), `QUIT` and `RELEASE`, `PORTRAIT_SAY:<phrase>` for a
 spoken command the session heard about one Satellite, and `GO_TO|<file>` once a lock
 holds an item no website made (see "Favorites"), which the app
@@ -627,17 +627,16 @@ answers only for an item it made: it asks for its place over the Random Faves
 Browser (`origenerator_activate` on the dashboard's channel) and goes to the item
 in its folder. The paused flag freezes its shows for OmniPause. The status file says only
 that the app is up (`ready=1`), which is what lights every Origenerator button. A
-show the app is asked for on a Funestra still in Kino mode posts
-`portrait_origenerator_activate` / `landscape_origenerator_activate` on the
-dashboard's channel and opens once the session hands that Funestra over. A Satellite the app
-has let go of is one whose HUD it has published empty; the session waits for
-that, up to three seconds, before handing that Funestra its own list back — kept
-meanwhile in `portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.
+Satellite is the app's from the first HUD the app publishes for it after the
+session asks for its slideshow, and stays the app's for the rest of the session;
+the session answers no `portrait_origenerator_activate` /
+`landscape_origenerator_activate` on the dashboard's channel any more.
 
 The app is handed each Funestra's own playlist, command and status files at
 launch, and publishes the HUD for each Funestra it holds to its
-`origenerator_<satellite>_hud.json`; the session puts its own mode row over that
-HUD and publishes the result to the Funestra's HUD file.
+`origenerator_<satellite>_hud.json`; the session puts the Funestra's own minimize
+button (and Portrait's crown) in a row over that HUD and publishes the result to
+the Funestra's HUD file.
 
 ### `event_log.jsonl`
 

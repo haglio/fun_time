@@ -223,18 +223,15 @@ it is simply not something to pin any more.
 
 Origenerator is by far the slowest child of a session, either shape of it: its
 window lands ten to thirty seconds after launch, against five to eight for
-everything else. Both sessions host it as of 2026-09-20, so each satellite's
-Origenerator mode crosses like any other mode — the slideshows are the Satellite
+everything else. Both sessions host it as of 2026-09-20, so the Satellites'
+slideshows cross like any other Funestra's list — the slideshows are the Satellite
 Funestras' own playlists, and the headset's satellites are Funestras
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
-The curtain waits for it only where the last session left Origenerator holding
-something -- a satellite in its Origenerator mode, or the Random Faves Browser's
-place: such a session holds its loading screen up until the app publishes a status, puts
-Origenerator back on what it held under it and opens already that way
-([resuming-a-session.md](resuming-a-session.md)), while a session Origenerator held
-nothing of waits for nothing. A boot still costs a minute of
-a session Origenerator holds nothing in, and a crossing used to pay that twice,
+The curtain waits for it in every session that hosts it: the loading screen stays
+up until the app has taken both Satellites
+([resuming-a-session.md](resuming-a-session.md)). A boot costs a minute, and a
+crossing used to pay that twice,
 the desktop session closing it on the way out and the session coming back
 launching a new one.
 
@@ -245,8 +242,8 @@ only the boot is skipped, and the mode is open from that session's first tick.
 A copy the session took over from standalone is handed back instead of closed,
 whoever lets go of it. The shows have to be closed on the way out because they
 are windows of their own: hiding the main window alone left both of them up over
-the monitors for the whole stay in the headset. A satellite entering its
-Origenerator mode opens its show again, as it always does.
+the monitors for the whole stay in the headset. The arriving session asks for
+both Satellites' shows again, as every session does.
 Identity is the pair and never the pid alone, because Windows hands freed pids
 straight back out.
 
