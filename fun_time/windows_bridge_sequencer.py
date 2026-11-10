@@ -443,19 +443,20 @@ def _settle_the_app_under_the_loading_screen(
     progress: ProgressReporter,
 ) -> dict[str, int]:
     progress.advance("funestras")
-    portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-    _wait_for_the_app_to_be_drawing(
-        m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
-        funestras=launched.funestras)
+    with progress.loading_screen_kept_up():
+        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+        _wait_for_the_app_to_be_drawing(
+            m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
+            funestras=launched.funestras)
 
-    progress.advance("windows")
-    return _place_the_windows_under_the_loading_screen(
-        plan=plan,
-        portrait_hwnd=portrait_hwnd,
-        landscape_hwnd=landscape_hwnd,
-        rfb_hwnd=launched.rfb_hwnd,
-        dashboard_pid=launched.dashboard_pid,
-    )
+        progress.advance("windows")
+        return _place_the_windows_under_the_loading_screen(
+            plan=plan,
+            portrait_hwnd=portrait_hwnd,
+            landscape_hwnd=landscape_hwnd,
+            rfb_hwnd=launched.rfb_hwnd,
+            dashboard_pid=launched.dashboard_pid,
+        )
 
 
 def _run_startup_phases(
