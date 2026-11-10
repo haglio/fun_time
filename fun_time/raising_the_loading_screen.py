@@ -61,6 +61,10 @@ class RaisedLoadingScreen:
         self.progress_file.unlink(missing_ok=True)
 
 
+def _seconds_the_launch_is_held_for_its_window(*, a_transition_screen_waits_on_it: bool) -> float:
+    return WINDOW_WAIT_UNDER_A_CROSSING_S if a_transition_screen_waits_on_it else WINDOW_WAIT_S
+
+
 def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_checkouts: str,
                    cancelable: bool = True) -> RaisedLoadingScreen:
     returning = returning_from_a_crossing(state_dir)
@@ -93,7 +97,7 @@ def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_che
     tie_to_this_process(loading_proc)
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
     loading_screen = RaisedLoadingScreen(loading_proc, progress, progress_file, cancel_file, turns_back_to)
-    wait_s = WINDOW_WAIT_UNDER_A_CROSSING_S if returning else WINDOW_WAIT_S
+    wait_s = _seconds_the_launch_is_held_for_its_window(a_transition_screen_waits_on_it=returning)
     if overlay_hwnd := wait_for_window(loading_screen.visible_window, wait_s):
         logger.info("Loading screen resolved (hwnd=%d)", overlay_hwnd)
     else:

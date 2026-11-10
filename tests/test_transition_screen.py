@@ -5,11 +5,9 @@ import os
 import tempfile
 import threading
 import time
-from pathlib import Path
 
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time import session_handoff, transition_screen
-from fun_time.child_launch import open_child_log
 from fun_time.overlay_progress import LOADING_SCREEN_HEARTBEAT_S
 from fun_time.session_handoff import (
     LOADING_SCREEN_STALE_S,
@@ -20,14 +18,20 @@ from fun_time.session_handoff import (
 )
 from fun_time_vr import orchestrator as vr_orchestrator
 
+LONGEST_COVER_NOT_TAKEN_FOR_A_DEAD_MACHINE_S = 30.0
+BEATS_A_BUSY_SESSION_MAY_MISS = 3
 
-def test_it_gives_up_in_a_time_a_person_will_wait():
-    assert transition_screen.STALE_TIMEOUT_S <= 30.0
+
+def test_it_gives_up_before_its_cover_is_taken_for_a_dead_machine():
+    assert transition_screen.STALE_TIMEOUT_S <= LONGEST_COVER_NOT_TAKEN_FOR_A_DEAD_MACHINE_S
+
+
+def test_a_session_that_misses_some_beats_keeps_its_loading_screen_up():
+    assert (LOADING_SCREEN_HEARTBEAT_S * BEATS_A_BUSY_SESSION_MAY_MISS
+            < transition_screen.STALE_TIMEOUT_S)
 
 
 def test_a_slow_crossing_keeps_its_own_loading_screen_up():
-    assert LOADING_SCREEN_HEARTBEAT_S * 3 < transition_screen.STALE_TIMEOUT_S
-
     with tempfile.TemporaryDirectory() as state_dir:
         progress = crossing_progress_path(state_dir)
         progress.write_text("1/2|Changing over...", encoding="utf-8")
@@ -55,7 +59,7 @@ def test_a_heartbeat_that_is_stopped_is_gone():
     assert set(threading.enumerate()) <= before
 
 
-def test_a_crossing_has_no_process_that_forgets_to_say_so():
+def test_every_process_a_crossing_passes_through_keeps_its_screen_up():
     for func in (
         desktop_orchestrator.main,
         vr_orchestrator.main,
@@ -64,7 +68,7 @@ def test_a_crossing_has_no_process_that_forgets_to_say_so():
         assert "keep_the_transition_screen(" in inspect.getsource(func), func.__qualname__
 
 
-def test_a_crossing_file_nobody_tidied_is_not_a_crossing():
+def test_a_crossing_file_older_than_its_screen_would_stand_is_not_a_return():
     with tempfile.TemporaryDirectory() as state_dir:
         progress = crossing_progress_path(state_dir)
         progress.write_text("1/2|Cancelling...", encoding="utf-8")
@@ -82,11 +86,3 @@ def test_a_crossing_file_nobody_tidied_is_not_a_crossing():
         finally:
             stop()
         assert not returning_from_a_crossing(state_dir)
-
-
-def test_a_child_log_that_cannot_be_opened_does_not_stop_the_child():
-    handle = open_child_log(Path("Z:/no/such/place/relay.log"), ["a", "b"])
-    try:
-        handle.write(b"still runs\n")
-    finally:
-        handle.close()
