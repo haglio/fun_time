@@ -363,6 +363,9 @@ class DispatchLoopRunner:
         path = Path(self.config.state_dir) / filename
         write_flag_file(path, toggling and not read_flag(path, default=False))
 
+    def _log_which_windows_missed_their_startup_promotion(self) -> None:
+        self._log_topmost_state("startup")
+
     def _log_topmost_state(self, label: str) -> None:
         logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode,
                     self.windows.topmost_report())
@@ -406,7 +409,7 @@ class DispatchLoopRunner:
                 append_command(self.ahk_cmd_file, Op.UNSUSPEND_HOTKEYS)
 
     def run(self) -> None:
-        self._log_topmost_state("startup")
+        self._log_which_windows_missed_their_startup_promotion()
         self.typing.start()
         start_daemon_thread(target=keep_looking, args=(self.latest_arrivals.look, self._stop),
                             name="latest-arrivals")
