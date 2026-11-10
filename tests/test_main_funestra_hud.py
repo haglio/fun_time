@@ -75,7 +75,7 @@ class TestPayload:
         assert _payload(main_mode=MainMode.KINO, main_funestra=driving).osr2 == Osr2State.FUNSCRIPT
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
 
-    def test_the_record_button_alone_tells_its_painter_where_the_loop_gesture_is(self):
+    def test_the_record_button_says_which_press_comes_next(self):
         recording = _button(_payload(main_funestra=MainFunestraStatus(loop_state=LoopState.RECORDING)),
                             "main_funestra_record_tap")
         resting = _button(_payload(), "main_funestra_record_tap")
