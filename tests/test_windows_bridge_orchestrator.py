@@ -30,9 +30,9 @@ from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FIL
 from fun_time.dashboard_app import load_dashboard_app_config
 from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
 from fun_time.funestra_deaths import (
+    ORIGENERATOR_NEVER_CAME_UP,
     FunestraDied,
     LaunchedFunestra,
-    origenerator_never_came_up_message,
     part_closed_message,
 )
 from fun_time.hosted_contract import (
@@ -3167,7 +3167,7 @@ class TestARoomLeftInOrigeneratorMode:
              patch.object(windows_bridge_orchestrator, "ORIGENERATOR_BOOT_POLL_S", 0.01):
             events, over = self._session(cfg_factory, tmp_path, the_app_answers=False)
 
-        assert over == SessionOver(1, why=origenerator_never_came_up_message())
+        assert over == SessionOver(1, why=ORIGENERATOR_NEVER_CAME_UP)
         assert "portrait_open_slideshow" not in events, (
             "the slideshows were asked for with no app to show them")
         assert {"killed 200", "killed 300", "killed 400", "killed 800"} <= set(events), (

@@ -49,9 +49,9 @@ from .event_log import (
 from .fun_time_funestras import FunTimeFunestra
 from .fun_time_windows import ChildPids, FunTimeWindows, find_origenerators_window
 from .funestra_deaths import (
+    ORIGENERATOR_NEVER_CAME_UP,
     FunestraDied,
     funestra_died_message,
-    origenerator_never_came_up_message,
     part_closed_message,
     the_part_that_closed,
 )
@@ -1126,7 +1126,7 @@ def run_session(
         _take_down_the_startup(
             StartupEnd("Origenerator never finished starting"),
             started, launch, loading_screen, hotkey_script)
-        said = origenerator_never_came_up_message()
+        said = ORIGENERATOR_NEVER_CAME_UP
         logger.error(said)
         return SessionOver(1, why=said)
     except BaseException:
