@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from funestra.hud_title import F_MODE_LABEL
 from funestra.video_groups import (
     GroupIndex,
@@ -31,6 +32,8 @@ CUR = "C:/vids/current.mp4"
 A1 = "C:/vids/action1.mp4"
 A2 = "C:/vids/action2.mp4"
 S1 = "C:/vids/seed1.mp4"
+ONE_SCENE = frozenset({"a", "b", "c"})
+MOST_OF_THAT_SCENE = frozenset({"a", "b", "d"})
 
 
 def _entries(*videos: VideoEntry) -> dict[str, VideoEntry]:
@@ -40,8 +43,10 @@ def _entries(*videos: VideoEntry) -> dict[str, VideoEntry]:
 def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     action_all = sorted([current, *action_sibs])
     seed_all = sorted([current, *seed_sibs])
-    acts = {current: "Alpha", **{p: f"Act{i}" for i, p in enumerate(action_sibs)},
-            **dict.fromkeys(seed_sibs, "Alpha")}
+    the_currents_act = "Alpha"
+    an_act_of_its_own_each = {p: f"Act{i}" for i, p in enumerate(action_sibs)}
+    the_same_act_under_other_seeds = dict.fromkeys(seed_sibs, the_currents_act)
+    acts = {current: the_currents_act, **an_act_of_its_own_each, **the_same_act_under_other_seeds}
     seeds = {p: ("S", str(i)) for i, p in enumerate(seed_all)}
     return GroupIndex(
         entries=_entries(
@@ -152,7 +157,7 @@ N = "C:/vids/nextseed.mp4"
 NX = "C:/vids/nextseed_zeta.mp4"
 
 
-def _two_seed_index() -> GroupIndex:
+def _two_seeds_each_with_an_action_group_of_its_own() -> GroupIndex:
     return GroupIndex(
         entries=_entries(
             VideoEntry(A, action="Alpha", action_key="GA", seed_key=("F", "1")),
@@ -166,7 +171,7 @@ def _two_seed_index() -> GroupIndex:
 
 
 def test_a_seed_loops_column_belongs_to_the_playing_seed():
-    index = _two_seed_index()
+    index = _two_seeds_each_with_an_action_group_of_its_own()
 
     hud = _hud(
         "portrait", locked=False, current=N, index=index, loop_axis="seed", nav_map_anchor=A,
@@ -179,7 +184,7 @@ def test_a_seed_loops_column_belongs_to_the_playing_seed():
 
 
 def test_at_the_loops_head_the_column_is_the_corners_own():
-    index = _two_seed_index()
+    index = _two_seeds_each_with_an_action_group_of_its_own()
 
     hud = _hud(
         "portrait", locked=False, current=A, index=index, loop_axis="seed", nav_map_anchor=A,
@@ -190,7 +195,7 @@ def test_at_the_loops_head_the_column_is_the_corners_own():
 
 
 def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
-    index = _two_seed_index()
+    index = _two_seeds_each_with_an_action_group_of_its_own()
 
     hud = _hud(
         "portrait", locked=False, current=N, index=index, loop_axis="", nav_map_anchor=A,
@@ -202,7 +207,7 @@ def test_a_map_held_after_the_loop_keeps_the_column_on_the_playing_seed():
 
 
 def test_a_nav_frozen_maps_column_follows_the_selected_seed():
-    index = _two_seed_index()
+    index = _two_seeds_each_with_an_action_group_of_its_own()
 
     hud = _hud(
         "portrait", locked=False, current=N, index=index, nav_anchor=A,
@@ -214,7 +219,7 @@ def test_a_nav_frozen_maps_column_follows_the_selected_seed():
 
 
 def test_a_video_down_the_column_keeps_the_corners_column():
-    index = _two_seed_index()
+    index = _two_seeds_each_with_an_action_group_of_its_own()
 
     held = _hud(
         "portrait", locked=False, current=AY, index=index, nav_map_anchor=A,
@@ -305,14 +310,14 @@ def test_a_map_anchor_is_let_go_once_the_video_leaves_the_map():
     assert hud.current == "C:/vids/unrelated.mp4"
 
 
-def test_ending_a_widened_loop_keeps_the_row_wide():
+def test_ending_a_widened_loop_never_redraws_the_held_map_narrower():
     near = "C:/vids/near.mp4"
     index = GroupIndex(
         entries=_entries(
             VideoEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
-                      scene_tags=frozenset({"a", "b", "c"})),
+                      scene_tags=ONE_SCENE),
             VideoEntry(near, action="Alpha", action_key="g2",
-                      scene_tags=frozenset({"a", "b", "d"})),
+                      scene_tags=MOST_OF_THAT_SCENE),
         ),
         action_items={"g1": [CUR], "g2": [near]},
         seed_items={"S": [CUR]},
@@ -327,7 +332,7 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
     assert hud.seed_siblings == [near]
 
 
-def test_the_title_holds_every_state_the_satellite_is_in():
+def test_the_title_is_the_one_line_a_satellites_state_is_read_off():
     index = _index(current=CUR, seed_sibs=[S1])
 
     looping = _hud(
@@ -340,7 +345,7 @@ def test_the_title_holds_every_state_the_satellite_is_in():
     assert locked.title == "Locked · Shuffle"
 
 
-def test_the_title_says_when_f_mode_is_narrowing_the_library():
+def test_the_title_tells_an_f_mode_narrowed_library_from_the_whole_one():
     index = _index(current=CUR, seed_sibs=[S1])
 
     on = _hud("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
@@ -350,7 +355,7 @@ def test_the_title_says_when_f_mode_is_narrowing_the_library():
     assert F_MODE_LABEL not in off.title
 
 
-def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
+def test_f_mode_goes_ahead_of_the_filter_the_unlabeled_last_phrase():
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -374,7 +379,7 @@ def test_the_title_names_the_axis_that_is_looping():
     assert actions.title.startswith("Looping actions")
 
 
-def test_the_lock_word_stands_down_while_a_loop_runs():
+def test_a_loop_keeps_the_order_it_returns_to_and_drops_the_noise_unlocked():
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
@@ -429,11 +434,15 @@ def test_the_hud_counts_the_seeds_and_actions_the_map_stands_for():
     assert hud.action_count == 2
 
 
-def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
+@pytest.mark.parametrize("anchor", [
+    pytest.param("", id="never recorded before the session restarted"),
+    pytest.param("C:/vids/trashed.mp4", id="trashed since the loop began"),
+])
+def test_a_loop_whose_anchor_is_lost_holds_the_map_on_its_lowest_item(anchor: str):
     index = _index(current=CUR, seed_sibs=[S1])
 
     hud = _hud(
-        "portrait", locked=False, current=S1, index=index, loop_axis="seed", nav_map_anchor="",
+        "portrait", locked=False, current=S1, index=index, loop_axis="seed", nav_map_anchor=anchor,
     )
 
     assert hud.active_loop == "seed"
@@ -442,17 +451,17 @@ def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
 
 
 def test_widen_grows_the_seed_row_with_the_nearest_videos():
-    other = "C:/vids/other.mp4"
+    outside_the_family = "C:/vids/other.mp4"
     index = GroupIndex(
         entries=_entries(
             VideoEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
-                      scene_tags=frozenset({"a", "b", "c"})),
+                      scene_tags=ONE_SCENE),
             VideoEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1"),
-                      scene_tags=frozenset({"a", "b", "c"})),
-            VideoEntry(other, action="Alpha", action_key="g2",
-                      scene_tags=frozenset({"a", "b", "d"})),
+                      scene_tags=ONE_SCENE),
+            VideoEntry(outside_the_family, action="Alpha", action_key="g2",
+                      scene_tags=MOST_OF_THAT_SCENE),
         ),
-        action_items={"g1": sorted([CUR, S1]), "g2": [other]},
+        action_items={"g1": sorted([CUR, S1]), "g2": [outside_the_family]},
         seed_items={"S": sorted([CUR, S1])},
     )
 
@@ -460,7 +469,7 @@ def test_widen_grows_the_seed_row_with_the_nearest_videos():
     wide = _hud("portrait", locked=False, current=CUR, index=index, widen_video=CUR)
 
     assert narrow.seed_siblings == [S1]
-    assert set(wide.seed_siblings) == {S1, other}
+    assert set(wide.seed_siblings) == {S1, outside_the_family}
     assert wide.current == CUR
 
 
@@ -487,7 +496,7 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
     index = GroupIndex(
         entries=_entries(
             *(VideoEntry(p, action="Alpha", action_key="scene", seed_key=seeds[p],
-                        scene_tags=frozenset({"a", "b", "c"}))
+                        scene_tags=ONE_SCENE)
               for p in (x, x2, y, z)),
         ),
         action_items={"scene": sorted([x, x2, y, z])},
@@ -509,11 +518,11 @@ def test_a_nav_frozen_map_shows_the_exact_family_the_keys_walk():
     index = GroupIndex(
         entries=_entries(
             VideoEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
-                      scene_tags=frozenset({"a", "b", "c"})),
+                      scene_tags=ONE_SCENE),
             VideoEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1"),
-                      scene_tags=frozenset({"a", "b", "c"})),
+                      scene_tags=ONE_SCENE),
             VideoEntry(other, action="Alpha", action_key="g2",
-                      scene_tags=frozenset({"a", "b", "d"})),
+                      scene_tags=MOST_OF_THAT_SCENE),
         ),
         action_items={"g1": sorted([CUR, S1]), "g2": [other]},
         seed_items={"S": sorted([CUR, S1])},
@@ -533,7 +542,7 @@ def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
     index = GroupIndex(
         entries=_entries(
             *(VideoEntry(p, action="Alpha", action_key="scene", seed_key=seeds[p],
-                        scene_tags=frozenset({"a", "b", "c"}))
+                        scene_tags=ONE_SCENE)
               for p in (x, x2, y)),
         ),
         action_items={"scene": sorted([x, x2, y])},
@@ -630,7 +639,7 @@ def test_navigate_from_a_seed_cell_is_a_no_op():
     assert navigate_cell(("seed", 1), "up", action_count=2) == ("seed", 1)
 
 
-def test_navigate_along_the_row_is_no_longer_a_direction():
+def test_left_and_right_move_no_cell_those_keys_cycle_the_videos_version():
     corner = ("corner", 0)
     assert navigate_cell(corner, "right", action_count=2) == corner
     assert navigate_cell(corner, "left", action_count=2) == corner
@@ -704,6 +713,10 @@ def _i2v(action: str, video_seed: str, image_seed: str = "100") -> dict:
     }
 
 
+def _a_loose_sibling_with_a_render_setting_freed(meta: dict) -> dict:
+    return {**meta, "source_image": {**meta["source_image"], "model": "Y Sweet"}}
+
+
 def _video(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
     video = media_root / "portrait" / f"{name}.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
@@ -720,7 +733,9 @@ def test_prime_group_indexes_builds_both_satellites_up_front(tmp_path: Path):
     sources = str(media_root / "portrait")
     prime_group_indexes((sources, sources), metadata_root)
 
-    index = cached_group_index(sources, paths_supplier=list, metadata_root=metadata_root, must_contain=None)
+    a_build_now_would_find_no_videos = list
+    index = cached_group_index(sources, paths_supplier=a_build_now_would_find_no_videos,
+                               metadata_root=metadata_root, must_contain=None)
     assert index.entries
 
 
@@ -808,15 +823,17 @@ def test_a_satellites_hud_keeps_a_widened_seed_loop_wide_across_the_loose_family
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     a = _video(media_root, metadata_root, "a", _i2v("Alpha", "1", image_seed="100"))
     a2 = _video(media_root, metadata_root, "a2", _i2v("Alpha", "2", image_seed="101"))
-    b_meta = _i2v("Alpha", "3", image_seed="200")
-    b_meta["source_image"]["model"] = "Y Sweet"
-    b = _video(media_root, metadata_root, "b", b_meta)
+    b = _video(media_root, metadata_root, "b",
+               _a_loose_sibling_with_a_render_setting_freed(_i2v("Alpha", "3", image_seed="200")))
     sources = str(media_root / "portrait")
 
+    exact_family = build_satellite_hud(
+        SatelliteInputs("portrait", sources=sources, current=a), metadata_root)
     portrait = build_satellite_hud(
         SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_video=a),
         metadata_root)
 
+    assert exact_family.seed_siblings == [a2]
     assert portrait.active_loop == "seed"
     assert portrait.current == a
     assert portrait.playing == b

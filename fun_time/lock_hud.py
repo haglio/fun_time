@@ -94,11 +94,11 @@ ACTION_LIMIT = 4
 Cell = tuple[str, int]
 
 
-_AXIS_STEPS = {"down": 1, "up": -1}
+_STEPS_ALONG_THE_ACTION_COLUMN = {"down": 1, "up": -1}
 
 
 def navigate_cell(cell: Cell, direction: str, *, action_count: int) -> Cell:
-    step = _AXIS_STEPS.get(direction)
+    step = _STEPS_ALONG_THE_ACTION_COLUMN.get(direction)
     if step is None:
         return cell
     bucket, index = cell
@@ -161,6 +161,10 @@ def _map_anchor_in(group: list[str], anchor: str) -> str:
     key = normalize_path_key(anchor)
     if anchor and any(normalize_path_key(item) == key for item in group):
         return anchor
+    return _stand_in_for_a_lost_anchor(group)
+
+
+def _stand_in_for_a_lost_anchor(group: list[str]) -> str:
     return min(group, key=normalize_path_key)
 
 
@@ -286,7 +290,11 @@ def _seed_row(index: GroupIndex, hold: _NavMapHold, widened_pool: list[str], *, 
 def _action_column(index: GroupIndex, hold: _NavMapHold, current: str, axis: str) -> list[str]:
     if hold.active_loop == "action":
         return _others(action_group_items(index, hold.anchor), hold.anchor)
-    return _distinct_action_siblings(index, current if axis == "seed" else hold.anchor)
+    return _distinct_action_siblings(index, _seed_whose_own_acts_fill_the_column(hold, current, axis))
+
+
+def _seed_whose_own_acts_fill_the_column(hold: _NavMapHold, current: str, axis: str) -> str:
+    return current if axis == "seed" else hold.anchor
 
 
 def _map_around(

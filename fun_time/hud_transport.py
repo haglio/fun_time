@@ -32,8 +32,9 @@ def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit
     )
 
 
-def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
-                lines: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
+def _whole_loop_for_the_funestra_to_window(
+        paths: list[str], cache_dir: Path, listings: FolderListings,
+        lines: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
     by_path = dict(zip(paths, lines, strict=False))
     return tuple(_cell(path, cached_thumbnail(path, cache_dir, listings), by_path.get(path, ""))
                  for path in paths)
@@ -42,11 +43,13 @@ def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
 def hud_model(hud: SatelliteHud, cache_dir: Path) -> HudModel:
     listings = FolderListings()
     seeds = (
-        _loop_cells(hud.seed_siblings, cache_dir, listings) if hud.active_loop == "seed"
+        _whole_loop_for_the_funestra_to_window(hud.seed_siblings, cache_dir, listings)
+        if hud.active_loop == "seed"
         else _cells(hud.seed_siblings, cache_dir, listings, limit=SEED_LIMIT)
     )
     actions = (
-        _loop_cells(hud.action_siblings, cache_dir, listings, hud.action_lines)
+        _whole_loop_for_the_funestra_to_window(
+            hud.action_siblings, cache_dir, listings, hud.action_lines)
         if hud.active_loop == "action"
         else _cells(hud.action_siblings, cache_dir, listings, limit=ACTION_LIMIT,
                     lines=hud.action_lines)
@@ -99,7 +102,7 @@ class HudPublisher:
     def __init__(self, files: dict[str, Path], cache_dir: Path) -> None:
         self._files = files
         self._cache_dir = cache_dir
-        self._last: dict[str, str] = {}
+        self._landed: dict[str, str] = {}
 
     def publish(self, funestra: str, hud: SatelliteHud,
                 device: DeviceBlock | None = None) -> bool:
@@ -108,11 +111,12 @@ class HudPublisher:
 
     def publish_text(self, name: str, text: str) -> bool:
         path = self._files.get(name)
-        if path is None:
-            return False
-        if text == self._last.get(name):
+        if path is None or self._would_only_make_the_funestra_redraw(name, text):
             return False
         if not publish_whole(path, text):
             return False
-        self._last[name] = text
+        self._landed[name] = text
         return True
+
+    def _would_only_make_the_funestra_redraw(self, name: str, text: str) -> bool:
+        return text == self._landed.get(name)
