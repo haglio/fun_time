@@ -2,18 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Iterable
-from functools import partial
+from collections.abc import Iterable
 from pathlib import Path
 
 from app_support import favorites
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, record_path
 from app_support.video_names import clip_title, version_group_of
-from funestra import video_groups
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
-from funestra.satellite_hud import actions_are_filtered
-from funestra.video_families import actions_text, normalized_text
-from funestra.video_groups import GroupIndex
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
 
 
@@ -140,30 +135,3 @@ def favorites_in(metadata_root: str | Path) -> list[favorites.Favorite]:
         video_suffixes=sorted(SUPPORTED_VIDEO_EXTS))
 
 
-def _keeps_every_video(query: str) -> bool:
-    return not normalized_text(query)
-
-
-def matches_query(metadata: dict, query: str) -> bool:
-    return _keeps_every_video(query) or actions_are_filtered(actions_text(metadata), query)
-
-
-def path_matches_query(
-    video_path: str,
-    metadata_root: str | Path | None,
-    query: str,
-) -> bool:
-    if _keeps_every_video(query):
-        return True
-    return matches_query(recorded_for(video_path, metadata_root), query)
-
-
-def _records_under(metadata_root: str | Path | None) -> Callable[[str], dict]:
-    return partial(recorded_for, metadata_root=metadata_root)
-
-
-def build_group_index(
-    video_paths: Iterable[str],
-    metadata_root: str | Path | None,
-) -> GroupIndex:
-    return video_groups.build_group_index(video_paths, _records_under(metadata_root))

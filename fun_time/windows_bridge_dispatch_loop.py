@@ -42,7 +42,7 @@ from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionS
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import Departures, SatellitesTaken
+from .funestra_handover import Departures
 from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
@@ -168,8 +168,6 @@ class DispatchLoopRunner:
         self._answers = 0
         self._ignored_because = ""
         self.departures = Departures()
-        self.satellites_taken = SatellitesTaken(
-            self.departures, changed=partial(_publish_the_satellites_taken, self))
         self.watch = WatchSampler(
             main_funestra_status_file=config.main_funestra_status_file,
             satellite_status_files={funestra: config.satellite(funestra).status_file
@@ -207,9 +205,9 @@ class DispatchLoopRunner:
             raise OrigeneratorNeverCameUp
 
     def _the_app_has_every_satellite(self) -> bool:
-        self.state = self.satellites_taken.follow(self.state, self.config)
-        return all(self.state.satellite(funestra).handed_over
-                   for funestra in FunTimeFunestra.SATELLITES)
+        if self.departures.taken(self.config):
+            self.hud.publish(self.state)
+        return not self.departures.still_going()
 
     def tick(self) -> None:
         self.messages.flash_new()
@@ -247,7 +245,6 @@ class DispatchLoopRunner:
             self.satellite_speeds.take_the_main_funestras_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        self.state = self.satellites_taken.follow(self.state, self.config)
         self.latest_arrivals.deliver(self.state)
         held = self.lock_follower.held()
         if held:
@@ -692,11 +689,6 @@ def _run_ignored(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 def _run_notice(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._flash(op.key, source=op.source, level=op.level)
-
-
-def _publish_the_satellites_taken(runner: DispatchLoopRunner, state: BridgeState) -> None:
-    write_shared_state(runner.shared_state_file, state)
-    runner.hud.publish(state)
 
 
 def _run_follow_the_lock(runner: DispatchLoopRunner, op: WindowOp) -> None:

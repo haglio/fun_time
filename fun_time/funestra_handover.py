@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from funestra.file_channel import append_command
@@ -88,15 +87,5 @@ class Departures:
             del self._going[funestra]
         return taken
 
-
-class SatellitesTaken:
-    def __init__(self, departures: Departures, *,
-                 changed: Callable[[BridgeState], None]) -> None:
-        self._departures = departures
-        self._changed = changed
-
-    def follow(self, state: BridgeState, config: BridgeConfig) -> BridgeState:
-        for funestra in self._departures.taken(config):
-            state = state.with_satellite(funestra, handed_over=True)
-            self._changed(state)
-        return state
+    def still_going(self) -> bool:
+        return bool(self._going)

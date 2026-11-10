@@ -16,19 +16,15 @@ from fun_time.funestra_status import MainFunestraStatus
 from fun_time.main_list import MainList
 from fun_time.origenerator_switches import RfbMode
 from fun_time.session_resume import (
-    DESCRIBES_THE_PLAYLIST,
     NOT_RESUMED,
-    NOT_RESUMED_PER_SATELLITE,
     RESUMED_FIELDS,
-    RESUMED_SATELLITE_FIELDS,
+    empty_the_satellites_lists,
     open_the_main_list,
     playlist_opens_on,
     resume_genau,
     resume_main_lock,
     resume_main_loop,
-    resume_playlists,
     resume_rates,
-    resume_satellite_locks,
     resume_shared_state,
     resume_what_lives_in_a_funestra,
 )
@@ -51,81 +47,20 @@ def _write_playlist(path: Path, lines: list[str]) -> None:
     path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
 
 
-class TestResumePlaylists:
-    def test_rotating_onto_the_last_video_keeps_what_was_coming_up_coming_up(self, tmp_path: Path):
-        a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
+class TestEmptyingTheSatellitesLists:
+    def test_each_list_is_left_empty_for_the_hosted_app_to_fill(self, tmp_path: Path):
         playlist = tmp_path / "portrait_playlist.tsv"
-        _write_playlist(playlist, [a, b, c])
+        _write_playlist(playlist, _videos(tmp_path, "a.mp4"))
 
-        assert resume_playlists([(playlist, b)]) is True
+        empty_the_satellites_lists([playlist])
 
-        assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
+        assert playlist.read_text(encoding="utf-8") == ""
 
-    def test_a_resumed_video_keeps_the_funscript_that_drives_the_osr2_through_it(self, tmp_path: Path):
-        a, b, c = _videos(tmp_path, "a.mp4", "b.mp4", "c.mp4")
-        playlist = tmp_path / "portrait_playlist.tsv"
-        _write_playlist(playlist, [f"{a}\ta.funscript", b, f"{c}\tc.funscript"])
-
-        resume_playlists([(playlist, c)])
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [
-            f"{c}\tc.funscript",
-            f"{a}\ta.funscript",
-            b,
-        ]
-
-    def test_reports_nothing_to_resume_when_a_playlist_file_is_missing(self, tmp_path: Path):
-        assert resume_playlists([(tmp_path / "portrait_playlist.tsv", "")]) is False
-
-    def test_the_satellites_playlists_resume_together_or_stay_as_the_build_left_them(self, tmp_path: Path):
-        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
-        portrait = tmp_path / "portrait_playlist.tsv"
-        _write_playlist(portrait, [a, b])
-
-        resumed = resume_playlists([
-            (portrait, b),
-            (tmp_path / "landscape_playlist.tsv", ""),
-        ])
-
-        assert resumed is False
-        assert portrait.read_text(encoding="utf-8").splitlines() == [a, b]
-
-    def test_last_sessions_queue_comes_back_from_its_top_when_its_video_is_gone(self, tmp_path: Path):
-        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "landscape_playlist.tsv"
-        _write_playlist(playlist, [a, b])
-
-        assert resume_playlists([(playlist, str(tmp_path / "deleted.mp4"))]) is True
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
-
-    def test_drops_videos_that_no_longer_exist(self, tmp_path: Path):
-        a, b = _videos(tmp_path, "a.mp4", "b.mp4")
-        gone = str(tmp_path / "gone.mp4")
-        playlist = tmp_path / "portrait_playlist.tsv"
-        _write_playlist(playlist, [a, gone, b])
-
-        assert resume_playlists([(playlist, b)]) is True
-
-        assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
-
-    def test_a_list_an_older_session_kept_aside_is_deleted_and_never_put_back(self, tmp_path: Path):
-        a, image = _videos(tmp_path, "a.mp4", "image.png")
-        playlist = tmp_path / "portrait_playlist.tsv"
-        kept = tmp_path / "portrait_playlist.kept.tsv"
-        _write_playlist(kept, [a])
-        _write_playlist(playlist, [image])
-
-        assert resume_playlists([(playlist, image)]) is True
-
-        assert not kept.exists()
-        assert playlist.read_text(encoding="utf-8").splitlines() == [image]
-
-    def test_a_list_kept_aside_is_deleted_even_when_nothing_resumes(self, tmp_path: Path):
+    def test_a_list_an_older_session_kept_aside_is_deleted(self, tmp_path: Path):
         kept = tmp_path / "landscape_playlist.kept.tsv"
-        _write_playlist(kept, [_videos(tmp_path, "a.mp4")[0]])
+        _write_playlist(kept, _videos(tmp_path, "a.mp4"))
 
-        assert resume_playlists([(tmp_path / "landscape_playlist.tsv", "")]) is False
+        empty_the_satellites_lists([tmp_path / "landscape_playlist.tsv"])
 
         assert not kept.exists()
 
@@ -136,7 +71,7 @@ class TestResumeSharedState:
         state_file = tmp_path / "shared_bridge_state.ini"
         state_file.write_text("[state]\nvolume = 40\n", encoding="utf-8")
 
-        state = resume_shared_state(state_file, resumed=True, last_reported=FunestraReports(
+        state = resume_shared_state(state_file, last_reported=FunestraReports(
             main=MainFunestraStatus(speed=1.5, read_at=1_700_000_000.0)))
 
         assert (state.volume, state.main_speed) == (40, 1.5)
@@ -147,7 +82,7 @@ class TestResumeSharedState:
         state_file.write_text("[state]\nvolume = 40\n", encoding="utf-8")
         (tmp_path / "mic_off.flag").write_text("1", encoding="utf-8")
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         assert state.mic_muted is True
         assert not (tmp_path / "mic_off.flag").exists()
@@ -157,7 +92,7 @@ class TestResumeSharedState:
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_speed=0.5))
 
-        state = resume_shared_state(state_file, resumed=True, last_reported=FunestraReports(
+        state = resume_shared_state(state_file, last_reported=FunestraReports(
             main=MainFunestraStatus(speed=1.5, read_at=1_700_000_000.0)))
 
         assert state.main_speed == 1.5
@@ -167,25 +102,22 @@ class TestResumeSharedState:
         left = replace(shifted_state(BridgeState()), osr2_control=OSR2_RETRACTED)
         write_shared_state(state_file, left)
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         assert remembered_values(state) == remembered_values(left)
 
-    def test_carries_each_funestras_own_f_mode_onto_the_resumed_session(self, tmp_path: Path):
+    def test_carries_the_main_funestras_f_mode_onto_the_resumed_session(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=False), main_scripted_filter=True))
+        write_shared_state(state_file, BridgeState(main_scripted_filter=True))
 
-        state = resume_shared_state(state_file, resumed=True)
-
-        assert (state.main_scripted_filter, state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter,
-                state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter) == (True, False, True)
+        assert resume_shared_state(state_file).main_scripted_filter is True
 
 
     def test_carries_the_main_funestra_s_order(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_latest=True))
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         assert state.main_latest is True
 
@@ -193,65 +125,61 @@ class TestResumeSharedState:
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(genau_latest=True))
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         assert state.genau_latest is True
 
-    def test_carries_the_sound_level_and_each_satellite_s_lock(self, tmp_path: Path):
+    def test_carries_the_sound_level_and_each_satellite_s_own(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True), volume=40, muted=True))
+        write_shared_state(state_file, BridgeState(portrait=SatelliteState(volume=30, muted=False), volume=40, muted=True))
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         assert (state.volume, state.muted) == (40, True)
-        assert (state.satellite(FunTimeFunestra.PORTRAIT).locked, state.satellite(FunTimeFunestra.LANDSCAPE).locked) == (True, False)
+        assert (state.portrait.volume, state.portrait.muted) == (30, False)
 
     def test_carries_what_the_osr2_was_left_in(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         for control in (OSR2_PARKED, OSR2_RETRACTED):
             write_shared_state(state_file, BridgeState(osr2_control=control))
 
-            assert resume_shared_state(state_file, resumed=True).osr2_control == control
+            assert resume_shared_state(state_file).osr2_control == control
 
     def test_a_session_left_under_control_off_comes_back_parked(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(osr2_control="control_off"))
 
-        assert resume_shared_state(state_file, resumed=True).osr2_control == OSR2_PARKED
+        assert resume_shared_state(state_file).osr2_control == OSR2_PARKED
 
     def test_carries_which_funestra_has_the_osr2(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(osr2_funestra=FunTimeFunestra.LANDSCAPE))
 
-        assert resume_shared_state(state_file, resumed=True).osr2_funestra == FunTimeFunestra.LANDSCAPE
+        assert resume_shared_state(state_file).osr2_funestra == FunTimeFunestra.LANDSCAPE
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_mode=MainMode.GENAU))
 
-        assert resume_shared_state(state_file, resumed=True).main_mode is MainMode.GENAU
+        assert resume_shared_state(state_file).main_mode is MainMode.GENAU
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SatelliteState(handed_over=True), portrait=SatelliteState(handed_over=True), omni_paused=True, active_funestra=3))
+        write_shared_state(state_file, BridgeState(omni_paused=True, active_funestra=3))
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         fresh = BridgeState()
         assert (state.omni_paused, state.active_funestra) == (
             fresh.omni_paused, fresh.active_funestra)
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
-        for funestra in FunTimeFunestra.SATELLITES:
-            for name in NOT_RESUMED_PER_SATELLITE:
-                assert getattr(state.satellite(funestra), name) == getattr(
-                    fresh.satellite(funestra), name)
 
     def test_an_app_reopens_with_the_windows_where_startup_puts_them(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(crowned=Crown.MAIN, majority=Crown.MAIN))
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
         assert (state.crowned, state.majority) == (Crown.MAIN, Crown.PORTRAIT)
 
@@ -259,77 +187,46 @@ class TestResumeSharedState:
         names = {field.name for field in fields(BridgeState)}
         assert names >= NOT_RESUMED, sorted(NOT_RESUMED - names)
         assert set(RESUMED_FIELDS) == names - NOT_RESUMED
+        assert {"portrait", "landscape"} <= set(RESUMED_FIELDS)
 
-        satellite_names = {field.name for field in fields(SatelliteState)}
-        assert satellite_names >= NOT_RESUMED_PER_SATELLITE, sorted(NOT_RESUMED_PER_SATELLITE - satellite_names)
-        assert set(RESUMED_SATELLITE_FIELDS) == satellite_names - NOT_RESUMED_PER_SATELLITE
-
-    def test_satellites_built_fresh_start_over_and_every_other_setting_comes_back(
-            self, tmp_path: Path):
+    def test_every_setting_comes_back(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
         left = replace(shifted_state(BridgeState()), osr2_control=OSR2_RETRACTED)
         write_shared_state(state_file, left)
 
-        state = resume_shared_state(state_file, resumed=False)
+        state = resume_shared_state(state_file)
 
-        started_over = left
-        for funestra in FunTimeFunestra.SATELLITES:
-            started_over = started_over.with_satellite(funestra, **{
-                name: getattr(SatelliteState(), name) for name in DESCRIBES_THE_PLAYLIST})
-        assert remembered_values(replace(state, main_shuffle_seed=0)) == remembered_values(
-            replace(started_over, main_shuffle_seed=0))
+        assert remembered_values(state) == remembered_values(left)
 
     def test_a_fresh_session_deals_the_main_funestra_a_shuffle_of_its_own(self, tmp_path: Path):
-        state_file = tmp_path / "shared_bridge_state.ini"
-
-        seeds = {resume_shared_state(state_file, resumed=False).main_shuffle_seed
-                 for _ in range(3)}
+        seeds = {resume_shared_state(tmp_path / f"session {run}.ini").main_shuffle_seed
+                 for run in range(3)}
 
         assert len(seeds) == 3
 
+    def test_a_resumed_session_keeps_the_main_funestras_shuffle(self, tmp_path: Path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        write_shared_state(state_file, BridgeState(main_shuffle_seed=1234))
+
+        assert resume_shared_state(state_file).main_shuffle_seed == 1234
+
     def test_the_carry_is_on_disk_where_the_dispatch_loop_reads_its_state(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(portrait=SatelliteState(favorites_filter=True), omni_paused=True))
+        write_shared_state(state_file, BridgeState(portrait=SatelliteState(volume=30), omni_paused=True))
 
-        resume_shared_state(state_file, resumed=True)
+        resume_shared_state(state_file)
 
         written = read_shared_state(state_file)
         assert written is not None
-        assert written.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is True
+        assert written.satellite(FunTimeFunestra.PORTRAIT).volume == 30
         assert written.omni_paused is False
 
     def test_a_first_run_leaves_a_state_file(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
 
-        assert replace(resume_shared_state(state_file, resumed=True), main_shuffle_seed=0) == (
+        assert replace(resume_shared_state(state_file), main_shuffle_seed=0) == (
             BridgeState())
         assert state_file.exists()
-
-
-class TestResumeSatelliteLocks:
-    def test_queues_a_lock_for_the_satellite_that_was_holding_one(self, tmp_path: Path):
-        portrait = tmp_path / "portrait_cmd.txt"
-        landscape = tmp_path / "landscape_cmd.txt"
-
-        resume_satellite_locks([(portrait, True), (landscape, False)])
-
-        assert portrait.read_text(encoding="utf-8").split() == ["LOCK_ON"]
-        assert not landscape.exists()
-
-    def test_a_satellite_left_unlocked_as_one_opens_is_sent_nothing(self, tmp_path: Path):
-        portrait = tmp_path / "portrait_cmd.txt"
-
-        resume_satellite_locks([(portrait, False)])
-
-        assert not portrait.exists()
-
-    def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
-        portrait = tmp_path / "portrait_cmd.txt"
-        portrait.write_text("RELOAD_PLAYLIST\n", encoding="utf-8")
-
-        resume_satellite_locks([(portrait, True)])
-
-        assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK_ON"]
 
 
 class TestResumeMainLoop:
@@ -429,9 +326,9 @@ class TestResumeMainLock:
 
 class TestWhatARestartBringsBackOfEachFunestra:
     _KEPT_IN_THE_APPS_STATE: ClassVar[dict] = {
-        "SET_SPEED": {"main_speed", "speed"}, "SPEED_UP": {"main_speed", "speed"},
-        "SPEED_DOWN": {"main_speed", "speed"}, "LOCK_ON": {"main_locked", "locked"},
-        "LOCK_OFF": {"main_locked", "locked"}, "TOGGLE_LOCK": {"main_locked", "locked"},
+        "SET_SPEED": {"main_speed"}, "SPEED_UP": {"main_speed"},
+        "SPEED_DOWN": {"main_speed"}, "LOCK_ON": {"main_locked"},
+        "LOCK_OFF": {"main_locked"}, "TOGGLE_LOCK": {"main_locked"},
         "SET_MAX_INTENSITY": {"max_intensity"}, "SET_VOLUME": {"volume", "muted"},
         "SHOW": {"main_mode"},
         "SET_F_MODE": {"main_scripted_filter"}}
@@ -459,19 +356,16 @@ class TestWhatARestartBringsBackOfEachFunestra:
             carried, main_funestra_cmd_file=main_funestra_cmd,
             satellite_cmd_files={FunTimeFunestra.PORTRAIT: portrait_cmd},
             genau_cmd_file=tmp_path / "genau_cmd.txt")
-        resume_satellite_locks([(portrait_cmd, True)])
 
         assert {line.split()[0] for command_file in (main_funestra_cmd, portrait_cmd)
                 for line in command_file.read_text(encoding="utf-8").splitlines()} == {
-            funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME,
-            funestra_verbs.LOCK_ON}
-        assert {funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME,
-                funestra_verbs.LOCK_ON} <= {
+            funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME}
+        assert {funestra_verbs.SET_SPEED, funestra_verbs.LOCK_OFF, funestra_verbs.SET_VOLUME} <= {
             getattr(funestra_verbs, name) for name in self._KEPT_IN_THE_APPS_STATE}
 
     def test_what_the_apps_state_keeps_for_a_funestra_is_remembered(self):
         assert set().union(*self._KEPT_IN_THE_APPS_STATE.values()) <= (
-            set(RESUMED_FIELDS) | set(RESUMED_SATELLITE_FIELDS))
+            set(RESUMED_FIELDS) | {field.name for field in fields(SatelliteState)})
 
 
 class TestResumeGenau:
@@ -648,6 +542,6 @@ def test_a_session_opens_with_the_browsers_place_where_it_was_left(tmp_path):
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
-    resumed = resume_shared_state(state_file, resumed=True)
+    resumed = resume_shared_state(state_file)
 
     assert resumed.rfb_mode is RfbMode.ORIGENERATOR

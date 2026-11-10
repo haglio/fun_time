@@ -13,13 +13,11 @@ PUBLISHED_AT = 1_700_000_000.0
 
 
 class TestTheRoomRecordsWhatEachFunestraReports:
-    def test_the_rate_each_funestra_plays_at(self):
+    def test_the_rate_the_main_funestra_plays_at(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(
-            main=MainFunestraStatus(speed=1.5, read_at=PUBLISHED_AT),
-            satellites={FunTimeFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
+            main=MainFunestraStatus(speed=1.5, read_at=PUBLISHED_AT)))
 
-        assert (state.main_speed, state.satellite(FunTimeFunestra.PORTRAIT).speed,
-                state.satellite(FunTimeFunestra.LANDSCAPE).speed) == (1.5, 0.5, 1.0)
+        assert state.main_speed == 1.5
 
     def test_whether_the_main_funestra_holds_its_video_and_the_loop_it_runs(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(
@@ -47,13 +45,11 @@ class TestTheRoomRecordsWhatEachFunestraReports:
                 state.genau_flick_seconds, state.genau_learned, state.genau_locked) == (
             76, 60, 30, "sawtooth", 25, True, False)
 
-    def test_not_the_rate_of_a_show_the_hosted_app_plays_on_a_satellite(self):
-        hosting = BridgeState().with_satellite(FunTimeFunestra.PORTRAIT, handed_over=True)
-
-        state = with_what_the_funestras_report(hosting, FunestraReports(
+    def test_not_the_rate_of_the_show_the_hosted_app_plays_on_a_satellite(self):
+        state = with_what_the_funestras_report(BridgeState(), FunestraReports(
             satellites={FunTimeFunestra.PORTRAIT: SatelliteStatus(speed=0.5, read_at=PUBLISHED_AT)}))
 
-        assert state.satellite(FunTimeFunestra.PORTRAIT).speed == 1.0
+        assert state.satellite(FunTimeFunestra.PORTRAIT) == BridgeState().portrait
 
     def test_the_level_and_mute_each_satellites_own_chip_is_at(self):
         state = with_what_the_funestras_report(BridgeState(), FunestraReports(satellites={

@@ -245,13 +245,43 @@ def test_the_satellite_plays_ahead_of_background_work(tmp_path, monkeypatch, pla
     assert plays == ["ahead", "plays", "back"]
 
 
-def test_a_satellite_with_nothing_to_play_ends_at_once_saying_so(tmp_path, plays, caplog):
-    playlist = tmp_path / "playlist.tsv"
-    playlist.write_text("", encoding="utf-8")
-
-    assert satellite.app.main(["--playlist", str(playlist)]) == 1
+def test_a_satellite_named_no_list_ends_at_once_saying_so(plays, caplog):
+    assert satellite.app.main([]) == 1
     assert "No videos to play" in caplog.text
     assert plays == []
+
+
+def test_a_satellite_launched_on_an_empty_list_opens_and_plays_the_list_once_it_is_written(
+        tmp_path):
+    args = _loop_args(tmp_path, [])
+    video = _videos(tmp_path, "v0")[0]
+    fake = _FakePygame()
+    looked = []
+
+    def the_app_writes_the_list_after_a_while():
+        looked.append("looked")
+        if len(looked) == 3:
+            (tmp_path / "playlist.tsv").write_text(f"{video}\n", encoding="utf-8")
+        return []
+
+    fake.event.get = the_app_writes_the_list_after_a_while
+
+    with patch("satellite.app.time.sleep"):
+        code, opens, _fake = _run_loop(tmp_path, args, fake=fake)
+
+    assert code == 0
+    assert [item.path for item in opens.asked[1].playlist] == [video]
+
+
+def test_a_satellite_still_waiting_for_its_list_ends_when_told_to_quit(tmp_path):
+    args = _loop_args(tmp_path, [])
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    code, opens, fake = _run_loop(tmp_path, args)
+
+    assert code == 0
+    assert opens.asked is None
+    assert fake.quit_called
 
 
 def test_a_satellite_opens_where_the_launch_placed_it(tmp_path):

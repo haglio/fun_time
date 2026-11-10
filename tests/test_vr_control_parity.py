@@ -85,8 +85,7 @@ _ONE_SLOW_SWEEP_SERVES_EVERY_TEST = "module"
 
 @pytest.fixture(scope=_ONE_SLOW_SWEEP_SERVES_EVERY_TEST)
 def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
-    return sweep(headset_config(tmp_path_factory.mktemp("vr_parity")),
-                 (False, True))
+    return sweep(headset_config(tmp_path_factory.mktemp("vr_parity")))
 
 
 def test_the_sweep_sends_the_main_funestra_its_ten_second_steps(landed):
@@ -268,11 +267,11 @@ class TestGenau:
 
 class TestTheHostedOrigenerator:
     def test_it_is_sent_what_is_said_to_a_satellite_it_holds(self, landed):
-        assert landed["kino/handed over/portrait_next"]["origenerator_cmd_file"] == [
+        assert landed["kino/portrait_next"]["origenerator_cmd_file"] == [
             "portrait_next"]
 
     def test_a_lock_locks_the_funestra_and_then_tells_the_hosted_app(self, landed):
-        assert landed["kino/handed over/portrait_lock"] == {
+        assert landed["kino/portrait_lock"] == {
             "portrait_cmd_file": ["LOCK_ON"], "origenerator_cmd_file": ["portrait_lock"],
             "__ops__": []}
 

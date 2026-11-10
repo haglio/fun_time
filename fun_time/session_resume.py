@@ -11,7 +11,7 @@ from funestra.flick_advance import FlickAdvanceState
 from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, SET_VOLUME, set_speed
 from funestra.main_hud import OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.playback_rate import NORMAL_RATE
-from funestra.playlist import PlaylistItem, read_playlist, write_playlist
+from funestra.playlist import read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
 
 from main_funestra.loop_verbs import SET_LOOP
@@ -19,7 +19,7 @@ from main_funestra.loop_verbs import SET_LOOP
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_settings import FunestraReports, with_what_the_funestras_report
 from .main_list import MainList, MainListSettings, new_shuffle_seed
-from .modes import rotated_onto, same_file_to_windows
+from .modes import same_file_to_windows
 from .shared_state import (
     BridgeState,
     SatelliteState,
@@ -31,8 +31,6 @@ from .shared_state import (
 )
 
 logger = logging.getLogger(__name__)
-
-PlaylistEntries = list[PlaylistItem]
 
 HAND_SPEED = "SPEED"
 HAND_AMPLITUDE = "AMP"
@@ -50,24 +48,9 @@ NOT_RESUMED = (
     | frozenset({"origenerator_ready", "majority"})
 )
 
-NOT_RESUMED_PER_SATELLITE = frozenset({"handed_over"})
-
-DESCRIBES_THE_PLAYLIST = frozenset({
-    "locked", "favorites_filter", "latest",
-})
-
 RESUMED_FIELDS: tuple[str, ...] = tuple(
     field.name for field in fields(BridgeState) if field.name not in NOT_RESUMED
 )
-
-RESUMED_SATELLITE_FIELDS: tuple[str, ...] = tuple(
-    field.name for field in fields(SatelliteState) if field.name not in NOT_RESUMED_PER_SATELLITE
-)
-
-
-def _resumed_satellite(satellite: SatelliteState, *, playlist_resumed: bool) -> SatelliteState:
-    return SatelliteState(**{name: getattr(satellite, name) for name in RESUMED_SATELLITE_FIELDS
-                             if playlist_resumed or name not in DESCRIBES_THE_PLAYLIST})
 
 
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
@@ -75,27 +58,10 @@ def playlist_opens_on(playlist_file: Path, video: str) -> bool:
     return bool(entries) and same_file_to_windows(str(entries[0].path), video)
 
 
-def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
-    # Handing mpv a path to nothing is how a satellite comes up stuck.
-    return [item for item in read_playlist(playlist_file) if item.path.exists()]
-
-
-def _delete_every_list_an_older_session_kept_aside(resumptions: Sequence[tuple[Path, str]]) -> None:
-    for playlist_file, _ in resumptions:
+def empty_the_satellites_lists(playlist_files: Sequence[Path]) -> None:
+    for playlist_file in playlist_files:
+        write_playlist(playlist_file, [])
         playlist_file.with_name(f"{playlist_file.stem}.kept.tsv").unlink(missing_ok=True)
-
-
-def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
-    _delete_every_list_an_older_session_kept_aside(resumptions)
-    written_only_if_all_resume: list[tuple[Path, PlaylistEntries]] = []
-    for playlist_file, last_video in resumptions:
-        entries = _surviving_entries(playlist_file)
-        if not entries:
-            return False
-        written_only_if_all_resume.append((playlist_file, rotated_onto(entries, last_video)))
-    for playlist_file, entries in written_only_if_all_resume:
-        write_playlist(playlist_file, entries)
-    return True
 
 
 def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file: Path,
@@ -116,12 +82,6 @@ def _resend_a_lock_left_other_than_it_opens(
 ) -> None:
     if locked != opens_locked:
         append_command(Path(command_file), LOCK_ON if locked else LOCK_OFF)
-
-
-def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
-    for command_file, locked in locks:
-        _resend_a_lock_left_other_than_it_opens(
-            command_file, locked=locked, opens_locked=SatelliteState().locked)
 
 
 def _cycles_to_the_shape_no_verb_names_outright(shape: str) -> list[str]:
@@ -176,11 +136,7 @@ def resume_what_lives_in_a_funestra(
     satellite_cmd_files: Mapping[FunTimeFunestra, Path],
     genau_cmd_file: Path,
 ) -> None:
-    resume_rates([
-        (main_funestra_cmd_file, carried.main_speed),
-        *((command_file, carried.satellite(funestra).speed)
-          for funestra, command_file in satellite_cmd_files.items()),
-    ])
+    resume_rates([(main_funestra_cmd_file, carried.main_speed)])
     resume_main_lock(main_funestra_cmd_file, locked=carried.main_locked)
     resume_satellite_volumes(carried, satellite_cmd_files)
     resume_genau(genau_cmd_file, carried)
@@ -211,7 +167,7 @@ def _the_mic_was_left_off(state_dir: Path) -> bool:
     return was_off
 
 
-def resume_shared_state(state_file: Path, *, resumed: bool,
+def resume_shared_state(state_file: Path, *,
                         last_reported: FunestraReports = NOTHING_REPORTED) -> BridgeState:
     migrate_shared_state(state_file)
     previous = read_shared_state(state_file)
@@ -219,15 +175,10 @@ def resume_shared_state(state_file: Path, *, resumed: bool,
         if not written_with(state_file, "mic_muted"):
             previous = replace(previous, mic_muted=_the_mic_was_left_off(Path(state_file).parent))
         previous = with_what_the_funestras_report(previous, last_reported)
-    state = BridgeState() if previous is None else replace(
-        BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
-        portrait=_resumed_satellite(previous.satellite(FunTimeFunestra.PORTRAIT),
-                                    playlist_resumed=resumed),
-        landscape=_resumed_satellite(previous.satellite(FunTimeFunestra.LANDSCAPE),
-                                     playlist_resumed=resumed),
-    )
-    if previous is None or not resumed:
-        state = replace(state, main_shuffle_seed=new_shuffle_seed())
+    if previous is None:
+        state = BridgeState(main_shuffle_seed=new_shuffle_seed())
+    else:
+        state = BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS})
     if state.osr2_control not in _OSR2_CONTROLS:
         state = replace(state, osr2_control=OSR2_PARKED)
     write_shared_state(state_file, state)

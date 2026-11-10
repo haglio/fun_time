@@ -119,18 +119,18 @@ def drain(config: BridgeConfig) -> dict[str, list[str]]:
     return written
 
 
-def _named_with_the_mode_and_the_hand_over(main_mode, held: bool, command: str) -> str:
-    return f"{main_mode}/{'handed over' if held else 'not handed over'}/{command}"
+def _named_with_the_main_mode(main_mode, command: str) -> str:
+    return f"{main_mode}/{command}"
 
 
 def _the_funestra_it_is_said_to(command: str) -> FunTimeFunestra:
     return parse_command(command).satellite or FunTimeFunestra.MAIN
 
 
-def sweep(config: BridgeConfig, handed_over: tuple[bool, ...]) -> dict[str, dict[str, list[str]]]:
+def sweep(config: BridgeConfig) -> dict[str, dict[str, list[str]]]:
     drain(config)
     _hold_every_funestra_halfway_through_an_hour(config)
-    return _what_every_command_sent(config, handed_over)
+    return _what_every_command_sent(config)
 
 
 def _hold_every_funestra_halfway_through_an_hour(config: BridgeConfig) -> None:
@@ -142,17 +142,14 @@ def _hold_every_funestra_halfway_through_an_hour(config: BridgeConfig) -> None:
             encoding="utf-8")
 
 
-def _what_every_command_sent(config: BridgeConfig, handed_over: tuple[bool, ...]) -> dict[str, dict[str, list[str]]]:
+def _what_every_command_sent(config: BridgeConfig) -> dict[str, dict[str, list[str]]]:
     landed: dict[str, dict[str, list[str]]] = {}
     for main_mode in MAIN_MODES:
-        for held in handed_over:
-            for command in every_command():
-                state = BridgeState(main_mode=main_mode, origenerator_ready=True,
-                                    osr2_funestra=_the_funestra_it_is_said_to(command))
-                for funestra in FunTimeFunestra.SATELLITES:
-                    state = state.with_satellite(funestra, handed_over=held)
-                _state, ops = dispatch_command(command, state, config, target_path="")
-                written = drain(config)
-                written["__ops__"] = sorted({op.op for op in ops})
-                landed[_named_with_the_mode_and_the_hand_over(main_mode, held, command)] = written
+        for command in every_command():
+            state = BridgeState(main_mode=main_mode, origenerator_ready=True,
+                                osr2_funestra=_the_funestra_it_is_said_to(command))
+            _state, ops = dispatch_command(command, state, config, target_path="")
+            written = drain(config)
+            written["__ops__"] = sorted({op.op for op in ops})
+            landed[_named_with_the_main_mode(main_mode, command)] = written
     return landed

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from funestra.modes import MainMode
 
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.origenerator_switches import RfbMode
 from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import (
@@ -35,14 +34,9 @@ class TestTheSharedStateFile:
         assert migrate_shared_state(state_file) is True
 
         state = read_shared_state(state_file)
-        assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
         assert state.active_funestra == 3
         assert state.main_scripted_filter is True
-        assert state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is True
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).favorites_filter is False
         assert (state.volume, state.muted) == (40, True)
-        assert state.satellite(FunTimeFunestra.LANDSCAPE).latest is True
 
     def test_the_mode_selector_under_the_log_keeps_its_mode_under_its_new_key(self, tmp_path: Path):
         state_file = tmp_path / SHARED_STATE_FILENAME
@@ -59,7 +53,7 @@ class TestTheSharedStateFile:
         migrate_shared_state(state_file)
 
         text = state_file.read_text(encoding="utf-8")
-        for old in ("locked2", "locked3", "active_side", "f_mode"):
+        for old in ("active_side", "main_f_mode"):
             assert old not in text, old
 
     def test_no_table_translates_a_dropped_mode_word(self, tmp_path: Path):
@@ -79,7 +73,6 @@ class TestTheSharedStateFile:
 
         state = read_shared_state(state_file)
 
-        assert state.satellite(FunTimeFunestra.PORTRAIT).locked is False
         assert state.active_funestra == 1
         assert state.main_scripted_filter is False
 
@@ -116,9 +109,8 @@ class TestTheSharedStateFile:
         state_file = tmp_path / SHARED_STATE_FILENAME
         state_file.write_text(_LAST_SESSIONS_STATE, encoding="utf-8")
 
-        state = resume_shared_state(state_file, resumed=True)
+        state = resume_shared_state(state_file)
 
-        assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
         assert state.main_scripted_filter is True
         assert "locked2" not in state_file.read_text(encoding="utf-8")
 

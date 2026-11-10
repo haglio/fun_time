@@ -29,8 +29,8 @@ from fun_time.genau_engine import (
     build_genau_engine,
 )
 from fun_time.inclusion_pairs import BOTH, ORIENTATION, Included
-from fun_time.media_metadata import recorded_for, recorded_orientation
-from fun_time.modes import keep_favorites, videos_in
+from fun_time.media_metadata import is_favorite, recorded_for, recorded_orientation
+from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
 
 from .genau_verbs import apply_command as answer_genaus_verb
@@ -214,7 +214,7 @@ class Genau:
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
         if not self._f_mode or self._metadata_root is None:
             return flicks
-        return keep_favorites(flicks, self._metadata_root)
+        return [flick for flick in flicks if is_favorite(flick, self._metadata_root)]
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent

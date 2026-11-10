@@ -527,7 +527,7 @@ def test_crowning_the_main_funestra_takes_the_crown_back_from_the_portrait_funes
 
 def test_a_funestras_own_minimize_parks_that_window_alone_not_all_of_fun_time(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(portrait=SatelliteState(locked=True))
+    state = _make_state(portrait=SatelliteState(hud_minimized=True))
 
     new_state, ops = dispatch_command("portrait_minimize", state, config)
 
@@ -622,19 +622,19 @@ def test_f_mode_on_or_off_misheard_twice_still_lands_where_it_was_asked(tmp_path
     config = _make_config(tmp_path)
 
     stays_on, _ops, _mock = _dispatch_fmode(
-        "portrait_fmode_on", _make_state(portrait=SatelliteState(favorites_filter=True)), config)
+        "main_fmode_on", _make_state(main_scripted_filter=True), config)
     stays_off, _ops, _mock = _dispatch_fmode(
-        "portrait_fmode_off", _make_state(portrait=SatelliteState(favorites_filter=False)), config)
+        "main_fmode_off", _make_state(main_scripted_filter=False), config)
 
-    assert stays_on.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is True
-    assert stays_off.satellite(FunTimeFunestra.PORTRAIT).favorites_filter is False
+    assert stays_on.main_scripted_filter is True
+    assert stays_off.main_scripted_filter is False
 
 
 def test_f_mode_on_said_twice_rebuilds_and_so_reshuffles_nothing(tmp_path: Path):
     config = _make_config(tmp_path)
 
     _state, _ops, mock_fmode = _dispatch_fmode(
-        "portrait_fmode_on", _make_state(portrait=SatelliteState(favorites_filter=True)), config)
+        "main_fmode_on", _make_state(main_scripted_filter=True), config)
 
     assert mock_fmode.call_args.kwargs["funestras"] == ()
 
@@ -655,7 +655,7 @@ def test_key_hud_button_and_spoken_phrase_flash_the_same_f_mode_confirmation(
 
 def test_f_mode_off_is_neither_an_error_nor_a_favoriting_and_flashes_white(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=True), main_scripted_filter=True)
+    state = _make_state(main_scripted_filter=True)
 
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -1438,17 +1438,6 @@ def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
     assert config.landscape.paused_file.read_text(encoding="utf-8") == "0"
 
 
-def test_leaving_omnipause_leaves_a_locked_satellites_lock_standing(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(omni_paused=True, portrait=SatelliteState(locked=True))
-
-    new_state, _ops = dispatch_command("omnipause_toggle", state, config)
-
-    assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-    assert _cmds(config, FunTimeFunestra.PORTRAIT) == []
-    assert config.portrait.paused_file.read_text(encoding="utf-8") == "0"
-
-
 def test_verbs_sent_to_a_satellite_in_one_burst_all_wait_in_its_file(tmp_path: Path):
     config = _make_config(tmp_path)
 
@@ -1481,25 +1470,6 @@ def test_the_main_funestras_nudge_pair_seeks_the_main_funestra_in_either_mode(
 
     assert back_ops == forward_ops == []
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
-
-
-def test_a_satellites_nudge_pair_seeks_that_satellite_and_leaves_its_lock_alone(
-        tmp_path: Path):
-    config = _make_config(tmp_path)
-    for funestra in FunTimeFunestra.SATELLITES:
-        _publish_status(config.satellite(funestra).status_file, duration_ms=60_000,
-                        position_ms=30_000)
-    state = _make_state(portrait=SatelliteState(locked=True))
-
-    state, forward_ops = dispatch_command("portrait_nudge_next", state, config)
-    state, back_ops = dispatch_command("portrait_nudge_prev", state, config)
-    dispatch_command("landscape_nudge_next", state, config)
-
-    assert forward_ops == back_ops == []
-    assert _cmds(config, FunTimeFunestra.PORTRAIT) == ["SEEK_FWD", "SEEK_BACK"]
-    assert _cmds(config, FunTimeFunestra.LANDSCAPE) == ["SEEK_FWD"]
-    assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
-    assert not config.main_funestra_cmd_file.exists()
 
 
 @pytest.mark.parametrize(("command", "status_of", "expected_message"), [
@@ -2106,11 +2076,8 @@ def _up(**fields) -> BridgeState:
     return BridgeState(origenerator_ready=True, **fields)
 
 
-def _handed_over(*funestras: FunTimeFunestra, **fields) -> BridgeState:
-    state = _up(**fields)
-    for funestra in funestras or FunTimeFunestra.SATELLITES:
-        state = state.with_satellite(funestra, handed_over=True)
-    return state
+def _handed_over(*_funestras: FunTimeFunestra, **fields) -> BridgeState:
+    return _up(**fields)
 
 
 def test_the_satellites_the_hosted_app_holds_are_named_by_their_satellites(tmp_path):
@@ -2141,10 +2108,6 @@ def test_a_spoken_lock_reaches_a_hosted_satellite_with_no_time_to_go_back_to_aga
                      target_path="C:\\pictures\\meant.png", spoken_at=time.monotonic() - 2.0)
 
     assert _origenerator_cmds(config) == ["portrait_lock_on"]
-
-
-def _taken(state: BridgeState) -> list[bool]:
-    return [state.satellite(funestra).handed_over for funestra in FunTimeFunestra.SATELLITES]
 
 
 def _origenerator_cmds(config: BridgeConfig) -> list[str]:
@@ -2188,7 +2151,6 @@ class TestTheRandomFavesBrowsersPlace:
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.rfb_mode is RfbMode.ORIGENERATOR
-        assert _taken(state) == [False, False]
         assert [(op.op, op.key) for op in ops] == [
             ("show_window", "origenerator"),
             ("activate_window", "origenerator"),
@@ -2202,7 +2164,6 @@ class TestTheRandomFavesBrowsersPlace:
         state, ops = dispatch_command(
             "rfb_activate", _handed_over(rfb_mode=RfbMode.ORIGENERATOR), config)
         assert state.rfb_mode is RfbMode.RFB
-        assert _taken(state) == [True, True]
         assert [(op.op, op.key) for op in ops] == [
             ("hide_window", "origenerator"), ("restack_rfb", "")]
         assert _origenerator_cmds(config) == []
@@ -2312,7 +2273,6 @@ class TestOrigeneratorTransport:
 
         assert fmode.call_args.kwargs["funestras"] == (FunTimeFunestra.MAIN,)
         assert _origenerator_cmds(config) == ["portrait_fmode_on", "landscape_fmode_on"]
-        assert not state.satellite(FunTimeFunestra.PORTRAIT).favorites_filter
 
     def test_the_apps_f_mode_lifts_the_hosted_shows_once_every_funestra_is_in_it(self, tmp_path):
         config = _origenerator_config(tmp_path)
@@ -2385,21 +2345,18 @@ class TestOrigeneratorTransport:
 
 class TestALockOnAHostedSide:
     @pytest.mark.parametrize("funestra_locked", [False, True])
-    @pytest.mark.parametrize("kept_for_kino", [False, True])
     def test_a_pressed_lock_locks_the_funestra_and_leaves_the_rest_to_the_hosted_app(
-            self, kept_for_kino, funestra_locked, tmp_path):
+            self, funestra_locked, tmp_path):
         config = replace(_origenerator_config(tmp_path), regen_metadata_root=tmp_path / "metadata")
         image = tmp_path / "scene one.png"
         image.write_text("x", encoding="utf-8")
         _set_current(config, FunTimeFunestra.PORTRAIT, str(image), locked=funestra_locked)
 
-        state, ops = dispatch_command(
-            "portrait_lock", _handed_over(portrait=SatelliteState(locked=kept_for_kino)),
-            config)
+        _state, ops = dispatch_command("portrait_lock", _handed_over(), config)
 
         assert _cmds(config, FunTimeFunestra.PORTRAIT) == ["LOCK_ON"]
         assert _origenerator_cmds(config) == ["portrait_lock"]
-        assert (ops, state.satellite(FunTimeFunestra.PORTRAIT).locked) == ([], kept_for_kino)
+        assert ops == []
         assert not metadata_path_for(image, config.regen_metadata_root).exists()
         assert not (config.state_dir / "watch_stats.json").exists()
 
@@ -2419,8 +2376,7 @@ class TestALockOnAHostedSide:
         _set_current(config, FunTimeFunestra.PORTRAIT, "C:\\images\\up.png",
                      locked=held_by_a_request_or_a_run)
         _state, ops = dispatch_command(
-            command, _handed_over(portrait=SatelliteState(locked=not held_by_a_request_or_a_run)),
-            config)
+            command, _handed_over(), config)
         return ops, _cmds(config, FunTimeFunestra.PORTRAIT), _origenerator_cmds(config)
 
     @pytest.mark.parametrize("held_by_a_request_or_a_run", [False, True])
@@ -2676,7 +2632,6 @@ class TestTheEnhancementLevel:
             "PORTRAIT_SAY:enhanced only", "PORTRAIT_SAY:enhanced and original",
             "LANDSCAPE_SAY:original only"]
         assert ops == []
-        assert state.satellite(FunTimeFunestra.PORTRAIT).enhancement is EnhancementLevel.BOTH
 
 
 class TestAHudSaidToACorner:

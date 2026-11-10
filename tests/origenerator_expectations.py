@@ -18,7 +18,7 @@ from fun_time.lock import go_to_line
 from fun_time.manifest import LaunchManifest
 from fun_time.origenerator_trash import trash_file_line
 from fun_time.runtime_flow import hand_the_satellite_to_the_app
-from fun_time.shared_state import BridgeState, SatelliteState
+from fun_time.shared_state import BridgeState
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.window_names import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
@@ -91,7 +91,7 @@ def _with_his_video_or_act_blanked(line: str) -> str:
 
 
 def _written_in_a_sweep(app: BridgeConfig) -> list[str]:
-    return [line for written in sweep(app, (False, True)).values()
+    return [line for written in sweep(app).values()
             for line in written.get("origenerator_cmd_file", ())]
 
 
@@ -109,8 +109,7 @@ def _each_satellite_handed_to_the_app_at_startup(app: BridgeConfig) -> None:
 
 
 def _both_shows_hosted() -> BridgeState:
-    hosted = SatelliteState(handed_over=True)
-    return BridgeState(portrait=hosted, landscape=hosted, origenerator_ready=True)
+    return BridgeState(origenerator_ready=True)
 
 
 def _each_hosted_satellite_told_whether_it_has_the_osr2(app: BridgeConfig) -> None:

@@ -64,8 +64,8 @@ class TestSharedState:
     def test_write_then_read_roundtrip(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
-            portrait=SatelliteState(locked=True),
-            landscape=SatelliteState(favorites_filter=True),
+            portrait=SatelliteState(hud_minimized=True),
+            landscape=SatelliteState(volume=30),
             main_mode=MainMode.GENAU,
             main_scripted_filter=True,
             omni_paused=True,
@@ -254,20 +254,18 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 
 
 _EXPECTED_STATE_KEYS = {
-    "portrait_locked": "0", "landscape_locked": "0",
     "main_mode": "kino",
-    "portrait_handed_over": "0", "landscape_handed_over": "0",
     "rfb_mode": "rfb",
     "origenerator_ready": "0",
-    "main_scripted_filter": "0", "portrait_favorites_filter": "0", "landscape_favorites_filter": "0",
+    "main_scripted_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",
     "portrait_hud_corner": "upper_left", "landscape_hud_corner": "upper_left",
     "portrait_hud_edge": "lower", "landscape_hud_edge": "lower",
     "portrait_hud_minimized": "0", "landscape_hud_minimized": "0",
     "omni_paused": "0",
-    "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",
+    "main_latest": "0",
     "main_shuffle_seed": "0", "main_length_mode": "mixed",
-    "main_enhancement": "both", "portrait_enhancement": "both", "landscape_enhancement": "both",
+    "main_enhancement": "both",
     "main_plays_vr": "1", "main_plays_flat": "1",
     "main_plays_portrait": "1", "main_plays_landscape": "1",
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
@@ -278,7 +276,7 @@ _EXPECTED_STATE_KEYS = {
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",
     "osr2_funestra": "1",
-    "main_speed": "1", "portrait_speed": "1", "landscape_speed": "1",
+    "main_speed": "1",
     "portrait_volume": "100", "landscape_volume": "100", "portrait_muted": "1",
     "landscape_muted": "1",
     "main_locked": "1", "main_loop_video": "", "main_loop_bounds_ms": "",
@@ -320,3 +318,21 @@ def test_main_loop_bounds_read_back_off_the_remembered_value():
 def test_main_loop_bounds_are_none_when_the_value_is_empty_or_hand_edited():
     assert main_loop_bounds(BridgeState()) == (0, 0)
     assert main_loop_bounds(BridgeState(main_loop_bounds_ms="soon")) == (0, 0)
+
+
+def test_a_file_from_before_a_satellite_had_one_mode_loads_and_drops_what_it_no_longer_keeps(
+        tmp_path: Path):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    gone = ("locked", "filter", "favorites_filter", "enhancement", "latest", "loop",
+            "nav_map_anchor", "widen_video", "nav_anchor", "handed_over", "mode", "speed")
+    state_file.write_text("[state]\nmain_mode = kino\nportrait_hud_corner = lower_right\n" + "".join(
+        f"{satellite}_{name} = 1\n" for satellite in ("portrait", "landscape") for name in gone),
+        encoding="utf-8")
+
+    loaded = read_shared_state(state_file)
+    write_shared_state(state_file, loaded)
+
+    assert loaded.portrait == SatelliteState(hud_corner=HudCorner.LOWER_RIGHT)
+    written = state_file.read_text(encoding="utf-8")
+    assert not any(f"{satellite}_{name} " in written
+                   for satellite in ("portrait", "landscape") for name in gone)

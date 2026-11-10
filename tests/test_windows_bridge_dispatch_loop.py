@@ -433,7 +433,7 @@ class TestDispatchLoopRunner:
 
     def test_bare_active_lock_targets_the_landscape_when_it_is_active(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SatelliteState(locked=False), active_funestra=3)
+        runner.state = BridgeState(active_funestra=3)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -458,7 +458,7 @@ class TestDispatchLoopRunner:
 
     def test_a_spoken_command_carries_the_video_the_sampler_back_dates_it_to(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=False), active_funestra=2)
+        runner.state = BridgeState(active_funestra=2)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
         with patch.object(runner.watch, "video_at", return_value="C:\\clips\\meant.mp4"), \
@@ -653,13 +653,13 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("landscape_lock", encoding="utf-8")
         state_file = tmp_path / "shared_state.ini"
 
-        new_state = BridgeState(landscape=SatelliteState(locked=True))
+        new_state = BridgeState(landscape=SatelliteState(hud_minimized=True))
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])):
             runner.tick()
 
         loaded = read_shared_state(state_file)
         assert loaded is not None
-        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).locked is True
+        assert loaded.satellite(FunTimeFunestra.LANDSCAPE).hud_minimized is True
 
     def test_quit_asks_the_hotkey_script_to_end_the_session_rather_than_exit(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1462,14 +1462,14 @@ class TestOpenRfbTab:
                 work_dir=r"C:\Chrome",
                 arguments='--profile-directory="Profile 2"'),
         )
-        runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
+        runner.state = BridgeState()
         (tmp_path / "dashboard_cmd.txt").write_text("satellites_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path="", spoken_at=None, hosted=None):
             if cmd.text == "portrait_lock_on":
-                return replace(state, portrait=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
+                return state, [WindowOp(op="open_rfb_tab", key="http://p")]
             if cmd.text == "landscape_lock_on":
-                return replace(state, landscape=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://l")]
+                return state, [WindowOp(op="open_rfb_tab", key="http://l")]
             return state, []
 
         calls: list[tuple[str, object]] = []
@@ -2794,7 +2794,7 @@ class TestSatellitesCommands:
 class TestHudPublishing:
     def test_the_tick_feeds_the_huds_the_state_it_is_holding(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SatelliteState(locked=True), main_mode=MainMode.KINO)
+        runner.state = BridgeState(portrait=SatelliteState(hud_minimized=True), main_mode=MainMode.KINO)
 
         with patch.object(runner.hud, "publish_due") as publish:
             runner.tick()
@@ -3078,18 +3078,8 @@ def _hosting(tmp_path, **overrides):
                    origenerator_status_file=tmp_path / "origenerator_status.txt")
 
 
-def _follow_the_satellites(runner) -> None:
-    runner.state = runner.satellites_taken.follow(runner.state, runner.config)
-
-
-def _handed_over(state: BridgeState, *funestras: FunTimeFunestra) -> BridgeState:
-    for funestra in funestras or FunTimeFunestra.SATELLITES:
-        state = state.with_satellite(funestra, handed_over=True)
+def _handed_over(state: BridgeState, *_funestras: FunTimeFunestra) -> BridgeState:
     return state
-
-
-def _taken(state: BridgeState) -> list[bool]:
-    return [state.satellite(funestra).handed_over for funestra in FunTimeFunestra.SATELLITES]
 
 
 def _the_hosted_app_answers(tmp_path):
@@ -3128,7 +3118,6 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         runner.tick()
 
         assert runner.state.origenerator_ready is True
-        assert _taken(runner.state) == [False, True]
 
     def test_a_session_hosting_none_is_never_waiting_on_one(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -3217,8 +3206,7 @@ class TestOpeningInOrigeneratorMode:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert [runner.state.satellite(funestra).handed_over
-                for funestra in FunTimeFunestra.SATELLITES] == [True, True]
+        assert not runner.departures.still_going()
 
     def test_an_app_that_takes_a_satellite_the_instant_it_is_asked_is_seen_to(self, tmp_path):
         config = _hosting(tmp_path)
@@ -3229,8 +3217,7 @@ class TestOpeningInOrigeneratorMode:
                    side_effect=an_app_that_opens_each_slideshow_asked_of_it(config, [])):
             runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
 
-        assert [runner.state.satellite(funestra).handed_over
-                for funestra in FunTimeFunestra.SATELLITES] == [True, True]
+        assert not runner.departures.still_going()
 
     def test_an_app_that_never_takes_the_satellites_stops_the_session_opening(self, tmp_path):
         runner = make_runner(tmp_path, config=_hosting(tmp_path))
@@ -3250,7 +3237,7 @@ class TestOpeningInOrigeneratorMode:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert _taken(runner.state) == [True, True]
+        assert not runner.departures.still_going()
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3259,7 +3246,7 @@ class TestOpeningInOrigeneratorMode:
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, _handed_over(
             replace(shifted_state(BridgeState()), rfb_mode=RfbMode.ORIGENERATOR)))
-        left_in = resume_shared_state(state_file, resumed=True)
+        left_in = resume_shared_state(state_file)
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
@@ -3278,7 +3265,7 @@ class TestOpeningInOrigeneratorMode:
         runner.activate_origenerator(
             wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert _taken(runner.state) == [True, True]
+        assert not runner.departures.still_going()
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3292,7 +3279,7 @@ class TestOpeningInOrigeneratorMode:
 
         runner.activate_origenerator(wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
-        assert _taken(runner.state) == [True, True]
+        assert not runner.departures.still_going()
         assert runner.state.rfb_mode is RfbMode.RFB
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
             "portrait_open_slideshow", "landscape_open_slideshow"]
@@ -3390,18 +3377,14 @@ class TestTheAppTakesAFunestra:
     def test_the_satellite_stays_the_sessions_until_the_app_has_published_for_it(self, tmp_path):
         runner, _channel = self._asked(tmp_path)
 
-        _follow_the_satellites(runner)
-
-        assert runner.state.portrait.handed_over is False
+        assert runner._the_app_has_every_satellite() is False
 
     def test_the_apps_first_hud_hands_the_satellite_over_and_goes_up_at_once(self, tmp_path):
         runner, channel = self._asked(tmp_path)
         publish_whole(channel.origenerator_hud_file,
                       hud_text(HudModel(funestra="portrait", title="Stub slideshow")))
 
-        _follow_the_satellites(runner)
-
-        assert runner.state.portrait.handed_over is True
+        assert runner._the_app_has_every_satellite() is True
         published = (tmp_path / "portrait_hud.json").read_text(encoding="utf-8")
         assert parse_hud(published).title == "Stub slideshow"
 
