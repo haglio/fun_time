@@ -52,7 +52,7 @@ def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState,
     item = favorite.local_path
     target = target_for_fav(favorite, config.regen, load_web_providers())
     if not target.url:
-        if state.origenerator_ready:
+        if state.origenerator_core_ready:
             append_command(config.origenerator_cmd_file, go_to_line(item))
         return state, []
     ops: list[WindowOp] = []

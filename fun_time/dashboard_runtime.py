@@ -25,7 +25,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         nothing_to_reset=_read_bool(parser, "reset", "nothing"),
         headset_ready=(not parser.has_section("headset")
                        or _read_bool(parser, "headset", "ready")),
-        origenerator_ready=_read_bool(parser, "origenerator", "ready"),
+        origenerator_core_ready=_read_bool(parser, "origenerator", "core_ready"),
         rfb_mode=(RfbMode.ORIGENERATOR if _read_bool(parser, "origenerator", "in_the_rfb_mode")
                   else RfbMode.RFB),
     )

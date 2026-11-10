@@ -10,6 +10,7 @@ from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_value import FILTER, parse_command, set_command
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.funestra_status import CORE_READY
 from fun_time.hosted_contract import SAID_AT_FIELD, said_to_the_hosted_app
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.hud_feed import HudFeed
@@ -49,6 +50,7 @@ def expectations(scratch: Path) -> dict:
         "command_lines": sorted(_the_lines_it_writes(
             build_bridge_config_from_manifest(on_the_monitors), headset_config(scratch / "in_a_headset"))),
         "said_at_field": SAID_AT_FIELD,
+        "status_keys": [CORE_READY],
     }
 
 
@@ -109,7 +111,7 @@ def _each_satellite_handed_to_the_app_at_startup(app: BridgeConfig) -> None:
 
 
 def _both_shows_hosted() -> BridgeState:
-    return BridgeState(origenerator_ready=True)
+    return BridgeState(origenerator_core_ready=True)
 
 
 def _each_hosted_satellite_told_whether_it_has_the_osr2(app: BridgeConfig) -> None:

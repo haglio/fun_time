@@ -3390,7 +3390,7 @@ class TestCoreShowsInTheHeadsetWheneverOrigeneratorIsUp:
     def test_it_shows_whatever_the_mode_selector_says_once_origenerator_is_up(
             self, tmp_path, ready, rfb_mode, shows):
         state_file = shared_state_path(tmp_path)
-        write_shared_state(state_file, BridgeState(origenerator_ready=ready, rfb_mode=rfb_mode))
+        write_shared_state(state_file, BridgeState(origenerator_core_ready=ready, rfb_mode=rfb_mode))
         unit = _GalleryUnit(remembered={}, state_dir=tmp_path, shared_state_file=state_file)
 
         unit.pump(threading.Event(), now=0.0)

@@ -52,7 +52,7 @@ def test_a_lock_the_hosted_app_tells_of_on_a_file_with_no_record_makes_none_and_
         tmp_path):
     config = _hosting(tmp_path)
     video = str(tmp_path / "videos" / "made here" / "scene one.mp4")
-    up = BridgeState(origenerator_ready=True)
+    up = BridgeState(origenerator_core_ready=True)
 
     assert a_hosted_lock_holds(video, up, config) == (up, [])
 
@@ -69,7 +69,7 @@ def test_a_hosted_lock_on_a_recorded_video_no_site_made_is_starred_and_shown_in_
     record.parent.mkdir(parents=True)
     record.write_text("{}", encoding="utf-8")
 
-    a_hosted_lock_holds(str(video), BridgeState(origenerator_ready=True), config)
+    a_hosted_lock_holds(str(video), BridgeState(origenerator_core_ready=True), config)
 
     assert favorites.is_favorite(recorded_for(video, config.regen_metadata_root))
     assert _asked_of_the_hosted_app(config) == [go_to_line(str(video))]
@@ -79,7 +79,7 @@ def test_a_hosted_lock_on_a_sites_video_with_no_record_still_opens_the_sites_pag
     config = _hosting(tmp_path)
     video = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
 
-    _state, ops = a_hosted_lock_holds(video, BridgeState(origenerator_ready=True), config)
+    _state, ops = a_hosted_lock_holds(video, BridgeState(origenerator_core_ready=True), config)
 
     assert [op.op for op in ops] == ["open_rfb_tab"]
     assert _asked_of_the_hosted_app(config) == []
@@ -91,7 +91,7 @@ def test_a_hosted_lock_on_a_sites_video_puts_the_browser_back_over_origenerator(
     video = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
 
     state, ops = a_hosted_lock_holds(
-        video, BridgeState(origenerator_ready=True, rfb_mode=RfbMode.ORIGENERATOR), config)
+        video, BridgeState(origenerator_core_ready=True, rfb_mode=RfbMode.ORIGENERATOR), config)
 
     assert state.rfb_mode is RfbMode.RFB
     assert [op.op for op in ops] == ["hide_window", "restack_rfb", "open_rfb_tab"]

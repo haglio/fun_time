@@ -1306,7 +1306,7 @@ class _GalleryUnit:
 
     def pump(self, stop: threading.Event, now: float) -> None:
         state = read_shared_state(self._shared_state_file)
-        wanted = state is not None and state.origenerator_ready
+        wanted = state is not None and state.origenerator_core_ready
         events = list(self._presses.drain())
         self.showing = wanted
         if not wanted:

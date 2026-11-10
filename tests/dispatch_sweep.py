@@ -146,7 +146,7 @@ def _what_every_command_sent(config: BridgeConfig) -> dict[str, dict[str, list[s
     landed: dict[str, dict[str, list[str]]] = {}
     for main_mode in MAIN_MODES:
         for command in every_command():
-            state = BridgeState(main_mode=main_mode, origenerator_ready=True,
+            state = BridgeState(main_mode=main_mode, origenerator_core_ready=True,
                                 osr2_funestra=_the_funestra_it_is_said_to(command))
             _state, ops = dispatch_command(command, state, config, target_path="")
             written = drain(config)

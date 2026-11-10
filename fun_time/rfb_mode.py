@@ -21,7 +21,7 @@ def _rfb_mode_ops(rfb_mode: RfbMode) -> list[WindowOp]:
 
 
 def _origenerator_refused(state: BridgeState, *, asked_for: bool) -> list[WindowOp] | None:
-    if asked_for and not state.origenerator_ready:
+    if asked_for and not state.origenerator_core_ready:
         return [WindowOp(op="message", key=WHAT_THE_DIM_BUTTONS_SAY, level=logging.WARNING)]
     return None
 

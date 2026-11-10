@@ -2784,7 +2784,7 @@ class TestOpenEventLog:
                   for name in logging.root.manager.loggerDict if name.startswith("fun_time")}
         try:
             log_into_the_hotkey_scripts_log(tmp_path / "bridge.log")
-            dispatch_command(command, BridgeState(origenerator_ready=True), config)
+            dispatch_command(command, BridgeState(origenerator_core_ready=True), config)
             assert said in (tmp_path / "bridge.log").read_text(encoding="utf-8")
         finally:
             for name in logging.root.manager.loggerDict:

@@ -45,7 +45,7 @@ _A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION = frozenset({"active_funestra"})
 NOT_RESUMED = (
     _STARTUP_CLEARS_IT_BEFORE_THE_FUNESTRAS_LAUNCH
     | _A_KEYBOARD_SELECTION_ENDS_WITH_ITS_SESSION
-    | frozenset({"origenerator_ready", "majority"})
+    | frozenset({"origenerator_core_ready", "majority"})
 )
 
 RESUMED_FIELDS: tuple[str, ...] = tuple(

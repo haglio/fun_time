@@ -14,7 +14,7 @@ class DashboardSnapshot:
     in_vr: bool = False
     nothing_to_reset: bool = False
     headset_ready: bool = True
-    origenerator_ready: bool = False
+    origenerator_core_ready: bool = False
     rfb_mode: RfbMode = RfbMode.RFB
 
 
@@ -34,7 +34,7 @@ def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> 
         "[headset]\n"
         f"ready={'1' if snapshot.headset_ready else '0'}\n"
         "[origenerator]\n"
-        f"ready={'1' if snapshot.origenerator_ready else '0'}\n"
+        f"core_ready={'1' if snapshot.origenerator_core_ready else '0'}\n"
         f"in_the_rfb_mode={'1' if snapshot.rfb_mode is RfbMode.ORIGENERATOR else '0'}\n"
     )
 

@@ -9,6 +9,8 @@ from PIL import Image
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 
+COMFYUI_HELD = "comfyui_held"
+
 STAND_IN_MAIN = textwrap.dedent(
     """
     import argparse
@@ -30,6 +32,7 @@ STAND_IN_MAIN = textwrap.dedent(
 
     SIDES = ("portrait", "landscape")
     IMAGES = Path(__file__).resolve().parent.parent / "images"
+    COMFYUI_HELD = "{comfyui_held}"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fun-time", action="store_true")
@@ -183,7 +186,8 @@ STAND_IN_MAIN = textwrap.dedent(
     def publish_status():
         if not args.status_file or not booted or status_held_back_as_a_busy_app_would:
             return
-        lines = []
+        comfyui_answered = not (IMAGES.parent / COMFYUI_HELD).exists()
+        lines = ["ready=1", f"core_ready={'1' if comfyui_answered else '0'}"]
         for side in SIDES:
             lines.append(f"{side}_active={'1' if side in held else '0'}")
             lines.append(f"{side}_video=")
@@ -217,7 +221,7 @@ STAND_IN_MAIN = textwrap.dedent(
     root.after(150, poll)
     root.mainloop()
     """
-)
+).replace("{comfyui_held}", COMFYUI_HELD)
 
 _FUNESTRAS = (FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
 AN_INTERPRETER_WITH_TKINTER_AND_FUNESTRA = sys.executable

@@ -57,6 +57,7 @@ from .integration_support import (
 )
 from .stand_in_origenerator import (
     AN_INTERPRETER_WITH_TKINTER_AND_FUNESTRA,
+    COMFYUI_HELD,
     host_the_stand_in,
     write_stand_in_checkout,
 )
@@ -139,8 +140,8 @@ def _wait_for_the_slideshows(session) -> None:
 
 def _press_once_the_app_booting_behind_fun_time_answers(session, *commands: str) -> Path:
     state_file = shared_state_path(session.config.paths.state_dir)
-    wait_for(lambda: read_shared_state(state_file).origenerator_ready,
-             timeout=START_BUDGET_S, desc="the hosted app to publish a status")
+    wait_for(lambda: read_shared_state(state_file).origenerator_core_ready,
+             timeout=START_BUDGET_S, desc="Origenerator Core to be ready")
     for command in commands:
         session.write_dashboard_command(command)
     return state_file
@@ -367,6 +368,31 @@ def test_an_app_left_with_origenerator_in_the_browsers_place_opens_with_it_there
         second.stop()
 
 
+@pytest.mark.timeout(_TWO_SESSIONS_AND_EVERY_WAIT_THEY_MAKE_S)
+def test_a_place_left_to_origenerator_waits_on_the_browser_until_core_is_ready():
+    temp_root = build_integration_temp_root()
+    stub_root = write_stand_in_checkout(temp_root / "origenerator_stub")
+    config_path = build_integration_config(temp_root)
+    _host_stub(config_path, stub_root)
+    state_file = _the_state_beside_the_playlists_a_real_session_leaves(config_path)
+    write_shared_state(state_file, replace(read_shared_state(state_file),
+                                           rfb_mode=RfbMode.ORIGENERATOR))
+    held = stub_root / COMFYUI_HELD
+    held.write_text("", encoding="utf-8")
+
+    second = FunTimeIntegrationSession(config_path)
+    try:
+        second.start(wait_seconds=_A_START_THAT_WAITS_FOR_THE_APP_S)
+        _wait_for_the_slideshows(second)
+        assert read_shared_state(state_file).rfb_mode is RfbMode.RFB
+
+        held.unlink()
+        wait_for(lambda: read_shared_state(state_file).rfb_mode is RfbMode.ORIGENERATOR,
+                 desc="Core to take the browser's place once ComfyUI answers")
+    finally:
+        second.stop()
+
+
 @pytest.mark.timeout(_A_SESSION_A_QUIT_AND_FIVE_WAITS_S)
 def test_an_origenerator_taken_over_while_showing_a_slideshow_takes_the_browsers_place_too():
     temp_root = build_integration_temp_root()
@@ -414,8 +440,8 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
 
         assert session.read_child_pids().get("origenerator_pid") == offered_pid
         state_file = shared_state_path(session.config.paths.state_dir)
-        wait_for(lambda: read_shared_state(state_file).origenerator_ready, timeout=5,
-                 desc="the mode to open without waiting to hear from the app")
+        wait_for(lambda: read_shared_state(state_file).origenerator_core_ready, timeout=5,
+                 desc="Core to be ready without waiting to hear from the app")
         hwnd = wait_for(lambda: _parked_core(offered_pid),
                         desc="the open app's window to be parked by the takeover")
         session.write_dashboard_command("origenerator_activate")

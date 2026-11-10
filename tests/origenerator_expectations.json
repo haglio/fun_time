@@ -167,5 +167,8 @@
     "portrait_trash",
     "portrait_wrong_action"
   ],
-  "said_at_field": "said_at_epoch_seconds"
+  "said_at_field": "said_at_epoch_seconds",
+  "status_keys": [
+    "core_ready"
+  ]
 }

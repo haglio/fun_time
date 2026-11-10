@@ -50,13 +50,13 @@ class OrigeneratorOpening:
         return self._core_is_ready
 
     def app_as_it_is(self, state: BridgeState) -> BridgeState:
-        state = replace(state, origenerator_ready=self.core_is_ready())
-        if state.origenerator_ready:
+        state = replace(state, origenerator_core_ready=self.core_is_ready())
+        if state.origenerator_core_ready:
             return state
         return with_the_browser_in_its_place(state)
 
     def gives_core_the_browsers_place_now(self, state: BridgeState) -> bool:
-        if not (self._owes_core_the_browsers_place and state.origenerator_ready):
+        if not (self._owes_core_the_browsers_place and state.origenerator_core_ready):
             return False
         self._owes_core_the_browsers_place = False
         return True
