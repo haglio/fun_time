@@ -29,7 +29,7 @@ from fun_time.voice_commands import build_voice_commands
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from fun_time_vr.thumbs import PROJECTION_BACK
 from tests.test_command_id_snapshot import (
-    HUD_ONLY_COMMAND_IDS,
+    IDS_POSTED_OFF_ONE_SURFACE_ALONE,
     PREFIXED_COMMAND_FORMS,
     _ahk_ids,
     _expected_numeric_ids,
@@ -162,7 +162,7 @@ def test_every_route_is_reachable_from_some_surface():
         targets
         | _ahk_ids()
         | _dashboard_ids()
-        | frozenset(HUD_ONLY_COMMAND_IDS)
+        | frozenset(IDS_POSTED_OFF_ONE_SURFACE_ALONE)
         | _console_verbs_in_every_state()
         | _A_VR_STICK_PUSHED_LEFT_POSTS
         | _HUD_POSTED_WITH_A_VALUE
@@ -229,7 +229,7 @@ def test_the_reference_and_the_routes_agree():
               if not _answered(command) and parse_command(command).said_to is not Scope.ACTIVE}
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
 
-    documented = _keys(reference | frozenset(HUD_ONLY_COMMAND_IDS) | _HUD_POSTED_WITH_A_VALUE
+    documented = _keys(reference | frozenset(IDS_POSTED_OFF_ONE_SURFACE_ALONE) | _HUD_POSTED_WITH_A_VALUE
                        | _expected_numeric_ids() | _TOLD_BY_THE_HOSTED_APP)
     undocumented = set(ROUTES) - documented
     assert not undocumented, f"routed commands the reference omits: {sorted(undocumented)}"
