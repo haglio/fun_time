@@ -2104,10 +2104,12 @@ def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
 
 
 def test_next_seed_skips_a_sister_of_another_act_though_the_family_spans_both(tmp_path: Path):
+    the_current_seed, another_acts_seed_sorting_next, the_same_acts_seed_after_it = (
+        "200", "250", "300")
     config, paths = _a_library_only_one_funestra_sees(tmp_path, {
-        "a_alpha": _cycle_meta("200", "Alpha"),
-        "b_alpha": _cycle_meta("300", "Alpha"),
-        "c_gamma": _cycle_meta("250", "Gamma"),
+        "a_alpha": _cycle_meta(the_current_seed, "Alpha"),
+        "b_alpha": _cycle_meta(the_same_acts_seed_after_it, "Alpha"),
+        "c_gamma": _cycle_meta(another_acts_seed_sorting_next, "Gamma"),
     })
     state = _make_state()
 

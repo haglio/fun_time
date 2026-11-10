@@ -74,9 +74,8 @@ class DeviceArbiter:
     def _turn(self, main_mode: str, *, paused: bool, control: str,
               holder: FunTimeFunestra) -> Osr2Turn:
         if control in HOLD_VERB:
-            return self._with_no_handoff(Osr2Turn(
-                hand_playing=not paused, hand_heard=False,
-                held_at=HOLD_VERB[control]))
+            return self._with_no_handoff(_held_while_the_hud_still_draws_the_hand(
+                HOLD_VERB[control], paused=paused))
         if paused:
             return self._with_no_handoff(Osr2Turn(
                 hand_playing=False, held_at=osr2_hold.PARK))
@@ -96,10 +95,12 @@ class DeviceArbiter:
         previous = self._statuses.get(holder)
         status = self._read_status(holder, previous)
         self._statuses[holder] = status
-        crossing = (status.funscript_driving and self._hand_has_the_stretch_of is holder
-                    and previous is not None
-                    and abs(status.position_ms - previous.position_ms) < _FLOWED_MS)
-        holding = crossing and self._holding_for_park_touch(status)
+        played_in_as_a_seek_never_does = (
+            status.funscript_driving and self._hand_has_the_stretch_of is holder
+            and previous is not None
+            and abs(status.position_ms - previous.position_ms) < _FLOWED_MS)
+        holding = (played_in_as_a_seek_never_does
+                   and self._the_blue_ending_the_trace_drew_lies_ahead(status))
         if not holding:
             self._park_touch_deadline = None
         takes_it = status.funscript_driving and not holding
@@ -143,14 +144,19 @@ class DeviceArbiter:
             return read_main_funestra_status(self.main_funestra_status_file, fallback=previous)
         return read_satellite_status(self._satellites[funestra].status_file, fallback=previous)
 
-    def _holding_for_park_touch(self, status: ScriptedStatus) -> bool:
+    def _the_blue_ending_the_trace_drew_lies_ahead(self, status: ScriptedStatus) -> bool:
         touch = status.handoff_touch_ms
-        if touch is None or status.position_ms >= touch:
+        a_raised_floors_ramp_the_scripts_driver_walks = touch is None
+        if a_raised_floors_ramp_the_scripts_driver_walks or status.position_ms >= touch:
             return False
         now = self._clock()
         if self._park_touch_deadline is None:
             self._park_touch_deadline = now + PARK_TOUCH_WAIT_CAP_MS / 1000
         return now < self._park_touch_deadline
+
+
+def _held_while_the_hud_still_draws_the_hand(held_at: str, *, paused: bool) -> Osr2Turn:
+    return Osr2Turn(hand_playing=not paused, hand_heard=False, held_at=held_at)
 
 
 def who_drives_the_osr2(state) -> tuple[str, bool, str, FunTimeFunestra]:
