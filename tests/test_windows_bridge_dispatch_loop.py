@@ -98,7 +98,11 @@ from tests.fun_time_window_fakes import (
     lookup_pid,
     lookup_title,
 )
-from tests.hosted_shows import publish_the_show
+from tests.hosted_shows import (
+    an_app_that_opens_each_slideshow_asked_of_it,
+    publish_the_show,
+    take_the_satellite,
+)
 from tests.made_up_state import remembered_values, shifted_state
 
 BROWSE_PID = 424242
@@ -3254,20 +3258,60 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
             replace(remembered, origenerator_ready=False))
 
 
+def _the_app_takes_each_satellite_asked_of_it(config):
+    def the_wait(arrived):
+        for funestra in FunTimeFunestra.SATELLITES:
+            take_the_satellite(config, funestra)
+        return arrived()
+
+    return the_wait
+
+
 class TestOpeningInOrigeneratorMode:
     @staticmethod
     def _the_app_answers(has_answered):
         return has_answered()
 
+    def test_the_session_is_not_open_until_the_app_has_taken_both_satellites(self, tmp_path):
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
+        _the_hosted_app_answers(tmp_path)
+
+        runner.activate_origenerator(
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
+
+        assert [runner.state.satellite(funestra).handed_over
+                for funestra in FunTimeFunestra.SATELLITES] == [True, True]
+
+    def test_an_app_that_takes_a_satellite_the_instant_it_is_asked_is_seen_to(self, tmp_path):
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
+        _the_hosted_app_answers(tmp_path)
+
+        with patch("fun_time.runtime_flow.append_command",
+                   side_effect=an_app_that_opens_each_slideshow_asked_of_it(config, [])):
+            runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
+
+        assert [runner.state.satellite(funestra).handed_over
+                for funestra in FunTimeFunestra.SATELLITES] == [True, True]
+
+    def test_an_app_that_never_takes_the_satellites_stops_the_session_opening(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+
+        with pytest.raises(OrigeneratorNeverCameUp):
+            runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
+
     def test_the_browsers_place_goes_back_to_origenerator_when_the_last_session_left_it_there(
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini",
                            BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
         runner.activate_origenerator(
-            wait_for_the_app=self._the_app_answers)
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
@@ -3279,21 +3323,23 @@ class TestOpeningInOrigeneratorMode:
         write_shared_state(state_file, _in_origenerator_mode(
             replace(shifted_state(BridgeState()), rfb_mode=RfbMode.ORIGENERATOR)))
         left_in = resume_shared_state(state_file, resumed=True)
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
-        runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
+        runner.activate_origenerator(wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert remembered_values(read_shared_state(state_file)) == remembered_values(left_in)
 
     def test_a_slideshow_taken_over_puts_the_browsers_place_on_origenerator(
             self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config,
                              origenerator_already_open=True,
                              origenerator_slideshow_on=(FunTimeFunestra.PORTRAIT,))
 
         runner.activate_origenerator(
-            wait_for_the_app=self._the_app_answers)
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
@@ -3304,12 +3350,13 @@ class TestOpeningInOrigeneratorMode:
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(
             BridgeState(), FunTimeFunestra.PORTRAIT))
-        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config,
                              origenerator_already_open=True,
                              origenerator_slideshow_on=(FunTimeFunestra.LANDSCAPE,))
 
         runner.activate_origenerator(
-            wait_for_the_app=self._the_app_answers)
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8").split() == [
@@ -3317,12 +3364,13 @@ class TestOpeningInOrigeneratorMode:
 
     def test_a_slideshow_from_an_app_that_names_no_monitor_puts_origenerator_on_all_of_it(
             self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config,
                              origenerator_already_open=True,
                              origenerator_slideshow_on=FunTimeFunestra.SATELLITES)
 
         runner.activate_origenerator(
-            wait_for_the_app=self._the_app_answers)
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
@@ -3330,10 +3378,11 @@ class TestOpeningInOrigeneratorMode:
     def test_a_session_left_with_its_satellites_in_kino_opens_both_in_the_hosted_app(
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini", BridgeState())
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
-        runner.activate_origenerator(wait_for_the_app=self._the_app_answers)
+        runner.activate_origenerator(wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert _modes(runner.state) == [SatellitesMode.ORIGENERATOR, SatellitesMode.ORIGENERATOR]
         assert runner.state.rfb_mode is RfbMode.RFB
@@ -3345,7 +3394,8 @@ class TestOpeningInOrigeneratorMode:
         state_file = tmp_path / "shared_state.ini"
         left_in = BridgeState(rfb_mode=RfbMode.ORIGENERATOR)
         write_shared_state(state_file, left_in)
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
 
         with pytest.raises(OrigeneratorNeverCameUp):
             runner.activate_origenerator(wait_for_the_app=lambda _: False)
@@ -3355,15 +3405,16 @@ class TestOpeningInOrigeneratorMode:
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini", _in_origenerator_mode(BridgeState()))
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
         runner.activate_origenerator(
-            wait_for_the_app=self._the_app_answers)
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
         runner._dispatch(parse_command("portrait_kino_activate"))
         sent = (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8")
 
         runner.activate_origenerator(
-            wait_for_the_app=self._the_app_answers)
+            wait_for_the_app=_the_app_takes_each_satellite_asked_of_it(config))
 
         assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == sent
         assert _modes(runner.state) == [SatellitesMode.KINO, SatellitesMode.ORIGENERATOR]

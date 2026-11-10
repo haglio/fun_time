@@ -58,7 +58,11 @@ from .main_list_builds import BuildsOffTheLoop
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import kino_shows
 from .modes import scripted_item
-from .origenerator_opening import OrigeneratorOpening, holding_nothing
+from .origenerator_opening import (
+    OrigeneratorNeverCameUp,
+    OrigeneratorOpening,
+    holding_nothing,
+)
 from .origenerator_switches import RfbMode
 from .runtime_flow import write_flag_file
 from .satellite_speeds import SatelliteSpeeds
@@ -193,10 +197,19 @@ class DispatchLoopRunner:
 
     def activate_origenerator(self, *, wait_for_the_app) -> None:
         owed = self.opening.take_what_is_owed(wait_for_the_app)
-        if owed:
-            self.state = self.opening.app_as_it_is(self.state)
+        if not owed:
+            return
+        self.state = self.opening.app_as_it_is(self.state)
+        self.departures.expect(FunTimeFunestra.SATELLITES, self.config)
         for command in owed:
             self._dispatch(parse_command(command))
+        if not wait_for_the_app(self._the_app_has_every_satellite):
+            raise OrigeneratorNeverCameUp
+
+    def _the_app_has_every_satellite(self) -> bool:
+        self.state = self.changing_hands.follow(self.state, self.config, now=time.monotonic())
+        return all(self.state.satellite(funestra).handed_over
+                   for funestra in FunTimeFunestra.SATELLITES)
 
     def tick(self) -> None:
         self.messages.flash_new()

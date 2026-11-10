@@ -124,7 +124,7 @@ class Departures:
 
     def expect(self, funestras: tuple[FunTimeFunestra, ...], config: BridgeConfig) -> None:
         for funestra in funestras:
-            self._going[funestra] = hud_stamp(config.satellite(funestra))
+            self._going.setdefault(funestra, hud_stamp(config.satellite(funestra)))
 
     def forget(self, funestra: FunTimeFunestra) -> None:
         self._going.pop(funestra, None)

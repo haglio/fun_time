@@ -94,6 +94,7 @@ from fun_time.unlogged_messages import UNLOGGED_MESSAGE_PORT_FILENAME
 from fun_time.win32 import StackedWindow
 from fun_time.win32_events import PressAndCaretWatch
 from fun_time.window_names import ORIGENERATOR_TITLE
+from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
     HUD_PRIME_TIMEOUT_S,
@@ -124,6 +125,7 @@ from fun_time.windows_bridge_orchestrator import (
 )
 from fun_time.windows_bridge_sequencer import StartupResult
 from tests.fun_time_window_fakes import HOSTED_HWND, HOSTED_PID, RFB_HWND, lookup_hosted
+from tests.hosted_shows import an_app_that_opens_each_slideshow_asked_of_it
 from tests.loading_screen_beats import heard_from_again_once_stale
 from tests.sleeps import sleeps_in
 from tests.test_windows_bridge_dispatch_loop import make_config
@@ -3193,7 +3195,8 @@ class TestARoomLeftInOrigeneratorMode:
              patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=a_band), \
              patch("fun_time.windows_bridge_orchestrator.release_the_funestras"), \
              patch("fun_time.runtime_flow.append_command",
-                   side_effect=lambda _path, verb: events.append(verb)), \
+                   side_effect=an_app_that_opens_each_slideshow_asked_of_it(
+                       build_bridge_config_from_manifest(manifest), events)), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=lambda pid: events.append(f"killed {pid}")):
             over = _a_session(

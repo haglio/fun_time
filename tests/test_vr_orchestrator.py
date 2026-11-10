@@ -96,6 +96,7 @@ from fun_time_vr.orchestrator import (
     validate_vr_config,
     vr_main_sources,
 )
+from tests.hosted_shows import an_app_that_opens_each_slideshow_asked_of_it
 from tests.loading_screen_beats import heard_from_again_once_stale
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
@@ -276,7 +277,9 @@ class TestOrigeneratorInVr:
         verbs: list[str] = []
 
         with patch("fun_time.runtime_flow.append_command",
-                   side_effect=lambda _path, verb: verbs.append(verb)):
+                   side_effect=an_app_that_opens_each_slideshow_asked_of_it(
+                       build_bridge_config_from_manifest(manifest, vr_main_funestra=True),
+                       verbs)):
             _end_a_vr_session(
                 orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
                 bring_up_the_hosted_app=MagicMock(return_value=None),
@@ -297,7 +300,9 @@ class TestOrigeneratorInVr:
         verbs: list[str] = []
 
         with patch("fun_time.runtime_flow.append_command",
-                   side_effect=lambda _path, verb: verbs.append(verb)):
+                   side_effect=an_app_that_opens_each_slideshow_asked_of_it(
+                       build_bridge_config_from_manifest(manifest, vr_main_funestra=True),
+                       verbs)):
             _end_a_vr_session(
                 orchestrator, hosted, ended_by=lambda *_a, **_k: "asked",
                 bring_up_the_hosted_app=MagicMock(return_value=HostedApp(
