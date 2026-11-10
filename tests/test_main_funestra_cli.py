@@ -203,10 +203,10 @@ class TestTheCommandLineFunTimeLaunchesMainFunestraWith:
             f"--{name.replace('_', '-')} changed type: a str reaches Path() later, "
             "a Path reaches an argparse default nobody set")
 
-    def test_the_whole_line_parses_or_the_funestra_never_opens_under_fun_time(self):
+    def test_the_whole_line_fun_time_writes_parses(self):
         assert build_parser({}).parse_args(FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND) is not None
 
-    def test_metadata_dir_may_be_absent_as_it_is_without_a_sidecar_root(self):
+    def test_a_line_without_metadata_dir_still_parses(self):
         without = [a for a in FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND
                    if a not in ("--metadata-dir", "C:/example/library/metadata")]
 
