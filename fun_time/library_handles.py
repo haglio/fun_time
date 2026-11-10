@@ -93,9 +93,9 @@ def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tup
     names = {}
     for (folder, is_clip), paths in bands.items():
         mate = bands.get((folder, not is_clip), [])
-        mine = _own_folder(paths, mate)
-        if mine:
-            names[(folder, is_clip)] = f"{folder}/{mine}"
+        as_explorer_shows_it = _own_folder(paths, mate)
+        if as_explorer_shows_it:
+            names[(folder, is_clip)] = f"{folder}/{as_explorer_shows_it}"
         elif is_clip:
             names[(folder, is_clip)] = f"{folder}/{CLIPS_FOLDER}"
         elif mate:
@@ -105,11 +105,16 @@ def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tup
     return names
 
 
+_ONLY_PIPELINE_STAGES_UNDER_IT = ""
+
+
 def _own_folder(band: list[tuple[str, ...]], mate: list[tuple[str, ...]]) -> str:
-    mine, theirs = _dominant_subfolder(band), _dominant_subfolder(mate)
+    mine, theirs = _where_most_were_filed(band), _where_most_were_filed(mate)
     if not mine or not theirs or mine == theirs:
-        return ""
-    return mine if _holds_mostly(mine, band, mate) and _holds_mostly(theirs, mate, band) else ""
+        return _ONLY_PIPELINE_STAGES_UNDER_IT
+    if _holds_mostly(mine, band, mate) and _holds_mostly(theirs, mate, band):
+        return mine
+    return _ONLY_PIPELINE_STAGES_UNDER_IT
 
 
 def _holds_mostly(subfolder: str, band: list[tuple[str, ...]], mate: list[tuple[str, ...]]) -> bool:
@@ -120,7 +125,7 @@ def _count_under(subfolder: str, paths: list[tuple[str, ...]]) -> int:
     return sum(1 for parts in paths if len(parts) > 1 and parts[1] == subfolder)
 
 
-def _dominant_subfolder(paths: list[tuple[str, ...]]) -> str:
+def _where_most_were_filed(paths: list[tuple[str, ...]]) -> str:
     seconds = Counter(parts[1] for parts in paths if len(parts) > 1)
     if not seconds:
         return ""
@@ -139,12 +144,12 @@ def cut_folders(
         return grouped
 
     cuts, rest = by_source(recorded_excerpts), by_source(everything_else)
-    folders = {}
+    each_folders_own_word_for_its_cuts = {}
     for folder, paths in cuts.items():
         mine = _own_folder(paths, rest.get(folder, []))
         if mine:
-            folders[folder] = mine
-    return folders
+            each_folders_own_word_for_its_cuts[folder] = mine
+    return each_folders_own_word_for_its_cuts
 
 
 def is_an_excerpt(path: tuple[str, ...], kind: str, cuts: dict[str, str]) -> bool:
@@ -176,8 +181,10 @@ def build_library_handles(
 
     families: dict[tuple[str, bool], list[str]] = {}
     for video in videos:
+        kept_apart_from_the_scene_sharing_its_group = is_an_excerpt(
+            paths[video], kinds[video], cuts)
         families.setdefault(
-            (groups[video], is_an_excerpt(paths[video], kinds[video], cuts)), []
+            (groups[video], kept_apart_from_the_scene_sharing_its_group), []
         ).append(video)
 
     played = {
@@ -192,22 +199,21 @@ def build_library_handles(
         bands.setdefault(key, []).append(source_path(played[family][0], sources))
     names = band_names(bands)
 
-    weight = Counter(folder for folder, _clip in keys.values())
+    handles_in = Counter(folder for folder, _clip in keys.values())
     shown = {
         family: video_title(payloads[played[family][0]], played[family][0])
         for family in played
     }
+
+    def opening_on_the_bulk_of_the_library(family: tuple[str, bool]) -> tuple:
+        folder, is_clip = keys[family]
+        return (-handles_in[folder], folder, is_clip, shown[family].casefold(), shown[family])
+
     return [
         LibraryHandle(
             title=shown[family], versions=played[family], section=names[keys[family]]
         )
-        for family in sorted(
-            played,
-            key=lambda family: (
-                -weight[keys[family][0]], keys[family][0], keys[family][1],
-                shown[family].casefold(), shown[family],
-            ),
-        )
+        for family in sorted(played, key=opening_on_the_bulk_of_the_library)
     ]
 
 

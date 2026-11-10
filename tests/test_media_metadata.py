@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from funestra.satellite_hud import actions_are_filtered
 
 from fun_time.media_metadata import (
     EXCERPT,
@@ -378,12 +379,12 @@ def test_matches_query_is_a_case_insensitive_substring_of_the_act():
 
 
 def test_matches_query_drops_a_video_that_has_no_act_recorded():
-    unlabeled = {
+    in_the_backfill_tools_backlog = {
         "video": {"prompt": "epsilon, by the pool"},
         "source_image": {"positive_prompt": "epsilon"},
     }
-    assert not matches_query(unlabeled, "epsilon")
-    assert matches_query(unlabeled, "")
+    assert not matches_query(in_the_backfill_tools_backlog, "epsilon")
+    assert matches_query(in_the_backfill_tools_backlog, "")
 
 
 def test_a_query_of_several_actions_keeps_a_video_carrying_all_of_them_in_any_order():
@@ -469,7 +470,12 @@ def test_a_filter_keeps_a_video_by_its_actions_as_the_satellite_hud_lights_its_r
         labels = [part.strip() for part in label.split(",")]
         assert matches_query({"video": {"labels": labels}}, query) is expected, (label, query)
 
-    assert matches_query({"video": {"labels": ["Gamma"]}}, "") is True
+
+def test_an_empty_filter_keeps_the_videos_whose_rows_the_hud_leaves_unlit():
+    no_filter = ""
+
+    assert actions_are_filtered("Gamma", no_filter) is False
+    assert matches_query({"video": {"labels": ["Gamma"]}}, no_filter) is True
 
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):
