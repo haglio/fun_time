@@ -31,10 +31,12 @@ def apply_this_checkouts_overrides(config, *, integration: bool = False):
 
 
 def sibling_checkouts_kwargs(sibling_checkouts: str | Path | None) -> dict:
-    paths = [str(Path(part)) for part in str(sibling_checkouts or "").split(os.pathsep)
-             if part and Path(part).is_dir()]
-    if not paths:
+    ahead_of_the_venvs_pinned_installs = [
+        str(Path(part)) for part in str(sibling_checkouts or "").split(os.pathsep)
+        if part and Path(part).is_dir()]
+    if not ahead_of_the_venvs_pinned_installs:
         return {}
+    paths = list(ahead_of_the_venvs_pinned_installs)
     inherited = os.environ.get("PYTHONPATH")
     if inherited:
         paths.append(inherited)

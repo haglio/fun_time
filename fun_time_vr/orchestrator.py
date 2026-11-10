@@ -147,8 +147,8 @@ from fun_time.windows_bridge_startup import (
     ensure_broker,
     launch_audio_companion,
     reap_orphaned_satellites,
-    reset_satellite_paused_states,
     seed_startup_states,
+    start_the_satellites_playing_whatever_a_pause_left_behind,
     the_broker_launcher,
 )
 
@@ -514,7 +514,7 @@ def _resume_the_room(launch: _Launch) -> BridgeState:
     progress.advance("services")
     write_broker_command(Path(commands.broker_cmd_file), osr2_hold.PARK)
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
-    reset_satellite_paused_states(manifest.portrait.paused_file, manifest.landscape.paused_file)
+    start_the_satellites_playing_whatever_a_pause_left_behind(manifest.portrait.paused_file, manifest.landscape.paused_file)
     reap_orphaned_satellites(
         manifest.modules.satellite_module,
         [manifest.portrait.status_file, manifest.landscape.status_file],

@@ -98,11 +98,15 @@ def reap_orphaned_satellites(
 ) -> None:
     if not status_files:
         return
-    claimed = [str(path) for path in status_files]
+    this_sessions_own_files = [str(path) for path in status_files]
     for found in processes_matching(NAMER.process_name_pattern,
                                     rf"-m\s+{re.escape(satellite_module)}(\s|$)"):
-        if any(path in found.command_line for path in claimed):
+        if _runs_on_one_of(this_sessions_own_files, found.command_line):
             kill_process_tree(found.pid)
+
+
+def _runs_on_one_of(files: Sequence[str], command_line: str) -> bool:
+    return any(path in command_line for path in files)
 
 
 def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
@@ -147,13 +151,17 @@ def ensure_broker(
 
 
 def _seconds_the_broker_is_older_than_its_code(broker_tray_launcher: Path | None) -> float | None:
-    source_mtime = broker_source_mtime(broker_tray_launcher)
-    if source_mtime is None:
+    code_written_at = broker_source_mtime(broker_tray_launcher)
+    if code_written_at is None:
         return None
-    started_at = broker_process_started_at(broker_tray_launcher)
+    started_at = _found_by_sweeping_the_machines_processes(broker_tray_launcher)
     if started_at is None:
         return None
-    return source_mtime - started_at
+    return code_written_at - started_at
+
+
+def _found_by_sweeping_the_machines_processes(broker_tray_launcher: Path | None) -> float | None:
+    return broker_process_started_at(broker_tray_launcher)
 
 
 def _replace_a_broker_deaf_to_newer_verbs(broker_tray_launcher: Path | None) -> None:
@@ -195,7 +203,7 @@ def _wipe_genaus_queue_down_to_a_lone_pause(genau_cmd_file: Path) -> None:
     genau_cmd_file.write_text("PAUSE\n", encoding="utf-8")
 
 
-def reset_satellite_paused_states(
+def start_the_satellites_playing_whatever_a_pause_left_behind(
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
 ) -> None:
@@ -248,7 +256,8 @@ def start_core_session(
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
                                  on_screen=main_funestra_status.video)
     seed_startup_states(m, carried)
-    reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)
+    start_the_satellites_playing_whatever_a_pause_left_behind(
+        portrait.channels.paused, landscape.channels.paused)
     prepare_random_favs_browser_manifest(
         m.runtime.config_path, m.random_favs_browser.manifest_file)
     if not resumed:
@@ -283,9 +292,9 @@ def _leave_a_park_for_the_brokers_next_tick(commands: CommandFiles) -> None:
 
 
 def _start_a_funestra(cmd: list[str], *, log_file: str | Path, sibling_checkouts: str | None) -> int:
-    with open_child_log(log_file, cmd) as log:
+    with open_child_log(log_file, cmd) as the_child_keeps_its_own_handle:
         proc = subprocess.Popen(
-            cmd, stdout=log, stderr=log,
+            cmd, stdout=the_child_keeps_its_own_handle, stderr=the_child_keeps_its_own_handle,
             **sibling_checkouts_kwargs(sibling_checkouts), **hidden_subprocess_kwargs())
     return proc.pid
 
@@ -383,7 +392,8 @@ def origenerator_launch_kwargs(
     origenerator_dir: str | Path,
     sibling_checkouts: str | None = None,
 ) -> dict:
-    kwargs: dict = {"cwd": str(origenerator_dir),
+    the_checkout_dash_m_finds_the_package_in = str(origenerator_dir)
+    kwargs: dict = {"cwd": the_checkout_dash_m_finds_the_package_in,
                     **sibling_checkouts_kwargs(sibling_checkouts),
                     **hidden_subprocess_kwargs()}
     checkout = Path(origenerator_dir)
