@@ -187,7 +187,7 @@ def test_every_loop_branch_is_reachable_and_known():
 
 _THE_LOOPS_LIVE_OBJECTS = frozenset({
     "windows", "voice", "ahk_cmd_file", "broker",
-    "_publish_panel", "_handle_browse_library", "_log_topmost_state",
+    "_flag_the_panel_for_the_headset", "_handle_browse_library", "_log_topmost_state",
     "_log_any_window_still_on_top_under_the_pause",
 })
 

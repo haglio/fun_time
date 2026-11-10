@@ -336,8 +336,10 @@ class TestTheEventLog:
             order.append("session")
             return SessionOver(0)
 
-        with _a_launch(open_event_log=MagicMock(side_effect=lambda *_: order.append("emptied")),
-                       run_windows_bridge=MagicMock(side_effect=session)):
+        with _a_launch_with_the_machine_held_off(
+            open_event_log=MagicMock(side_effect=lambda *_: order.append("emptied")),
+            run_windows_bridge=MagicMock(side_effect=session),
+        ):
             main(["--config", str(cfg_path)])
 
         assert order == ["emptied", "session"]

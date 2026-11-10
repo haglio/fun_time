@@ -188,7 +188,7 @@ class TestShutdownPhases:
         assert len(keys) == len(set(keys))
 
     def test_each_closing_part_is_one_step_of_the_bar_whatever_it_takes(self):
-        assert len({phase.weight for phase in SHUTDOWN_PHASES}) == 1
+        assert len({phase.seconds for phase in SHUTDOWN_PHASES}) == 1
 
     def test_no_phase_lands_the_bar_on_the_total(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"

@@ -116,7 +116,7 @@ class TestTheWindowsIcon:
     def test_the_icon_is_worn_before_sdl_makes_the_window(self):
         opening = _function("_open_window")
 
-        assert _call(opening, "wear_the_icon").lineno < _call(opening, "pygame.display.set_mode").lineno
+        assert _call(opening, "replace_pygames_logo_with").lineno < _call(opening, "pygame.display.set_mode").lineno
 
 
 class TestWhenSomethingCosmeticFails:
