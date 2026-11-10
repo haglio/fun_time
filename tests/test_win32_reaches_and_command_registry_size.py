@@ -103,7 +103,7 @@ MAX_DISPATCHER_COMPLEXITY = 57
 MAX_DISPATCH_COMMAND_COMPLEXITY = 9
 
 
-def _decisions(function: ast.AST) -> int:
+def _decision_points_radon_counts(function: ast.AST) -> int:
     count = 0
     pending = list(ast.iter_child_nodes(function))
     while pending:
@@ -124,13 +124,13 @@ def _decisions(function: ast.AST) -> int:
     return count
 
 
-def _complexity(tree: ast.AST) -> dict[str, int]:
-    return {node.name: 1 + _decisions(node) for node in ast.walk(tree)
+def _cyclomatic_complexity_as_radon_counts_it(tree: ast.AST) -> dict[str, int]:
+    return {node.name: 1 + _decision_points_radon_counts(node) for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
 
 
 def test_the_command_registry_holds_the_registry_and_the_guards():
-    complexity = _complexity(ast.parse(
+    complexity = _cyclomatic_complexity_as_radon_counts_it(ast.parse(
         (ROOT / "fun_time" / "command_dispatch.py").read_text(encoding="utf-8")))
     total = sum(complexity.values())
     assert total <= MAX_DISPATCHER_COMPLEXITY, (

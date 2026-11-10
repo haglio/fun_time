@@ -204,6 +204,11 @@ def _overlap(one, other) -> bool:
             and one.y < other.y + other.height and other.y < one.y + one.height)
 
 
+def _overlapping(rects) -> list[tuple[str, str]]:
+    return [(one, other) for one in rects for other in rects
+            if one < other and _overlap(rects[one], rects[other])]
+
+
 def test_the_always_topmost_windows_never_overlap_whatever_their_order(cfg_path: Path):
     config = load_config(cfg_path)
     secondary = MonitorRect(2560, 0, 1440, 3440)
@@ -222,7 +227,23 @@ def test_the_always_topmost_windows_never_overlap_whatever_their_order(cfg_path:
             "main_funestra": on_the_secondary.main,
         }
         assert set(rects) == set(FIXED_TOPMOST_WINDOWS)
-        overlapping = [
-            (one, other) for one in rects for other in rects
-            if one < other and _overlap(rects[one], rects[other])]
-        assert overlapping == [], majority
+        assert _overlapping(rects) == [], majority
+
+
+def test_every_window_is_fully_visible_at_once(cfg_path: Path):
+    config = load_config(cfg_path)
+    secondary = MonitorRect(2560, 0, 1440, 3440)
+    plan = compute_window_layout(
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
+        secondary_monitor=secondary,
+        layout_config=config.layout,
+    )
+
+    assert _overlapping({
+        "portrait": plan.portrait,
+        "landscape": plan.landscape,
+        "dashboard": plan.dashboard,
+        "rfb": plan.random_favs_browser,
+        "main_funestra": compute_main_media_rect(
+            secondary_monitor=secondary, layout_config=config.layout),
+    }) == []

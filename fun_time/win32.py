@@ -38,6 +38,7 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
+_AT_THE_TOP_OF_THE_TOPMOST_BAND = HWND_TOPMOST
 SWP_FRAMECHANGED = 0x0020
 GWL_STYLE = -16
 GWL_EXSTYLE = -20
@@ -289,7 +290,7 @@ def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     elif under:
         insert_after = ctypes.wintypes.HWND(under)
     else:
-        insert_after = HWND_TOPMOST
+        insert_after = _AT_THE_TOP_OF_THE_TOPMOST_BAND
     _stack_after(hwnd, insert_after, what=f"set_always_on_top({hwnd}, {on_top})")
 
 
