@@ -408,13 +408,16 @@ _user32.GetWindowThreadProcessId.argtypes = [
 _user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
 
 
+_ONE_SHARED_TITLE_BUFFER_CHARS = 256
+
+
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
-    title_text = ctypes.create_unicode_buffer(256)
+    title_text = ctypes.create_unicode_buffer(_ONE_SHARED_TITLE_BUFFER_CHARS)
 
     def matches(hwnd: int) -> bool:
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
-        _user32.GetWindowTextW(hwnd, title_text, 256)
+        _user32.GetWindowTextW(hwnd, title_text, _ONE_SHARED_TITLE_BUFFER_CHARS)
         return title_text.value == title if exact else title in title_text.value
 
     return _first_window(matches)

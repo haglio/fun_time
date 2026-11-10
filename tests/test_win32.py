@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from unittest.mock import call, patch
 
-from fun_time import win32, win32_process
+from fun_time import library_browser, loading_screen, preview_marker, win32, win32_process
 from fun_time.dashboard_layout import Rect
 from fun_time.fun_time_windows import find_origenerators_window
 from fun_time.win32 import (
@@ -47,10 +47,13 @@ from fun_time.win32_process import (
     process_table,
 )
 from fun_time.window_names import MANAGED_WINDOWS, ORIGENERATOR_TITLE
+from fun_time.windows_bridge_startup import SATELLITE_LANDSCAPE_TITLE, SATELLITE_PORTRAIT_TITLE
 from tests.child_reports import an_interpreter_asleep
+from tests.conftest import _MUTATING_USER32_CALLS
 from tests.sleeps import sleeps_in
 
 SWP_ASYNCWINDOWPOS = 0x4000
+WS_VISIBLE = 0x10000000
 
 
 def _user32_mocked():
@@ -263,14 +266,14 @@ class TestAWindowThatHasStoppedAnswering:
             self, monkeypatch):
         monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
-        answering = threading.Event()
+        windows_wakes_every_waiting_call_at_once = threading.Event()
         both_landed = threading.Event()
         happened: list[str] = []
 
         def place(_hwnd, insert_after, *_args):
             band = "on top" if insert_after is HWND_TOPMOST else "not on top"
             happened.append(f"{band} sent")
-            answering.wait(10)
+            windows_wakes_every_waiting_call_at_once.wait(10)
             happened.append(f"{band} landed")
             if len(happened) == 4:
                 both_landed.set()
@@ -279,7 +282,7 @@ class TestAWindowThatHasStoppedAnswering:
             mock.SetWindowPos.side_effect = place
             set_always_on_top(111, False)
             set_always_on_top(111, True)
-            answering.set()
+            windows_wakes_every_waiting_call_at_once.set()
             assert both_landed.wait(5), f"only {happened} happened"
 
         assert happened == ["not on top sent", "not on top landed", "on top sent", "on top landed"]
@@ -437,9 +440,22 @@ class TestProcessTable:
 
 
 class TestWindowsObscuring:
+    INVISIBLE_FRAME_PX = 8
+
     @staticmethod
     def _w(hwnd, rect, *, topmost=False, title="w"):
         return StackedWindow(hwnd=hwnd, title=title, topmost=topmost, rect=rect)
+
+    @classmethod
+    def _maximized(cls, hwnd, *, on_a_monitor_at):
+        left, top, width, height = on_a_monitor_at
+        frame = cls.INVISIBLE_FRAME_PX
+        return cls._w(hwnd, (left - frame, top - frame, width + 2 * frame, height + 2 * frame))
+
+    @classmethod
+    def _down_to(cls, lower_edge):
+        top = -cls.INVISIBLE_FRAME_PX
+        return cls._w(9, (0, top, 1440, lower_edge - top))
 
     def test_frontmost_target_is_unobscured(self):
         main_funestra = self._w(1, (0, 0, 100, 100))
@@ -474,22 +490,31 @@ class TestWindowsObscuring:
         # frame, hanging ~8px onto the neighboring monitor — the startup log
         # warned that a maximized Chrome on one monitor "covered" the Funestra
         # on the monitor next to it, over pixels nobody can see.
-        chrome = self._w(9, (-8, -8, 2576, 1426))
-        portrait = self._w(1, (2560, 0, 1440, 2560))
-        assert windows_obscuring(1, [chrome, portrait]) == []
+        chrome = self._maximized(9, on_a_monitor_at=(0, 0, 2560, 1410))
+        on_the_next_monitor_over = self._w(1, (2560, 0, 1440, 2560))
+        assert windows_obscuring(1, [chrome, on_the_next_monitor_over]) == []
 
     def test_real_coverage_past_the_ghost_frame_still_counts(self):
-        chrome = self._w(9, (-8, -8, 2576, 1426))
-        landscape = self._w(1, (854, 0, 1706, 1410))
-        assert windows_obscuring(1, [chrome, landscape]) == [chrome]
+        chrome = self._maximized(9, on_a_monitor_at=(0, 0, 2560, 1410))
+        buried_on_the_same_monitor = self._w(1, (854, 0, 1706, 1410))
+        assert windows_obscuring(1, [chrome, buried_on_the_same_monitor]) == [chrome]
 
     def test_the_ghost_frame_rule_holds_on_the_vertical_axis_too(self):
-        upper = self._w(9, (0, -8, 1440, 2516))
-        lower = self._w(1, (0, 2500, 1440, 940))
-        assert windows_obscuring(1, [upper, lower]) == []
+        main_funestras_top = 2500
+        main_funestra_beneath = self._w(1, (0, main_funestras_top, 1440, 940))
 
-        deeper = self._w(9, (0, -8, 1440, 2560))
-        assert windows_obscuring(1, [deeper, lower]) == [deeper]
+        portrait_satellite_above = self._down_to(
+            main_funestras_top + self.INVISIBLE_FRAME_PX)
+        assert windows_obscuring(1, [portrait_satellite_above, main_funestra_beneath]) == []
+
+        one_reaching_past_its_frame = self._down_to(main_funestras_top + 52)
+        assert windows_obscuring(1, [one_reaching_past_its_frame, main_funestra_beneath]) == [
+            one_reaching_past_its_frame]
+
+    def test_a_topmost_window_is_still_covered_by_a_topmost_one_above_it(self):
+        above = self._w(9, (0, 0, 100, 100), topmost=True)
+        main_funestra = self._w(1, (0, 0, 100, 100), topmost=True)
+        assert windows_obscuring(1, [above, main_funestra]) == [above]
 
     def test_what_covers_a_window_is_named_one_window_at_a_time(self):
         chrome = self._w(9, (0, 0, 2560, 1410), title="Example - Chrome")
@@ -510,15 +535,23 @@ class TestConstants:
 
 
 class TestLiveWindowMutationGuard:
-    def test_mutating_user32_calls_are_inert(self):
-        for name in ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW",
-                     "BringWindowToTop"):
+    @staticmethod
+    def _reaches_windows(name):
+        return isinstance(getattr(win32._user32, name), ctypes._CFuncPtr)
+
+    def test_no_unit_test_moves_raises_activates_or_closes_a_real_window(self):
+        for name in _MUTATING_USER32_CALLS:
             # Stubbed to an inert no-op for the whole unit suite: callable, returns the
             # sentinel, and can never reach the real Win32 API on any hwnd.
+            assert not self._reaches_windows(name), name
             assert getattr(win32._user32, name)(0xDEAD, 0, 0, 0, 0, 0, 0) == 0
         assert set_always_on_top(0xDEAD, True) is None
 
-    def test_reader_user32_calls_stay_real(self):
+    def test_the_real_main_funestra_a_unit_run_finds_cannot_be_forced_on_top(self):
+        assert self._reaches_windows("EnumWindows")
+        assert not self._reaches_windows("SetWindowPos")
+
+    def test_a_reading_call_is_answered_by_windows_never_by_a_truthy_stub(self):
         assert is_window_topmost(0xDEAD) is False
 
 
@@ -557,6 +590,10 @@ class TestWindowTitle:
 
 
 class TestFindWindowByTitle:
+    DASHBOARD = preview_marker.APP_TITLE
+    THE_SESSIONS_FUN_TIME_WINDOWS = (
+        (11, loading_screen.WINDOW_TITLE), (12, library_browser.WINDOW_TITLE), (13, DASHBOARD))
+
     @staticmethod
     def _enumerating(mock, windows, *, visible=True):
         titles = dict(windows)
@@ -580,23 +617,25 @@ class TestFindWindowByTitle:
             self._enumerating(mock, [(11, "Genau — Example Studio")])
             assert win32.find_window_by_title("Genau") == 11
 
-    def test_exact_refuses_the_window_that_merely_contains_the_name(self):
+    def test_only_its_whole_caption_tells_the_dashboard_from_the_sessions_other_windows(self):
+        assert loading_screen.WINDOW_TITLE.startswith(self.DASHBOARD)
+        assert library_browser.WINDOW_TITLE.startswith(self.DASHBOARD)
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
-            assert win32.find_window_by_title("Fun Time", exact=True) == 12
+            self._enumerating(mock, self.THE_SESSIONS_FUN_TIME_WINDOWS)
+            assert win32.find_window_by_title(self.DASHBOARD, exact=True) == 13
 
     def test_a_substring_would_have_taken_the_wrong_one_of_those(self):
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
-            assert win32.find_window_by_title("Fun Time") == 11
+            self._enumerating(mock, self.THE_SESSIONS_FUN_TIME_WINDOWS)
+            assert win32.find_window_by_title(self.DASHBOARD) == 11
 
-    def test_a_hidden_window_is_skipped_unless_it_is_asked_for(self):
+    def test_the_dashboard_hidden_under_the_loading_screen_is_found_when_asked_for(self):
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, "Fun Time")], visible=False)
-            assert win32.find_window_by_title("Fun Time") == 0
+            self._enumerating(mock, [(11, self.DASHBOARD)], visible=False)
+            assert win32.find_window_by_title(self.DASHBOARD) == 0
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, "Fun Time")], visible=False)
-            assert win32.find_window_by_title("Fun Time", include_hidden=True) == 11
+            self._enumerating(mock, [(11, self.DASHBOARD)], visible=False)
+            assert win32.find_window_by_title(self.DASHBOARD, include_hidden=True) == 11
 
     def test_the_first_match_stops_the_walk(self):
         seen: list[int] = []
@@ -626,7 +665,7 @@ class TestFindWindowByTitle:
                 setattr(buf, "value", "Main Funestra" if hwnd == 12 else "Genau"))[0]
             assert win32.find_window_by_title("Main Funestra", exact=True) == 12
 
-        assert caps == [256, 256]
+        assert caps == [win32._ONE_SHARED_TITLE_BUFFER_CHARS] * 2
         assert len(set(buffers)) == 1, "a buffer per window, not one for the walk"
 
     def test_nothing_matching_is_no_window(self):
@@ -692,12 +731,12 @@ class TestFindWindowForProcess:
         mock.GetWindowTextW.side_effect = lambda hwnd, buf, _cap: setattr(
             buf, "value", by_hwnd[hwnd][1])
 
-    def test_the_window_of_that_pid_with_that_exact_title(self, monkeypatch):
+    def test_one_process_owning_both_satellites_is_asked_for_one_by_title(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, 500, "Portrait AI Funestra"),
-                                     (12, 500, "Landscape AI Funestra")])
-            assert win32.find_window_for_process(500, "Landscape AI Funestra") == 12
+            self._enumerating(mock, [(11, 500, SATELLITE_PORTRAIT_TITLE),
+                                     (12, 500, SATELLITE_LANDSCAPE_TITLE)])
+            assert win32.find_window_for_process(500, SATELLITE_LANDSCAPE_TITLE) == 12
 
     def test_a_title_that_merely_contains_the_name_is_not_it(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
@@ -753,6 +792,7 @@ class TestFindWindowForProcess:
         caps: list[int] = []
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         long_title = "Origenerator " * 30
+        assert len(long_title) > win32._ONE_SHARED_TITLE_BUFFER_CHARS
         with _user32_mocked() as mock:
             self._enumerating(mock, [(11, 500, long_title)])
             mock.GetWindowTextW.side_effect = lambda _h, buf, cap: (
@@ -770,17 +810,19 @@ class TestFindWindowForProcess:
     def test_a_hidden_window_is_skipped_when_nothing_names_the_one_wanted(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, 500, "_q_titlebar", False),
-                                     (12, 500, "Fun Time Library", True)])
+            a_hidden_captioned_window_qt_gives_every_process = (11, 500, "_q_titlebar", False)
+            self._enumerating(mock, [a_hidden_captioned_window_qt_gives_every_process,
+                                     (12, 500, library_browser.WINDOW_TITLE, True)])
             assert win32.find_window_for_process(500) == 12
 
-    def test_a_parked_window_still_resolves_for_a_caller_that_asks_for_one(self, monkeypatch):
+    def test_the_hosted_origenerator_starting_hidden_is_still_found(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with _user32_mocked() as mock:
-            self._enumerating(mock, [(11, 500, "Origenerator", False)])
+            self._enumerating(mock, [(11, 500, ORIGENERATOR_TITLE, False)])
+            assert find_origenerators_window(500) == 11
             assert win32.find_window_for_process(
-                500, "Origenerator", include_hidden=True) == 11
-            assert win32.find_window_for_process(500, "Origenerator") == 0
+                500, ORIGENERATOR_TITLE, include_hidden=True) == 11
+            assert win32.find_window_for_process(500, ORIGENERATOR_TITLE) == 0
 
 
 def _answer_the_snapshot_with(mock, rows, *, handle=4321):
@@ -976,7 +1018,7 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         ex_style, _class, _title, style = mock.CreateWindowExW.call_args.args[:4]
         assert ex_style & win32.WS_EX_TOPMOST
         assert ex_style & win32.WS_EX_NOACTIVATE
-        assert not style & 0x10000000
+        assert not style & WS_VISIBLE
 
 
 class TestWhatHeIsUsing:
