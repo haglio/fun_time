@@ -37,7 +37,7 @@ def test_every_name_a_shell_calls_is_one_the_thing_it_holds_answers_to():
     )
     assert not gone, (
         "these no longer exist on what the shell holds, and no suite runs the "
-        f"module that calls them: {gone}")
+        f"module that calls them, so the first sign is a room missing a Funestra: {gone}")
 
 
 def _classes_by_local_name(body: list[ast.stmt], namespace) -> dict[str, type]:
@@ -92,5 +92,5 @@ def test_every_call_in_the_unrun_code_is_one_its_class_accepts():
         wrong += _unbindable_calls(ROOT / module, namespace)
     assert not wrong, (
         "no suite reaches these calls, and the classes they are made on would "
-        f"refuse them: {sorted(wrong)}")
+        f"refuse them, so the first sign is a room missing a Funestra: {sorted(wrong)}")
 

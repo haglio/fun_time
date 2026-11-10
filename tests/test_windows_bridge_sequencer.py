@@ -1091,7 +1091,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
 
 class TestResolveSatelliteHwnds:
-    def test_resolves_each_satellite_by_its_distinct_title(self):
+    def test_no_satellite_is_taken_for_the_other_by_its_title(self):
         title_to_hwnd = {"Portrait AI Funestra": 1111, "Landscape AI Funestra": 2222}
 
         with patch(
@@ -1100,7 +1100,8 @@ class TestResolveSatelliteHwnds:
         ) as by_title:
             portrait, landscape = _resolve_satellite_hwnds()
 
-        assert (portrait, landscape) == (1111, 2222)
+        assert (portrait, landscape) == (1111, 2222), (
+            "a title the two share crosses them: each is placed as the other")
         resolved = {call.args[0] for call in by_title.call_args_list}
         assert resolved == {"Portrait AI Funestra", "Landscape AI Funestra"}
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)

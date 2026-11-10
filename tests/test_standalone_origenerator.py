@@ -56,7 +56,7 @@ def test_an_open_app_showing_a_slideshow_names_the_satellites_of_its_shape(
     assert the_open_origenerator(tmp_path).slideshow_on == satellites
 
 
-def test_a_session_hosting_a_worktree_finds_the_everyday_copy_on_its_library(tmp_path):
+def test_a_hosted_worktree_finds_the_one_copy_its_library_allows(tmp_path):
     everyday = tmp_path / "origenerator"
     worktree = a_worktree_of(everyday, everyday / ".claude" / "worktrees" / "my-branch")
     _offer(everyday)

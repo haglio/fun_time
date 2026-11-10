@@ -57,7 +57,7 @@ def test_record_watch_event_prunes_entries_for_vanished_files(tmp_path: Path):
     assert stats[normalize_path_key(keeper)]["completions"] == 2
 
 
-def test_record_watch_event_keeps_rows_whose_tree_is_out_of_reach(tmp_path: Path):
+def test_a_drive_not_mounted_loses_none_of_its_rows(tmp_path: Path):
     stats_file = tmp_path / "watch_stats.json"
     volume = tmp_path / "volume"
     volume.mkdir()
@@ -106,7 +106,7 @@ def test_tracker_counts_a_skip_when_user_navigates_away_early():
     assert events == [("skip", "a.mp4")]
 
 
-def test_tracker_is_neutral_when_change_was_not_user_driven():
+def test_a_video_that_left_early_by_no_press_of_his_is_no_skip():
     clock = _Clock()
     tracker = WatchTracker(clock=clock)
     tracker.observe("a.mp4", 0.2)

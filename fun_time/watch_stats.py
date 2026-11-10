@@ -54,10 +54,10 @@ class WatchTracker:
             return []
         events = []
         if self._path and not self._suppress_departed:
-            nav_recent = (self._clock() - self._last_nav_at) <= self.NAV_WINDOW_S
+            he_moved_on_himself = (self._clock() - self._last_nav_at) <= self.NAV_WINDOW_S
             if self._max_fraction >= self.COMPLETE_FRACTION:
                 events.append(("completion", self._path))
-            elif nav_recent and self._max_fraction <= self.SKIP_FRACTION:
+            elif he_moved_on_himself and self._max_fraction <= self.SKIP_FRACTION:
                 events.append(("skip", self._path))
         self._path = path
         self._max_fraction = max(0.0, fraction)
@@ -65,11 +65,11 @@ class WatchTracker:
         return events
 
 
-def _still_wanted(key: str) -> bool:
+def _left_a_folder_still_there(key: str) -> bool:
     if not _is_a_path(key):
-        return True
+        return False
     video = Path(key)
-    return video.exists() or not video.parent.exists()
+    return not video.exists() and video.parent.exists()
 
 
 def _is_a_path(key: str) -> bool:
@@ -96,7 +96,7 @@ def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> N
     stats = _keyed_by_id(load_watch_stats(stats_file))
     entry = stats.setdefault(_key_of(video_path), {"completions": 0, "skips": 0, "locks": 0})
     entry[field] = entry.get(field, 0) + 1
-    stats = {key: value for key, value in stats.items() if _still_wanted(key)}
+    stats = {key: value for key, value in stats.items() if not _left_a_folder_still_there(key)}
     target = Path(stats_file)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
