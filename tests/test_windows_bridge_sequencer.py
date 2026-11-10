@@ -25,7 +25,6 @@ from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra
 from fun_time.funestra_status import (
     read_main_funestra_status,
 )
-from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.main_funestra_hud import main_funestra_hud_path
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -57,9 +56,7 @@ from fun_time.window_layout import (
 )
 from fun_time.windows_bridge_sequencer import (
     _PLAY_POLL_S,
-    MAIN_FUNESTRA_LOAD_TIMEOUT_S,
     SATELLITE_PLAY_TIMEOUT_S,
-    WINDOW_RESOLVE_CEILING_UNDER_LOAD_S,
     _maybe_launch_random_favs_browser,
     _resolve_satellite_hwnds,
     _wait_for_funestras_drawing,
@@ -588,6 +585,9 @@ class _TrackingProgress:
     def finish(self) -> None:
         pass
 
+    def loading_screen_kept_up(self):
+        return contextlib.nullcontext()
+
 
 class _CancelOnAdvance:
     def __init__(self, cancel_on: int) -> None:
@@ -605,6 +605,9 @@ class _CancelOnAdvance:
 
     def finish(self) -> None:
         pass
+
+    def loading_screen_kept_up(self):
+        return contextlib.nullcontext()
 
 
 class TestTheOrderInsideTheStartupPhases:
@@ -915,11 +918,6 @@ class TestPhase4Reveal:
 
         assert topmost_calls == []
 
-PROGRESS_IS_WRITTEN_ONLY_AS_A_PHASE_STARTS = (
-    "a phase's waits run under the one progress write its start made, so a longer phase "
-    "goes stale and drops the loading screen mid-wait")
-
-
 class TestMainFunestraGatesTheReveal:
     def test_the_funestras_phase_covers_the_wait_for_main_funestra(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -974,14 +972,47 @@ class TestMainFunestraGatesTheReveal:
         assert seen["stale_at_launch"] is False, (
             "the wait would end at once on a video from a session that is over")
 
-    def test_the_wait_for_the_funestras_cannot_outlast_the_overlay(self):
-        assert WINDOW_RESOLVE_CEILING_UNDER_LOAD_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S, (
-            "one window lookup and the Main Funestra's wait, under the one progress write, "
-            "would let the loading screen go stale mid-wait")
+    def test_every_wait_for_the_funestras_and_their_windows_keeps_the_loading_screen_up(
+        self, cfg_factory, tmp_path,
+    ):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        progress = _KeptUpProgress()
 
-    def test_the_windows_phase_cannot_outlast_it_either(self):
-        assert 3 * WINDOW_RESOLVE_CEILING_UNDER_LOAD_S < STALE_TIMEOUT_S, (
-            PROGRESS_IS_WRITTEN_ONLY_AS_A_PHASE_STARTS)
+        def waits(result):
+            def wait(*_args, **_kwargs):
+                progress.waits_heard.append(progress.kept_up)
+                return result
+            return wait
+
+        with _sequencer_stubs(
+            wait_for_window_by_title={"side_effect": waits(88888)},
+            _wait_for_main_funestra_loaded={"side_effect": waits(True)},
+            _wait_for_funestras_drawing={"side_effect": waits(True)},
+        ):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path,
+                progress=progress, hide_windows=True,
+            )
+
+        assert len(progress.waits_heard) >= 4
+        assert all(progress.waits_heard), (
+            "their worst cases add up past the loading screen's patience, "
+            "which would take it down while Fun Time is still starting")
+
+
+class _KeptUpProgress(_TrackingProgress):
+    def __init__(self) -> None:
+        super().__init__()
+        self.kept_up = False
+        self.waits_heard: list[bool] = []
+
+    @contextlib.contextmanager
+    def loading_screen_kept_up(self):
+        self.kept_up = True
+        try:
+            yield
+        finally:
+            self.kept_up = False
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
