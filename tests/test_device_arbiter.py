@@ -241,7 +241,7 @@ class TestKinoModeFunscriptHandoff:
 
         assert genau(driver)[-2:] == HAND_YIELDS
 
-    def test_no_published_touch_flips_at_once(self, tmp_path):
+    def test_a_raised_floor_publishes_no_touch_and_flips_at_once(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_funestra(driver, resting=True, position_ms=14_000)
         driver.sync("kino", paused=False)

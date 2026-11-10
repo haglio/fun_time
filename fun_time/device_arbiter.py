@@ -95,11 +95,11 @@ class DeviceArbiter:
         previous = self._statuses.get(holder)
         status = self._read_status(holder, previous)
         self._statuses[holder] = status
-        played_in_as_a_seek_never_does = (
+        flowed_into_the_scripts_turn = (
             status.funscript_driving and self._hand_has_the_stretch_of is holder
             and previous is not None
             and abs(status.position_ms - previous.position_ms) < _FLOWED_MS)
-        holding = (played_in_as_a_seek_never_does
+        holding = (flowed_into_the_scripts_turn
                    and self._the_blue_ending_the_trace_drew_lies_ahead(status))
         if not holding:
             self._park_touch_deadline = None
@@ -146,8 +146,7 @@ class DeviceArbiter:
 
     def _the_blue_ending_the_trace_drew_lies_ahead(self, status: ScriptedStatus) -> bool:
         touch = status.handoff_touch_ms
-        a_raised_floors_ramp_the_scripts_driver_walks = touch is None
-        if a_raised_floors_ramp_the_scripts_driver_walks or status.position_ms >= touch:
+        if touch is None or status.position_ms >= touch:
             return False
         now = self._clock()
         if self._park_touch_deadline is None:
