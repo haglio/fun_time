@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from .command_value import SAY, Command, Scope, parse_command
-from .fun_time_funestras import FunTimeFunestra
-from .hosted_contract import said_to_the_hosted_app, written_for_the_hosted_app
+from .hosted_contract import said_to_core, said_to_the_hosted_app, written_for_the_hosted_app
 from .main_funestra_commands import refused_on_a_satellite
+from .rfb_modes import RfbMode
 from .satellite_commands import THE_FUNESTRAS_OWN
 
 if TYPE_CHECKING:
@@ -13,13 +14,34 @@ if TYPE_CHECKING:
     from .shared_state import BridgeState
 
 
-def line_said_bare_to_the_hosted_app(command: Command) -> str | None:
-    if command.said_to is not Scope.ACTIVE:
+def _said_bare(command: Command) -> bool:
+    return command.said_to is Scope.ACTIVE and command.action == SAY
+
+
+def with_the_target_it_names(command: Command, state: BridgeState) -> BridgeState:
+    if command.funestra is None:
+        return state
+    return replace(state, active_funestra=command.funestra, core_named_last=False)
+
+
+def aimed_at_the_tracked_target(command: Command, state: BridgeState) -> Command:
+    if _said_bare(command) and state.core_named_last:
+        return command
+    return command.aimed_at_the_active(state.active_funestra)
+
+
+def the_satellite_a_bare_line_reaches(command: Command, state: BridgeState) -> Command | None:
+    if not _said_bare(command):
         return None
-    said = command.aimed_at_the_active(FunTimeFunestra.PORTRAIT)
-    if said.action != SAY:
-        return None
-    return said_to_the_hosted_app(FunTimeFunestra.PORTRAIT.label, said.argument)
+    aimed = aimed_at_the_tracked_target(command, state)
+    return None if aimed is command else aimed
+
+
+def line_said_bare_to_core(command: Command, state: BridgeState) -> str | None:
+    core_shows = state.origenerator_core_ready and state.rfb_mode is RfbMode.ORIGENERATOR
+    if _said_bare(command) and state.core_named_last and core_shows:
+        return said_to_core(command.argument)
+    return None
 
 
 def about_a_satellite(command: Command) -> bool:

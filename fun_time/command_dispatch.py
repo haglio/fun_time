@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
-from dataclasses import replace
 
 from . import (
     audio_commands,
@@ -28,7 +27,7 @@ from .bridge_records import (
     SatelliteHandler,
     ignored,
 )
-from .command_value import SAY, Command, Scope, parse_command
+from .command_value import Command, Scope, parse_command
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_handover import show_has_something_to_reset
 from .funestra_status import MainFunestraStatus
@@ -37,9 +36,11 @@ from .hosted_contract import written_for_the_hosted_app
 from .hosted_words import (
     a_lock_said_in_the_hosted_apps_words,
     about_a_satellite,
-    line_said_bare_to_the_hosted_app,
+    line_said_bare_to_core,
     routes_to_origenerator,
+    the_satellite_a_bare_line_reaches,
     told_to_the_hosted_app,
+    with_the_target_it_names,
 )
 from .main_list_commands import main_funestra_at_defaults
 from .mode_plan import kino_shows
@@ -59,8 +60,10 @@ def dispatch_command(
 ) -> Result:
     if isinstance(command, str):
         command = parse_command(command)
-    if command.funestra is not None:
-        state = replace(state, active_funestra=command.funestra)
+    state = with_the_target_it_names(command, state)
+    if (aimed := the_satellite_a_bare_line_reaches(command, state)) is not None:
+        return dispatch_command(aimed, state, config, target_path=target_path,
+                                spoken_at=spoken_at, hosted=hosted)
     reworded = a_lock_said_in_the_hosted_apps_words(command, config)
     if reworded is not command:
         command, hosted = reworded, None
@@ -90,11 +93,9 @@ def _half_by_half(command: Command, state: BridgeState, config: BridgeConfig,
 def _unanswered(command: Command, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> Result:
     if command.said_to is Scope.ACTIVE:
-        bare = line_said_bare_to_the_hosted_app(command)
-        return ((state, written_for_the_hosted_app([bare], config, None)) if bare
+        to_core = line_said_bare_to_core(command, state)
+        return ((state, written_for_the_hosted_app([to_core], config, None)) if to_core
                 else ignored(state, ON_THE_MAIN_FUNESTRA))
-    if command.action == SAY:
-        return ignored(state, IN_KINO_MODE)
     logger.warning("no handler for command %r", command.text)
     return state, []
 

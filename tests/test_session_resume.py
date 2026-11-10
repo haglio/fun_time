@@ -165,13 +165,14 @@ class TestResumeSharedState:
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(omni_paused=True, active_funestra=3))
+        write_shared_state(state_file, BridgeState(omni_paused=True, active_funestra=3,
+                                                   core_named_last=True))
 
         state = resume_shared_state(state_file)
 
         fresh = BridgeState()
-        assert (state.omni_paused, state.active_funestra) == (
-            fresh.omni_paused, fresh.active_funestra)
+        assert (state.omni_paused, state.active_funestra, state.core_named_last) == (
+            fresh.omni_paused, fresh.active_funestra, fresh.core_named_last)
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
 

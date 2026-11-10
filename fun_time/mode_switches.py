@@ -52,8 +52,14 @@ def _mode_switch(target: str, state: BridgeState, config: BridgeConfig,
     return _dispatch_mode_switch(target, state, config, [])
 
 
+def _core_picked(state: BridgeState, config: BridgeConfig,
+                 target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return switch_the_rfb_mode(RfbMode.ORIGENERATOR, replace(state, core_named_last=True), config,
+                               target_path)
+
+
 HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_mode_switch, target) for cmd, target in _MODE_SWITCH_COMMANDS.items()},
     RFB_ACTIVATE: partial(switch_the_rfb_mode, RfbMode.RFB),
-    ORIGENERATOR_ACTIVATE: partial(switch_the_rfb_mode, RfbMode.ORIGENERATOR),
+    ORIGENERATOR_ACTIVATE: _core_picked,
 }

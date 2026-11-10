@@ -171,7 +171,7 @@ def parse_command(text: str) -> Command:
             return filtered
     said_to, rest = _scope_of(text)
     words = rest.removeprefix(_SAY)
-    if words and words != rest and said_to in _SATELLITE_SCOPES:
+    if words and words != rest and (said_to in _SATELLITE_SCOPES or said_to is Scope.ACTIVE):
         return Command(said_to, SAY, _unslug(words), text)
     action, bar, value = rest.partition(_VALUE_BAR)
     if bar:

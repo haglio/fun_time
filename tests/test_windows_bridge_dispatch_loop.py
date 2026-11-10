@@ -1117,6 +1117,21 @@ class TestABareHudPhraseAfterANamedOne:
         assert runner.state.satellite(FunTimeFunestra.PORTRAIT).hud_minimized is False
 
 
+class TestABareLineInTheHostedAppsWords:
+    def test_after_core_was_picked_it_reaches_core_though_a_satellite_was_navigated(
+            self, tmp_path):
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        runner.state = replace(runner.state, active_funestra=FunTimeFunestra.PORTRAIT,
+                               core_named_last=True, rfb_mode=RfbMode.ORIGENERATOR)
+
+        TestABareHudPhraseAfterANamedOne._say(
+            runner, tmp_path, "active_say_populate_on", "populate on")
+
+        assert (tmp_path / "origenerator_cmd.txt").read_text(
+            encoding="utf-8").split("\n")[0] == "SAY:populate on"
+
+
 class TestWhatASpokenCommandFlashes:
     @staticmethod
     def _flashed(tmp_path, line, ops=(), **state):
@@ -3226,6 +3241,7 @@ class TestOpeningOrigenerator:
         runner.tick()
 
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
+        assert runner.state.core_named_last is False
 
     def test_the_place_goes_to_origenerator_once(self, tmp_path):
         runner = self._left_to_origenerator_while_core_waits(tmp_path)

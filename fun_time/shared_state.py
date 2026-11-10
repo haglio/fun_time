@@ -63,6 +63,7 @@ class BridgeState:
     genau_plays_landscape: bool = True
     genau_favorites_filter: bool = False
     active_funestra: int = int(FunTimeFunestra.MAIN)
+    core_named_last: bool = False
     volume: int = MAX_VOLUME
     muted: bool = False
     max_intensity: int = FULL_INTENSITY

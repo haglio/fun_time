@@ -271,7 +271,7 @@ _EXPECTED_STATE_KEYS = {
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",
     "genau_plays_portrait": "1", "genau_plays_landscape": "1",
     "genau_favorites_filter": "0",
-    "active_funestra": "1",
+    "active_funestra": "1", "core_named_last": "0",
     "volume": "100", "muted": "0", "max_intensity": "100",
     "osr2_control": "driving",
     "crowned": "main", "majority": "portrait",

@@ -11,7 +11,7 @@ from fun_time.command_dispatch import dispatch_command
 from fun_time.command_value import FILTER, parse_command, set_command
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import CORE_READY
-from fun_time.hosted_contract import SAID_AT_FIELD, said_to_the_hosted_app
+from fun_time.hosted_contract import SAID_AT_FIELD, said_to_core, said_to_the_hosted_app
 from fun_time.hosted_origenerator import the_session_it_is_handed, what_an_adopted_app_is_told
 from fun_time.hud_feed import HudFeed
 from fun_time.hud_transport import HudPublisher
@@ -80,6 +80,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
           for in_a_headset in (False, True)),
         *(said_to_the_hosted_app(funestra.label, "{words}")
           for funestra in FunTimeFunestra.SATELLITES),
+        said_to_core("{words}"),
         trash_file_line("C:/v/scene one.mp4", "C:/t/scene one.mp4"),
     ]
     return {_with_his_video_or_act_blanked(line) for line in written}
