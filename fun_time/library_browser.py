@@ -690,7 +690,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
     parser.add_argument("--playing", help="What the Main Funestra has up — the browse opens there")
-    parser.add_argument(GENAU_FLAG, action="store_true", help="Browse Genau's flicks instead")
+    parser.add_argument(GENAU_FLAG, action="store_true", help="Browse Genau instead")
     return parser.parse_args(argv)
 
 

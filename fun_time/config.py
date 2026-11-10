@@ -51,7 +51,8 @@ class PathsConfig:
     def flicks_dir(self) -> Path:
         found = flicks_folder_in(self.genau_dir)
         if found is None:
-            raise FileNotFoundError(f"No folder in {self.genau_dir} is laid out as Genau's flicks are")
+            raise FileNotFoundError(f"No folder in {self.genau_dir} is laid out as Genau's "
+                                    f"{haglio_settings.value('genau_flick_words', 'many')} are")
         return found
 
     @property

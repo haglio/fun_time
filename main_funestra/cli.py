@@ -71,19 +71,19 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Poll this file for Fun Time's verbs to Genau, which runs on "
                         "this window beside Kino; left off, Kino runs alone")
     p.add_argument("--genau-paused-file", type=Path, default=None,
-                   help="Flag file that pauses Genau's flick under the OSR2's own beat")
+                   help="Flag file that pauses what Genau plays under the OSR2's own beat")
     p.add_argument("--genau-status-file", type=Path, default=None,
-                   help="Where Genau publishes what the hand and the flick are doing")
+                   help="Where Genau publishes what the hand and the screen are doing")
     p.add_argument("--genau-start-flick", default=None,
-                   help="The flick Genau opens on: where the last session left it")
+                   help="What Genau opens on: where the last session left it")
     p.add_argument("--genau-latest", action="store_true", default=False,
-                   help="Browse Genau's flicks newest-first from the start")
+                   help="Browse Genau newest-first from the start")
     p.add_argument("--genau-orientations", nargs="*", choices=ORIENTATIONS, default=None,
-                   help="The orientations of flick Genau plays; absent is both")
+                   help="The orientations Genau plays; absent is both")
     p.add_argument("--genau-f-mode", action="store_true", default=False,
-                   help="Browse only the favorite flicks from the start")
+                   help="Browse only the favorites from the start")
     p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),
-                   help="Where Genau tells the audio companion which flick is up")
+                   help="Where Genau tells the audio companion what is up")
     p.add_argument("--notify-port", type=int,
                    default=audio_companion.get("port", ports.AUDIO_COMPANION))
     p.add_argument("--no-audio", action="store_true", default=False,

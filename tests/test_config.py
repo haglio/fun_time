@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
-from app_support import ports
+from app_support import haglio_settings, ports
 from app_support.flick_folder import flat_flicks_in
 
 from fun_time import config
@@ -274,6 +274,20 @@ class TestGenausFolders:
 
         assert (cfg.paths.genau_dir, cfg.paths.flicks_dir, cfg.paths.genau_audio_dir) == (
             genau, genau / "made_up_name", audio)
+
+    def test_a_genau_folder_with_nothing_laid_out_in_it_is_refused_in_the_rooms_own_word(
+            self, cfg_path: Path, tmp_path: Path, monkeypatch):
+        empty = tmp_path / "empty_genau"
+        empty.mkdir()
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({**haglio_settings.EXAMPLE, "genau_dir": str(empty),
+                                        "genau_flick_words": {"one": "pip", "many": "pips"}}),
+                            encoding="utf-8")
+        monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
+        cfg = load_config(cfg_path)
+
+        with pytest.raises(FileNotFoundError, match="is laid out as Genau's pips are"):
+            _ = cfg.paths.flicks_dir
 
     def test_a_genau_dir_left_in_the_config_file_is_not_where_genau_is(
             self, cfg_factory, genaus_folder: Path, tmp_path: Path):
