@@ -18,8 +18,8 @@ _user32.IsWindowVisible.argtypes = [wt.HWND]
 _user32.GetWindowTextW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
 GW_HWNDPREV = 3
 
-_FRAME_AT_60HZ_MS = 17.0
-VISIBLE_MS = 2 * _FRAME_AT_60HZ_MS
+_FRAME_AT_60HZ_ROUNDED_UP_MS = 17.0
+VISIBLE_MS = 2 * _FRAME_AT_60HZ_ROUNDED_UP_MS
 
 POLL_S = 0.002
 

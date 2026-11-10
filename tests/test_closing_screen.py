@@ -31,7 +31,7 @@ def test_it_waits_for_news_far_less_long_than_startups_loading_screen():
 
 
 class TestMain:
-    def _run_main(self, tmp_path, monkeypatch) -> tuple[Path, FakeOverlay]:
+    def _panels_main_builds_over_every_monitor(self, tmp_path, monkeypatch) -> tuple[Path, list[FakeOverlay]]:
         progress_file = tmp_path / "shutdown_progress.txt"
         built: list[FakeOverlay] = []
 
@@ -43,13 +43,16 @@ class TestMain:
         monkeypatch.setattr(sys, "argv", ["closing_screen", str(progress_file)])
 
         closing_screen.main()
-        (the_one_panel,) = built
-        return progress_file, the_one_panel
+        return progress_file, built
+
+    def _run_main(self, tmp_path, monkeypatch) -> tuple[Path, FakeOverlay]:
+        progress_file, built = self._panels_main_builds_over_every_monitor(tmp_path, monkeypatch)
+        return progress_file, built[-1]
 
     def test_the_session_ends_under_one_panel_over_every_monitor(self, tmp_path, monkeypatch):
-        _progress_file, the_one_panel = self._run_main(tmp_path, monkeypatch)
+        _progress_file, built = self._panels_main_builds_over_every_monitor(tmp_path, monkeypatch)
 
-        assert isinstance(the_one_panel, FakeOverlay)
+        assert len(built) == 1
 
     def test_covers_the_progress_file_it_was_given(self, tmp_path, monkeypatch):
         progress_file, overlay = self._run_main(tmp_path, monkeypatch)

@@ -213,7 +213,7 @@ class TestBackDating:
                 _publish(sampler.satellite_status_files[2],
                          "C:/clips/before.mp4" if tick < changed_at_tick else "C:/clips/after.mp4",
                          fraction=0.1)
-                sampler.sample_due(now=100.0 + tick / 20, paused=False)
+                sampler.sample_due(now=100.0 + tick / 20, omni_paused=False)
             changed_at = 100.0 + changed_at_tick / 20
 
             assert sampler.video_at(lock, changed_at - 0.5) == "C:/clips/before.mp4"
