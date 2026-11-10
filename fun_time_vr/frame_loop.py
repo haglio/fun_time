@@ -246,7 +246,7 @@ class FrameLoop:
                 the_room.route_audio()
             session.sync_controller(display_time)
             arranged = self.arranging.arrange(session.hands, views, elapsed_s=elapsed_s, now=now)
-            quads, as_quads = self.quad_layers(arranged) if self._use_layers else ([], set())
+            quads, as_quads = self.quads_the_runtime_holds_steady(arranged) if self._use_layers else ([], set())
             project = True
             t3 = time.perf_counter()
             draw_eyes(headset, arranged, the_room.pointing, views, as_quads=as_quads)
@@ -262,7 +262,7 @@ class FrameLoop:
         perf.note("end", (t5 - t4) * 1e3)
         perf.frame_done()
 
-    def quad_layers(self, arranged: Arranged) -> tuple[list[QuadLayer], set[str]]:
+    def quads_the_runtime_holds_steady(self, arranged: Arranged) -> tuple[list[QuadLayer], set[str]]:
         quads: list[QuadLayer] = []
         as_quads: set[str] = set()
         main_unit = self._room.main_unit

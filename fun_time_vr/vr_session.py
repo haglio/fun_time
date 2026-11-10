@@ -73,12 +73,14 @@ class VRSession(SessionStates):
             self._create_color_swapchains()
             self._fbo = GL.glGenFramebuffers(1)
         except Exception:
-            try:
-                self.close()
-            except Exception:
-                logger.debug("Teardown after a failed bring-up also failed", exc_info=True)
+            self._leave_nothing_for_the_retry()
             raise
 
+    def _leave_nothing_for_the_retry(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            logger.debug("Teardown after a failed bring-up also failed", exc_info=True)
 
     def shared_contexts(self) -> SharedContexts:
         return SharedContexts(self._window)

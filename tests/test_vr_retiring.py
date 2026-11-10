@@ -1,6 +1,23 @@
 from __future__ import annotations
 
+import ast
+import inspect
+
+from fun_time_vr import retiring as retiring_module
 from fun_time_vr.retiring import RETIRE_AFTER_FRAMES, RetiredSwapchain, advance_retirements
+
+WHAT_ONLY_RUNS_ON_A_HEADSET = {"xr", "OpenGL", "glfw"}
+
+
+def test_retiring_is_kept_where_it_needs_no_headset_to_run():
+    imported = {
+        (node.module if isinstance(node, ast.ImportFrom) else alias.name).split(".")[0]
+        for node in ast.walk(ast.parse(inspect.getsource(retiring_module)))
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+        for alias in node.names
+    }
+
+    assert imported & WHAT_ONLY_RUNS_ON_A_HEADSET == set()
 
 
 def test_a_replaced_swapchain_survives_the_frames_already_in_flight():

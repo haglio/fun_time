@@ -473,11 +473,11 @@ class TestQuadLayers:
     def test_a_screen_with_no_content_yet_is_no_layer(self):
         assert refresh_quad_layer(_a_headset(), 1, _a_video("portrait", dirty=False), _UNARRANGED) is None
 
-    def test_the_satellites_leave_the_scene_as_quads(self):
+    def test_screens_go_out_as_quads_the_runtime_steadies_on_a_late_frame(self):
         the_room = _ARoom(main=_a_video("main"),
                           satellites=[_a_video("portrait"), _a_video("landscape")])
 
-        quads, as_quads = _a_loop(_ASession(), the_room).quad_layers(_UNARRANGED)
+        quads, as_quads = _a_loop(_ASession(), the_room).quads_the_runtime_holds_steady(_UNARRANGED)
 
         assert [quad.swapchain_index for quad in quads] == [0, 1, 2]
         assert as_quads == {"main", "portrait", "landscape"}
@@ -486,7 +486,7 @@ class TestQuadLayers:
     def test_a_main_funestra_wrapping_the_viewer_or_lending_its_slot_stays_in_the_scene(self, main):
         the_room = _ARoom(main=main, satellites=[_a_video("portrait")])
 
-        quads, as_quads = _a_loop(_ASession(), the_room).quad_layers(_UNARRANGED)
+        quads, as_quads = _a_loop(_ASession(), the_room).quads_the_runtime_holds_steady(_UNARRANGED)
 
         assert [quad.swapchain_index for quad in quads] == [1]
         assert as_quads == {"portrait"}
