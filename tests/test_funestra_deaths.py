@@ -6,6 +6,8 @@ import pytest
 
 from fun_time.child_launch import open_child_log
 from fun_time.funestra_deaths import (
+    NO_ORIGENERATOR_SET_UP,
+    ORIGENERATOR_NEVER_CAME_UP,
     FunestraDied,
     LaunchedFunestra,
     logs_as_they_stand,
@@ -85,3 +87,14 @@ def test_a_log_its_launch_rolled_aside_is_read_from_the_top_of_the_new_one(tmp_p
     said = _what_it_said(LaunchedFunestra("the Main Funestra", 25, logs))
 
     assert said == "OSError: The engine (libmpv) could not be loaded."
+
+
+def test_a_core_that_never_came_up_is_its_whole_reason():
+    assert ORIGENERATOR_NEVER_CAME_UP == (
+        "Fun Time stopped starting up: Origenerator Core never finished starting.")
+
+
+def test_a_config_naming_no_origenerator_ends_at_its_reason():
+    assert NO_ORIGENERATOR_SET_UP == (
+        "Fun Time stopped starting up: no Origenerator is set up (paths.origenerator_dir in "
+        "fun_time_config.json is empty).")

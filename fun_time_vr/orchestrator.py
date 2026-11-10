@@ -27,7 +27,7 @@ from fun_time.event_log import open_event_log
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.fun_time_windows import ChildPids, FunTimeWindows
 from fun_time.funestra_deaths import (
-    origenerator_never_came_up_message,
+    ORIGENERATOR_NEVER_CAME_UP,
     part_closed_message,
     show_funestra_died_alert,
     the_part_that_closed,
@@ -492,7 +492,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                      "child(ren)", len(launched.children))
         _take_down_the_launch(launch, launched, ahk_proc)
         drop_transition_screen(launch.state_dir)
-        show_funestra_died_alert(origenerator_never_came_up_message())
+        show_funestra_died_alert(ORIGENERATOR_NEVER_CAME_UP)
         return 1
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",
