@@ -11,6 +11,8 @@ import pytest
 import pytest_timeout
 from PyQt6.QtGui import QFontDatabase
 
+from tests.process_setup import NO_DISPLAY_UNLESS_A_DEVELOPER_SETS_ONE_TO_WATCH
+
 from . import run_clock
 from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
 from .integration_support import (
@@ -30,8 +32,8 @@ def draw_real_windows_only_on_the_hidden_desktop(environ: MutableMapping[str, st
                                                 hidden: Callable[[], bool] = on_hidden_desktop) -> None:
     if sys.platform == "win32" and not hidden():
         return
-    environ.pop("QT_QPA_PLATFORM", None)
-    environ.pop("SDL_VIDEODRIVER", None)
+    for names_the_display in NO_DISPLAY_UNLESS_A_DEVELOPER_SETS_ONE_TO_WATCH:
+        environ.pop(names_the_display, None)
 
 
 draw_real_windows_only_on_the_hidden_desktop()
@@ -118,12 +120,12 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 @pytest.fixture(autouse=True)
-def _never_inherit_the_integration_flag():
+def _never_act_as_if_on_the_hidden_desktop():
     return
 
 
 @pytest.fixture(autouse=True)
-def _never_mutate_a_real_window():
+def _never_change_a_window_of_his_live_fun_time():
     return
 
 
@@ -133,7 +135,7 @@ def _never_start_a_real_loading_screen():
 
 
 @pytest.fixture(autouse=True)
-def _never_switch_a_real_browsers_tabs():
+def _never_switch_the_tab_he_is_looking_at():
     return
 
 
