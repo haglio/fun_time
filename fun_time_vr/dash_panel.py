@@ -171,6 +171,10 @@ def dash_height() -> int:
     return max(_log_top() + LOG_ROWS * _ROW_H + PAD, osr2_part_rect().height)
 
 
+def size_it_hangs_still_at() -> tuple[int, int]:
+    return DASH_WIDTH_PX, dash_height()
+
+
 def _log_size() -> tuple[int, int]:
     return osr2_part_rect().x - 2 * PAD, dash_height() - PAD - _log_top()
 
@@ -187,7 +191,7 @@ def log_lines(state: DashState, records) -> list[tuple[str, int]]:
     return shown[:room]
 
 
-def _label(draw, rect: Rect, text: str, font, ink) -> None:
+def _label_centered_as_a_button_is(draw, rect: Rect, text: str, font, ink) -> None:
     x = rect.x + max(2, round((rect.width - font.getlength(text)) / 2))
     draw.text((x, rect.y + 3), text, font=font, fill=(*ink, 255))
 
@@ -221,10 +225,18 @@ def _on(rect: Rect, point: tuple[int, int] | None) -> bool:
     return rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height
 
 
+def _log_clipped_without_ellipsis_as_the_desktops_is(state: DashState, records, font) -> Image.Image:
+    log = Image.new("RGBA", _log_size(), (0, 0, 0, 0))
+    pen = ImageDraw.Draw(log)
+    for index, (line, level) in enumerate(log_lines(state, records)):
+        pen.text((0, index * _ROW_H), line, font=font, fill=(*level_color(level), 255))
+    return log
+
+
 def paint_dash(state: DashState, records,
                hover: tuple[int, int] | None = None,
                shown_as: Preview | None = None) -> Image.Image:
-    panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
+    panel = Image.new("RGBA", size_it_hangs_still_at(), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
     wordmark, small = load_font(_WORDMARK_PX, WORDMARK_FACE), load_font(_LABEL_PX)
@@ -248,13 +260,10 @@ def paint_dash(state: DashState, records,
     for source, rect in source_buttons().items():
         on = source in state.sources
         button(draw, rect, BLUE if on else BG_BUTTON, lit=_on(rect, hover))
-        _label(draw, rect, SOURCE_LABELS[source], small, WHITE if on else TEXT_PRIMARY)
+        _label_centered_as_a_button_is(draw, rect, SOURCE_LABELS[source], small, WHITE if on else TEXT_PRIMARY)
 
-    log = Image.new("RGBA", _log_size(), (0, 0, 0, 0))
-    pen = ImageDraw.Draw(log)
-    for index, (line, level) in enumerate(log_lines(state, records)):
-        pen.text((0, index * _ROW_H), line, font=small, fill=(*level_color(level), 255))
-    panel.alpha_composite(log, (PAD, _log_top()))
+    panel.alpha_composite(
+        _log_clipped_without_ellipsis_as_the_desktops_is(state, records, small), (PAD, _log_top()))
 
     if state.dial_open:
         paint_list(panel, _open_list(state), small)
@@ -273,7 +282,7 @@ def _paint_the_quit_question(panel: Image.Image, font, hover) -> None:
     draw.text((box.x + PAD, box.y + PAD + 3), QUIT_QUESTION, font=font, fill=(*TEXT_PRIMARY, 255))
     for action, rect in answer_rects().items():
         button(draw, rect, BG_BUTTON, lit=_on(rect, hover))
-        _label(draw, rect, _ANSWERS[action], font, TEXT_PRIMARY)
+        _label_centered_as_a_button_is(draw, rect, _ANSWERS[action], font, TEXT_PRIMARY)
 
 
 def _within_the_part(px: int, py: int) -> tuple[int, int]:

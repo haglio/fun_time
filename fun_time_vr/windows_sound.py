@@ -94,9 +94,20 @@ class _IPolicyConfig(IUnknown):
     ]
 
 
+_COM_ALREADY_ON_THIS_THREAD_IN_THE_OTHER_APARTMENT = OSError
+
+
 def _com_on_this_thread() -> None:
-    with contextlib.suppress(OSError):
+    with contextlib.suppress(_COM_ALREADY_ON_THIS_THREAD_IN_THE_OTHER_APARTMENT):
         comtypes.CoInitialize()
+
+
+def _windows_edataflow(flow: str) -> int:
+    return FLOWS.index(flow)
+
+
+def _windows_erole(role: str) -> int:
+    return ROLES.index(role)
 
 
 def _id_of(device) -> str:
@@ -117,7 +128,7 @@ def _name_of(device) -> str:
 
 def _default_device_or_none(enumerator, flow: str, role: str) -> SoundDevice | None:
     try:
-        device = enumerator.GetDefaultAudioEndpoint(FLOWS.index(flow), ROLES.index(role))
+        device = enumerator.GetDefaultAudioEndpoint(_windows_edataflow(flow), _windows_erole(role))
         return SoundDevice(_id_of(device), _name_of(device))
     except (OSError, comtypes.COMError):
         return None
@@ -139,7 +150,7 @@ def make_default(device: SoundDevice, role: str) -> None:
     try:
         _com_on_this_thread()
         policy = comtypes.CoCreateInstance(_POLICY_CONFIG_CLIENT, _IPolicyConfig, CLSCTX_ALL)
-        policy.SetDefaultEndpoint(device.id, ROLES.index(role))
+        policy.SetDefaultEndpoint(device.id, _windows_erole(role))
     except (OSError, comtypes.COMError):
         logger.warning("Could not make %s Windows' default for %s",
                        device.name, role, exc_info=True)

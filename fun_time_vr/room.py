@@ -40,8 +40,9 @@ class RoomUnits:
     loading_screen: Any
 
     def in_order(self) -> list:
-        return [self.main_unit, *self.satellites, self.dash, self.main_hud_unit, self.reference,
-                self.library, self.flashed, self.gallery, self.loading_screen]
+        dash_then_the_hud_hanging_from_where_it_went = (self.dash, self.main_hud_unit)
+        return [self.main_unit, *self.satellites, *dash_then_the_hud_hanging_from_where_it_went,
+                self.reference, self.library, self.flashed, self.gallery, self.loading_screen]
 
 
 @dataclass(frozen=True)

@@ -53,22 +53,27 @@ class Face(NamedTuple):
     shade: float
 
 
-def _shade(normal: np.ndarray) -> float:
+def _shade_that_shows_it_solid(normal: np.ndarray) -> float:
     return AMBIENT_SHADE + (1.0 - AMBIENT_SHADE) * max(0.0, float(np.dot(normal, _LIGHT)))
+
+
+def _turned_to_the_eye(normal: np.ndarray, quad: np.ndarray) -> bool:
+    return bool(np.dot(normal, quad[0]) < 0.0)
 
 
 def controller_faces(origin: np.ndarray, rotation: np.ndarray) -> list[Face]:
     rotation = np.asarray(rotation)
     eye = -(np.asarray(origin) @ rotation)
     nearer_part_last = _PARTS if eye[1] >= HEAD_UNDERSIDE_M else _PARTS[::-1]
-    faces = []
+    painted_in_this_order_unsorted_by_depth = []
     for part, normals in nearer_part_last:
         corners = part @ rotation.T + origin
         for face, normal in zip(_FACES, normals @ rotation.T, strict=True):
             quad = corners[list(face)]
-            if np.dot(normal, quad[0]) < 0.0:
-                faces.append(Face(quad, _shade(normal)))
-    return faces
+            if _turned_to_the_eye(normal, quad):
+                painted_in_this_order_unsorted_by_depth.append(
+                    Face(quad, _shade_that_shows_it_solid(normal)))
+    return painted_in_this_order_unsorted_by_depth
 
 
 def controllers_strip(poses: Sequence[tuple[np.ndarray, np.ndarray]]) -> np.ndarray:

@@ -33,10 +33,15 @@ class StillAsked:
         return still
 
 
-def capped_size(dims: tuple[int, int], cap_px: int) -> tuple[int, int] | None:
+def _mpv_is_between_files(dims: tuple[int, int]) -> bool:
     width, height = dims
-    if not width or not height:
+    return not width or not height
+
+
+def capped_size(dims: tuple[int, int], cap_px: int) -> tuple[int, int] | None:
+    if _mpv_is_between_files(dims):
         return None
+    width, height = dims
     scale = min(1.0, cap_px / max(width, height))
     return max(1, round(width * scale)), max(1, round(height * scale))
 

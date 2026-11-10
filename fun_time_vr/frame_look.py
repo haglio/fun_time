@@ -13,7 +13,8 @@ A_FISHEYES_BLACK_OPENING_S = 30.0
 _ROOM_TO_SPARE = 6
 BETWEEN_LOOKS_S = 2.0
 LOOKS = round(_ROOM_TO_SPARE * A_FISHEYES_BLACK_OPENING_S / BETWEEN_LOOKS_S)
-_LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
+_LOOKS_PAST_A_STUDIOS_OPENING_TITLE = 3
+_LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: _LOOKS_PAST_A_STUDIOS_OPENING_TITLE}
 
 
 class FrameLook:
@@ -35,7 +36,7 @@ class FrameLook:
         seen: Counter[str] = Counter()
         self._video.ask_for_a_still()
         for _ in range(LOOKS):
-            self._sleep(BETWEEN_LOOKS_S)
+            self._while_mpv_lets_go_of_the_last_files_frame()
             shape = self._shape_on_screen()
             if look is not self._latest_look:
                 return
@@ -45,6 +46,9 @@ class FrameLook:
             if seen[shape] == _LOOKS_TO_BELIEVE[shape]:
                 on_shape(video, shape)
                 return
+
+    def _while_mpv_lets_go_of_the_last_files_frame(self) -> None:
+        self._sleep(BETWEEN_LOOKS_S)
 
     def _shape_on_screen(self) -> str | None:
         if self._video.duration_ms <= 0:

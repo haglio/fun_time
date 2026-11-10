@@ -255,6 +255,13 @@ class _TintProgram:
         GL.glUseProgram(0)
 
 
+def _turn_off_what_mpvs_render_contexts_may_leave_on() -> None:
+    GL.glDisable(GL.GL_DEPTH_TEST)
+    GL.glDisable(GL.GL_BLEND)
+    GL.glDisable(GL.GL_SCISSOR_TEST)
+    GL.glDisable(GL.GL_CULL_FACE)
+
+
 class SceneRenderer:
     def __init__(self) -> None:
         self._quad_program = _compile_program(_QUAD_VERTEX_SHADER, _QUAD_FRAGMENT_SHADER)
@@ -278,10 +285,7 @@ class SceneRenderer:
         self._fullscreen_vao = GL.glGenVertexArrays(1)
 
     def begin_eye(self, clear: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)) -> None:
-        GL.glDisable(GL.GL_DEPTH_TEST)
-        GL.glDisable(GL.GL_BLEND)
-        GL.glDisable(GL.GL_SCISSOR_TEST)
-        GL.glDisable(GL.GL_CULL_FACE)
+        _turn_off_what_mpvs_render_contexts_may_leave_on()
         GL.glClearColor(*clear)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
