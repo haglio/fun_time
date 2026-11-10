@@ -57,7 +57,7 @@ def init_mixer(wanted: str | None) -> str | None:
     return device
 
 
-def force_muted() -> bool:
+def silenced_for_a_hidden_or_test_run() -> bool:
     return os.environ.get("FUN_TIME_MUTE_AUDIO") == "1" or on_hidden_desktop()
 
 
@@ -257,7 +257,7 @@ def main(argv: list[str] | None = None) -> None:
     device = init_mixer(args.audio_device)
     if args.audio_device:
         logger.info("Audio device %r -> %s", args.audio_device, device or "no match; default")
-    muted = force_muted()
+    muted = silenced_for_a_hidden_or_test_run()
     if muted:
         pygame.mixer.music.set_volume(0)
         logger.info("Audio muted (FUN_TIME_MUTE_AUDIO=1)")

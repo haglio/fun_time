@@ -8,25 +8,20 @@ from fun_time.voice_commands import VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
-HUD_ONLY_COMMAND_IDS = (
-    "landscape_kino_activate",
-    "landscape_minimize",
-    "landscape_origenerator_activate",
-    "landscape_take_osr2",
-    "main_lock",
-    "main_minimize",
-    "main_scene_next",
-    "main_scene_prev",
-    "main_take_osr2",
-    "origenerator_activate",
-    "portrait_kino_activate",
-    "portrait_minimize",
-    "portrait_origenerator_activate",
-    "portrait_take_osr2",
-    "rfb_activate",
-    "robot_hand_speed_down",
-    "robot_hand_speed_up",
-)
+POSTED_OFF_ONE_SURFACE_ALONE = {
+    "a Satellite's HUD": (
+        "landscape_kino_activate", "landscape_minimize", "landscape_origenerator_activate",
+        "landscape_take_osr2", "portrait_kino_activate", "portrait_minimize",
+        "portrait_origenerator_activate", "portrait_take_osr2",
+    ),
+    "the Main Funestra's HUD": ("main_lock", "main_minimize", "main_take_osr2"),
+    "the dashboard's strip": ("origenerator_activate", "rfb_activate"),
+    "Genau's console, in funestra": ("robot_hand_speed_down", "robot_hand_speed_up"),
+    "the VR controllers": ("main_scene_next", "main_scene_prev"),
+}
+
+HUD_ONLY_COMMAND_IDS = tuple(sorted(
+    command for commands in POSTED_OFF_ONE_SURFACE_ALONE.values() for command in commands))
 
 PREFIXED_COMMAND_FORMS = (
     "audio_set_volume|",
@@ -370,7 +365,7 @@ def _reference_ids() -> set[str]:
     }
 
 
-def test_the_command_id_set_is_exactly_the_snapshot():
+def test_the_ids_the_hotkey_script_and_the_huds_post_by_spelling_are_exactly_these():
     surfaced = set(VOICE_COMMANDS.values()) | _ahk_ids() | _reference_ids()
     surfaced |= set(HUD_ONLY_COMMAND_IDS)
     expected = set(EXPECTED_COMMAND_IDS) | _expected_numeric_ids()
@@ -380,7 +375,7 @@ def test_the_command_id_set_is_exactly_the_snapshot():
     assert not missing, f"snapshot ids no surface names any more: {sorted(missing)}"
 
 
-def test_the_snapshot_is_sorted_and_duplicate_free():
+def test_the_snapshot_is_sorted_and_duplicate_free_for_one_diff_line_per_id():
     rest = EXPECTED_COMMAND_IDS[len(HUD_ONLY_COMMAND_IDS):]
     assert list(rest) == sorted(set(rest))
     assert list(HUD_ONLY_COMMAND_IDS) == sorted(set(HUD_ONLY_COMMAND_IDS))
