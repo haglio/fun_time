@@ -37,7 +37,7 @@ from .dashboard_actions import (
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, FunestraFiles, who_drives_the_osr2
-from .dispatch_loop_setup import Publishing, SessionFiles, SessionStart
+from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionStart
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
 from .fun_time_funestras import FunTimeFunestra
@@ -77,8 +77,6 @@ from .window_names import visible_windows
 from .windows_bridge_random_favs_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
-
-DISPATCH_TICK_S = 0.05
 
 
 def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
@@ -427,7 +425,7 @@ class DispatchLoopRunner:
                 self.tick()
             except Exception:
                 logger.exception("Dispatch loop error")
-            self._stop.wait(DISPATCH_TICK_S)
+            self._stop.wait(LOOP_TICK_S)
 
     def _run_browser(self, command, **kwargs) -> None:
         process = subprocess.Popen(command, **no_child_log(), **kwargs)

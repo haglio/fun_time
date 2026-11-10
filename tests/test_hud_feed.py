@@ -201,7 +201,7 @@ class TestHudPublishing:
                 [f"{funestra}_kino_activate", f"{funestra}_origenerator_activate",
                  f"{funestra}_minimize", *crown]]
 
-    def test_a_satellite_switched_to_origenerator_keeps_its_whole_kino_hud_until_the_app_takes_it(
+    def test_a_satellite_the_app_is_still_filling_wears_its_own_videos_kino_hud(
             self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
@@ -215,7 +215,7 @@ class TestHudPublishing:
         assert [(button["command"], bool(button.get("lit"))) for button in portrait["rows"][0][:2]] == [
             ("portrait_kino_activate", True), ("portrait_origenerator_activate", False)]
 
-    def test_a_satellite_handed_back_wears_the_kino_hud_of_the_video_it_comes_home_to_at_once(
+    def test_a_handed_back_satellite_maps_its_video_at_once_not_the_apps_picture(
             self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         status = tmp_path / "portrait_status.txt"
@@ -280,7 +280,7 @@ class TestHudPublishing:
         assert commands
         assert [command for command in commands if command.endswith("_minimize")] == []
 
-    def test_a_hosted_hud_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
+    def test_losing_a_read_to_the_apps_republish_is_not_the_app_letting_go(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
         hosted_file.write_text(hud_text(HudModel(funestra="portrait", title="Locked")),
@@ -427,7 +427,7 @@ class TestHudPublishing:
         assert version_button(hud(tmp_path, "landscape"))["dim"] is True
 
 
-    def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
+    def test_a_hosted_reset_is_never_faded_the_session_cannot_see_the_show(self, tmp_path):
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(funestra="portrait", title="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
@@ -503,7 +503,7 @@ class TestHudPublishing:
 
         assert broker_is_up(dashboard(tmp_path))
 
-    def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
+    def test_broker_lights_read_the_machines_one_brokers_folder_not_a_branch_sessions(self, tmp_path):
         broker_state = tmp_path / "primary_state"
         broker_state.mkdir()
         feed = make_feed(tmp_path, config=make_config(
@@ -538,7 +538,7 @@ class TestHudPublishing:
                     if button["command"] == "main_lock")
         assert "every 7s" in lock["tooltip"]
 
-    def test_the_main_hud_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
+    def test_the_main_huds_lock_comes_off_the_showing_funestras_own_status_file(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
         main_funestra = feed.config.main_funestra_status_file
         genau = feed.config.state_dir / "genau_status.txt"
@@ -914,7 +914,7 @@ def test_the_portrait_huds_crown_is_lit_once_the_app_gives_it_the_crown(tmp_path
 
 
 class TestWhatTheHudSaysAboutWhereItSits:
-    def test_each_hud_carries_its_own_corner_and_collapse(self, tmp_path):
+    def test_each_hud_carries_the_corner_and_collapse_the_sessions_keys_gave_it(self, tmp_path):
         feed = make_feed(tmp_path)
         state = replace(
             BridgeState(),

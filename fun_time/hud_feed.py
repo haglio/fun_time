@@ -14,6 +14,7 @@ from funestra.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
 from .crown import Crown
+from .dispatch_loop_setup import LOOP_TICK_S
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import (
     MainFunestraStatus,
@@ -43,14 +44,14 @@ from .satellite_commands import satellite_at_defaults
 from .satellite_control import SatelliteStatus, read_satellite_status
 from .shared_state import BridgeState
 
-PUBLISH_INTERVAL_S = 0.15
+PUBLISH_INTERVAL_S = 3 * LOOP_TICK_S
 
 
 def _read_lost_a_race_with_the_republish(status: SatelliteStatus) -> bool:
     return not status.video
 
 
-class _RecordedFavorites:
+class _FavoritesReadOnceUntilTheRecordMoves:
     def __init__(self) -> None:
         self._read: dict[Path, tuple[tuple[int, int], bool]] = {}
 
@@ -74,7 +75,7 @@ class HudFeed:
         self.config = config
         self.publisher = publisher
         self._last_publish = 0.0
-        self._favorites = _RecordedFavorites()
+        self._favorites = _FavoritesReadOnceUntilTheRecordMoves()
         self._last_satellite_status: dict[str, SatelliteStatus] = {}
         self._the_apps_on_screen: dict[str, str] = {}
         self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
@@ -213,14 +214,16 @@ class HudFeed:
         except FileNotFoundError:
             text = ""
         except OSError:
-            return self._hosted_huds.get(funestra)
+            return self._the_hud_the_app_is_republishing(funestra)
         hud = self._hosted_huds[funestra] = parse_hud(text)
         return hud
+
+    def _the_hud_the_app_is_republishing(self, funestra: FunTimeFunestra) -> HudModel | None:
+        return self._hosted_huds.get(funestra)
 
     def _genau_pace_s(self) -> int:
         drive = read_drive(self.config.genau_drive_file)
         return drive.advance_interval if drive is not None else 0
-
 
     def the_video_it_comes_home_to(self, funestra: FunTimeFunestra) -> str:
         name = funestra.label
@@ -232,11 +235,14 @@ class HudFeed:
     def _satellite_status(self, funestra: str, status_file: Path) -> SatelliteStatus:
         status = read_satellite_status(status_file)
         if (_read_lost_a_race_with_the_republish(status)
-                or status.video == self._the_apps_on_screen.get(funestra)):
+                or self._still_names_the_apps_picture(funestra, status)):
             return self._last_satellite_status.get(funestra, status)
         self._the_apps_on_screen.pop(funestra, None)
         self._last_satellite_status[funestra] = status
         return status
+
+    def _still_names_the_apps_picture(self, funestra: str, status: SatelliteStatus) -> bool:
+        return status.video == self._the_apps_on_screen.get(funestra)
 
     def osr2_mode(self) -> Osr2Mode:
         return osr2_device.mode(self.config.broker_state)

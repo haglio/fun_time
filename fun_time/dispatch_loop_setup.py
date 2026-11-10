@@ -12,6 +12,8 @@ from .shortcuts import Shortcut
 from .text_field_clicks import Sightings
 from .window_layout import SecondaryMonitorRects
 
+LOOP_TICK_S = 0.05
+
 
 @dataclass(frozen=True)
 class SessionFiles:
