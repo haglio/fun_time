@@ -21,14 +21,14 @@ in either orchestrator:
 
 | | Carries |
 |---|---|
-| Both satellites' playlists, rotated onto the video each had on screen | yes — the two libraries are the same in either app |
-| Each satellite's lock | yes, re-queued on its command file |
-| F-mode per Funestra, each Satellite's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
+| What each Satellite plays | no — each opens on an empty list and plays what the hosted Origenerator gives it |
+| Each Satellite's HUD corner, edge and minimize, volume and mute | yes, via `resume_shared_state`; volume and mute re-queued on its command file |
+| The Main Funestra's F-mode and the other buttons its list is built from | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
 | The Main Funestra's mode (video / Genau) | yes |
 | The Main Funestra's video | yes, when the arriving session can play it |
 | The Main Funestra's A/B loop | yes, when the video carried — re-queued on the command file |
-| Every Funestra's playback rate | yes, re-queued on its command file |
+| The Main Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
 | The mic being off | yes, from Fun Time's state |
@@ -223,9 +223,8 @@ it is simply not something to pin any more.
 
 Origenerator is by far the slowest child of a session, either shape of it: its
 window lands ten to thirty seconds after launch, against five to eight for
-everything else. Both sessions host it as of 2026-09-20, so the Satellites'
-slideshows cross like any other Funestra's list — the slideshows are the Satellite
-Funestras' own playlists, and the headset's satellites are Funestras
+everything else. Every session hosts it, and a Satellite plays what the hosted Origenerator
+gives it, on the desktop and in the headset alike
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
 The curtain waits for it in every session that hosts it: the loading screen stays
