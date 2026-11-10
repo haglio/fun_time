@@ -25,9 +25,9 @@ def funestra_rects(screens: ScreenLayout, majority: Crown = Crown.PORTRAIT) -> F
     )
 
 
-def screens_if_known(layout: LayoutConfig, rfb_mode_selector: bool) -> ScreenLayout | None:
+def screens_if_known(layout: LayoutConfig) -> ScreenLayout | None:
     try:
-        return screen_layout(layout, rfb_mode_selector=rfb_mode_selector)
+        return screen_layout(layout)
     except (ValueError, OSError):
         return None
 

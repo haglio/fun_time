@@ -118,7 +118,6 @@ class DashboardAppConfig:
     state_dir: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
-    rfb_mode_selector: bool = False
 
 
 DashboardLaunchGeometry = Rect
@@ -185,7 +184,6 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
             "commands", "dashboard_state_file", fallback="dashboard_state.ini"),
         dashboard_cmd_file=state_dir / parser.get(
             "commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt"),
-        rfb_mode_selector=bool(parser.get("runtime", "origenerator_dir", fallback="").strip()),
     )
 
 
@@ -523,10 +521,9 @@ class DashboardWindow(QMainWindow):
         column.setSpacing(0)
         column.addWidget(self._widget, 0, Qt.AlignmentFlag.AlignLeft)
         column.addWidget(self._log_widget, 1)
-        self._mode_selector = RfbModeSelectorWidget() if app_config.rfb_mode_selector else None
-        if self._mode_selector is not None:
-            self._mode_selector.action_triggered.connect(self._on_action)
-            column.addWidget(self._mode_selector)
+        self._mode_selector = RfbModeSelectorWidget()
+        self._mode_selector.action_triggered.connect(self._on_action)
+        column.addWidget(self._mode_selector)
         self._osr2 = Osr2PartWidget(app_config.state_dir)
         self._osr2.action_triggered.connect(
             partial(write_dashboard_command, app_config.dashboard_cmd_file))
@@ -560,7 +557,7 @@ class DashboardWindow(QMainWindow):
 
         self._messages = MessageFeed(
             app_config.state_dir,
-            screens_if_known(app_config.layout, app_config.rfb_mode_selector),
+            screens_if_known(app_config.layout),
             make_overlay=MessageOverlay,
             held=self._reveal.deferred,
             list_what_was_heard=self._log_widget.show_what_was_heard,
@@ -632,8 +629,7 @@ class DashboardWindow(QMainWindow):
         pressed_actions: frozenset[str],
     ) -> None:
         self._last_snapshot = snapshot
-        if self._mode_selector is not None:
-            self._mode_selector.show_state(snapshot or DashboardSnapshot())
+        self._mode_selector.show_state(snapshot or DashboardSnapshot())
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
         self._reference.sync_topmost(omni_paused)

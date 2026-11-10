@@ -12,7 +12,6 @@ from funestra.file_channel import append_command
 
 from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import (
-    NO_HOSTED_VOCABULARY,
     HostedVocabulary,
     the_args_it_declares,
     what_it_answers_by_voice,
@@ -130,7 +129,7 @@ def _clear_a_frame_and_presses_that_would_read_as_live(m: LaunchManifest) -> Non
 
 
 def _the_monitor_layout_core_is_parked_in(m: LaunchManifest) -> WindowLayoutPlan:
-    return screen_layout(m.layout, rfb_mode_selector=m.runtime.hosts_origenerator).plan
+    return screen_layout(m.layout).plan
 
 
 def bring_up_the_hosted_app(
@@ -139,10 +138,8 @@ def bring_up_the_hosted_app(
     plan: WindowLayoutPlan | None = None,
     sibling_checkouts: str,
     in_a_headset: bool = False,
-) -> HostedApp | None:
+) -> HostedApp:
     origenerator_dir = m.runtime.origenerator_dir.strip()
-    if not origenerator_dir:
-        return None
     if plan is None:
         plan = _the_monitor_layout_core_is_parked_in(m)
     claim_the_osr2(origenerator_dir)
@@ -198,8 +195,6 @@ def _the_install_its_pinned_libraries_are_in(origenerator_dir: str) -> Path:
 
 def what_it_answers_by_voice_in(m: LaunchManifest, **asking) -> HostedVocabulary:
     origenerator_dir = m.runtime.origenerator_dir.strip()
-    if not origenerator_dir:
-        return NO_HOSTED_VOCABULARY
     return what_it_answers_by_voice(
         origenerator_dir, python_exe=_its_interpreter(m, origenerator_dir),
         launch_kwargs=origenerator_launch_kwargs(

@@ -548,9 +548,8 @@ def _launch_the_children(launch: _Launch, config, launched: _Launched) -> None:
     hosted = bring_up_the_hosted_app(
         manifest, sibling_checkouts=manifest.runtime.sibling_checkouts,
         in_a_headset=True)
-    if hosted is not None:
-        launched.hosted = hosted
-        launched.record("origenerator_pid", hosted.pid)
+    launched.hosted = hosted
+    launched.record("origenerator_pid", hosted.pid)
     audio = launch_audio_companion(manifest, audio_device=config.vr.audio_device)
     logger.info("Audio companion launched (pid=%d)", audio.pid)
     launched.record("audio_pid", audio.pid)
@@ -602,8 +601,7 @@ def _open_the_room(
             ahk_cmd=launch.ahk_cmd_file),
         SessionStart(
             windows=_no_windows_on_the_desktop(),
-            origenerator_showing_a_slideshow=hosted is not None and hosted.showing_a_slideshow,
-            hosts_origenerator=manifest.runtime.hosts_origenerator),
+            origenerator_showing_a_slideshow=hosted is not None and hosted.showing_a_slideshow),
         publishing_to_the_dashboard_in_the_room,
     )
     voice_controller, voice_thread = start_voice_control(

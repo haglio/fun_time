@@ -97,7 +97,6 @@ def _build_merged_dashboard(cfg_path: Path):
         primary_monitor=MonitorRect(0, 0, 2560, 1392),
         secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
         layout_config=config.layout,
-        rfb_mode_selector=app_config.rfb_mode_selector,
     )
     launch_geo = DashboardLaunchGeometry(
         plan.dashboard.x, plan.dashboard.y, plan.dashboard.width, plan.dashboard.height,
@@ -119,17 +118,14 @@ def test_log_stream_fills_the_column_under_the_control_bar(cfg_path: Path):
         assert log.y() == bar.y() + bar.height()
         assert log.width() == osr2.x()
         assert (osr2.x() + osr2.width(), osr2.y()) == (central.width(), 0)
-        assert bar.height() + log.height() == central.height()
+        assert bar.height() + log.height() + window._mode_selector.height() == central.height()
         assert log.height() > bar.height()
     finally:
         window.close()
 
 
-def test_in_a_session_hosting_origenerator_the_strip_takes_the_columns_lower_edge(
-        cfg_factory, tmp_path: Path):
-    (tmp_path / "origenerator").mkdir()
-    window, _state_dir = _build_merged_dashboard(
-        cfg_factory({"paths": {"origenerator_dir": str(tmp_path / "origenerator")}}))
+def test_the_strip_takes_the_columns_lower_edge(cfg_path: Path):
+    window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         central, log, strip = window.centralWidget(), window._log_widget, window._mode_selector
         assert strip.height() == RFB_MODE_SELECTOR_HEIGHT

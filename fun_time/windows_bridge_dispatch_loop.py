@@ -153,7 +153,7 @@ class DispatchLoopRunner:
         left_in = read_shared_state(files.shared_state) or BridgeState()
         self.state = with_the_browser_in_its_place(left_in)
         self.opening = OrigeneratorOpening(
-            config, left_in, hosting=start.hosts_origenerator,
+            config, left_in,
             already_open=start.origenerator_already_open,
             showing_a_slideshow=start.origenerator_showing_a_slideshow)
         self._last_sync = 0.0
@@ -760,8 +760,7 @@ def build_bridge_config_from_manifest(
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
         origenerator_cmd_file=Path(commands.origenerator_cmd_file),
-        origenerator_said_at_suffix=(
-            said_at_suffix_of(v) if (v := manifest.runtime.origenerator_dir.strip()) else ""),
+        origenerator_said_at_suffix=said_at_suffix_of(manifest.runtime.origenerator_dir.strip()),
         origenerator_paused_file=Path(commands.origenerator_paused_file),
         origenerator_status_file=Path(commands.origenerator_status_file),
     )

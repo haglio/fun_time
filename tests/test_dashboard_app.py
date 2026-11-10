@@ -168,7 +168,7 @@ def _lay_out(widget: QWidget) -> None:
 def _placed_where_a_session_places_it(app_config):
     plan = compute_window_layout(
         primary_monitor=Rect(0, 0, 2560, 1392), secondary_monitor=Rect(2560, 0, 1440, 3440),
-        layout_config=app_config.layout, rfb_mode_selector=app_config.rfb_mode_selector)
+        layout_config=app_config.layout)
     window = build_dashboard_window(app_config, launch_geometry=plan.dashboard)
     _lay_out(window)
     return window
@@ -1735,18 +1735,10 @@ def test_the_dashboards_config_names_the_one_directory_its_files_live_in(tmp_pat
     assert app_config.dashboard_cmd_file == manifest_path.parent / "dashboard_cmd.txt"
 
 
-def _strip_app_config(cfg_factory, tmp_path):
-    origenerator = tmp_path / "origenerator"
-    origenerator.mkdir(exist_ok=True)
-    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator)}}))
-    return load_dashboard_app_config(
-        write_windows_bridge_manifest(config, tmp_path / "hosting_manifest.ini"))
-
-
 @pytest.fixture
-def mode_selector_window(cfg_factory, tmp_path):
+def mode_selector_window(dashboard_app_config):
     window = build_dashboard_window(
-        _strip_app_config(cfg_factory, tmp_path),
+        dashboard_app_config,
         launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=600, height=400))
     try:
         yield window
@@ -1763,18 +1755,9 @@ def _press_the_strip(window, label: str) -> None:
     QTest.mouseClick(window._mode_selector, Qt.MouseButton.LeftButton, pos=QPoint(*_on_the_mode_selector(window._mode_selector, label)))
 
 
-def test_only_a_session_hosting_origenerator_gives_its_dashboard_the_strip(
-        cfg_factory, cfg_path, tmp_path):
-    plain = load_dashboard_app_config(
-        write_windows_bridge_manifest(load_config(cfg_path), tmp_path / "plain_manifest.ini"))
-
-    assert _strip_app_config(cfg_factory, tmp_path).rfb_mode_selector is True
-    assert plain.rfb_mode_selector is False
-
-
 def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part(
-        cfg_factory, tmp_path, dashboard_window):
-    window = _placed_where_a_session_places_it(_strip_app_config(cfg_factory, tmp_path))
+        dashboard_app_config):
+    window = _placed_where_a_session_places_it(dashboard_app_config)
     try:
         bar, log, strip, osr2 = window._widget, window._log_widget, window._mode_selector, window._osr2
 
@@ -1783,7 +1766,6 @@ def test_the_bar_the_log_and_the_strip_stand_in_one_column_left_of_the_osr2_part
         assert _at(window, strip) == QPoint(0, bar.height() + log.height())
         assert log.width() == strip.width() == _at(window, osr2).x()
         assert (strip.height(), strip.y() + strip.height()) == (RFB_MODE_SELECTOR_HEIGHT, window.height())
-        assert dashboard_window._mode_selector is None
     finally:
         window.close()
 

@@ -141,10 +141,6 @@ class RuntimePaths:
     sibling_checkouts: str = ""
     origenerator_dir: str = ""
 
-    @property
-    def hosts_origenerator(self) -> bool:
-        return bool(self.origenerator_dir.strip())
-
 
 @dataclass(frozen=True)
 class Executables:

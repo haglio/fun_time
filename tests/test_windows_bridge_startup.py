@@ -949,18 +949,11 @@ def test_genaus_files_are_named_by_the_session_never_found_by_genau(tmp_path: Pa
     assert command[command.index("--genau-status-file") + 1] == "a-state-dir/genau_status.txt"
 
 
-def test_a_session_hosting_origenerator_hands_genau_origenerators_commands(tmp_path: Path):
-    command = _launched_main_funestra(tmp_path, origenerator_dir="C:/origenerator",
-                                      origenerator_cmd_file="a-state-dir/origenerator_cmd.txt")
+def test_genau_is_handed_origenerators_commands(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path, origenerator_cmd_file="a-state-dir/origenerator_cmd.txt")
 
     assert command[command.index("--origenerator-command-file") + 1] == (
         "a-state-dir/origenerator_cmd.txt")
-
-
-def test_a_session_hosting_no_origenerator_hands_genau_no_commands_of_it(tmp_path: Path):
-    command = _launched_main_funestra(tmp_path, origenerator_cmd_file="a-state-dir/origenerator_cmd.txt")
-
-    assert "--origenerator-command-file" not in command
 
 
 def test_the_main_funestra_opens_genau_on_the_flick_it_was_left_showing(tmp_path: Path):
@@ -1445,6 +1438,8 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "a-state-dir/genau_paused.txt",
         "--genau-status-file",
         "a-state-dir/genau_status.txt",
+        "--origenerator-command-file",
+        launch["m"].commands.origenerator_cmd_file,
         "--osr2-port",
         "50599",
     ]

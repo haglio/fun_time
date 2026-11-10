@@ -438,6 +438,10 @@ class TestInstanceId:
 
 class TestOrigeneratorPaths:
     def test_absent_keys_mean_no_origenerator(self, cfg_path: Path):
+        written = json.loads(cfg_path.read_text(encoding="utf-8"))
+        del written["paths"]["origenerator_dir"]
+        cfg_path.write_text(json.dumps(written), encoding="utf-8")
+
         cfg = load_config(cfg_path)
         assert cfg.paths.origenerator_dir is None
         assert cfg.paths.origenerator_python_exe is None

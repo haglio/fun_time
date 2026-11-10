@@ -21,11 +21,11 @@ def with_the_browser_in_its_place(state: BridgeState) -> BridgeState:
 
 
 class OrigeneratorOpening:
-    def __init__(self, config: BridgeConfig, left_in: BridgeState, *, hosting: bool,
+    def __init__(self, config: BridgeConfig, left_in: BridgeState, *,
                  already_open: bool, showing_a_slideshow: bool) -> None:
         self._config = config
         self._is_up = already_open
-        self._owed = hosting
+        self._owed = True
         self.puts_origenerator_in_the_browsers_place = (
             showing_a_slideshow or left_in.rfb_mode is RfbMode.ORIGENERATOR)
 

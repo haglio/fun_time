@@ -75,8 +75,7 @@ class TestWhereTheAppsOwnWindowGoes:
              patch("fun_time.hosted_origenerator.launch_origenerator",
                    side_effect=_a_stand_in_launch_that_takes_any_argument(captured)):
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
-            the_browsers_rect = screen_layout(
-                config.layout, rfb_mode_selector=True).plan.random_faves_browser
+            the_browsers_rect = screen_layout(config.layout).plan.random_faves_browser
         return captured["session"].layout_plan.random_faves_browser, the_browsers_rect
 
     def test_the_window_takes_the_random_faves_browsers_rect_under_the_strip(
@@ -92,15 +91,6 @@ class TestWhereTheAppsOwnWindowGoes:
             cfg_factory, tmp_path, in_a_headset=True)
 
         assert core == the_browsers_rect
-
-    def test_a_session_hosting_none_runs_where_there_are_no_monitors(
-            self, cfg_factory, tmp_path):
-        _config, manifest = _manifest_for(cfg_factory, tmp_path, {})
-        as_on_the_merge_gate = OSError("a headless run has no monitors to read")
-
-        with patch("fun_time.window_layout.enumerate_monitors",
-                   side_effect=as_on_the_merge_gate):
-            assert bring_up_the_hosted_app(manifest, sibling_checkouts="") is None
 
 
 class TestHandingTheWindowToTheHeadset:
