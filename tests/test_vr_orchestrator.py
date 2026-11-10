@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import subprocess
 import textwrap
 import threading
 import time
@@ -27,6 +28,7 @@ from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
 from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
+from fun_time.mode_plan import show_verb
 from fun_time.modes import VideoShapes
 from fun_time.origenerator_switches import ORIGENERATOR_MODE
 from fun_time.overlay_progress import (
@@ -193,8 +195,10 @@ class TestVrManifest:
         written = set(build_vr_manifest(config)["vr"])
         read_back = {field.name for field in fields(VrSettings)}
         genau_keys = set(GenauSettings().manifest_fields())
+        started_from_the_launchers_own_constant = {"funestra_module"}
 
-        assert written - {"funestra_module"} - genau_keys == read_back - {"genau"}
+        assert written - started_from_the_launchers_own_constant - genau_keys == (
+            read_back - {"genau"})
         assert genau_keys <= written
 
     def test_manifest_carries_a_layers_opt_in(self, config):
@@ -238,7 +242,7 @@ class TestOrigeneratorInVr:
 
         assert bridge.origenerator_enabled is True
 
-    def test_the_session_brings_the_app_up_before_the_funestra(self):
+    def test_the_hosted_app_whose_boot_is_slowest_starts_before_the_funestra(self):
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["bring_up_the_hosted_app"] < calls["launch_vr_funestras"]
@@ -311,7 +315,7 @@ class TestOrigeneratorInVr:
         assert (calls["finish_under_the_loading_screen"]
                 < calls["progress.advance"])
 
-    def test_the_mode_is_taken_up_before_the_room_is_shown(self):
+    def test_the_mode_is_taken_up_before_done_brings_the_loading_screen_down(self):
         calls = _call_lines_in_run_vr_bridge()
 
         assert (calls["finish_under_the_loading_screen"]
@@ -344,14 +348,14 @@ class TestWaitForSessionEnd:
             _FakeProc(exits_after_polls=2), _FakeProc(), state_dir=tmp_path, poll_s=0.0
         ) == "ahk"
 
-    def test_a_marked_end_ends_the_session_with_the_script_still_running(self, tmp_path):
+    def test_a_marked_end_leaves_the_script_up_to_hear_esc_on_the_closing_screen(self, tmp_path):
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
 
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0
         ) == "asked"
 
-    def test_the_script_left_running_by_a_marked_end_is_stopped_after_the_teardown(self):
+    def test_no_hotkey_script_outlives_the_teardown_still_holding_the_keys_it_binds(self):
         tree = ast.parse(_the_session_as_one_source())
         (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
             isinstance(c, ast.Call) and ast.unparse(c.func) == "_wait_for_session_end"
@@ -362,7 +366,7 @@ class TestWaitForSessionEnd:
         assert "stop_hotkey_script" in calls
         assert calls.index("kill_recorded_child") < calls.index("stop_hotkey_script")
 
-    def test_funestra_exit_ends_the_session_too(self, tmp_path):
+    def test_closing_the_headsets_only_window_ends_the_session(self, tmp_path):
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
         ) == "funestras"
@@ -392,7 +396,7 @@ class TestTheModeASessionComesBackIn:
 
         assert read_shared_state(state_file).main_mode is MainMode.GENAU
 
-    def test_the_flags_are_seeded_in_the_carried_mode(self):
+    def test_the_flags_are_seeded_in_the_mode_the_dispatch_loop_will_read(self):
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
 
         assert [ast.unparse(argument) for argument in seed.args] == ["manifest", "carried"]
@@ -412,12 +416,18 @@ class TestTheModeASessionComesBackIn:
         assert (given["carried"], given["main_video"]) == (
             "carried", "main_funestra_status.video")
 
-    def test_the_flags_are_seeded_after_the_main_list_has_said_what_it_opens_on(self):
-        source = _the_session_as_one_source()
+    def test_the_flags_are_seeded_from_the_state_the_stocked_list_answers(self, config):
+        _left_in(config, BridgeState(main_mode=MainMode.GENAU))
+        the_list_answers_kino = MagicMock(
+            side_effect=lambda _launch, **asked: replace(asked["carried"], main_mode=MainMode.KINO))
 
-        assert source.index("stock_the_playlists(") < source.index("seed_startup_states(")
+        queued = _queued_when_the_funestra_launches(
+            config, SessionEnvironment(), stock_the_playlists=the_list_answers_kino)
 
-    def test_the_loop_the_main_funestra_was_running_is_queued_for_it(self):
+        assert show_verb(MainMode.KINO) in queued["main"]
+        assert show_verb(MainMode.GENAU) not in queued["main"]
+
+    def test_the_loop_that_lived_only_in_the_desktops_funestra_is_queued_again(self):
         (resume,) = self._calls("run_vr_bridge", "resume_main_loop")
 
         assert [ast.unparse(arg) for arg in resume.args] == [
@@ -426,7 +436,7 @@ class TestTheModeASessionComesBackIn:
             "bridge_config.main_list.file",
         ]
 
-    def test_it_is_queued_after_the_playlists_are_stocked(self):
+    def test_the_loop_is_queued_once_the_stocked_list_says_which_video_opens(self):
         source = _the_session_as_one_source()
 
         assert source.index("stock_the_playlists(") < source.index("resume_main_loop(")
@@ -453,7 +463,7 @@ class TestTheModeASessionComesBackIn:
 
 
 class TestLaunchVrFunestras:
-    def test_the_funestra_starts_on_the_named_python_against_the_manifest(self, tmp_path):
+    def test_the_funestra_with_no_console_leaves_its_output_in_a_log(self, tmp_path):
         with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
             launch_vr_funestras(
                 python_exe=tmp_path / "python.exe",
@@ -466,8 +476,10 @@ class TestLaunchVrFunestras:
             str(tmp_path / "python.exe"), "-m", VR_FUNESTRAS_MODULE,
             "--manifest", str(tmp_path / "windows_bridge_launch.ini"),
         ]
-        assert popen.call_args.kwargs["stdout"] is popen.call_args.kwargs["stderr"]
-        assert (tmp_path / "vr_funestras.log").exists()
+        kept = popen.call_args.kwargs
+        assert kept["stdout"] is kept["stderr"]
+        assert Path(kept["stdout"].name) == tmp_path / "vr_funestras.log"
+        assert kept["creationflags"] & subprocess.CREATE_NO_WINDOW
 
 
 class TestWaitForFunestra:
@@ -565,7 +577,7 @@ class _ACancelledLaunch:
         return self.loading_screen.progress
 
 
-class TestStockingThePlaylists:
+class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
     def _stock(self, config, tmp_path, *, resumed: bool, carried: BridgeState | None = None,
                main_video: str = "") -> BridgeState:
         manifest = LaunchManifest.read(
@@ -654,7 +666,7 @@ class TestResumeGenausShapes:
         return VideoShapes(vr_dirs=str(tmp_path / "vr_flicks"),
                            plays_vr=plays_vr, plays_flat=plays_flat)
 
-    def test_queues_the_one_shape_genau_was_narrowed_to(self, tmp_path: Path):
+    def test_a_genau_that_rescans_whole_at_launch_is_sent_its_one_shape_again(self, tmp_path: Path):
         genau = tmp_path / "genau_cmd.txt"
         genau.write_text("PAUSE\n", encoding="utf-8")
 
@@ -800,7 +812,9 @@ class TestTheWayBackIntoVr:
         assert held_at_launch == [False]
 
 
-def _queued_when_the_funestra_launches(config, env: SessionEnvironment) -> dict[str, list[str]]:
+def _queued_when_the_funestra_launches(
+    config, env: SessionEnvironment, **overrides,
+) -> dict[str, list[str]]:
     class FunestraLaunched(Exception):
         pass
 
@@ -817,7 +831,8 @@ def _queued_when_the_funestra_launches(config, env: SessionEnvironment) -> dict[
             queued[name] = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
         raise FunestraLaunched
 
-    with _launch_stand_ins(orchestrator, [], launch_vr_funestras=MagicMock(side_effect=launch)), \
+    with _launch_stand_ins(orchestrator, [], launch_vr_funestras=MagicMock(side_effect=launch),
+                           **overrides), \
          patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
          patch("fun_time_vr.orchestrator.subprocess.Popen"), \
          pytest.raises(FunestraLaunched):
@@ -855,6 +870,14 @@ class TestWhatAReopenCarriesIntoTheHeadset:
         assert queued["genau"][0] == "PAUSE", "the fresh session's reset must still lead"
         assert queued["genau"][-2:] == ["SPEED 76", "LEARNED_ON"]
 
+    def test_genaus_shapes_outlast_the_seeding_that_writes_its_command_file_whole(self, config):
+        _left_in(config, BridgeState(genau_plays_vr=False))
+
+        queued = _queued_when_the_funestra_launches(config, SessionEnvironment())
+
+        assert queued["genau"][0] == "PAUSE"
+        assert "SHAPES flat" in queued["genau"]
+
 class TestHandingTheHeadsetOver:
     class _Alive:
         def poll(self):
@@ -890,7 +913,7 @@ class TestHandingTheHeadsetOver:
         assert headset_hold_asked(tmp_path) is False, "the next launch must not read it"
 
 
-def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch, tmp_path):
+def test_a_session_stops_the_runtime_it_started_with_no_window_to_quit(monkeypatch, tmp_path):
     stopped = []
     monkeypatch.setattr(
         "fun_time_vr.orchestrator.vr_runtime.stop_the_runtime_a_session_started", stopped.append)
@@ -980,7 +1003,7 @@ class TestGenausRoleInTheManifest:
 
 
 class TestTheOnePin:
-    def test_the_vr_funestra_claims_fun_times_own_identity(self):
+    def test_a_vr_session_being_fun_time_in_a_headset_claims_fun_times_identity(self):
         source = inspect.getsource(app.main)
         claimed = [
             ast.unparse(node.args[0])
@@ -989,6 +1012,15 @@ class TestTheOnePin:
             and getattr(node.func, "id", "") == "set_app_user_model_id"
         ]
         assert claimed == ["preview_marker.session_identity(preview_marker.shown_as())"]
+
+    def test_the_identity_is_claimed_before_any_window_of_the_session_exists(self):
+        called_at = {ast.unparse(node.func): node.lineno
+                     for node in ast.walk(ast.parse(inspect.getsource(app.main)))
+                     if isinstance(node, ast.Call)}
+        what_opens_a_window = ("_say_why_the_headset_never_lit_up", "_run")
+
+        assert all(called_at["set_app_user_model_id"] < called_at[opener]
+                   for opener in what_opens_a_window)
 
     def test_there_is_no_second_identity_left_to_claim(self):
         assert not [name for name in vars(win32_taskbar) if name.endswith("APP_USER_MODEL_ID")
@@ -1067,10 +1099,12 @@ class TestTheAudioCompanionInVr:
         assert [ast.unparse(argument) for argument in launch.args] == ["manifest"]
         assert given["audio_device"] == "config.vr.audio_device"
 
-    def test_it_is_launched_before_the_funestra_and_killed_with_it(self):
+    def test_it_is_listening_before_genaus_role_can_name_its_first_flick(self):
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["launch_audio_companion"] < calls["launch_vr_funestras"]
+
+    def test_it_is_killed_with_the_funestra(self):
         assert "for child in launched.children.values():" in _the_session_as_one_source()
 
 
@@ -1136,13 +1170,13 @@ class TestTheHeadsetsLoadingScreen:
         assert not loading_screen.progress_file.exists()
         assert not loading_screen.cancel_file.exists()
 
-    def test_the_hotkey_script_is_up_before_the_funestra(self):
+    def test_the_script_that_hears_esc_is_up_before_anything_esc_could_cancel(self):
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["launch_hotkey_script"] < calls["launch_vr_funestras"]
         assert calls["launch_vr_funestras"] < calls["write_pids_file"]
 
-    def test_the_funestras_are_released_after_the_loading_screen_comes_down(self):
+    def test_no_video_plays_its_first_seconds_under_the_loading_screen(self):
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["progress.finish"] < calls["release_the_funestras"]
@@ -1189,7 +1223,7 @@ class TestCancellingALaunch:
 
         assert pending_handoff(tmp_path) is None
 
-    def test_the_funestra_is_killed_last_whatever_order_it_was_recorded_in(
+    def test_the_funestra_showing_canceling_is_killed_last_whatever_the_recorded_order(
             self, tmp_path, monkeypatch):
         children = {
             "vr_funestras_pid": ChildProcess(pid="funestras", created_at=1),
@@ -1226,7 +1260,7 @@ class TestCancellingALaunch:
 
         assert pending_handoff(tmp_path) == DESKTOP
 
-    def test_esc_hands_the_monitors_back_to_the_session_he_came_from(
+    def test_esc_never_leaves_the_transition_screen_up_with_no_session_behind_it(
             self, tmp_path, monkeypatch):
         self._cancel(tmp_path, monkeypatch)
 
@@ -1265,11 +1299,17 @@ class TestCancellingALaunch:
         taken = take_handoff_request(tmp_path)
         assert (taken.target, taken.cancelable) == (DESKTOP, False)
 
-    def test_the_monitors_say_so_the_moment_esc_lands(self, tmp_path, monkeypatch):
-        self._cancel(tmp_path, monkeypatch)
+    def test_the_monitors_say_canceling_before_the_teardown_that_takes_seconds(
+            self, tmp_path, monkeypatch):
+        said_by_the_first_kill: list[str] = []
 
-        said = crossing_progress_path(tmp_path).read_text(encoding="utf-8")
-        assert CANCELING in said
+        self._cancel(tmp_path, monkeypatch, Cancelling(
+            children={"audio_pid": ChildProcess(pid="audio", created_at=1)},
+            while_ending=lambda _child: said_by_the_first_kill.append(
+                crossing_progress_path(tmp_path).read_text(encoding="utf-8"))))
+
+        assert len(said_by_the_first_kill) == 1
+        assert CANCELING in said_by_the_first_kill[0]
 
     def test_the_quit_chord_takes_the_monitors_back_instead(
             self, tmp_path, monkeypatch):
@@ -1393,7 +1433,7 @@ class TestTheClosingScreen:
 
         assert on_disk_when_asked == [True]
 
-    def test_the_funestra_is_the_last_child_teardown_kills(self):
+    def test_the_funestra_showing_the_closing_screen_is_the_last_child_killed(self):
         tree = ast.parse(_the_session_as_one_source())
         kills = [ast.unparse(n) for n in sorted(
             (n for n in ast.walk(tree)
@@ -1436,7 +1476,7 @@ class TestWaitingForTheRoom:
 
         assert discarded, "the launch branches on a wait that is meant to be advisory"
 
-    def test_the_room_is_waited_for_before_the_loading_screen_comes_down(self):
+    def test_the_loading_screen_waits_past_the_first_status_for_frames_in_the_headset(self):
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["_wait_for_funestra"] < calls["_wait_for_the_room"]
@@ -1449,7 +1489,7 @@ class TestWaitingForTheRoom:
         assert source.index("room_ready_file.unlink") < source.index("launch_vr_funestras(")
 
 
-class TestEscDuringTheLongWait:
+class TestEscDuringTheMinutesAColdHeadsetTakes:
     class _Cancelled:
         cancelled = True
 
@@ -1519,7 +1559,7 @@ class TestTheHotkeyScriptsArguments:
             orchestrator.run_vr_bridge(config, SessionEnvironment())
         return launched[0]
 
-    def test_it_is_told_which_orchestrator_to_watch(self, config):
+    def test_a_script_that_can_outlive_a_crossing_is_told_which_orchestrator_to_watch(self, config):
         assert self._launched(config)[-1] == str(os.getpid())
 
     def test_it_is_the_desks_own_script_so_esc_pauses_the_room_in_the_headset_too(self, config):
@@ -1781,7 +1821,7 @@ class TestOpeningAVrSession:
             crossing_progress_path(config.paths.state_dir).read_text(encoding="utf-8"))
         assert (line.message, line.hint) == (CANCELING, "")
 
-    def test_the_funestra_is_asked_to_hold_before_the_controls_come_down(self, config):
+    def test_the_funestras_long_letting_go_runs_beside_the_controls_coming_down(self, config):
         controls = MagicMock()
         asked_by_then: list[bool] = []
         controls.stop.side_effect = lambda: asked_by_then.append(
@@ -1795,7 +1835,7 @@ class TestOpeningAVrSession:
 
         assert asked_by_then == [True]
 
-    def test_a_crossing_hands_the_funestra_the_runtime_this_session_started(self, config):
+    def test_a_crossing_leaves_the_runtime_it_started_to_the_funestra_outliving_it(self, config):
         asked = MagicMock()
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_to_cross(config),

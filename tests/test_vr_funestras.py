@@ -3311,7 +3311,7 @@ class TestEachUnitKeepsTheSpotItsOwnScreenOpensIn:
     def test_the_satellites_ride_above_the_horizon(self):
         assert _SatelliteUnit.SPOTS[LANDSCAPE].elevation_deg > 0
 
-    def test_the_gallery_hangs_clear_of_the_player_beside_it(self):
+    def test_the_gallery_never_covers_the_satellite_showing_the_hosted_apps_show(self):
         gallery = _GalleryUnit.SPOTS[GALLERY]
         landscape = _SatelliteUnit.SPOTS[LANDSCAPE]
 
