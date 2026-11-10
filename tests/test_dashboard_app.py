@@ -474,7 +474,7 @@ def test_a_minimize_while_the_loading_screen_is_up_routes_nothing(dashboard_app_
     window.close()
 
 
-def test_the_reveals_own_restore_routes_nothing_but_rearms_the_routing(dashboard_app_config):
+def test_only_the_reveals_own_restore_routes_nothing(dashboard_app_config):
     window = _window_built_while_startup_is_still_building(dashboard_app_config)
     assert window._reveal.routing_suppressed is True
     cmd_file = dashboard_app_config.dashboard_cmd_file

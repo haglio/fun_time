@@ -49,25 +49,19 @@ class LoadingReveal:
         self.deferred = False
         self._routing_suppressed = False
         assert self._window is not None
-        loading_screen = _the_loading_screen_found_before_anything_moves()
+        loading_screen = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
         if loading_screen:
             self._reveal_beneath(loading_screen)
         else:
             self._reveal_where_it_sits()
 
     def _reveal_beneath(self, loading_screen: int) -> None:
-        self._leave_the_band_a_shown_window_tops()
+        # By the Windows rule, a window that is not topmost cannot be above one that is.
+        set_always_on_top(self._hwnd, False)
         self._reveal_where_it_sits()
         set_always_on_top(self._hwnd, True, under=loading_screen)
-
-    def _leave_the_band_a_shown_window_tops(self) -> None:
-        set_always_on_top(self._hwnd, False)
 
     def _reveal_where_it_sits(self) -> None:
         assert self._window is not None
         self._window.show()
         show_own_window(self._hwnd)
-
-
-def _the_loading_screen_found_before_anything_moves() -> int:
-    return find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
