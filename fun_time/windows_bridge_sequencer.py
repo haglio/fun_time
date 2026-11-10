@@ -262,6 +262,10 @@ def _launch_the_satellites(
     return main_mode, portrait_pid, landscape_pid
 
 
+def _drop_the_status_still_naming_last_sessions_video(status_file: Path) -> None:
+    status_file.unlink(missing_ok=True)
+
+
 def _launch_the_main_funestra(
     m: LaunchManifest,
     *,
@@ -275,7 +279,7 @@ def _launch_the_main_funestra(
     genau_flick = read_genau_status(Path(m.commands.genau_status_file)).flick
     state = read_shared_state(shared_state_path(state_dir)) or BridgeState()
     main_funestra_status_file = Path(m.commands.main_funestra_status_file)
-    main_funestra_status_file.unlink(missing_ok=True)
+    _drop_the_status_still_naming_last_sessions_video(main_funestra_status_file)
     main_funestra_log = _log_for_a_funestra_pythonw_gives_no_console(state_dir, "main_funestra")
     main_funestra_logs = logs_as_they_stand(main_funestra_log)
     main_funestra_pid = launch_main_funestra(
@@ -295,7 +299,7 @@ def _launch_the_main_funestra(
     return main_funestra_pid, main_funestra_status_file
 
 
-def _launch_the_hosted_origenerator(
+def _start_the_hosted_apps_long_boot(
     m: LaunchManifest,
     *,
     plan: WindowLayoutPlan,
@@ -313,7 +317,7 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    origenerator_pid = _launch_the_hosted_origenerator(
+    origenerator_pid = _start_the_hosted_apps_long_boot(
         m, plan=layout.plan, sibling_checkouts=m.runtime.sibling_checkouts, launched=launched)
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
         m, plan=layout.plan, state_dir=state_dir, launched=launched)
@@ -491,7 +495,8 @@ def _run_startup_phases(
 
     raise_if_a_funestra_died(launched.funestras)
 
-    if not hide_windows:
+    no_loading_screen_hides_the_videos_opening_seconds = not hide_windows
+    if no_loading_screen_hides_the_videos_opening_seconds:
         release_the_funestras(m, core.main_mode)
 
     return StartupResult(
@@ -562,10 +567,14 @@ def _wait_for_main_funestra_loaded(
         if progress.cancelled:
             raise StartupCancelled()
         raise_if_a_funestra_died(funestras)
-        if read_main_funestra_status(status_file).video:
+        if _is_past_the_loading_screen_its_window_opens_on(status_file):
             return True
         time.sleep(0.1)
     return False
+
+
+def _is_past_the_loading_screen_its_window_opens_on(status_file: Path) -> bool:
+    return bool(read_main_funestra_status(status_file).video)
 
 
 def _maybe_launch_random_favs_browser(

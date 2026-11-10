@@ -21,7 +21,7 @@ from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
 from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.fun_time_funestras import FunTimeFunestra
-from fun_time.funestra_deaths import FunestraDied
+from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra
 from fun_time.funestra_status import (
     read_main_funestra_status,
 )
@@ -306,9 +306,12 @@ class TestRunStartupSequence:
 
         assert core_called["state_dir"] == tmp_path
         commands = core_called["m"].commands
-        assert Path(core_called["m"].regen.metadata_root) == tmp_path / "metadata"
-        assert commands.broker_state_dir == str(cfg.paths.broker_state_dir)
-        assert commands.broker_cmd_file == str(cfg.broker_cmd_file)
+        assert Path(core_called["m"].regen.metadata_root) == tmp_path / "metadata", (
+            "the startup's playlist build collapses action groups from it")
+        assert commands.broker_state_dir == str(cfg.paths.broker_state_dir), (
+            "startup leaves a Broker found running there alone")
+        assert commands.broker_cmd_file == str(cfg.broker_cmd_file), (
+            "startup parks the OSR2 through it for the long wait")
 
     def test_the_ui_launch_enables_the_dashboard_and_forwards_the_rfb_rect(self, cfg_factory, tmp_path):
         _cfg, _result, _core, ui_called = self._captured_launch(cfg_factory, tmp_path)
@@ -546,7 +549,8 @@ class TestRunStartupSequence:
 
         _run_revealing_sequence(manifest_path, tmp_path, mode)
 
-        assert genau_cmd.read_text(encoding="utf-8") == ""
+        assert genau_cmd.read_text(encoding="utf-8") == "", (
+            "a hand started here would be on the OSR2 against a funscript about to take it")
 
     def test_a_genau_reveal_leaves_kinos_video_held_under_genaus_flick(self, cfg_factory, tmp_path):
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
@@ -638,7 +642,7 @@ class TestTheOrderInsideTheStartupPhases:
 
         assert order.index("layout") < order.index("core")
 
-    def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
+    def test_the_main_funestras_slow_load_has_the_companions_launch_to_run_in(self, cfg_factory, tmp_path):
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order.index("main_funestra") < order.index("companions")
@@ -733,6 +737,17 @@ class TestAFunestraThatDiesWhileTheRoomComesUp:
 
         assert set(died.value.launched_pids) >= {30, 40, MAIN_FUNESTRA_PID}
 
+    def test_a_dead_funestra_is_not_waited_out_as_a_slow_one_is(self, tmp_path):
+        gone = [LaunchedFunestra("the Main Funestra", MAIN_FUNESTRA_PID)]
+
+        with (
+            patch("fun_time.funestra_deaths.is_process_alive", return_value=False),
+            sleeps_in(windows_bridge_sequencer),
+            pytest.raises(FunestraDied),
+        ):
+            _wait_for_main_funestra_loaded(
+                tmp_path / "never.txt", NullProgress(), timeout_s=0.3, funestras=gone)
+
     def test_an_app_whose_funestras_are_all_running_is_not_stopped(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
@@ -790,7 +805,7 @@ class TestLoadingScreenStartup:
         assert result.hwnds_by_window == {
             "portrait": 3030, "landscape": 4040, "main_funestra": 2525,
             "dashboard": 5050, "rfb": 0,
-        }
+        }, "the hosted app is still booting; the dispatch loop finds its windows when asked"
 
     def test_the_dashboard_is_found_hidden_under_the_loading_screen(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -824,7 +839,9 @@ class TestTheRoomIsBandedUnderTheLoadingScreen:
         promotions = [(h, under) for h, on, under in self._calls(beneath=self.LOADING_SCREEN) if on]
 
         assert promotions, "nothing was promoted, so this proves nothing"
-        assert all(under == self.LOADING_SCREEN for _h, under in promotions)
+        assert all(under == self.LOADING_SCREEN for _h, under in promotions), (
+            "Windows puts a window made topmost at the very top, over the loading screen, "
+            "until the loading screen takes the top back")
 
     def test_the_walk_still_promotes_in_role_order(self):
         banded = [h for h, on, _under in self._calls(beneath=self.LOADING_SCREEN) if on]
@@ -898,6 +915,11 @@ class TestPhase4Reveal:
 
         assert topmost_calls == []
 
+PROGRESS_IS_WRITTEN_ONLY_AS_A_PHASE_STARTS = (
+    "a phase's waits run under the one progress write its start made, so a longer phase "
+    "goes stale and drops the loading screen mid-wait")
+
+
 class TestMainFunestraGatesTheReveal:
     def test_the_funestras_phase_covers_the_wait_for_main_funestra(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -949,13 +971,16 @@ class TestMainFunestraGatesTheReveal:
             )
 
         assert seen["resumed_onto"] == "last_session.mp4"
-        assert seen["stale_at_launch"] is False
+        assert seen["stale_at_launch"] is False, (
+            "the wait would end at once on a video from a session that is over")
 
     def test_the_wait_for_the_funestras_cannot_outlast_the_overlay(self):
-        assert WINDOW_RESOLVE_CEILING_UNDER_LOAD_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
+        assert WINDOW_RESOLVE_CEILING_UNDER_LOAD_S + MAIN_FUNESTRA_LOAD_TIMEOUT_S < STALE_TIMEOUT_S, (
+            PROGRESS_IS_WRITTEN_ONLY_AS_A_PHASE_STARTS)
 
     def test_the_windows_phase_cannot_outlast_it_either(self):
-        assert 3 * WINDOW_RESOLVE_CEILING_UNDER_LOAD_S < STALE_TIMEOUT_S
+        assert 3 * WINDOW_RESOLVE_CEILING_UNDER_LOAD_S < STALE_TIMEOUT_S, (
+            PROGRESS_IS_WRITTEN_ONLY_AS_A_PHASE_STARTS)
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
@@ -1109,7 +1134,7 @@ class TestWaitForMainFunestraLoaded:
             slept.side_effect = main_funestra_finishes_loading
             assert _wait_for_main_funestra_loaded(status_file, NullProgress()) is True
 
-    def test_a_status_file_naming_no_video_is_not_a_loaded_main_funestra(self, tmp_path):
+    def test_a_status_caught_half_written_keeps_the_wait_going(self, tmp_path):
         status_file = tmp_path / "main_player_status.txt"
         status_file.write_text("", encoding="utf-8")
 
@@ -1124,7 +1149,7 @@ class TestWaitForMainFunestraLoaded:
                 tmp_path / "never.txt", NullProgress(), timeout_s=0.0,
             ) is False
 
-    def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self, tmp_path):
+    def test_esc_is_answered_on_every_poll_of_startups_longest_wait(self, tmp_path):
         class Cancelled:
             cancelled = True
             def advance(self, phase: str) -> None: pass
@@ -1328,7 +1353,7 @@ class TestOrigeneratorLaunch:
             assert args[args.index(flag) + 1] == str(path), flag
         assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
 
-    def test_an_app_that_never_answers_the_takeover_is_replaced_by_one_we_launch(
+    def test_a_hung_app_whose_offer_still_stands_is_replaced_by_our_own(
         self, cfg_factory, tmp_path
     ):
         cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
@@ -1345,7 +1370,7 @@ class TestOrigeneratorLaunch:
         assert result.origenerator_pid == 91
         assert not result.origenerator_taken_over
 
-    def test_a_session_claims_the_osr2_of_the_checkout_it_names(
+    def test_a_session_with_no_window_to_take_over_still_claims_the_osr2(
         self, cfg_factory, tmp_path
     ):
         checkout = tmp_path / "origenerator"
@@ -1357,7 +1382,8 @@ class TestOrigeneratorLaunch:
         with _sequencer_stubs(launch_origenerator={}):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
-        assert handoff.a_session_claims_the_osr2(checkout / "state")
+        assert handoff.a_session_claims_the_osr2(checkout / "state"), (
+            "a window the takeover missed would keep its own switch and drive the OSR2 too")
 
     def test_a_session_with_no_checkout_claims_nothing(self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -1514,13 +1540,14 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
             )
 
         assert not [window_name for window_name in result.hwnds_by_window if window_name.startswith("origenerator")]
-        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == "", (
+            "no app is up yet to fill the regions; the dispatch loop opens the mode once it answers")
 
     def test_the_sequencer_can_no_longer_reach_the_hosted_window_at_all(self):
         assert not hasattr(windows_bridge_sequencer, "find_window_for_process")
         assert not hasattr(windows_bridge_sequencer, "restore_window")
 
-    def test_the_app_is_still_launched_first_of_everything(
+    def test_the_hosted_apps_long_boot_is_started_first_of_everything(
         self, cfg_factory, tmp_path
     ):
         _cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
@@ -1553,7 +1580,8 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
                 progress=progress, hide_windows=True,
             )
 
-        assert "origenerator" not in progress.phases
+        assert "origenerator" not in progress.phases, (
+            "its window lands 10 to 30 s after launch, against 5 to 8 s for everything else")
 
     def test_a_stranded_verb_is_cleared_before_the_hosted_app_can_read_it(
         self, cfg_factory, tmp_path
