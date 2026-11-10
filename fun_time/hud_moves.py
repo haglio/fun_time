@@ -9,7 +9,6 @@ from funestra.hud_placement import HudCorner, HudEdge
 from .bridge_records import BridgeConfig, Handler, Result, Route, SatelliteHandler, WindowOp
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
-from .origenerator_switches import hosts
 from .shared_state import BridgeState
 
 _DIRECTIONS = ("left", "right", "up", "down")
@@ -93,7 +92,7 @@ def _hud_placed(corner: HudCorner, funestra: FunTimeFunestra, state: BridgeState
 
 
 def _tell_the_hosted_app(funestra: FunTimeFunestra, action: str, config: BridgeConfig) -> None:
-    if hosts(funestra, config):
+    if funestra in FunTimeFunestra.SATELLITES:
         append_command(config.origenerator_cmd_file, f"{funestra.label}_{action}")
 
 

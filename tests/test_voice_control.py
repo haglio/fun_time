@@ -737,16 +737,13 @@ _THE_HOSTED_APP = HostedVocabulary(frozenset({"request", "gamma shelf"}), frozen
 
 
 class TestWhatIsSaidToASatelliteShowingOrigenerator:
-    def _controller(self, tmp_path: Path, *, hosting=("portrait", "landscape"),
-                    said_at_suffix="") -> VoiceController:
-        vc = VoiceController(
+    def _controller(self, tmp_path: Path, *, said_at_suffix="") -> VoiceController:
+        return VoiceController(
             cmd_file=tmp_path / "cmd.txt",
             settings=VoiceControlConfig(enabled=True, model_path="unused"),
             hosted=HostedVoice(vocabulary=_THE_HOSTED_APP, cmd_file=tmp_path / "origenerator_cmd.txt", said_at_suffix=said_at_suffix),
             clock=lambda: HELD_FROM,
         )
-        vc.hosted_satellites = lambda: frozenset(hosting)
-        return vc
 
     def test_while_one_is_open_the_words_of_everything_said_are_wanted(self, tmp_path):
         vc = self._controller(tmp_path)
@@ -806,13 +803,6 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
         assert parse_command_line((tmp_path / "cmd.txt").read_text(
             encoding="utf-8").strip()).command == "landscape_next"
-
-    def test_one_opened_on_a_satellite_that_has_left_origenerator_mode_takes_no_words(self, tmp_path):
-        vc = self._controller(tmp_path, hosting=("portrait",))
-
-        vc.request_opened("landscape")
-
-        assert not vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="alpha beta")))
 
     def test_a_muted_app_takes_no_words_down_for_one(self, tmp_path):
         vc = self._controller(tmp_path)
@@ -883,12 +873,6 @@ class TestWhatIsSaidToASatelliteShowingOrigenerator:
 
         assert not (tmp_path / "cmd.txt").exists()
         assert not (tmp_path / "origenerator_cmd.txt").exists()
-
-    def test_one_led_by_a_satellite_showing_something_else_takes_no_words(self, tmp_path):
-        vc = self._controller(tmp_path, hosting=("landscape",))
-
-        assert not vc.wants_words(_as_voice_core_heard(Recognition(unrecognized_text="portrait gamma",
-                                                     heard="portrait gamma")))
 
     def test_the_listener_takes_words_down_when_asked_with_the_hint_the_app_gave(self, tmp_path):
         vc = self._controller(tmp_path)

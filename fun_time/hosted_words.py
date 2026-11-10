@@ -6,7 +6,6 @@ from .command_value import SAY, Command, Scope, parse_command
 from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import said_to_the_hosted_app, written_for_the_hosted_app
 from .main_funestra_commands import refused_on_a_satellite
-from .origenerator_switches import hosts
 from .satellite_commands import THE_FUNESTRAS_OWN
 
 if TYPE_CHECKING:
@@ -14,8 +13,8 @@ if TYPE_CHECKING:
     from .shared_state import BridgeState
 
 
-def line_said_bare_to_the_hosted_app(command: Command, config: BridgeConfig) -> str | None:
-    if command.said_to is not Scope.ACTIVE or not config.hosts_origenerator:
+def line_said_bare_to_the_hosted_app(command: Command) -> str | None:
+    if command.said_to is not Scope.ACTIVE:
         return None
     said = command.aimed_at_the_active(FunTimeFunestra.PORTRAIT)
     if said.action != SAY:
@@ -40,19 +39,17 @@ def _words_for_the_hosted_app_to_match(command: Command) -> tuple[str, str] | No
 
 def a_lock_said_in_the_hosted_apps_words(command: Command, config: BridgeConfig) -> Command:
     if (command.action != SAY or command.argument not in config.origenerator_lock_phrases
-            or not routes_to_origenerator(command, config)):
+            or not routes_to_origenerator(command)):
         return command
     return Command.to(command.satellite, "lock_on")
 
 
-def routes_to_origenerator(command: str | Command, config: BridgeConfig) -> bool:
+def routes_to_origenerator(command: str | Command) -> bool:
     if isinstance(command, str):
         command = parse_command(command)
-    spoken = _words_for_the_hosted_app_to_match(command)
-    if spoken is not None:
-        return hosts(command.satellite, config)
-    return all(about_a_satellite(said) and hosts(said.satellite, config)
-               for said in command.halves())
+    if _words_for_the_hosted_app_to_match(command) is not None:
+        return True
+    return all(about_a_satellite(said) for said in command.halves())
 
 
 def told_to_the_hosted_app(command: Command, state: BridgeState, config: BridgeConfig,

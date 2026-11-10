@@ -31,7 +31,7 @@ from fun_time import load_config, windows_bridge_dispatch_loop
 from fun_time.arrivals import keep_looking
 from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.command_value import parse_command
-from fun_time.config import SatelliteChannel, VoiceControlConfig
+from fun_time.config import VoiceControlConfig
 from fun_time.content import load_web_providers
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import HEADSET_OFF, HEADSET_ON, LIBRARY_OPEN_FILENAME
@@ -77,6 +77,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     detect_sleep_gap,
     poll_dashboard_commands,
 )
+from tests.bridge_configs import made_up_bridge_config
 from tests.fun_time_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
@@ -121,25 +122,7 @@ def _no_topmost_read_answers_from_this_machines_own_windows():
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
-    settings = {
-        "portrait": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.PORTRAIT),
-        "landscape": SatelliteChannel.in_state_dir(tmp_path, FunTimeFunestra.LANDSCAPE),
-        "trash_dir": tmp_path / "trash",
-        "state_dir": tmp_path,
-        "main_sources": "",
-        "broker_mode_file": tmp_path / "rh_mode.txt",
-        "genau_cmd_file": tmp_path / "rh_cmd.txt",
-        "genau_paused_file": tmp_path / "rh_paused.txt",
-        "genau_status_file": tmp_path / "genau_status.txt",
-        "audio_paused_file": tmp_path / "audio_paused.txt",
-        "audio_volume_file": tmp_path / "audio_volume.txt",
-        "main_funestra_cmd_file": tmp_path / "main_player_cmd.txt",
-        "main_funestra_paused_file": tmp_path / "main_player_paused.txt",
-        "main_funestra_status_file": tmp_path / "main_player_status.txt",
-        "dashboard_state_file": tmp_path / "dashboard_state.ini",
-    }
-    settings.update(overrides)
-    return BridgeConfig(**settings)
+    return made_up_bridge_config(tmp_path, **overrides)
 
 
 def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
@@ -225,17 +208,6 @@ def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, t
     manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
 
     assert build_bridge_config_from_manifest(manifest).loopback_port == 8771
-
-
-def test_either_session_hosts_the_origenerator_its_config_names(cfg_factory, tmp_path):
-    origenerator_dir = tmp_path / "origenerator"
-    origenerator_dir.mkdir()
-    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator_dir)}}))
-    manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
-
-    assert build_bridge_config_from_manifest(manifest).origenerator_enabled
-    assert build_bridge_config_from_manifest(
-        manifest, vr_main_funestra=True).origenerator_enabled
 
 
 def test_the_session_ends_a_line_said_aloud_the_way_its_origenerator_publishes(
@@ -1031,10 +1003,8 @@ class TestDispatchLoopRunner:
         record = metadata_path_for(video, metadata_root)
         record.parent.mkdir(parents=True)
         record.write_text(json.dumps({"video": {"action": "alpha"}}), encoding="utf-8")
-        hosted_app = tmp_path / "origenerator_cmd.txt"
-        runner = make_runner(tmp_path, config=make_config(
-            tmp_path, regen_metadata_root=metadata_root, origenerator_enabled=True,
-            origenerator_cmd_file=hosted_app))
+        runner = make_runner(tmp_path, config=make_config(tmp_path, regen_metadata_root=metadata_root))
+        hosted_app = runner.config.origenerator_cmd_file
         runner.state = _handed_over(
             replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
         (tmp_path / "dashboard_cmd.txt").write_text(
@@ -1210,14 +1180,6 @@ class TestWhatASpokenCommandFlashes:
 
         assert len(flashed) == 1, flashed
 
-
-    def test_a_hosted_shows_words_in_kino_mode_say_kino_mode_ignored_them(self, tmp_path):
-        flashed = self._run_for_real(
-            tmp_path, "landscape_say_experiments", "landscape experiments")
-
-        assert flashed == [
-            ("ignored in Kino mode: landscape experiments", "landscape", logging.WARNING)]
-
     def test_a_jump_the_main_funestra_is_not_there_to_answer_says_genau_mode_ignored_it(
         self, tmp_path,
     ):
@@ -1299,7 +1261,7 @@ class TestWhatASpokenCommandFlashes:
     def test_words_the_hosted_apps_show_takes_flash_what_was_heard(
         self, tmp_path, command, said,
     ):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _handed_over(
             BridgeState(active_funestra=3)))
@@ -1315,7 +1277,7 @@ class TestWhatASpokenCommandFlashes:
 
 
 def test_a_word_the_app_hears_as_a_lock_locks_a_satellite_showing_the_hosted_app(tmp_path):
-    runner = make_runner(tmp_path, config=_hosting(tmp_path))
+    runner = make_runner(tmp_path, config=make_config(tmp_path))
     _the_hosted_app_answers(tmp_path)
     write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))
     runner.hear_as_a_lock(frozenset({"hold"}))
@@ -1528,9 +1490,7 @@ class TestTheRfbSlideshow:
 
     def test_origenerator_in_the_browsers_place_holds_the_slideshow_under_it(self, tmp_path):
         slideshow = Mock(spec=RfbSlideshow)
-        config = make_config(tmp_path, origenerator_enabled=True,
-                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-                             origenerator_paused_file=tmp_path / "origenerator_paused.txt")
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config, origenerator_pid=700,
                              origenerator_already_open=True, rfb_slideshow=slideshow)
         write_shared_state(tmp_path / "shared_state.ini",
@@ -1602,8 +1562,7 @@ class TestAClickIntoATextField:
 
     def test_one_in_any_window_of_the_hosted_origenerator_enters_omnipause(self, tmp_path):
         origenerator_process, its_other_window = 9009, 8002
-        config = make_config(tmp_path, origenerator_enabled=True,
-                             origenerator_paused_file=tmp_path / "origenerator_paused.txt")
+        config = make_config(tmp_path)
         runner = make_runner(
             tmp_path, config=config, origenerator_pid=HOSTED_PID,
             press_and_caret_watch=_a_click_into_a_text_field(its_other_window,
@@ -2436,7 +2395,7 @@ class TestIdempotentVoiceCommands:
             runner._update_dashboard()
 
     def test_the_snapshot_says_whether_every_funestra_has_nothing_to_reset(self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
         runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
         for funestra in FunTimeFunestra.SATELLITES:
@@ -2451,7 +2410,7 @@ class TestIdempotentVoiceCommands:
 
     def test_the_dashboard_is_told_what_holds_the_browsers_place_and_whether_origenerator_is_up(
             self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
         runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR,
                                origenerator_ready=True)
 
@@ -2462,7 +2421,7 @@ class TestIdempotentVoiceCommands:
 
     def test_a_slideshow_that_has_shown_no_hud_yet_leaves_the_reset_light_to_the_rest(
             self, tmp_path):
-        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
         runner.config.main_funestra_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
 
@@ -2473,7 +2432,7 @@ class TestIdempotentVoiceCommands:
     def test_the_dashboards_f_mode_lights_off_the_hosted_shows_handed_over(
         self, tmp_path,
     ):
-        runner = make_runner(tmp_path, dashboard_enabled=True, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
         runner.state = _handed_over(replace(runner.state, main_scripted_filter=True))
         for funestra in FunTimeFunestra.SATELLITES:
             publish_the_show(runner.config, funestra, f_mode=True)
@@ -2641,9 +2600,7 @@ class TestWatchTracking:
 
 
     def _holding_a_slideshow(self, tmp_path):
-        runner = make_runner(tmp_path, config=make_config(
-            tmp_path, origenerator_enabled=True,
-            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         runner.state = _handed_over(
             replace(runner.state, origenerator_ready=True), FunTimeFunestra.PORTRAIT)
         return runner
@@ -2839,9 +2796,7 @@ class TestBrowserOutlivesNothing:
 
 class TestOrigeneratorShows:
     def _hosting_runner(self, tmp_path):
-        config = make_config(tmp_path, origenerator_enabled=True,
-                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-                             origenerator_paused_file=tmp_path / "origenerator_paused.txt")
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
         runner.state = replace(runner.state, rfb_mode=RfbMode.ORIGENERATOR)
         return runner
@@ -2869,7 +2824,7 @@ class TestAGenauLockTakesTheGalleryToTheFlick:
     NEXT = r"C:\library\genau\flicks\wan22_i2v_00008__topaz.mp4"
 
     def _genau_beside_the_gallery(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
+        runner = make_runner(tmp_path, config=make_config(tmp_path), origenerator_pid=700)
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.GENAU,
                                rfb_mode=RfbMode.ORIGENERATOR, origenerator_ready=True)
@@ -2951,7 +2906,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
     MADE_HERE = r"C:\library\videos\made here\gen_00042_.mp4"
 
     def _kino_beside_origenerator(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path), origenerator_pid=700)
+        runner = make_runner(tmp_path, config=make_config(tmp_path), origenerator_pid=700)
         _the_hosted_app_answers(tmp_path)
         runner.state = replace(runner.state, main_mode=MainMode.KINO,
                                rfb_mode=RfbMode.RFB, origenerator_ready=True)
@@ -2990,7 +2945,7 @@ class TestAMainFunestraLockInKinoOpensWhereMoreOfItIsMade:
     def test_a_video_a_website_made_opens_its_page_with_the_browser_put_back_in_its_place(
             self, tmp_path):
         runner = make_runner(
-            tmp_path, config=_hosting(tmp_path), origenerator_pid=700, rfb_hwnd=12345,
+            tmp_path, config=make_config(tmp_path), origenerator_pid=700, rfb_hwnd=12345,
             rfb_shortcut=Shortcut(target=r"C:\Chrome\chrome.exe", work_dir=r"C:\Chrome",
                                   arguments=""))
         _the_hosted_app_answers(tmp_path)
@@ -3062,20 +3017,13 @@ class TestASessionThatHostsNoOrigenerator:
         assert runner.state.rfb_mode is RfbMode.RFB
 
     def test_with_an_origenerator_that_is_up_the_browsers_place_stands(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
 
         runner.tick()
 
         assert runner.state.rfb_mode is RfbMode.ORIGENERATOR
-
-
-def _hosting(tmp_path, **overrides):
-    return replace(make_config(tmp_path, **overrides), origenerator_enabled=True,
-                   origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-                   origenerator_paused_file=tmp_path / "origenerator_paused.txt",
-                   origenerator_status_file=tmp_path / "origenerator_status.txt")
 
 
 def _handed_over(state: BridgeState, *_funestras: FunTimeFunestra) -> BridgeState:
@@ -3089,7 +3037,7 @@ def _the_hosted_app_answers(tmp_path):
 
 class TestOrigeneratorModeOpensWhenTheAppDoes:
     def test_the_mode_is_closed_until_the_app_publishes_a_status(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
 
         runner.tick()
         assert runner.state.origenerator_ready is False
@@ -3100,7 +3048,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
 
     def test_an_app_already_open_when_the_session_began_opens_the_mode_at_once(
             self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+        runner = make_runner(tmp_path, config=make_config(tmp_path),
                              origenerator_already_open=True)
 
         runner.tick()
@@ -3108,7 +3056,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         assert runner.state.origenerator_ready is True
 
     def test_a_status_file_unreadable_for_a_moment_closes_no_mode_in_use(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", _handed_over(
             BridgeState(rfb_mode=RfbMode.ORIGENERATOR), FunTimeFunestra.LANDSCAPE))
@@ -3127,7 +3075,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
         assert runner.state.origenerator_ready is False
 
     def test_the_apps_boot_is_noticed_on_a_tick_that_read_no_state_file(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         _the_hosted_app_answers(tmp_path)
         assert not (tmp_path / "shared_state.ini").exists()
 
@@ -3137,7 +3085,7 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
 
     def test_the_answer_reaches_the_file_on_a_session_nobody_touches(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         write_shared_state(state_file, BridgeState())
 
         runner.tick()
@@ -3199,7 +3147,7 @@ class TestOpeningInOrigeneratorMode:
         return has_answered()
 
     def test_the_session_is_not_open_until_the_app_has_taken_both_satellites(self, tmp_path):
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
@@ -3209,7 +3157,7 @@ class TestOpeningInOrigeneratorMode:
         assert not runner.departures.still_going()
 
     def test_an_app_that_takes_a_satellite_the_instant_it_is_asked_is_seen_to(self, tmp_path):
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
@@ -3220,7 +3168,7 @@ class TestOpeningInOrigeneratorMode:
         assert not runner.departures.still_going()
 
     def test_an_app_that_never_takes_the_satellites_stops_the_session_opening(self, tmp_path):
-        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        runner = make_runner(tmp_path, config=make_config(tmp_path))
         _the_hosted_app_answers(tmp_path)
 
         with pytest.raises(OrigeneratorNeverCameUp):
@@ -3230,7 +3178,7 @@ class TestOpeningInOrigeneratorMode:
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini",
                            BridgeState(rfb_mode=RfbMode.ORIGENERATOR))
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
@@ -3247,7 +3195,7 @@ class TestOpeningInOrigeneratorMode:
         write_shared_state(state_file, _handed_over(
             replace(shifted_state(BridgeState()), rfb_mode=RfbMode.ORIGENERATOR)))
         left_in = resume_shared_state(state_file)
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
@@ -3257,7 +3205,7 @@ class TestOpeningInOrigeneratorMode:
 
     def test_a_slideshow_taken_over_puts_the_browsers_place_on_origenerator(
             self, tmp_path):
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config,
                              origenerator_already_open=True,
                              origenerator_showing_a_slideshow=True)
@@ -3273,7 +3221,7 @@ class TestOpeningInOrigeneratorMode:
     def test_a_session_left_with_its_satellites_in_kino_opens_both_in_the_hosted_app(
             self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini", BridgeState())
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
 
@@ -3289,7 +3237,7 @@ class TestOpeningInOrigeneratorMode:
         state_file = tmp_path / "shared_state.ini"
         left_in = BridgeState(rfb_mode=RfbMode.ORIGENERATOR)
         write_shared_state(state_file, left_in)
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
 
         with pytest.raises(OrigeneratorNeverCameUp):
@@ -3300,7 +3248,7 @@ class TestOpeningInOrigeneratorMode:
 
     def test_it_comes_back_once_and_never_again(self, tmp_path):
         write_shared_state(tmp_path / "shared_state.ini", _handed_over(BridgeState()))
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config)
         _the_hosted_app_answers(tmp_path)
         runner.activate_origenerator(
@@ -3364,7 +3312,7 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
 class TestTheAppTakesAFunestra:
     def _asked(self, tmp_path):
-        config = _hosting(tmp_path)
+        config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config, hud_publisher=HudPublisher(
             {"portrait": tmp_path / "portrait_hud.json"}))
         runner.state = replace(runner.state, origenerator_ready=True)

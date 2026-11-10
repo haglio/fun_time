@@ -69,7 +69,7 @@ from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .origenerator_opening import OrigeneratorNeverCameUp
-from .origenerator_switches import CLOSE_SLIDESHOWS, RfbMode, hosted_satellites
+from .origenerator_switches import CLOSE_SLIDESHOWS, RfbMode
 from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
@@ -761,7 +761,6 @@ def start_voice_control(
     dispatch_runner.voice.controller = voice_controller
     dispatch_runner.hear_as_a_lock(voice_controller.hosted.lock_phrases)
     voice_controller.active_funestra = lambda: dispatch_runner.state.active_funestra
-    voice_controller.hosted_satellites = lambda: hosted_satellites(dispatch_runner.config)
     if not dispatch_runner.state.mic_muted:
         voice_controller.unmute()
     return voice_controller, prepared.thread
@@ -858,7 +857,8 @@ def _build_the_dispatch_loop(
                 PressAndCaretWatch()
                 if result.rfb_hwnd or manifest.runtime.origenerator_dir.strip() else None),
             origenerator_already_open=result.origenerator_already_open,
-            origenerator_showing_a_slideshow=result.origenerator_showing_a_slideshow),
+            origenerator_showing_a_slideshow=result.origenerator_showing_a_slideshow,
+            hosts_origenerator=manifest.runtime.hosts_origenerator),
         Publishing(
             dashboard_enabled=manifest.dashboard_enabled,
             hud_publisher=hud_publisher,

@@ -37,6 +37,9 @@ class BridgeConfig:
     main_funestra_paused_file: Path
     main_funestra_status_file: Path
     dashboard_state_file: Path
+    origenerator_cmd_file: Path
+    origenerator_paused_file: Path
+    origenerator_status_file: Path
     loopback_port: int = LOOPBACK_PORT
     main_funestra_notice_file: Path | None = None
     vr_main_funestra: bool = False
@@ -45,12 +48,8 @@ class BridgeConfig:
     python_exe: str = ""
     broker_cmd_file: Path | None = None
     broker_tray_launcher: Path | None = None
-    origenerator_enabled: bool = False
-    origenerator_cmd_file: Path | None = None
     origenerator_said_at_suffix: str = ""
-    origenerator_paused_file: Path | None = None
     origenerator_lock_phrases: frozenset[str] = frozenset()
-    origenerator_status_file: Path | None = None
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None
@@ -61,10 +60,6 @@ class BridgeConfig:
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
         return (self.portrait if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
                 else self.landscape)
-
-    @property
-    def hosts_origenerator(self) -> bool:
-        return self.origenerator_enabled and self.origenerator_cmd_file is not None
 
     @property
     def main_list(self) -> MainList:

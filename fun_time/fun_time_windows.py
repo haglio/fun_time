@@ -183,10 +183,10 @@ class FunTimeWindows:
     def seat(self, rects: SecondaryMonitorRects) -> None:
         self.place([("portrait", rects.portrait), ("main_funestra", rects.main)])
 
-    def takes_typing(self, window: int, process: int, *, hosted_app: bool) -> bool:
+    def takes_typing(self, window: int, process: int) -> bool:
         if self.rfb_hwnd and window == self.rfb_hwnd:
             return True
-        if not hosted_app or not process:
+        if not process:
             return False
         hwnd = self.hwnd(ORIGENERATOR_WINDOW)
         return bool(hwnd) and process == window_process(hwnd)
