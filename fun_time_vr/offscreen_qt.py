@@ -6,9 +6,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from PIL import Image
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication
-from PIL import Image
 from shared_ui.application import application
 
 

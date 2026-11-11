@@ -18,7 +18,7 @@ from tests.made_up_machine import running
 ROLES = (
     "Orchestrator", "Dashboard", "AudioCompanion", "LibraryBrowser",
     "MainFunestra", "Genau", "Origenerator", "Portrait", "Landscape",
-    "ClosingScreen", "LoadingScreen",
+    "ClosingScreen", "LoadingScreen", "Reference",
 )
 
 

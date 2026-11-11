@@ -16,7 +16,6 @@ from shared_ui.type_scale import SIZE_HEADING, in_pixels
 
 from .helper_processes import end_helper, start_helper
 from .pointer import RELEASE, PressEvent, surface_pixel
-from .thumbs import CONTROLLER_DEADZONE
 
 LIBRARY_SIZE_PX = (1280, 720)
 HOST_MODULE = "fun_time_vr.library_host"
@@ -31,8 +30,6 @@ SCROLL = "scroll"
 PICKED = "picked"
 DISMISSED = "dismissed"
 
-WHEEL_NOTCH = 120
-_NOTCHES_PER_S = 8.0
 _READING = "Reading the library…"
 _READING_PX = in_pixels(SIZE_HEADING)
 
@@ -58,12 +55,6 @@ def scroll_line(delta: int) -> str:
 
 def picked_line(video: str) -> str:
     return f"{PICKED} {video}"
-
-
-def scroll_from_stick(axis: float, elapsed_s: float) -> float:
-    if abs(axis) <= CONTROLLER_DEADZONE:
-        return 0.0
-    return axis * elapsed_s * _NOTCHES_PER_S * WHEEL_NOTCH
 
 
 class ShownWhileAsked:

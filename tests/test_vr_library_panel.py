@@ -13,7 +13,6 @@ from fun_time_vr.library_panel import (
     OUTPUT_FILENAME,
     LibraryHost,
     ShownWhileAsked,
-    scroll_from_stick,
     waiting_panel,
 )
 
@@ -110,14 +109,6 @@ class TestTheBrowserItRuns:
         host.close()
 
         assert launched[0].ended == ["terminated"]
-
-
-class TestTheStick:
-    def test_a_resting_stick_scrolls_nothing(self):
-        assert scroll_from_stick(0.05, 0.1) == 0
-
-    def test_the_stick_pushed_away_scrolls_toward_the_top(self):
-        assert scroll_from_stick(1.0, 0.1) > 0 > scroll_from_stick(-1.0, 0.1)
 
 
 class TestWhileTheLibraryIsBeingRead:

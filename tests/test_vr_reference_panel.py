@@ -1,144 +1,168 @@
 from __future__ import annotations
 
-import numpy as np
-from shared_ui.reference import CONTROLLER_HEADER, HOTKEY_HEADER, VOICE_HEADER
+from pathlib import Path
 
-from fun_time import command_reference
-from fun_time.command_reference import build_reference_sections
+import numpy as np
+from PIL import Image
+
 from fun_time_vr.reference_panel import (
-    _KEY_X,
     _PAD,
-    _SAY_X,
-    _WHAT_X,
     NEXT_PAGE,
+    PAGES_FOLDER,
     PREV_PAGE,
-    REFERENCE_WIDTH_PX,
+    ReferencePage,
+    ReferencePages,
+    ReferencePagesHost,
     ReferencePointer,
     ReferenceState,
-    _cells,
-    column_heads,
-    header_lines,
-    lines_of,
     note_lines,
     page_of,
     paint_reference,
+    read_pages,
     reference_actions,
-    reference_height,
+    reference_size,
+    scroll_limit,
+    write_pages,
 )
+
+_WIDTH = 790
+_TITLE = 20
+_NOTE = ("A made-up note long enough to need more than one line when it is set in the "
+         "reference's small type across the whole width of the panel, so it wraps at least once.")
+
+
+def _page(title: str, height: int, *, shade: int = 90, note: str = "") -> ReferencePage:
+    image = Image.new("RGBA", (_WIDTH, height), (24, 24, 24, 255))
+    image.paste((40, 40, 220, 255), (0, 4, 200, _TITLE - 4))
+    for y in range(_TITLE, height, 40):
+        image.paste((shade, shade, shade, 255), (0, y, _WIDTH, y + 20))
+    return ReferencePage(title, image, _TITLE, note)
+
+
+def _with_a_mark_at(page: ReferencePage, row: int) -> ReferencePage:
+    image = page.image.copy()
+    image.paste((250, 10, 10, 255), (300, row, 340, row + 10))
+    return ReferencePage(page.title, image, page.title_ends_at, page.note)
+
+
+_SHORT = _page("Dashboard", 300)
+_LONG = _page("Funestras", 3500, shade=140, note=_NOTE)
+PAGES = ReferencePages((_SHORT, _LONG, _page("Origenerator", 500, shade=60)), step_px=60)
 
 
 def _middle(action: str) -> tuple[int, int]:
-    rect = reference_actions()[action]
+    rect = reference_actions(PAGES)[action]
     return rect.x + rect.width // 2, rect.y + rect.height // 2
 
 
-class TestItIsTheSameReference:
-    def test_it_shows_the_sections_the_desktop_shows(self):
-        assert page_of(ReferenceState(page=0)) == 0
-        assert len(build_reference_sections()) > 1
+def _painted(state: ReferenceState, pages: ReferencePages = PAGES) -> np.ndarray:
+    return np.asarray(paint_reference(state, pages))
 
-    def test_every_page_is_painted_without_the_html_a_browser_would_show(self, monkeypatch):
-        monkeypatch.delattr(command_reference, "_render")
 
-        for page in range(len(build_reference_sections())):
-            paint_reference(ReferenceState(page=page))
+def _red_marks(panel: np.ndarray) -> int:
+    red = (panel[:, :, 0] > 200) & (panel[:, :, 1] < 60)
+    return int(red.sum())
 
-    def test_it_paints_the_action_names_its_session_was_told_of(self):
-        pages = build_reference_sections({"alphaname": ("alphaname",)})
-        funestras = next(index for index, page in enumerate(pages) if page.title == "Funestras")
-        told = np.asarray(paint_reference(ReferenceState(open=True, page=funestras), pages))
-        untold = np.asarray(paint_reference(ReferenceState(open=True, page=funestras)))
 
-        assert not np.array_equal(told, untold)
-
+class TestItShowsTheDesktopsPages:
     def test_it_paints_what_a_section_says(self):
-        first = np.asarray(paint_reference(ReferenceState(open=True, page=0)))
-        second = np.asarray(paint_reference(ReferenceState(open=True, page=1)))
+        first = _painted(ReferenceState(open=True, page=0))
+        second = _painted(ReferenceState(open=True, page=1))
 
         assert first.shape == second.shape
         assert not np.array_equal(first, second)
 
     def test_it_keeps_its_size_across_the_sections(self):
-        sizes = {paint_reference(ReferenceState(open=True, page=index)).size
-                 for index in range(len(build_reference_sections()))}
+        sizes = {paint_reference(ReferenceState(open=True, page=index), PAGES).size
+                 for index in range(len(PAGES.pages))}
 
-        assert sizes == {(REFERENCE_WIDTH_PX, reference_height())}
+        assert sizes == {reference_size(PAGES)}
+
+    def test_it_hangs_as_tall_for_its_width_as_it_always_has(self):
+        width, height = reference_size(PAGES)
+
+        assert width == _WIDTH + 2 * _PAD
+        assert abs(height / width - 1012 / 760) < 0.01
+
+    def test_the_pages_title_stays_at_its_head(self):
+        title = (40, 40, 220)
+        for scrolled in (0, 400):
+            panel = _painted(ReferenceState(open=True, page=1, scrolled=scrolled))
+            rows = np.nonzero((np.abs(panel[:, :, :3].astype(int) - title).sum(axis=2) < 30).any(axis=1))[0]
+            assert rows.min() >= _PAD, scrolled
+            assert rows.max() < _PAD + 28, scrolled
 
     def test_a_sections_note_is_painted_whole_on_as_many_lines_as_it_takes(self):
-        noted = [section for section in build_reference_sections() if section.note]
+        lines = note_lines(_NOTE, PAGES)
 
-        assert noted
-        for section in noted:
-            lines = note_lines(section)
-            assert " ".join(lines) == " ".join(section.note.split())
-            assert 1 <= len(lines) <= 3
-
-    def test_a_shared_sections_hotkey_head_names_its_funestras_on_a_line_of_its_own(self):
-        by_title = {section.title: section for section in build_reference_sections()}
-
-        assert header_lines(by_title["Funestras"]) == 2
-        assert header_lines(by_title["Dashboard"]) == 1
-        assert header_lines(by_title["Main Funestra"]) == 1
-
-    def test_a_page_without_a_key_paints_the_voice_column_where_the_key_column_was(self):
-        by_title = {section.title: section for section in build_reference_sections()}
-
-        assert column_heads(by_title["Dashboard"]) == (
-            (_KEY_X, HOTKEY_HEADER), (_SAY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
-        assert column_heads(by_title["Origenerator"]) == ((_KEY_X, VOICE_HEADER), (_WHAT_X, "What it does"))
-
-    def test_a_page_with_a_controller_input_paints_a_controller_column_before_the_voice(self):
-        by_title = {section.title: section for section in build_reference_sections()}
-
-        assert [head for _, head in column_heads(by_title["Funestras"])] == [
-            HOTKEY_HEADER, CONTROLLER_HEADER, VOICE_HEADER, "What it does"]
-        assert [head for _, head in column_heads(by_title["VR"])] == [
-            CONTROLLER_HEADER, VOICE_HEADER, "What it does"]
-        for section in by_title.values():
-            xs = [x for x, _ in column_heads(section)]
-            assert xs == sorted(xs), section.title
-            assert xs[0] == _KEY_X, section.title
-            assert xs[-1] >= _WHAT_X, section.title
-        nudge = next(row for row in by_title["Funestras"].rows if row.description == "nudge back 10 seconds")
-        assert [text for _, text, _ in _cells(nudge, by_title["Funestras"])][:2] == ["— / — / -", "B / Y"]
-
-    def test_an_untitled_group_takes_no_title_line(self):
-        by_title = {section.title: section for section in build_reference_sections()}
-
-        assert lines_of(by_title["VR"]) == len(by_title["VR"].rows)
-        assert lines_of(by_title["Main Funestra"]) == 2 + len(by_title["Main Funestra"].rows)
+        assert " ".join(lines) == " ".join(_NOTE.split())
+        assert 2 <= len(lines) <= 3
 
     def test_no_page_runs_its_rows_past_its_lower_edge(self):
-        for index in range(len(build_reference_sections())):
-            panel = np.asarray(paint_reference(ReferenceState(open=True, page=index)))
-            lower_edge = panel[reference_height() - _PAD:, :, :3]
+        for index in range(len(PAGES.pages)):
+            for scrolled in (0, 10_000):
+                panel = _painted(ReferenceState(open=True, page=index, scrolled=scrolled))
+                lower_edge = panel[reference_size(PAGES)[1] - _PAD:, :, :3]
+                assert not (lower_edge.max(axis=2) > 50).any(), (index, scrolled)
 
-            assert not (lower_edge.max(axis=2) > 128).any(), index
+
+class TestScrollingAPage:
+    def test_a_page_shorter_than_the_panel_does_not_scroll(self):
+        assert scroll_limit(ReferenceState(open=True, page=0), PAGES) == 0
+
+    def test_a_page_taller_than_the_panel_scrolls_as_far_as_its_last_row(self):
+        limit = scroll_limit(ReferenceState(open=True, page=1), PAGES)
+
+        assert 3500 - _TITLE - reference_size(PAGES)[1] < limit < 3500 - _TITLE
+
+    def test_scrolling_brings_up_the_rows_below(self):
+        marked = ReferencePages((_SHORT, _with_a_mark_at(_LONG, 2000), *PAGES.pages[2:]), PAGES.step_px)
+        pointer = ReferencePointer(ReferenceState(open=True, page=1))
+
+        assert _red_marks(_painted(pointer.state, marked)) == 0
+        pointer.scroll(1800, marked)
+        assert _red_marks(_painted(pointer.state, marked)) > 0
+
+    def test_it_stops_at_the_top_and_the_bottom(self):
+        pointer = ReferencePointer(ReferenceState(open=True, page=1))
+
+        pointer.scroll(-50, PAGES)
+        assert pointer.state.scrolled == 0
+        pointer.scroll(100_000, PAGES)
+        assert pointer.state.scrolled == scroll_limit(pointer.state, PAGES)
+
+    def test_turning_the_page_starts_the_next_at_its_top(self):
+        pointer = ReferencePointer(ReferenceState(open=True, page=1))
+        pointer.scroll(500, PAGES)
+
+        pointer.press(*_middle(NEXT_PAGE), PAGES)
+
+        assert pointer.state.scrolled == 0
 
 
 class TestWalkingTheSections:
     def test_the_controls_step_forward_and_back(self):
         pointer = ReferencePointer(ReferenceState(open=True))
 
-        pointer.press(*_middle(NEXT_PAGE))
-        assert page_of(pointer.state) == 1
+        pointer.press(*_middle(NEXT_PAGE), PAGES)
+        assert page_of(pointer.state, PAGES) == 1
 
-        pointer.press(*_middle(PREV_PAGE))
-        assert page_of(pointer.state) == 0
+        pointer.press(*_middle(PREV_PAGE), PAGES)
+        assert page_of(pointer.state, PAGES) == 0
 
     def test_it_wraps_at_either_end(self):
-        last = len(build_reference_sections()) - 1
         pointer = ReferencePointer(ReferenceState(open=True))
 
-        pointer.press(*_middle(PREV_PAGE))
+        pointer.press(*_middle(PREV_PAGE), PAGES)
 
-        assert page_of(pointer.state) == last
+        assert page_of(pointer.state, PAGES) == len(PAGES.pages) - 1
 
     def test_a_press_on_the_page_itself_does_nothing(self):
         pointer = ReferencePointer(ReferenceState(open=True))
+        width, height = reference_size(PAGES)
 
-        assert pointer.press(REFERENCE_WIDTH_PX // 2, reference_height() - 4) is None
-        assert page_of(pointer.state) == 0
+        assert pointer.press(width // 2, height - 4, PAGES) is None
+        assert page_of(pointer.state, PAGES) == 0
 
 
 class TestWhenItIsUp:
@@ -151,33 +175,131 @@ class TestWhenItIsUp:
         pointer.showing(False)
         assert not pointer.state.open
 
-    def test_opening_it_again_starts_at_the_front(self):
+    def test_opening_it_again_starts_at_the_top_of_the_front_page(self):
         pointer = ReferencePointer()
         pointer.showing(True)
-        pointer.press(*_middle(NEXT_PAGE))
+        pointer.press(*_middle(NEXT_PAGE), PAGES)
+        pointer.scroll(500, PAGES)
         pointer.showing(False)
 
         pointer.showing(True)
 
-        assert page_of(pointer.state) == 0
+        assert (page_of(pointer.state, PAGES), pointer.state.scrolled) == (0, 0)
 
     def test_walking_it_does_not_close_it(self):
         pointer = ReferencePointer()
         pointer.showing(True)
 
-        pointer.press(*_middle(NEXT_PAGE))
+        pointer.press(*_middle(NEXT_PAGE), PAGES)
         pointer.showing(True)
 
         assert pointer.state.open
-        assert page_of(pointer.state) == 1
+        assert page_of(pointer.state, PAGES) == 1
 
 
 class TestTheControls:
     def test_each_control_s_mark_spans_more_than_half_its_button(self):
-        panel = np.asarray(paint_reference(ReferenceState(open=True, page=0)))
+        panel = _painted(ReferenceState(open=True, page=0))
 
-        for action, rect in reference_actions().items():
+        for action, rect in reference_actions(PAGES).items():
             button = panel[rect.y:rect.y + rect.height, rect.x:rect.x + rect.width, :3]
             ys, xs = np.nonzero(button.max(axis=2) > 128)
             spans = max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1)
             assert spans > rect.width / 2, action
+
+
+class TestThePagesOnDisk:
+    def test_what_is_written_reads_back_the_same(self, tmp_path):
+        write_pages(PAGES, tmp_path)
+
+        read = read_pages(tmp_path)
+
+        assert read.step_px == PAGES.step_px
+        assert [(page.title, page.title_ends_at, page.note) for page in read.pages] == [
+            (page.title, page.title_ends_at, page.note) for page in PAGES.pages]
+        assert np.array_equal(np.asarray(read.pages[1].image), np.asarray(_LONG.image))
+
+    def test_nothing_reads_until_the_list_of_pages_is_there(self, tmp_path):
+        assert read_pages(tmp_path) is None
+
+
+class _FakeProcess:
+    def __init__(self, command, *, exits_with=None, **kwargs) -> None:
+        self.command = command
+        self.exits_with = exits_with
+        self.ended: list[str] = []
+
+    def poll(self):
+        return self.exits_with
+
+    def terminate(self):
+        self.ended.append("terminated")
+
+    def wait(self, timeout):
+        return 0
+
+    def kill(self):
+        self.ended.append("killed")
+
+
+class TestTheHelperThatDrawsThem:
+    def _host(self, tmp_path: Path, launched: list, **process) -> ReferencePagesHost:
+        def launch(command, **kwargs):
+            launched.append(_FakeProcess(command, **process))
+            return launched[-1]
+
+        return ReferencePagesHost(state_dir=tmp_path, python_exe=r"C:\python.exe", launch=launch)
+
+    def test_nothing_is_drawn_until_the_reference_is_first_wanted(self, tmp_path):
+        launched: list = []
+
+        self._host(tmp_path, launched)
+
+        assert launched == []
+
+    def test_the_first_ask_starts_one_helper_that_draws_the_pages_for_this_session(self, tmp_path):
+        launched: list = []
+        host = self._host(tmp_path, launched)
+
+        assert host.pages() is None
+        assert host.pages() is None
+
+        (process,) = launched
+        assert process.command[1:] == [
+            "-m", "fun_time_vr.reference_pages",
+            "--state-dir", str(tmp_path), "--out", str(tmp_path / PAGES_FOLDER)]
+
+    def test_pages_left_by_an_earlier_session_are_never_shown(self, tmp_path):
+        write_pages(PAGES, tmp_path / PAGES_FOLDER)
+        host = self._host(tmp_path, [])
+
+        assert host.pages() is None
+
+    def test_the_pages_are_shown_once_the_helper_has_written_them(self, tmp_path):
+        host = self._host(tmp_path, [])
+        host.pages()
+
+        write_pages(PAGES, tmp_path / PAGES_FOLDER)
+
+        assert len(host.pages().pages) == len(PAGES.pages)
+
+    def test_a_helper_that_failed_is_logged_once(self, tmp_path, caplog):
+        host = self._host(tmp_path, [], exits_with=1)
+
+        host.pages()
+        host.pages()
+
+        assert [record.levelname for record in caplog.records
+                if "could not be drawn" in record.message] == ["WARNING"]
+
+    def test_closing_ends_a_helper_still_drawing(self, tmp_path):
+        launched: list = []
+        host = self._host(tmp_path, launched)
+        host.pages()
+
+        host.close()
+
+        assert launched[0].ended == ["terminated"]
+
+    def test_closing_before_it_was_wanted_ends_nothing(self, tmp_path):
+        self._host(tmp_path, []).close()
