@@ -28,7 +28,7 @@ from .session_handoff import (
     VR,
     HandoffTarget,
     drop_transition_screen,
-    returning_from_a_crossing,
+    what_esc_offers,
 )
 from .win32 import find_window_for_process, wait_for_window
 
@@ -67,11 +67,9 @@ def _seconds_the_launch_is_held_for_its_window(*, a_transition_screen_waits_on_i
 
 def open_the_loading_screen(state_dir: Path, *, show_overlays: bool, sibling_checkouts: str,
                    cancelable: bool = True) -> RaisedLoadingScreen:
-    returning = returning_from_a_crossing(state_dir)
-    esc_cancels = ("" if not cancelable
-                   else DESKTOP.crossing_hint if returning
-                   else CANCEL_OPENING_FUN_TIME)
-    turns_back_to = VR if returning and esc_cancels else None
+    offer = what_esc_offers(state_dir, cancelable=cancelable, arriving_in=DESKTOP, came_from=VR,
+                            opening=CANCEL_OPENING_FUN_TIME)
+    esc_cancels, turns_back_to, returning = offer.hint, offer.turns_back_to, offer.returning
     progress_file = state_dir / PROGRESS_FILENAME
     cancel_file = state_dir / CANCEL_FILENAME
     keeps_an_esc_pressed_during_the_changeover = turns_back_to is not None

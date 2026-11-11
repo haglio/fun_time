@@ -1482,7 +1482,7 @@ class TestClosingScreenLifecycle:
     def test_an_interrupt_takes_the_children_down_as_a_quit_does(self, cfg_factory, tmp_path):
         events: list[str] = []
 
-        with patch.object(windows_bridge_orchestrator, "_wait_for_the_session_to_end",
+        with patch.object(windows_bridge_orchestrator, "wait_for_the_session_to_end",
                           side_effect=KeyboardInterrupt):
             _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
 
@@ -1998,7 +1998,7 @@ class TestAPartThatClosedItselfWhileTheRoomWasUp:
                    side_effect=lambda **kwargs: _fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=hotkeys), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.the_part_that_closed",
+             patch("fun_time.session_end.the_part_that_closed",
                    return_value="the Portrait Funestra"), \
              alert_shown() as put_up:
             ended = _a_session(

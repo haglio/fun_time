@@ -30,7 +30,6 @@ from fun_time.funestra_deaths import (
     ORIGENERATOR_NEVER_CAME_UP,
     part_closed_message,
     show_funestra_died_alert,
-    the_part_that_closed,
 )
 from fun_time.funestra_engine import engine_missing_abort
 from fun_time.funestra_status import read_main_funestra_status
@@ -75,7 +74,13 @@ from fun_time.overlay_progress import (
 )
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
 from fun_time.satellite_launch import satellite_feed
-from fun_time.session_end import session_end_marker_path
+from fun_time.session_end import (
+    A_PART,
+    ASKED,
+    SessionEnd,
+    describe_session_end,
+    wait_for_the_session_to_end,
+)
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
     DESKTOP,
@@ -91,8 +96,8 @@ from fun_time.session_handoff import (
     pending_handoff,
     release_the_headset,
     request_handoff,
-    returning_from_a_crossing,
     say_the_crossing_is_cancelled,
+    what_esc_offers,
 )
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time.single_instance import (
@@ -202,21 +207,6 @@ def launch_vr_funestras(
                                 **hidden_subprocess_kwargs())
 
 
-def _wait_for_session_end(ahk_proc, funestra, *, state_dir: Path, parts=None,
-                          poll_s: float = 0.5) -> str:
-    marker = session_end_marker_path(state_dir)
-    while True:
-        if marker.exists():
-            return "asked"
-        if ahk_proc.poll() is not None:
-            return "ahk"
-        if funestra.poll() is not None:
-            return "funestras"
-        if the_part_that_closed(parts or {}) is not None:
-            return "part"
-        time.sleep(poll_s)
-
-
 def _wait_for_funestra(
     status_file: Path, funestra: subprocess.Popen, progress: ProgressReporter | None = None,
 ) -> bool:
@@ -262,11 +252,10 @@ HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S = 15.0
 
 class _LoadingScreen:
     def __init__(self, state_dir: Path, *, cancelable: bool = True) -> None:
-        returning = returning_from_a_crossing(state_dir)
-        esc_cancels = ("" if not cancelable
-                       else VR.crossing_hint if returning
-                       else CANCEL_OPENING_FUN_TIME_VR)
-        self.turns_back_to = DESKTOP if returning and esc_cancels else None
+        offer = what_esc_offers(state_dir, cancelable=cancelable, arriving_in=VR,
+                                came_from=DESKTOP, opening=CANCEL_OPENING_FUN_TIME_VR)
+        esc_cancels = offer.hint
+        self.turns_back_to = offer.turns_back_to
         self.progress_file = state_dir / PROGRESS_FILENAME
         self.cancel_file = state_dir / CANCEL_FILENAME
         if self.turns_back_to is None:
@@ -583,9 +572,10 @@ def _hold_the_session(
     asked = False
     closed = None
     try:
-        ended_by = _wait_for_session_end(ahk_proc, funestra, state_dir=state_dir, parts=parts)
-        asked = ended_by == "asked"
-        exit_code, closed = _the_sessions_end(ended_by, ahk_proc, funestra, state_dir, parts)
+        ended = wait_for_the_session_to_end(ahk_proc, state_dir, parts=parts,
+                                            ending_it={"funestras": funestra})
+        asked = ended.by == ASKED
+        exit_code, closed = _the_sessions_end(ended, ahk_proc, funestra, state_dir)
     except KeyboardInterrupt:
         logger.info("Interrupted -- shutting down")
         exit_code = 1
@@ -597,24 +587,19 @@ def _hold_the_session(
 
 
 def _the_sessions_end(
-    ended_by: str, ahk_proc: subprocess.Popen, funestra: subprocess.Popen, state_dir: Path,
-    parts: dict[str, ChildProcess],
+    ended: SessionEnd, ahk_proc: subprocess.Popen, funestra: subprocess.Popen, state_dir: Path,
 ) -> tuple[int, str | None]:
-    if ended_by == "funestras":
+    if ended.by == "funestras":
         logger.info("headset exited with code %s -- ending the session", funestra.returncode)
         ahk_proc.terminate()
         ahk_proc.wait()
         return 0, None
-    if ended_by == "part":
-        closed = the_part_that_closed(parts)
-        logger.error("The session ended because %s closed itself", closed)
-        return 1, closed
-    if ended_by == "asked":
-        logger.info("The session was asked to end -- ending it")
-        session_end_marker_path(state_dir).unlink(missing_ok=True)
-        return 0, None
-    logger.info("AHK exited -- ending the session")
-    return ahk_proc.wait(), None
+    if ended.by == A_PART:
+        logger.error("The session ended because %s closed itself", ended.closed)
+        return 1, ended.closed
+    logger.info("The session ended with code %s (%s)", ended.exit_code,
+                describe_session_end(state_dir, ended.exit_code))
+    return ended.exit_code, None
 
 
 def _close_the_session(

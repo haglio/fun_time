@@ -220,6 +220,20 @@ def returning_from_a_crossing(state_dir: str | Path) -> bool:
     return _its_screen_could_still_be_up(crossing_progress_path(state_dir))
 
 
+@dataclass(frozen=True)
+class EscOffer:
+    hint: str
+    turns_back_to: HandoffTarget | None
+    returning: bool
+
+
+def what_esc_offers(state_dir: str | Path, *, cancelable: bool, arriving_in: HandoffTarget,
+                    came_from: HandoffTarget, opening: str) -> EscOffer:
+    returning = returning_from_a_crossing(state_dir)
+    hint = "" if not cancelable else arriving_in.crossing_hint if returning else opening
+    return EscOffer(hint, came_from if returning and hint else None, returning)
+
+
 def _its_screen_could_still_be_up(crossing_progress: Path) -> bool:
     try:
         return time.time() - crossing_progress.stat().st_mtime < LOADING_SCREEN_STALE_S
