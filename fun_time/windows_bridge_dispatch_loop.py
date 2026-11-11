@@ -764,7 +764,7 @@ def build_bridge_config_from_manifest(
         broker_state_dir=Path(v) if (v := commands.broker_state_dir.strip()) else None,
         broker_tray_launcher=Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
         regen_media_root=Path(v) if (v := manifest.regen.media_root.strip()) else None,
-        regen_metadata_root=Path(v) if (v := manifest.regen.metadata_root.strip()) else None,
+        regen_metadata_root=manifest.regen.metadata_folder,
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
         origenerator_cmd_file=Path(commands.origenerator_cmd_file),

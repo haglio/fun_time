@@ -237,7 +237,7 @@ def start_core_session(
     result_file: str | Path,
 ) -> str:
     commands = m.commands
-    regen_metadata_root = Path(m.regen.metadata_root.strip()) if m.regen.metadata_root.strip() else None
+    regen_metadata_root = m.regen.metadata_folder
     portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
     landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
     reap_orphaned_satellites(
