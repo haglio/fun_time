@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
-import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -12,9 +10,8 @@ from app_support.frame_channel import FrameWriter
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command, consume_command_file
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
-from PySide6.QtGui import QImage, QMouseEvent, QWheelEvent
+from PySide6.QtGui import QMouseEvent, QWheelEvent
 from PySide6.QtWidgets import QApplication, QWidget
-from shared_ui.application import application
 from shared_ui.colors import dress_application
 
 from fun_time.library_browser import (
@@ -39,6 +36,7 @@ from .library_panel import (
     SCROLL,
     picked_line,
 )
+from .offscreen_qt import as_rgba_bytes, offscreen_application
 from .pointer import DRAG, PRESS, RELEASE
 
 LISTING_FILENAME = "library_listing.json"
@@ -137,11 +135,10 @@ class HeadsetBrowse:
             return
         self._asked = False
         self._looked_at = now
-        image = self.window.grab().toImage().convertToFormat(QImage.Format.Format_RGBA8888)
-        pixels = bytes(image.constBits())
+        width, height, pixels = as_rgba_bytes(self.window.grab().toImage())
         if pixels == self._sent:
             return
-        self._frames.write(self._token, image.width(), image.height(), pixels)
+        self._frames.write(self._token, width, height, pixels)
         self._sent = pixels
 
     def _open(self, token: int, video: str) -> None:
@@ -222,10 +219,6 @@ def _listing_key(sources: str) -> str:
     return hashlib.sha256(sources.encode("utf-8")).hexdigest()[:12]
 
 
-def _windows_fonts_offscreen_qt_lacks() -> Path:
-    return Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="The library browser, run for the headset")
     parser.add_argument("manifest_path", type=Path)
@@ -238,8 +231,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    os.environ.setdefault("QT_QPA_FONTDIR", str(_windows_fonts_offscreen_qt_lacks()))
-    with application([sys.argv[0], "-platform", "offscreen"]) as app:
+    with offscreen_application() as app:
         dress_application(app)
         config = load_browser_config(args.manifest_path)
         flicks = load_flick_browser_config(args.manifest_path)
