@@ -10,7 +10,7 @@ from fun_time.filter_vocab import named_first_or_last
 from .command_value import main_funestras_own, say_command
 from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
-from .dashboard_actions import ORIGENERATOR_ACTIVATE
+from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL
 
@@ -284,6 +284,11 @@ def build_voice_commands(
         "kino mode": "kino_activate",
         "aura generator": ORIGENERATOR_ACTIVATE,
         "aura generator mode": ORIGENERATOR_ACTIVATE,
+        "rfb": RFB_ACTIVATE,
+        "r f b": RFB_ACTIVATE,
+        "are eff bee": RFB_ACTIVATE,
+        "random faves": RFB_ACTIVATE,
+        "random faves browser": RFB_ACTIVATE,
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         "projection": "projection_cycle",
@@ -391,6 +396,9 @@ _AS_VOSK_HEARS_IT_AND_AS_HE_READS_IT: tuple[tuple[str, str], ...] = (
     ("hi off", "HI off"),
     ("o s r two", "OSR2"),
     ("oh es are two", "OSR2"),
+    ("r f b", "RFB"),
+    ("are eff bee", "RFB"),
+    ("rfb", "RFB"),
     ("v r", "VR"),
     ("vr", "VR"),
     ("two d", "2D"),

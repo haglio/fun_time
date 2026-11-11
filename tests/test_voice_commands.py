@@ -338,6 +338,10 @@ class TestVoiceCommands:
     def test_aura_generator_reads_as_origenerator(self):
         assert friendly_voice("aura generator mode") == "origenerator mode"
 
+    @pytest.mark.parametrize("said", ["rfb", "r f b", "are eff bee"])
+    def test_rfb_reads_as_its_letters_however_it_was_heard(self, said):
+        assert friendly_voice(said) == "RFB"
+
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS

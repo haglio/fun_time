@@ -71,7 +71,7 @@ from fun_time.session_resume import resume_shared_state
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.text_field_clicks import Seen, Sighting
-from fun_time.voice_commands import format_spoken_command, parse_command_line
+from fun_time.voice_commands import VOICE_COMMANDS, format_spoken_command, parse_command_line
 from fun_time.voice_control import VoiceController
 from fun_time.watch_stats import load_watch_stats
 from fun_time.window_layout import MonitorRect, secondary_monitor_rects
@@ -3257,6 +3257,18 @@ class TestOpeningOrigenerator:
     def test_his_own_pick_while_core_waits_cancels_the_switch_owed(self, tmp_path, picked):
         runner = self._left_to_origenerator_while_core_waits(tmp_path)
         runner._handle_command(picked)
+
+        _the_hosted_app_answers(tmp_path, core_ready="1")
+        runner.tick()
+
+        assert runner.state.rfb_mode is RfbMode.RFB
+
+    @pytest.mark.parametrize("said", ["rfb", "r f b", "are eff bee", "random faves",
+                                      "random faves browser"])
+    def test_naming_the_browser_aloud_while_core_waits_cancels_the_switch_owed(
+            self, tmp_path, said):
+        runner = self._left_to_origenerator_while_core_waits(tmp_path)
+        runner._handle_command(VOICE_COMMANDS[said], spoken_at=123.0)
 
         _the_hosted_app_answers(tmp_path, core_ready="1")
         runner.tick()

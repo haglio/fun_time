@@ -559,7 +559,8 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert not retired & set(VOICE_COMMANDS.values())
     assert not retired & _ahk_hotkey_commands()
     assert [_keys(_the_row_of(mode)) for mode in ("genau_activate", "main_kino_activate",
-                                                 "origenerator_activate")] == [(), (), ()]
+                                                 "origenerator_activate", "rfb_activate")] == [
+        (), (), (), ()]
     assert "X" not in _the_row_of("origenerator_activate").detail
     assert _keys(_the_row_of("main_funestra_length_clips")) == ()
     assert _keys(_the_row_of("projection_cycle")) == ()
@@ -835,6 +836,7 @@ def test_each_mode_leads_its_own_group_and_says_only_what_a_reader_cannot_see():
     assert _section("Origenerator").rows[0] == origenerator
     assert _section("Random Faves Browser").rows == (browser,)
     assert (browser.description, browser.detail) == ("Random Faves Browser", "")
+    assert browser.commands == ("rfb_activate",)
     assert browser.voice == ("RFB", "random faves", "random faves browser")
 
 
