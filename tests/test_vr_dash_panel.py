@@ -54,7 +54,15 @@ from fun_time.event_log import (
     SOURCES,
     EventRecord,
 )
-from fun_time.log_panel_model import format_record
+from fun_time.log_panel_model import (
+    DEFAULT_UI_STATE,
+    LogFilter,
+    LogPanelState,
+    format_record,
+    load_ui_state,
+    save_ui_state,
+    ui_state_path,
+)
 from fun_time_vr import dash_panel
 from fun_time_vr.dash_panel import (
     _LABEL_PX,
@@ -436,6 +444,32 @@ class TestWhatAPressDoes:
         assert pointer.state.verbosity == logging.ERROR
         assert not pointer.state.dial_open
         assert posted == []
+
+    def test_it_opens_on_the_filter_the_desktops_log_last_kept(self, tmp_path):
+        kept = ui_state_path(tmp_path)
+        save_ui_state(kept, LogPanelState(verbosity=logging.WARNING, sources=frozenset({SOURCE_MAIN})))
+
+        pointer = DashPointer(post=lambda _command: None, filter_file=kept)
+
+        assert pointer.state.verbosity == logging.WARNING
+        assert pointer.state.sources == frozenset({SOURCE_MAIN})
+
+    def test_with_nothing_kept_it_opens_on_the_desktops_own_default(self, tmp_path):
+        pointer = DashPointer(post=lambda _command: None, filter_file=ui_state_path(tmp_path))
+
+        assert pointer.state.log_filter() == LogFilter(
+            verbosity=DEFAULT_UI_STATE.verbosity, sources=DEFAULT_UI_STATE.sources)
+
+    def test_a_level_and_a_window_picked_are_kept_for_the_desktop_and_the_next_session(self, tmp_path):
+        kept = ui_state_path(tmp_path)
+        pointer = DashPointer(post=lambda _command: None, filter_file=kept)
+
+        pointer.press(*_middle(VERBOSITY_DROPDOWN))
+        pointer.press(*_middle(f"{VERBOSITY_STOP}ERROR", dial_open=True))
+        pointer.press(*_middle(SOURCE_MAIN))
+
+        assert load_ui_state(kept) == LogPanelState(
+            verbosity=logging.ERROR, sources=DEFAULT_UI_STATE.sources - {SOURCE_MAIN})
 
     def test_the_list_is_only_pressable_while_it_is_open(self):
         pointer, _posted = _pointer()
