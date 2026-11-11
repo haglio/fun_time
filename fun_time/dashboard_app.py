@@ -11,7 +11,6 @@ from functools import partial
 from math import ceil
 from pathlib import Path
 
-from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 from funestra.file_channel import append_command
 from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
@@ -53,6 +52,7 @@ from shared_ui.spacing import BUTTON_RADIUS_HUD
 
 from fun_time import preview_marker
 from fun_time.config import LayoutConfig
+from fun_time.console_logging import log_to_the_console
 from fun_time.dashboard_actions import (
     ENTER_OMNIPAUSE,
     ENTER_VR,
@@ -727,9 +727,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def set_up_logging() -> logging.Logger:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    install_exception_logging(logger)
-    return logger
+    return log_to_the_console(logger)
 
 
 def claim_taskbar_identity(identity: str, claim: Callable[[str], None]) -> None:

@@ -6,10 +6,10 @@ import argparse
 import logging
 from pathlib import Path
 
-from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 
 from fun_time import preview_marker
+from fun_time.console_logging import log_to_the_console
 from fun_time.event_log import MESSAGE, EventLogHandler, event_log_path
 from fun_time.manifest import LaunchManifest
 from fun_time.project_paths import PROJECT_VR_ICON
@@ -48,9 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def set_up_logging() -> logging.Logger:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    install_exception_logging(logger)
-    return logger
+    return log_to_the_console(logger)
 
 
 def main(argv: list[str] | None = None) -> int:
