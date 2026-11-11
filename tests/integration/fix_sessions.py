@@ -16,6 +16,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 FIX_NOTICES_NAME = "main_verifier_fix_notices.json"
 FIX_RESTARTS_NAME = "main_verifier_fix_restarts.json"
+FIX_REFUSALS_NAME = "main_verifier_fix_refusals.json"
 CLAUDE_TRANSCRIPTS = Path.home() / ".claude" / "projects"
 CARRY_ON = ("Your last turn ended on an error from the Claude service, not on anything you did. "
             "Carry on with the work you were given.")
@@ -95,14 +96,13 @@ def _start_notice(flashed: FixNotice) -> None:
                      cwd=Path(__file__).resolve().parents[2], **hidden_subprocess_kwargs())
 
 
-def _started_again(claude: str, session: dict, shell) -> bool:
+def _why_not_started_again(claude: str, session: dict, shell) -> str | None:
     try:
         shell([claude, "auth", "status"])
         shell([claude, "--bg", "--resume", session["sessionId"], CARRY_ON], cwd=Path(session["cwd"]))
     except CommandFailed as why:
-        _log.warning("could not start fix session %s again: %s", session["id"], why)
-        return False
-    return True
+        return str(why)
+    return None
 
 
 def _kept(path: Path) -> dict:
@@ -110,6 +110,22 @@ def _kept(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def _start_again(refusals_path: Path, sessions: Sequence[dict], claude: str, shell) -> list[str]:
+    refusals, started_again = _kept(refusals_path), []
+    before = dict(refusals)
+    for session in sessions:
+        why = _why_not_started_again(claude, session, shell)
+        if why is None:
+            started_again.append(session["id"])
+            refusals.pop(session["id"], None)
+        elif refusals.get(session["id"]) != why:
+            _log.warning("could not start fix session %s again: %s", session["id"], why)
+            refusals[session["id"]] = why
+    if refusals != before:
+        write_whole(refusals_path, json.dumps(refusals, indent=1))
+    return started_again
 
 
 @dataclass(frozen=True)
@@ -127,7 +143,7 @@ def look_after_fix_sessions(state: Path, incidents: Sequence[dict], claude: str,
     told, restarts = _kept(told_path), _kept(restarts_path)
     steps = fix_session_steps(incidents, background_sessions(claude, shell), told, restarts,
                               lambda session: died_on_a_service_error(transcripts, session))
-    started_again = [session["id"] for session in steps.start_again if _started_again(claude, session, shell)]
+    started_again = _start_again(state / FIX_REFUSALS_NAME, steps.start_again, claude, shell)
     for session_id in started_again:
         restarts[session_id] = restarts.get(session_id, 0) + 1
     if started_again:

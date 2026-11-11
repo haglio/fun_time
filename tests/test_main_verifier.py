@@ -229,6 +229,7 @@ class FakeShell:
 class SignedOutShell(FakeShell):
     def __call__(self, command, cwd=None):
         if command[1:] == ["auth", "status"]:
+            self.commands.append((list(command), cwd))
             raise main_verifier.CommandFailed('claude.exe auth status: {"loggedIn": false}')
         return super().__call__(command, cwd)
 
@@ -1228,6 +1229,35 @@ def test_a_fix_session_that_cannot_be_started_again_is_tried_next_time_and_the_o
     assert not [command for command, _ in shell.commands if "--resume" in command]
     assert not (state / "main_verifier_fix_restarts.json").exists()
     assert "could not start fix session 1a2b3c4d again" in caplog.text
+
+
+def test_a_fix_session_that_cannot_be_started_again_for_the_same_reason_is_warned_about_once_however_often_it_is_tried(
+        tmp_path, caplog):
+    state, transcripts, session = a_dead_fix_session(tmp_path)
+    shell = SignedOutShell({"agents --json --all": json.dumps([session])})
+
+    with caplog.at_level("INFO", logger="main_verifier"):
+        for _ in range(3):
+            fix_sessions.look_after_fix_sessions(state, [FIX], "claude.exe",
+                                                 FixSessionHands(shell=shell, start=lambda notice: None,
+                                                                 transcripts=transcripts))
+
+    assert [record.levelname for record in caplog.records if "1a2b3c4d" in record.getMessage()] == ["WARNING"]
+    assert [command for command, _ in shell.commands].count(["claude.exe", "auth", "status"]) == 3
+
+
+def test_a_fix_session_refused_again_after_it_was_once_started_again_is_warned_about_again(tmp_path, caplog):
+    state, transcripts, session = a_dead_fix_session(tmp_path)
+    signed_out = SignedOutShell({"agents --json --all": json.dumps([session])})
+    signed_in = FakeShell({"agents --json --all": json.dumps([session]), "auth status": '{"loggedIn": true}'})
+
+    with caplog.at_level("WARNING", logger="main_verifier"):
+        for shell in (signed_out, signed_in, signed_out):
+            fix_sessions.look_after_fix_sessions(state, [FIX], "claude.exe",
+                                                 FixSessionHands(shell=shell, start=lambda notice: None,
+                                                                 transcripts=transcripts))
+
+    assert len([record for record in caplog.records if "1a2b3c4d" in record.getMessage()]) == 2
 
 
 def test_each_new_state_of_a_fix_session_is_told_once_however_often_the_verifier_starts(tmp_path):
