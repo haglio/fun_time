@@ -5,12 +5,12 @@ import subprocess
 import sys
 
 from shared_ui.reference import (
-    ACTION_COLUMN_AT_LEAST_PX,
+    ACTION_COLUMN_PX,
     CONTROLLER_COLUMN_PX,
     CONTROLLER_HEADER,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
-    VOICE_COLUMN_PX,
+    VOICE_COLUMN_AT_LEAST_PX,
     VOICE_HEADER,
     CommandRef,
     ReferenceGroup,
@@ -1036,7 +1036,7 @@ def _rows_of(table: str) -> list[str]:
 
 
 def _grid_at(width: int) -> dict[str, int]:
-    action = width - HOTKEY_BLOCK_PX - CONTROLLER_COLUMN_PX - VOICE_COLUMN_PX
+    action = ACTION_COLUMN_PX
     return {"Action": 0, HOTKEY_HEADER: action, CONTROLLER_HEADER: action + HOTKEY_BLOCK_PX,
             VOICE_HEADER: action + HOTKEY_BLOCK_PX + CONTROLLER_COLUMN_PX}
 
@@ -1055,13 +1055,13 @@ def test_every_table_lays_its_columns_on_one_grid_so_the_heads_line_up_down_the_
                 if len(cells) == 3 and cells[0][0] == "Portrait":
                     continue
                 assert sum(cell[2] for cell in cells) == width, table[:120]
-                assert cells[-1][1:3] == (grid[VOICE_HEADER], VOICE_COLUMN_PX), table[:120]
+                assert cells[-1][1:3] == (grid[VOICE_HEADER], width - grid[VOICE_HEADER]), table[:120]
                 if CONTROLLER_HEADER in table:
                     assert cells[-2][1:3] == (grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX), table[:120]
         assert {head: xs for head, xs in heads.items() if head in grid} == {
             head: {x} for head, x in grid.items()}
-    assert (HOTKEY_BLOCK_PX, CONTROLLER_COLUMN_PX, VOICE_COLUMN_PX) == (300, 120, 220)
-    assert ACTION_COLUMN_AT_LEAST_PX == 150
+    assert (HOTKEY_BLOCK_PX, CONTROLLER_COLUMN_PX, ACTION_COLUMN_PX) == (300, 120, 220)
+    assert VOICE_COLUMN_AT_LEAST_PX == 150
     assert narrowest_page_px(build_reference_sections()) == 790
 
 
@@ -1074,7 +1074,7 @@ def test_a_forked_hotkey_block_is_three_columns_of_a_hundred_under_one_head():
     assert [cell[:3] for cell in _cells_across(head)] == [
         ("Action", 0, grid[HOTKEY_HEADER]), (HOTKEY_HEADER, grid[HOTKEY_HEADER], HOTKEY_BLOCK_PX),
         (CONTROLLER_HEADER, grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX),
-        (VOICE_HEADER, grid[VOICE_HEADER], VOICE_COLUMN_PX)]
+        (VOICE_HEADER, grid[VOICE_HEADER], 1000 - grid[VOICE_HEADER])]
     assert [cell[:3] for cell in _cells_across(funestras)] == [
         ("Portrait", 0, 100), ("Landscape", 100, 100), ("Main", 200, 100)]
     assert [cell[1] for cell in _cells_across(body[0])][1:4] == [
