@@ -14,13 +14,13 @@ from fun_time.log_panel_model import remember_what_was_heard, with_what_was_hear
 from fun_time.message_placement import MESSAGE_LINGER_MS
 from fun_time.unlogged_messages import UnloggedMessages
 
-from .layout import MAIN
+from .layout import LANDSCAPE, MAIN, PORTRAIT
 
 MESSAGE_SECONDS = MESSAGE_LINGER_MS / 1000
 
 KEPT_RECORDS = 400
 
-_SCREENS = {SOURCE_PORTRAIT: SOURCE_PORTRAIT, SOURCE_LANDSCAPE: SOURCE_LANDSCAPE}
+_SCREENS = {SOURCE_PORTRAIT: PORTRAIT, SOURCE_LANDSCAPE: LANDSCAPE}
 
 
 def screen_for(source: str) -> str:
