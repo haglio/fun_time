@@ -155,6 +155,13 @@ _SECTIONS: tuple[_Section, ...] = (
                     (),
                     ("help_reference", "help_reference_close"),
                 ),
+                _Row(
+                    "Origenerator mode — Origenerator Core shares real estate with the Random "
+                    "Favs Browser",
+                    commands=("origenerator_activate", "satellites_origenerator_activate",
+                              "portrait_origenerator_activate", "landscape_origenerator_activate"),
+                    voice_display=("origenerator", "origenerator mode"),
+                ),
             )),
             _Group("Funestras", (
                 _Row(
@@ -265,26 +272,6 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Funestras",
         (
-            _Group("Modes", (
-                _Row(
-                    f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot "
-                    "Hand driving the OSR2",
-                    commands=("genau_activate",),
-                ),
-                _Row(
-                    "Kino mode",
-                    commands=("kino_activate", "main_kino_activate", "satellites_kino_activate",
-                              "portrait_kino_activate", "landscape_kino_activate"),
-                    voice_display=("kino", "kino mode"),
-                ),
-                _Row(
-                    "Origenerator mode — Satellite Funestras show Slideshows; "
-                    "Origenerator Core shares real estate with the Random Favs Browser",
-                    commands=("satellites_origenerator_activate", "portrait_origenerator_activate",
-                              "landscape_origenerator_activate"),
-                    voice_display=("origenerator", "origenerator mode"),
-                ),
-            )),
             _Group("Navigation", (
                 _Row("previous", commands=(*_every_funestra("prev"), "genau_prev_flick"),
                      columns=(("Left",), ("A",), ("M",))),
@@ -308,14 +295,14 @@ _SECTIONS: tuple[_Section, ...] = (
                      controller=(HOLD_TRIGGER_AND_A_OR_X,)),
                 _Row(
                     "trash — in Kino mode it sends the video to Trash and moves on, or "
-                    "unfavorites it instead when it has been previously favorited; in "
-                    "Origenerator mode it deletes the image or video and moves on",
+                    "unfavorites it instead when it has been previously favorited; on a "
+                    "Satellite it deletes the image or video and moves on",
                     commands=(*_sided("trash"), "genau_trash_flick"),
                     columns=(("Up",), ("W",), ("K",)),
                 ),
                 _Row(
                     "lock / unlock — locked, what is on screen repeats; unlocked it "
-                    "moves on.  A satellite in Origenerator mode favorites the locked "
+                    "moves on.  A satellite favorites the locked "
                     "slide and asks for a better version of it",
                     commands=("portrait_lock", "landscape_lock", "main_lock", *_every_funestra("lock_on"), *_every_funestra("lock_off")),
                     columns=(("Down",), ("S",), (",",)),
@@ -412,9 +399,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row(
                     "included video types (enhancement) — \"enhanced only\" keeps "
                     "what has an enhanced version, \"original only\" what has none, and "
-                    "\"enhanced and original\" everything; said to a satellite in "
-                    "Origenerator mode, \"enhanced only\" narrows its slideshow and "
-                    "\"original only\" is ignored",
+                    "\"enhanced and original\" everything",
                     commands=_every_funestra("enhancement_enhanced", "enhancement_original",
                                              "enhancement_both"),
                 ),
@@ -433,7 +418,7 @@ _SECTIONS: tuple[_Section, ...] = (
                        columns=tuple((key,) for key in keys))
                   for direction, keys in _HUD_MOVE_KEYS.items()),
                 _Row(
-                    "HUD to a corner — said with a corner (\"top left\", \"lower right\"; "
+                    "move HUD to a corner — said with a corner (\"top left\", \"lower right\"; "
                     "\"move\" may lead, \"upper\" says the same as \"top\" and \"bottom\" "
                     "the same as \"lower\") it goes straight there, in the headset an "
                     "upper corner hanging it over the Funestra's top edge and a lower one "
@@ -491,9 +476,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 _FILTER_BY_ACTION,
                 _Row("filter to the action on screen", commands=_sided("lock_action")),
                 _Row(
-                    "drop all filters — keep the order and everything else; in "
-                    "Origenerator mode every narrowing at once: the favorites, the "
-                    "enhanced ones, and the action filter",
+                    "drop all filters — keep the order and everything else",
                     commands=_sided("no_filter"),
                 ),
             )),
@@ -527,6 +510,19 @@ _SECTIONS: tuple[_Section, ...] = (
                     controller=(TRIGGER, STICK_UP_DOWN),
                 ),
             )),
+            _Group("Modes", (
+                _Row(
+                    f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot "
+                    "Hand driving the OSR2",
+                    commands=("genau_activate",),
+                ),
+                _Row(
+                    "Kino mode",
+                    commands=("kino_activate", "main_kino_activate", "satellites_kino_activate",
+                              "portrait_kino_activate", "landscape_kino_activate"),
+                    voice_display=("kino", "kino mode"),
+                ),
+            )),
             _Group("Loops", (
                 _Row(
                     "loop control — hold to start recording a loop, release to end "
@@ -540,12 +536,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     ("genaumacher_save",),
                 ),
             )),
-        ),
-    ),
-    _Section(
-        "Genau",
-        (
-            _Group("", (
+            _Group("Genau", (
                 flip_row(_FLICK),
                 _Row(
                     f"seconds a {_FLICK.one} holds the screen before Genau moves on — only "

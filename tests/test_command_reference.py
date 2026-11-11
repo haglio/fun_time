@@ -401,7 +401,7 @@ def test_genaus_flick_steps_and_trash_ride_the_shared_rows_and_k_sits_under_main
     assert trash.voice == ("trash", "trash video")
     assert trash.detail == (
         "in Kino mode it sends the video to Trash and moves on, or unfavorites it instead "
-        "when it has been previously favorited; in Origenerator mode it deletes the "
+        "when it has been previously favorited; on a Satellite it deletes the "
         "image or video and moves on")
     assert _the_row_of("genau_prev_flick").description == "previous"
     assert _the_row_of("genau_next_flick").description == "next"
@@ -529,7 +529,7 @@ def test_the_genau_row_shows_each_phrase_once_though_the_recognizer_hears_two_sp
 
 def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     flick = genau_flick_noun()
-    genau = _section("Genau")
+    genau = _group("Main Funestra", "Genau")
     seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
     assert [row.description for row in genau.rows] == [
@@ -560,8 +560,8 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert not retired & _covered_commands()
     assert not retired & set(VOICE_COMMANDS.values())
     assert not retired & _ahk_hotkey_commands()
-    modes = _group("Funestras", "Modes")
-    assert [_keys(row) for row in modes.rows] == [(), (), ()]
+    modes = _group("Main Funestra", "Modes")
+    assert [_keys(row) for row in modes.rows] == [(), ()]
     assert "X" not in _the_row_of("satellites_origenerator_activate").detail
     assert _keys(_the_row_of("main_funestra_length_clips")) == ()
     assert _keys(_the_row_of("projection_cycle")) == ()
@@ -569,7 +569,7 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert (_keys(angle), angle.voice, angle.commands) == ((), (), ())
 
 
-def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_genau_and_origenerator():
+def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_and_origenerator():
     titles = [s.title for s in build_reference_sections()]
     assert titles == [
         "Dashboard",
@@ -577,7 +577,6 @@ def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_
         "OSR2",
         "Funestras",
         "Main Funestra",
-        "Genau",
         "Origenerator",
     ]
 
@@ -610,8 +609,8 @@ def test_the_genau_groups_rows_take_the_overlays_word():
 
 
 
-def test_genaus_flick_commands_are_the_genau_section_or_ride_a_shared_navigation_row():
-    genau = _section("Genau")
+def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shared_navigation_row():
+    genau = _group("Main Funestra", "Genau")
     in_genau = {cmd for row in genau.rows for cmd in row.commands}
     elsewhere = {cmd for row in _all_rows() if row not in genau.rows for cmd in row.commands
                  if about_genaus_flick(parse_command(cmd))}
@@ -645,7 +644,7 @@ def test_what_only_kino_answers_is_the_loops_group_or_rides_a_shared_navigation_
 def test_a_satellites_command_has_one_row_whichever_mode_the_side_is_in():
     for cmd in ("landscape_trash", "portrait_nav_up", "landscape_loop", "satellites_cycle_version"):
         assert _keys(_the_row_of(cmd)), cmd
-    assert "in Origenerator mode" in _the_row_of("portrait_trash").detail
+    assert "on a Satellite" in _the_row_of("portrait_trash").detail
     assert "enhancement" in _the_row_of("satellites_cycle_version").detail
 
 
@@ -788,7 +787,7 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
 
     assert [(group.title, [row.description for row in group.rows]) for group in dashboard.groups] == [
         ("", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
-              "open / close this hotkeys & voice reference"]),
+              "open / close this hotkeys & voice reference", "Origenerator mode"]),
         ("Funestras", ["F-mode all", "reset all"]),
         ("Voice control", ["disable voice control",
                            "accept the last command voice was not sure enough of"]),
@@ -820,15 +819,16 @@ def test_the_vr_section_opens_with_the_crossing_and_ends_with_the_screens():
         "hold trigger + move", "hold trigger + stick forward / back")
 
 
-def test_the_modes_say_only_what_a_reader_cannot_see():
-    genau, kino, origenerator = _group("Funestras", "Modes").rows
+def test_the_main_funestras_modes_say_only_what_a_reader_cannot_see_and_origenerator_mode_is_the_dashboards():
+    genau, kino = _group("Main Funestra", "Modes").rows
+    origenerator = _the_row_of("origenerator_activate")
 
     assert genau.detail
     assert (kino.description, kino.detail) == ("Kino mode", "")
     assert (origenerator.description, origenerator.detail) == (
         "Origenerator mode",
-        ("Satellite Funestras show Slideshows; Origenerator Core shares real estate with "
-         "the Random Favs Browser"))
+        "Origenerator Core shares real estate with the Random Favs Browser")
+    assert origenerator in _section("Dashboard").rows
 
 
 def test_the_osr2_rows_say_the_cruise_control_in_words_and_the_retired_quarter_cycle_is_gone():
@@ -857,7 +857,7 @@ def test_the_hud_moves_a_row_per_direction_by_key_then_to_a_corner_by_name():
     left, right, up, down, corner, minimize = hud.rows
 
     assert [row.description for row in hud.rows] == [
-        "move HUD left", "move HUD right", "move HUD up", "move HUD down", "HUD to a corner",
+        "move HUD left", "move HUD right", "move HUD up", "move HUD down", "move HUD to a corner",
         "minimize HUD"]
     assert [row.key_columns for row in (left, right, up, down)] == [
         (("Ctrl+Left",), ("Ctrl+A",), ("Ctrl+M",)), (("Ctrl+Right",), ("Ctrl+D",), ("Ctrl+.",)),
@@ -918,7 +918,7 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
     crown = _the_row_of("main_crown")
 
     assert [group.title for group in funestras.groups] == [
-        "Modes", "Navigation", "Playlist", "Included video types", "Sound", "HUD", "Playback",
+        "Navigation", "Playlist", "Included video types", "Sound", "HUD", "Playback",
         "Nav Map", "Loops", "Filter", "Other"]
     assert [row.description for row in _group("Funestras", "Nav Map").rows] == [
         "cycle action", "cycle seed", "wrong action"]
@@ -938,10 +938,10 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
     assert crown.voice == ("crown main", "crown portrait")
 
 
-def test_the_main_funestras_own_rows_are_what_it_browses_and_its_loops():
+def test_the_main_funestras_own_rows_are_what_it_browses_its_modes_its_loops_and_genau():
     main = _section("Main Funestra")
 
-    assert [group.title for group in main.groups] == ["", "Loops"]
+    assert [group.title for group in main.groups] == ["", "Modes", "Loops", "Genau"]
     assert [row.description for row in main.groups[0].rows] == ["open the browser"]
 
 
@@ -964,7 +964,7 @@ def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_incl
                             "original and enhanced")
     assert {"active_enhancement_enhanced", "portrait_enhancement_original",
             "satellites_enhancement_both", "main_enhancement_enhanced"} <= set(levels.commands)
-    assert "Origenerator mode" in levels.detail
+    assert "Origenerator mode" not in levels.detail
     assert not [row for row in _section("Main Funestra").rows
                 if row.description.startswith("included")]
 
@@ -1113,7 +1113,7 @@ def test_the_controller_column_says_what_the_headsets_controllers_do_on_each_row
         STICK_UP_DOWN: ["move or resize a VR screen", "open the browser"],
         HOLD_TRIGGER_AND_STICK_UP_DOWN: ["move or resize a VR screen"],
         HOLD_TRIGGER_AND_MOVE: ["tilt the VR screens up / down and level them again"],
-        TRIGGER: ["move or resize a VR screen", "HUD to a corner", "open the browser"],
+        TRIGGER: ["move or resize a VR screen", "move HUD to a corner", "open the browser"],
     }
     assert "handle" in next(row for row in _section("VR").rows
                             if row.description == "move or resize a VR screen").detail
@@ -1166,11 +1166,11 @@ def test_the_funestras_note_aims_a_phrase_and_says_genaus_word_for_a_video():
 
 
 def test_an_untitled_group_renders_no_heading_and_a_flat_section_is_its_table():
-    for title in ("VR", "Genau", "Origenerator"):
+    for title in ("VR", "Origenerator"):
         assert "<h4" not in _section_html(title), title
     main = _section_html("Main Funestra")
     assert main.index("<table") < main.index("<h4")
-    assert set(_group_htmls("Main Funestra")) == {"", "Loops"}
+    assert set(_group_htmls("Main Funestra")) == {"", "Modes", "Loops", "Genau"}
 
 
 def test_a_sections_note_is_the_tooltip_on_its_title():

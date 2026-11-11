@@ -78,7 +78,7 @@ class TestItIsTheSameReference:
 
         assert header_lines(by_title["Funestras"]) == 2
         assert header_lines(by_title["Dashboard"]) == 1
-        assert header_lines(by_title["Genau"]) == 1
+        assert header_lines(by_title["Main Funestra"]) == 1
 
     def test_a_page_without_a_key_paints_the_voice_column_where_the_key_column_was(self):
         by_title = {section.title: section for section in build_reference_sections()}
@@ -106,7 +106,7 @@ class TestItIsTheSameReference:
         by_title = {section.title: section for section in build_reference_sections()}
 
         assert lines_of(by_title["VR"]) == len(by_title["VR"].rows)
-        assert lines_of(by_title["Main Funestra"]) == 1 + len(by_title["Main Funestra"].rows)
+        assert lines_of(by_title["Main Funestra"]) == 3 + len(by_title["Main Funestra"].rows)
 
     def test_no_page_runs_its_rows_past_its_lower_edge(self):
         for index in range(len(build_reference_sections())):
