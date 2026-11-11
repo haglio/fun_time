@@ -167,16 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def vr_main_sources(config) -> str:
-    dirs = [*config.vr.library_dirs, *config.paths.main_funestra_library_dirs]
-    return "|".join(str(path) for path in dirs)
-
-
 def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
     manifest = build_windows_bridge_manifest(config, dashboard_enabled=dashboard_enabled)
-    manifest["media"]["main_funestra_library_sources"] = vr_main_sources(config)
-    manifest["media"]["vr_library_dirs"] = "|".join(
-        str(path) for path in config.vr.library_dirs)
     manifest["media"]["genau_vr_flicks"] = str(vr_flicks_in(config.paths.flicks_dir))
     manifest["vr"] = {
         "funestra_module": VR_FUNESTRAS_MODULE,

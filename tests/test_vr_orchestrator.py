@@ -27,7 +27,12 @@ from fun_time.funestra_deaths import NO_ORIGENERATOR_SET_UP, ORIGENERATOR_NEVER_
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import OUR_RUNTIME_NAME
 from fun_time.hosted_origenerator import HostedApp
-from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
+from fun_time.manifest import (
+    LaunchManifest,
+    build_windows_bridge_manifest,
+    main_funestra_sources,
+    write_manifest_data,
+)
 from fun_time.mode_plan import show_verb
 from fun_time.modes import VideoShapes
 from fun_time.origenerator_opening import OrigeneratorNeverCameUp
@@ -96,7 +101,6 @@ from fun_time_vr.orchestrator import (
     launch_vr_funestras,
     resume_genau_shapes,
     validate_vr_config,
-    vr_main_sources,
 )
 from tests.hosted_shows import an_app_that_opens_each_slideshow_asked_of_it
 from tests.loading_screen_beats import heard_from_again_once_stale
@@ -170,19 +174,23 @@ class TestVrConfig:
 
 class TestVrManifest:
     def test_primary_sources_merge_vr_first_then_the_desktop_dirs(self, config, tmp_path):
-        spec = vr_main_sources(config)
+        spec = main_funestra_sources(config)
         assert spec.split("|") == [
             str(tmp_path / "library" / "VR" / "finished"),
             str(tmp_path / "library" / "2D"),
         ]
 
-    def test_every_reader_of_the_manifest_sees_the_vr_rotation_as_the_main_sources(self, config):
-        manifest = build_vr_manifest(config)
+    @pytest.mark.parametrize("build", [build_windows_bridge_manifest, build_vr_manifest])
+    def test_every_reader_of_the_manifest_sees_the_vr_rotation_as_the_main_sources(
+            self, config, build):
+        manifest = build(config)
 
-        assert manifest["media"]["main_funestra_library_sources"] == vr_main_sources(config)
+        assert manifest["media"]["main_funestra_library_sources"] == main_funestra_sources(config)
 
-    def test_the_manifest_marks_the_vr_half_of_those_sources_for_narrowing_by_shape(self, config):
-        media = build_vr_manifest(config)["media"]
+    @pytest.mark.parametrize("build", [build_windows_bridge_manifest, build_vr_manifest])
+    def test_the_manifest_marks_the_vr_half_of_those_sources_for_narrowing_by_shape(
+            self, config, build):
+        media = build(config)["media"]
 
         vr_half = media["vr_library_dirs"].split("|")
         assert vr_half == [str(config.vr.library_dirs[0])]
