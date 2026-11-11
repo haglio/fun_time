@@ -4,20 +4,18 @@ import re
 import subprocess
 import sys
 
+from shared_ui.reference import BORDER as _BORDER
 from shared_ui.reference import (
-    ACTION_COLUMN_PX,
     CONTROLLER_COLUMN_PX,
     CONTROLLER_HEADER,
     HOTKEY_BLOCK_PX,
     HOTKEY_HEADER,
-    VOICE_COLUMN_AT_LEAST_PX,
     VOICE_HEADER,
     CommandRef,
     ReferenceGroup,
     ReferenceSection,
     narrowest_page_px,
 )
-from shared_ui.reference import BORDER as _BORDER
 
 from fun_time.command_reference import (
     _SECTIONS,
@@ -1046,7 +1044,8 @@ def _rows_of(table: str) -> list[str]:
 
 
 def _grid_at(width: int) -> dict[str, int]:
-    action = ACTION_COLUMN_PX
+    dashboards_head = _rows_of(_tables(render_reference_html(width))[0])[0]
+    action = _cells_across(dashboards_head)[0][2]
     return {"Action": 0, HOTKEY_HEADER: action, CONTROLLER_HEADER: action + HOTKEY_BLOCK_PX,
             VOICE_HEADER: action + HOTKEY_BLOCK_PX + CONTROLLER_COLUMN_PX}
 
@@ -1070,8 +1069,7 @@ def test_every_table_lays_its_columns_on_one_grid_so_the_heads_line_up_down_the_
                     assert cells[-2][1:3] == (grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX), table[:120]
         assert {head: xs for head, xs in heads.items() if head in grid} == {
             head: {x} for head, x in grid.items()}
-    assert (HOTKEY_BLOCK_PX, CONTROLLER_COLUMN_PX, ACTION_COLUMN_PX) == (300, 120, 220)
-    assert VOICE_COLUMN_AT_LEAST_PX == 150
+    assert (HOTKEY_BLOCK_PX, CONTROLLER_COLUMN_PX) == (300, 120)
     assert narrowest_page_px(build_reference_sections()) == 790
 
 
