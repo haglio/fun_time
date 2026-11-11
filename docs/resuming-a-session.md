@@ -84,7 +84,7 @@ file nothing has touched for a minute (`overlay_progress`). The moment the app
 answers, the session asks it for both Satellites' slideshows, and the loading
 screen comes down only once the app has taken both Satellites. The browser's
 place, when it is owed to Origenerator, does not hold the loading screen: the
-session opens with the Random Favs Browser there and gives the place to
+session opens with the Random Faves Browser there and gives the place to
 Origenerator Core the moment Core is ready (once ComfyUI has answered), unless he
 has picked either button of that pair in the meantime. An app that was already
 open is ready at once.
