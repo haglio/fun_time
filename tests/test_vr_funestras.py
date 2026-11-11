@@ -35,9 +35,9 @@ from funestra.outside_buttons import OutsideButtons
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem
 from funestra.testing import FakeEngine
+from PIL import Image
 from shared_ui.palette import BLUE
 
-from fun_time.command_reference import build_reference_sections
 from fun_time.config import load_config
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -132,7 +132,7 @@ from fun_time_vr.layout import (
     shown_at,
     write_layout,
 )
-from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
+from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_line
 from fun_time_vr.loading_screen import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
@@ -166,7 +166,14 @@ from fun_time_vr.projection import (
     PROJECTIONS,
     RECTILINEAR_SBS,
 )
-from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
+from fun_time_vr.reference_panel import (
+    NEXT_PAGE,
+    REFERENCE_WIDTH_DEG,
+    ReferencePage,
+    ReferencePages,
+    reference_actions,
+    reference_size,
+)
 from fun_time_vr.room import Hanging, RoomLaunch
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import (
@@ -180,6 +187,7 @@ from fun_time_vr.scene import (
     widened,
 )
 from fun_time_vr.stacking import Stacking
+from fun_time_vr.stick_scrolling import WHEEL_NOTCH, scroll_from_stick
 from fun_time_vr.surfaces import HudBitmap, LatestFrame
 from fun_time_vr.thumbs import NUDGE_FORWARD
 from fun_time_vr.wrap_readout import WrapReadout, label
@@ -1905,6 +1913,7 @@ def _a_room_to_arrange(*, main=None, satellites=(), others=()):
         where=room.where_they_hang(units), hangings=lambda: room.what_hangs(units),
         library=SimpleNamespace(takes_the_stick=False),
         gallery=SimpleNamespace(takes_the_stick=False),
+        reference=SimpleNamespace(takes_the_stick=False),
         posts=MagicMock(), keeper=MagicMock(), pointing=MagicMock(),
     )
 
@@ -2868,6 +2877,26 @@ def _no_gallery():
     return SimpleNamespace(takes_the_stick=False)
 
 
+_REFERENCE_PAGES = ReferencePages(
+    tuple(ReferencePage(title, Image.new("RGBA", (790, 3000), (20, 20, 20, 255)), 20)
+          for title in ("Dashboard", "Funestras")),
+    step_px=60)
+
+
+class _FakeReferenceHost:
+    def __init__(self, pages: ReferencePages | None) -> None:
+        self._pages = pages
+        self.asked = 0
+        self.closed = False
+
+    def pages(self) -> ReferencePages | None:
+        self.asked += 1
+        return self._pages
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class TestTheLibraryUnderThePointer:
     def test_it_opens_where_the_last_session_left_it(self, tmp_path):
         moved = Placement(azimuth_deg=-25.0, elevation_deg=18.0, width_deg=60.0)
@@ -3040,7 +3069,7 @@ class TestTheLibraryUnderThePointer:
         host.sent.clear()
 
         hands = _hands_for_the_funestras(
-            unit, _no_gallery(),
+            (unit, _no_gallery()),
             {"left": HandInput(stick_y=0.2),
              "right": HandInput(stick_y=-1.0, forward=True)},
             elapsed_s=0.5)
@@ -3058,7 +3087,7 @@ class TestTheLibraryUnderThePointer:
         unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
 
         hands = _hands_for_the_funestras(
-            unit, _no_gallery(), {"right": HandInput(stick_x=0.9)}, elapsed_s=0.5)
+            (unit, _no_gallery()), {"right": HandInput(stick_x=0.9)}, elapsed_s=0.5)
 
         assert hands == {"right": HandInput()}
 
@@ -3068,7 +3097,7 @@ class TestTheLibraryUnderThePointer:
         hands = {"right": HandInput(stick_y=-1.0)}
 
         assert _hands_for_the_funestras(
-            unit, _no_gallery(), hands, elapsed_s=0.5) == hands
+            (unit, _no_gallery()), hands, elapsed_s=0.5) == hands
         assert host.sent == []
 
     def test_closing_the_session_ends_its_browser(self, tmp_path):
@@ -3197,7 +3226,7 @@ class TestWhatComesForwardTogether:
 
 
 class TestTheReferenceUnderTheDashboard:
-    def _unit(self, tmp_path, *, carrying_the_main_hud=False, actions=dict):
+    def _unit(self, tmp_path, *, carrying_the_main_hud=False, host=None):
         dash = SimpleNamespace(screen=SimpleNamespace(placement=SPOTS[DASH]),
                                texture=SimpleNamespace(aspect=_THE_DASHS_SHAPE),
                                carrying_the_main_hud=carrying_the_main_hud)
@@ -3206,7 +3235,7 @@ class TestTheReferenceUnderTheDashboard:
             texture=SimpleNamespace(aspect=1.2))
         with patch("fun_time_vr.funestras.FrameTexture", _FakeMainHudTexture):
             unit = _ReferenceUnit(dash, main_hud_unit, flag=tmp_path / REFERENCE_OPEN_FILENAME,
-                                  actions=actions)
+                                  host=host or _FakeReferenceHost(None))
         return unit, dash, main_hud_unit
 
     @staticmethod
@@ -3221,15 +3250,101 @@ class TestTheReferenceUnderTheDashboard:
         below = surface_vertices(lower, aspect=_FakeMainHudTexture.aspect)
         return below[:, 1].max() == pytest.approx(above[:, 1].min(), abs=1e-6)
 
-    def test_it_paints_the_action_names_its_session_was_told_of(self, tmp_path):
-        told = {"alphaname": ("alphaname",)}
-        unit, _dash, _main_hud = self._unit(tmp_path, actions=lambda: told)
+    def _up(self, tmp_path, pages=_REFERENCE_PAGES):
+        host = _FakeReferenceHost(pages)
+        unit, _dash, _main_hud = self._unit(tmp_path, host=host)
+        write_flag(tmp_path / REFERENCE_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        return unit, host
+
+    @staticmethod
+    def _hovered(unit) -> None:
+        unit.point(Frame(hover=Hover(REFERENCE, SURFACE, 0.5, 0.5)))
+
+    def test_it_paints_the_pages_its_helper_drew(self, tmp_path):
+        host = _FakeReferenceHost(_REFERENCE_PAGES)
+        unit, _dash, _main_hud = self._unit(tmp_path, host=host)
         write_flag(tmp_path / REFERENCE_OPEN_FILENAME, True)
 
         with patch("fun_time_vr.funestras.paint_reference") as painted:
             unit.pump(threading.Event(), 0.0)
 
-        assert painted.call_args.args[1] == build_reference_sections(told)
+        assert painted.call_args.args[1] is _REFERENCE_PAGES
+
+    def test_nothing_is_painted_before_the_helper_has_drawn_the_pages(self, tmp_path):
+        unit, _dash, _main_hud = self._unit(tmp_path, host=_FakeReferenceHost(None))
+        write_flag(tmp_path / REFERENCE_OPEN_FILENAME, True)
+
+        with patch("fun_time_vr.funestras.paint_reference") as painted:
+            unit.pump(threading.Event(), 0.0)
+
+        assert not painted.called
+
+    def test_the_helper_is_not_asked_for_while_the_reference_is_down(self, tmp_path):
+        host = _FakeReferenceHost(_REFERENCE_PAGES)
+        unit, _dash, _main_hud = self._unit(tmp_path, host=host)
+
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.asked == 0
+
+    def test_a_press_on_its_next_arrow_turns_the_page(self, tmp_path):
+        unit, _host = self._up(tmp_path)
+        rect = reference_actions(_REFERENCE_PAGES)[NEXT_PAGE]
+        width, height = reference_size(_REFERENCE_PAGES)
+        u = (rect.x + rect.width / 2) / width
+        v = 1.0 - (rect.y + rect.height / 2) / height
+
+        unit.point(Frame(events=(PressEvent(PRESS, REFERENCE, u, v), PressEvent(RELEASE, REFERENCE))))
+        unit.pump(threading.Event(), 0.0)
+
+        assert unit._pointer.state.page == 1
+
+    def test_it_takes_the_stick_only_while_it_is_up_and_pointed_at(self, tmp_path):
+        unit, _host = self._up(tmp_path)
+        assert not unit.takes_the_stick
+
+        self._hovered(unit)
+
+        assert unit.takes_the_stick
+
+    def test_pulling_the_stick_back_runs_down_the_page_a_wheel_notch_at_a_time(self, tmp_path):
+        unit, _host = self._up(tmp_path)
+
+        unit.scroll(-WHEEL_NOTCH * 2.5)
+        unit.pump(threading.Event(), 0.0)
+
+        assert unit._pointer.state.scrolled == 2 * _REFERENCE_PAGES.step_px
+
+    def test_what_is_left_of_a_notch_is_kept_for_the_next(self, tmp_path):
+        unit, _host = self._up(tmp_path)
+
+        unit.scroll(-WHEEL_NOTCH * 0.6)
+        unit.pump(threading.Event(), 0.0)
+        unit.scroll(-WHEEL_NOTCH * 0.6)
+        unit.pump(threading.Event(), 0.0)
+
+        assert unit._pointer.state.scrolled == _REFERENCE_PAGES.step_px
+
+    def test_the_stick_on_it_is_not_the_funestras(self, tmp_path):
+        unit, _host = self._up(tmp_path)
+        self._hovered(unit)
+
+        hands = _hands_for_the_funestras(
+            (_no_gallery(), unit), {"right": HandInput(stick_y=-1.0, stick_x=0.4)}, elapsed_s=0.5)
+        unit.pump(threading.Event(), 0.0)
+
+        assert hands == {"right": HandInput()}
+        assert unit._pointer.state.scrolled > 0
+
+    def test_closing_the_session_ends_its_helper(self, tmp_path):
+        unit, host = self._up(tmp_path)
+
+        with patch.object(unit.texture, "close", create=True), \
+                patch.object(unit.screen, "close", create=True):
+            unit.close()
+
+        assert host.closed
 
     def test_it_hangs_from_the_dashboard_wherever_the_dashboard_goes(self, tmp_path):
         unit, dash, _main_hud = self._unit(tmp_path)

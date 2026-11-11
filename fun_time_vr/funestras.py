@@ -9,7 +9,6 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from functools import partial
 from pathlib import Path
 from typing import ClassVar
 
@@ -34,7 +33,6 @@ from shared_ui.palette import BLUE, BORDER_DEFAULT, WHITE, as_fractions
 from shared_ui.type_scale import SIZE_SMALL, in_pixels
 
 from fun_time import preview_marker
-from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
     LIBRARY_OPEN_FILENAME,
@@ -43,11 +41,9 @@ from fun_time.dashboard_actions import (
 from fun_time.dashboard_osr2_model import Osr2PartReader
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
-from fun_time.filter_vocab import Acts
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
-from fun_time.hosted_contract import published_actions_heard_as
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.session_handoff import headset_hold_asked
@@ -115,7 +111,6 @@ from .library_panel import (
     event_line,
     hover_line,
     open_line,
-    scroll_from_stick,
     scroll_line,
     waiting_panel,
 )
@@ -164,11 +159,10 @@ from .projection import default_projection
 from .projection_controls import ProjectionControls
 from .reference_panel import (
     REFERENCE_WIDTH_DEG,
-    REFERENCE_WIDTH_PX,
-    Pages,
+    ReferencePagesHost,
     ReferencePointer,
     paint_reference,
-    reference_height,
+    reference_size,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh
 from .room import Hanging, Hangs, RoomKeeping, RoomLaunch, RoomUnits
@@ -188,6 +182,7 @@ from .scene import (
     widened,
 )
 from .stacking import Stacking
+from .stick_scrolling import WHEEL_NOTCH, scroll_from_stick
 from .surfaces import HudBitmap, LatestFrame
 from .thumbs import Thumb, Thumbs, strongest
 from .video_thread import VideoThread
@@ -1024,13 +1019,13 @@ class _ReferenceUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {}
 
     def __init__(self, dash: _DashUnit, main_hud_unit: _MainHudUnit, *, flag: Path,
-                 actions: Callable[[], Acts]) -> None:
+                 host: ReferencePagesHost) -> None:
         self._dash = dash
         self._main_hud = main_hud_unit
         self._flag = flag
-        self._actions = actions
-        self._pages: Pages | None = None
+        self._host = host
         self._pointer = ReferencePointer()
+        self._scrolled = 0.0
         self._presses = _Presses(REFERENCE)
         self._lock = threading.Lock()
         self._image = None
@@ -1042,6 +1037,14 @@ class _ReferenceUnit:
     @property
     def showing(self) -> bool:
         return self._pointer.state.open
+
+    @property
+    def takes_the_stick(self) -> bool:
+        return self.showing and self._presses.hover is not None
+
+    def scroll(self, notches: float) -> None:
+        with self._lock:
+            self._scrolled += notches
 
     def hangings(self) -> tuple[Hanging, ...]:
         if not (self.showing and self.texture.ready):
@@ -1060,17 +1063,21 @@ class _ReferenceUnit:
         self._presses.point(frame)
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        size = (REFERENCE_WIDTH_PX, reference_height(self._pages))
-        for event in self._presses.drain():
-            if event.kind == PRESS:
-                self._pointer.press(*surface_pixel(event.u, event.v, size))
+        events = list(self._presses.drain())
         self._pointer.showing(read_flag(self._flag, default=False))
-        state = self._pointer.state
-        if not state.open or state == self._key:
+        if not self._pointer.state.open:
             return
-        if self._pages is None:
-            self._pages = build_reference_sections(self._actions())
-        image = paint_reference(state, self._pages)
+        pages = self._host.pages()
+        if pages is None:
+            return
+        for event in events:
+            if event.kind == PRESS:
+                self._pointer.press(*surface_pixel(event.u, event.v, reference_size(pages)), pages)
+        self._pointer.scroll(self._whole_notches_down() * pages.step_px, pages)
+        state = self._pointer.state
+        if state == self._key:
+            return
+        image = paint_reference(state, pages)
         with self._lock:
             self._image = image
         self._key = state
@@ -1084,7 +1091,14 @@ class _ReferenceUnit:
             shape=Footprint(REFERENCE_WIDTH_DEG, self.texture.aspect))
         self.screen.rehang(self.texture.aspect)
 
+    def _whole_notches_down(self) -> int:
+        with self._lock:
+            notches = int(self._scrolled / WHEEL_NOTCH)
+            self._scrolled -= notches * WHEEL_NOTCH
+        return -notches
+
     def close(self) -> None:
+        self._host.close()
         self.texture.close()
         self.screen.close()
 
@@ -1673,10 +1687,9 @@ def _still_blank(main_unit, satellites: Sequence, main_hud_unit) -> tuple[str, .
 
 
 def _hands_for_the_funestras(
-    library: _LibraryUnit, gallery: _GalleryUnit, hands: Mapping[str, HandInput], *,
-    elapsed_s: float,
+    scrollable: Sequence, hands: Mapping[str, HandInput], *, elapsed_s: float,
 ) -> Mapping[str, HandInput]:
-    scrolling = next((unit for unit in (library, gallery) if unit.takes_the_stick), None)
+    scrolling = next((unit for unit in scrollable if unit.takes_the_stick), None)
     if scrolling is None:
         return hands
     scrolling.scroll(scroll_from_stick(
@@ -1694,6 +1707,7 @@ class TheRoom:
         self.satellites = tuple(units.satellites)
         self.main_hud_unit = main_hud_unit
         self.library = units.library
+        self.reference = units.reference
         self.gallery = units.gallery
         self.loading_screen = units.loading_screen
         self.keeper = keeping.keeper
@@ -1781,7 +1795,7 @@ def hang_the_room(
     units = RoomUnits(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag,
-                                 actions=partial(published_actions_heard_as, state_dir)), library=library,
+                                 host=ReferencePagesHost(state_dir=state_dir)), library=library,
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
                              shared_state_file=shared_state_path(state_dir)),
@@ -1873,7 +1887,8 @@ class Arrangement:
             self._stacking.take(frame.taken)
         dialing = main_unit.can_dial_the_wrap
         thumb = self._thumbs.frame(
-            _hands_for_the_funestras(the_room.library, the_room.gallery, hands, elapsed_s=elapsed_s),
+            _hands_for_the_funestras(
+                (the_room.library, the_room.gallery, the_room.reference), hands, elapsed_s=elapsed_s),
             self._pointer, elapsed_s=elapsed_s, dialing=dialing)
         the_room.posts.post(thumb.commands)
         if dialing:

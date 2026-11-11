@@ -6,7 +6,6 @@ from app_support.frame_channel import FrameReader
 from funestra.file_channel import append_command
 
 from .pointer import RELEASE, PressEvent, surface_pixel
-from .thumbs import CONTROLLER_DEADZONE
 
 FRAME_FILENAME = "origenerator_frame.bin"
 INPUT_FILENAME = "origenerator_input.txt"
@@ -14,9 +13,6 @@ INPUT_FILENAME = "origenerator_input.txt"
 HOSTED_RELEASE = "release"
 HOVER = "hover"
 SCROLL = "scroll"
-
-WHEEL_NOTCH = 120  # one notch, in the eighths of a degree Qt counts them in
-_NOTCHES_PER_S = 8.0
 
 TOKEN = 0
 
@@ -36,12 +32,6 @@ def hover_line(x: int, y: int) -> str:
 
 def scroll_line(delta: int) -> str:
     return f"{SCROLL} {delta}"
-
-
-def scroll_from_stick(axis: float, elapsed_s: float) -> float:
-    if abs(axis) <= CONTROLLER_DEADZONE:
-        return 0.0
-    return axis * elapsed_s * _NOTCHES_PER_S * WHEEL_NOTCH
 
 
 class GalleryPanel:

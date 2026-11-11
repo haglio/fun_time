@@ -9,14 +9,13 @@ from fun_time_vr.gallery_panel import (
     INPUT_FILENAME,
     QUIET_S,
     TOKEN,
-    WHEEL_NOTCH,
     GalleryPanel,
     event_line,
     hover_line,
-    scroll_from_stick,
     scroll_line,
 )
 from fun_time_vr.pointer import DRAG, PRESS, RELEASE, RIGHT_CLICK, PressEvent
+from fun_time_vr.stick_scrolling import WHEEL_NOTCH
 
 
 def _pixels(width: int, height: int, value: int) -> bytes:
@@ -139,11 +138,3 @@ class TestTheOtherWaysTheRoomReachesIt:
     def test_a_scroll_carries_the_notches_a_wheel_would_have_turned(self):
         assert scroll_line(-WHEEL_NOTCH) == f"scroll {-WHEEL_NOTCH}"
 
-    def test_a_stick_inside_the_deadzone_scrolls_nothing(self):
-        assert scroll_from_stick(0.01, 1.0) == 0.0
-
-    def test_a_stick_held_over_scrolls_further_the_longer_it_is_held(self):
-        held = scroll_from_stick(1.0, 1.0)
-
-        assert held > 0
-        assert scroll_from_stick(1.0, 2.0) == held * 2
