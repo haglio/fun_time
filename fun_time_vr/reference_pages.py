@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from PyQt6.QtGui import QColor, QImage, QPainter, QTextDocument
 from PyQt6.QtWidgets import QApplication, QTextBrowser
+from shared_ui.application import application
 from shared_ui.palette import BG_PRIMARY
 from shared_ui.reference import ReferenceSection, narrowest_page_px, render_reference_html
 
 from fun_time.command_reference import build_reference_sections
 from fun_time.hosted_contract import published_actions_heard_as
 
-from .offscreen_qt import as_pil, offscreen_application
+from .offscreen_qt import as_pil
 from .reference_panel import ReferencePage, ReferencePages, write_pages
 
 
@@ -52,9 +54,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, opened=application) -> int:
     args = parse_args(argv)
-    with offscreen_application():
+    with opened([sys.argv[0]]):
         sections = build_reference_sections(published_actions_heard_as(args.state_dir))
         write_pages(draw_the_pages(sections), args.out)
     return 0

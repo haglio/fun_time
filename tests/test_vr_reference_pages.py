@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 
 import numpy as np
 from PIL import Image
+from shared_ui.application import application
 from shared_ui.palette import BLUE
 from shared_ui.reference import narrowest_page_px
 
@@ -59,3 +61,16 @@ class TestTheHelperProcess:
             section.title for section in build_reference_sections({"alphaname": ("alphaname",)})]
         for page in told["pages"]:
             assert Image.open(out / page["image"]).width == narrowest_page_px(_SECTIONS)
+
+    def test_it_draws_on_the_platform_the_desktops_reference_runs_on_so_titles_take_its_size(self, tmp_path):
+        asked_for: list[list[str]] = []
+
+        @contextmanager
+        def recording(argv):
+            asked_for.append(argv)
+            with application(argv) as app:
+                yield app
+
+        main(["--state-dir", str(tmp_path), "--out", str(tmp_path / "pages")], opened=recording)
+
+        assert ["-platform" in argv for argv in asked_for] == [False]
