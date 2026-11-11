@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 import winsound
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from functools import cache
+from pathlib import Path
 
 from funestra.osr2_controls_host import Osr2ControlsHost
 from PIL import Image, ImageDraw
@@ -44,7 +46,15 @@ from fun_time.event_log import (
     SOURCES,
 )
 from fun_time.level_colors import level_rgb
-from fun_time.log_panel_model import LogFilter, format_record, visible_records
+from fun_time.log_panel_model import (
+    DEFAULT_UI_STATE,
+    LogFilter,
+    LogPanelState,
+    format_record,
+    load_ui_state,
+    save_ui_state,
+    visible_records,
+)
 from fun_time.project_paths import PROJECT_ICON
 
 from .main_hud import DEG_PER_PX
@@ -70,8 +80,8 @@ class DashState:
     f_mode: bool = False
     reference_open: bool = False
     nothing_to_reset: bool = False
-    verbosity: int = LEVELS_BY_NAME["NOTICE"]
-    sources: frozenset[str] = frozenset(SOURCES)
+    verbosity: int = DEFAULT_UI_STATE.verbosity
+    sources: frozenset[str] = DEFAULT_UI_STATE.sources
     dial_open: bool = False
     asking_to_quit: bool = False
 
@@ -91,8 +101,7 @@ class DashState:
 
 
 def verbosity_name(verbosity: int) -> str:
-    named = {level: name for name, level in LEVELS_BY_NAME.items()}
-    return named.get(verbosity, "NOTICE")
+    return logging.getLevelName(verbosity)
 
 
 def dial_rect() -> Rect:
@@ -303,12 +312,16 @@ def with_the_osr2_part(dash: Image.Image,
 
 
 class DashPointer:
-    def __init__(self, *, post, state: DashState | None = None,
+    def __init__(self, *, post, state: DashState | None = None, filter_file: Path | None = None,
                  alert: Callable[[], None] = lambda: winsound.MessageBeep(
                      winsound.MB_ICONEXCLAMATION)) -> None:
         self._post = post
         self._alert = alert
+        self._filter_file = filter_file
         self.state = state or DashState()
+        if filter_file is not None:
+            kept = load_ui_state(filter_file)
+            self.state = replace(self.state, verbosity=kept.verbosity, sources=kept.sources)
         self.part = Osr2ControlsHost(post=post)
         self._held = self._held_on_the_part = False
 
@@ -358,17 +371,24 @@ class DashPointer:
                 self.state, dial_open=False,
                 verbosity=LEVELS_BY_NAME[action[len(VERBOSITY_STOP):]],
             )
+            self._keep_the_filter()
         elif action in SOURCES:
             self.state = replace(
                 self.state, dial_open=False,
                 sources=frozenset(set(self.state.sources) ^ {action}),
             )
+            self._keep_the_filter()
         elif action == QUIT_BUTTON:
             self.state = replace(self.state, dial_open=False, asking_to_quit=True)
             self._alert()
         else:
             self.state = replace(self.state, dial_open=False)
             self._post(action)
+
+    def _keep_the_filter(self) -> None:
+        if self._filter_file is not None:
+            save_ui_state(self._filter_file, LogPanelState(
+                verbosity=self.state.verbosity, sources=self.state.sources))
 
     def session_state(self, *, omni_paused: bool, voice_active: bool,
                       f_mode: bool = False, reference_open: bool = False,

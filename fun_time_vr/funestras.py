@@ -44,6 +44,7 @@ from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_messa
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
+from fun_time.log_panel_model import ui_state_path
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item, source_roots
 from fun_time.session_handoff import headset_hold_asked
@@ -906,7 +907,8 @@ class _DashUnit:
         self._spot_carrying_the_main_hud = _at_the_dashs_own_width(
             remembered.get(MAIN_HUD, self.SPOTS[MAIN_HUD]))
         self._pointer = DashPointer(
-            post=lambda command: append_command(Path(commands.dashboard_cmd_file), command))
+            post=lambda command: append_command(Path(commands.dashboard_cmd_file), command),
+            filter_file=ui_state_path(commands.state_dir))
         self._shown_as = preview_marker.shown_as()
         self._osr2 = Osr2PartReader(Path(commands.state_dir))
         self._presses = _Presses(DASH)
