@@ -27,6 +27,7 @@ from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
+from .vr_main_funestra_verbs import VR_MAIN_FUNESTRA_VERBS
 
 logger = logging.getLogger(__name__)
 
@@ -158,18 +159,6 @@ def _save_video(state: BridgeState, _config: BridgeConfig,
 
 _MAIN_TRANSPORT = {"main_prev": PREV, "main_next": NEXT}
 
-_VR_MAIN_FUNESTRA_VERBS = {
-    "projection_cycle": "CYCLE_PROJECTION",
-    "projection_cycle_back": "CYCLE_PROJECTION_BACK",
-    "recenter_view": "RECENTER",
-    "tilt_up": "TILT_UP",
-    "tilt_down": "TILT_DOWN",
-    "tilt_reset": "TILT_RESET",
-    "main_scene_prev": "PREV_SCENE",
-    "main_scene_next": "NEXT_SCENE",
-    "vr_reset": "LAYOUT_RESET",
-}
-
 SKIP_AHEAD = "main_funestra_funscript_jump"
 
 HANDLERS: dict[str, Handler] = {
@@ -178,7 +167,7 @@ HANDLERS: dict[str, Handler] = {
        for cmd, verb in _MAIN_TRANSPORT.items()},
     **{cmd: partial(_main_lock, verb) for cmd, verb in MAIN_LOCK_COMMANDS.items()},
     **{cmd: partial(_forward_to_the_vr_main_funestra, verb)
-       for cmd, verb in _VR_MAIN_FUNESTRA_VERBS.items()},
+       for cmd, verb in VR_MAIN_FUNESTRA_VERBS.items()},
     **{cmd: partial(_forward_to_main_funestra_on_screen, verb)
        for cmd, verb in MAIN_FUNESTRA_CMD_MAP.items() if cmd != SKIP_AHEAD},
     SKIP_AHEAD: _skip_ahead_on_the_main_funestra,
