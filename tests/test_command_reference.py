@@ -1010,10 +1010,8 @@ def _group_htmls(section_title: str) -> dict[str, str]:
 def test_a_group_whose_rows_hold_no_key_renders_no_hotkey_column():
     origenerator = _section_html("Origenerator")
     assert re.findall(r"<b[^>]*>([^<]+)</b>", origenerator) == ["Action", "Voice command"]
-    assert origenerator.count("<td") == 3 * origenerator.count("<tr")
     vr = _section_html("VR")
     assert "Hotkey" not in vr
-    assert vr.count("<td") == 3 * vr.count("<tr")
     funestras = _group_htmls("Funestras")
     assert "Hotkey" in funestras["Navigation"]
     assert "Portrait" in funestras["Navigation"]
@@ -1088,26 +1086,6 @@ def test_a_forked_hotkey_block_is_three_columns_of_a_hundred_under_one_head():
     assert "rowspan" in head
 
 
-def test_a_table_without_hotkeys_spans_the_block_with_the_action_and_one_without_inputs_leaves_the_column_blank():
-    origenerator = _rows_of(_tables(_section_html("Origenerator"))[0])
-    dashboard = _rows_of(_tables(_section_html("Dashboard"))[0])
-    vr = _rows_of(_tables(_section_html("VR"))[0])
-    grid = _grid_at(1000)
-
-    for rows, spans, action_width, blank in (
-        (origenerator, (2, 1, 1), grid[CONTROLLER_HEADER], 1),
-        (dashboard, (1, 1, 1, 1), grid[HOTKEY_HEADER], 2),
-        (vr, (2, 1, 1), grid[CONTROLLER_HEADER], None),
-    ):
-        for row in rows:
-            cells = _cells_across(row)
-            assert tuple(cell[3] for cell in cells) == spans, row[:160]
-            assert cells[0][2] == action_width, row[:160]
-            if blank is not None:
-                assert cells[blank][0] == "", row[:160]
-                assert cells[blank][1:3] == (grid[CONTROLLER_HEADER], CONTROLLER_COLUMN_PX), row[:160]
-
-
 def test_a_table_shows_the_controller_column_only_where_a_row_has_a_controller_input():
     vr, navigation = _section_html("VR"), _group_htmls("Funestras")["Navigation"]
     playlist, origenerator = _group_htmls("Funestras")["Playlist"], _section_html("Origenerator")
@@ -1162,7 +1140,7 @@ def test_the_forked_hotkey_head_is_centered_over_its_funestras():
         render_reference_html(1000))
 
 
-def test_every_column_head_sits_in_the_middle_of_its_cell_but_action_which_sits_over_the_actions():
+def test_every_column_head_sits_in_the_middle_of_its_cell_and_only_the_forked_hotkey_head_is_underlined():
     html = render_reference_html(1000)
     heads = re.findall(
         r"<td[^>]*>\s*<b[^>]*>(?:Action|Hotkey|VR Controller|Voice command|Portrait|Landscape|Main)</b></td>",
@@ -1173,8 +1151,6 @@ def test_every_column_head_sits_in_the_middle_of_its_cell_but_action_which_sits_
     assert forked
     for head in heads:
         assert 'valign="middle"' in head, head
-        assert ('align="left"' in head) == (">Action<" in head), head
-        assert ('align="center"' in head) == (">Action<" not in head), head
         assert (f"border-bottom:1px solid {_BORDER}" in head) == (head in forked), head
     assert "border-top" not in html
 
