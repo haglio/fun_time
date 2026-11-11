@@ -43,10 +43,11 @@ from fun_time.event_log import (
     SOURCE_LABELS,
     SOURCES,
 )
+from fun_time.level_colors import level_rgb
 from fun_time.log_panel_model import LogFilter, format_record, visible_records
 from fun_time.project_paths import PROJECT_ICON
 
-from .main_hud import DEG_PER_PX, level_color
+from .main_hud import DEG_PER_PX
 
 _DIAL_W = 92
 _ROW_H = 16
@@ -229,7 +230,7 @@ def _log_clipped_without_ellipsis_as_the_desktops_is(state: DashState, records, 
     log = Image.new("RGBA", _log_size(), (0, 0, 0, 0))
     pen = ImageDraw.Draw(log)
     for index, (line, level) in enumerate(log_lines(state, records)):
-        pen.text((0, index * _ROW_H), line, font=font, fill=(*level_color(level), 255))
+        pen.text((0, index * _ROW_H), line, font=font, fill=(*level_rgb(level), 255))
     return log
 
 

@@ -20,12 +20,9 @@ from shared_ui.colors import (
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
-    GREEN,
-    RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
     WHITE,
-    YELLOW,
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, SIZE_TINY, make_font
@@ -41,16 +38,15 @@ from shared_ui.spacing import (
 )
 
 from fun_time.event_log import (
-    FAVORITE,
     LEVEL_NAMES,
     LEVELS_BY_NAME,
-    MESSAGE,
     SOURCE_LABELS,
     SOURCES,
     EventRecord,
     event_log_path,
     read_events,
 )
+from fun_time.level_colors import level_rgb
 from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
@@ -66,21 +62,9 @@ from fun_time.log_panel_model import (
     with_what_was_heard,
 )
 
-_LEVEL_COLORS: dict[int, QColor] = {
-    logging.DEBUG: TEXT_MUTED,
-    logging.INFO: TEXT_MUTED,
-    MESSAGE: TEXT_PRIMARY,
-    FAVORITE: GREEN,
-    logging.WARNING: YELLOW,
-    logging.ERROR: RED,
-}
-
 
 def level_color(level: int) -> QColor:
-    for threshold in sorted(_LEVEL_COLORS, reverse=True):
-        if level >= threshold:
-            return _LEVEL_COLORS[threshold]
-    return TEXT_PRIMARY
+    return QColor(*level_rgb(level))
 
 
 _COPY_BUTTON_SIZE = 18
