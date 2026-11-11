@@ -20,6 +20,7 @@ from fun_time.event_log import (
     EventRecord,
     event_line,
 )
+from fun_time.message_placement import MESSAGE_LINGER_MS
 from fun_time.unlogged_messages import UnloggedMessages
 from fun_time.voice_control import VoiceController
 from fun_time_vr.messages import MAIN, MessageBoard, screen_for
@@ -74,6 +75,18 @@ class TestWhatItPicksUp:
         board.pump(None, now=2.5)
         assert board.flashed(MAIN).message == "Fisheye · 158° · height 1.20"
         board.pump(None, now=3.1)
+        assert board.flashed(MAIN) is None
+
+    def test_a_flash_stays_up_as_long_as_one_on_the_desktop(self, tmp_path):
+        board = MessageBoard(_log(tmp_path))
+        lingers_s = MESSAGE_LINGER_MS / 1000
+
+        board.flash("Saved", level=MESSAGE, screen=MAIN, now=0.0)
+        board.pump(None, now=lingers_s - 0.01)
+        still_up = board.flashed(MAIN)
+        board.pump(None, now=lingers_s)
+
+        assert still_up is not None
         assert board.flashed(MAIN) is None
 
     def test_an_announcement_written_after_it_started_flashes(self, tmp_path):

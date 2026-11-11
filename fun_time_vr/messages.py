@@ -11,11 +11,12 @@ from fun_time.event_log import (
     read_events,
 )
 from fun_time.log_panel_model import remember_what_was_heard, with_what_was_heard
+from fun_time.message_placement import MESSAGE_LINGER_MS
 from fun_time.unlogged_messages import UnloggedMessages
 
 from .layout import MAIN
 
-MESSAGE_SECONDS = 2.2
+MESSAGE_SECONDS = MESSAGE_LINGER_MS / 1000
 
 KEPT_RECORDS = 400
 
