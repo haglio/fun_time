@@ -13,6 +13,7 @@ from fun_time.overlay_progress import (
     CANCELING,
     LOADING_SCREEN_HEARTBEAT_S,
     PROGRESS_FILENAME,
+    SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
     STARTUP_PHASES,
@@ -90,6 +91,16 @@ class TestThePhases:
         orchestrator = Path(__file__).resolve().parents[1] / "fun_time_vr" / "orchestrator.py"
         source = orchestrator.read_text(encoding="utf-8")
         return set(re.findall(pattern, source))
+
+    @pytest.mark.parametrize(("headsets", "desktops"), [
+        (lambda: VR_STARTUP_PHASES, lambda: STARTUP_PHASES),
+        (lambda: VR_SHUTDOWN_PHASES, lambda: SHUTDOWN_PHASES),
+    ])
+    def test_each_step_reads_as_the_desktops_step_of_that_name(self, headsets, desktops):
+        desktop_says = {phase.key: phase.message for phase in desktops()}
+
+        assert [(phase.key, phase.message) for phase in headsets()] == [
+            (phase.key, desktop_says[phase.key]) for phase in headsets()]
 
     def test_no_startup_phase_the_orchestrator_reports_is_a_keyerror_in_the_headset(self):
         reported = self._advanced_keys(r'\bprogress\.advance\("([a-z_]+)"\)')

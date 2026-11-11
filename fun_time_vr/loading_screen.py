@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from PIL import Image
@@ -19,10 +19,16 @@ from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCEL_WORD,
     CANCELING,
+    CLOSING_COMPANIONS,
+    CLOSING_CONTROLS,
+    CLOSING_FUNESTRAS,
     FINALIZING_UNDER_A_FULL_BAR,
+    LAUNCHING_COMPANIONS,
+    PREPARING_SERVICES,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     STARTING_VOICE_COMMANDS,
+    WAITING_FOR_FUNESTRAS,
     Phase,
     Progress,
     parse_progress,
@@ -37,18 +43,18 @@ logger = logging.getLogger(__name__)
 ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS = (ACTIVATING_ORIGENERATOR, STARTING_VOICE_COMMANDS)
 
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
-    Phase("services", "Preparing services...", 0.7),
-    Phase("companions", "Launching companions...", 0.6),
-    Phase("funestras", "Waiting for Funestras...", 9.0),
+    PREPARING_SERVICES,
+    replace(LAUNCHING_COMPANIONS, seconds=0.6),
+    replace(WAITING_FOR_FUNESTRAS, seconds=9.0),
     *ANNOUNCED_BY_THE_DESKTOPS_OWN_HELPERS,
     FINALIZING_UNDER_A_FULL_BAR,
 )
 
-_THE_ONE_WEARING_THE_SCREEN_CLOSES_LAST = Phase("funestras", "Closing Funestras...", 1.0)
+_THE_ONE_WEARING_THE_SCREEN_CLOSES_LAST = CLOSING_FUNESTRAS
 
 VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
-    Phase("controls", "Closing...", 1.0),
-    Phase("companions", "Closing companions...", 1.0),
+    CLOSING_CONTROLS,
+    CLOSING_COMPANIONS,
     _THE_ONE_WEARING_THE_SCREEN_CLOSES_LAST,
 )
 

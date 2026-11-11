@@ -114,12 +114,15 @@ LAUNCH_PHASES: tuple[Phase, ...] = (
 ACTIVATING_ORIGENERATOR: Phase = Phase("origenerator", "Activating Origenerator...", seconds=0.5)
 STARTING_VOICE_COMMANDS: Phase = Phase("voice", "Starting voice commands...", seconds=0.5)
 FINALIZING_UNDER_A_FULL_BAR: Phase = Phase("finalizing", "Finalizing...", seconds=0.0)
+PREPARING_SERVICES: Phase = Phase("services", "Preparing services...", seconds=0.7)
+LAUNCHING_COMPANIONS: Phase = Phase("companions", "Launching companions...", seconds=1.3)
+WAITING_FOR_FUNESTRAS: Phase = Phase("funestras", "Waiting for Funestras...", seconds=0.5)
 
 APP_PHASES: tuple[Phase, ...] = (
-    Phase("services", "Preparing services...", seconds=0.7),
+    PREPARING_SERVICES,
     Phase("browser", "Launching browser...", seconds=0.4),
-    Phase("companions", "Launching companions...", seconds=1.3),
-    Phase("funestras", "Waiting for Funestras...", seconds=0.5),
+    LAUNCHING_COMPANIONS,
+    WAITING_FOR_FUNESTRAS,
     Phase("windows", "Positioning windows...", seconds=0.5),
     ACTIVATING_ORIGENERATOR,
     STARTING_VOICE_COMMANDS,
@@ -129,12 +132,15 @@ APP_PHASES: tuple[Phase, ...] = (
 STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *APP_PHASES)
 
 A_CLOSING_STEP = 1.0
+CLOSING_CONTROLS: Phase = Phase("controls", "Closing...", seconds=A_CLOSING_STEP)
+CLOSING_FUNESTRAS: Phase = Phase("funestras", "Closing Funestras...", seconds=A_CLOSING_STEP)
+CLOSING_COMPANIONS: Phase = Phase("companions", "Closing companions...", seconds=A_CLOSING_STEP)
 
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
-    Phase("controls", "Closing...", seconds=A_CLOSING_STEP),
+    CLOSING_CONTROLS,
     Phase("browser", "Closing browser...", seconds=A_CLOSING_STEP),
-    Phase("funestras", "Closing Funestras...", seconds=A_CLOSING_STEP),
-    Phase("companions", "Closing companions...", seconds=A_CLOSING_STEP),
+    CLOSING_FUNESTRAS,
+    CLOSING_COMPANIONS,
 )
 
 
