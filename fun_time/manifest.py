@@ -32,6 +32,11 @@ def _parser_keeping_every_keys_spelling() -> configparser.ConfigParser:
     return parser
 
 
+def main_funestra_sources(config) -> str:
+    dirs = [*config.vr.library_dirs, *config.paths.main_funestra_library_dirs]
+    return "|".join(str(path) for path in dirs)
+
+
 def build_windows_bridge_manifest(
         config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
     layout = config.layout
@@ -47,8 +52,8 @@ def build_windows_bridge_manifest(
             "origenerator_python_exe": str(config.paths.origenerator_python_exe or ""),
         },
         "media": {
-            "main_funestra_library_sources": "|".join(str(path) for path in config.paths.main_funestra_library_dirs),
-            "vr_library_dirs": "",
+            "main_funestra_library_sources": main_funestra_sources(config),
+            "vr_library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
             "trash_dir": str(config.paths.trash_dir),
             "genau_flicks": str(config.paths.flicks_dir),
             "genau_vr_flicks": "",

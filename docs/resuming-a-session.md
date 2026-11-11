@@ -116,8 +116,9 @@ built. It is built from the Main Funestra's buttons — 2D and VR, videos and fu
 videos, F-mode, Latest or Shuffle — every time one of them is pressed and every
 time a session starts, and no session reads back the list the last one left: a
 kept list is one more thing that can disagree with the buttons, and with the
-session's own library, which in the headset is the VR library and the desktop's
-together (2026-10-11: a headset session that kept the last list played a 2D
+session's own library, which is the VR library and the desktop's together, on
+the desktop as in the headset, where a VR video plays both eyes side by side
+(2026-10-11: a headset session that kept the last list played a 2D
 video after Next with only VR lit).
 
 Every build starts from the video on screen. The whole library is put in its
