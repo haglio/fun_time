@@ -30,7 +30,6 @@ from fun_time.command_reference import (
     HOLD_TRIGGER_AND_STICK_UP_DOWN,
     STICK_SIDEWAYS,
     STICK_UP_DOWN,
-    TRIGGER,
     _collapse_scopes,
     _display_voice,
     build_reference_sections,
@@ -533,6 +532,7 @@ def test_the_reference_names_genaus_flicks_in_the_overlays_word():
     seconds = next(row for row in genau.rows if "genau_flick_seconds_up" in row.commands)
 
     assert [row.description for row in genau.rows] == [
+        "Genau mode",
         f"flip the Genau {flick.one} half a loop",
         f"seconds a {flick.one} holds the screen before Genau moves on"]
     assert seconds.voice == (f"{flick.one} seconds 1\u201360",)
@@ -560,8 +560,7 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert not retired & _covered_commands()
     assert not retired & set(VOICE_COMMANDS.values())
     assert not retired & _ahk_hotkey_commands()
-    modes = _group("Main Funestra", "Modes")
-    assert [_keys(row) for row in modes.rows] == [(), ()]
+    assert [_keys(_the_row_of(mode)) for mode in ("genau_activate", "main_kino_activate")] == [(), ()]
     assert "X" not in _the_row_of("satellites_origenerator_activate").detail
     assert _keys(_the_row_of("main_funestra_length_clips")) == ()
     assert _keys(_the_row_of("projection_cycle")) == ()
@@ -569,7 +568,7 @@ def test_the_keys_nobody_reached_for_are_gone_and_what_only_they_reached_went_wi
     assert (_keys(angle), angle.voice, angle.commands) == ((), (), ())
 
 
-def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_and_origenerator():
+def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_origenerator_and_the_browser():
     titles = [s.title for s in build_reference_sections()]
     assert titles == [
         "Dashboard",
@@ -578,6 +577,7 @@ def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_
         "Funestras",
         "Main Funestra",
         "Origenerator",
+        "Random Favs Browser",
     ]
 
 
@@ -611,27 +611,29 @@ def test_the_genau_groups_rows_take_the_overlays_word():
 
 def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shared_navigation_row():
     genau = _group("Main Funestra", "Genau")
-    in_genau = {cmd for row in genau.rows for cmd in row.commands}
+    mode, *flick_rows = genau.rows
+    in_genau = {cmd for row in flick_rows for cmd in row.commands}
     elsewhere = {cmd for row in _all_rows() if row not in genau.rows for cmd in row.commands
                  if about_genaus_flick(parse_command(cmd))}
 
+    assert mode.commands == ("genau_activate",)
     assert in_genau
     assert all(about_genaus_flick(parse_command(cmd)) for cmd in in_genau)
     assert elsewhere == {"genau_prev_flick", "genau_next_flick", "genau_trash_flick"}
     assert all(_the_row_of(cmd) in _group("Funestras", "Navigation").rows for cmd in elsewhere)
 
 
-def test_what_only_kino_answers_is_the_loops_group_or_rides_a_shared_navigation_row():
+def test_what_only_kino_answers_is_the_kino_group_or_rides_a_shared_navigation_row():
     versions = {"main_funestra_cycle_version", "main_funestra_cycle_version_back"}
-    loops = _group("Main Funestra", "Loops")
+    loops = _group("Main Funestra", "Kino")
     in_loops = {cmd for row in loops.rows for cmd in row.commands}
     navigation = {cmd for row in _group("Funestras", "Navigation").rows for cmd in row.commands}
 
-    assert [row.description for row in loops.rows] == ["loop control", "save loop"]
-    assert loops.rows[0].detail == (
+    assert [row.description for row in loops.rows] == ["Kino mode", "loop control", "save loop"]
+    assert loops.rows[1].detail == (
         "hold to start recording a loop, release to end recording, and tap again to "
         "terminate a recorded loop")
-    assert loops.rows[1].detail == (
+    assert loops.rows[2].detail == (
         f"save loop to send to Genaumacher to produce a new Genau {genau_flick_noun().one}")
     assert set(MAIN_FUNESTRA_CMD_MAP) - versions <= in_loops | navigation
     assert {"main_funestra_compilation", "main_funestra_end_compilation", "main_funestra_full_vid",
@@ -773,7 +775,7 @@ def test_corrected_descriptions():
 
 
 _NAMES_AN_ACTION_MAY_OPEN_WITH = frozenset(
-    {"OmniPause", "F-mode", "VR", "Kino", "Genau", "Origenerator", "OSR2", "HUD"})
+    {"OmniPause", "F-mode", "VR", "Kino", "Genau", "Origenerator", "OSR2", "HUD", "Random"})
 
 
 def test_an_action_opens_lowercase_unless_it_opens_with_a_name():
@@ -787,7 +789,7 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
 
     assert [(group.title, [row.description for row in group.rows]) for group in dashboard.groups] == [
         ("", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
-              "open / close this hotkeys & voice reference", "Origenerator mode"]),
+              "open / close this hotkeys & voice reference"]),
         ("Funestras", ["F-mode all", "reset all"]),
         ("Voice control", ["disable voice control",
                            "accept the last command voice was not sure enough of"]),
@@ -814,21 +816,26 @@ def test_the_vr_section_opens_with_the_crossing_and_ends_with_the_screens():
     assert ANGLE_BAR == "Angle bar"
     assert angle.detail == ("the bar labeled Angle beside the projection controls in the "
                             "headset, dragged with the trigger")
-    assert screens.controller == (TRIGGER, STICK_UP_DOWN, HOLD_TRIGGER_AND_STICK_UP_DOWN)
+    assert screens.controller == (STICK_UP_DOWN, HOLD_TRIGGER_AND_STICK_UP_DOWN)
     assert (HOLD_TRIGGER_AND_MOVE, HOLD_TRIGGER_AND_STICK_UP_DOWN) == (
         "hold trigger + move", "hold trigger + stick forward / back")
 
 
-def test_the_main_funestras_modes_say_only_what_a_reader_cannot_see_and_origenerator_mode_is_the_dashboards():
-    genau, kino = _group("Main Funestra", "Modes").rows
+def test_each_mode_leads_its_own_group_and_says_only_what_a_reader_cannot_see():
+    genau, kino = _group("Main Funestra", "Genau").rows[0], _group("Main Funestra", "Kino").rows[0]
     origenerator = _the_row_of("origenerator_activate")
+    browser = _the_row_of("rfb_activate")
 
     assert genau.detail
     assert (kino.description, kino.detail) == ("Kino mode", "")
     assert (origenerator.description, origenerator.detail) == (
         "Origenerator mode",
         "Origenerator Core shares real estate with the Random Favs Browser")
-    assert origenerator in _section("Dashboard").rows
+    assert genau.commands == ("genau_activate",)
+    assert _section("Origenerator").rows[0] == origenerator
+    assert _section("Random Favs Browser").rows == (browser,)
+    assert (browser.description, browser.detail) == ("Random Favs Browser", "")
+    assert browser.voice == ("RFB", "random faves", "random faves browser")
 
 
 def test_the_osr2_rows_say_the_cruise_control_in_words_and_the_retired_quarter_cycle_is_gone():
@@ -872,7 +879,7 @@ def test_the_hud_moves_a_row_per_direction_by_key_then_to_a_corner_by_name():
     assert "click" in corner.detail
     assert {"portrait_hud_lower_right", "landscape_hud_upper_right", "satellites_hud_lower_left",
             "active_hud_upper_right", "main_hud_lower_left"} <= set(corner.commands)
-    assert (_keys(corner), corner.controller) == ((), (TRIGGER,))
+    assert (_keys(corner), corner.controller) == ((), ())
     assert "main_hud_minimize" in minimize.commands
 
 
@@ -881,18 +888,21 @@ def test_the_origenerator_section_speaks_origenerators_own_words():
 
     assert [group.title for group in origenerator.groups] == [""]
     assert [row.description for row in origenerator.rows] == [
-        "fix the image on screen", f"animate the image as a Genau {genau_flick_noun().one}",
+        "Origenerator mode", "fix the image on screen",
+        f"animate the image as a Genau {genau_flick_noun().one}",
     ]
-    assert origenerator.rows[0].detail == "its face, hands, teeth, or eyes"
+    assert origenerator.rows[1].detail == "its face, hands, teeth, or eyes"
     assert not [row for row in _all_rows() if "slideshow" in row.description
                 or "experiments" in row.description or "requests" in row.description]
 
 
 def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_aim_a_phrase():
+    mode, *said_to_a_satellite = _section("Origenerator").rows
     origenerator = _section("Origenerator")
     flick = genau_flick_noun().one
 
-    assert [row.voice for row in origenerator.rows] == [
+    assert mode.commands[0] == "origenerator_activate"
+    assert [row.voice for row in said_to_a_satellite] == [
         ("fix face", "fix hands", "fix teeth", "fix eyes"),
         ("genau",),
     ]
@@ -901,8 +911,8 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_ai
         "“landscape”, or “satellites”, before it or after, to aim it, for example "
         "“portrait fix hands” or “fix face landscape”."
     )
-    assert all(row.commands == () for row in origenerator.rows)
-    assert "name a Satellite" in origenerator.rows[1].detail
+    assert all(row.commands == () for row in said_to_a_satellite)
+    assert "name a Satellite" in said_to_a_satellite[1].detail
     heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=(),
                                  origenerator_phrases=("fix hands", *GENAU_SAID))
     assert heard["fix hands"] == "active_say_fix_hands"
@@ -938,10 +948,10 @@ def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_las
     assert crown.voice == ("crown main", "crown portrait")
 
 
-def test_the_main_funestras_own_rows_are_what_it_browses_its_modes_its_loops_and_genau():
+def test_the_main_funestras_own_rows_are_what_it_browses_then_kino_then_genau():
     main = _section("Main Funestra")
 
-    assert [group.title for group in main.groups] == ["", "Modes", "Loops", "Genau"]
+    assert [group.title for group in main.groups] == ["", "Kino", "Genau"]
     assert [row.description for row in main.groups[0].rows] == ["open the browser"]
 
 
@@ -1113,8 +1123,8 @@ def test_the_controller_column_says_what_the_headsets_controllers_do_on_each_row
         STICK_UP_DOWN: ["move or resize a VR screen", "open the browser"],
         HOLD_TRIGGER_AND_STICK_UP_DOWN: ["move or resize a VR screen"],
         HOLD_TRIGGER_AND_MOVE: ["tilt the VR screens up / down and level them again"],
-        TRIGGER: ["move or resize a VR screen", "move HUD to a corner", "open the browser"],
     }
+    assert not [row for row in _all_rows() if "trigger" in row.controller]
     assert "handle" in next(row for row in _section("VR").rows
                             if row.description == "move or resize a VR screen").detail
     assert "squeeze" in _the_row_of("browse_library").detail
@@ -1170,7 +1180,7 @@ def test_an_untitled_group_renders_no_heading_and_a_flat_section_is_its_table():
         assert "<h4" not in _section_html(title), title
     main = _section_html("Main Funestra")
     assert main.index("<table") < main.index("<h4")
-    assert set(_group_htmls("Main Funestra")) == {"", "Modes", "Loops", "Genau"}
+    assert set(_group_htmls("Main Funestra")) == {"", "Kino", "Genau"}
 
 
 def test_a_sections_note_is_the_tooltip_on_its_title():
