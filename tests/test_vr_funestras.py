@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from app_support import ports
 from app_support.file_channel import write_flag
+from app_support.frame_channel import FrameWriter
 from funestra.flick_overlay import (
     BACKDROP_OVERLAY_ID,
     FIRST_TILE_OVERLAY_ID,
@@ -54,6 +55,7 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
+    RegenSettings,
     write_manifest_data,
 )
 from fun_time.osr2_section import osr2_readout_path
@@ -1534,7 +1536,7 @@ def _keyword_given(source_of, call: str, keyword: str) -> str:
 
 def test_the_headsets_genau_keeps_its_flips_where_the_library_keeps_its_records():
     assert _keyword_given(funestras._users, "GenauFlicks", "metadata_root") == (
-        "_metadata_root(manifest)")
+        "manifest.regen.metadata_folder")
 
 
 def test_the_headset_session_runs_ahead_of_background_work():
@@ -2832,14 +2834,9 @@ class _LibraryCommands:
 
 
 @dataclass
-class _LibraryRegen:
-    metadata_root: str
-
-
-@dataclass
 class _LibraryManifest:
     commands: _LibraryCommands
-    regen: _LibraryRegen
+    regen: RegenSettings
 
 
 def _a_library(tmp_path, host, remembered=None, metadata_root=None, genau_has_the_slot=False):
@@ -2852,7 +2849,7 @@ def _a_library(tmp_path, host, remembered=None, metadata_root=None, genau_has_th
                 genau_status_file=tmp_path / "genau_status.txt",
                 dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             ),
-            regen=_LibraryRegen("" if metadata_root is None else str(metadata_root)),
+            regen=RegenSettings(metadata_root="" if metadata_root is None else str(metadata_root)),
         )
         return _LibraryUnit(
             manifest,
@@ -3526,11 +3523,35 @@ class TestCoreShowsInTheHeadsetWheneverOrigeneratorIsUp:
             self, tmp_path, ready, rfb_mode, shows):
         state_file = shared_state_path(tmp_path)
         write_shared_state(state_file, BridgeState(origenerator_core_ready=ready, rfb_mode=rfb_mode))
-        unit = _GalleryUnit(remembered={}, state_dir=tmp_path, shared_state_file=state_file)
+        unit = _GalleryUnit(remembered={}, commands=_gallery_channels(tmp_path),
+                            shared_state_file=state_file)
 
         unit.pump(threading.Event(), now=0.0)
 
         assert unit.showing is shows
+
+    def test_it_shows_the_frames_from_the_file_the_session_tells_origenerator_to_write(self, tmp_path):
+        state_file = shared_state_path(tmp_path)
+        write_shared_state(state_file, BridgeState(origenerator_core_ready=True))
+        told = _gallery_channels(tmp_path / "told")
+        told_dir = tmp_path / "told"
+        told_dir.mkdir()
+        writer = FrameWriter(Path(told.origenerator_frames_file), max_pixels=64)
+        unit = _GalleryUnit(remembered={}, commands=told, shared_state_file=state_file)
+        try:
+            writer.write(0, 4, 2, bytes(4 * 2 * 4))
+
+            unit.pump(threading.Event(), now=0.0)
+
+            assert unit._panel.size == (4, 2)
+        finally:
+            writer.close()
+            unit._panel.close()
+
+
+def _gallery_channels(folder: Path) -> SimpleNamespace:
+    return SimpleNamespace(origenerator_frames_file=str(folder / "frames.bin"),
+                           origenerator_input_file=str(folder / "input.txt"))
 
 
 class TestPuttingTheRoomBack:

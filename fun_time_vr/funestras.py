@@ -45,7 +45,7 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.manifest import LaunchManifest
-from fun_time.modes import scripted_item
+from fun_time.modes import scripted_item, source_roots
 from fun_time.session_handoff import headset_hold_asked
 from fun_time.shared_state import BridgeState, read_shared_state, shared_state_path
 from fun_time.unlogged_messages import UnloggedMessages
@@ -212,10 +212,6 @@ CURSOR_COLOR = as_fractions(WHITE, 0.9)
 CONTROLLER_COLOR = as_fractions(BORDER_DEFAULT)
 
 
-def _folders(spec: str) -> tuple[Path, ...]:
-    return tuple(Path(part) for part in spec.split("|") if part.strip())
-
-
 @dataclass(frozen=True)
 class VrSettings:
     library_dirs: tuple[Path, ...]
@@ -233,7 +229,7 @@ class VrSettings:
         parser.read(str(path), encoding="utf-8")
         vr = parser["vr"]
         return cls(
-            library_dirs=_folders(vr["library_dirs"]),
+            library_dirs=tuple(source_roots(vr["library_dirs"])),
             audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
                 "vr", "compositor_layers", fallback="0").strip() == "1",
@@ -394,11 +390,6 @@ def _item_screen(name: str, placement: Placement, aspect: float) -> Screen:
                   pressable=True, item=True, widened_by=by)
 
 
-def _metadata_root(manifest) -> Path | None:
-    raw = manifest.regen.metadata_root.strip()
-    return Path(raw) if raw else None
-
-
 def _headsets_engine(contexts) -> Callable[[], HeadsetEngine]:
     return lambda: HeadsetEngine(contexts.get_proc_address, loop_file=False, prefetch=True)
 
@@ -417,7 +408,7 @@ class _TheLibrary:
                 "--state-dir", commands.state_dir, "--notice-file", commands.main_funestra_notice_file]
         if vr.flicks_folder is not None:
             argv += ["--flicks-dir", str(vr.flicks_folder)]
-        metadata_root = _metadata_root(manifest)
+        metadata_root = manifest.regen.metadata_folder
         if metadata_root is not None:
             argv += ["--metadata-dir", str(metadata_root)]
         self.args = build_main_funestra_parser(load_config(config_path)).parse_args(argv)
@@ -473,7 +464,7 @@ class _MainUnit(_VideoUnit):
             window_verbs=self._apply_the_headsets_verb, host_controls=self.projection,
         ))
         self.verbs = HeadsetVerbs(
-            self.funestra.playback, metadata_root=_metadata_root(manifest),
+            self.funestra.playback, metadata_root=manifest.regen.metadata_folder,
             vr_dirs=tuple(vr.library_dirs), tilt_deg=remembered.tilt_deg)
         self.verbs.look_with(FrameLook(self.video))
 
@@ -623,7 +614,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             latest=resumed.genau_latest,
             f_mode=resumed.genau_favorites_filter,
             orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
-            metadata_root=_metadata_root(manifest),
+            metadata_root=manifest.regen.metadata_folder,
         ),
         settings=vr.genau,
         channels=GenauChannels(
@@ -1114,7 +1105,7 @@ class _LibraryUnit:
         self._flag = flag
         self._host = host
         self._main_funestra_cmd_file = Path(commands.main_funestra_cmd_file)
-        self._metadata_root = _metadata_root(manifest)
+        self._metadata_root = manifest.regen.metadata_folder
         self._main_funestra_status_file = Path(commands.main_funestra_status_file)
         self._genau_cmd_file = Path(commands.genau_cmd_file)
         self._genau_status_file = Path(commands.genau_status_file)
@@ -1290,9 +1281,10 @@ class _GalleryUnit:
     SPOTS: ClassVar[dict[str, Placement]] = {GALLERY: Placement(
         azimuth_deg=-100.0, elevation_deg=2.0, width_deg=_WIDTH_HE_DRAGGED_THE_GALLERY_OUT_TO_DEG)}
 
-    def __init__(self, *, remembered: Mapping[str, Placement], state_dir: Path,
+    def __init__(self, *, remembered: Mapping[str, Placement], commands,
                  shared_state_file: Path) -> None:
-        self._panel = GalleryPanel(Path(state_dir))
+        self._panel = GalleryPanel(frames_file=Path(commands.origenerator_frames_file),
+                                   input_file=Path(commands.origenerator_input_file))
         self._shared_state_file = shared_state_file
         self._presses = _Presses(GALLERY)
         self._lock = threading.Lock()
@@ -1797,7 +1789,7 @@ def hang_the_room(
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag,
                                  host=ReferencePagesHost(state_dir=state_dir)), library=library,
         flashed=_MessageUnit(main_unit, messages),
-        gallery=_GalleryUnit(remembered=remembered.placements, state_dir=state_dir,
+        gallery=_GalleryUnit(remembered=remembered.placements, commands=commands,
                              shared_state_file=shared_state_path(state_dir)),
         loading_screen=loading_screen,
     )

@@ -4,9 +4,7 @@ from app_support.frame_channel import FrameWriter
 from funestra.file_channel import consume_command_file
 
 from fun_time_vr.gallery_panel import (
-    FRAME_FILENAME,
     HOSTED_RELEASE,
-    INPUT_FILENAME,
     QUIET_S,
     TOKEN,
     GalleryPanel,
@@ -16,6 +14,13 @@ from fun_time_vr.gallery_panel import (
 )
 from fun_time_vr.pointer import DRAG, PRESS, RELEASE, RIGHT_CLICK, PressEvent
 from fun_time_vr.stick_scrolling import WHEEL_NOTCH
+
+_FRAMES = "frames.bin"
+_INPUT = "input.txt"
+
+
+def _panel(folder) -> GalleryPanel:
+    return GalleryPanel(frames_file=folder / _FRAMES, input_file=folder / _INPUT)
 
 
 def _pixels(width: int, height: int, value: int) -> bytes:
@@ -50,8 +55,8 @@ class TestWhereAPressLanded:
 
 class TestTheChannelTheFrameArrivesThrough:
     def test_the_last_frame_written_is_the_one_read(self, tmp_path):
-        panel = GalleryPanel(tmp_path)
-        writer = FrameWriter(tmp_path / FRAME_FILENAME, max_pixels=64)
+        panel = _panel(tmp_path)
+        writer = FrameWriter(tmp_path / _FRAMES, max_pixels=64)
         try:
             writer.write(TOKEN, 4, 2, _pixels(4, 2, 7))
 
@@ -61,8 +66,8 @@ class TestTheChannelTheFrameArrivesThrough:
             panel.close()
 
     def test_the_size_a_press_is_placed_on_is_the_size_that_arrived(self, tmp_path):
-        panel = GalleryPanel(tmp_path)
-        writer = FrameWriter(tmp_path / FRAME_FILENAME, max_pixels=64)
+        panel = _panel(tmp_path)
+        writer = FrameWriter(tmp_path / _FRAMES, max_pixels=64)
         try:
             assert panel.size is None
             writer.write(TOKEN, 8, 4, _pixels(8, 4, 3))
@@ -75,23 +80,23 @@ class TestTheChannelTheFrameArrivesThrough:
             writer.close()
             panel.close()
 
-        assert consume_command_file(tmp_path / INPUT_FILENAME,
+        assert consume_command_file(tmp_path / _INPUT,
                                     uppercase=False) == [f"{PRESS} 4 2"]
 
     def test_a_press_before_any_frame_is_dropped(self, tmp_path):
-        panel = GalleryPanel(tmp_path)
+        panel = _panel(tmp_path)
         try:
             panel.press(PressEvent(kind=PRESS, screen="gallery", u=0.5, v=0.5))
         finally:
             panel.close()
 
-        assert consume_command_file(tmp_path / INPUT_FILENAME, uppercase=False) == []
+        assert consume_command_file(tmp_path / _INPUT, uppercase=False) == []
 
 
 class TestSayingWhenTheAppHasGoneQuiet:
     def _panel(self, tmp_path):
-        panel = GalleryPanel(tmp_path)
-        writer = FrameWriter(tmp_path / FRAME_FILENAME, max_pixels=4)
+        panel = _panel(tmp_path)
+        writer = FrameWriter(tmp_path / _FRAMES, max_pixels=4)
         writer.write(TOKEN, 2, 2, _pixels(2, 2, 7))
         assert panel.frame(now=0.0) is not None
         return panel, writer
@@ -122,7 +127,7 @@ class TestSayingWhenTheAppHasGoneQuiet:
 
 
     def test_an_app_that_has_published_nothing_at_all_is_said_once(self, tmp_path):
-        panel = GalleryPanel(tmp_path)
+        panel = _panel(tmp_path)
         assert panel.frame(now=0.0) is None
 
         said = panel.silence_only_the_room_can_report(now=QUIET_S + 1)

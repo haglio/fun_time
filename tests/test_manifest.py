@@ -220,3 +220,11 @@ class TestReadingItBack:
         assert manifest.commands.broker_state_dir == ""
         assert manifest.executables.origenerator_python_exe == ""
         assert manifest.runtime.origenerator_dir == ""
+
+
+class TestTheMetadataFolder:
+    def test_a_folder_named_is_that_folder(self, tmp_path):
+        assert RegenSettings(metadata_root=f"  {tmp_path}  ").metadata_folder == tmp_path
+
+    def test_none_named_is_none(self):
+        assert RegenSettings(metadata_root="   ").metadata_folder is None

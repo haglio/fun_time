@@ -28,6 +28,7 @@ dwSize  # PROCESSENTRY32, for Toolhelp32
 # --- Read from a sibling package, which is a scan of its own ---
 build_genau_engine  # main_funestra.genau builds Genau's engine with it
 tell_origenerator_it_went  # main_funestra.genau hands Genau's engine it
+_._folders  # main_funestra.genau's Genau asks the headset's own for its flicks folders
 _.current_flick  # main_funestra.genau, off the engine
 _.playhead  # main_funestra.genau, off the engine
 _.time_on_screen  # main_funestra.genau, off the engine

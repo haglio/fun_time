@@ -7,9 +7,6 @@ from funestra.file_channel import append_command
 
 from .pointer import RELEASE, PressEvent, surface_pixel
 
-FRAME_FILENAME = "origenerator_frame.bin"
-INPUT_FILENAME = "origenerator_input.txt"
-
 HOSTED_RELEASE = "release"
 HOVER = "hover"
 SCROLL = "scroll"
@@ -35,9 +32,9 @@ def scroll_line(delta: int) -> str:
 
 
 class GalleryPanel:
-    def __init__(self, state_dir: Path) -> None:
-        self._input = Path(state_dir) / INPUT_FILENAME
-        self._frames = FrameReader(Path(state_dir) / FRAME_FILENAME)
+    def __init__(self, *, frames_file: Path, input_file: Path) -> None:
+        self._input = Path(input_file)
+        self._frames = FrameReader(Path(frames_file))
         self._size: tuple[int, int] | None = None
         self._answered_at: float | None = None
         self._looked_since: float | None = None

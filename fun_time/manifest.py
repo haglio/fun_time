@@ -212,6 +212,11 @@ class RegenSettings:
     media_root: str = ""
     metadata_root: str = ""
 
+    @property
+    def metadata_folder(self) -> Path | None:
+        named = self.metadata_root.strip()
+        return Path(named) if named else None
+
 
 _SECTION_RECORDS: dict[str, tuple[str, type]] = {
     "runtime": ("runtime", RuntimePaths),
