@@ -8,15 +8,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app_support.frame_channel import FrameReader
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 from funestra.file_channel import append_command, consume_command_file
 from PIL import Image, ImageDraw
 from shared_ui.lettering import load_font
 from shared_ui.palette import BG_PRIMARY, TEXT_MUTED
 from shared_ui.type_scale import SIZE_HEADING, in_pixels
 
-from fun_time.process_identity import NAMER
-
+from .helper_processes import end_helper, start_helper
 from .pointer import RELEASE, PressEvent, surface_pixel
 from .thumbs import CONTROLLER_DEADZONE
 
@@ -35,7 +33,6 @@ DISMISSED = "dismissed"
 
 WHEEL_NOTCH = 120
 _NOTCHES_PER_S = 8.0
-_ENDING_S = 2.0
 _READING = "Reading the library…"
 _READING_PX = in_pixels(SIZE_HEADING)
 
@@ -86,10 +83,6 @@ class ShownWhileAsked:
         self.showing = False
 
 
-def _hidden_yet_never_starved_by_a_busy_machine() -> dict:
-    return hidden_subprocess_kwargs()
-
-
 class LibraryHost:
     def __init__(
         self, *, manifest_path: Path, state_dir: Path, python_exe: str = sys.executable,
@@ -102,12 +95,11 @@ class LibraryHost:
             with contextlib.suppress(OSError):
                 left_over.unlink(missing_ok=True)
         self._frames = FrameReader(frames)
-        self._process = launch(
-            [NAMER.named_exe(python_exe, "LibraryBrowser"), "-m", HOST_MODULE, str(manifest_path),
-             "--input", str(self._input), "--output", str(self._output),
+        self._process = start_helper(
+            "LibraryBrowser", HOST_MODULE,
+            [str(manifest_path), "--input", str(self._input), "--output", str(self._output),
              "--frames", str(frames), "--parent", str(os.getpid())],
-            **_hidden_yet_never_starved_by_a_busy_machine(),
-        )
+            python_exe=python_exe, launch=launch)
 
     def send(self, line: str) -> None:
         append_command(self._input, line)
@@ -120,11 +112,7 @@ class LibraryHost:
 
     def close(self) -> None:
         self._frames.close()
-        self._process.terminate()
-        try:
-            self._process.wait(timeout=_ENDING_S)
-        except subprocess.TimeoutExpired:
-            self._process.kill()
+        end_helper(self._process)
 
 
 def waiting_panel() -> Image.Image:

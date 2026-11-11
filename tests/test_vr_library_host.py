@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -438,17 +437,16 @@ class TestTheListingItKeeps:
         assert len(list(tmp_path.glob(f"{kept.stem}_*.json"))) == 2
 
 
-def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_safely(
+def test_the_headsets_browse_runs_on_an_offscreen_application_dressed_as_the_desktops(
         tmp_path, monkeypatch):
     made = []
 
     @contextmanager
-    def application(argv):
-        made.append(argv)
+    def offscreen_application():
+        made.append("offscreen")
         yield MagicMock(exec=MagicMock(return_value=7))
 
-    monkeypatch.setattr(library_host, "application", application)
-    monkeypatch.setenv("QT_QPA_FONTDIR", str(tmp_path))
+    monkeypatch.setattr(library_host, "offscreen_application", offscreen_application)
     for name in ("load_browser_config", "load_flick_browser_config", "FrameWriter",
                  "HeadsetBrowse", "start_daemon_thread", "dress_application"):
         monkeypatch.setattr(library_host, name, MagicMock())
@@ -458,5 +456,5 @@ def test_the_headsets_browse_runs_on_an_application_made_where_it_is_let_go_of_s
                              "--frames", str(tmp_path / "frames"), "--parent", "1"])
 
     assert ran == 7
-    assert made == [[sys.argv[0], "-platform", "offscreen"]]
+    assert made == ["offscreen"]
     library_host.dress_application.assert_called_once()
