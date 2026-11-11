@@ -8,6 +8,17 @@ from funestra.control_registry import Control, Verb, bind, look_up
 
 from fun_time.event_log import SOURCE_MAIN, flash_message
 from fun_time.media_metadata import recorded_for
+from fun_time.vr_main_funestra_verbs import (
+    CYCLE_PROJECTION,
+    CYCLE_PROJECTION_BACK,
+    LAYOUT_RESET,
+    NEXT_SCENE,
+    PREV_SCENE,
+    RECENTER,
+    TILT_DOWN,
+    TILT_RESET,
+    TILT_UP,
+)
 
 from .layout import clamp_tilt
 from .projection import ProjectionMemory, next_projection, previous_projection
@@ -22,16 +33,6 @@ SCENE_JUMP_LANDS_WITHIN_MS = 500
 TILT_STEP_DEG = 5.0
 
 DIAL_STILL_S = 0.6
-
-CYCLE_PROJECTION = "CYCLE_PROJECTION"
-CYCLE_PROJECTION_BACK = "CYCLE_PROJECTION_BACK"
-RECENTER = "RECENTER"
-LAYOUT_RESET = "LAYOUT_RESET"
-TILT_UP = "TILT_UP"
-TILT_DOWN = "TILT_DOWN"
-TILT_RESET = "TILT_RESET"
-NEXT_SCENE = "NEXT_SCENE"
-PREV_SCENE = "PREV_SCENE"
 
 
 class HostRequest:
