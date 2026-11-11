@@ -15,9 +15,7 @@ from shared_ui.message_shape import (
 from fun_time.dashboard_layout import Rect, Size
 from fun_time.event_log import EventRecord
 from fun_time.log_panel import level_color
-from fun_time.message_placement import top_center_position
-
-MESSAGE_LINGER_MS = 2200
+from fun_time.message_placement import MESSAGE_LINGER_MS, top_center_position
 
 
 class MessageOverlay(QLabel):
