@@ -8,6 +8,7 @@ import subprocess
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Protocol
 
 from app_support import osr2_hold
 from app_support.siblings import primary_checkout_of
@@ -236,41 +237,51 @@ def start_core_session(
     state_dir: str | Path,
     result_file: str | Path,
 ) -> str:
-    commands = m.commands
-    regen_metadata_root = m.regen.metadata_folder
     portrait = for_funestra(portrait, FunTimeFunestra.PORTRAIT)
     landscape = for_funestra(landscape, FunTimeFunestra.LANDSCAPE)
-    reap_orphaned_satellites(
-        m.modules.satellite_module, [portrait.channels.status, landscape.channels.status],
-    )
+    carried = carry_the_last_session_in(m, (portrait, landscape), state_dir=Path(state_dir))
+    prepare_random_faves_browser_manifest(
+        m.runtime.config_path, m.random_faves_browser.manifest_file)
+    launch_core_apps(m, portrait, landscape, result_file)
+    return carried.main_mode
+
+
+class PlaysFrom(Protocol):
+    funestra: FunTimeFunestra
+    channels: SatelliteChannels
+
+
+def carry_the_last_session_in(
+    m: LaunchManifest, satellites: Sequence[PlaysFrom], *, state_dir: Path,
+) -> BridgeState:
+    commands = m.commands
+    reap_orphaned_satellites(m.modules.satellite_module, [s.channels.status for s in satellites])
     leave_a_park_for_the_brokers_next_tick(commands)
     ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
-    state_path = Path(state_dir)
     main_funestra_status = read_main_funestra_status(Path(commands.main_funestra_status_file))
-    empty_the_satellites_lists([Path(launch.channels.playlist) for launch in (portrait, landscape)])
+    empty_the_satellites_lists([Path(s.channels.playlist) for s in satellites])
     carried = resume_shared_state(
-        shared_state_path(state_path), last_reported=reports_published_in(
-            state_path, main_status_file=Path(commands.main_funestra_status_file),
-            satellite_status_files={launch.funestra: Path(launch.channels.status)
-                                    for launch in (portrait, landscape)}))
-    main_list = MainList(sources=m.media.main_funestra_library_sources, state_dir=state_path,
-                         metadata_root=regen_metadata_root)
-    carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_path),
+        shared_state_path(state_dir), last_reported=reports_published_in(
+            state_dir, main_status_file=Path(commands.main_funestra_status_file),
+            satellite_status_files={s.funestra: Path(s.channels.status) for s in satellites}))
+    main_list = the_main_list(m, state_dir)
+    carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_dir),
                                  on_screen=main_funestra_status.video)
     seed_startup_states(m, carried)
     start_the_satellites_playing_whatever_a_pause_left_behind(
-        portrait.channels.paused, landscape.channels.paused)
-    prepare_random_faves_browser_manifest(
-        m.runtime.config_path, m.random_faves_browser.manifest_file)
+        *(s.channels.paused for s in satellites))
     resume_main_loop(Path(commands.main_funestra_cmd_file), carried, main_list.file)
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        satellite_cmd_files={launch.funestra: Path(launch.channels.command)
-                             for launch in (portrait, landscape)},
+        satellite_cmd_files={s.funestra: Path(s.channels.command) for s in satellites},
         genau_cmd_file=Path(commands.genau_cmd_file),
     )
-    launch_core_apps(m, portrait, landscape, result_file)
-    return carried.main_mode
+    return carried
+
+
+def the_main_list(m: LaunchManifest, state_dir: Path) -> MainList:
+    return MainList(sources=m.media.main_funestra_library_sources, state_dir=state_dir,
+                    vr_dirs=m.media.vr_library_dirs, metadata_root=m.regen.metadata_folder)
 
 
 def leave_a_park_for_the_brokers_next_tick(commands: CommandFiles) -> None:

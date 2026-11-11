@@ -69,6 +69,7 @@ from fun_time.shared_state import (
 )
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
+from fun_time.windows_bridge_startup import open_the_main_list, the_main_list
 from fun_time_vr import app, orchestrator, vr_runtime
 from fun_time_vr.bringup import SESSION_BRINGUP_TIMEOUT_S
 from fun_time_vr.funestras import VrSettings
@@ -89,7 +90,6 @@ from fun_time_vr.orchestrator import (
     _wait_for_the_room,
     build_vr_manifest,
     launch_vr_funestras,
-    open_the_main_funestras_list,
     resume_genau_shapes,
     validate_vr_config,
     vr_main_sources,
@@ -383,64 +383,37 @@ class TestTheModeASessionComesBackIn:
 
         assert read_shared_state(state_file).main_mode is MainMode.GENAU
 
-    def test_the_flags_are_seeded_in_the_mode_the_dispatch_loop_will_read(self):
-        (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
+    def test_the_last_session_is_carried_in_by_the_desktops_own_step(self):
+        (headset,) = self._calls("run_vr_bridge", "carry_the_last_session_in")
+        desktop_source = ast.parse(inspect.getsource(windows_bridge_startup.start_core_session))
 
-        assert [ast.unparse(argument) for argument in seed.args] == ["manifest", "carried"]
+        assert [n for n in ast.walk(desktop_source) if isinstance(n, ast.Call)
+                and ast.unparse(n.func) == "carry_the_last_session_in"]
+        assert ast.unparse(headset.args[0]) == "manifest"
 
     def test_genau_is_sent_the_shapes_it_was_left_browsing(self):
-        (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
+        (carry,) = self._calls("run_vr_bridge", "carry_the_last_session_in")
         (resume,) = self._calls("run_vr_bridge", "resume_genau_shapes")
 
-        assert resume.lineno > seed.lineno
+        assert resume.lineno > carry.lineno
         assert [ast.unparse(arg) for arg in resume.args] == [
-            "Path(commands.genau_cmd_file)", "genau_flick_shapes(carried, bridge_config)"]
-
-    def test_the_playlists_are_stocked_under_the_state_the_session_was_left_in(self):
-        (stock,) = self._calls("run_vr_bridge", "open_the_main_funestras_list")
-        given = {kw.arg: ast.unparse(kw.value) for kw in stock.keywords}
-
-        assert (given["carried"], given["main_video"]) == (
-            "carried", "main_funestra_status.video")
+            "Path(commands.genau_cmd_file)", "genau_flick_shapes(carried, launch.bridge_config)"]
 
     def test_the_flags_are_seeded_from_the_state_the_stocked_list_answers(self, config):
         _left_in(config, BridgeState(main_mode=MainMode.GENAU))
         the_list_answers_kino = MagicMock(
-            side_effect=lambda _launch, **asked: replace(asked["carried"], main_mode=MainMode.KINO))
+            side_effect=lambda _list, carried, **_k: replace(carried, main_mode=MainMode.KINO))
 
         queued = _queued_when_the_funestra_launches(
-            config, SessionEnvironment(), open_the_main_funestras_list=the_list_answers_kino)
+            config, SessionEnvironment(), startup={"open_the_main_list": the_list_answers_kino})
 
         assert show_verb(MainMode.KINO) in queued["main"]
         assert show_verb(MainMode.GENAU) not in queued["main"]
 
-    def test_the_loop_that_lived_only_in_the_desktops_funestra_is_queued_again(self):
-        (resume,) = self._calls("run_vr_bridge", "resume_main_loop")
-
-        assert [ast.unparse(arg) for arg in resume.args] == [
-            "Path(commands.main_funestra_cmd_file)",
-            "carried",
-            "bridge_config.main_list.file",
-        ]
-
     def test_the_loop_is_queued_once_the_stocked_list_says_which_video_opens(self):
-        source = _the_session_as_one_source()
+        source = inspect.getsource(windows_bridge_startup.carry_the_last_session_in)
 
-        assert source.index("open_the_main_funestras_list(") < source.index("resume_main_loop(")
-
-    def test_the_headset_comes_back_as_quiet_as_the_osr2_was_left(self):
-        (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
-
-        assert [ast.unparse(argument) for argument in seed.args] == ["manifest", "carried"]
-
-    def test_the_headset_is_seeded_with_everything_the_desktop_is(self):
-        (headset,) = self._calls("run_vr_bridge", "seed_startup_states")
-        desktop_source = ast.parse(inspect.getsource(windows_bridge_startup.start_core_session))
-        (desktop,) = [n for n in ast.walk(desktop_source) if isinstance(n, ast.Call)
-                      and ast.unparse(n.func) == "seed_startup_states"]
-
-        assert ({kw.arg for kw in headset.keywords}, len(headset.args)) == (
-            {kw.arg for kw in desktop.keywords}, len(desktop.args))
+        assert source.index("open_the_main_list(") < source.index("resume_main_loop(")
 
     def test_the_reveal_releases_the_funestras_the_mode_puts_to_work(self):
         (release,) = self._calls("run_vr_bridge", "release_the_funestras")
@@ -531,18 +504,6 @@ class TestTheCheckRun:
 
 
 @dataclasses.dataclass
-class _AConfig:
-    regen_metadata_root: Path
-
-
-@dataclasses.dataclass
-class _AStockingLaunch:
-    manifest: LaunchManifest
-    state_dir: Path
-    bridge_config: _AConfig
-
-
-@dataclasses.dataclass
 class _TheCommands:
     origenerator_cmd_file: str
 
@@ -571,10 +532,9 @@ class TestStockingThePlaylistsThroughFunTimesOwnBuilders:
             write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini"))
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        launch = _AStockingLaunch(
-            manifest, state, _AConfig(regen_metadata_root=tmp_path / "metadata"))
-        return open_the_main_funestras_list(
-            launch, carried=carried or BridgeState(), main_video=main_video)
+        return open_the_main_list(
+            the_main_list(manifest, state), carried or BridgeState(),
+            state_file=shared_state_path(state), on_screen=main_video)
 
     @staticmethod
     def _main_list(tmp_path) -> list[str]:
@@ -1551,15 +1511,12 @@ class TestTheHotkeyScriptsArguments:
 A_LAUNCHED_APP = HostedApp(303, already_open=False, taken_over=False, showing_a_slideshow=False)
 
 
-def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
+def _launch_stand_ins(orchestrator, torn_down: list, *, startup=None, **overrides):
     stand_ins = {
         "open_event_log": MagicMock(),
         "log_into_the_hotkey_scripts_log": MagicMock(),
-        "leave_a_park_for_the_brokers_next_tick": MagicMock(),
-        "ensure_broker": MagicMock(),
         "reap_orphaned_satellites": MagicMock(),
         "bring_up_the_hosted_app": MagicMock(return_value=A_LAUNCHED_APP),
-        "open_the_main_funestras_list": MagicMock(side_effect=lambda _manifest, **asked: asked["carried"]),
         "launch_audio_companion": MagicMock(return_value=MagicMock(pid=101)),
         "launch_vr_funestras": MagicMock(return_value=MagicMock(pid=202)),
         "process_started": MagicMock(return_value=7),
@@ -1571,7 +1528,16 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
         "_release_vr_runtime": MagicMock(side_effect=lambda *_a, **_k: torn_down.append("runtime")),
     }
     stand_ins.update(overrides)
-    return patch.multiple(orchestrator, **stand_ins)
+    stack = contextlib.ExitStack()
+    stack.enter_context(patch.multiple(orchestrator, **stand_ins))
+    stack.enter_context(patch.multiple(windows_bridge_startup, **{
+        "leave_a_park_for_the_brokers_next_tick": MagicMock(),
+        "ensure_broker": MagicMock(),
+        "reap_orphaned_satellites": MagicMock(),
+        "open_the_main_list": MagicMock(side_effect=lambda _list, carried, **_k: carried),
+        **(startup or {}),
+    }))
+    return stack
 
 
 def _end_a_vr_session(

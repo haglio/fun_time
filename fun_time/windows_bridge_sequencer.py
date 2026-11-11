@@ -3,13 +3,10 @@ from __future__ import annotations
 import configparser
 import logging
 import time
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from funestra.modes import MainMode
-from funestra.play_points import play_points_filename
-
-from satellite.contract import SatelliteChannels
 
 from . import preview_marker
 from .fun_time_funestras import FunTimeFunestra
@@ -26,12 +23,11 @@ from .funestra_status import (
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavesBrowserSettings
 from .mode_plan import STARTUP_MAIN_MODE, kino_shows
-from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .rfb_modes import RfbMode
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
-from .satellite_launch import SatelliteLaunch
+from .satellite_launch import SatelliteLaunch, satellite_feed
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
@@ -220,23 +216,18 @@ def _launch_the_satellites(
 ) -> tuple[str, int, int]:
     core_result_file = _build_unique_result_path(state_dir, "core_session")
 
-    def _launch(funestra: FunTimeFunestra, playlist: str, rect):
-        satellite = funestra.label
-        channel = m.satellite(funestra)
+    def _launch(funestra: FunTimeFunestra, rect):
+        feed = satellite_feed(m, funestra, state_dir)
         return SatelliteLaunch(
             funestra=funestra,
-            channels=replace(
-                SatelliteChannels.from_channel(
-                    channel, m.commands, satellite,
-                    play_points=state_dir / play_points_filename(satellite)),
-                playlist=build_playlist_file_path(state_dir, playlist)),
+            channels=feed.channels,
             log_file=_log_for_a_funestra_pythonw_gives_no_console(
-                state_dir, f"{satellite}_satellite"),
+                state_dir, f"{funestra.label}_satellite"),
             rect=rect,
         )
 
-    portrait_launch = _launch(FunTimeFunestra.PORTRAIT, PLAYLIST_PORTRAIT, plan.portrait)
-    landscape_launch = _launch(FunTimeFunestra.LANDSCAPE, PLAYLIST_LANDSCAPE, plan.landscape)
+    portrait_launch = _launch(FunTimeFunestra.PORTRAIT, plan.portrait)
+    landscape_launch = _launch(FunTimeFunestra.LANDSCAPE, plan.landscape)
     portrait_logs = logs_as_they_stand(portrait_launch.log_file)
     landscape_logs = logs_as_they_stand(landscape_launch.log_file)
     main_mode = start_core_session(

@@ -33,7 +33,6 @@ from fun_time.funestra_deaths import (
     the_part_that_closed,
 )
 from fun_time.funestra_engine import engine_missing_abort
-from fun_time.funestra_settings import read_funestra_reports
 from fun_time.funestra_status import read_main_funestra_status
 from fun_time.genau_config import GenauSettings
 from fun_time.headset_power import put_the_headset_to_sleep
@@ -42,7 +41,6 @@ from fun_time.hosted_origenerator import (
     bring_up_the_hosted_app,
     what_it_answers_by_voice_in,
 )
-from fun_time.main_list import MainList
 from fun_time.main_list_commands import genau_flick_shapes
 from fun_time.manifest import (
     LaunchManifest,
@@ -50,10 +48,7 @@ from fun_time.manifest import (
     write_manifest_data,
 )
 from fun_time.modes import (
-    PLAYLIST_LANDSCAPE,
-    PLAYLIST_PORTRAIT,
     VideoShapes,
-    build_playlist_file_path,
 )
 from fun_time.orchestrator import (
     ensure_runtime_files,
@@ -79,6 +74,7 @@ from fun_time.overlay_progress import (
     what_the_flag_asks,
 )
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
+from fun_time.satellite_launch import satellite_feed
 from fun_time.session_end import session_end_marker_path
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -97,13 +93,6 @@ from fun_time.session_handoff import (
     request_handoff,
     returning_from_a_crossing,
     say_the_crossing_is_cancelled,
-)
-from fun_time.session_resume import (
-    empty_the_satellites_lists,
-    open_the_main_list,
-    resume_main_loop,
-    resume_shared_state,
-    resume_what_lives_in_a_funestra,
 )
 from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time.single_instance import (
@@ -141,13 +130,9 @@ from fun_time.windows_bridge_orchestrator import (
 )
 from fun_time.windows_bridge_sequencer import release_the_funestras
 from fun_time.windows_bridge_startup import (
-    ensure_broker,
+    carry_the_last_session_in,
     launch_audio_companion,
-    leave_a_park_for_the_brokers_next_tick,
     reap_orphaned_satellites,
-    seed_startup_states,
-    start_the_satellites_playing_whatever_a_pause_left_behind,
-    the_broker_launcher,
 )
 
 from . import vr_runtime
@@ -264,17 +249,6 @@ def _wait_for_the_room(
     logger.warning("The room was not reported up within %.0fs; revealing anyway",
                    SCENE_READY_TIMEOUT_S)
     return False
-
-
-def open_the_main_funestras_list(launch: _Launch, *, carried: BridgeState,
-                                 main_video: str = "") -> BridgeState:
-    main_list = MainList(sources=launch.manifest.media.main_funestra_library_sources,
-                         state_dir=launch.state_dir,
-                         vr_dirs=launch.manifest.media.vr_library_dirs,
-                         metadata_root=launch.bridge_config.regen_metadata_root)
-    return open_the_main_list(main_list, carried,
-                              state_file=shared_state_path(launch.state_dir),
-                              on_screen=main_video)
 
 
 def resume_genau_shapes(genau_cmd_file: Path, shapes: VideoShapes) -> None:
@@ -505,35 +479,14 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
 
 def _resume_the_room(launch: _Launch) -> BridgeState:
     manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
-    bridge_config, progress = launch.bridge_config, launch.progress
-    progress.advance("services")
-    leave_a_park_for_the_brokers_next_tick(commands)
-    ensure_broker(commands.broker_state_dir or None, the_broker_launcher(commands))
-    start_the_satellites_playing_whatever_a_pause_left_behind(manifest.portrait.paused_file, manifest.landscape.paused_file)
-    reap_orphaned_satellites(
-        manifest.modules.satellite_module,
-        [manifest.portrait.status_file, manifest.landscape.status_file],
-    )
+    launch.progress.advance("services")
     _end_a_funestra_left_holding_the_headset(launch)
-
-    portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
-    landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
-    main_funestra_status = read_main_funestra_status(launch.main_funestra_status_file)
-    empty_the_satellites_lists([portrait_playlist, landscape_playlist])
-    carried = resume_shared_state(shared_state_path(state_dir),
-                                  last_reported=read_funestra_reports(bridge_config))
-    carried = open_the_main_funestras_list(launch, carried=carried,
-                                           main_video=main_funestra_status.video)
-    seed_startup_states(manifest, carried)
-    resume_genau_shapes(Path(commands.genau_cmd_file), genau_flick_shapes(carried, bridge_config))
-    resume_what_lives_in_a_funestra(
-        carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        satellite_cmd_files={funestra: manifest.satellite(funestra).cmd_file
-                             for funestra in FunTimeFunestra.SATELLITES},
-        genau_cmd_file=Path(commands.genau_cmd_file),
-    )
-    resume_main_loop(Path(commands.main_funestra_cmd_file), carried,
-                     bridge_config.main_list.file)
+    carried = carry_the_last_session_in(
+        manifest, [satellite_feed(manifest, funestra, state_dir)
+                   for funestra in FunTimeFunestra.SATELLITES],
+        state_dir=state_dir)
+    resume_genau_shapes(Path(commands.genau_cmd_file),
+                        genau_flick_shapes(carried, launch.bridge_config))
     return carried
 
 
