@@ -25,7 +25,6 @@ def _with_the_trigger_held(moved: str) -> str:
     return f"hold trigger + {moved}"
 
 
-TRIGGER = "trigger"
 STICK_SIDEWAYS = "stick left / right"
 STICK_UP_DOWN = "stick forward / back"
 A_OR_X = "A / X"
@@ -155,13 +154,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     (),
                     ("help_reference", "help_reference_close"),
                 ),
-                _Row(
-                    "Origenerator mode — Origenerator Core shares real estate with the Random "
-                    "Favs Browser",
-                    commands=("origenerator_activate", "satellites_origenerator_activate",
-                              "portrait_origenerator_activate", "landscape_origenerator_activate"),
-                    voice_display=("origenerator", "origenerator mode"),
-                ),
             )),
             _Group("Funestras", (
                 _Row(
@@ -223,7 +215,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "resizes it; the stick pushed forward or pulled back sizes the Main "
                     "Funestra, and with the trigger held brings every screen nearer or "
                     "farther",
-                    controller=(TRIGGER, STICK_UP_DOWN, HOLD_TRIGGER_AND_STICK_UP_DOWN),
+                    controller=(STICK_UP_DOWN, HOLD_TRIGGER_AND_STICK_UP_DOWN),
                 ),
             )),
         ),
@@ -429,7 +421,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     voice_display=("hud top left", "hud upper left", "hud top right", "hud upper right",
                                    "hud lower left", "hud bottom left", "hud lower right",
                                    "hud bottom right"),
-                    controller=(TRIGGER,),
                 ),
                 _Row(
                     "minimize HUD — it collapses to a square with a plus on it, "
@@ -507,23 +498,16 @@ _SECTIONS: tuple[_Section, ...] = (
                     "is over",
                     (),
                     ("browse_library",),
-                    controller=(TRIGGER, STICK_UP_DOWN),
+                    controller=(STICK_UP_DOWN,),
                 ),
             )),
-            _Group("Modes", (
-                _Row(
-                    f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot "
-                    "Hand driving the OSR2",
-                    commands=("genau_activate",),
-                ),
+            _Group("Kino", (
                 _Row(
                     "Kino mode",
                     commands=("kino_activate", "main_kino_activate", "satellites_kino_activate",
                               "portrait_kino_activate", "landscape_kino_activate"),
                     voice_display=("kino", "kino mode"),
                 ),
-            )),
-            _Group("Loops", (
                 _Row(
                     "loop control — hold to start recording a loop, release to end "
                     "recording, and tap again to terminate a recorded loop",
@@ -537,6 +521,11 @@ _SECTIONS: tuple[_Section, ...] = (
                 ),
             )),
             _Group("Genau", (
+                _Row(
+                    f"Genau mode — Genau's {_FLICK.many} on the Main Funestra, the Robot "
+                    "Hand driving the OSR2",
+                    commands=("genau_activate",),
+                ),
                 flip_row(_FLICK),
                 _Row(
                     f"seconds a {_FLICK.one} holds the screen before Genau moves on — only "
@@ -552,6 +541,13 @@ _SECTIONS: tuple[_Section, ...] = (
         "Origenerator",
         (
             _Group("", (
+                _Row(
+                    "Origenerator mode — Origenerator Core shares real estate with the Random "
+                    "Favs Browser",
+                    commands=("origenerator_activate", "satellites_origenerator_activate",
+                              "portrait_origenerator_activate", "landscape_origenerator_activate"),
+                    voice_display=("origenerator", "origenerator mode"),
+                ),
                 _said_to_a_slideshow("fix the image on screen — its face, hands, teeth, or eyes",
                                      "fix face", "fix hands", "fix teeth", "fix eyes"),
                 _said_to_a_slideshow(
@@ -561,6 +557,18 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
         note=_ORIGENERATOR_NOTE,
         merge_scopes=True,
+    ),
+    _Section(
+        "Random Favs Browser",
+        (
+            _Group("", (
+                _Row(
+                    "Random Favs Browser",
+                    commands=("rfb_activate",),
+                    voice_display=("RFB", "random faves", "random faves browser"),
+                ),
+            )),
+        ),
     ),
 )
 
