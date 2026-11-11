@@ -48,7 +48,12 @@ from fun_time.project_paths import (
     PROJECT_DIR,
     SIBLING_CHECKOUTS_OVERRIDE_NAME,
 )
-from fun_time.session_end import SESSION_END_MARKER
+from fun_time.session_end import (
+    SESSION_END_MARKER,
+    SessionEnd,
+    mark_session_end,
+    wait_for_the_session_to_end,
+)
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
     DESKTOP,
@@ -85,7 +90,6 @@ from fun_time_vr.orchestrator import (
     _LoadingScreen,
     _release_vr_runtime,
     _wait_for_funestra,
-    _wait_for_session_end,
     _wait_for_the_headset_hold,
     _wait_for_the_room,
     build_vr_manifest,
@@ -330,22 +334,29 @@ class _FakeProc:
 
 
 class TestWaitForSessionEnd:
+    @staticmethod
+    def _ended_by(hotkeys, funestra, tmp_path, *, parts=None) -> str:
+        return wait_for_the_session_to_end(
+            hotkeys, tmp_path, parts=parts or {}, ending_it={"funestras": funestra}, poll_s=0.0).by
+
     def test_ahk_exit_ends_the_session(self, tmp_path):
-        assert _wait_for_session_end(
-            _FakeProc(exits_after_polls=2), _FakeProc(), state_dir=tmp_path, poll_s=0.0
-        ) == "ahk"
+        assert self._ended_by(_FakeProc(exits_after_polls=2), _FakeProc(), tmp_path) == "ahk"
+
+    def test_the_headset_is_one_of_what_ends_the_session(self):
+        (wait,) = TestTheModeASessionComesBackIn._calls("run_vr_bridge", "wait_for_the_session_to_end")
+        given = {kw.arg: ast.unparse(kw.value) for kw in wait.keywords}
+
+        assert given["ending_it"] == "{'funestras': funestra}"
 
     def test_a_marked_end_leaves_the_script_up_to_hear_esc_on_the_closing_screen(self, tmp_path):
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
 
-        assert _wait_for_session_end(
-            _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0
-        ) == "asked"
+        assert self._ended_by(_FakeProc(), _FakeProc(), tmp_path) == "asked"
 
     def test_no_hotkey_script_outlives_the_teardown_still_holding_the_keys_it_binds(self):
         tree = ast.parse(_the_session_as_one_source())
         (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
-            isinstance(c, ast.Call) and ast.unparse(c.func) == "_wait_for_session_end"
+            isinstance(c, ast.Call) and ast.unparse(c.func) == "wait_for_the_session_to_end"
             for c in ast.walk(n))]
         calls = [ast.unparse(c.func) for stmt in session.finalbody for c in ast.walk(stmt)
                  if isinstance(c, ast.Call)]
@@ -354,17 +365,24 @@ class TestWaitForSessionEnd:
         assert calls.index("kill_recorded_child") < calls.index("stop_hotkey_script")
 
     def test_closing_the_headsets_only_window_ends_the_session(self, tmp_path):
-        assert _wait_for_session_end(
-            _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
-        ) == "funestras"
+        assert self._ended_by(_FakeProc(), _FakeProc(exits_after_polls=2), tmp_path) == "funestras"
 
     def test_any_other_part_of_the_room_closing_ends_the_session(self, tmp_path, monkeypatch):
         monkeypatch.setattr(funestra_deaths, "process_started", lambda pid: None)
 
-        assert _wait_for_session_end(
-            _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0,
-            parts={"origenerator_pid": ChildProcess(pid=40, created_at=4000)},
-        ) == "part"
+        assert self._ended_by(
+            _FakeProc(), _FakeProc(), tmp_path,
+            parts={"origenerator_pid": ChildProcess(pid=40, created_at=4000)}) == "part"
+
+    def test_the_log_says_what_asked_the_session_to_end(self, config, caplog):
+        def asked_by_the_quit_chord(*_args, **_kwargs):
+            mark_session_end(config.paths.state_dir, "the quit chord (Ctrl+Alt+Q)")
+            return "asked"
+
+        with caplog.at_level("INFO", logger="fun_time_vr.orchestrator"):
+            _end_a_vr_session(orchestrator, config, ended_by=asked_by_the_quit_chord)
+
+        assert "asked to end: the quit chord (Ctrl+Alt+Q)" in caplog.text
 
 
 class TestTheModeASessionComesBackIn:
@@ -1558,7 +1576,8 @@ def _end_a_vr_session(
         "wait_for_loading_screen_painted": MagicMock(return_value=True),
         "DispatchLoopRunner": MagicMock(),
         "start_voice_control": MagicMock(return_value=(None, None)),
-        "_wait_for_session_end": MagicMock(side_effect=ended_by),
+        "wait_for_the_session_to_end": MagicMock(
+            side_effect=lambda *a, **k: SessionEnd(ended_by(*a, **k), 0)),
         "_closing_screen": closing_screen,
     }
     stand_ins.update(overrides)
@@ -1863,7 +1882,7 @@ class TestOpeningAVrSession:
             launch_vr_funestras=MagicMock(
                 side_effect=lambda **_kwargs: order.append("funestras") or MagicMock(pid=202)),
             start_voice_control=start_voice,
-            _wait_for_session_end=MagicMock(return_value="ahk"),
+            wait_for_the_session_to_end=MagicMock(return_value=SessionEnd("ahk", 0)),
         ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
              patch("fun_time_vr.orchestrator.subprocess.Popen"):
             orchestrator.run_vr_bridge(config, SessionEnvironment())

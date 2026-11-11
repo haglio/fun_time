@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fun_time import funestra_deaths
 from fun_time.funestra_deaths import the_part_that_closed
-from fun_time.windows_bridge_orchestrator import ChildProcess, _wait_for_the_session_to_end
+from fun_time.session_end import wait_for_the_session_to_end
+from fun_time.windows_bridge_orchestrator import ChildProcess
 
 
 def _app(**up):
@@ -48,9 +49,21 @@ class _StillRunning:
 def test_no_session_carries_on_with_satellites_showing_a_dead_origenerator(tmp_path, monkeypatch):
     monkeypatch.setattr(funestra_deaths, "process_started", _born(30))
 
-    ended = _wait_for_the_session_to_end(
-        _StillRunning(), tmp_path, children=_app(portrait_pid=30, origenerator_pid=40),
+    ended = wait_for_the_session_to_end(
+        _StillRunning(), tmp_path, parts=_app(portrait_pid=30, origenerator_pid=40),
         poll_s=0)
 
     assert ended.closed == "Origenerator Core"
     assert ended.exit_code != 0
+
+
+class _Ended(_StillRunning):
+    def poll(self):
+        return 0
+
+
+def test_a_process_whose_end_ends_the_session_is_named_as_what_ended_it(tmp_path):
+    ended = wait_for_the_session_to_end(
+        _StillRunning(), tmp_path, parts={}, ending_it={"funestras": _Ended()}, poll_s=0)
+
+    assert (ended.by, ended.exit_code) == ("funestras", 0)

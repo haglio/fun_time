@@ -53,7 +53,6 @@ from .funestra_deaths import (
     FunestraDied,
     funestra_died_message,
     part_closed_message,
-    the_part_that_closed,
 )
 from .hosted_contract import (
     ASKING_BUDGET_S,
@@ -91,7 +90,7 @@ from .process_tree import kill_process_tree
 from .raising_the_loading_screen import OFF_THE_MONITORS_WAIT_S, RaisedLoadingScreen
 from .rfb_modes import RfbMode
 from .rfb_slideshow import rfb_slideshow_on
-from .session_end import session_end_marker_path
+from .session_end import describe_session_end, session_end_marker_path, wait_for_the_session_to_end
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     DESKTOP,
@@ -182,23 +181,6 @@ def write_pids_file(path: Path, children: dict[str, ChildProcess]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fp:
         parser.write(fp)
-
-
-def _describe_session_end(state_dir: Path, exit_code: int) -> str:
-    marker = session_end_marker_path(state_dir)
-    try:
-        reason = marker.read_text(encoding="utf-8").strip()
-    except OSError:
-        reason = ""
-    try:
-        marker.unlink(missing_ok=True)
-    except OSError:
-        logger.warning("Could not clear %s", marker, exc_info=True)
-    if reason:
-        return f"asked to end: {reason}"
-    if exit_code:
-        return "the hotkey script FAILED -- see its own MsgBox/exit path"
-    return "UNEXPECTED -- nothing asked it to end; the hotkey script exited on its own"
 
 
 def kill_recorded_child(child: ChildProcess) -> None:
@@ -888,30 +870,9 @@ def stop_everything(manifest: LaunchManifest,
 
 
 @dataclass(frozen=True)
-class SessionEnd:
-    exit_code: int
-    closed: str | None = None
-
-
-@dataclass(frozen=True)
 class SessionOver:
     exit_code: int
     why: str = ""
-
-
-def _wait_for_the_session_to_end(
-    ahk_proc: subprocess.Popen, state_dir: Path, *, children: dict,
-    poll_s: float = 0.1,
-) -> SessionEnd:
-    marker = session_end_marker_path(state_dir)
-    while ahk_proc.poll() is None:
-        if marker.exists():
-            return SessionEnd(0)
-        closed = the_part_that_closed(children)
-        if closed is not None:
-            return SessionEnd(1, closed)
-        time.sleep(poll_s)
-    return SessionEnd(ahk_proc.wait())
 
 
 def _run_until_the_hotkeys_exit(
@@ -926,14 +887,14 @@ def _run_until_the_hotkeys_exit(
     asked = False
     closed = None
     try:
-        ended = _wait_for_the_session_to_end(hotkeys.proc, state_dir, children=running.children)
+        ended = wait_for_the_session_to_end(hotkeys.proc, state_dir, parts=running.children)
         exit_code, closed = ended.exit_code, ended.closed
         asked = session_end_marker_path(state_dir).exists()
         if closed is not None:
             logger.error("The session ended because %s closed itself", closed)
         else:
             logger.info("The session ended with code %s (%s)", exit_code,
-                        _describe_session_end(state_dir, exit_code))
+                        describe_session_end(state_dir, exit_code))
     except KeyboardInterrupt:
         logger.info("Interrupted — shutting down")
         exit_code = 1

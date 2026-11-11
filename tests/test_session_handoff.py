@@ -50,6 +50,7 @@ from fun_time.session_handoff import (
     this_session,
     wait_for_the_session_to_come_up,
     wait_for_the_session_to_let_go,
+    what_esc_offers,
 )
 from fun_time_vr.orchestrator import VR_STARTUP_MARKER_NAME
 from tests.mutex_handles import (
@@ -614,3 +615,28 @@ class TestTheRelayEndToEnd:
             assert run(VR, config) == 1
         assert reported.call_args.args[0] == "Fun Time VR stopped."
         assert reported.call_args.args[1] == config.paths.state_dir / VR.launcher_log
+
+
+class TestWhatEscOffersAsASessionOpens:
+    @staticmethod
+    def _offered(tmp_path, *, cancelable=True, crossing=False):
+        if crossing:
+            raise_transition_screen(tmp_path, VR)
+        return what_esc_offers(tmp_path, cancelable=cancelable, arriving_in=VR,
+                               came_from=DESKTOP, opening="Press Esc to cancel opening")
+
+    def test_a_launch_offers_to_cancel_opening(self, tmp_path):
+        offered = self._offered(tmp_path)
+
+        assert (offered.hint, offered.turns_back_to) == ("Press Esc to cancel opening", None)
+
+    def test_an_arrival_offers_to_turn_back_where_it_came_from(self, tmp_path):
+        offered = self._offered(tmp_path, crossing=True)
+
+        assert (offered.hint, offered.turns_back_to) == (VR.crossing_hint, DESKTOP)
+        assert offered.returning
+
+    def test_a_launch_an_esc_turned_back_offers_nothing(self, tmp_path):
+        offered = self._offered(tmp_path, cancelable=False, crossing=True)
+
+        assert (offered.hint, offered.turns_back_to) == ("", None)

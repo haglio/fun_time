@@ -12,11 +12,8 @@ from fun_time.manifest import (
     LaunchManifest,
     write_windows_bridge_manifest,
 )
-from fun_time.session_end import SESSION_END_MARKER, mark_session_end
-from fun_time.windows_bridge_orchestrator import (
-    _describe_session_end,
-    clear_last_sessions_leftovers,
-)
+from fun_time.session_end import SESSION_END_MARKER, describe_session_end, mark_session_end
+from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
 from tests.ahk_script import function_source
 from tests.test_windows_bridge_dispatch_loop import make_runner
 
@@ -25,20 +22,20 @@ def test_an_end_the_user_asked_for_names_what_asked(tmp_path):
     (tmp_path / SESSION_END_MARKER).write_text(
         "the quit chord (Ctrl+Alt+Q)", encoding="utf-8")
 
-    described = _describe_session_end(tmp_path, 0)
+    described = describe_session_end(tmp_path, 0)
 
     assert "quit chord" in described
     assert "UNEXPECTED" not in described
 
 
 def test_a_session_that_ended_on_its_own_says_so_loudly(tmp_path):
-    described = _describe_session_end(tmp_path, 0)
+    described = describe_session_end(tmp_path, 0)
 
     assert "UNEXPECTED" in described
 
 
 def test_a_hotkey_script_that_failed_is_told_apart_from_both(tmp_path):
-    described = _describe_session_end(tmp_path, 2)
+    described = describe_session_end(tmp_path, 2)
 
     assert "FAILED" in described
 
@@ -47,23 +44,23 @@ def test_the_marker_is_removed_so_the_next_session_finds_only_its_own(tmp_path):
     marker = tmp_path / SESSION_END_MARKER
     marker.write_text("the quit chord (Ctrl+Alt+Q)", encoding="utf-8")
 
-    _describe_session_end(tmp_path, 0)
+    describe_session_end(tmp_path, 0)
 
     assert not marker.exists()
-    assert "UNEXPECTED" in _describe_session_end(tmp_path, 0)
+    assert "UNEXPECTED" in describe_session_end(tmp_path, 0)
 
 
 def test_an_unreadable_marker_is_read_as_no_marker(tmp_path):
     (tmp_path / SESSION_END_MARKER).mkdir()
 
-    assert "UNEXPECTED" in _describe_session_end(tmp_path, 0)
+    assert "UNEXPECTED" in describe_session_end(tmp_path, 0)
 
 
 def test_a_marker_that_cannot_be_cleared_still_says_what_ended_the_session(tmp_path):
     (tmp_path / SESSION_END_MARKER).write_text("the quit chord (Ctrl+Alt+Q)", encoding="utf-8")
 
     with patch.object(Path, "unlink", side_effect=PermissionError("a stand-in open handle")):
-        described = _describe_session_end(tmp_path, 0)
+        described = describe_session_end(tmp_path, 0)
 
     assert "quit chord" in described
 
@@ -170,7 +167,7 @@ def test_a_marker_from_a_session_that_was_cut_off_is_not_worn_by_the_next(
     clear_last_sessions_leftovers(state_dir, commands, pids_file=state_dir / "bridge_pids.ini",
                                   ahk_cmd_file=state_dir / "ahk_cmd.txt")
 
-    assert "UNEXPECTED" in _describe_session_end(state_dir, 0)
+    assert "UNEXPECTED" in describe_session_end(state_dir, 0)
 
 
 def test_a_session_comes_down_even_when_it_cannot_leave_a_note(tmp_path):
