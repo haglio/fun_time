@@ -17,7 +17,7 @@ from fun_time.manifest import (
     LaunchManifest,
     ManifestKeyMissing,
     MediaSources,
-    RandomFavsBrowserSettings,
+    RandomFavesBrowserSettings,
     RegenSettings,
     RuntimePaths,
     build_windows_bridge_manifest,
@@ -67,7 +67,7 @@ _KEYS_EVERY_READER_SPELLS_VERBATIM: dict[str, set[str]] = {
         "primary_monitor", "secondary_monitor", "main_top_ratio",
         "landscape_width_ratio",
     },
-    "random_favs_browser": {"enabled", "shortcut_path", "manifest_file"},
+    "random_faves_browser": {"enabled", "shortcut_path", "manifest_file"},
     "regen": {
         "generate_video_url", "generate_image_url", "media_root",
         "metadata_root",
@@ -134,7 +134,7 @@ class TestReadingItBack:
             ("media", MediaSources),
             ("modules", ChildModules),
             ("commands", CommandFiles),
-            ("random_favs_browser", RandomFavsBrowserSettings),
+            ("random_faves_browser", RandomFavesBrowserSettings),
             ("regen", RegenSettings),
             ("layout", LayoutConfig),
             ("portrait", SatelliteChannel),
@@ -168,7 +168,7 @@ class TestReadingItBack:
         assert manifest.dashboard_enabled is True
         assert manifest.loopback_port == cfg.loopback_port
         assert manifest.layout == cfg.layout
-        assert manifest.random_favs_browser.enabled is cfg.random_favs_browser.enabled
+        assert manifest.random_faves_browser.enabled is cfg.random_faves_browser.enabled
 
     def test_a_satellites_channel_comes_back_as_the_config_spelled_it(self, cfg_path, tmp_path):
         cfg = load_config(cfg_path)

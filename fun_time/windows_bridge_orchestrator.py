@@ -859,8 +859,8 @@ def _build_the_dispatch_loop(
 ) -> tuple[DispatchLoopRunner, threading.Thread]:
     manifest = launch.manifest
     rfb_shortcut = Shortcut()
-    if manifest.random_favs_browser.enabled:
-        rfb_shortcut = resolve_shortcut(manifest.random_favs_browser.shortcut_path)
+    if manifest.random_faves_browser.enabled:
+        rfb_shortcut = resolve_shortcut(manifest.random_faves_browser.shortcut_path)
 
     return DispatchLoopRunner(
         launch.bridge_config,

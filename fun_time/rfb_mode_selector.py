@@ -17,7 +17,7 @@ from .satellite_buttons import STILL_STARTING_TOOLTIP
 Rect = tuple[int, int, int, int]
 
 _BUTTONS = (
-    (RfbMode.RFB, RFB_ACTIVATE, "Random Favs Browser"),
+    (RfbMode.RFB, RFB_ACTIVATE, "Random Faves Browser"),
     (RfbMode.ORIGENERATOR, ORIGENERATOR_ACTIVATE, "Origenerator"),
 )
 

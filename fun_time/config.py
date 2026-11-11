@@ -28,6 +28,8 @@ EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 
 SIBLING_CHECKOUTS_KEY = "sibling_checkouts"
 SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME = "genau_project_dirs"
+RANDOM_FAVES_BROWSER_KEY = "random_faves_browser"
+RANDOM_FAVES_BROWSER_KEY_BEFORE_THE_RENAME = "random_favs_browser"
 
 
 @dataclass(frozen=True)
@@ -75,7 +77,7 @@ class AudioCompanionConfig:
 
 
 @dataclass(frozen=True)
-class RandomFavsBrowserConfig:
+class RandomFavesBrowserConfig:
     enabled: bool
     shortcut_path: Path
     user_data_dir: Path
@@ -157,7 +159,7 @@ class ProjectConfig:
     paths: PathsConfig
     layout: LayoutConfig
     audio_companion: AudioCompanionConfig
-    random_favs_browser: RandomFavsBrowserConfig
+    random_faves_browser: RandomFavesBrowserConfig
     voice_control: VoiceControlConfig
     regen: RegenConfig
     loopback_port: int = LOOPBACK_PORT
@@ -238,8 +240,8 @@ class ProjectConfig:
         return self.paths.state_dir / "audio_volume.txt"
 
     @property
-    def random_favs_browser_manifest_file(self) -> Path:
-        return self.paths.state_dir / "random_favs_browser_urls.txt"
+    def random_faves_browser_manifest_file(self) -> Path:
+        return self.paths.state_dir / "random_faves_browser_urls.txt"
 
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
         dirs = (self.paths.portrait_dirs if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
@@ -321,16 +323,15 @@ def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -
     )
 
 
-def _load_random_favs_browser_config(
-    browser_raw: dict[str, Any] | None, project_dir: Path
-) -> RandomFavsBrowserConfig:
+def _load_random_faves_browser_config(
+    browser_values: dict[str, Any], project_dir: Path
+) -> RandomFavesBrowserConfig:
     default_user_data_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
-    browser_values = browser_raw or {}
     shortcut = browser_values.get("shortcut_path")
     profile = browser_values.get("profile_name")
-    return RandomFavsBrowserConfig(
+    return RandomFavesBrowserConfig(
         enabled=bool(browser_values.get("enabled", False)) and bool(profile),
-        shortcut_path=resolve_path(project_dir, str(shortcut or "random_favs_browser.lnk")),
+        shortcut_path=resolve_path(project_dir, str(shortcut or "random_faves_browser.lnk")),
         user_data_dir=resolve_path(project_dir, str(browser_values.get("user_data_dir", default_user_data_dir))),
         profile_name=str(profile or ""),
         open_count=int(browser_values.get("open_count", 10)),
@@ -405,7 +406,10 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     paths_raw = require_section(raw, "paths", path)
     layout_raw = require_section(raw, "layout", path)
     audio_raw = require_section(raw, "audio_companion", path)
-    browser_raw = optional_section(raw, "random_favs_browser", path)
+    browser_raw = {
+        **(optional_section(raw, RANDOM_FAVES_BROWSER_KEY_BEFORE_THE_RENAME, path) or {}),
+        **(optional_section(raw, RANDOM_FAVES_BROWSER_KEY, path) or {}),
+    }
     voice_raw = optional_section(raw, "voice_control", path)
     regen_raw = optional_section(raw, "regen", path)
     vr_raw = optional_section(raw, "vr", path)
@@ -416,7 +420,7 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
         paths=_load_paths_config(paths_raw, path, project_dir),
         layout=_load_layout_config(layout_raw, path),
         audio_companion=_load_audio_companion_config(audio_raw, path),
-        random_favs_browser=_load_random_favs_browser_config(browser_raw, project_dir),
+        random_faves_browser=_load_random_faves_browser_config(browser_raw, project_dir),
         voice_control=_load_voice_control_config(voice_raw),
         regen=_load_regen_config(regen_raw, project_dir),
         loopback_port=int(raw.get("loopback_port", LOOPBACK_PORT)),

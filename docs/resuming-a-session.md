@@ -81,7 +81,7 @@ the crown, which does come back, and the shape of what the Main Funestra shows,
 whether that is a video or one of Genau's flicks.
 
 Whatever Origenerator held comes back — each Satellite Funestra's own
-Origenerator mode, and Origenerator in the Random Favs Browser's place — and it
+Origenerator mode, and Origenerator in the Random Faves Browser's place — and it
 comes back UNDER THE LOADING SCREEN. Every session is built with both Funestras in Kino mode
 and the browser in its place, so a session left otherwise has to be switched back,
 and switching it once Fun Time is already his is what this must never do: the

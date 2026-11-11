@@ -61,7 +61,7 @@ from fun_time.windows_bridge_startup import (
     launch_ui_companions,
     origenerator_interpreter,
     origenerator_session_args,
-    prepare_random_favs_browser_manifest,
+    prepare_random_faves_browser_manifest,
     reap_orphaned_satellites,
     seed_startup_states,
     start_core_session,
@@ -197,7 +197,7 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
     return cfg_factory(
         {
             "regen": {"metadata_root": str(records)},
-            "random_favs_browser": {
+            "random_faves_browser": {
                 "enabled": True,
                 "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
@@ -208,13 +208,13 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
     )
 
 
-def test_prepare_random_favs_browser_manifest_defers_each_tab_after_a_local_page(
+def test_prepare_random_faves_browser_manifest_defers_each_tab_after_a_local_page(
     cfg_factory, tmp_path: Path
 ):
     cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=True)
     output_path = tmp_path / "browser_manifest.txt"
 
-    prepare_random_favs_browser_manifest(cfg_path, output_path)
+    prepare_random_faves_browser_manifest(cfg_path, output_path)
 
     profile, tab_uri = output_path.read_text(encoding="utf-8").splitlines()
     assert profile == "Profile 2"
@@ -223,7 +223,7 @@ def test_prepare_random_favs_browser_manifest_defers_each_tab_after_a_local_page
     assert "https://example.com/image/abc" in page
 
 
-def test_prepare_random_favs_browser_manifest_pages_poll_the_port_this_session_serves_on(
+def test_prepare_random_faves_browser_manifest_pages_poll_the_port_this_session_serves_on(
     cfg_factory, tmp_path: Path
 ):
     cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=True)
@@ -232,20 +232,20 @@ def test_prepare_random_favs_browser_manifest_pages_poll_the_port_this_session_s
     cfg_path.write_text(json.dumps(raw), encoding="utf-8")
     output_path = tmp_path / "browser_manifest.txt"
 
-    prepare_random_favs_browser_manifest(cfg_path, output_path)
+    prepare_random_faves_browser_manifest(cfg_path, output_path)
 
     _profile, tab_uri = output_path.read_text(encoding="utf-8").splitlines()
     page = Path(url2pathname(urlparse(tab_uri).path)).read_text(encoding="utf-8")
     assert omnipause_url(8771) in page
 
 
-def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_load(
+def test_prepare_random_faves_browser_manifest_lists_urls_directly_without_lazy_load(
     cfg_factory, tmp_path: Path
 ):
     cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=False)
     output_path = tmp_path / "browser_manifest.txt"
 
-    prepare_random_favs_browser_manifest(cfg_path, output_path)
+    prepare_random_faves_browser_manifest(cfg_path, output_path)
 
     assert output_path.read_text(encoding="utf-8").splitlines() == [
         "Profile 2",
@@ -431,7 +431,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         "config_path": "fun_time_config.json",
         "broker_cmd_file": state_dir / "broker_cmd.txt",
         "broker_state_dir": state_dir,
-        "random_favs_browser_manifest_file": tmp_path / "browser_manifest.txt",
+        "random_faves_browser_manifest_file": tmp_path / "browser_manifest.txt",
         "genau_paused_file": tmp_path / "genau_paused.txt",
         "genau_cmd_file": tmp_path / "genau_cmd.txt",
         "audio_paused_file": tmp_path / "audio_paused.txt",
@@ -467,9 +467,9 @@ def _manifest_from(kwargs: dict):
         executables=replace(m.executables, python_exe=kwargs["satellite_python_exe"]),
         modules=replace(m.modules, satellite_module=kwargs["satellite_module"]),
         media=replace(m.media, main_funestra_library_sources=kwargs["main_sources"]),
-        random_favs_browser=replace(
-            m.random_favs_browser,
-            manifest_file=str(kwargs["random_favs_browser_manifest_file"])),
+        random_faves_browser=replace(
+            m.random_faves_browser,
+            manifest_file=str(kwargs["random_faves_browser_manifest_file"])),
         regen=replace(m.regen, metadata_root=str(kwargs["regen_metadata_root"])),
         commands=replace(
             m.commands,
@@ -503,7 +503,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     ) as ensure, patch(
         "fun_time.windows_bridge_startup.seed_startup_states"
     ) as seed, patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ) as prepare, patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ) as build, patch("fun_time.windows_bridge_startup.launch_core_apps") as launch:
@@ -567,7 +567,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     ),
         patch("fun_time.windows_bridge_startup.seed_startup_states"),
         patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ),
         patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
@@ -608,7 +608,7 @@ def _run_start_core_session(kwargs: dict) -> str:
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
@@ -826,7 +826,7 @@ def test_start_core_session_rebuilds_a_main_list_the_headset_wrote_vr_videos_int
     ),
         patch("fun_time.windows_bridge_startup.seed_startup_states"),
         patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ),
         patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
@@ -867,7 +867,7 @@ def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
     ),
         patch("fun_time.windows_bridge_startup.seed_startup_states"),
         patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ),
         patch("fun_time.windows_bridge_startup.launch_core_apps"),
         caplog.at_level("INFO", logger="fun_time"),
@@ -898,7 +898,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         _start_core_session(kwargs)
 
@@ -917,7 +917,7 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
@@ -938,7 +938,7 @@ def test_a_session_resumed_into_origenerator_mode_still_seeds_its_funestras_play
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"), patch(
@@ -957,7 +957,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
     ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
-        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+        "fun_time.windows_bridge_startup.prepare_random_faves_browser_manifest"
     ), patch(
         "fun_time.windows_bridge_startup.build_satellite_playlists"
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
@@ -1568,7 +1568,7 @@ _AUDIO_COMMAND = [
 ]
 _A_UI_PLAN = WindowLayoutPlan(
     portrait=WindowRect(0, 0, 1, 1), landscape=WindowRect(0, 0, 1, 1),
-    dashboard=WindowRect(10, 20, 30, 40), random_favs_browser=WindowRect(5, 44, 31, 96))
+    dashboard=WindowRect(10, 20, 30, 40), random_faves_browser=WindowRect(5, 44, 31, 96))
 
 
 def _a_companions_manifest(tmp_path: Path, *, dashboard_enabled: bool = True,
@@ -1956,7 +1956,7 @@ class TestNoChildIsLaunchedAsAnAnonymousPythonw:
             portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
             landscape=WindowRect(x=853, y=0, width=1707, height=1440),
             dashboard=WindowRect(x=0, y=0, width=853, height=206),
-            random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+            random_faves_browser=WindowRect(x=0, y=206, width=853, height=1234),
         )
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
             "fun_time.windows_bridge_startup.hidden_subprocess_kwargs", return_value={}
@@ -1999,7 +1999,7 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
         portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
         landscape=WindowRect(x=853, y=0, width=1707, height=1440),
         dashboard=WindowRect(x=0, y=0, width=853, height=206),
-        random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+        random_faves_browser=WindowRect(x=0, y=206, width=853, height=1234),
     )
     with patch("fun_time.windows_bridge_startup.subprocess.Popen",
                return_value=FakeProc()) as popen, patch(
@@ -2047,7 +2047,7 @@ def test_the_hosted_app_is_told_where_a_show_without_a_funestra_goes():
         portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
         landscape=WindowRect(x=853, y=0, width=1707, height=1440),
         dashboard=WindowRect(x=0, y=0, width=853, height=206),
-        random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+        random_faves_browser=WindowRect(x=0, y=206, width=853, height=1234),
     )
 
     args = origenerator_session_args(OrigeneratorSession(
@@ -2075,7 +2075,7 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
         portrait=WindowRect(x=0, y=0, width=10, height=20),
         landscape=WindowRect(x=0, y=0, width=20, height=10),
         dashboard=WindowRect(x=0, y=0, width=10, height=10),
-        random_favs_browser=WindowRect(x=0, y=0, width=10, height=10),
+        random_faves_browser=WindowRect(x=0, y=0, width=10, height=10),
     )
     worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "my-branch"
     with patch("fun_time.windows_bridge_startup.subprocess.Popen",

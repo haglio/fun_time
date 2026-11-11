@@ -403,11 +403,11 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     now_playing = "C:\\clips\\advanced_to.mp4"
 
     _set_current(config, 2, now_playing)
-    with patch("fun_time.lock.mark_favorite") as favs:
+    with patch("fun_time.lock.mark_favorite") as faves:
         new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK_ON"]
-    assert favs.call_args[0][0] == meant
+    assert faves.call_args[0][0] == meant
     assert new_state.satellite(FunTimeFunestra.PORTRAIT).locked is True
 
 
@@ -418,13 +418,13 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     now_playing = "C:\\clips\\advanced_to.mp4"
     _set_current(config, 2, now_playing)
     with (
-        patch("fun_time.satellite_commands.unfavorite") as favs,
+        patch("fun_time.satellite_commands.unfavorite") as faves,
         patch("fun_time.satellite_commands.move_to_trash") as trash,
     ):
         dispatch_command("portrait_trash", state, config, target_path=meant)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "TRASH"]
-    assert favs.call_args[0][0] == meant
+    assert faves.call_args[0][0] == meant
     assert trash.call_args[0][0] == Path(meant)
 
 
@@ -449,13 +449,13 @@ def test_portrait_trash_queues_a_trash_verb_and_condemns_the_video(tmp_path: Pat
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
-        patch("fun_time.satellite_commands.unfavorite") as favs,
+        patch("fun_time.satellite_commands.unfavorite") as faves,
         patch("fun_time.satellite_commands.move_to_trash") as trash,
     ):
         dispatch_command("portrait_trash", state, config)
 
     assert _cmds(config, 2) == ["TRASH"]
-    assert favs.call_args[0][0] == "C:\\clips\\portrait.mp4"
+    assert faves.call_args[0][0] == "C:\\clips\\portrait.mp4"
     assert trash.call_args[0][0] == Path("C:\\clips\\portrait.mp4")
 
 
@@ -4369,7 +4369,7 @@ class TestEachSatellitesOwnMode:
         assert state.satellite(FunTimeFunestra.LANDSCAPE).filter == "scene one"
 
 
-class TestTheRandomFavsBrowsersPlace:
+class TestTheRandomFavesBrowsersPlace:
     def test_origenerator_takes_the_browsers_place_and_leaves_the_funestras_alone(
             self, tmp_path):
         config = _origenerator_config(tmp_path)
@@ -4671,14 +4671,14 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
     _set_current(config, 2, "clip.mp4")
 
     with (
-        patch("fun_time.lock.mark_favorite") as favs,
+        patch("fun_time.lock.mark_favorite") as faves,
         caplog.at_level(logging.INFO, logger="fun_time.satellite_groups"),
     ):
         state, _ops = _toggle_lock(2, _make_state(portrait=SatelliteState(locked=False)), config)
 
     assert state.satellite(FunTimeFunestra.PORTRAIT).locked is True
     assert _cmds(config, 2) == ["LOCK_ON"]
-    assert favs.call_args[0][0] == "clip.mp4"
+    assert faves.call_args[0][0] == "clip.mp4"
     assert "Locked portrait satellite" in caplog.text
 
 
@@ -4737,7 +4737,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_trash(tmp_path:
     _set_current(config, 3, "odd.mp4")
 
     with (
-        patch("fun_time.satellite_commands.unfavorite") as favs,
+        patch("fun_time.satellite_commands.unfavorite") as faves,
         patch("fun_time.satellite_commands.move_to_trash") as trash,
         caplog.at_level(logging.INFO, logger="fun_time.satellite_commands"),
     ):
@@ -4745,7 +4745,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_trash(tmp_path:
 
     assert state.satellite(FunTimeFunestra.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
-    assert favs.call_args[0][0] == "odd.mp4"
+    assert faves.call_args[0][0] == "odd.mp4"
     assert trash.call_args[0][0] == Path("odd.mp4")
     assert "Discarding from Funestra 3: odd.mp4" in caplog.text
     assert [(op.op, op.key, op.source) for op in ops] == [

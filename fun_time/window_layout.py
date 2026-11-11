@@ -21,7 +21,7 @@ class WindowLayoutPlan:
     portrait: WindowRect
     landscape: WindowRect
     dashboard: WindowRect
-    random_favs_browser: WindowRect
+    random_faves_browser: WindowRect
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ def compute_window_layout(
         width=left_width,
         height=dashboard_height,
     )
-    random_favs_browser = WindowRect(
+    random_faves_browser = WindowRect(
         x=primary_monitor.x,
         y=primary_monitor.y + dashboard_height,
         width=left_width,
@@ -85,7 +85,7 @@ def compute_window_layout(
             secondary_monitor, layout_config, majority=Crown.PORTRAIT).portrait,
         landscape=landscape,
         dashboard=dashboard,
-        random_favs_browser=random_favs_browser,
+        random_faves_browser=random_faves_browser,
     )
 
 

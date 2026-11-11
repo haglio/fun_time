@@ -39,7 +39,7 @@ _A_PLAN_PARSED_BUT_NEVER_PLACED = WindowLayoutPlan(
     portrait=WindowRect(2560, 3, 1440, 1720),
     landscape=WindowRect(2560, 1723, 1440, 1720),
     dashboard=WindowRect(0, 0, 854, 208),
-    random_favs_browser=WindowRect(0, 208, 854, 1202),
+    random_faves_browser=WindowRect(0, 208, 854, 1202),
 )
 
 
@@ -145,7 +145,7 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
 
     assert command[1:3] == ["-m", "origenerator"]
     assert "--fun-time" in command
-    the_browsers_rect_which_core_takes = _A_PLAN_PARSED_BUT_NEVER_PLACED.random_favs_browser
+    the_browsers_rect_which_core_takes = _A_PLAN_PARSED_BUT_NEVER_PLACED.random_faves_browser
     assert command[command.index("--width") + 1] == str(the_browsers_rect_which_core_takes.width)
     assert command[command.index("--portrait-playlist") + 1] == str(
         tmp_path / "portrait_playlist.tsv")

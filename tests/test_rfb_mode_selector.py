@@ -15,7 +15,7 @@ def test_the_strip_offers_the_browser_then_origenerator():
     buttons = selector_buttons(RfbMode.RFB, origenerator_ready=True)
 
     assert [(b.command, b.icon, b.width) for b in buttons] == [
-        (RFB_ACTIVATE, "Random Favs Browser", FIT_THE_WORD),
+        (RFB_ACTIVATE, "Random Faves Browser", FIT_THE_WORD),
         (ORIGENERATOR_ACTIVATE, "Origenerator", FIT_THE_WORD)]
 
 

@@ -32,7 +32,7 @@ in either orchestrator:
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
 | The mic being off | yes, from Fun Time's state |
-| Each satellite's mode (Kino / Origenerator), and what holds the Random Favs Browser's place | yes, entered under the loading screen before Fun Time is shown |
+| Each satellite's mode (Kino / Origenerator), and what holds the Random Faves Browser's place | yes, entered under the loading screen before Fun Time is shown |
 | OmniPause | no — a session never opens paused |
 
 Every row of that table is carried by any reopen, a crossing included
@@ -229,7 +229,7 @@ Funestras' own playlists, and the headset's satellites are Funestras
 ([known-issues.md](known-issues.md) has what the headset still cannot show of
 it: the app's own window).
 The curtain waits for it only where the last session left Origenerator holding
-something -- a satellite in its Origenerator mode, or the Random Favs Browser's
+something -- a satellite in its Origenerator mode, or the Random Faves Browser's
 place: such a session holds its loading screen up until the app publishes a status, puts
 Origenerator back on what it held under it and opens already that way
 ([resuming-a-session.md](resuming-a-session.md)), while a session Origenerator held

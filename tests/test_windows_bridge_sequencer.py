@@ -29,7 +29,7 @@ from fun_time.main_funestra_hud import main_funestra_hud_path
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
-    RandomFavsBrowserSettings,
+    RandomFavesBrowserSettings,
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
@@ -57,7 +57,7 @@ from fun_time.window_layout import (
 from fun_time.windows_bridge_sequencer import (
     _PLAY_POLL_S,
     SATELLITE_PLAY_TIMEOUT_S,
-    _maybe_launch_random_favs_browser,
+    _maybe_launch_random_faves_browser,
     _resolve_satellite_hwnds,
     _wait_for_funestras_drawing,
     _wait_for_main_funestra_loaded,
@@ -315,7 +315,7 @@ class TestRunStartupSequence:
 
         assert ui_called["m"].dashboard_enabled is True
         assert all(
-            isinstance(value, int) for value in ui_called["plan"].random_favs_browser)
+            isinstance(value, int) for value in ui_called["plan"].random_faves_browser)
 
     def test_a_session_hosting_origenerator_opens_the_dashboard_tall_enough_for_its_strip(
             self, cfg_factory, tmp_path):
@@ -325,7 +325,7 @@ class TestRunStartupSequence:
 
         dashboard = ui_called["plan"].dashboard
         assert dashboard.height == dashboard_window_height(rfb_mode_selector=True)
-        assert ui_called["plan"].random_favs_browser.y == dashboard.y + dashboard.height
+        assert ui_called["plan"].random_faves_browser.y == dashboard.y + dashboard.height
 
     def test_launches_the_main_funestra_with_the_primary_media_rect_and_genaus_files(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -632,7 +632,7 @@ class TestTheOrderInsideTheStartupPhases:
         }
         stubs.update(extra_stubs or {})
         with _sequencer_stubs(**stubs), \
-             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser",
+             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_faves_browser",
                    side_effect=note("browser")), \
              patch("fun_time.windows_bridge_sequencer.write_flag_file",
                    side_effect=note("release")):
@@ -692,7 +692,7 @@ class TestRunStartupSequenceCancellation:
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with (
-            _sequencer_stubs(_maybe_launch_random_favs_browser={"return_value": 7777}, wait_for_window_by_title={"return_value": 88888}),
+            _sequencer_stubs(_maybe_launch_random_faves_browser={"return_value": 7777}, wait_for_window_by_title={"return_value": 88888}),
             pytest.raises(StartupCancelled) as excinfo,
         ):
             run_startup_sequence(
@@ -1053,9 +1053,9 @@ class TestWaitForNewChromeWindow:
         assert hwnd == 0
 
 
-class TestMaybeLaunchRandomFavsBrowser:
-    def _browser_settings(self, *, enabled: bool = True) -> RandomFavsBrowserSettings:
-        return RandomFavsBrowserSettings(
+class TestMaybeLaunchRandomFavesBrowser:
+    def _browser_settings(self, *, enabled: bool = True) -> RandomFavesBrowserSettings:
+        return RandomFavesBrowserSettings(
             enabled=enabled,
             shortcut_path=r"C:\fake\shortcut.lnk",
             manifest_file=r"C:\fake\manifest.ini",
@@ -1075,7 +1075,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
         with patch("fun_time.windows_bridge_sequencer.move_window",
                     side_effect=lambda *a, **kw: move_calls.append(a)):
-            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
+            rfb_hwnd = _maybe_launch_random_faves_browser(m, plan, env=SessionEnvironment())
 
         assert move_calls == []
         assert rfb_hwnd == 0
@@ -1083,17 +1083,17 @@ class TestMaybeLaunchRandomFavsBrowser:
     def test_launches_and_positions_browser(self):
         m = self._browser_settings()
         plan = self._fake_plan()
-        browser_rect = plan.random_favs_browser
+        browser_rect = plan.random_faves_browser
 
         launch_result = MagicMock(should_launch=True)
 
         with patch("fun_time.windows_bridge_sequencer.resolve_shortcut",
                    return_value=Shortcut("chrome.exe")), \
              patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
-             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
+             patch("fun_time.windows_bridge_sequencer.launch_random_faves_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
-            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
+            rfb_hwnd = _maybe_launch_random_faves_browser(m, plan, env=SessionEnvironment())
 
         mock_move.assert_called_once_with(55555, browser_rect, activate=True)
         assert rfb_hwnd == 55555
@@ -1112,10 +1112,10 @@ class TestMaybeLaunchRandomFavsBrowser:
         with patch("fun_time.windows_bridge_sequencer.resolve_shortcut",
                    return_value=Shortcut("chrome.exe")), \
              patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
-             patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
+             patch("fun_time.windows_bridge_sequencer.launch_random_faves_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window"):
-            _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
+            _maybe_launch_random_faves_browser(m, plan, env=SessionEnvironment())
 
         assert set(launch_kwargs) == {"shortcut"}
         assert launch_kwargs["shortcut"] == Shortcut("chrome.exe")
@@ -1223,7 +1223,7 @@ class TestOrigeneratorLaunch:
         assert not result.origenerator_taken_over
         assert captured["origenerator_dir"] == str(tmp_path / "origenerator")
         assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
-        assert captured["session"].layout_plan.random_favs_browser.width > 0
+        assert captured["session"].layout_plan.random_faves_browser.width > 0
         assert str(captured["session"].command_file).endswith("origenerator_cmd.txt")
         assert Path(captured["session"].paused_file).read_text(encoding="utf-8") == "0"
 

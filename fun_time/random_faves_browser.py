@@ -76,7 +76,7 @@ def choose_random[T](items: list[T], count: int, rng: random.Random | None = Non
 
 
 def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...]) -> tuple[str, list[TabTarget]]:
-    browser = config.random_favs_browser
+    browser = config.random_faves_browser
     if not browser.enabled:
         return "", []
 

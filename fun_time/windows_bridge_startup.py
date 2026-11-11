@@ -40,7 +40,7 @@ from .process_identity import NAMER
 from .process_sweep import processes_matching
 from .process_tree import kill_process_tree
 from .project_paths import PROJECT_ICON
-from .random_favs_browser_manifest import prepare_random_favs_browser_manifest
+from .random_faves_browser_manifest import prepare_random_faves_browser_manifest
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_launch import SatelliteLaunch, for_funestra
@@ -273,8 +273,8 @@ def start_core_session(
     seed_startup_states(m, carried)
     start_the_satellites_playing_whatever_a_pause_left_behind(
         portrait.channels.paused, landscape.channels.paused)
-    prepare_random_favs_browser_manifest(
-        m.runtime.config_path, m.random_favs_browser.manifest_file)
+    prepare_random_faves_browser_manifest(
+        m.runtime.config_path, m.random_faves_browser.manifest_file)
     if not resumed:
         build_satellite_playlists(
             portrait=SatelliteBuild(sources=portrait.sources),
@@ -364,7 +364,7 @@ def _where_a_show_it_opens_without_a_funestra_goes(plan: WindowLayoutPlan) -> li
 
 
 def origenerator_session_args(session: OrigeneratorSession) -> list[str]:
-    args = ["--fun-time", *_rect_args("", session.layout_plan.random_favs_browser)]
+    args = ["--fun-time", *_rect_args("", session.layout_plan.random_faves_browser)]
     args.extend(_where_a_show_it_opens_without_a_funestra_goes(session.layout_plan))
     for satellite, funestra in session.funestras.items():
         args.extend([
@@ -532,7 +532,7 @@ def _launch_the_dashboard(
         m.modules.dashboard_module,
         str(manifest_path),
         *_rect_args("", plan.dashboard),
-        *_rect_args("rfb-", plan.random_favs_browser),
+        *_rect_args("rfb-", plan.random_faves_browser),
     ]
     kwargs = {**sibling_checkouts_kwargs(m.runtime.sibling_checkouts),
               **hidden_subprocess_kwargs()}

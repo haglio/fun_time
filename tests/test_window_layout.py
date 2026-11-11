@@ -58,8 +58,8 @@ def test_the_primary_monitor_holds_the_landscape_satellite_and_the_browser(cfg_p
 
     assert plan.landscape.height == 1392
     assert plan.landscape.x > 0
-    assert plan.random_favs_browser.x == 0
-    assert plan.random_favs_browser.width + plan.landscape.width == 2560
+    assert plan.random_faves_browser.x == 0
+    assert plan.random_faves_browser.width + plan.landscape.width == 2560
 
 
 def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path):
@@ -84,7 +84,7 @@ def test_dashboard_spans_the_whole_left_column_above_the_rfb(cfg_path: Path):
         layout_config=config.layout,
     )
 
-    left_width = plan.random_favs_browser.width
+    left_width = plan.random_faves_browser.width
     assert plan.dashboard.x == 0
     assert plan.dashboard.width == left_width
 
@@ -98,11 +98,11 @@ def test_rfb_fills_the_rectangle_below_the_dashboard(cfg_path: Path):
         layout_config=config.layout,
     )
 
-    assert plan.random_favs_browser.x == 0
-    assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
-    assert plan.random_favs_browser.width + plan.landscape.width == 2560
+    assert plan.random_faves_browser.x == 0
+    assert plan.random_faves_browser.y == plan.dashboard.y + plan.dashboard.height
+    assert plan.random_faves_browser.width + plan.landscape.width == 2560
     assert (
-        plan.random_favs_browser.y + plan.random_favs_browser.height == 1392
+        plan.random_faves_browser.y + plan.random_faves_browser.height == 1392
     )
 
 
@@ -117,8 +117,8 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
 
     assert plan.dashboard.x == 100
     assert plan.dashboard.y == 50
-    assert plan.random_favs_browser.x == 100
-    assert plan.random_favs_browser.y == 50 + plan.dashboard.height
+    assert plan.random_faves_browser.x == 100
+    assert plan.random_faves_browser.y == 50 + plan.dashboard.height
 
 
 def test_the_main_funestras_rect_is_on_the_secondary_below_the_portrait_satellite(cfg_path: Path):
@@ -149,9 +149,9 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     )
 
     assert plan.dashboard.height == dashboard_window_height()
-    assert plan.dashboard.width == plan.random_favs_browser.width
-    assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
-    assert plan.random_favs_browser.height > plan.dashboard.height
+    assert plan.dashboard.width == plan.random_faves_browser.width
+    assert plan.random_faves_browser.y == plan.dashboard.y + plan.dashboard.height
+    assert plan.random_faves_browser.height > plan.dashboard.height
 
 
 def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_path: Path):
@@ -165,8 +165,8 @@ def test_the_strip_under_the_log_takes_its_height_from_the_browsers_place(cfg_pa
 
     taller = with_mode_selector.dashboard.height - without.dashboard.height
     assert taller == RFB_MODE_SELECTOR_HEIGHT
-    assert without.random_favs_browser.height - with_mode_selector.random_favs_browser.height == taller
-    assert with_mode_selector.random_favs_browser.y == (
+    assert without.random_faves_browser.height - with_mode_selector.random_faves_browser.height == taller
+    assert with_mode_selector.random_faves_browser.y == (
         with_mode_selector.dashboard.y + with_mode_selector.dashboard.height)
     assert with_mode_selector.dashboard.height == dashboard_window_height(rfb_mode_selector=True)
 
@@ -242,7 +242,7 @@ def test_every_window_is_fully_visible_at_once(cfg_path: Path):
         "portrait": plan.portrait,
         "landscape": plan.landscape,
         "dashboard": plan.dashboard,
-        "rfb": plan.random_favs_browser,
+        "rfb": plan.random_faves_browser,
         "main_funestra": compute_main_media_rect(
             secondary_monitor=secondary, layout_config=layout_config),
     }) == []

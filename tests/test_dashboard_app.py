@@ -1793,14 +1793,14 @@ def test_the_strip_lights_whatever_holds_the_browsers_place(mode_selector_window
                             frozenset())
 
     assert [(button.icon, button.lit, button.dim) for _rect, button in mode_selector_window._mode_selector.buttons.placed] == [
-        ("Random Favs Browser", False, False), ("Origenerator", True, False)]
+        ("Random Faves Browser", False, False), ("Origenerator", True, False)]
 
 
 def test_a_press_on_the_mode_selector_asks_for_that_one_in_the_browsers_place(mode_selector_window, tmp_path):
     mode_selector_window._do_render(_snapshot(origenerator_ready=True), frozenset())
 
     _press_the_strip(mode_selector_window, "Origenerator")
-    _press_the_strip(mode_selector_window, "Random Favs Browser")
+    _press_the_strip(mode_selector_window, "Random Faves Browser")
 
     assert poll_dashboard_commands(mode_selector_window._app_config.dashboard_cmd_file) == [
         "origenerator_activate", "rfb_activate"]
