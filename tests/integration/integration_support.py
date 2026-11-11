@@ -33,7 +33,13 @@ from funestra.playlist import PlaylistItem
 
 from fun_time.branch_session import _apply_sibling_checkouts_override, as_a_filename
 from fun_time.checkout_overrides import STATE_DIRNAME
-from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, SIBLING_CHECKOUTS_KEY, load_config
+from fun_time.config import (
+    DEFAULT_CONFIG_PATH,
+    PROJECT_DIR,
+    RANDOM_FAVES_BROWSER_KEY,
+    SIBLING_CHECKOUTS_KEY,
+    load_config,
+)
 from fun_time.dashboard_app import write_dashboard_command as press_as_the_dashboard_does
 from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -718,7 +724,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["paths"]["main_player_library_dirs"] = [str(primary_dir)]
     config["paths"]["state_dir"] = str(state_dir)
     config["paths"].pop("genau_dir", None)
-    config["random_favs_browser"]["enabled"] = False
+    config.setdefault(RANDOM_FAVES_BROWSER_KEY, {})["enabled"] = False
     run_from_this_installation(config)
     apply_this_checkouts_siblings(config)
 

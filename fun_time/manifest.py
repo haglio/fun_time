@@ -100,10 +100,10 @@ def build_windows_bridge_manifest(
             "main_top_ratio": str(layout.main_top_ratio),
             "landscape_width_ratio": str(layout.landscape_width_ratio),
         },
-        "random_favs_browser": {
-            "enabled": _as_written(config.random_favs_browser.enabled),
-            "shortcut_path": str(config.random_favs_browser.shortcut_path),
-            "manifest_file": str(config.random_favs_browser_manifest_file),
+        "random_faves_browser": {
+            "enabled": _as_written(config.random_faves_browser.enabled),
+            "shortcut_path": str(config.random_faves_browser.shortcut_path),
+            "manifest_file": str(config.random_faves_browser_manifest_file),
         },
         "regen": {
             "generate_video_url": config.regen.generate_video_url,
@@ -203,7 +203,7 @@ class CommandFiles:
 
 
 @dataclass(frozen=True)
-class RandomFavsBrowserSettings:
+class RandomFavesBrowserSettings:
     enabled: bool
     shortcut_path: str
     manifest_file: str
@@ -237,7 +237,7 @@ class LaunchManifest:
     dashboard_enabled: bool
     loopback_port: int
     layout: LayoutConfig
-    random_favs_browser: RandomFavsBrowserSettings
+    random_faves_browser: RandomFavesBrowserSettings
     regen: RegenSettings
     portrait: SatelliteChannel
     landscape: SatelliteChannel
@@ -277,11 +277,11 @@ class LaunchManifest:
                for funestra in FunTimeFunestra.SATELLITES},
             dashboard_enabled=_is_on_unless_blank_or_spelled_off(flag("dashboard", "enabled")),
             loopback_port=int(flag("loopback", "port")),
-            random_favs_browser=RandomFavsBrowserSettings(
+            random_faves_browser=RandomFavesBrowserSettings(
                 enabled=_is_on_only_as_the_writer_spells_it(
-                    flag("random_favs_browser", "enabled")),
-                shortcut_path=flag("random_favs_browser", "shortcut_path"),
-                manifest_file=flag("random_favs_browser", "manifest_file"),
+                    flag("random_faves_browser", "enabled")),
+                shortcut_path=flag("random_faves_browser", "shortcut_path"),
+                manifest_file=flag("random_faves_browser", "manifest_file"),
             ),
             layout=LayoutConfig(
                 primary_monitor=int(flag("layout", "primary_monitor")),

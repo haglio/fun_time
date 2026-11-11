@@ -74,7 +74,7 @@ from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import find_window_for_process, set_always_on_top, window_rect
 from .window_names import visible_windows
-from .windows_bridge_random_favs_browser import open_rfb_tab
+from .windows_bridge_random_faves_browser import open_rfb_tab
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +325,7 @@ class DispatchLoopRunner:
         no_window_of_our_own = not window_exists(self.windows.rfb_hwnd)
         if no_window_of_our_own:
             logger.warning(
-                "%d RFB tab(s) skipped: no Random Favs Browser window to open into", len(urls))
+                "%d RFB tab(s) skipped: no Random Faves Browser window to open into", len(urls))
             return
         if not force_foreground_window(self.windows.rfb_hwnd):
             logger.info("RFB window did not take the foreground before the tab handoff")

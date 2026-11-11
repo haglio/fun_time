@@ -8,15 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.random_favs_browser import write_manifest
+from fun_time.random_faves_browser import write_manifest
 from fun_time.rfb_tab_page import TabTarget, write_tab_pages
 from fun_time.shortcuts import Shortcut
-from fun_time.windows_bridge_random_favs_browser import (
+from fun_time.windows_bridge_random_faves_browser import (
     build_open_rfb_tab_command,
-    build_random_favs_browser_launch_plan,
-    launch_random_favs_browser,
+    build_random_faves_browser_launch_plan,
+    launch_random_faves_browser,
     open_rfb_tab,
-    read_random_favs_browser_manifest,
+    read_random_faves_browser_manifest,
 )
 
 
@@ -111,21 +111,21 @@ def test_the_manifest_names_the_chrome_profile_and_every_url(tmp_path: Path):
         encoding="utf-8",
     )
 
-    manifest = read_random_favs_browser_manifest(manifest_file)
+    manifest = read_random_faves_browser_manifest(manifest_file)
 
     assert manifest.profile_dir == "Profile 2"
     assert manifest.urls == ["https://example.com/1", "https://example.com/2"]
 
 
 @needs_windows
-def test_build_random_favs_browser_launch_plan_adds_profile_and_new_window(tmp_path: Path):
+def test_build_random_faves_browser_launch_plan_adds_profile_and_new_window(tmp_path: Path):
     manifest_file = tmp_path / "browser_manifest.txt"
     manifest_file.write_text(
         "Profile 2\nhttps://example.com/1\n",
         encoding="utf-8",
     )
 
-    plan = build_random_favs_browser_launch_plan(
+    plan = build_random_faves_browser_launch_plan(
         manifest_file,
         shortcut=Shortcut(
             target=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -145,14 +145,14 @@ def test_build_random_favs_browser_launch_plan_adds_profile_and_new_window(tmp_p
 
 
 @needs_windows
-def test_build_random_favs_browser_launch_plan_preserves_existing_shortcut_args_text(tmp_path: Path):
+def test_build_random_faves_browser_launch_plan_preserves_existing_shortcut_args_text(tmp_path: Path):
     manifest_file = tmp_path / "browser_manifest.txt"
     manifest_file.write_text(
         "Profile 2\nhttps://example.com/1\n",
         encoding="utf-8",
     )
 
-    plan = build_random_favs_browser_launch_plan(
+    plan = build_random_faves_browser_launch_plan(
         manifest_file,
         shortcut=Shortcut(
             target=r"C:\Chrome\chrome.exe",
@@ -167,7 +167,7 @@ def test_build_random_favs_browser_launch_plan_preserves_existing_shortcut_args_
     assert as_windows_itself_splits_it(plan.cmd)[-1] == "https://example.com/1"
 
 
-def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch):
+def test_launch_random_faves_browser_uses_subprocess(tmp_path: Path, monkeypatch):
     manifest_file = tmp_path / "browser_manifest.txt"
     manifest_file.write_text(
         "Profile 2\nhttps://example.com/1\n",
@@ -184,7 +184,7 @@ def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch)
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
-    plan = launch_random_favs_browser(
+    plan = launch_random_faves_browser(
         manifest_file,
         shortcut=Shortcut(
             target=r"C:\Chrome\chrome.exe",
@@ -209,7 +209,7 @@ def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path:
     manifest_file = tmp_path / "browser_manifest.txt"
     write_manifest(manifest_file, "Profile 2", write_tab_pages(tmp_path / "rfb_tabs", targets))
 
-    plan = build_random_favs_browser_launch_plan(
+    plan = build_random_faves_browser_launch_plan(
         manifest_file,
         shortcut=Shortcut(
             target=r"C:\Chrome\chrome.exe",

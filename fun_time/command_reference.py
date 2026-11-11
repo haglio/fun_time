@@ -543,7 +543,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("", (
                 _Row(
                     "Origenerator mode — Origenerator Core shares real estate with the Random "
-                    "Favs Browser",
+                    "Faves Browser",
                     commands=("origenerator_activate", "satellites_origenerator_activate",
                               "portrait_origenerator_activate", "landscape_origenerator_activate"),
                     voice_display=("origenerator", "origenerator mode"),
@@ -559,11 +559,11 @@ _SECTIONS: tuple[_Section, ...] = (
         merge_scopes=True,
     ),
     _Section(
-        "Random Favs Browser",
+        "Random Faves Browser",
         (
             _Group("", (
                 _Row(
-                    "Random Favs Browser",
+                    "Random Faves Browser",
                     commands=("rfb_activate",),
                     voice_display=("RFB", "random faves", "random faves browser"),
                 ),

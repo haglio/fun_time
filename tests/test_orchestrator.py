@@ -229,18 +229,18 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg)
         for dead_key in (
             "windows_bridge_window_layout_module",
-            "windows_bridge_random_favs_browser_module",
+            "windows_bridge_random_faves_browser_module",
             "windows_bridge_startup_module",
             "windows_bridge_dashboard_bridge_module",
         ):
             assert dead_key not in result["modules"]
 
-    def test_random_favs_browser_paths_included(self, cfg_factory):
-        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True, "profile_name": "Jane Doe"}}))
+    def test_random_faves_browser_paths_included(self, cfg_factory):
+        cfg = load_config(cfg_factory({"random_faves_browser": {"enabled": True, "profile_name": "Jane Doe"}}))
         result = build_windows_bridge_manifest(cfg)
-        assert result["random_favs_browser"]["enabled"] == "1"
-        assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
-        assert result["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
+        assert result["random_faves_browser"]["enabled"] == "1"
+        assert result["random_faves_browser"]["shortcut_path"] == str(cfg.random_faves_browser.shortcut_path)
+        assert result["random_faves_browser"]["manifest_file"] == str(cfg.random_faves_browser_manifest_file)
 
     def test_regen_section_included(self, cfg_factory, tmp_path: Path):
         path = cfg_factory({"regen": {
@@ -261,7 +261,7 @@ class TestControllerManifest:
         assert result["regen"]["metadata_root"] == ""
 
     def test_write_windows_bridge_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
-        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True, "profile_name": "Jane Doe"}}))
+        cfg = load_config(cfg_factory({"random_faves_browser": {"enabled": True, "profile_name": "Jane Doe"}}))
         manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
         parser = configparser.ConfigParser()
@@ -278,8 +278,8 @@ class TestControllerManifest:
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")
         assert parser["commands"]["dashboard_cmd_file"] == str(cfg.paths.state_dir / "dashboard_cmd.txt")
-        assert parser["random_favs_browser"]["enabled"] == "1"
-        assert parser["random_favs_browser"]["manifest_file"] == str(cfg.random_favs_browser_manifest_file)
+        assert parser["random_faves_browser"]["enabled"] == "1"
+        assert parser["random_faves_browser"]["manifest_file"] == str(cfg.random_faves_browser_manifest_file)
 
 
 class TestValidateConfig:
@@ -312,11 +312,11 @@ class TestValidateConfig:
         with pytest.raises(FileNotFoundError, match="no_such_audio"):
             validate_config(cfg)
 
-    def test_raises_when_random_favs_browser_shortcut_missing_if_enabled(self, cfg_factory: Path):
+    def test_raises_when_random_faves_browser_shortcut_missing_if_enabled(self, cfg_factory: Path):
         cfg = load_config(
             cfg_factory(
                 {
-                    "random_favs_browser": {
+                    "random_faves_browser": {
                         "enabled": True,
                         "profile_name": "Jane Doe",
                         "shortcut_path": "missing_chrome.lnk",

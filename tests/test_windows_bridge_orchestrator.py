@@ -1123,7 +1123,7 @@ class TestLoadingScreenLifecycle:
     def test_the_dispatch_loop_is_handed_the_browser_shortcut_the_manifest_names(
         self, cfg_factory, tmp_path,
     ):
-        cfg = load_config(cfg_factory({"random_favs_browser": {
+        cfg = load_config(cfg_factory({"random_faves_browser": {
             "enabled": True,
             "profile_name": "Profile 9",
             "shortcut_path": str(tmp_path / "browser.lnk"),
@@ -1154,7 +1154,7 @@ class TestLoadingScreenLifecycle:
             )
 
         resolve.assert_called_once_with(
-            LaunchManifest.read(manifest_path).random_favs_browser.shortcut_path)
+            LaunchManifest.read(manifest_path).random_faves_browser.shortcut_path)
         assert runner.call_args.args[2].rfb_shortcut == shortcut
 
     @pytest.mark.parametrize("already_open", [True, False])

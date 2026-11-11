@@ -1,4 +1,4 @@
-# Random Favs Browser
+# Random Faves Browser
 
 Fun Time can open a Chrome window on the left side of the secondary monitor.
 
@@ -10,7 +10,7 @@ How it works:
 - It waits for the new Chrome window and sizes it to the full left third of the secondary monitor.
 - `Ctrl+Alt+Q` closes the RFB Chrome window gracefully (sends WM_CLOSE to the captured hwnd).
 
-Configuration lives in `fun_time_config.json` under `random_favs_browser` (the Chrome shortcut path and the profile to target); the sidecars are the ones under `regen.metadata_root`.
+Configuration lives in `fun_time_config.json` under `random_faves_browser` (the Chrome shortcut path and the profile to target); the sidecars are the ones under `regen.metadata_root`.
 
 ### The slideshow
 
@@ -24,7 +24,7 @@ Clicking into a text field in the RFB, whether a page's prompt or search field o
 
 ### Where a tab actually goes
 
-A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. That page can only recreate a video its own site made from a recorded prompt. Every other favorite falls back to its stored gallery link — a video from another provider (whichever provider's library folder holds it, on the site its gallery link names), or one whose sidecar records no prompt — and a favorite with no gallery link either, such as a video Origenerator made, opens no tab at all: a lock on one asks the hosted Origenerator to come up over the browser on it instead. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and every lock go through it, so they cannot drift apart.
+A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. That page can only recreate a video its own site made from a recorded prompt. Every other favorite falls back to its stored gallery link — a video from another provider (whichever provider's library folder holds it, on the site its gallery link names), or one whose sidecar records no prompt — and a favorite with no gallery link either, such as a video Origenerator made, opens no tab at all: a lock on one asks the hosted Origenerator to come up over the browser on it instead. `target_for_fav` in `fun_time/random_faves_browser.py` is the single resolver; both the startup tabs and every lock go through it, so they cannot drift apart.
 
 ### Which window the tab lands in
 
@@ -44,7 +44,7 @@ It is **not** the video the favorite records. Every library video exists twice: 
 
 ## Prompt autofill userscript
 
-When you lock an AI video, or open one of its favorites in the Random Favs Browser, Fun Time opens the provider's **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A Tampermonkey userscript reads that fragment and fills the generate form — prompts, seed, and whatever settings it can match — then pins a floating note listing every field so anything it could not set can be entered by hand. Text-to-video and image-to-video are handled slightly differently (an image-to-video regen makes the image first, then the video from it), and the script re-applies fields for a few seconds because the form re-mounts during hydration.
+When you lock an AI video, or open one of its favorites in the Random Faves Browser, Fun Time opens the provider's **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A Tampermonkey userscript reads that fragment and fills the generate form — prompts, seed, and whatever settings it can match — then pins a floating note listing every field so anything it could not set can be entered by hand. Text-to-video and image-to-video are handled slightly differently (an image-to-video regen makes the image first, then the video from it), and the script re-applies fields for a few seconds because the form re-mounts during hydration.
 
 The prompts/settings come from per-video metadata JSON mirrored under `regen.metadata_root`; the paths and the two generate URLs are configured in `fun_time_config.json` under `regen`. Videos the generate site did not make, or whose sidecar records no prompt, fall back to their stored gallery link.
 
@@ -52,9 +52,9 @@ The autofill script is **provider-specific** — its `@match` host and its form 
 
 ### One-time setup: install the userscript
 
-1. Install a userscript manager (e.g. Tampermonkey) in the Chrome profile the Random Favs Browser targets.
+1. Install a userscript manager (e.g. Tampermonkey) in the Chrome profile the Random Faves Browser targets.
 2. Copy `regen_autofill.example.user.js` to `fun_time/static/regen_autofill.user.js`, adapt it to your provider, and add it as a new userscript (Tampermonkey → Create new / Import).
-3. Done — locking a video, or triggering one of its Random Favs Browser tabs, now opens the prefilled generate page.
+3. Done — locking a video, or triggering one of its Random Faves Browser tabs, now opens the prefilled generate page.
 
 The userscript only acts when the URL carries a `#ft=` fragment (i.e. opened by Fun Time); normal browsing on the provider is unaffected.
 

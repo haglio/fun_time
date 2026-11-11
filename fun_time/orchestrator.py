@@ -61,14 +61,14 @@ def require_dir(path: Path) -> None:
 def ensure_runtime_files(config) -> None:
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
     config.paths.trash_dir.mkdir(parents=True, exist_ok=True)
-    config.random_favs_browser_manifest_file.touch(exist_ok=True)
+    config.random_faves_browser_manifest_file.touch(exist_ok=True)
 
 
 def validate_config(config) -> None:
     require_file(config.paths.ahk_exe)
     require_file(config.paths.python_exe)
-    if config.random_favs_browser.enabled:
-        require_file(config.random_favs_browser.shortcut_path)
+    if config.random_faves_browser.enabled:
+        require_file(config.random_faves_browser.shortcut_path)
     for main_funestra_library_dir in config.paths.main_funestra_library_dirs:
         require_dir(main_funestra_library_dir)
     for portrait_dir in config.paths.portrait_dirs:

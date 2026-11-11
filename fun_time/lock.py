@@ -10,7 +10,7 @@ from .fun_time_funestras import FunTimeFunestra
 from .media_actions import make_web_url_from_path
 from .media_metadata import mark_favorite, metadata_path_for
 from .origenerator_switches import RfbMode
-from .random_favs_browser import FavEntry, target_for_fav
+from .random_faves_browser import FavEntry, target_for_fav
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .shared_state import BridgeState

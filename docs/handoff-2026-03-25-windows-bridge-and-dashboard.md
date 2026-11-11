@@ -58,7 +58,7 @@ Large slices moved out of AHK into Python over the course of this refactor:
 - window layout planning
 - startup coordination
 - runtime-flow coordination
-- Random Favs Browser planning
+- Random Faves Browser planning
 - broker heartbeat / dashboard status derivation
 
 The remaining AHK surface is much smaller and much more honestly “Windows bridge” shaped than before, but the minimization is not fully complete yet.

@@ -28,7 +28,7 @@
 
 - Status: Deferred
 - Scope:
-  - Not launched in VR: the Qt dashboard and its log panel, the Random Favs Browser,
+  - Not launched in VR: the Qt dashboard and its log panel, the Random Faves Browser,
     and the loopback server. The Main Funestra's two modes,
     Genau's flicks and the Robot Hand's stretches, and the audio companion (on the
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
@@ -40,7 +40,7 @@
     of session and sees it out of either teardown. The app's own window hangs on a
     screen of its own in the headset whenever the app is up, whatever the mode
     selectors say: there is no browser in the headset, and the headset's dashboard
-    carries no Random Favs Browser / Origenerator strip.
+    carries no Random Faves Browser / Origenerator strip.
     A session hosting none is still a config naming none.
   - The only place a control may be left dead in the headset is
     `tests/test_vr_control_parity.py`'s own list of what the hosted Origenerator

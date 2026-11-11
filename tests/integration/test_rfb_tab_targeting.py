@@ -6,7 +6,7 @@ import sys
 import pytest
 from app_support.win32 import force_foreground_window
 
-from fun_time.windows_bridge_random_favs_browser import open_rfb_tab
+from fun_time.windows_bridge_random_faves_browser import open_rfb_tab
 from tests.integration.integration_support import await_window
 from tests.integration.throwaway_chrome import TAB_TIMEOUT_S
 

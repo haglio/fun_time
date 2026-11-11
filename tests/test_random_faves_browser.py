@@ -12,7 +12,7 @@ from fun_time.config import load_config
 from fun_time.content import WebProvider
 from fun_time.lock import a_lock_holds
 from fun_time.media_metadata import mark_favorite
-from fun_time.random_favs_browser import (
+from fun_time.random_faves_browser import (
     FavEntry,
     build_manifest,
     choose_random,
@@ -79,7 +79,7 @@ def test_the_manifest_names_the_chrome_profile_and_every_target(cfg_factory, tmp
     cfg_path = cfg_factory(
         {
             "regen": {"metadata_root": str(_records(tmp_path))},
-            "random_favs_browser": {
+            "random_faves_browser": {
                 "enabled": True,
                 "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
@@ -120,7 +120,7 @@ def _decline_config(cfg_factory, tmp_path: Path, browser: DeclineBrowser | None 
     return cfg_factory(
         {
             "regen": {"metadata_root": str(_records(tmp_path))},
-            "random_favs_browser": {
+            "random_faves_browser": {
                 "enabled": enabled,
                 "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
@@ -145,7 +145,7 @@ def test_an_unmatched_profile_name_declines_to_launch(cfg_factory, tmp_path: Pat
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
-def test_an_empty_favs_list_opens_no_tabs_but_keeps_the_profile(cfg_factory, tmp_path: Path):
+def test_an_empty_faves_list_opens_no_tabs_but_keeps_the_profile(cfg_factory, tmp_path: Path):
     cfg_path = _decline_config(cfg_factory, tmp_path, DeclineBrowser(urls=()))
     assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("Profile 2", [])
 
@@ -169,7 +169,7 @@ def _regen_cfg(cfg_factory, tmp_path: Path) -> Path:
     )
     return cfg_factory(
         {
-            "random_favs_browser": {
+            "random_faves_browser": {
                 "enabled": True,
                 "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
@@ -301,7 +301,7 @@ def test_build_manifest_labels_a_gallery_less_fav_with_its_filename(cfg_factory,
     assert targets[0].label == "def_topaz.mp4"
 
 
-def test_build_manifest_drops_favs_with_nowhere_to_go(cfg_factory, tmp_path: Path):
+def test_build_manifest_drops_faves_with_nowhere_to_go(cfg_factory, tmp_path: Path):
     _favorite_video(tmp_path, "media/other/abc.mp4")
     cfg_path = _regen_cfg(cfg_factory, tmp_path)
 

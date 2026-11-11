@@ -24,7 +24,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .hosted_origenerator import HostedApp, bring_up_the_hosted_app
-from .manifest import LaunchManifest, RandomFavsBrowserSettings
+from .manifest import LaunchManifest, RandomFavesBrowserSettings
 from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .origenerator_switches import RfbMode
@@ -49,9 +49,9 @@ from .window_layout import (
     screen_layout,
 )
 from .window_names import MANAGED_WINDOWS, window_is_topmost
-from .windows_bridge_random_favs_browser import (
+from .windows_bridge_random_faves_browser import (
     CHROME_WINDOW_CLASS,
-    launch_random_favs_browser,
+    launch_random_faves_browser,
 )
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -481,7 +481,7 @@ def _run_startup_phases(
         hwnds_by_window = _position_windows_now(plan, env=env)
 
     progress.advance("browser")
-    rfb_hwnd = _maybe_launch_random_favs_browser(m.random_favs_browser, plan, env=env)
+    rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
 
     progress.advance("companions")
@@ -578,8 +578,8 @@ def _is_past_the_loading_screen_its_window_opens_on(status_file: Path) -> bool:
     return bool(read_main_funestra_status(status_file).video)
 
 
-def _maybe_launch_random_favs_browser(
-    settings: RandomFavsBrowserSettings,
+def _maybe_launch_random_faves_browser(
+    settings: RandomFavesBrowserSettings,
     plan: WindowLayoutPlan,
     *,
     env: SessionEnvironment,
@@ -592,26 +592,26 @@ def _maybe_launch_random_favs_browser(
 
     shortcut = resolve_shortcut(shortcut_path)
     if not shortcut.target:
-        logger.warning("Random Favs Browser skipped: could not resolve shortcut %s", shortcut_path)
+        logger.warning("Random Faves Browser skipped: could not resolve shortcut %s", shortcut_path)
         return 0
 
     before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
 
-    result = launch_random_favs_browser(manifest_file, shortcut=shortcut)
+    result = launch_random_faves_browser(manifest_file, shortcut=shortcut)
     if not result.should_launch:
-        logger.info("Random Favs Browser skipped: launch plan was empty")
+        logger.info("Random Faves Browser skipped: launch plan was empty")
         return 0
 
     new_hwnd = _wait_for_new_chrome_window(before_hwnds, timeout_ms=8000)
     if not new_hwnd:
-        logger.warning("Random Favs Browser skipped: no new Chrome window appeared")
+        logger.warning("Random Faves Browser skipped: no new Chrome window appeared")
         return 0
 
-    rect = plan.random_favs_browser
+    rect = plan.random_faves_browser
     move_window(new_hwnd, rect, activate=not env.integration)
 
 
-    logger.info("Random Favs Browser positioned")
+    logger.info("Random Faves Browser positioned")
     return new_hwnd
 
 

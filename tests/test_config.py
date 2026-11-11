@@ -152,14 +152,14 @@ class TestLoadConfig:
             broker_state / "broker_mode.txt",
         ]
 
-    def test_missing_random_favs_browser_section_defaults_disabled(self, cfg_factory):
+    def test_missing_random_faves_browser_section_defaults_disabled(self, cfg_factory):
         path = cfg_factory()
         raw = json.loads(path.read_text(encoding="utf-8"))
-        raw.pop("random_favs_browser", None)
+        raw.pop("random_faves_browser", None)
         path.write_text(json.dumps(raw), encoding="utf-8")
 
         cfg = load_config(path)
-        assert cfg.random_favs_browser.enabled is False
+        assert cfg.random_faves_browser.enabled is False
 
 
 class TestTheOsr2Slot:
@@ -186,21 +186,21 @@ class TestRegenConfig:
         cfg = load_config(path)
         assert cfg.regen.media_root == tmp_path / "media"
         assert cfg.regen.metadata_root == tmp_path / "meta"
-        assert cfg.random_favs_browser.profile_name == ""
-        assert cfg.random_favs_browser.enabled is False
+        assert cfg.random_faves_browser.profile_name == ""
+        assert cfg.random_faves_browser.enabled is False
 
     def test_no_chrome_profile_is_guessed_for_a_browser_section_naming_none(self, cfg_factory):
-        path = cfg_factory({"random_favs_browser": {"enabled": True, "open_count": 3}})
+        path = cfg_factory({"random_faves_browser": {"enabled": True, "open_count": 3}})
         cfg = load_config(path)
-        assert cfg.random_favs_browser.enabled is False
-        assert cfg.random_favs_browser.profile_name == ""
-        assert cfg.random_favs_browser.shortcut_path.name == "random_favs_browser.lnk"
-        assert cfg.random_favs_browser.open_count == 3
+        assert cfg.random_faves_browser.enabled is False
+        assert cfg.random_faves_browser.profile_name == ""
+        assert cfg.random_faves_browser.shortcut_path.name == "random_faves_browser.lnk"
+        assert cfg.random_faves_browser.open_count == 3
 
-    def test_loads_random_favs_browser_settings(self, cfg_factory):
+    def test_loads_random_faves_browser_settings(self, cfg_factory):
         path = cfg_factory(
             {
-                "random_favs_browser": {
+                "random_faves_browser": {
                     "enabled": True,
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
@@ -211,17 +211,38 @@ class TestRegenConfig:
             }
         )
         cfg = load_config(path)
-        assert cfg.random_favs_browser.enabled is True
-        assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
-        assert cfg.random_favs_browser.user_data_dir.name == "chrome_data"
-        assert cfg.random_favs_browser.open_count == 7
-        assert cfg.random_favs_browser.lazy_load is False
-        assert not hasattr(cfg.random_favs_browser, "bookmarks_folder_name")
+        assert cfg.random_faves_browser.enabled is True
+        assert cfg.random_faves_browser.shortcut_path.name == "chrome.exe"
+        assert cfg.random_faves_browser.user_data_dir.name == "chrome_data"
+        assert cfg.random_faves_browser.open_count == 7
+        assert cfg.random_faves_browser.lazy_load is False
+        assert not hasattr(cfg.random_faves_browser, "bookmarks_folder_name")
 
-    def test_loads_random_favs_browser_lazy_load(self, cfg_factory):
+    def test_a_config_from_before_faves_was_spelled_so_still_names_the_browser(self, cfg_factory):
+        path = cfg_factory()
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw.pop("random_faves_browser", None)
+        raw["random_favs_browser"] = {"enabled": True, "shortcut_path": "chrome.exe", "profile_name": "Jane Doe"}
+        path.write_text(json.dumps(raw), encoding="utf-8")
+
+        browser = load_config(path).random_faves_browser
+
+        assert (browser.enabled, browser.shortcut_path.name, browser.profile_name) == (True, "chrome.exe", "Jane Doe")
+
+    def test_the_faves_spelling_wins_key_by_key_over_the_older_one(self, cfg_factory):
+        path = cfg_factory({
+            "random_favs_browser": {"enabled": True, "shortcut_path": "old.lnk", "profile_name": "Jane Doe"},
+            "random_faves_browser": {"shortcut_path": "new.lnk"},
+        })
+
+        browser = load_config(path).random_faves_browser
+
+        assert (browser.enabled, browser.shortcut_path.name, browser.profile_name) == (True, "new.lnk", "Jane Doe")
+
+    def test_loads_random_faves_browser_lazy_load(self, cfg_factory):
         path = cfg_factory(
             {
-                "random_favs_browser": {
+                "random_faves_browser": {
                     "enabled": True,
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
@@ -233,7 +254,7 @@ class TestRegenConfig:
             }
         )
         cfg = load_config(path)
-        assert cfg.random_favs_browser.lazy_load is True
+        assert cfg.random_faves_browser.lazy_load is True
 
     def test_multiple_main_funestra_library_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
@@ -333,9 +354,9 @@ class TestProjectConfigProperties:
         cfg = load_config(cfg_path)
         assert cfg.logs_dir == (tmp_path / "state").resolve()
 
-    def test_random_favs_browser_manifest_file(self, cfg_path: Path, tmp_path: Path):
+    def test_random_faves_browser_manifest_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.random_favs_browser_manifest_file == (tmp_path / "state" / "random_favs_browser_urls.txt").resolve()
+        assert cfg.random_faves_browser_manifest_file == (tmp_path / "state" / "random_faves_browser_urls.txt").resolve()
 
 
 class TestVoiceControlConfig:

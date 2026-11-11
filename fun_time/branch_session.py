@@ -29,6 +29,8 @@ from .checkout_overrides import ORIGENERATOR_DIR_OVERRIDE_NAME
 from .child_launch import no_console_window
 from .config import (
     DEFAULT_CONFIG_PATH,
+    RANDOM_FAVES_BROWSER_KEY,
+    RANDOM_FAVES_BROWSER_KEY_BEFORE_THE_RENAME,
     SIBLING_CHECKOUTS_KEY,
     SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME,
     ProjectConfig,
@@ -94,7 +96,7 @@ def primary_checkout() -> Path:
 
 
 def _paths_a_branch_would_read_against_its_worktree(real: ProjectConfig) -> dict[str, dict[str, object]]:
-    paths, browser, regen = real.paths, real.random_favs_browser, real.regen
+    paths, browser, regen = real.paths, real.random_faves_browser, real.regen
     return {
         "paths": {
             "ahk_exe": paths.ahk_exe,
@@ -105,7 +107,7 @@ def _paths_a_branch_would_read_against_its_worktree(real: ProjectConfig) -> dict
             "origenerator_dir": paths.origenerator_dir,
             "origenerator_python_exe": paths.origenerator_python_exe,
         },
-        "random_favs_browser": {
+        RANDOM_FAVES_BROWSER_KEY: {
             "shortcut_path": browser.shortcut_path,
             "user_data_dir": browser.user_data_dir,
         },
@@ -153,6 +155,9 @@ def _apply_sibling_checkouts_override(raw: dict, state_dir: Path) -> None:
 def _for_a_branch_from_before_the_rename(raw: dict) -> None:
     paths = raw["paths"]
     paths[SIBLING_CHECKOUTS_KEY_BEFORE_THE_RENAME] = paths[SIBLING_CHECKOUTS_KEY]
+    browser = {**raw.get(RANDOM_FAVES_BROWSER_KEY_BEFORE_THE_RENAME, {}), **raw.get(RANDOM_FAVES_BROWSER_KEY, {})}
+    raw[RANDOM_FAVES_BROWSER_KEY] = browser
+    raw[RANDOM_FAVES_BROWSER_KEY_BEFORE_THE_RENAME] = dict(browser)
 
 
 def _apply_origenerator_checkout_override(raw: dict, state_dir: Path) -> None:

@@ -398,7 +398,7 @@ def _both_in_origenerator_mode(state) -> bool:
 def _put_origenerator_in_the_browsers_place(session) -> None:
     state_file = _press_once_the_app_booting_behind_fun_time_answers(session, "origenerator_activate")
     wait_for(lambda: read_shared_state(state_file).rfb_mode is RfbMode.ORIGENERATOR,
-             desc="Origenerator to take the Random Favs Browser's place")
+             desc="Origenerator to take the Random Faves Browser's place")
 
 
 def _the_omnipause_cycle_the_demo_failed_after(session) -> None:
@@ -421,7 +421,7 @@ def test_the_strip_raises_the_parked_window_and_the_browsers_button_parks_it(the
              desc="the hosted window to join the topmost band")
 
     session.write_dashboard_command("rfb_activate")
-    session.wait_for_new_log("Random Favs Browser mode")
+    session.wait_for_new_log("Random Faves Browser mode")
     wait_for(lambda: is_window_minimized(hwnd),
              desc="the hosted window to park again")
 

@@ -59,7 +59,7 @@ def expectations(scratch: Path) -> dict:
 
 _A_RECT = WindowRect(0, 0, 10, 10)
 _A_PLAN = WindowLayoutPlan(portrait=_A_RECT, landscape=_A_RECT, dashboard=_A_RECT,
-                           random_favs_browser=_A_RECT)
+                           random_faves_browser=_A_RECT)
 
 
 def _the_launches(manifest: LaunchManifest) -> dict[str, list[str]]:

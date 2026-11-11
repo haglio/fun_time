@@ -56,7 +56,7 @@ def _write_a_config_relative_where_the_real_one_is(path: Path, **paths: str) -> 
             "landscape_width_ratio": 0.66,
         },
         "audio_companion": {"host": "127.0.0.1", "port": 50556},
-        "random_favs_browser": {
+        "random_faves_browser": {
             "enabled": True,
             "shortcut_path": "Example Chrome.lnk",
             "user_data_dir": "C:/Chrome/User Data",
@@ -139,7 +139,7 @@ def test_every_path_a_branch_session_reads_is_the_one_the_live_session_reads(che
     live, branch = _live_and_branch(checkouts)
 
     assert replace(branch.paths, state_dir=live.paths.state_dir) == live.paths
-    assert branch.random_favs_browser == live.random_favs_browser
+    assert branch.random_faves_browser == live.random_faves_browser
     assert branch.regen == live.regen
     assert branch.vr == live.vr
     assert branch.audio_companion == live.audio_companion
@@ -281,6 +281,21 @@ def test_a_branch_that_still_reads_the_old_key_gets_its_checkouts_there_too(chec
     paths = json.loads(written.read_text(encoding="utf-8"))["paths"]
     assert paths["genau_project_dirs"] == paths["sibling_checkouts"]
     assert paths["sibling_checkouts"]
+
+
+def test_a_branch_of_either_spelling_of_faves_reads_the_whole_browser_section(checkouts):
+    machine = json.loads(checkouts.config_path.read_text(encoding="utf-8"))
+    machine["random_favs_browser"] = machine.pop("random_faves_browser")
+    checkouts.config_path.write_text(json.dumps(machine), encoding="utf-8")
+
+    written = branch_session.build_branch_config(
+        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary)
+
+    raw = json.loads(written.read_text(encoding="utf-8"))
+    assert raw["random_favs_browser"] == raw["random_faves_browser"]
+    assert raw["random_faves_browser"]["profile_name"] == "Example"
+    assert load_config(written, project_dir=checkouts.worktree).random_faves_browser == load_config(
+        checkouts.config_path, project_dir=checkouts.primary).random_faves_browser
 
 
 def test_the_override_full_of_this_machines_paths_is_kept_where_git_ignores_it(checkouts):

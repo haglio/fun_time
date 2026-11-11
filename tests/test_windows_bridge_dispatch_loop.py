@@ -1493,7 +1493,7 @@ class TestOpenRfbTab:
 
     @pytest.mark.parametrize(("window_alive", "line"), [
         (True, "Opened 2 RFB tab(s)"),
-        (False, "2 RFB tab(s) skipped: no Random Favs Browser window to open into"),
+        (False, "2 RFB tab(s) skipped: no Random Faves Browser window to open into"),
     ])
     def test_the_log_counts_a_locks_tabs_and_never_names_their_links(
             self, tmp_path, caplog, window_alive, line):

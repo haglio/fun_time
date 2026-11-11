@@ -11,39 +11,39 @@ CHROME_WINDOW_CLASS = "Chrome"
 
 
 @dataclass(frozen=True)
-class RandomFavsBrowserManifest:
+class RandomFavesBrowserManifest:
     profile_dir: str
     urls: list[str]
 
 
 @dataclass(frozen=True)
-class RandomFavsBrowserLaunchPlan:
+class RandomFavesBrowserLaunchPlan:
     should_launch: bool
     cmd: str
     work_dir: str
 
 
-def read_random_favs_browser_manifest(path: str | Path) -> RandomFavsBrowserManifest:
+def read_random_faves_browser_manifest(path: str | Path) -> RandomFavesBrowserManifest:
     manifest_path = Path(path)
     if not manifest_path.is_file():
-        return RandomFavsBrowserManifest(profile_dir="", urls=[])
+        return RandomFavesBrowserManifest(profile_dir="", urls=[])
 
     content = manifest_path.read_text(encoding="utf-8")
     lines = [line.strip() for line in content.splitlines()]
     if not lines:
-        return RandomFavsBrowserManifest(profile_dir="", urls=[])
+        return RandomFavesBrowserManifest(profile_dir="", urls=[])
 
     profile_dir = lines[0]
     urls = [line for line in lines[1:] if line]
-    return RandomFavsBrowserManifest(profile_dir=profile_dir, urls=urls)
+    return RandomFavesBrowserManifest(profile_dir=profile_dir, urls=urls)
 
 
-def build_random_favs_browser_launch_plan(
+def build_random_faves_browser_launch_plan(
     manifest_path: str | Path, *, shortcut: Shortcut
-) -> RandomFavsBrowserLaunchPlan:
-    manifest = read_random_favs_browser_manifest(manifest_path)
+) -> RandomFavesBrowserLaunchPlan:
+    manifest = read_random_faves_browser_manifest(manifest_path)
     if not shortcut.target or not manifest.urls:
-        return RandomFavsBrowserLaunchPlan(should_launch=False, cmd="", work_dir="")
+        return RandomFavesBrowserLaunchPlan(should_launch=False, cmd="", work_dir="")
 
     lowered = shortcut.arguments.strip().lower()
     arguments = []
@@ -51,17 +51,17 @@ def build_random_favs_browser_launch_plan(
         arguments.append(f"--profile-directory={manifest.profile_dir}")
     if "--new-window" not in lowered:
         arguments.append("--new-window")
-    return RandomFavsBrowserLaunchPlan(
+    return RandomFavesBrowserLaunchPlan(
         should_launch=True,
         cmd=shortcut.command_line(*arguments, *manifest.urls),
         work_dir=shortcut.work_dir,
     )
 
 
-def launch_random_favs_browser(
+def launch_random_faves_browser(
     manifest_path: str | Path, *, shortcut: Shortcut
-) -> RandomFavsBrowserLaunchPlan:
-    plan = build_random_favs_browser_launch_plan(manifest_path, shortcut=shortcut)
+) -> RandomFavesBrowserLaunchPlan:
+    plan = build_random_faves_browser_launch_plan(manifest_path, shortcut=shortcut)
     if plan.should_launch and plan.cmd:
         subprocess.Popen(plan.cmd, cwd=plan.work_dir,
                          **no_child_log(), **no_console_window())

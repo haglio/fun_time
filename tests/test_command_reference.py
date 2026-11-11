@@ -575,7 +575,7 @@ def test_the_sections_are_the_dashboard_vr_the_osr2_every_funestra_the_main_one_
         "Funestras",
         "Main Funestra",
         "Origenerator",
-        "Random Favs Browser",
+        "Random Faves Browser",
     ]
 
 
@@ -828,11 +828,11 @@ def test_each_mode_leads_its_own_group_and_says_only_what_a_reader_cannot_see():
     assert (kino.description, kino.detail) == ("Kino mode", "")
     assert (origenerator.description, origenerator.detail) == (
         "Origenerator mode",
-        "Origenerator Core shares real estate with the Random Favs Browser")
+        "Origenerator Core shares real estate with the Random Faves Browser")
     assert genau.commands == ("genau_activate",)
     assert _section("Origenerator").rows[0] == origenerator
-    assert _section("Random Favs Browser").rows == (browser,)
-    assert (browser.description, browser.detail) == ("Random Favs Browser", "")
+    assert _section("Random Faves Browser").rows == (browser,)
+    assert (browser.description, browser.detail) == ("Random Faves Browser", "")
     assert browser.voice == ("RFB", "random faves", "random faves browser")
 
 

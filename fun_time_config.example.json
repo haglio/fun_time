@@ -20,7 +20,7 @@
     "host": "127.0.0.1",
     "port": 50556
   },
-  "random_favs_browser": {
+  "random_faves_browser": {
     "enabled": false,
     "shortcut_path": "Chrome.lnk",
     "user_data_dir": "C:/path/to/Chrome/User Data",

@@ -34,7 +34,7 @@ from fun_time.windows_bridge_startup import (
 
 _A_PLAN = WindowLayoutPlan(
     portrait=WindowRect(0, 0, 10, 10), landscape=WindowRect(0, 0, 10, 10),
-    dashboard=WindowRect(0, 0, 10, 10), random_favs_browser=WindowRect(1, 2, 30, 40))
+    dashboard=WindowRect(0, 0, 10, 10), random_faves_browser=WindowRect(1, 2, 30, 40))
 _A_DESKTOP_SESSION = OrigeneratorSession(
     layout_plan=_A_PLAN, command_file="c", paused_file="p", status_file="s",
     dashboard_cmd_file="d",
@@ -76,10 +76,10 @@ class TestWhereTheAppsOwnWindowGoes:
                    side_effect=_a_stand_in_launch_that_takes_any_argument(captured)):
             bring_up_the_hosted_app(manifest, sibling_checkouts="", in_a_headset=in_a_headset)
             the_browsers_rect = screen_layout(
-                config.layout, rfb_mode_selector=True).plan.random_favs_browser
-        return captured["session"].layout_plan.random_favs_browser, the_browsers_rect
+                config.layout, rfb_mode_selector=True).plan.random_faves_browser
+        return captured["session"].layout_plan.random_faves_browser, the_browsers_rect
 
-    def test_the_window_takes_the_random_favs_browsers_rect_under_the_strip(
+    def test_the_window_takes_the_random_faves_browsers_rect_under_the_strip(
             self, cfg_factory, tmp_path):
         core, the_browsers_rect = self._where_core_is_put(
             cfg_factory, tmp_path, in_a_headset=False)
