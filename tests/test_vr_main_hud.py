@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import logging
-
 from funestra.hud_placement import HudEdge
 from funestra.main_hud import MainHudModel, ModeHud, _row_width, osr2_controls
 from funestra.main_hud_painter import _PAD, MainHud, MainHudPainter
 from funestra.osr2_visualizer import DriveHud
-from shared_ui.palette import GREEN, RED, TEXT_MUTED, TEXT_PRIMARY, YELLOW
 
-from fun_time.event_log import FAVORITE, MESSAGE
 from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
-from fun_time_vr.main_hud import HUD_WIDTH_PX, hud_hangs_from, level_color
+from fun_time_vr.main_hud import HUD_WIDTH_PX, hud_hangs_from
 
 
 def _the_main_hud_in(mode: str) -> MainHud:
@@ -59,14 +55,3 @@ class TestWhichSideTheConsoleHangsOn:
         for edge in HudEdge:
             assert hud_hangs_from(edge, wrapped=True) is HudEdge.LOWER
 
-
-class TestTheColorOfANotice:
-    def test_each_level_has_the_desktops_own_color(self):
-        assert level_color(MESSAGE) == TEXT_PRIMARY
-        assert level_color(FAVORITE) == GREEN
-        assert level_color(logging.WARNING) == YELLOW
-        assert level_color(logging.ERROR) == RED
-
-    def test_a_level_between_two_takes_the_loudest_it_reaches(self):
-        assert level_color(logging.WARNING + 1) == YELLOW
-        assert level_color(logging.DEBUG) == TEXT_MUTED

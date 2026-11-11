@@ -16,7 +16,8 @@ from shared_ui.palette import BG_SECONDARY
 from shared_ui.spacing import GAP_SMALL
 from shared_ui.type_scale import in_pixels
 
-from .main_hud import level_color
+from fun_time.level_colors import level_rgb
+
 from .surfaces import red_and_blue_swapped
 
 TYPE_OVER_A_DECODED_FRAMES_HEIGHT = 0.030
@@ -45,7 +46,7 @@ def paint_message(message: str, level: int, *, max_width: int, size: int) -> Ima
     text = "\n".join(fit_text(font, line, room)
                      for line in wrap_text(font, message, room, max_lines=MAX_LINES))
     spacing = round(size * _LINE_GAP)
-    ink = level_color(level)
+    ink = level_rgb(level)
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     x0, y0, x1, y1 = probe.multiline_textbbox((0, 0), text, font=font, spacing=spacing,
                                               align="center")
