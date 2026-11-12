@@ -365,14 +365,14 @@ def test_the_funestras_open_with_the_steps_the_lock_and_trash_before_navigation(
         "previous", "next", "lock / unlock", "trash"]
 
 
-def test_the_navigation_rows_are_the_nudges_the_full_video_and_compilation_then_the_scenes():
+def test_the_navigation_rows_are_the_nudges_the_scenes_and_funscripts_then_full_video_and_compilation():
     navigation = _group("Funestras", "Navigation")
     back, forward = navigation.rows[0], navigation.rows[1]
 
     assert [row.description for row in navigation.rows] == [
-        "nudge back 10 seconds", "nudge forward 10 seconds", "full video / back to the clip",
-        "compilation / end compilation", "previous scene in the video",
-        "next scene in the video", "jump to funscript", "next funscripted"]
+        "nudge back 10 seconds", "nudge forward 10 seconds", "previous scene in the video",
+        "next scene in the video", "jump to funscript", "next funscripted",
+        "full video / back to the clip", "compilation / end compilation"]
     assert (back.voice, forward.voice) == (("back",), ("skip",))
     assert (back.detail, forward.detail) == ("", "")
     assert (back.key_columns, forward.key_columns) == (((), (), ("-",)), ((), (), ("+",)))
