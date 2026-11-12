@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app_support.video_names import stem_as_made
+from app_support.video_names import stem_of_either_copy
 
 
 class GalleryNames:
@@ -14,7 +14,7 @@ class GalleryNames:
 
     def of(self, video: Path) -> str:
         self._take_what_is_published()
-        return self._names.get(stem_as_made(video), "")
+        return self._names.get(stem_of_either_copy(video), "")
 
     def _take_what_is_published(self) -> None:
         if self._published is None:
