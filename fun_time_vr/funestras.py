@@ -677,11 +677,10 @@ class _SatelliteUnit(_VideoUnit):
         self._dashboard_cmd_file = channels.dashboard_cmd
         self._audio_device = vr.audio_device.strip()
         self.hud = HudBitmap()
-        self.funestra = Funestra(self.engine, FunestraSetup(
-            channels=channels, playlist=read_playlist(channels.playlist),
-            tcode=FunscriptTCodeDriver(_osr2_slot(commands, funestra)),
-            hud_surface=self.hud,
-        ))
+        self._channels = channels
+        self._tcode = FunscriptTCodeDriver(_osr2_slot(commands, funestra))
+        self.funestra: Funestra | None = None
+        self._handed_its_list()
         self.hud_texture = FrameTexture()
         self.hud_screen = _HangingScreen(self.screen.placement)
         self._hud_version, self._hud_shown = -1, False
@@ -722,6 +721,8 @@ class _SatelliteUnit(_VideoUnit):
             self._hud_shown = rgba is not None
             if rgba is not None:
                 self.hud_texture.upload(rgba)
+        if self.funestra is None:
+            return
         minimized = self.funestra.hud_minimized
         if self.target.ready and (self._hud_shown or minimized):
             self._buttons.hang(self.funestra.outside_buttons, self.shown, self.target.aspect,
@@ -739,7 +740,17 @@ class _SatelliteUnit(_VideoUnit):
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
 
+    def _handed_its_list(self) -> bool:
+        if self.funestra is None and (playlist := read_playlist(self._channels.playlist)):
+            self.funestra = Funestra(self.engine, FunestraSetup(
+                channels=self._channels, playlist=playlist, tcode=self._tcode,
+                hud_surface=self.hud,
+            ))
+        return self.funestra is not None
+
     def pump(self, stop: threading.Event, now: float) -> None:
+        if not self._handed_its_list():
+            return
         self._take_presses()
         self.funestra.tick(viewport=self._viewport())
         if self._messages is not None:
@@ -759,7 +770,8 @@ class _SatelliteUnit(_VideoUnit):
 
     def close(self) -> None:
         self.video.close()  # frees mpv on the thread whose context it renders in
-        self.funestra.close()
+        if self.funestra is not None:
+            self.funestra.close()
         self.hud_texture.close()
         self.hud_screen.close()
         self._buttons.close()

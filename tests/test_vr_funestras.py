@@ -508,10 +508,27 @@ def test_a_satellite_screen_hands_its_funestra_the_scripts_its_playlist_names(
     assert faked_collaborators["Funestra"].call_args.args[1]._asdict()["playlist"] == items
 
 
+def test_a_satellite_opened_on_an_empty_list_waits_until_the_hosted_app_fills_it(
+        tmp_path, faked_collaborators):
+    items = [PlaylistItem(tmp_path / "v0.mp4")]
+    lists = iter([[], [], items])
+    with patch("fun_time_vr.funestras.read_playlist", side_effect=lambda _path: next(lists)):
+        unit = _SatelliteUnit(PORTRAIT, RoomLaunch(_manifest_for_a_vr_session(tmp_path), _A_SESSION,
+                                                   _NO_GL_CONTEXTS), remembered={})
+        unit.target.width = unit.target.height = 1
+        unit.pump(threading.Event(), now=0.0)
+        waited = faked_collaborators["Funestra"].call_count
+        unit.pump(threading.Event(), now=0.1)
+
+    assert waited == 0
+    assert faked_collaborators["Funestra"].call_args.args[1]._asdict()["playlist"] == items
+
+
 def test_a_satellite_screen_reaches_the_osr2_through_the_brokers_slot_with_its_videos_script(
         tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path, osr2_slot_port=8123)
-    _SatelliteUnit(PORTRAIT, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
+    with patch("fun_time_vr.funestras.read_playlist", return_value=[PlaylistItem(tmp_path / "v0.mp4")]):
+        _SatelliteUnit(PORTRAIT, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     assert faked_collaborators["Osr2Sender"].call_args == call(PORTRAIT, port=8123)
     assert (faked_collaborators["Funestra"].call_args.args[1]._asdict()["tcode"]
@@ -523,8 +540,9 @@ def test_a_manifest_name_a_satellite_misspells_fails_here_not_in_the_headset(
         funestra, tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path)
 
-    unit = _SatelliteUnit(
-        funestra, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
+    with patch("fun_time_vr.funestras.read_playlist", return_value=[PlaylistItem(tmp_path / "v0.mp4")]):
+        unit = _SatelliteUnit(
+            funestra, RoomLaunch(manifest, _A_SESSION, _NO_GL_CONTEXTS), remembered={})
 
     commands = manifest.commands
     own = manifest.satellite(FunTimeFunestra[funestra.upper()])
@@ -1692,7 +1710,9 @@ class TestHangingTheRoom:
         faked_collaborators["Funestra"].side_effect = (
             lambda *_args, **_kwargs: order.append("funestra") or MagicMock())
 
-        _hang_a_room(tmp_path, present_the_loading_screen=lambda: order.append("loading_screen"))
+        with patch("fun_time_vr.funestras.read_playlist",
+                   return_value=[PlaylistItem(tmp_path / "v0.mp4")]):
+            _hang_a_room(tmp_path, present_the_loading_screen=lambda: order.append("loading_screen"))
 
         assert order == ["funestra", "loading_screen", "funestra", "funestra", "loading_screen"]
 
