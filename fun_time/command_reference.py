@@ -264,11 +264,27 @@ _SECTIONS: tuple[_Section, ...] = (
     _Section(
         "Funestras",
         (
-            _Group("Navigation", (
+            _Group("", (
                 _Row("previous", commands=(*_every_funestra("prev"), "genau_prev_flick"),
                      columns=(("Left",), ("A",), ("M",))),
                 _Row("next", commands=(*_every_funestra("next"), "genau_next_flick"),
                      columns=(("Right",), ("D",), (".",))),
+                _Row(
+                    "lock / unlock — locked, what is on screen repeats; unlocked it "
+                    "moves on.  A satellite favorites the locked "
+                    "slide and asks for a better version of it",
+                    commands=("portrait_lock", "landscape_lock", "main_lock", *_every_funestra("lock_on"), *_every_funestra("lock_off")),
+                    columns=(("Down",), ("S",), (",",)),
+                ),
+                _Row(
+                    "trash — in Kino mode it sends the video to Trash and moves on, or "
+                    "unfavorites it instead when it has been previously favorited; on a "
+                    "Satellite it deletes the image or video and moves on",
+                    commands=(*_sided("trash"), "genau_trash_flick"),
+                    columns=(("Up",), ("W",), ("K",)),
+                ),
+            )),
+            _Group("Navigation", (
                 _Row(
                     "nudge back 10 seconds",
                     commands=_every_funestra("nudge_prev"),
@@ -280,6 +296,18 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_every_funestra("nudge_next"),
                     columns=((), (), ("+",)),
                     controller=(A_OR_X,),
+                ),
+                _Row(
+                    "full video / back to the clip — \"full video\" plays the full "
+                    "video the clip on screen was cut from, and \"clip jump\" or "
+                    "\"jump back\" plays the clip cut from the full video on screen",
+                    commands=("main_funestra_full_vid", "main_funestra_clip_jump"),
+                ),
+                _Row(
+                    "compilation / end compilation — \"compilation\" plays the clip's "
+                    "compilation in order, and \"end compilation\" leaves it for the "
+                    "length mode you were in",
+                    commands=("main_funestra_compilation", "main_funestra_end_compilation"),
                 ),
                 _Row("previous scene in the video", commands=("main_scene_prev",),
                      controller=(HOLD_TRIGGER_AND_B_OR_Y,)),
@@ -294,21 +322,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     "next funscripted — the next scripted video in the playlist, "
                     "landing where its action begins",
                     commands=(*_sided("next_funscripted"), "main_funestra_next_funscripted"),
-                ),
-                _Row(
-                    "lock / unlock — locked, what is on screen repeats; unlocked it "
-                    "moves on.  A satellite favorites the locked "
-                    "slide and asks for a better version of it",
-                    commands=("portrait_lock", "landscape_lock", "main_lock", *_every_funestra("lock_on"), *_every_funestra("lock_off")),
-                    columns=(("Down",), ("S",), (",",)),
-                ),
-                _Row(
-                    "clip navigation — \"compilation\" plays the clip's compilation "
-                    "in order and \"end compilation\" leaves it for the length mode "
-                    "you were in; \"full video\" plays the full scene the clip came "
-                    "from, and the clip jump goes back to the clip",
-                    commands=("main_funestra_compilation", "main_funestra_end_compilation",
-                              "main_funestra_full_vid", "main_funestra_clip_jump"),
                 ),
             )),
             _Group("Nav Map", (
@@ -365,13 +378,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_every_funestra("fmode", "fmode_on", "fmode_off")
                     + tuple(say_command(scope, FAVORITES_PHRASE) for scope in _SCOPES),
                 ),
-                _Row(
-                    "reset — back to every default: no filter, no lock, no loop, no "
-                    "F-mode, normal speed, shuffled from the top; the Main Funestra's "
-                    "every length, shape, orientation and enhancement too (leaving "
-                    "any compilation)",
-                    commands=_every_funestra("reset"),
-                ),
             )),
             _Group("Included video types", (
                 _Row(
@@ -417,6 +423,19 @@ _SECTIONS: tuple[_Section, ...] = (
                 ),
                 _Row("mute / unmute", commands=_sided("mute", "unmute") + _MAIN_AUDIO[2:]),
             )),
+            _Group("Playback speed", (
+                _Row(
+                    "playback speed up / down — when the Main Funestra's rate changes, "
+                    "both satellites take it",
+                    commands=(*_sided("speed_up", "speed_down"), "main_funestra_speed_up", "main_funestra_speed_down"),
+                    voice_display=("playback speed up", "playback slow down", "playback speed down"),
+                ),
+                _Row(
+                    "set playback speed — 0.25\u00d7 to 2\u00d7; the Main Funestra's funscript follows",
+                    commands=_sided(*_SPEED_STEPS) + tuple(f"main_funestra_{step}" for step in _SPEED_STEPS),
+                    voice_display=_SPEED_VOICE,
+                ),
+            )),
             _Group("HUD", (
                 *(_Row(f"move HUD {direction}",
                        commands=tuple(f"{scope}_hud_{direction}" for scope in ("portrait", "landscape", "main")),
@@ -441,26 +460,13 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_every_funestra("hud_minimize", "hud_restore"),
                 ),
             )),
-            _Group("Playback speed", (
-                _Row(
-                    "playback speed up / down — when the Main Funestra's rate changes, "
-                    "both satellites take it",
-                    commands=(*_sided("speed_up", "speed_down"), "main_funestra_speed_up", "main_funestra_speed_down"),
-                    voice_display=("playback speed up", "playback slow down", "playback speed down"),
-                ),
-                _Row(
-                    "set playback speed — 0.25\u00d7 to 2\u00d7; the Main Funestra's funscript follows",
-                    commands=_sided(*_SPEED_STEPS) + tuple(f"main_funestra_{step}" for step in _SPEED_STEPS),
-                    voice_display=_SPEED_VOICE,
-                ),
-            )),
             _Group("Other", (
                 _Row(
-                    "trash — in Kino mode it sends the video to Trash and moves on, or "
-                    "unfavorites it instead when it has been previously favorited; on a "
-                    "Satellite it deletes the image or video and moves on",
-                    commands=(*_sided("trash"), "genau_trash_flick"),
-                    columns=(("Up",), ("W",), ("K",)),
+                    "reset — back to every default: no filter, no lock, no loop, no "
+                    "F-mode, normal speed, shuffled from the top; the Main Funestra's "
+                    "every length, shape, orientation and enhancement too (leaving "
+                    "any compilation)",
+                    commands=_every_funestra("reset"),
                 ),
                 _Row(
                     "cycle enhancement — the upscale, the original it was made "

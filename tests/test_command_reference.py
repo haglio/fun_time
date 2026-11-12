@@ -360,14 +360,19 @@ def test_the_main_funestra_shares_the_navigation_rows_under_its_own_key_column()
     assert "“next main”" in _funestras_section().note
 
 
-def test_the_navigation_rows_are_the_steps_the_nudges_the_scenes_then_what_is_done_to_the_clip():
+def test_the_funestras_open_with_the_steps_the_lock_and_trash_before_navigation():
+    assert [row.description for row in _group("Funestras", "").rows] == [
+        "previous", "next", "lock / unlock", "trash"]
+
+
+def test_the_navigation_rows_are_the_nudges_the_full_video_and_compilation_then_the_scenes():
     navigation = _group("Funestras", "Navigation")
-    back, forward = navigation.rows[2], navigation.rows[3]
+    back, forward = navigation.rows[0], navigation.rows[1]
 
     assert [row.description for row in navigation.rows] == [
-        "previous", "next", "nudge back 10 seconds", "nudge forward 10 seconds",
-        "previous scene in the video", "next scene in the video", "jump to funscript",
-        "next funscripted", "lock / unlock", "clip navigation"]
+        "nudge back 10 seconds", "nudge forward 10 seconds", "full video / back to the clip",
+        "compilation / end compilation", "previous scene in the video",
+        "next scene in the video", "jump to funscript", "next funscripted"]
     assert (back.voice, forward.voice) == (("back",), ("skip",))
     assert (back.detail, forward.detail) == ("", "")
     assert (back.key_columns, forward.key_columns) == (((), (), ("-",)), ((), (), ("+",)))
@@ -375,6 +380,16 @@ def test_the_navigation_rows_are_the_steps_the_nudges_the_scenes_then_what_is_do
             } <= set(back.commands)
     assert not [row for row in _all_rows() if row.description.startswith("skip / back")]
     assert not [row for row in _section("Main Funestra").rows if "nudge" in row.description]
+
+
+def test_the_full_video_and_the_compilation_are_rows_of_their_own():
+    full = _the_row_of("main_funestra_full_vid")
+    compilation = _the_row_of("main_funestra_compilation")
+
+    assert full.commands == ("main_funestra_full_vid", "main_funestra_clip_jump")
+    assert {"full video", "clip jump", "jump back"} <= set(full.voice)
+    assert compilation.commands == ("main_funestra_compilation", "main_funestra_end_compilation")
+    assert not [row for row in _all_rows() if row.description == "clip navigation"]
 
 
 def test_the_scene_jumps_are_the_headsets_buttons_with_the_trigger_held():
@@ -929,8 +944,8 @@ def test_the_maps_rows_the_loops_and_the_filters_follow_navigation_and_other_com
     crown = _the_row_of("main_crown")
 
     assert [group.title for group in funestras.groups] == [
-        "Navigation", "Nav Map", "Loops", "Filter", "Playlist", "Included video types",
-        "Audio", "HUD", "Playback speed", "Other"]
+        "", "Navigation", "Nav Map", "Loops", "Filter", "Playlist", "Included video types",
+        "Audio", "Playback speed", "HUD", "Other"]
     assert [row.description for row in _group("Funestras", "Nav Map").rows] == [
         "navigate the map", "cycle action", "cycle seed", "wrong action"]
     assert cycle.detail == "seeds, then actions, then off"
@@ -941,7 +956,7 @@ def test_the_maps_rows_the_loops_and_the_filters_follow_navigation_and_other_com
     assert [row.description for row in _group("Funestras", "Filter").rows] == [
         "filter to the action on screen", "drop all filters"]
     assert [row.description for row in _group("Funestras", "Other").rows] == [
-        "trash", "cycle enhancement", crown.description]
+        "reset", "cycle enhancement", crown.description]
     assert crown.description == "crown the Main Funestra or the Portrait Funestra"
     assert crown.detail == (
         "the crowned Funestra takes up the majority of the (portrait-shaped) secondary "
