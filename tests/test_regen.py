@@ -6,12 +6,14 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from fun_time.content import WebProvider
+from fun_time.gallery import Gallery
 from fun_time.media_metadata import metadata_path_for
 from fun_time.regen import (
     build_payload,
     build_regen_url,
     regen_url_for_video,
 )
+from tests.made_up_gallery import a_row
 
 VIDEO_URL = "https://example.com/video"
 IMAGE_URL = "https://example.com/create"
@@ -122,78 +124,62 @@ def test_regen_url_video_uses_video_base():
     assert _decode(url)["kind"] == "video"
 
 
-def _setup(tmp_path: Path, orient: str, name: str, meta: dict) -> tuple[Path, Path, Path]:
-    media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
-    metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "upscales" / orient / "provider" / name
-    meta_file = metadata_path_for(video, metadata_root)
-    meta_file.parent.mkdir(parents=True, exist_ok=True)
-    meta_file.write_text(json.dumps(meta), encoding="utf-8")
+def _ai_video(tmp_path: Path, name: str, *, source: str = "provider") -> Path:
+    video = tmp_path / "videos" / "videos" / "kino" / "2D" / "AI" / "portrait" / source / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_text("x", encoding="utf-8")
-    return media_root, metadata_root, video
+    return video
 
 
-def test_a_video_made_from_a_source_image_regenerates_from_that_image(tmp_path: Path):
-    _, metadata_root, video = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
-
-    url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
-        providers=_PROVIDERS,
-    )
-
-    assert url.startswith(IMAGE_URL + "#ft=")
+def _regen_url(video: Path, gallery: Gallery, metadata_root: Path | None = None) -> str:
+    return regen_url_for_video(
+        video, metadata_root=metadata_root, gallery=gallery, video_url=VIDEO_URL,
+        image_url=IMAGE_URL, providers=_PROVIDERS)
 
 
-def test_a_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
-    media_root, metadata_root, _ = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
-    provider2 = media_root / "upscales" / "portrait" / "provider2" / "x.mp4"
+def test_an_ai_video_regenerates_from_the_prompt_and_seed_its_gallery_row_holds(tmp_path: Path):
+    video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
+    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", positive_prompt="MADE UP", seed=7)])
 
-    url = regen_url_for_video(
-        provider2, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
-        providers=_PROVIDERS,
-    )
+    url = _regen_url(video, gallery)
 
-    assert url == ""
-
-
-def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path):
-    _media_root, metadata_root, video = _setup(
-        tmp_path, "portrait", "abc_topaz.mp4", THE_KIND_EVOLVER_RECORDS_FOR_EVERY_VIDEO,
-    )
-
-    url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
-        providers=_PROVIDERS,
-    )
-
-    assert url == ""
+    assert url.startswith(VIDEO_URL + "#ft=")
+    assert _decode(url) == {"kind": "video", "positive": "MADE UP", "negative": "",
+                            "settings": [["Seed", "7"]], "video_prompt": "", "video_settings": []}
 
 
-def test_a_sidecar_holding_only_the_stamps_offers_no_regenerate_link(tmp_path: Path):
-    _media_root, metadata_root, video = _setup(
-        tmp_path, "portrait", "abc_topaz.mp4",
-        {**THE_KIND_EVOLVER_RECORDS_FOR_EVERY_VIDEO, "watch": {"weight": 2.0}, "favorite": True},
-    )
+def test_an_ai_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
+    video = _ai_video(tmp_path, "abc_00001__topaz.mp4", source="provider2")
+    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", positive_prompt="MADE UP")])
 
-    url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
-        providers=_PROVIDERS,
-    )
-
-    assert url == ""
+    assert _regen_url(video, gallery) == ""
 
 
-def test_a_video_with_no_sidecar_offers_no_regenerate_link(tmp_path: Path):
-    media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
+def test_an_ai_video_whose_row_holds_no_prompt_offers_no_regenerate_link(tmp_path: Path):
+    video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
+
+    assert _regen_url(video, Gallery([a_row("gen-1", "abc_00001_.mp4", seed=7)])) == ""
+
+
+def test_an_ai_video_no_row_made_offers_no_regenerate_link(tmp_path: Path):
+    assert _regen_url(_ai_video(tmp_path, "missing_topaz.mp4"), Gallery([])) == ""
+
+
+def test_an_ai_videos_own_record_is_never_read_for_its_link(tmp_path: Path):
+    video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
     metadata_root = tmp_path / "videos" / "metadata"
-    video = media_root / "upscales" / "portrait" / "provider" / "missing_topaz.mp4"
-    video.parent.mkdir(parents=True, exist_ok=True)
-    video.write_text("x", encoding="utf-8")
+    record = metadata_path_for(video, metadata_root)
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps(VIDEO_ONLY_META), encoding="utf-8")
 
-    url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
-        providers=_PROVIDERS,
-    )
+    assert _regen_url(video, Gallery([]), metadata_root) == ""
 
-    assert url == ""
+
+def test_a_video_outside_the_ai_folders_regenerates_from_its_own_record(tmp_path: Path):
+    video = tmp_path / "videos" / "videos" / "kino" / "2D" / "non_AI" / "provider" / "abc_1.mp4"
+    metadata_root = tmp_path / "videos" / "metadata"
+    record = metadata_path_for(video, metadata_root)
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps(IMAGE_META), encoding="utf-8")
+
+    assert _regen_url(video, Gallery([]), metadata_root).startswith(IMAGE_URL + "#ft=")

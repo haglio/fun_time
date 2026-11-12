@@ -5,10 +5,13 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.kino_folder import is_ai_video
 from app_support.media_renditions import original_rendition
 
 from .config import ProjectConfig, RegenConfig
 from .content import WebProvider
+from .gallery import Gallery, ai_videos_of_the_library, the_librarys_gallery
+from .media_actions import make_web_url_from_path
 from .media_metadata import favorites_in
 from .regen import regen_url_for_video
 from .rfb_tab_page import TabTarget
@@ -38,17 +41,27 @@ class FavEntry:
     web_url: str
 
 
-def favorite_entries(metadata_root: Path | None) -> list[FavEntry]:
-    if metadata_root is None:
-        return []
-    return [FavEntry(local_path=str(favorite.video), web_url=favorite.page)
-            for favorite in favorites_in(metadata_root)]
+def favorite_entries(metadata_root: Path | None, gallery: Gallery,
+                     providers: tuple[WebProvider, ...]) -> list[FavEntry]:
+    recorded = [] if metadata_root is None else [
+        FavEntry(local_path=str(favorite.video), web_url=favorite.page)
+        for favorite in favorites_in(metadata_root) if not is_ai_video(favorite.video)]
+    return [*recorded, *(with_its_page(str(video), gallery, providers)
+                         for video in ai_videos_of_the_library() if gallery.is_starred(video))]
 
 
-def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProvider, ...]) -> TabTarget:
+def with_its_page(video: str, gallery: Gallery, providers: tuple[WebProvider, ...]) -> FavEntry:
+    recorded_page = gallery.page_of(video) if is_ai_video(video) else ""
+    return FavEntry(local_path=video,
+                    web_url=recorded_page or make_web_url_from_path(video, providers))
+
+
+def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProvider, ...],
+                   gallery: Gallery) -> TabTarget:
     regen_url = regen_url_for_video(
         entry.local_path,
         metadata_root=regen.metadata_root,
+        gallery=gallery,
         video_url=regen.generate_video_url,
         image_url=regen.generate_image_url,
         providers=providers,
@@ -75,7 +88,8 @@ def choose_random[T](items: list[T], count: int, rng: random.Random | None = Non
     return chooser.sample(items, count)
 
 
-def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...]) -> tuple[str, list[TabTarget]]:
+def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...], *,
+                   gallery: Gallery | None = None) -> tuple[str, list[TabTarget]]:
     browser = config.random_faves_browser
     if not browser.enabled:
         return "", []
@@ -84,11 +98,13 @@ def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...]) ->
     if not profile_directory:
         return "", []
 
+    if gallery is None:
+        gallery = the_librarys_gallery()
     targets = [
         target
         for target in (
-            target_for_fav(entry, config.regen, providers)
-            for entry in favorite_entries(config.regen.metadata_root)
+            target_for_fav(entry, config.regen, providers, gallery)
+            for entry in favorite_entries(config.regen.metadata_root, gallery, providers)
         )
         if target.url
     ]

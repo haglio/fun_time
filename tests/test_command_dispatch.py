@@ -219,6 +219,20 @@ def test_marking_genaus_flick_trash_takes_it_out_of_the_favorites_as_a_satellite
     assert not is_favorite(flick, config.regen_metadata_root)
 
 
+def test_marking_an_ai_flick_trash_leaves_its_record_to_origenerator(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    flick = tmp_path / "genau" / "flicks" / "2D" / "AI" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=True)
+    record = metadata_path_for(flick, config.regen_metadata_root)
+    record.parent.mkdir(parents=True)
+    record.write_text('{"favorite": true}', encoding="utf-8")
+
+    dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert record.read_text(encoding="utf-8") == '{"favorite": true}'
+
+
 @pytest.mark.parametrize(("command", "main_mode"), [
     ("main_lock", MainMode.KINO),
     ("main_lock", MainMode.GENAU),

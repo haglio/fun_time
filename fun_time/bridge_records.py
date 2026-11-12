@@ -53,6 +53,7 @@ class BridgeConfig:
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None
+    librarys_origenerator: Path | None = None
     regen_generate_video_url: str = RegenConfig.generate_video_url
     regen_generate_image_url: str = RegenConfig.generate_image_url
     main_list_builds: MainListBuilds = BUILDS_HERE

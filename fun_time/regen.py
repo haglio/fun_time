@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
+from app_support.kino_folder import is_ai_video
+
 from .content import WebProvider, provider_that_made
+from .gallery import Gallery
 from .media_metadata import recorded_for
 
 _IMAGE_SETTINGS = [
@@ -71,6 +74,7 @@ def regen_url_for_video(
     video_path: str | Path,
     *,
     metadata_root: str | Path | None,
+    gallery: Gallery,
     video_url: str,
     image_url: str,
     providers: tuple[WebProvider, ...],
@@ -78,8 +82,14 @@ def regen_url_for_video(
     maker = provider_that_made(video_path, providers)
     if maker is None:
         return ""
-    metadata = recorded_for(video_path, metadata_root)
+    metadata = _what_made(video_path, metadata_root, gallery)
     if not _records_a_prompt(metadata):
         return ""
     url = build_regen_url(metadata, video_url=video_url, image_url=image_url)
     return url if maker.serves(url) else ""
+
+
+def _what_made(video_path: str | Path, metadata_root: str | Path | None, gallery: Gallery) -> dict:
+    if is_ai_video(video_path):
+        return {"video": {"prompt": gallery.prompt_of(video_path), "seed": gallery.seed_of(video_path)}}
+    return recorded_for(video_path, metadata_root)

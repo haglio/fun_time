@@ -47,6 +47,7 @@ from .funestra_handover import HandOvers
 from .funestra_messages import FunestraMessages
 from .funestra_settings import FunestraReporting
 from .funestra_status import read_genau_status, read_main_funestra_status
+from .gallery import the_librarys_origenerator
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
 from .hosted_contract import said_at_suffix_of
@@ -767,6 +768,7 @@ def build_bridge_config_from_manifest(
         regen_metadata_root=manifest.regen.metadata_folder,
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
+        librarys_origenerator=the_librarys_origenerator(),
         origenerator_cmd_file=Path(commands.origenerator_cmd_file),
         origenerator_said_at_suffix=said_at_suffix_of(manifest.runtime.origenerator_dir.strip()),
         origenerator_paused_file=Path(commands.origenerator_paused_file),
