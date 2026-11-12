@@ -58,6 +58,24 @@ def _modes(*, compilation: str = "", current: Path = FIRST, title: str = "",
     return modes, playback, jumps
 
 
+class TestTheNameAVideoGoesBy:
+    def test_a_video_origenerator_made_wears_its_name_in_origenerators_gallery(self):
+        playback = FakePlayback(FIRST)
+        modes = Modes(playback, FakeJumps(title="Jane Doe - scene one"), FakeVersions(),
+                      the_main_list=list,
+                      gallery_name_of={FIRST: "3FA9C0D2 004"}.get)
+
+        assert modes.hud.video == "3FA9C0D2 004"
+
+    def test_a_video_origenerator_never_made_keeps_its_title(self):
+        playback = FakePlayback(SECOND)
+        modes = Modes(playback, FakeJumps(title="Ann Bly - scene two"), FakeVersions(),
+                      the_main_list=list,
+                      gallery_name_of=lambda video: {FIRST: "3FA9C0D2 004"}.get(video, ""))
+
+        assert modes.hud.video == "Ann Bly - scene two"
+
+
 class TestLeavingACompilationWithoutNamingALength:
     def test_the_main_list_fun_time_wrote_is_what_next_reaches(self):
         modes, _playback, jumps = _modes(compilation="Vol6")

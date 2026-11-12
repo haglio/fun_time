@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+
 from funestra.main_hud import ModeHud
 from funestra.playback import funscripts_of
 
+from .gallery_names import NO_GALLERY_NAMES
 from .mode_memory import RememberedMode
 from .status import LibraryStatus
 
@@ -15,8 +19,10 @@ def reload_playlist(playback, jumps, resolve) -> None:
 
 
 class Modes:
-    def __init__(self, playback, jumps, versions, *, the_main_list) -> None:
+    def __init__(self, playback, jumps, versions, *, the_main_list,
+                 gallery_name_of: Callable[[Path], str] = NO_GALLERY_NAMES.of) -> None:
         self._playback = playback
+        self._gallery_name_of = gallery_name_of
         self._jumps = jumps
         self.versions = versions
         self._the_main_list = the_main_list
@@ -44,9 +50,10 @@ class Modes:
 
     @property
     def _name_on_screen(self) -> str:
+        name = self._gallery_name_of(self._playback.current_video) or self._jumps.title
         if not self._playback.switching_versions and self.versions.on_default:
-            return self._jumps.title
-        return f"{self._jumps.title} ({self._playback.showing.name})"
+            return name
+        return f"{name} ({self._playback.showing.name})"
 
     @property
     def library_status(self) -> LibraryStatus:

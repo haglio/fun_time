@@ -10,6 +10,7 @@ import pytest
 from fun_time.hosted_contract import (
     CONTRACT_FILE,
     HostedVocabulary,
+    gallery_names_file,
     publish_actions_heard_as,
     published_actions_heard_as,
     said_at_suffix_of,
@@ -20,6 +21,7 @@ from fun_time.hosted_contract import (
 
 
 def _a_checkout_declaring(tmp_path: Path, **groups) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     contract = {"required_flags": [], "region_flags": {}, "player_flags": {},
                 "headset_flags": [], **groups}
     (tmp_path / CONTRACT_FILE).write_text(json.dumps(contract), encoding="utf-8")
@@ -188,3 +190,19 @@ def test_the_action_names_a_session_was_told_are_read_back_from_its_state_folder
 
 def test_a_state_folder_no_session_has_told_of_action_names_names_none(tmp_path):
     assert published_actions_heard_as(tmp_path) == {}
+
+
+def test_the_gallery_names_are_read_where_the_app_says_its_production_checkout_keeps_them(
+        tmp_path):
+    checkout = _a_checkout_declaring(tmp_path / "a preview", gallery_names_file="state/names.json")
+
+    assert gallery_names_file(checkout, primary_of=lambda _checkout: tmp_path / "production") == (
+        tmp_path / "production" / "state" / "names.json")
+
+
+@pytest.mark.parametrize("declared", [{}, None])
+def test_an_app_that_keeps_no_gallery_names_has_none_to_read(tmp_path, declared):
+    checkout = _a_checkout_declaring(tmp_path, **declared) if declared is not None else tmp_path
+
+    assert gallery_names_file(checkout) is None
+    assert gallery_names_file("") is None

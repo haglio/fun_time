@@ -46,6 +46,7 @@ from fun_time.funestra_status import read_genau_status, read_main_funestra_statu
 from fun_time.gallery import the_librarys_gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.log_panel_model import ui_state_path
+from fun_time.hosted_contract import gallery_names_args, published_actions_heard_as
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item, source_roots
 from fun_time.session_handoff import headset_hold_asked
@@ -413,6 +414,7 @@ class _TheLibrary:
         metadata_root = manifest.regen.metadata_folder
         if metadata_root is not None:
             argv += ["--metadata-dir", str(metadata_root)]
+        argv += gallery_names_args(manifest.runtime.origenerator_dir)
         self.args = build_main_funestra_parser(load_config(config_path)).parse_args(argv)
         self.source = library_source(self.args, on_progress=lambda _phase: while_reading())
         self.memory = mode_memory(self.args)

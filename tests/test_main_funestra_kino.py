@@ -244,6 +244,19 @@ class TestKinoOnTheLibrary:
 
         assert made.keywords["library"].clip_nav.compilation_playlist(world.first) == [world.first, world.second]
 
+    def test_its_videos_wear_the_names_the_hosted_origenerator_publishes(self, tmp_path):
+        world = World(tmp_path)
+        published = tmp_path / "gallery_names.json"
+        published.write_text(json.dumps({world.first.stem.lower(): "3FA9C0D2 004"}),
+                             encoding="utf-8")
+        args = build_parser({}).parse_args([
+            "--playlist", str(tmp_path / "main_player_playlist.tsv"), "--state-dir", str(tmp_path),
+            "--gallery-names-file", str(published)])
+
+        kino = kino_on(args, source=world.source, memory=world.memory)(world.playback)
+
+        assert kino.top_block().video == "3FA9C0D2 004"
+
     def test_it_reads_and_tells_through_the_files_the_main_funestra_was_given(self, tmp_path):
         world = World(tmp_path)
         (tmp_path / "main_player_playlist.tsv").write_text(f"{world.second}\n", encoding="utf-8")

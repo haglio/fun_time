@@ -160,6 +160,7 @@ FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND = [
     "--genau-f-mode",
     "--genau-orientations", "portrait",
     "--origenerator-command-file", "C:/example/state/origenerator_cmd.txt",
+    "--gallery-names-file", "C:/example/origenerator/state/gallery_names.json",
 ]
 
 LANDS_AS = {
@@ -188,6 +189,7 @@ LANDS_AS = {
     "genau_f_mode": True,
     "genau_orientations": ["portrait"],
     "origenerator_command_file": Path("C:/example/state/origenerator_cmd.txt"),
+    "gallery_names_file": Path("C:/example/origenerator/state/gallery_names.json"),
 }
 
 
@@ -246,6 +248,7 @@ EVERY_FLAG_ARGV = [
     "--metadata-dir", "C:/example/library/metadata",
     "--notice-file", "C:/example/state/main_player_notice.txt",
     "--origenerator-command-file", "C:/example/state/origenerator_cmd.txt",
+    "--gallery-names-file", "C:/example/origenerator/state/gallery_names.json",
     "--playlist", "C:/example/state/main_player_playlist.tsv",
     "--width", "1280",
     "--height", "1024",
@@ -280,6 +283,7 @@ EVERY_FLAG_LANDS_AS = {
     "metadata_dir": Path("C:/example/library/metadata"),
     "notice_file": Path("C:/example/state/main_player_notice.txt"),
     "origenerator_command_file": Path("C:/example/state/origenerator_cmd.txt"),
+    "gallery_names_file": Path("C:/example/origenerator/state/gallery_names.json"),
     "playlist": Path("C:/example/state/main_player_playlist.tsv"),
     "width": 1280,
     "height": 1024,
@@ -326,6 +330,7 @@ NO_FLAGS_LANDS_AS = {
     "drive_file": None,
     "dashboard_cmd_file": None,
     "origenerator_command_file": None,
+    "gallery_names_file": None,
     "genau_command_file": None,
     "genau_paused_file": None,
     "genau_status_file": None,
