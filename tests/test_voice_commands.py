@@ -131,7 +131,7 @@ class TestVoiceCommands:
             "clips only": "main_funestra_length_clips",
             "full only": "main_funestra_length_full",
             "browse": "browse_library",
-            "save loop": "genaumacher_save",
+            "save snippet": "genaumacher_save",
             "cycle projection": "projection_cycle",
             "vr and two d": "main_projection_both",
             "two d and vr": "main_projection_both",
@@ -766,3 +766,8 @@ class TestMinimizingAHudBySpeech:
 
     def test_no_phrase_says_what_whisper_cannot_tell_from_minimize(self):
         assert [phrase for phrase in VOICE_COMMANDS if _WHISPER_READS_AS_NEITHER in phrase] == []
+
+
+def test_saving_a_snippet_is_said_as_a_snippet_and_never_as_a_loop():
+    assert VOICE_COMMANDS["save snippet"] == "genaumacher_save"
+    assert "save loop" not in VOICE_COMMANDS

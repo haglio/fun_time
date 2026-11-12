@@ -118,13 +118,13 @@ def _file_controls(facts: MainFunestraFacts) -> tuple[Button, ...]:
     return (
         Button("browse_library", OPEN_ICON, "Browse the library", group_break=True),
         Button("main_funestra_record_tap", RECORD_ICON,
-               "Stop recording — mark the loop's out point"
+               "Stop recording — mark the snippet's out point"
                if facts.snippet_state is SnippetState.RECORDING else
-               "Looping — press to drop the loop" if facts.snippet_state is SnippetState.REPEATING
-               else "Record loop",
+               "Repeating the snippet — press to drop it" if facts.snippet_state is SnippetState.REPEATING
+               else "Record snippet",
                warn=facts.snippet_state is SnippetState.RECORDING,
                hold=facts.snippet_state is SnippetState.REPEATING, group_break=True),
-        Button("genaumacher_save", SAVE_ICON, "Save loop"),
+        Button("genaumacher_save", SAVE_ICON, "Save snippet"),
     )
 
 

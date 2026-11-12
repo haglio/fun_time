@@ -241,7 +241,7 @@ Every Funestra has its own playback speed: the Main Funestra's row on its HUD, a
 
 The main stack runs in one of two modes: **Kino** and **Genau** (spoken, or Kino by its button on the Main Funestra's HUD and "main kino mode"). "browse" opens the **library browser** (see below); the chosen video plays in the Main Funestra, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-`M`, `.` and `,` step and hold whatever is on the Main Funestra -- the video in Kino mode, Genau's flick in Genau mode -- and `-`/`+` nudge the video ten seconds. A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded; and wherever a step has less than 10 seconds to go (back in a video's first 10 seconds, forward in its last 10), a key, a press of either button or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` save-loop key reads the current video/time from the Main Funestra's status file in Kino mode.
+`M`, `.` and `,` step and hold whatever is on the Main Funestra -- the video in Kino mode, Genau's flick in Genau mode -- and `-`/`+` nudge the video ten seconds. A ten-second step has nothing to step through in a video of 10 seconds or shorter, so there every Funestra's HUD draws its back and forward 10s buttons faded; and wherever a step has less than 10 seconds to go (back in a video's first 10 seconds, forward in its last 10), a key, a press of either button or a spoken "skip" or "back" does nothing but say so over that Funestra. The `;` save-snippet key reads the current video/time from the Main Funestra's status file in Kino mode.
 
 Spoken, "kino mode" and "main kino mode" put the Main Funestra in Kino mode, and "genau mode" puts it in Genau mode. Genau is heard said either way, the German word or "go now".
 
@@ -372,9 +372,9 @@ was up. The flicks are read
 afresh at every browse, so a flick Evolver delivered a minute ago is there, and
 their thumbnails are warmed at startup with the library's.
 
-### Loop recording (Kino mode)
+### Snippet recording (Kino mode)
 
-Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (yellow loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
+Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the snippet to funscript base positions and start repeating it (yellow icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/snippet state. Voice equivalents: "record", "loop", "cancel".
 
 ### Sound
 
@@ -445,7 +445,7 @@ F-mode is also one of the things a **reset** drops — see below.
 "Reset" means the same thing on every Funestra: put it back to its defaults, and it is a button on that Funestra's own HUD (next to F-mode in each satellite's control row and in the Main Funestra's HUD's transport row) as well as a spoken word. What the defaults cover differs by Funestra, because what each Funestra has does:
 
 - a satellite (`portrait_reset` / `landscape_reset` / `both reset`) passes the reset to the hosted Origenerator
-- the Main Funestra (`main_reset`, "main reset" / "reset main") puts back every button its one list is built from — F-mode off, 2D and VR both in, videos and full videos both in, the browse shuffled and dealt afresh — which leaves any compilation with it, and starts from the top of the new list; it also cancels any A/B loop, unlocks it and puts its playback speed back to 1×
+- the Main Funestra (`main_reset`, "main reset" / "reset main") puts back every button its one list is built from — F-mode off, 2D and VR both in, videos and full videos both in, the browse shuffled and dealt afresh — which leaves any compilation with it, and starts from the top of the new list; it also drops any snippet, unlocks it and puts its playback speed back to 1×
 
 **A reset does nothing to a Funestra that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. The Main Funestra's list is rebuilt only when one of those buttons was narrowing or ordering it or a compilation was playing, and the Main Funestra ignores being told to go somewhere it already is.
 

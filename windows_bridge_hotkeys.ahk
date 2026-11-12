@@ -162,10 +162,10 @@ e::QueueCommand("landscape_loop")
 ^k::QueueCommand("main_hud_up")
 ^SC033::QueueCommand("main_hud_down")
 
-; Save loop is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
+; Save snippet is the semicolon, bound by scancode because a bare ; opens a comment in AHK.
 SC027::QueueCommand("genaumacher_save")
 
-; The Main Funestra loop recording: hold R to mark, release to loop, press again to cancel.
+; The Main Funestra's snippet recording: hold R to mark, release to repeat it, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.
 global RecordHeld := false
 r:: {

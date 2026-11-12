@@ -654,6 +654,23 @@
       "code_word": "actions",
       "status": "ruled",
       "ruled": "2026-11-07, his words"
+    },
+    {
+      "id": "snippet",
+      "thing": "the stretch of a video a person records on the Main Funestra in Kino mode, which then repeats until dropped and which the save sends to Genaumacher",
+      "screen": [
+        "Record snippet",
+        "Stop recording — mark the snippet's out point",
+        "Repeating the snippet — press to drop it",
+        "Save snippet"
+      ],
+      "his_word": "snippet, never loop, which is the Satellites' (2026-11-12)",
+      "code_today": [
+        "snippet"
+      ],
+      "code_word": "snippet",
+      "status": "ruled",
+      "ruled": "his ruling of 2026-11-12, given while regrouping the Hotkeys & Voice Commands Reference"
     }
   ]
 }
