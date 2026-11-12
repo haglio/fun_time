@@ -16,6 +16,7 @@ from shared_ui.orientation import ORIENTATIONS
 from fun_time.win32_desktop import on_hidden_desktop
 
 from .clip_nav import ClipNav
+from .gallery_names import GalleryNames
 from .kino import Kino, KinoLibrary
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
@@ -70,6 +71,9 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--origenerator-command-file", type=Path, default=None,
                    help="Where Genau tells the Origenerator this session hosts of each "
                         "flick it sent to Trash; left off, the flick waits there alone")
+    p.add_argument("--gallery-names-file", type=Path, default=None,
+                   help="Where the hosted Origenerator publishes each video's name in its "
+                        "gallery, which Kino shows in place of the video's title")
     p.add_argument("--genau-command-file", type=Path, default=None,
                    help="Poll this file for Fun Time's verbs to Genau, which runs on "
                         "this window beside Kino; left off, Kino runs alone")
@@ -156,7 +160,8 @@ def kino_on(args, *, source: LibrarySource | None, memory: ModeMemory) -> Callab
         clip_nav=ClipNav.build(
             [entry.video for entry in source.entries] if source is not None else [],
             source.metadata_root if source is not None else None),
-        resolve_playlist=partial(resolve_playlist, args, source=source))
+        resolve_playlist=partial(resolve_playlist, args, source=source),
+        gallery_names=GalleryNames(args.gallery_names_file))
     return partial(
         Kino, library=library, messages=MessageWriter(args.notice_file), memory=memory,
         remembered=memory.read())

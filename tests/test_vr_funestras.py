@@ -52,6 +52,8 @@ from fun_time.dashboard_actions import (
 from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.event_log import MESSAGE, event_log_path
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.hosted_contract import CONTRACT_FILE as HOSTED_CONTRACT_FILE
+from fun_time.hosted_contract import gallery_names_file
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -394,6 +396,19 @@ def test_the_library_names_the_sessions_message_file_to_kino(tmp_path):
     library = funestras._TheLibrary(manifest, _A_SESSION, while_reading=lambda: None)
 
     assert library.args.notice_file == Path(manifest.commands.main_funestra_notice_file)
+
+
+def test_kino_in_the_headset_reads_the_gallery_names_where_the_desktops_kino_does(tmp_path):
+    checkout = tmp_path / "origenerator"
+    checkout.mkdir()
+    (checkout / HOSTED_CONTRACT_FILE).write_text(
+        json.dumps({"gallery_names_file": "state/gallery_names.json"}), encoding="utf-8")
+    manifest = _manifest_for_a_vr_session(tmp_path)
+    manifest = replace(manifest, runtime=replace(manifest.runtime, origenerator_dir=str(checkout)))
+
+    library = funestras._TheLibrary(manifest, _A_SESSION, while_reading=lambda: None)
+
+    assert library.args.gallery_names_file == gallery_names_file(checkout)
 
 
 def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_funestras_messages(

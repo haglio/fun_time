@@ -29,7 +29,7 @@ from .child_launch import no_child_log, open_child_log
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
-from .hosted_contract import the_args_it_declares
+from .hosted_contract import gallery_names_args, the_args_it_declares
 from .inclusion_pairs import BOTH, Included
 from .main_list import MainList, MainListSettings
 from .manifest import CommandFiles, LaunchManifest
@@ -475,6 +475,7 @@ def launch_main_funestra(
     if genau.orientations != BOTH:
         cmd += ["--genau-orientations", *orientation_words(genau.orientations)]
     cmd += ["--origenerator-command-file", str(commands.origenerator_cmd_file)]
+    cmd += gallery_names_args(m.runtime.origenerator_dir)
     if commands.main_funestra_notice_file:
         cmd += ["--notice-file", str(commands.main_funestra_notice_file)]
     if commands.osr2_slot_port:

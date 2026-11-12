@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from .bridge_records import BridgeConfig
 
 from app_support.file_channel import write_whole
+from app_support.siblings import primary_checkout_of
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,21 @@ def what_it_answers_by_voice(checkout: str | Path, *, python_exe: str | Path,
         logger.warning("The Origenerator at %s could not say what it answers by voice (%s), "
                        "so no phrase of its is heard said to a satellite", checkout, error)
         return NO_HOSTED_VOCABULARY
+
+
+def gallery_names_file(checkout: str | Path, *,
+                       primary_of: Callable[[Path], Path] | None = None) -> Path | None:
+    if not checkout:
+        return None
+    kept_at = (published_by(checkout) or {}).get("gallery_names_file")
+    if not kept_at:
+        return None
+    return (primary_of or primary_checkout_of)(Path(checkout)) / kept_at
+
+
+def gallery_names_args(checkout: str | Path) -> list[str]:
+    kept_at = gallery_names_file(checkout)
+    return ["--gallery-names-file", str(kept_at)] if kept_at is not None else []
 
 
 def published_by(checkout: str | Path) -> dict | None:

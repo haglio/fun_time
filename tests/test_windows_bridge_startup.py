@@ -30,6 +30,7 @@ from fun_time.funestra_deaths import (
     logs_as_they_stand,
     raise_if_a_funestra_died,
 )
+from fun_time.hosted_contract import CONTRACT_FILE as HOSTED_CONTRACT_FILE
 from fun_time.loopback_server import omnipause_url
 from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import mark_favorite
@@ -947,6 +948,25 @@ def test_genaus_files_are_named_by_the_session_never_found_by_genau(tmp_path: Pa
     assert command[command.index("--genau-command-file") + 1] == "a-state-dir/genau_cmd.txt"
     assert command[command.index("--genau-paused-file") + 1] == "a-state-dir/genau_paused.txt"
     assert command[command.index("--genau-status-file") + 1] == "a-state-dir/genau_status.txt"
+
+
+def test_kino_reads_the_gallery_names_where_the_hosted_origenerator_keeps_them(tmp_path: Path):
+    checkout = tmp_path / "origenerator"
+    checkout.mkdir()
+    (checkout / HOSTED_CONTRACT_FILE).write_text(
+        json.dumps({"gallery_names_file": "state/gallery_names.json"}), encoding="utf-8")
+
+    with patch("fun_time.hosted_contract.primary_checkout_of", lambda _checkout: tmp_path):
+        command = _launched_main_funestra(tmp_path, origenerator_dir=str(checkout))
+
+    args = main_funestra_parser({}).parse_args(command[command.index("-m") + 2:])
+    assert args.gallery_names_file == tmp_path / "state" / "gallery_names.json"
+
+
+def test_an_origenerator_that_keeps_no_gallery_names_hands_kino_none(tmp_path: Path):
+    command = _launched_main_funestra(tmp_path, origenerator_dir=str(tmp_path))
+
+    assert "--gallery-names-file" not in command
 
 
 def test_genau_is_handed_origenerators_commands(tmp_path: Path):

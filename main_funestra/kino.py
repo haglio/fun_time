@@ -10,6 +10,7 @@ from funestra.main_hud import ModeHud
 
 from .clip_jumps import ClipJumps
 from .controls import KinoControls, apply_command
+from .gallery_names import NO_GALLERY_NAMES, GalleryNames
 from .modes import Modes, reload_playlist
 from .snippet_machine import SnippetMachine
 from .status import status_fields
@@ -21,6 +22,7 @@ class KinoLibrary:
     source: Any
     clip_nav: Any
     resolve_playlist: Callable[[], list]
+    gallery_names: GalleryNames = NO_GALLERY_NAMES
 
 
 class Kino:
@@ -38,7 +40,7 @@ class Kino:
         self._modes = Modes(
             playback, self._jumps,
             Versions(playback, source.version_index if source is not None else None),
-            the_main_list=resolve_playlist)
+            the_main_list=resolve_playlist, gallery_name_of=library.gallery_names.of)
         self._controls = KinoControls(
             playback=playback, snippet=self._snippet, versions=self._modes.versions,
             modes=self._modes, jumps=self._jumps,
