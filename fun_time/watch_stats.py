@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 from app_support import video_ids
+from app_support.kino_folder import is_ai_video
 from funestra.video_groups import normalize_path_key
 
 _EVENT_FIELDS = {
@@ -77,6 +78,8 @@ def _is_a_path(key: str) -> bool:
 
 
 def _key_of(video_path: str) -> str:
+    if is_ai_video(video_path):
+        return normalize_path_key(video_path)
     record = video_ids.record_of(Path(video_path)) if Path(video_path).is_file() else None
     return video_ids.id_of(record) if record is not None else normalize_path_key(video_path)
 
