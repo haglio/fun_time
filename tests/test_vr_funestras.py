@@ -451,7 +451,8 @@ class TestGenauOnTheMainFunestra:
         vr = replace(_A_SESSION, flicks_folder=flicks_folder)
         stop = threading.Event()
         with patch.multiple("fun_time_vr.funestras", GenauInTheHeadset=DEFAULT,
-                            GenauNotifier=DEFAULT, Osr2Sender=DEFAULT, MessageWriter=DEFAULT) as fakes, \
+                            GenauNotifier=DEFAULT, Osr2Sender=DEFAULT, MessageWriter=DEFAULT,
+                            the_librarys_gallery=DEFAULT) as fakes, \
                 patch("fun_time_vr.funestras.read_genau_status",
                       return_value=SimpleNamespace(flick="")), \
                 patch("fun_time_vr.funestras.read_shared_state", return_value=resumed) as read_state:
@@ -477,6 +478,7 @@ class TestGenauOnTheMainFunestra:
             status=Path(commands.genau_status_file), drive=Path(commands.genau_drive_file))
         assert handed["seams"].stop_event is built.stop
         assert flicks.metadata_root == Path(built.manifest.regen.metadata_root)
+        assert flicks.gallery is built.fakes["the_librarys_gallery"].return_value
 
     def test_the_order_left_browsing_is_handed_in_with_the_flick_never_sent_after(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path, resumed=BridgeState(genau_latest=True))

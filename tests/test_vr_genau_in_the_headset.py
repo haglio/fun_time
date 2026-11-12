@@ -16,6 +16,7 @@ from funestra.messages import MessageWriter
 
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import no_other_flicks
+from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import UDP_READER_THREAD
 from fun_time.media_metadata import mark_favorite
@@ -27,6 +28,7 @@ from tests.genau_fakes import (
     FakeSink,
     every_thread_now_but_the_port_binding_udp_reader,
 )
+from tests.made_up_gallery import a_row
 
 
 def _frames(count: int = 8, width: int = 16, height: int = 8) -> list[np.ndarray]:
@@ -60,6 +62,7 @@ class WorldSetup:
     start_flick: Path | None = None
     latest: bool = False
     start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
+    starred: tuple = ()
 
 
 class World:
@@ -94,6 +97,7 @@ class World:
                 start_flick=setup.start_flick,
                 latest=setup.latest,
                 metadata_root=self.metadata_root,
+                gallery=Gallery([a_row(f"gen {name}", name, starred=1) for name in setup.starred]),
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
@@ -257,8 +261,8 @@ class TestWhatArrivesInItsFolders:
 
 class TestFMode:
     def test_it_keeps_the_favorites_of_the_shape_kept(self, tmp_path):
-        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4", "epsilon.mp4")))
-        mark_favorite(world.flat_dir / "epsilon.mp4", world.metadata_root, True)
+        world = World(tmp_path, WorldSetup(flat_flicks=("delta.mp4", "epsilon.mp4"),
+                                           starred=("epsilon.mp4",)))
         mark_favorite(world.vr_dir / "beta_180.mp4", world.metadata_root, True)
         world.send("SHAPES flat")
 

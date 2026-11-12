@@ -43,6 +43,7 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import MESSAGE, SOURCE_MAIN, event_log_path, flash_message
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
+from fun_time.gallery import the_librarys_gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.log_panel_model import ui_state_path
 from fun_time.manifest import LaunchManifest
@@ -616,6 +617,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             f_mode=resumed.genau_favorites_filter,
             orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
             metadata_root=manifest.regen.metadata_folder,
+            gallery=the_librarys_gallery(),
         ),
         settings=vr.genau,
         channels=GenauChannels(
