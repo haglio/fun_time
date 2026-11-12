@@ -45,8 +45,11 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.funestra_status import read_genau_status, read_main_funestra_status
 from fun_time.gallery import the_librarys_gallery
 from fun_time.genau_config import GenauSettings
+from fun_time.hosted_contract import (
+    gallery_names_args,
+    gallery_names_file,
+)
 from fun_time.log_panel_model import ui_state_path
-from fun_time.hosted_contract import gallery_names_args, published_actions_heard_as
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item, source_roots
 from fun_time.session_handoff import headset_hold_asked
@@ -55,6 +58,7 @@ from fun_time.unlogged_messages import UnloggedMessages
 from main_funestra.cli import build_parser as build_main_funestra_parser
 from main_funestra.cli import kino_on, library_source, load_config, mode_memory, resolve_playlist
 from main_funestra.contract import MainChannels
+from main_funestra.gallery_names import GalleryNames
 from main_funestra.genau import (
     ROBOT_HAND,
     EngineSeams,
@@ -620,6 +624,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
             metadata_root=manifest.regen.metadata_folder,
             gallery=the_librarys_gallery(),
+            gallery_names=GalleryNames(gallery_names_file(manifest.runtime.origenerator_dir)),
         ),
         settings=vr.genau,
         channels=GenauChannels(
