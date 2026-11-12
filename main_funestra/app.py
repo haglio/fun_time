@@ -15,6 +15,7 @@ from funestra.genau_notifier import GenauNotifier
 from funestra.messages import MessageWriter
 from funestra.modes import MainMode
 
+from fun_time.gallery import the_librarys_gallery
 from fun_time.genau_config import GenauSettings
 
 from .cli import (
@@ -67,6 +68,7 @@ def _genau(args):
             f_mode=args.genau_f_mode,
             orientations=orientations_from(args.genau_orientations),
             metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
+            gallery=the_librarys_gallery(),
         ),
         settings=GenauSettings.read(args.config),
         channels=channels,

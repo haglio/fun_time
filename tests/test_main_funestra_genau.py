@@ -17,6 +17,7 @@ from funestra.modes import MessageLevel
 from fun_time import genau_engine
 from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import Noun
+from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.inclusion_pairs import BOTH
 from fun_time.media_metadata import mark_favorite, metadata_path_for
@@ -33,6 +34,7 @@ from tests.genau_fakes import (
     FakeSink,
     every_thread_now_but_the_port_binding_udp_reader,
 )
+from tests.made_up_gallery import a_row
 
 
 class FakeMessages:
@@ -80,6 +82,8 @@ class WorldSetup:
     orientations: tuple = BOTH
     start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
     origenerator_commands: Path | None = None
+    kind: str = "non_AI"
+    starred: tuple = ()
 
 
 class World:
@@ -88,7 +92,7 @@ class World:
         flicks, favorites, turned = setup.flicks, setup.favorites, setup.turned
         self.metadata_root = tmp_path / "metadata" if setup.metadata_root is None else setup.metadata_root
         self.flicks_folder = tmp_path / "flicks"
-        self.flat_dir = self.flicks_folder / "2D" / "non_AI"
+        self.flat_dir = self.flicks_folder / "2D" / setup.kind
         self.flat_dir.mkdir(parents=True)
         for arrived, name in enumerate(flicks, start=1):
             flick = self.flat_dir / name
@@ -118,6 +122,7 @@ class World:
                 f_mode=setup.f_mode,
                 orientations=setup.orientations,
                 metadata_root=self.metadata_root,
+                gallery=Gallery([a_row(f"gen {name}", name, starred=1) for name in setup.starred]),
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
@@ -310,6 +315,15 @@ class TestWhatArrivesInItsFolder:
 
 
 class TestFMode:
+    def test_an_ai_flicks_favorite_is_its_star_in_the_gallery_never_its_record(self, tmp_path):
+        world = World(tmp_path, WorldSetup(kind="AI", starred=("beta two.mp4",),
+                                           favorites=("gamma three.mp4",)))
+
+        world.genau.apply_command(genau_f_mode(True))
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "beta two"
+
     def test_it_keeps_only_the_favorites(self, tmp_path):
         world = World(tmp_path)
         mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)

@@ -4,10 +4,11 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app_support.kino_folder import is_ai_video
 from app_support.threading_utils import start_daemon_thread
 from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
@@ -19,6 +20,7 @@ from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
 from fun_time.content import no_other_flicks
+from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import (
     EngineSeams,
@@ -49,6 +51,7 @@ class GenauFlicks:
     orientations: Included = BOTH
     metadata_root: Path | None = None
     narrow: Narrow | None = None
+    gallery: Gallery = field(default_factory=lambda: Gallery([]))
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,7 @@ class Genau:
         self._f_mode = flicks.f_mode
         self._orientations = flicks.orientations
         self._metadata_root = flicks.metadata_root
+        self._gallery = flicks.gallery
         self._notifier = notifier
         self._messages = outputs.messages
         self._frame = None
@@ -214,7 +218,12 @@ class Genau:
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
         if not self._f_mode or self._metadata_root is None:
             return flicks
-        return [flick for flick in flicks if is_favorite(flick, self._metadata_root)]
+        return [flick for flick in flicks if self._is_a_favorite(flick)]
+
+    def _is_a_favorite(self, flick: Path) -> bool:
+        if is_ai_video(flick):
+            return self._gallery.is_starred(flick)
+        return is_favorite(flick, self._metadata_root)
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent
