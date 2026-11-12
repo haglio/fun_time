@@ -7,7 +7,7 @@ from typing import Any
 from funestra.control_registry import Control, Verb, bind, look_up
 from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 
-from .loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
+from .snippet_verbs import RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_SNIPPET, SNIPPET_CANCEL
 
 __all__ = [
     "VERBS",
@@ -19,7 +19,7 @@ __all__ = [
 @dataclass
 class KinoControls:
     playback: Any
-    loops: Any
+    snippet: Any
     versions: Any
     modes: Any
     jumps: Any
@@ -34,32 +34,32 @@ def _playhead(controls: KinoControls) -> int:
 
 
 def _record_down(controls: KinoControls, _value: str) -> bool:
-    controls.loops.record_down(_playhead(controls))
+    controls.snippet.record_down(_playhead(controls))
     return True
 
 
 def _record_up(controls: KinoControls, _value: str) -> bool:
-    controls.loops.record_up(_playhead(controls))
+    controls.snippet.record_up(_playhead(controls))
     return True
 
 
 def _record_tap(controls: KinoControls, _value: str) -> bool:
-    controls.loops.record_tap(_playhead(controls))
+    controls.snippet.record_tap(_playhead(controls))
     return True
 
 
-def _loop_cancel(controls: KinoControls, _value: str) -> bool:
-    controls.loops.cancel()
+def _snippet_cancel(controls: KinoControls, _value: str) -> bool:
+    controls.snippet.cancel()
     return True
 
 
-def _set_loop(controls: KinoControls, value: str) -> bool:
+def _set_snippet(controls: KinoControls, value: str) -> bool:
     in_part, _, out_part = value.partition(" ")
     try:
         in_ms, out_ms = int(in_part), int(out_part)
     except ValueError:
         return False
-    controls.loops.restore(in_ms, out_ms)
+    controls.snippet.restore(in_ms, out_ms)
     return True
 
 
@@ -102,13 +102,13 @@ def _play_clip_jump(controls: KinoControls, _value: str) -> bool:
 
 CONTROLS: tuple[Control, ...] = (
     Control(
-        name="loop",
+        name="snippet",
         verbs=(
             Verb(RECORD_DOWN, _record_down),
             Verb(RECORD_UP, _record_up),
             Verb(RECORD_TAP, _record_tap),
-            Verb(LOOP_CANCEL, _loop_cancel),
-            Verb(SET_LOOP, _set_loop, takes_a_value=True),
+            Verb(SNIPPET_CANCEL, _snippet_cancel),
+            Verb(SET_SNIPPET, _set_snippet, takes_a_value=True),
         ),
     ),
     Control(

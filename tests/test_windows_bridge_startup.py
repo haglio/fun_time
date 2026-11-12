@@ -585,15 +585,15 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     assert kwargs["main_funestra_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp_path: Path):
+def test_start_core_session_puts_the_primary_back_in_the_snippet_it_was_running(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
-        main_loop_video=left_on["main_player"][1], main_loop_bounds_ms="2000 4000"))
+        main_snippet_video=left_on["main_player"][1], main_snippet_bounds_ms="2000 4000"))
 
     _run_start_core_session(kwargs)
 
-    assert "SET_LOOP 2000 4000" in kwargs["main_funestra_cmd_file"].read_text(
+    assert "SET_SNIPPET 2000 4000" in kwargs["main_funestra_cmd_file"].read_text(
         encoding="utf-8"
     ).splitlines()
 
@@ -643,15 +643,15 @@ def test_a_reopen_hands_genau_back_the_robot_hand_it_was_left_with(tmp_path: Pat
     assert queued[-2:] == ["SPEED 76", "LEARNED_ON"]
 
 
-def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path: Path):
+def test_start_core_session_drops_a_snippet_whose_video_did_not_come_back(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(shared_state_path(kwargs["state_dir"]), BridgeState(
-        main_loop_video=str(tmp_path / "deleted.mp4"), main_loop_bounds_ms="2000 4000"))
+        main_snippet_video=str(tmp_path / "deleted.mp4"), main_snippet_bounds_ms="2000 4000"))
 
     _run_start_core_session(kwargs)
 
-    assert "SET_LOOP" not in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8")
+    assert "SET_SNIPPET" not in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8")
 
 
 def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
@@ -805,7 +805,7 @@ def test_start_core_session_keeps_the_video_when_it_leaves_the_headset(
     assert "opens on the video it was left on" in caplog.text
 
 
-def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path: Path):
+def test_start_core_session_hands_the_main_snippet_back_across_a_crossing(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     left_on = _seed_resumable_session(kwargs)
@@ -818,7 +818,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     )
     (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
     write_shared_state(shared_state_path(state_dir), BridgeState(
-        main_loop_video=watching, main_loop_bounds_ms="1000 4000"))
+        main_snippet_video=watching, main_snippet_bounds_ms="1000 4000"))
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -828,7 +828,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
         _start_core_session(kwargs)
 
     queued = Path(kwargs["main_funestra_cmd_file"]).read_text(encoding="utf-8")
-    assert "SET_LOOP 1000 4000" in queued
+    assert "SET_SNIPPET 1000 4000" in queued
 
 
 def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):

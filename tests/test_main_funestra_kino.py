@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from funestra.funestra import User
-from funestra.modes import LoopState, MessageLevel
+from funestra.modes import MessageLevel
 from funestra.playback import Playback
 from funestra.playback_setup import PlaybackSetup
 from funestra.playlist import PlaylistItem
@@ -15,6 +15,7 @@ from main_funestra.clip_nav import ClipNav
 from main_funestra.kino import Kino, KinoLibrary
 from main_funestra.library import LibraryEntry
 from main_funestra.mode_memory import ModeMemory, RememberedMode
+from main_funestra.snippet_controller import SnippetState
 
 
 class FakeSource:
@@ -80,14 +81,14 @@ def test_kino_is_a_thing_a_funestra_runs(tmp_path):
 
 
 class TestItsVerbs:
-    def test_a_loop_gesture_marks_the_playback_where_the_playhead_is(self, tmp_path):
+    def test_a_snippet_gesture_marks_the_playback_where_the_playhead_is(self, tmp_path):
         world = World(tmp_path)
         world.engine.position_ms = 2_500.0
 
         assert world.kino.apply_command("RECORD_TAP") is True
 
         assert world.playback.mark == 2_500
-        assert world.kino.status_fields()["loop_state"] == str(LoopState.RECORDING)
+        assert world.kino.status_fields()["snippet_state"] == str(SnippetState.RECORDING)
 
     def test_a_second_tap_hands_the_playback_the_range_snapped_to_the_script(self, tmp_path):
         world = World(tmp_path)
@@ -100,8 +101,8 @@ class TestItsVerbs:
         assert world.playback.ab_loop == (2_000, 4_000)
         assert world.engine.ab_loop == (2_000, 4_000)
         fields = world.kino.status_fields()
-        assert (fields["loop_state"], fields["loop_in_ms"], fields["loop_out_ms"]) == (
-            str(LoopState.LOOPING), "2000", "4000")
+        assert (fields["snippet_state"], fields["snippet_in_ms"], fields["snippet_out_ms"]) == (
+            str(SnippetState.REPEATING), "2000", "4000")
 
     def test_a_funestras_own_verb_is_refused_so_the_funestra_answers_it(self, tmp_path):
         world = World(tmp_path)
@@ -156,7 +157,7 @@ class TestItsPassEachFrame:
 
         assert ModeMemory(tmp_path / "main_player_mode.txt").read().compilation == "Vol6"
 
-    def test_a_mark_that_reaches_the_end_of_the_item_closes_into_a_running_loop(self, tmp_path):
+    def test_a_mark_that_reaches_the_end_of_the_item_closes_into_a_running_snippet(self, tmp_path):
         world = World(tmp_path, scripted=False)
         world.engine.position_ms = 59_000.0
         world.kino.apply_command("RECORD_DOWN")
@@ -179,23 +180,23 @@ class TestItsPassEachFrame:
         assert world.playback.ab_loop is None
         assert world.playback.mark == 59_000
 
-    def test_an_item_opened_on_the_playback_starts_with_no_loop(self, tmp_path):
+    def test_an_item_opened_on_the_playback_starts_with_no_snippet(self, tmp_path):
         world = World(tmp_path)
-        world.kino.apply_command("SET_LOOP 2000 4000")
+        world.kino.apply_command("SET_SNIPPET 2000 4000")
 
         world.playback.step(1)
         world.kino.tick()
 
-        assert world.kino.status_fields()["loop_state"] == str(LoopState.NORMAL)
+        assert world.kino.status_fields()["snippet_state"] == str(SnippetState.NORMAL)
         assert world.playback.ab_loop is None
 
-    def test_the_same_item_opened_again_starts_with_no_loop_too(self, tmp_path):
+    def test_the_same_item_opened_again_starts_with_no_snippet_too(self, tmp_path):
         world = World(tmp_path)
-        world.kino.apply_command("SET_LOOP 2000 4000")
+        world.kino.apply_command("SET_SNIPPET 2000 4000")
 
         world.playback.play_file(world.first)
 
-        assert world.kino.status_fields()["loop_state"] == str(LoopState.NORMAL)
+        assert world.kino.status_fields()["snippet_state"] == str(SnippetState.NORMAL)
 
 
 class TestWhatItSays:

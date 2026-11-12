@@ -1536,7 +1536,7 @@ def test_main_funestra_record_commands_write_main_funestra_cmd_in_main_funestra_
         ("main_funestra_record_down", "RECORD_DOWN"),
         ("main_funestra_record_up", "RECORD_UP"),
         ("main_funestra_record_tap", "RECORD_TAP"),
-        ("main_funestra_loop_cancel", "LOOP_CANCEL"),
+        ("main_funestra_snippet_cancel", "SNIPPET_CANCEL"),
     ]:
         _new_state, ops = dispatch_command(command, state, config)
         assert config.main_funestra_cmd_file.read_text(encoding="utf-8") == expected + "\n"
@@ -1956,14 +1956,14 @@ def test_main_reset_puts_back_the_defaults_the_main_funestra_holds_itself(tmp_pa
     dispatch_command("main_reset", _make_state(), config)
 
     assert config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines() == [
-        "LOOP_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
+        "SNIPPET_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
 
 
 def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp_path):
     config = _make_config(tmp_path)
     config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
     config.main_funestra_status_file.write_text(
-        "video=C:/v/scene one.mp4\nlocked=0\nloop_state=normal\nspeed=1.0\n"
+        "video=C:/v/scene one.mp4\nlocked=0\nsnippet_state=normal\nspeed=1.0\n"
         "length_mode=mixed\ncompilation=\n",
         encoding="utf-8",
     )

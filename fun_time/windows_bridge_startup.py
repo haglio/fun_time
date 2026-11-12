@@ -45,7 +45,7 @@ from .satellite_launch import SatelliteLaunch, for_funestra
 from .session_resume import (
     empty_the_satellites_lists,
     open_the_main_list,
-    resume_main_loop,
+    resume_main_snippet,
     resume_shared_state,
     resume_what_lives_in_a_funestra,
 )
@@ -270,7 +270,7 @@ def carry_the_last_session_in(
     seed_startup_states(m, carried)
     start_the_satellites_playing_whatever_a_pause_left_behind(
         *(s.channels.paused for s in satellites))
-    resume_main_loop(Path(commands.main_funestra_cmd_file), carried, main_list.file)
+    resume_main_snippet(Path(commands.main_funestra_cmd_file), carried, main_list.file)
     resume_what_lives_in_a_funestra(
         carried, main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
         satellite_cmd_files={s.funestra: Path(s.channels.command) for s in satellites},

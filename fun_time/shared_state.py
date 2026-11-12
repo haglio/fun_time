@@ -69,8 +69,8 @@ class BridgeState:
     max_intensity: int = FULL_INTENSITY
     main_speed: float = 1.0
     main_locked: bool = True
-    main_loop_video: str = ""
-    main_loop_bounds_ms: str = ""
+    main_snippet_video: str = ""
+    main_snippet_bounds_ms: str = ""
     genau_speed: int = RobotHandState().speed
     genau_amplitude: int = RobotHandState().amplitude
     genau_center: int = RobotHandState().center
@@ -118,9 +118,9 @@ def _written(value: bool | int | float | str) -> str:
     return str(value)
 
 
-def main_loop_bounds(state: BridgeState) -> tuple[int, int]:
+def main_snippet_bounds(state: BridgeState) -> tuple[int, int]:
     try:
-        in_ms, out_ms = state.main_loop_bounds_ms.split()
+        in_ms, out_ms = state.main_snippet_bounds_ms.split()
         return int(in_ms), int(out_ms)
     except ValueError:
         return 0, 0

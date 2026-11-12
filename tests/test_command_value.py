@@ -232,7 +232,7 @@ class TestResolveActiveSideCommand:
         assert parse_command("active_reset").aimed_at_the_active(3).text == "landscape_reset"
 
     def test_end_loop_on_the_primary_means_main_funestras_own_loop(self):
-        assert parse_command("active_no_loop").aimed_at_the_active(1).text == "main_funestra_loop_cancel"
+        assert parse_command("active_no_loop").aimed_at_the_active(1).text == "main_funestra_snippet_cancel"
         assert parse_command("active_no_loop").aimed_at_the_active(2).text == "portrait_no_loop"
         assert parse_command("active_no_loop").aimed_at_the_active(3).text == "landscape_no_loop"
 

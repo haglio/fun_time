@@ -372,7 +372,7 @@ class TestVoiceCommands:
     def test_the_main_funestras_loop_is_ended_by_naming_it_as_a_satellites_is(self):
         for words in ("end loop", "no loop", "loop off"):
             assert VOICE_COMMANDS[f"main {words}"] == VOICE_COMMANDS[f"{words} main"] == (
-                "main_funestra_loop_cancel")
+                "main_funestra_snippet_cancel")
 
     def test_the_lengths_are_said_like_the_shapes_as_what_is_included(self):
         assert VOICE_COMMANDS["clips only"] == "main_funestra_length_clips"

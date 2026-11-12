@@ -65,7 +65,7 @@ def _publish_main_funestra(path: Path, video, *, position_ms: int, duration_ms: 
                  paused: bool = False) -> None:
     path.write_text(
         f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
-        f"loop_state=normal\npaused={'1' if paused else '0'}\n",
+        f"snippet_state=normal\npaused={'1' if paused else '0'}\n",
         encoding="utf-8",
     )
 

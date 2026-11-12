@@ -543,7 +543,7 @@ Commands (the full set `main_funestra/controls.py` answers to). The verbs every 
 - `SPEED_UP` / `SPEED_DOWN` / `SET_SPEED min|max|<rate>`
 - `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; the Main Funestra derives the audible loudness (see "Sound")
 - `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
-- `LOOP_CANCEL`
+- `SNIPPET_CANCEL`
 - `CYCLE_VERSION` / `CYCLE_VERSION_BACK`
 - `PLAY_FILE video[TAB]funscript`
 - `RELOAD_PLAYLIST`

@@ -4,7 +4,13 @@ import pytest
 from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
 
 from main_funestra.controls import VERBS, KinoControls, apply_command
-from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_LOOP
+from main_funestra.snippet_verbs import (
+    RECORD_DOWN,
+    RECORD_TAP,
+    RECORD_UP,
+    SET_SNIPPET,
+    SNIPPET_CANCEL,
+)
 
 
 class Spy:
@@ -22,7 +28,7 @@ class SpyPlayback:
 
 
 def _controls(**over) -> tuple[KinoControls, dict[str, Spy]]:
-    spies = {name: Spy() for name in ("loops", "versions", "modes", "jumps")}
+    spies = {name: Spy() for name in ("snippet", "versions", "modes", "jumps")}
     reloaded: list[int] = []
     controls = KinoControls(
         playback=SpyPlayback(), reload_playlist=lambda: reloaded.append(1), **spies, **over)
@@ -30,37 +36,37 @@ def _controls(**over) -> tuple[KinoControls, dict[str, Spy]]:
     return controls, spies
 
 
-class TestTheLoopGestures:
+class TestTheSnippetGestures:
     def test_each_gesture_is_marked_where_the_playhead_is(self):
         controls, spies = _controls()
 
         for verb in (RECORD_DOWN, RECORD_UP, RECORD_TAP):
             assert apply_command(verb, controls) is True
 
-        assert spies["loops"].calls == [
+        assert spies["snippet"].calls == [
             ("record_down", 2500), ("record_up", 2500), ("record_tap", 2500)]
 
-    def test_cancelling_reaches_the_loop(self):
+    def test_cancelling_reaches_the_snippet(self):
         controls, spies = _controls()
 
-        assert apply_command(LOOP_CANCEL, controls) is True
+        assert apply_command(SNIPPET_CANCEL, controls) is True
 
-        assert spies["loops"].calls == [("cancel",)]
+        assert spies["snippet"].calls == [("cancel",)]
 
-    def test_set_loop_puts_a_range_back_without_replaying_the_gesture(self):
+    def test_set_snippet_puts_a_range_back_without_replaying_the_gesture(self):
         controls, spies = _controls()
 
-        assert apply_command(f"{SET_LOOP} 2000 4000", controls) is True
+        assert apply_command(f"{SET_SNIPPET} 2000 4000", controls) is True
 
-        assert spies["loops"].calls == [("restore", 2000, 4000)]
+        assert spies["snippet"].calls == [("restore", 2000, 4000)]
 
     @pytest.mark.parametrize("value", ["", "2000", "2000 later"])
-    def test_a_range_it_cannot_read_leaves_the_loop_alone(self, value):
+    def test_a_range_it_cannot_read_leaves_the_snippet_alone(self, value):
         controls, spies = _controls()
 
-        assert apply_command(f"{SET_LOOP} {value}".strip(), controls) is False
+        assert apply_command(f"{SET_SNIPPET} {value}".strip(), controls) is False
 
-        assert spies["loops"].calls == []
+        assert spies["snippet"].calls == []
 
 
 class TestTheVersions:
@@ -118,7 +124,7 @@ class TestTheLibrary:
 
 
 ACCEPTED_COMMANDS = [
-    "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
+    "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "SNIPPET_CANCEL", "SET_SNIPPET 1000 2000",
     "CYCLE_VERSION", "CYCLE_VERSION_BACK",
     "RELOAD_PLAYLIST", "END_COMPILATION",
     "SET_F_MODE 1",
@@ -139,7 +145,7 @@ class TestTheVerbsFunTimeCanSend:
 
         assert apply_command(command, controls) is False
 
-    @pytest.mark.parametrize("command", ["SET_LOOP", "SET_F_MODE"])
+    @pytest.mark.parametrize("command", ["SET_SNIPPET", "SET_F_MODE"])
     def test_a_verb_that_wants_a_value_is_refused_without_one(self, command):
         controls, _spies = _controls()
 

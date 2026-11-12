@@ -718,7 +718,7 @@ def test_loop_control_row_consolidates_record_and_cancel():
     assert "R" in _keys(row)
     assert "record" in row.voice
     assert "loop" in row.voice
-    assert "main_funestra_loop_cancel" in row.commands
+    assert "main_funestra_snippet_cancel" in row.commands
 
 
 def test_previous_shape_is_a_separate_keyless_line():

@@ -10,8 +10,8 @@ from funestra.main_hud import ModeHud
 
 from .clip_jumps import ClipJumps
 from .controls import KinoControls, apply_command
-from .loop_machine import LoopMachine
 from .modes import Modes, reload_playlist
+from .snippet_machine import SnippetMachine
 from .status import status_fields
 from .versions import Versions
 
@@ -28,7 +28,7 @@ class Kino:
         source, resolve_playlist = library.source, library.resolve_playlist
         self._playback = playback
         self._memory = memory
-        self._loops = LoopMachine(
+        self._snippet = SnippetMachine(
             playback, seek_to=playback.seek_to,
             take_the_device_over=playback.take_the_device_over, floor_seeks_at=playback.set_mark)
         entries = source.entries if source is not None else []
@@ -40,7 +40,7 @@ class Kino:
             Versions(playback, source.version_index if source is not None else None),
             the_main_list=resolve_playlist)
         self._controls = KinoControls(
-            playback=playback, loops=self._loops, versions=self._modes.versions,
+            playback=playback, snippet=self._snippet, versions=self._modes.versions,
             modes=self._modes, jumps=self._jumps,
             reload_playlist=partial(reload_playlist, playback, self._jumps, resolve_playlist),
         )
@@ -54,12 +54,12 @@ class Kino:
     def tick(self) -> None:
         self._follow_the_item()
         if not self._playback.is_paused:
-            self._loops.observe(self._playback.position_ms)
+            self._snippet.observe(self._playback.position_ms)
         self._memory.sync(self._modes.remembered)
 
     def status_fields(self) -> dict[str, str]:
         self._follow_the_item()
-        return status_fields(self._loops, self._modes.library_status)
+        return status_fields(self._snippet, self._modes.library_status)
 
     def top_block(self) -> ModeHud:
         self._follow_the_item()
@@ -77,4 +77,4 @@ class Kino:
     def _follow_the_item(self) -> None:
         if self._playback.loads != self._loads_seen:
             self._loads_seen = self._playback.loads
-            self._loops.open(self._playback.current_funscript)
+            self._snippet.open(self._playback.current_funscript)

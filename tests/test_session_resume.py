@@ -23,7 +23,7 @@ from fun_time.session_resume import (
     playlist_opens_on,
     resume_genau,
     resume_main_lock,
-    resume_main_loop,
+    resume_main_snippet,
     resume_rates,
     resume_shared_state,
     resume_what_lives_in_a_funestra,
@@ -230,30 +230,30 @@ class TestResumeSharedState:
         assert state_file.exists()
 
 
-class TestResumeMainLoop:
+class TestResumeMainSnippet:
     def _playlist(self, tmp_path: Path, *videos: str) -> Path:
         playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, list(_videos(tmp_path, *videos)))
         return playlist
 
-    def _looping(self, tmp_path: Path, video: str) -> BridgeState:
-        return BridgeState(main_loop_video=str(tmp_path / video), main_loop_bounds_ms="2000 4000")
+    def _with_a_snippet(self, tmp_path: Path, video: str) -> BridgeState:
+        return BridgeState(main_snippet_video=str(tmp_path / video), main_snippet_bounds_ms="2000 4000")
 
-    def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
+    def test_queues_the_range_the_primary_was_repeating(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4", "b.mp4")
 
-        resume_main_loop(main_funestra_cmd, self._looping(tmp_path, "a.mp4"), playlist)
+        resume_main_snippet(main_funestra_cmd, self._with_a_snippet(tmp_path, "a.mp4"), playlist)
 
-        assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
+        assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == ["SET_SNIPPET 2000 4000"]
 
     def test_a_main_funestra_left_playing_through_as_one_opens_is_sent_nothing(self, tmp_path: Path):
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "a.mp4")
         on_the_video_that_leads_with_no_loop = replace(
-            self._looping(tmp_path, "a.mp4"), main_loop_bounds_ms="")
+            self._with_a_snippet(tmp_path, "a.mp4"), main_snippet_bounds_ms="")
 
-        resume_main_loop(main_funestra_cmd, on_the_video_that_leads_with_no_loop, playlist)
+        resume_main_snippet(main_funestra_cmd, on_the_video_that_leads_with_no_loop, playlist)
 
         assert not main_funestra_cmd.exists()
 
@@ -261,7 +261,7 @@ class TestResumeMainLoop:
         main_funestra_cmd = tmp_path / "main_player_cmd.txt"
         playlist = self._playlist(tmp_path, "b.mp4")
 
-        resume_main_loop(main_funestra_cmd, self._looping(tmp_path, "a.mp4"), playlist)
+        resume_main_snippet(main_funestra_cmd, self._with_a_snippet(tmp_path, "a.mp4"), playlist)
 
         assert not main_funestra_cmd.exists()
 
@@ -270,10 +270,10 @@ class TestResumeMainLoop:
         main_funestra_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
         playlist = self._playlist(tmp_path, "a.mp4")
 
-        resume_main_loop(main_funestra_cmd, self._looping(tmp_path, "a.mp4"), playlist)
+        resume_main_snippet(main_funestra_cmd, self._with_a_snippet(tmp_path, "a.mp4"), playlist)
 
         assert main_funestra_cmd.read_text(encoding="utf-8").splitlines() == [
-            "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
+            "SET_VOLUME 40 0", "SET_SNIPPET 2000 4000",
         ]
 
 class TestResumeRates:
@@ -488,7 +488,7 @@ class TestOpeningTheMainList:
 
         assert sorted(desktop.file.read_text(encoding="utf-8").splitlines()) == sorted(flat)
 
-    def test_it_opens_on_the_video_it_was_left_on_so_its_loop_can_come_back(self, tmp_path: Path):
+    def test_it_opens_on_the_video_it_was_left_on_so_its_snippet_can_come_back(self, tmp_path: Path):
         the_list, vr, _flat = self._library(tmp_path)
 
         open_the_main_list(the_list, BridgeState(),

@@ -4,10 +4,11 @@ from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.hud_button import Button
 from funestra.main_hud import MainHudModel, main_hud_text, parse_main_hud, read_main_hud
 from funestra.main_hud_painter import MainHud, MainHudPainter, hud_xy
-from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
+from funestra.modes import LengthMode, MainMode, Osr2State
 
 from fun_time.funestra_status import GenauStatus, MainFunestraStatus
 from fun_time.main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
+from main_funestra.snippet_controller import SnippetState
 
 
 def _payload(**overrides) -> MainHudModel:
@@ -76,7 +77,7 @@ class TestPayload:
         assert _payload(main_mode=MainMode.GENAU, main_funestra=driving).osr2 == Osr2State.ROBOT_HAND
 
     def test_the_record_button_says_which_press_comes_next(self):
-        recording = _button(_payload(main_funestra=MainFunestraStatus(loop_state=LoopState.RECORDING)),
+        recording = _button(_payload(main_funestra=MainFunestraStatus(snippet_state=SnippetState.RECORDING)),
                             "main_funestra_record_tap")
         resting = _button(_payload(), "main_funestra_record_tap")
 
