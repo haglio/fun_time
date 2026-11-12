@@ -37,7 +37,7 @@ def made_up_gallery(root: Path, *rows: dict) -> Path:
 def a_row(prompt_id: str, name: str, *, params: dict | None = None, **columns) -> dict:
     return {"prompt_id": prompt_id,
             "output_files": json.dumps([{"filename": name, "subfolder": "video"}]),
-            "params_json": json.dumps(params or {}), **columns}
+            "params_json": json.dumps(params or {}), "source": "outside", **columns}
 
 
 def a_video_from_a_start_image(name: str, frame: str, *, video: dict, image: dict,
