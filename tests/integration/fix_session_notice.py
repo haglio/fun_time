@@ -4,8 +4,8 @@ import sys
 from collections.abc import Sequence
 
 from app_support.claude_sessions import claude_command, open_in_claude_desktop
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from shared_ui.preview_icon import app_icon
 
 from fun_time.project_paths import PROJECT_ICON

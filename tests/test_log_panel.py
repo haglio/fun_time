@@ -6,10 +6,10 @@ from itertools import pairwise
 from pathlib import Path
 
 import pytest
-from PyQt6 import sip
-from PyQt6.QtCore import QEvent, QPointF, QSize, Qt
-from PyQt6.QtGui import QColor, QFontMetrics, QMouseEvent
-from PyQt6.QtWidgets import QApplication, QToolButton
+import shiboken6
+from PySide6.QtCore import QEvent, QPointF, QSize, Qt
+from PySide6.QtGui import QColor, QFontMetrics, QMouseEvent
+from PySide6.QtWidgets import QApplication, QToolButton
 from shared_ui import colors
 from shared_ui.colors import TEXT_PRIMARY, hovered
 from shared_ui.fonts import SIZE_TINY
@@ -169,7 +169,7 @@ def panel_factory(tmp_path: Path):
     yield factory
 
     for panel in built:
-        if not sip.isdeleted(panel):
+        if shiboken6.isValid(panel):
             panel.shutdown()
             panel.close()
     QApplication.clipboard().setText(what_a_developer_watching_on_a_real_display_had_copied)
@@ -243,9 +243,9 @@ class TestHoverCopyButton:
         timer = panel._flash_timer
         assert timer.isActive()
 
-        sip.delete(panel)
+        shiboken6.delete(panel)
 
-        assert sip.isdeleted(timer)
+        assert not shiboken6.isValid(timer)
 
     def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
         panel = panel_factory(["Clip state"])

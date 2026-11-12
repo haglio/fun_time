@@ -4,8 +4,8 @@ from pathlib import Path
 
 from funestra.main_hud_painter import MainHud
 from funestra.osr2_controls_host import Osr2ControlsHost
-from PyQt6.QtCore import QTimer, pyqtSignal
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtWidgets import QWidget
 from shared_ui.pressable_drawing import PressableDrawing
 
 from fun_time.dashboard_osr2_model import Osr2PartReader, room_for_a_whole_part
@@ -15,7 +15,7 @@ NOTHING_DRAWN = (bytes(4), (1, 1))
 
 
 class Osr2PartWidget(PressableDrawing):
-    action_triggered = pyqtSignal(str)
+    action_triggered = Signal(str)
 
     def __init__(self, state_dir: Path, parent: QWidget | None = None) -> None:
         panel = Osr2ControlsHost(post=self._post)

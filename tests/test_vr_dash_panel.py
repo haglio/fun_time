@@ -749,7 +749,7 @@ class TestTheOsr2Part:
 def test_it_is_painted_without_loading_qt():
     code = (
         "import fun_time_vr.dash_panel, sys; "
-        "loaded = [m for m in sys.modules if m.split('.')[0] == 'PyQt6']; "
+        "loaded = [m for m in sys.modules if m.split('.')[0] == 'PySide6']; "
         "assert not loaded, loaded"
     )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,

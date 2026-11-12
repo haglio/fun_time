@@ -14,10 +14,10 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 from app_support import file_channel
-from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
-from PyQt6.QtGui import QColor, QMouseEvent
-from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QMessageBox, QTextBrowser, QWidget
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from PySide6.QtGui import QColor, QMouseEvent
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QMessageBox, QTextBrowser, QWidget
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -32,7 +32,7 @@ from shared_ui.icons import icon_pixmap
 from shared_ui.palette import LOADING_ACCENT, PREVIEW_INK, as_hex
 from shared_ui.preview import Preview
 from shared_ui.spacing import BUTTON_ICON_INSET, BUTTON_RADIUS_HUD, MARGIN_STANDARD
-from shared_ui.testing import icons_lacking
+from shared_ui.testing import appending_to, icons_lacking
 from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
@@ -1120,7 +1120,7 @@ def test_dashboard_widget_emits_action_on_click():
 
     widget = DashboardWidget(scene)
     received: list[str] = []
-    widget.action_triggered.connect(received.append)
+    widget.action_triggered.connect(appending_to(received))
 
     quit_rect = None
     for action_id, rect in scene.actions:
@@ -1144,7 +1144,7 @@ def test_dashboard_widget_ignores_click_outside_actions():
 
     widget = DashboardWidget(scene)
     received: list[str] = []
-    widget.action_triggered.connect(received.append)
+    widget.action_triggered.connect(appending_to(received))
 
     event = MagicMock()
     event.position.return_value = QPoint(0, 0).toPointF()
@@ -1705,7 +1705,7 @@ def test_the_inbox_and_the_reveal_leave_telling_the_gui_thread_to_the_window():
     def loads_qt(module: str) -> bool:
         result = subprocess.run(
             [sys.executable, "-c",
-             f"import sys, {module}; print(any(m.startswith('PyQt6') for m in sys.modules))"],
+             f"import sys, {module}; print(any(m.startswith('PySide6') for m in sys.modules))"],
             capture_output=True, text=True,
             cwd=str(Path(__file__).resolve().parent.parent),
             env=environment_with_this_checkouts_siblings(),

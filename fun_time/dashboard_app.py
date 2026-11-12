@@ -14,8 +14,8 @@ from pathlib import Path
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 from funestra.file_channel import append_command
-from PyQt6.QtCore import QEvent, QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import (
+from PySide6.QtCore import QEvent, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
@@ -23,7 +23,7 @@ from PyQt6.QtGui import (
     QPen,
     QPixmap,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QToolTip,
@@ -303,7 +303,7 @@ def _pointer_at(event: object) -> tuple[int, int]:
 
 
 class DashboardWidget(QWidget):
-    action_triggered = pyqtSignal(str)
+    action_triggered = Signal(str)
 
     def __init__(self, scene: DashboardScene, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
         super().__init__(parent)
@@ -366,7 +366,7 @@ class DashboardWidget(QWidget):
 
 
 class RfbModeSelectorWidget(PressableDrawing):
-    action_triggered = pyqtSignal(str)
+    action_triggered = Signal(str)
 
     def __init__(self, parent: QWidget | None = None, *, tooltip=QToolTip) -> None:
         self.buttons = RfbModeSelector(x=PAD, y=PAD, post=self._post)
@@ -455,8 +455,6 @@ class ReferencePopup:
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
-    # PyQt6 aborts the window on an exception left unhandled in a click slot, so this drops rather
-    # than raises.
     append_command(path, action_id)
 
 
@@ -476,7 +474,7 @@ def apply_dashboard_window_geometry(
 
 
 class DashboardWindow(QMainWindow):
-    _press_received = pyqtSignal()
+    _press_received = Signal()
 
     def __init__(
         self,

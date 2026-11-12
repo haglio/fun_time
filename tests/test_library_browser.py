@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from PIL import Image
-from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
-from PyQt6.QtGui import QIcon, QKeyEvent, QMouseEvent
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
+from PySide6.QtGui import QIcon, QKeyEvent, QMouseEvent
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QListWidget,
@@ -1214,7 +1214,7 @@ def test_a_browse_with_no_window_frame_closes_from_its_header(browser, tmp_path:
     point = QPointF(button.rect().center())
     for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
         QApplication.sendEvent(button, QMouseEvent(
-            kind, point, Qt.MouseButton.LeftButton,
+            kind, point, button.mapToGlobal(point), Qt.MouseButton.LeftButton,
             Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
         ))
 
