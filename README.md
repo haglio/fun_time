@@ -374,7 +374,7 @@ their thumbnails are warmed at startup with the library's.
 
 ### Snippet recording (Kino mode)
 
-Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the snippet to funscript base positions and start repeating it (yellow icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/snippet state. Voice equivalents: "record", "loop", "cancel".
+Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the snippet to funscript base positions and start repeating it (yellow icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the Main Funestra's play/pause/record/snippet state. Voice equivalents: "record", "snippet", and "end snippet", "no snippet" or "snippet off" to drop it. Saving (`;`, "save snippet") sends Genaumacher the snippet when one is repeating, and otherwise the five seconds from where the video is.
 
 ### Sound
 

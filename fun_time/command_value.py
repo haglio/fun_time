@@ -52,7 +52,6 @@ MAIN_EQUIVALENTS = MappingProxyType({
     "nudge_prev": "main_nudge_prev",
     "funscript_jump": "main_funestra_funscript_jump",
     "next_funscripted": "main_funestra_next_funscripted",
-    "no_loop": "main_funestra_snippet_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
     "fmode": "main_fmode",
