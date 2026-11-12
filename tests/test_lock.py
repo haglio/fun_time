@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
@@ -14,7 +13,9 @@ from fun_time.media_actions import make_web_url_from_path
 from fun_time.media_metadata import metadata_path_for, recorded_for
 from fun_time.rfb_modes import RfbMode
 from fun_time.shared_state import BridgeState
-from fun_time.watch_stats import watch_stats_path
+from fun_time.watch_stats import load_watch_stats, watch_stats_path
+from tests.made_up_gallery import a_row, made_up_origenerator
+from tests.made_up_genau import kino_upscales_at
 from tests.test_windows_bridge_dispatch_loop import make_config
 
 
@@ -75,6 +76,30 @@ def test_a_hosted_lock_on_a_recorded_video_no_site_made_is_starred_and_shown_in_
     assert _asked_of_the_hosted_app(config) == [go_to_line(str(video))]
 
 
+def test_a_hosted_lock_on_an_ai_video_leaves_its_record_to_origenerator_and_counts_the_lock(
+        tmp_path, monkeypatch):
+    config = _hosting(tmp_path)
+    video = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "made here" / "scene one.mp4"
+    record = metadata_path_for(video, config.regen_metadata_root)
+    record.parent.mkdir(parents=True)
+    record.write_text("{}", encoding="utf-8")
+
+    a_hosted_lock_holds(str(video), BridgeState(origenerator_core_ready=True), config)
+
+    assert record.read_text(encoding="utf-8") == "{}"
+    assert [counts["locks"] for counts in load_watch_stats(watch_stats_path(config.state_dir)).values()] == [1]
+    assert _asked_of_the_hosted_app(config) == [go_to_line(str(video))]
+
+
+def test_a_hosted_lock_on_an_ai_video_with_no_record_makes_none(tmp_path, monkeypatch):
+    config = _hosting(tmp_path)
+    video = kino_upscales_at(monkeypatch, tmp_path) / "portrait" / "made here" / "scene one.mp4"
+
+    a_hosted_lock_holds(str(video), BridgeState(origenerator_core_ready=True), config)
+
+    assert not config.regen_metadata_root.exists()
+
+
 def test_a_hosted_lock_on_a_sites_video_with_no_record_still_opens_the_sites_page(tmp_path):
     config = _hosting(tmp_path)
     video = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
@@ -131,20 +156,30 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path):
     assert len(list((config.state_dir / "rfb_tabs").glob("*.html"))) == 1
 
 
-def test_a_lock_on_a_video_regen_made_opens_regens_page_for_it(tmp_path):
-    media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
-    metadata_root = tmp_path / "videos" / "metadata"
-    rel = Path("upscales") / "landscape" / "provider"
-    video = media_root / rel / "vid_topaz.mp4"
-    meta_file = metadata_root / "2D" / "AI" / rel / "vid_topaz.json"
-    meta_file.parent.mkdir(parents=True)
-    meta_file.write_text(json.dumps({"video": {"prompt": "hi", "model": "Realism"}}),
-                         encoding="utf-8")
-    config = make_config(tmp_path, regen_media_root=media_root, regen_metadata_root=metadata_root)
+def _an_ai_video(tmp_path) -> Path:
+    return tmp_path / "videos" / "videos" / "kino" / "2D" / "AI" / "landscape" / "provider"         / "vid_00001__topaz.mp4"
+
+
+def test_a_lock_on_an_ai_video_regen_made_opens_regens_page_for_it(tmp_path):
+    origenerator = made_up_origenerator(tmp_path, a_row("gen-1", "vid_00001_.mp4",
+                                                       positive_prompt="hi", seed=7))
+    config = make_config(tmp_path, librarys_origenerator=origenerator)
     providers = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
-    with patch("fun_time.lock.mark_favorite"), \
-         patch("fun_time.lock.load_web_providers", return_value=providers):
-        _state, [opened] = a_lock_holds(str(video), BridgeState(), config)
+    with patch("fun_time.lock.star_in_the_gallery"),          patch("fun_time.lock.load_web_providers", return_value=providers):
+        _state, [opened] = a_lock_holds(str(_an_ai_video(tmp_path)), BridgeState(), config)
 
     assert '"https://example.com/video#ft=' in _page_of(opened.key)
+
+
+def test_a_lock_on_an_ai_video_stars_it_in_the_gallery_and_writes_it_no_record(tmp_path):
+    config = make_config(tmp_path, regen_metadata_root=tmp_path / "metadata",
+                         librarys_origenerator=tmp_path / "made up origenerator")
+    video = str(_an_ai_video(tmp_path))
+
+    with patch("fun_time.lock.star_in_the_gallery") as star:
+        a_lock_holds(video, BridgeState(), config)
+
+    assert star.call_args_list == [call(video, tmp_path / "made up origenerator")]
+    assert not config.regen_metadata_root.exists()
+    assert [counts["locks"] for counts in load_watch_stats(watch_stats_path(config.state_dir)).values()] == [1]
