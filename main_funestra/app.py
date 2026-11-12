@@ -28,6 +28,7 @@ from .cli import (
     resolve_playlist,
 )
 from .contract import MainChannels
+from .gallery_names import GalleryNames
 from .genau import ROBOT_HAND, Genau, GenauChannels, GenauFlicks, GenauOutputs
 from .genau_verbs import orientations_from
 from .input import Input
@@ -69,6 +70,7 @@ def _genau(args):
             orientations=orientations_from(args.genau_orientations),
             metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
             gallery=the_librarys_gallery(),
+            gallery_names=GalleryNames(args.gallery_names_file),
         ),
         settings=GenauSettings.read(args.config),
         channels=channels,

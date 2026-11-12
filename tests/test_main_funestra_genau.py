@@ -21,6 +21,7 @@ from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
 from fun_time.inclusion_pairs import BOTH
 from fun_time.media_metadata import mark_favorite, metadata_path_for
+from main_funestra.gallery_names import NO_GALLERY_NAMES, GalleryNames
 from main_funestra.genau import (
     EngineSeams,
     Genau,
@@ -81,6 +82,7 @@ class WorldSetup:
     turned: tuple = ()
     orientations: tuple = BOTH
     start_thread: Callable = every_thread_now_but_the_port_binding_udp_reader
+    gallery_names: GalleryNames = NO_GALLERY_NAMES
     origenerator_commands: Path | None = None
     kind: str = "non_AI"
     starred: tuple = ()
@@ -128,6 +130,7 @@ class World:
                                        shape=dict(setup.shaped).get(name),
                                        genau_flipped=int(name in setup.flipped))
                                  for name in {*setup.starred, *dict(setup.shaped), *setup.flipped}]),
+                gallery_names=setup.gallery_names,
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
@@ -166,6 +169,14 @@ class TestTheFlickOnScreen:
 
         assert world.genau.top_block() == ModeHud(video="alpha one")
         assert world.notifier.flicks == [world.flat_dir / "alpha one.mp4"]
+
+    def test_a_flick_origenerator_made_wears_its_name_in_origenerators_gallery(self, tmp_path):
+        published = tmp_path / "gallery_names.json"
+        published.write_text(json.dumps({"alpha one": "3FA9C0D2 004"}), encoding="utf-8")
+
+        world = World(tmp_path, WorldSetup(gallery_names=GalleryNames(published)))
+
+        assert world.genau.top_block() == ModeHud(video="3FA9C0D2 004")
 
     def test_its_verbs_arrive_on_its_own_channel_and_never_on_the_funestras(self, tmp_path):
         world = World(tmp_path)

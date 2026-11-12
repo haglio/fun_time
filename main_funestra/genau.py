@@ -31,6 +31,7 @@ from fun_time.media_metadata import recorded_for, recorded_orientation
 from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
 
+from .gallery_names import NO_GALLERY_NAMES, GalleryNames
 from .genau_verbs import apply_command as answer_genaus_verb
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class GenauFlicks:
     metadata_root: Path | None = None
     narrow: Narrow | None = None
     gallery: Gallery = field(default_factory=lambda: Gallery([]))
+    gallery_names: GalleryNames = NO_GALLERY_NAMES
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,7 @@ class Genau:
         self._orientations = flicks.orientations
         self._metadata_root = flicks.metadata_root
         self._gallery = flicks.gallery
+        self._gallery_names = flicks.gallery_names
         self._notifier = notifier
         self._messages = outputs.messages
         self._frame = None
@@ -143,7 +146,8 @@ class Genau:
 
     def top_block(self) -> ModeHud:
         flick = self._engine.current_flick
-        return ModeHud(video="" if flick is None else flick.stem, scripted_filter=self._f_mode)
+        name = "" if flick is None else self._gallery_names.of(flick) or flick.stem
+        return ModeHud(video=name, scripted_filter=self._f_mode)
 
     def set_showing(self, showing: bool) -> None:
         self._showing = showing
