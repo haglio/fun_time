@@ -9,6 +9,8 @@ from funestra import video_families
 from shared_ui.orientation import ORIENTATIONS
 
 from fun_time import media_metadata
+from fun_time.gallery import Gallery
+from tests.made_up_gallery import a_video_from_a_start_image, made_up_gallery
 
 CONTRACT = Path("evolver") / "evolver_contract.json"
 
@@ -40,9 +42,19 @@ def test_the_act_and_its_rejection_are_where_evolver_says():
     assert video_action.SITE_ACTION_KEY in video["fields"]
 
 
-def test_every_field_a_videos_identity_is_built_from_is_promised():
-    assert set(video_families.VIDEO_BASE_FIELDS) <= _fields("video")
-    assert set(video_families.IMAGE_IDENTITY_FIELDS) <= _fields("source_image")
+def test_every_field_an_ai_videos_identity_is_built_from_is_in_the_record_the_gallery_makes(
+        tmp_path):
+    every_field = {field: f"made up {field}" for field in
+                   {*video_families.VIDEO_BASE_FIELDS, *video_families.IMAGE_IDENTITY_FIELDS}}
+    rows = a_video_from_a_start_image(
+        "alpha_00007_.mp4", "frame one.png",
+        video={**every_field, "positive_prompt": every_field["prompt"]}, image=every_field)
+    gallery = Gallery.read(made_up_gallery(tmp_path, *rows))
+
+    record = gallery.record_of(tmp_path / "kino" / "2D" / "AI" / "alpha_00007__topaz.mp4")
+
+    assert set(video_families.VIDEO_BASE_FIELDS) <= set(record["video"])
+    assert set(video_families.IMAGE_IDENTITY_FIELDS) <= set(record["source_image"])
 
 
 def test_what_a_video_is_called_and_what_it_was_cut_from_are_promised():
