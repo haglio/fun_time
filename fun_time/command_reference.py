@@ -297,18 +297,6 @@ _SECTIONS: tuple[_Section, ...] = (
                     columns=((), (), ("+",)),
                     controller=(A_OR_X,),
                 ),
-                _Row(
-                    "full video / back to the clip — \"full video\" plays the full "
-                    "video the clip on screen was cut from, and \"clip jump\" or "
-                    "\"jump back\" plays the clip cut from the full video on screen",
-                    commands=("main_funestra_full_vid", "main_funestra_clip_jump"),
-                ),
-                _Row(
-                    "compilation / end compilation — \"compilation\" plays the clip's "
-                    "compilation in order, and \"end compilation\" leaves it for the "
-                    "length mode you were in",
-                    commands=("main_funestra_compilation", "main_funestra_end_compilation"),
-                ),
                 _Row("previous scene in the video", commands=("main_scene_prev",),
                      controller=(HOLD_TRIGGER_AND_B_OR_Y,)),
                 _Row("next scene in the video", commands=("main_scene_next",),
@@ -322,6 +310,18 @@ _SECTIONS: tuple[_Section, ...] = (
                     "next funscripted — the next scripted video in the playlist, "
                     "landing where its action begins",
                     commands=(*_sided("next_funscripted"), "main_funestra_next_funscripted"),
+                ),
+                _Row(
+                    "full video / back to the clip — \"full video\" plays the full "
+                    "video the clip on screen was cut from, and \"clip jump\" or "
+                    "\"jump back\" plays the clip cut from the full video on screen",
+                    commands=("main_funestra_full_vid", "main_funestra_clip_jump"),
+                ),
+                _Row(
+                    "compilation / end compilation — \"compilation\" plays the clip's "
+                    "compilation in order, and \"end compilation\" leaves it for the "
+                    "length mode you were in",
+                    commands=("main_funestra_compilation", "main_funestra_end_compilation"),
                 ),
             )),
             _Group("Nav Map", (
