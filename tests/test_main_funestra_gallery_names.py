@@ -21,6 +21,13 @@ def test_a_copy_the_library_made_of_a_video_wears_the_name_origenerator_gave_it(
     assert names.of(MADE) == "3FA9C0D2 004"
 
 
+def test_a_copy_made_from_a_videos_sound_copy_wears_the_same_name(tmp_path):
+    names = GalleryNames(_published(tmp_path, {"wan_loop_00042_": "3FA9C0D2 004"}))
+
+    assert names.of(Path("C:/library/flicks/2D/AI/wan_loop_00042_-audio_topaz.mp4")) == (
+        "3FA9C0D2 004")
+
+
 def test_a_video_origenerator_never_named_has_no_gallery_name(tmp_path):
     names = GalleryNames(_published(tmp_path, {"wan_loop_00042_": "3FA9C0D2 004"}))
 
