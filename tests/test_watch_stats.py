@@ -209,3 +209,39 @@ class TestARowOfALibraryVideo:
 
         assert load_watch_stats(stats_file) == {
             video_ids.id_of(video_ids.record_of(video)): {"completions": 4, "skips": 2, "locks": 2}}
+
+
+class TestARowOfAnAiVideo:
+    @pytest.fixture
+    def video(self, tmp_path: Path, monkeypatch) -> Path:
+        library = tmp_path / "library"
+        kino = library / "videos" / "videos" / "kino"
+        settings = tmp_path / "settings.json"
+        settings.write_text(json.dumps({"library_root": str(library)}), encoding="utf-8")
+        monkeypatch.setenv(haglio_settings.SETTINGS_ENV, str(settings))
+        video = kino / "2D" / "AI" / "portrait" / "made up site" / "scene one_topaz.mp4"
+        video.parent.mkdir(parents=True)
+        video.write_text("v", encoding="utf-8")
+        return video
+
+    def test_is_keyed_by_its_path_and_never_given_a_record(self, tmp_path: Path, video: Path):
+        stats_file = tmp_path / "watch_stats.json"
+
+        record_watch_event(stats_file, str(video), "lock")
+
+        assert load_watch_stats(stats_file) == {
+            normalize_path_key(str(video)): {"completions": 0, "skips": 0, "locks": 1}}
+        assert not video_ids.record_of(video).exists()
+
+    def test_counted_under_its_id_before_stays_there_for_evolver_to_add_in(
+        self, tmp_path: Path, video: Path,
+    ):
+        stats_file = tmp_path / "watch_stats.json"
+        stats_file.write_text(json.dumps({"made-up-id": {"completions": 3, "skips": 0, "locks": 0}}),
+                              encoding="utf-8")
+
+        record_watch_event(stats_file, str(video), "completion")
+
+        assert load_watch_stats(stats_file) == {
+            "made-up-id": {"completions": 3, "skips": 0, "locks": 0},
+            normalize_path_key(str(video)): {"completions": 1, "skips": 0, "locks": 0}}
