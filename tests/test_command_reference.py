@@ -366,9 +366,8 @@ def test_the_navigation_rows_are_the_steps_the_nudges_the_scenes_then_what_is_do
 
     assert [row.description for row in navigation.rows] == [
         "previous", "next", "nudge back 10 seconds", "nudge forward 10 seconds",
-        "previous scene in the video", "next scene in the video", "trash", "lock / unlock",
-        "cycle enhancement", "clip navigation", "jump to funscript", "next funscripted",
-        "navigate the map", "cycle loop mode"]
+        "previous scene in the video", "next scene in the video", "jump to funscript",
+        "next funscripted", "lock / unlock", "clip navigation"]
     assert (back.voice, forward.voice) == (("back",), ("skip",))
     assert (back.detail, forward.detail) == ("", "")
     assert (back.key_columns, forward.key_columns) == (((), (), ("-",)), ((), (), ("+",)))
@@ -609,7 +608,7 @@ def test_the_genau_groups_rows_take_the_overlays_word():
 
 
 
-def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shared_navigation_row():
+def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shared_funestras_row():
     genau = _group("Main Funestra", "Genau")
     mode, *flick_rows = genau.rows
     in_genau = {cmd for row in flick_rows for cmd in row.commands}
@@ -620,14 +619,14 @@ def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shar
     assert in_genau
     assert all(about_genaus_flick(parse_command(cmd)) for cmd in in_genau)
     assert elsewhere == {"genau_prev_flick", "genau_next_flick", "genau_trash_flick"}
-    assert all(_the_row_of(cmd) in _group("Funestras", "Navigation").rows for cmd in elsewhere)
+    assert all(_the_row_of(cmd) in _funestras_section().rows for cmd in elsewhere)
 
 
-def test_what_only_kino_answers_is_the_kino_group_or_rides_a_shared_navigation_row():
+def test_what_only_kino_answers_is_the_kino_group_or_rides_a_shared_funestras_row():
     versions = {"main_funestra_cycle_version", "main_funestra_cycle_version_back"}
     loops = _group("Main Funestra", "Kino")
     in_loops = {cmd for row in loops.rows for cmd in row.commands}
-    navigation = {cmd for row in _group("Funestras", "Navigation").rows for cmd in row.commands}
+    shared = {cmd for row in _funestras_section().rows for cmd in row.commands}
 
     assert [row.description for row in loops.rows] == ["Kino mode", "loop control", "save loop"]
     assert loops.rows[1].detail == (
@@ -635,9 +634,9 @@ def test_what_only_kino_answers_is_the_kino_group_or_rides_a_shared_navigation_r
         "terminate a recorded loop")
     assert loops.rows[2].detail == (
         f"save loop to send to Genaumacher to produce a new Genau {genau_flick_noun().one}")
-    assert set(MAIN_FUNESTRA_CMD_MAP) - versions <= in_loops | navigation
+    assert set(MAIN_FUNESTRA_CMD_MAP) - versions <= in_loops | shared
     assert {"main_funestra_compilation", "main_funestra_end_compilation", "main_funestra_full_vid",
-            "main_funestra_clip_jump"} <= navigation
+            "main_funestra_clip_jump"} <= shared
     assert "genaumacher_save" in in_loops
     assert versions <= set(_the_row_of("satellites_cycle_version").commands)
     assert not [row for row in _all_rows() if row.description == "save clip"]
@@ -924,24 +923,25 @@ def test_the_origenerator_column_folds_the_side_word_and_its_note_says_how_to_ai
         assert not_a_phrase not in heard, not_a_phrase
 
 
-def test_the_maps_rows_the_loops_the_filters_and_the_crown_are_the_funestras_last_groups():
+def test_the_maps_rows_the_loops_and_the_filters_follow_navigation_and_other_comes_last():
     funestras = _funestras_section()
     cycle = _the_row_of("portrait_loop")
     crown = _the_row_of("main_crown")
 
     assert [group.title for group in funestras.groups] == [
-        "Navigation", "Playlist", "Included video types", "Audio", "HUD", "Playback",
-        "Nav Map", "Loops", "Filter", "Other"]
+        "Navigation", "Nav Map", "Loops", "Filter", "Playlist", "Included video types",
+        "Audio", "HUD", "Playback speed", "Other"]
     assert [row.description for row in _group("Funestras", "Nav Map").rows] == [
-        "cycle action", "cycle seed", "wrong action"]
+        "navigate the map", "cycle action", "cycle seed", "wrong action"]
     assert cycle.detail == "seeds, then actions, then off"
     assert [row.description for row in _group("Funestras", "Loops").rows] == [
-        "more seeds", "loop actions", "loop seeds", "stop looping"]
+        "cycle loop mode", "more seeds", "loop actions", "loop seeds", "stop looping"]
     assert [row.description for row in _filter_rows(_ACTIONS)] == [
         "filter by action", "filter to the action on screen", "drop all filters"]
     assert [row.description for row in _group("Funestras", "Filter").rows] == [
         "filter to the action on screen", "drop all filters"]
-    assert _group("Funestras", "Other").rows == (crown,)
+    assert [row.description for row in _group("Funestras", "Other").rows] == [
+        "trash", "cycle enhancement", crown.description]
     assert crown.description == "crown the Main Funestra or the Portrait Funestra"
     assert crown.detail == (
         "the crowned Funestra takes up the majority of the (portrait-shaped) secondary "
@@ -961,7 +961,7 @@ def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_incl
     included = _group("Funestras", "Included video types")
     lengths, shapes, orientations, levels = included.rows
 
-    assert lengths.description == "included video types"
+    assert lengths.description == "included video types (duration)"
     assert lengths.voice == ("clips only", "full only", "clips and full", "full and clips")
     assert lengths.detail.startswith("the Main Funestra's alone")
     assert "in Kino mode" in lengths.detail
@@ -1027,7 +1027,7 @@ def test_a_group_whose_rows_hold_no_key_renders_no_hotkey_column():
     assert "Portrait" in funestras["Navigation"]
     assert "Hotkey" not in funestras["Playlist"]
     assert "Portrait" not in funestras["Playlist"]
-    assert "Hotkey" not in funestras["Other"]
+    assert "Hotkey" not in funestras["Included video types"]
 
 
 def _tables(html: str) -> list[str]:
