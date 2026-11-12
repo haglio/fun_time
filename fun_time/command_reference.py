@@ -286,38 +286,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 _Row("next scene in the video", commands=("main_scene_next",),
                      controller=(HOLD_TRIGGER_AND_A_OR_X,)),
                 _Row(
-                    "trash — in Kino mode it sends the video to Trash and moves on, or "
-                    "unfavorites it instead when it has been previously favorited; on a "
-                    "Satellite it deletes the image or video and moves on",
-                    commands=(*_sided("trash"), "genau_trash_flick"),
-                    columns=(("Up",), ("W",), ("K",)),
-                ),
-                _Row(
-                    "lock / unlock — locked, what is on screen repeats; unlocked it "
-                    "moves on.  A satellite favorites the locked "
-                    "slide and asks for a better version of it",
-                    commands=("portrait_lock", "landscape_lock", "main_lock", *_every_funestra("lock_on"), *_every_funestra("lock_off")),
-                    columns=(("Down",), ("S",), (",",)),
-                ),
-                _Row(
-                    "cycle enhancement — the upscale, the original it was made "
-                    "from, or an enhancement",
-                    commands=("portrait_cycle_version_back", "portrait_cycle_version",
-                              "landscape_cycle_version_back", "landscape_cycle_version",
-                              "satellites_cycle_version",
-                              "main_funestra_cycle_version_back", "main_funestra_cycle_version"),
-                    columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
-                             ("Shift+M", "Shift+.")),
-                ),
-                _Row(
-                    "clip navigation — \"compilation\" plays the clip's compilation "
-                    "in order and \"end compilation\" leaves it for the length mode "
-                    "you were in; \"full video\" plays the full scene the clip came "
-                    "from, and the clip jump goes back to the clip",
-                    commands=("main_funestra_compilation", "main_funestra_end_compilation",
-                              "main_funestra_full_vid", "main_funestra_clip_jump"),
-                ),
-                _Row(
                     "jump to funscript — skips ahead to where the scripting starts up "
                     "again, while that Funestra has the OSR2",
                     commands=(*_sided("funscript_jump"), "main_funestra_funscript_jump"),
@@ -328,6 +296,23 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=(*_sided("next_funscripted"), "main_funestra_next_funscripted"),
                 ),
                 _Row(
+                    "lock / unlock — locked, what is on screen repeats; unlocked it "
+                    "moves on.  A satellite favorites the locked "
+                    "slide and asks for a better version of it",
+                    commands=("portrait_lock", "landscape_lock", "main_lock", *_every_funestra("lock_on"), *_every_funestra("lock_off")),
+                    columns=(("Down",), ("S",), (",",)),
+                ),
+                _Row(
+                    "clip navigation — \"compilation\" plays the clip's compilation "
+                    "in order and \"end compilation\" leaves it for the length mode "
+                    "you were in; \"full video\" plays the full scene the clip came "
+                    "from, and the clip jump goes back to the clip",
+                    commands=("main_funestra_compilation", "main_funestra_end_compilation",
+                              "main_funestra_full_vid", "main_funestra_clip_jump"),
+                ),
+            )),
+            _Group("Nav Map", (
+                _Row(
                     "navigate the map — move the lit cell up or down its column of "
                     "actions, switching to that one",
                     commands=("portrait_nav_up", "portrait_nav_down",
@@ -335,9 +320,37 @@ _SECTIONS: tuple[_Section, ...] = (
                     columns=(("Shift+Up", "Shift+Down"), ("Shift+W", "Shift+S")),
                 ),
                 _Row(
+                    "cycle action — same seed or initial image, another action",
+                    commands=_sided("cycle_action"),
+                ),
+                _Row("cycle seed — same settings, another seed",
+                     commands=_sided("cycle_seed")),
+                _Row(
+                    "wrong action — the item's actions are wrong; send it back "
+                    "to Origenerator's action setter tool to be set again",
+                    commands=_sided("wrong_action"),
+                ),
+            )),
+            _Group("Loops", (
+                _Row(
                     "cycle loop mode — seeds, then actions, then off",
                     commands=("portrait_loop", "landscape_loop"),
                     columns=(("Home",), ("E",)),
+                ),
+                _Row("more seeds — widen the net to include seeds from very similar settings",
+                     commands=_sided("more_seeds")),
+                _Row("loop actions — same seed or initial image, all of its actions",
+                     commands=_sided("action_loop")),
+                _Row("loop seeds — same settings, all of their seeds",
+                     commands=_sided("seed_loop")),
+                _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
+            )),
+            _Group("Filter", (
+                _FILTER_BY_ACTION,
+                _Row("filter to the action on screen", commands=_sided("lock_action")),
+                _Row(
+                    "drop all filters — keep the order and everything else",
+                    commands=_sided("no_filter"),
                 ),
             )),
             _Group("Playlist", (
@@ -362,7 +375,7 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
             _Group("Included video types", (
                 _Row(
-                    "included video types — the Main Funestra's alone: in Kino mode, "
+                    "included video types (duration) — the Main Funestra's alone: in Kino mode, "
                     "the lengths: \"clips only\", \"full only\", or \"clips and full\" "
                     "(the default, everything), which leaves any compilation with it; "
                     "its HUD's own pair of buttons reaches a fourth state, neither, "
@@ -428,7 +441,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     commands=_every_funestra("hud_minimize", "hud_restore"),
                 ),
             )),
-            _Group("Playback", (
+            _Group("Playback speed", (
                 _Row(
                     "playback speed up / down — when the Main Funestra's rate changes, "
                     "both satellites take it",
@@ -441,37 +454,24 @@ _SECTIONS: tuple[_Section, ...] = (
                     voice_display=_SPEED_VOICE,
                 ),
             )),
-            _Group("Nav Map", (
-                _Row(
-                    "cycle action — same seed or initial image, another action",
-                    commands=_sided("cycle_action"),
-                ),
-                _Row("cycle seed — same settings, another seed",
-                     commands=_sided("cycle_seed")),
-                _Row(
-                    "wrong action — the item's actions are wrong; send it back "
-                    "to Origenerator's action setter tool to be set again",
-                    commands=_sided("wrong_action"),
-                ),
-            )),
-            _Group("Loops", (
-                _Row("more seeds — widen the net to include seeds from very similar settings",
-                     commands=_sided("more_seeds")),
-                _Row("loop actions — same seed or initial image, all of its actions",
-                     commands=_sided("action_loop")),
-                _Row("loop seeds — same settings, all of their seeds",
-                     commands=_sided("seed_loop")),
-                _Row("stop looping — back to browsing, keeping the filter", commands=_sided("no_loop")),
-            )),
-            _Group("Filter", (
-                _FILTER_BY_ACTION,
-                _Row("filter to the action on screen", commands=_sided("lock_action")),
-                _Row(
-                    "drop all filters — keep the order and everything else",
-                    commands=_sided("no_filter"),
-                ),
-            )),
             _Group("Other", (
+                _Row(
+                    "trash — in Kino mode it sends the video to Trash and moves on, or "
+                    "unfavorites it instead when it has been previously favorited; on a "
+                    "Satellite it deletes the image or video and moves on",
+                    commands=(*_sided("trash"), "genau_trash_flick"),
+                    columns=(("Up",), ("W",), ("K",)),
+                ),
+                _Row(
+                    "cycle enhancement — the upscale, the original it was made "
+                    "from, or an enhancement",
+                    commands=("portrait_cycle_version_back", "portrait_cycle_version",
+                              "landscape_cycle_version_back", "landscape_cycle_version",
+                              "satellites_cycle_version",
+                              "main_funestra_cycle_version_back", "main_funestra_cycle_version"),
+                    columns=(("Shift+Left", "Shift+Right"), ("Shift+A", "Shift+D"),
+                             ("Shift+M", "Shift+.")),
+                ),
                 _Row(
                     "crown the Main Funestra or the Portrait Funestra — the crowned "
                     "Funestra takes up the majority of the (portrait-shaped) secondary "
