@@ -13,9 +13,9 @@ from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import set_app_user_model_id
-from PyQt6.QtCore import QSize, Qt, QTimer
-from PyQt6.QtGui import QIcon, QPainter, QPalette, QPixmap
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
     QListWidget,

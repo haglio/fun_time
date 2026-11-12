@@ -180,7 +180,7 @@ def test_the_screen_the_launch_waits_on_loads_no_qt():
     loaded = subprocess.run(
         [sys.executable, "-c",
          ("import sys, fun_time.overlay_window\n"
-         "print(any(m.startswith('PyQt6') for m in sys.modules))\n")],
+         "print(any(m.startswith('PySide6') for m in sys.modules))\n")],
         capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent),
         env=environment_with_this_checkouts_siblings(),
         check=False,

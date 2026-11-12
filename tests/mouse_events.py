@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QEvent, QPointF, Qt
-from PyQt6.QtGui import QMouseEvent
-from PyQt6.QtWidgets import QAbstractItemView, QApplication
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtWidgets import QAbstractItemView, QApplication
 
 THE_FOUR_EVENTS_OF_A_MOUSES_DOUBLE_CLICK = (
     QEvent.Type.MouseButtonPress,
@@ -13,8 +13,9 @@ THE_FOUR_EVENTS_OF_A_MOUSES_DOUBLE_CLICK = (
 
 
 def send_left_button(view: QAbstractItemView, row: int, kind: QEvent.Type) -> None:
+    point = QPointF(view.visualItemRect(view.item(row)).center())
     QApplication.sendEvent(view.viewport(), QMouseEvent(
-        kind, QPointF(view.visualItemRect(view.item(row)).center()), Qt.MouseButton.LeftButton,
+        kind, point, view.viewport().mapToGlobal(point), Qt.MouseButton.LeftButton,
         Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
     ))
 

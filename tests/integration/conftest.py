@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 import pytest_timeout
-from PyQt6.QtGui import QFontDatabase
+from PySide6.QtGui import QFontDatabase
 
 from tests.process_setup import NO_DISPLAY_UNLESS_A_DEVELOPER_SETS_ONE_TO_WATCH
 

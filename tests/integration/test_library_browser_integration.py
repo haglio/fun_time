@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 from PIL import Image, ImageDraw
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QApplication, QWidget
 
 from fun_time.config import load_config
 from fun_time.library_browser import (

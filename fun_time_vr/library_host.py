@@ -11,9 +11,9 @@ from pathlib import Path
 from app_support.frame_channel import FrameWriter
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command, consume_command_file
-from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
-from PyQt6.QtGui import QImage, QMouseEvent, QWheelEvent
-from PyQt6.QtWidgets import QApplication, QWidget
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QImage, QMouseEvent, QWheelEvent
+from PySide6.QtWidgets import QApplication, QWidget
 from shared_ui.application import application
 from shared_ui.colors import dress_application
 
@@ -138,7 +138,7 @@ class HeadsetBrowse:
         self._asked = False
         self._looked_at = now
         image = self.window.grab().toImage().convertToFormat(QImage.Format.Format_RGBA8888)
-        pixels = image.constBits().asstring(image.sizeInBytes())
+        pixels = bytes(image.constBits())
         if pixels == self._sent:
             return
         self._frames.write(self._token, image.width(), image.height(), pixels)

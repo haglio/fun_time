@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import MappingProxyType
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 from shared_ui.preview_icon import app_icon
 from shared_ui.reference import ReferenceDialog as _SharedReferenceDialog
 

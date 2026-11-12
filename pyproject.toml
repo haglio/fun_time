@@ -33,7 +33,8 @@ dependencies = [
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",
     "pygame-ce>=2,<3",
-    "PyQt6>=6,<7",
+    "PySide6>=6.11.2,<6.12",
+    "shiboken6>=6.11.2,<6.12",
     # The Fun Time VR stack: OpenXR loader bindings, GL, and the hidden window
     # that carries the GL context.  Imported only on VR code paths, but listed
     # here (not as an extra) so one venv serves both apps and CI's import

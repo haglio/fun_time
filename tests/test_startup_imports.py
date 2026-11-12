@@ -25,7 +25,7 @@ _SECONDS_OF_IMPORT_ON_A_COLD_MACHINE = (
     _SESSION_MACHINERY_LOADED_UNDER_THE_LOADING_SCREEN,
     "numpy",
     "cv2",
-    "PyQt6.QtWidgets",
+    "PySide6.QtWidgets",
     "tkinter",
 )
 

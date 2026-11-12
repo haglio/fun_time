@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QCloseEvent
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtWidgets import QApplication
 from shared_ui.spacing import MARGIN_STANDARD
 
 from fun_time import load_config

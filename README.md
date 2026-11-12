@@ -123,7 +123,7 @@ Two listeners hear every command (the family's shared listener, `../voice_core`)
 ### Python / tools
 
 - Python (currently launched via Miniconda `pythonw.exe`)
-- Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the verifying listener), and Pillow / numpy / opencv-python.
+- Python dependencies are declared in `pyproject.toml` — notably PySide6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the verifying listener), and Pillow / numpy / opencv-python.
 - Kino and Genau run on the Main Funestra, which Fun Time starts as `python -m main_funestra` from this project's venv (`paths.python_exe`), like the Satellite Funestras. It reads its library folders, its device port and Genau's engine settings (the `genau` section) from this project's config.
 
 Install the declared dependencies into the project venv before first use.

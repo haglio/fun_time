@@ -18,36 +18,33 @@ def test_passes():
 
 
 _A_WINDOW_LEFT_OPEN_TILL_THE_APPLICATION_GOES = """
-import gc, os, weakref
-from pathlib import Path
-from PyQt6 import sip
-from PyQt6.QtCore import QCoreApplication, QObject
-from PyQt6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QWidget
 
-left_open, watching = [], []
-
-def owned_by_python():
-    count = 0
-    for found in gc.get_objects():
-        try:
-            if isinstance(found, QObject) and not isinstance(found, QCoreApplication):
-                count += not sip.isdeleted(found) and sip.ispyowned(found)
-        except ReferenceError:
-            pass
-    return count
-
-def say_what_is_left(_gone):
-    Path(os.environ["LEFT_FOR_PYQT"]).write_text(str(owned_by_python()), encoding="utf-8")
+left_open = []
 
 def test_leaves_a_window_open():
     left_open.append(QWidget())
-    watching.append(weakref.ref(QApplication.instance(), say_what_is_left))
+"""
+
+
+_COUNTS_WHAT_PYTHON_OWNS_ONCE_THE_SUITES_APPLICATION_IS_GONE = """
+import gc, os
+from pathlib import Path
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QObject
+
+def pytest_unconfigure(config):
+    count = 0
+    for found in gc.get_objects():
+        if isinstance(found, QObject) and not isinstance(found, QCoreApplication):
+            count += shiboken6.isValid(found) and shiboken6.ownedByPython(found)
+    Path(os.environ["LEFT_OWNED_BY_PYTHON"]).write_text(str(count), encoding="utf-8")
 """
 
 
 _A_QT_OBJECT_LEFT_IN_A_CYCLE_BY_ONE_TEST = """
 import threading
-from PyQt6.QtCore import QObject
+from PySide6.QtCore import QObject
 
 gone_on = []
 
@@ -67,9 +64,9 @@ def test_finds_it_let_go_on_the_main_thread():
 """
 
 
-def _run_pytest_on(test_file: Path, **env: str) -> subprocess.CompletedProcess[str]:
+def _run_pytest_on(test_file: Path, *args: str, **env: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "pytest", str(test_file), "-p", "tests.conftest", "-q",
+        [sys.executable, "-m", "pytest", str(test_file), "-p", "tests.conftest", *args, "-q",
          "-o", "addopts=-p no:cacheprovider"],
         cwd=ROOT, capture_output=True, text=True, timeout=180,
         env={**os.environ, "PYTEST_ADDOPTS": "", **env},
@@ -88,15 +85,19 @@ def test_a_run_ends_on_pytests_verdict_whatever_a_library_does_on_the_way_out(tm
     assert "1 passed" in run.stdout, run.stdout + run.stderr
 
 
-def test_pyqt_finds_nothing_to_delete_when_the_suites_application_goes(tmp_path: Path):
+def test_python_owns_no_qt_object_once_the_suites_application_is_gone(tmp_path: Path):
     test_file = tmp_path / "test_leaves_a_window_open.py"
     test_file.write_text(_A_WINDOW_LEFT_OPEN_TILL_THE_APPLICATION_GOES, encoding="utf-8")
-    left_for_pyqt = tmp_path / "left_for_pyqt.txt"
+    (tmp_path / "counts_what_python_owns.py").write_text(
+        _COUNTS_WHAT_PYTHON_OWNS_ONCE_THE_SUITES_APPLICATION_IS_GONE, encoding="utf-8")
+    left_owned = tmp_path / "left_owned_by_python.txt"
 
-    run = _run_pytest_on(test_file, LEFT_FOR_PYQT=str(left_for_pyqt))
+    run = _run_pytest_on(test_file, "-p", "counts_what_python_owns",
+                         LEFT_OWNED_BY_PYTHON=str(left_owned),
+                         PYTHONPATH=os.pathsep.join(filter(None, [str(tmp_path), os.environ.get("PYTHONPATH")])))
 
     assert run.returncode == 0, run.stdout + run.stderr
-    assert left_for_pyqt.read_text(encoding="utf-8") == "0"
+    assert left_owned.read_text(encoding="utf-8") == "0"
 
 
 def test_a_thread_busy_making_objects_starts_no_collection():

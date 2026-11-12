@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QLabel
 from shared_ui.colors import BG_SECONDARY
 from shared_ui.fonts import FONT_UI, make_font
 from shared_ui.message_shape import (

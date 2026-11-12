@@ -46,8 +46,8 @@ CHROME_PAGE = f"""<style>
 
 QT_WINDOW = """
 import sys
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QWidget
 
 marker = sys.argv[1]
 app = QApplication(sys.argv)

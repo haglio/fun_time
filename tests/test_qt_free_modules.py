@@ -18,12 +18,12 @@ def test_the_pure_halves_load_without_the_window_toolkit():
     probe = (
         "import sys; "
         + "".join(f"import {name}; " for name in QT_FREE)
-        + "print(any(m == 'PyQt6' or m.startswith('PyQt6.') for m in sys.modules))"
+        + "print(any(m == 'PySide6' or m.startswith('PySide6.') for m in sys.modules))"
     )
     result = subprocess.run([sys.executable, "-c", probe],
                             capture_output=True, text=True, check=True)
 
     assert result.stdout.strip() == "False", (
-        "one of these pulled in PyQt6; a widget import belongs in the module that "
+        "one of these pulled in PySide6; a widget import belongs in the module that "
         f"draws, not in {', '.join(QT_FREE)}"
     )
