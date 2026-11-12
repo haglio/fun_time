@@ -225,7 +225,7 @@ def video_of_a_test_pattern(video: Path, *, size: str, seconds: float, rate: int
     if ffmpeg is None:
         pytest.fail("ffmpeg is what makes this test's clips, and it is not on PATH")
     run_within([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}",
-                "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
+                "-t", str(seconds), "-c:v", "h264_nvenc", "-pix_fmt", "yuv420p", str(video)],
                60.0, check=True, **hidden_subprocess_kwargs())
     return video
 
