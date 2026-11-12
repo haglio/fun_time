@@ -4,8 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from PyQt6.QtGui import QColor, QImage, QPainter, QTextDocument
-from PyQt6.QtWidgets import QApplication, QTextBrowser
+from PySide6.QtGui import QColor, QImage, QPainter, QTextDocument
+from PySide6.QtWidgets import QApplication, QTextBrowser
 from shared_ui.application import application
 from shared_ui.palette import BG_PRIMARY
 from shared_ui.reference import ReferenceSection, narrowest_page_px, render_reference_html

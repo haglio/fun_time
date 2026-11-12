@@ -4,7 +4,7 @@ import sys
 from contextlib import contextmanager
 
 from PIL import Image
-from PyQt6.QtGui import QColor, QImage
+from PySide6.QtGui import QColor, QImage
 
 from fun_time_vr import offscreen_qt
 from fun_time_vr.offscreen_qt import as_pil, as_rgba_bytes, offscreen_application

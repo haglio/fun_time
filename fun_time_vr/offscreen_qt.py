@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from PIL import Image
-from PyQt6.QtGui import QImage
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication
 from shared_ui.application import application
 
 
@@ -25,7 +25,7 @@ def offscreen_application() -> Iterator[QApplication]:
 
 def as_rgba_bytes(image: QImage) -> tuple[int, int, bytes]:
     rgba = image.convertToFormat(QImage.Format.Format_RGBA8888)
-    return rgba.width(), rgba.height(), rgba.constBits().asstring(rgba.sizeInBytes())
+    return rgba.width(), rgba.height(), bytes(rgba.constBits())
 
 
 def as_pil(image: QImage) -> Image.Image:
