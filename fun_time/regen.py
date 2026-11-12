@@ -90,6 +90,5 @@ def regen_url_for_video(
 
 
 def _what_made(video_path: str | Path, metadata_root: str | Path | None, gallery: Gallery) -> dict:
-    if is_ai_video(video_path):
-        return {"video": {"prompt": gallery.prompt_of(video_path), "seed": gallery.seed_of(video_path)}}
-    return recorded_for(video_path, metadata_root)
+    return gallery.record_of(video_path) if is_ai_video(video_path) else recorded_for(
+        video_path, metadata_root)

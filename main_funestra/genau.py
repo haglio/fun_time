@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app_support import favorites
 from app_support.kino_folder import is_ai_video
 from app_support.threading_utils import start_daemon_thread
 from funestra.flick_decode import load_flick_frames
@@ -31,7 +32,7 @@ from fun_time.genau_engine import (
     build_genau_engine,
 )
 from fun_time.inclusion_pairs import BOTH, ORIENTATION, Included
-from fun_time.media_metadata import is_favorite, recorded_for, recorded_orientation
+from fun_time.media_metadata import recorded_for, recorded_orientation
 from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
 
@@ -201,8 +202,8 @@ class Genau:
             return flicks
         portrait, landscape = self._orientations
         return [flick for flick in flicks
-                if (portrait if recorded_orientation(recorded_for(flick, self._metadata_root))
-                    == PORTRAIT else landscape)]
+                if (portrait if recorded_orientation(self._record_of(flick)) == PORTRAIT
+                    else landscape)]
 
     def _browsed(self) -> list[Path]:
         return self._shaped(scan_flicks(self._folders(),
@@ -218,12 +219,12 @@ class Genau:
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
         if not self._f_mode or self._metadata_root is None:
             return flicks
-        return [flick for flick in flicks if self._is_a_favorite(flick)]
+        return [flick for flick in flicks if favorites.is_favorite(self._record_of(flick))]
 
-    def _is_a_favorite(self, flick: Path) -> bool:
+    def _record_of(self, flick: Path) -> dict:
         if is_ai_video(flick):
-            return self._gallery.is_starred(flick)
-        return is_favorite(flick, self._metadata_root)
+            return self._gallery.record_of(flick)
+        return recorded_for(flick, self._metadata_root)
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent

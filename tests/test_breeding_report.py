@@ -25,15 +25,18 @@ def _library(tmp_path: Path, names: list[str]) -> tuple[Path, dict[str, str]]:
 
 
 def _watched(name: str, completions: int, skips: int, locks: int, *, seed: int | None = None,
-             prompt: str | None = None) -> dict:
+             prompt: str | None = None, action: str | None = None) -> dict:
     return a_row(f"gen {name}", f"{name}.mp4", watch_completions=completions, watch_skips=skips,
-                 watch_locks=locks, seed=seed, positive_prompt=prompt)
+                 watch_locks=locks, recipe_category=action,
+                 params={key: value for key, value in (("seed", seed), ("positive_prompt", prompt))
+                         if value is not None})
 
 
 def test_build_breeding_rows_ranks_ai_videos_by_the_weight_their_gallery_counts_make(tmp_path: Path):
     _media_root, paths = _library(tmp_path, ["loved", "wide_meh", "hated_bare", "unwatched", "no_row"])
     gallery = Gallery([
-        _watched("loved", 6, 0, 1, seed=111, prompt="two cute dolls,  rainbow bedroom"),
+        _watched("loved", 6, 0, 1, seed=111, prompt="two cute dolls,  rainbow bedroom",
+                 action="Alpha"),
         _watched("wide_meh", 1, 1, 0, seed=222),
         _watched("hated_bare", 0, 9, 0),
         a_row("gen unwatched", "unwatched.mp4", seed=333),
@@ -44,10 +47,10 @@ def test_build_breeding_rows_ranks_ai_videos_by_the_weight_their_gallery_counts_
     assert [row.path for row in rows] == [paths["loved"], paths["wide_meh"], paths["hated_bare"]]
     assert rows[0] == BreedingRow(
         path=paths["loved"], weight=weight_for({"completions": 6, "skips": 0, "locks": 1}),
-        completions=6, skips=0, locks=1, orientation="P", action="", seed="111",
+        completions=6, skips=0, locks=1, orientation="P", action="Alpha", seed="111",
         prompt="two cute dolls, rainbow bedroom")
     assert rows[1].orientation == "L"
-    assert (rows[-1].seed, rows[-1].prompt) == ("", "")
+    assert (rows[-1].action, rows[-1].seed, rows[-1].prompt) == ("", "", "")
 
 
 def test_an_ai_videos_own_record_is_never_read_for_the_leaderboard(tmp_path: Path):

@@ -84,6 +84,7 @@ class WorldSetup:
     origenerator_commands: Path | None = None
     kind: str = "non_AI"
     starred: tuple = ()
+    shaped: tuple = ()
 
 
 class World:
@@ -122,7 +123,9 @@ class World:
                 f_mode=setup.f_mode,
                 orientations=setup.orientations,
                 metadata_root=self.metadata_root,
-                gallery=Gallery([a_row(f"gen {name}", name, starred=1) for name in setup.starred]),
+                gallery=Gallery([a_row(f"gen {name}", name, starred=int(name in setup.starred),
+                                       shape=dict(setup.shaped).get(name))
+                                 for name in {*setup.starred, *dict(setup.shaped)}]),
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
@@ -312,6 +315,19 @@ class TestWhatArrivesInItsFolder:
         world.send("NEXT")
 
         assert world.genau.top_block().video == "alpha one"
+
+
+class TestAnAiFlicksShape:
+    def test_with_landscape_left_out_only_the_flicks_the_gallery_calls_portrait_come_up(
+            self, tmp_path):
+        world = World(tmp_path, WorldSetup(
+            kind="AI", orientations=(True, False), turned=(("alpha one.mp4", "portrait"),),
+            shaped=(("beta two.mp4", "portrait"), ("gamma three.mp4", "landscape"))))
+
+        world.send("NEXT")
+        world.send("NEXT")
+
+        assert world.genau.top_block().video == "beta two"
 
 
 class TestFMode:

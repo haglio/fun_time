@@ -7,8 +7,10 @@ from pathlib import Path
 from fun_time.gallery import CONTRACT_FILE
 
 DATABASE = "state/origenerator.db"
-COLUMNS = ("prompt_id", "output_files", "positive_prompt", "seed", "starred", "evolver_upscale",
-           "web_url", "watch_completions", "watch_skips", "watch_locks")
+COLUMNS = ("prompt_id", "output_files", "positive_prompt", "negative_prompt", "seed", "params_json",
+           "source", "starred", "evolver_upscale", "web_url", "watch_completions", "watch_skips",
+           "watch_locks", "recipe_category", "combined_labels", "shape", "video_seconds",
+           "genau_flipped")
 
 
 def made_up_origenerator(root: Path, *rows: dict) -> Path:
@@ -32,6 +34,15 @@ def made_up_gallery(root: Path, *rows: dict) -> Path:
     return made_up_origenerator(root, *rows) / DATABASE
 
 
-def a_row(prompt_id: str, name: str, **columns) -> dict:
+def a_row(prompt_id: str, name: str, *, params: dict | None = None, **columns) -> dict:
     return {"prompt_id": prompt_id,
-            "output_files": json.dumps([{"filename": name, "subfolder": "video"}]), **columns}
+            "output_files": json.dumps([{"filename": name, "subfolder": "video"}]),
+            "params_json": json.dumps(params or {}), **columns}
+
+
+def a_video_from_a_start_image(name: str, frame: str, *, video: dict, image: dict,
+                               **columns) -> tuple[dict, dict]:
+    return (a_row(f"gen {name}", name, params={**video, "input_image": frame}, **columns),
+            {"prompt_id": f"gen {frame}", "source": "outside",
+             "output_files": json.dumps([{"filename": frame, "subfolder": "image"}]),
+             "params_json": json.dumps(image)})
