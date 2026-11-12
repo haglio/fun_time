@@ -42,6 +42,16 @@ def test_a_video_no_row_made_is_unstarred_with_no_page_or_prompt(tmp_path):
         == (False, "", "")
 
 
+def test_a_row_counts_what_was_watched_of_its_video(tmp_path):
+    gallery = Gallery.read(made_up_gallery(
+        tmp_path, a_row("gen-1", "alpha_00007_.mp4", watch_completions=3, watch_locks=1),
+        a_row("gen-2", "beta_00007_.mp4")))
+
+    assert gallery.watch_counts(_kino_copy(tmp_path, "alpha_00007__topaz.mp4")) == {
+        "completions": 3, "skips": 0, "locks": 1}
+    assert gallery.watch_counts(_kino_copy(tmp_path, "beta_00007__topaz.mp4")) is None
+
+
 def test_an_older_gallery_without_the_optional_columns_still_reads(tmp_path):
     db_path = tmp_path / "older.db"
     connection = sqlite3.connect(db_path)

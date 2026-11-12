@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support import watch_weights
+from app_support.kino_folder import is_ai_video
 
 from .config import load_config
+from .gallery import Gallery, the_librarys_gallery
 from .media_metadata import recorded_for
 from .modes import collect_video_files
 
@@ -56,27 +58,41 @@ def _count(block: dict, field: str) -> int:
 def build_breeding_rows(
     video_paths: Iterable[str],
     metadata_root: str | Path | None,
+    gallery: Gallery,
 ) -> list[BreedingRow]:
-    rows: list[BreedingRow] = []
-    for path in video_paths:
-        metadata = recorded_for(path, metadata_root)
-        block = metadata.get(watch_weights.WATCH_BLOCK)
-        if not isinstance(block, dict):
-            continue
-        action, seed, prompt = _identity_of(metadata)
-        rows.append(BreedingRow(
-            path=path,
-            weight=watch_weights.weight_of(metadata),
-            completions=_count(block, "completions"),
-            skips=_count(block, "skips"),
-            locks=_count(block, "locks"),
-            orientation=_orientation_of(path),
-            action=action,
-            seed=seed,
-            prompt=prompt,
-        ))
+    rows = [row for path in video_paths
+            if (row := (_from_the_gallery(path, gallery) if is_ai_video(path)
+                        else _from_its_record(path, metadata_root))) is not None]
     rows.sort(key=lambda row: (-row.weight, -(row.completions + row.locks), row.skips, row.path))
     return rows
+
+
+def _from_the_gallery(path: str, gallery: Gallery) -> BreedingRow | None:
+    counts = gallery.watch_counts(path)
+    if counts is None:
+        return None
+    return BreedingRow(path=path, weight=watch_weights.weight_for(counts), **counts,
+                       orientation=_orientation_of(path), action="",
+                       seed=_norm_text(gallery.seed_of(path)), prompt=_norm_text(gallery.prompt_of(path)))
+
+
+def _from_its_record(path: str, metadata_root: str | Path | None) -> BreedingRow | None:
+    metadata = recorded_for(path, metadata_root)
+    block = metadata.get(watch_weights.WATCH_BLOCK)
+    if not isinstance(block, dict):
+        return None
+    action, seed, prompt = _identity_of(metadata)
+    return BreedingRow(
+        path=path,
+        weight=watch_weights.weight_of(metadata),
+        completions=_count(block, "completions"),
+        skips=_count(block, "skips"),
+        locks=_count(block, "locks"),
+        orientation=_orientation_of(path),
+        action=action,
+        seed=seed,
+        prompt=prompt,
+    )
 
 
 _PROMPT_WIDTH = 42
@@ -139,7 +155,7 @@ def render_breeding_report(rows: list[BreedingRow], *, top: int) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, gallery: Gallery | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Watch leaderboard (breeding state). Columns: WEIGHT = the "
@@ -159,7 +175,8 @@ def main(argv: list[str] | None = None) -> int:
         str(folder)
         for folder in (*paths.portrait_dirs, *paths.landscape_dirs, *paths.main_funestra_library_dirs)
     )
-    rows = build_breeding_rows(collect_video_files(sources), config.regen.metadata_root)
+    rows = build_breeding_rows(collect_video_files(sources), config.regen.metadata_root,
+                               the_librarys_gallery() if gallery is None else gallery)
     print(render_breeding_report(rows, top=len(rows) if args.all else args.top))
     return 0
 

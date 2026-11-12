@@ -9,12 +9,14 @@ from pathlib import Path
 
 from app_support import gallery_rows, haglio_settings, kino_folder, siblings
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.watch_weights import COUNT_FIELDS
 
 logger = logging.getLogger(__name__)
 
 CONTRACT_FILE = "origenerator_gallery_contract.json"
 _COLUMNS = ("prompt_id", "output_files", "positive_prompt", "seed")
-_OPTIONAL = ("starred", "evolver_upscale", "web_url")
+_WATCH_COLUMNS = tuple(f"watch_{field}" for field in COUNT_FIELDS)
+_OPTIONAL = ("starred", "evolver_upscale", "web_url", *_WATCH_COLUMNS)
 
 
 def ai_videos_of_the_library() -> list[Path]:
@@ -92,3 +94,10 @@ class Gallery:
 
     def seed_of(self, video: str | Path) -> str:
         return str(self._row(video).get("seed") or "")
+
+    def watch_counts(self, video: str | Path) -> dict[str, int] | None:
+        row = self._row(video)
+        if all(row.get(column) is None for column in _WATCH_COLUMNS):
+            return None
+        return {field: int(row.get(column) or 0)
+                for field, column in zip(COUNT_FIELDS, _WATCH_COLUMNS, strict=True)}
