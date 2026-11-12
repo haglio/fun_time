@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from shared_ui.application import application
+from shared_ui.application import application, close_the_windows_it_opened
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -577,6 +577,7 @@ class DashboardWindow(QMainWindow):
         with contextlib.suppress(OSError):
             self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
         self._stop_background_work()
+        close_the_windows_it_opened(self)
         event.accept()
 
     def _stop_background_work(self) -> None:

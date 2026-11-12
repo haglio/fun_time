@@ -1424,6 +1424,21 @@ def test_closing_the_window_asks_the_hotkey_script_to_end_the_session(dashboard_
     assert ahk_cmd_file.read_text(encoding="utf-8") == "end_session"
 
 
+def test_closing_the_window_takes_down_the_windows_it_opened(dashboard_app_config):
+    window = build_dashboard_window(dashboard_app_config)
+    window._on_action("help_reference")
+    opened_on_its_own = QWidget()
+    opened_on_its_own.show()
+
+    window.close()
+
+    try:
+        assert not window._reference.dialog.isVisible()
+        assert not opened_on_its_own.isVisible()
+    finally:
+        opened_on_its_own.deleteLater()
+
+
 def test_a_window_that_cannot_ask_the_hotkey_script_still_closes(dashboard_app_config):
     window = build_dashboard_window(dashboard_app_config)
     (dashboard_app_config.state_dir / "ahk_cmd.txt").mkdir()
