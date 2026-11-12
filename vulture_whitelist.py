@@ -46,6 +46,9 @@ _.put_up_next
 to_argv  # satellite.contract; the session's satellite launcher
 compositor_layers  # fun_time_vr/orchestrator.py
 process_running  # win32_process; fun_time_vr's shutdown asks it whether the VR runtime is up
+GalleryFlips  # main_funestra.genau hands it to Genau's engine as where an AI flick's flip is kept
+_.keeps  # funestra's FlickFlip asks GalleryFlips whether it keeps a flick's flip
+_.is_flipped  # funestra's FlickFlip asks GalleryFlips whether a flick it keeps is flipped
 
 # --- Read from outside vulture's scan ---
 settle  # MainListBuilds; test_vr_control_parity drains a dispatch before reading it

@@ -85,6 +85,7 @@ class WorldSetup:
     kind: str = "non_AI"
     starred: tuple = ()
     shaped: tuple = ()
+    flipped: tuple = ()
 
 
 class World:
@@ -124,8 +125,9 @@ class World:
                 orientations=setup.orientations,
                 metadata_root=self.metadata_root,
                 gallery=Gallery([a_row(f"gen {name}", name, starred=int(name in setup.starred),
-                                       shape=dict(setup.shaped).get(name))
-                                 for name in {*setup.starred, *dict(setup.shaped)}]),
+                                       shape=dict(setup.shaped).get(name),
+                                       genau_flipped=int(name in setup.flipped))
+                                 for name in {*setup.starred, *dict(setup.shaped), *setup.flipped}]),
             ),
             settings=GenauSettings(shuffle_on_load=False),
             channels=self.channels,
@@ -328,6 +330,23 @@ class TestAnAiFlicksShape:
         world.send("NEXT")
 
         assert world.genau.top_block().video == "beta two"
+
+
+class TestAnAiFlicksFlip:
+    def test_it_is_shown_as_the_gallery_keeps_it(self, tmp_path):
+        world = World(tmp_path, WorldSetup(kind="AI", flipped=("alpha one.mp4",)))
+
+        world.tick()
+
+        assert world.status()["flipped"] == "1"
+
+    def test_flipping_it_writes_it_no_record(self, tmp_path):
+        world = World(tmp_path, WorldSetup(kind="AI"))
+
+        world.send("FLIP_ENDS")
+
+        assert world.status()["flipped"] == "1"
+        assert not world.metadata_root.exists()
 
 
 class TestFMode:

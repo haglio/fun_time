@@ -14,7 +14,7 @@ from funestra.flag import Flag
 from funestra.flick_advance import FlickAdvanceState
 from funestra.flick_cache import DecodeRequestState, FlickCacheStore
 from funestra.flick_decode import load_flick_frames
-from funestra.flick_flip import FlickFlip
+from funestra.flick_flip import FlickFlip, FlipsKeptElsewhere
 from funestra.flick_folder import move_to_trash
 from funestra.flick_loader import FlickLoadController, FlickLoadParts
 from funestra.flick_renderer import FlickRenderController
@@ -92,6 +92,7 @@ class FlickLibrary:
     flicks: list[Path]
     start_flick: Path | None = None
     metadata_root: Path | None = None
+    flips: FlipsKeptElsewhere | None = None
 
 
 @dataclass(frozen=True)
@@ -179,7 +180,7 @@ def build_genau_engine(
                 lambda: host.narrow(plays_vr, plays_flat),
                 says=PROJECTION.flash((plays_flat, plays_vr)))),
         play_file=selection.play,
-        flick_flip=FlickFlip(library.metadata_root),
+        flick_flip=FlickFlip(library.metadata_root, kept_elsewhere=library.flips),
     )
     controller = GenauRefreshController(GenauRefreshParts(
         controls=controls,

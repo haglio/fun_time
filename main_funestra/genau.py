@@ -21,7 +21,7 @@ from shared_ui.orientation import PORTRAIT
 
 from fun_time.arrivals import LOOK_EVERY_S, Arrivals
 from fun_time.content import no_other_flicks
-from fun_time.gallery import Gallery
+from fun_time.gallery import Gallery, GalleryFlips
 from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import (
     EngineSeams,
@@ -107,7 +107,8 @@ class Genau:
         self._engine = build_genau_engine(
             settings,
             channels,
-            FlickLibrary(kept or turned or browsed, flicks.start_flick, flicks.metadata_root),
+            FlickLibrary(kept or turned or browsed, flicks.start_flick, flicks.metadata_root,
+                         flips=GalleryFlips(flicks.gallery)),
             GenauHost(
                 notifier=notifier,
                 tcode_sink=outputs.tcode_sink,

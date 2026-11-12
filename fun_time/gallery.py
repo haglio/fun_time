@@ -8,7 +8,7 @@ from collections.abc import Callable
 from pathlib import Path, PurePath
 
 from app_support import gallery_rows, haglio_settings, kino_folder, siblings
-from app_support.gallery_records import RECORD_COLUMNS, GalleryReading
+from app_support.gallery_records import FLIPPED, GENAU_SECTION, RECORD_COLUMNS, GalleryReading
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 logger = logging.getLogger(__name__)
@@ -46,37 +46,48 @@ def gallery_database_in(checkout: Path | None) -> Path | None:
 
 def star_in_the_gallery(video: str | Path, checkout: Path | None, *,
                         popen: Callable[..., object] = subprocess.Popen) -> None:
+    _ask_the_gallery(checkout, "favorite", video, True, popen=popen)
+
+
+def _ask_the_gallery(checkout: Path | None, verb: str, video: str | Path, on: bool, *,
+                     popen: Callable[..., object]) -> None:
     command = _published_by(checkout).get("records_command")
     if checkout is None or not isinstance(command, list) or not command:
-        logger.warning("No Origenerator publishes a way to star %s in its gallery", video)
+        logger.warning("No Origenerator publishes a way to record %s of %s in its gallery",
+                       verb, video)
         return
     interpreter, *module = command
     try:
-        popen([str(Path(checkout) / interpreter), *module, "favorite", "--video", str(video), "--on"],
+        popen([str(Path(checkout) / interpreter), *module, verb, "--video", str(video),
+               "--on" if on else "--off"],
               cwd=str(checkout), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
               stderr=subprocess.DEVNULL, **hidden_subprocess_kwargs())
     except OSError as error:
-        logger.warning("Origenerator at %s could not be asked to star %s (%s)", checkout, video, error)
+        logger.warning("Origenerator at %s could not be asked to record %s of %s (%s)",
+                       checkout, verb, video, error)
 
 
 def the_librarys_gallery() -> Gallery:
-    return Gallery.read(gallery_database_in(the_librarys_origenerator()))
+    checkout = the_librarys_origenerator()
+    return Gallery.read(gallery_database_in(checkout), checkout=checkout)
 
 
 class Gallery:
-    def __init__(self, rows: list[dict]) -> None:
+    def __init__(self, rows: list[dict], *, checkout: Path | None = None) -> None:
         self._reading = GalleryReading(rows)
+        self.checkout = checkout
 
     @classmethod
-    def read(cls, db_path: Path | None) -> Gallery:
+    def read(cls, db_path: Path | None, *, checkout: Path | None = None) -> Gallery:
         if db_path is None:
-            return cls([])
+            return cls([], checkout=checkout)
         try:
-            return cls(gallery_rows.rows(_COLUMNS, db_path=db_path, optional=_OPTIONAL))
+            return cls(gallery_rows.rows(_COLUMNS, db_path=db_path, optional=_OPTIONAL),
+                       checkout=checkout)
         except (FileNotFoundError, sqlite3.Error) as error:
             logger.warning("Could not read Origenerator's gallery at %s (%s), so no AI video "
                            "is known to it", db_path, error)
-            return cls([])
+            return cls([], checkout=checkout)
 
     def _row(self, video: str | Path) -> dict:
         return self._reading.row_of(video) or {}
@@ -90,3 +101,22 @@ class Gallery:
     def record_of(self, video: str | Path) -> dict:
         row = self._reading.row_of(video)
         return {} if row is None else self._reading.record_of(row, where=PurePath(video))
+
+
+class GalleryFlips:
+    def __init__(self, gallery: Gallery, *, popen: Callable[..., object] = subprocess.Popen) -> None:
+        self._gallery, self._popen = gallery, popen
+        self._flipped_since: dict[Path, bool] = {}
+
+    @staticmethod
+    def keeps(flick: Path) -> bool:
+        return kino_folder.is_ai_video(flick)
+
+    def is_flipped(self, flick: Path) -> bool:
+        if flick in self._flipped_since:
+            return self._flipped_since[flick]
+        return self._gallery.record_of(flick).get(GENAU_SECTION, {}).get(FLIPPED) is True
+
+    def keep(self, flick: Path, flipped: bool) -> None:
+        self._flipped_since[flick] = flipped
+        _ask_the_gallery(self._gallery.checkout, "flipped", flick, flipped, popen=self._popen)

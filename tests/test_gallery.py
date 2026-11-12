@@ -9,9 +9,11 @@ from app_support import haglio_settings, kino_folder
 from fun_time.gallery import (
     CONTRACT_FILE,
     Gallery,
+    GalleryFlips,
     ai_videos_of_the_library,
     gallery_database_in,
     star_in_the_gallery,
+    the_librarys_gallery,
     the_librarys_origenerator,
 )
 from tests.made_up_gallery import (
@@ -167,4 +169,39 @@ def test_an_origenerator_that_cannot_be_started_leaves_the_star_unasked(tmp_path
 
     star_in_the_gallery(tmp_path / "scene one.mp4", made_up_origenerator(tmp_path), popen=refuses)
 
-    assert "could not be asked to star" in caplog.text
+    assert "could not be asked to record favorite" in caplog.text
+
+
+def _an_ai_flick(tmp_path: Path) -> Path:
+    return tmp_path / "genau" / "flicks" / "2D" / "AI" / "alpha_00007_.mp4"
+
+
+def test_an_ai_flicks_flip_is_kept_in_the_gallery_and_a_non_ai_flicks_is_not(tmp_path):
+    flips = GalleryFlips(Gallery([a_row("gen-1", "alpha_00007_.mp4", genau_flipped=1)]))
+
+    assert flips.keeps(_an_ai_flick(tmp_path))
+    assert flips.is_flipped(_an_ai_flick(tmp_path))
+    assert not flips.keeps(tmp_path / "genau" / "flicks" / "2D" / "non_AI" / "scene one.mp4")
+
+
+def test_a_flip_is_asked_of_origenerator_and_shown_at_once(tmp_path):
+    checkout = made_up_origenerator(tmp_path)
+    started = []
+    flips = GalleryFlips(Gallery([a_row("gen-1", "alpha_00007_.mp4")], checkout=checkout),
+                         popen=lambda argv, **_kwargs: started.append(argv[3:]))
+    flick = _an_ai_flick(tmp_path)
+
+    flips.keep(flick, True)
+    shown_flipped = flips.is_flipped(flick)
+    flips.keep(flick, False)
+
+    assert (shown_flipped, flips.is_flipped(flick)) == (True, False)
+    assert started == [["flipped", "--video", str(flick), "--on"],
+                       ["flipped", "--video", str(flick), "--off"]]
+
+
+def test_the_librarys_gallery_knows_the_origenerator_it_was_read_from(tmp_path, monkeypatch):
+    checkout = made_up_origenerator(tmp_path)
+    monkeypatch.setattr("fun_time.gallery.the_librarys_origenerator", lambda: checkout)
+
+    assert the_librarys_gallery().checkout == checkout
