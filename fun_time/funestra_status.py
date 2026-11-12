@@ -4,8 +4,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support.file_channel import read_key_values
-from funestra.modes import LoopState, read_mode
+from funestra.modes import read_mode
 from funestra.status import FunestraStatus, parse_status
+
+from main_funestra.snippet_controller import SnippetState
 
 
 @dataclass(frozen=True)
@@ -34,9 +36,9 @@ GENAU_OPENS_LOCKED = True
 @dataclass(frozen=True)
 class MainFunestraStatus(ScriptedStatus):
     locked: bool = MAIN_FUNESTRA_OPENS_LOCKED
-    loop_state: LoopState = LoopState.NORMAL
-    loop_in_ms: int = 0
-    loop_out_ms: int = 0
+    snippet_state: SnippetState = SnippetState.NORMAL
+    snippet_in_ms: int = 0
+    snippet_out_ms: int = 0
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -44,14 +46,14 @@ class MainFunestraStatus(ScriptedStatus):
     portrait: bool | None = None
 
     @property
-    def loop_bounds(self) -> tuple[int, int] | None:
-        if self.loop_state is not LoopState.LOOPING or self._its_range_would_hold_mpv_on_one_frame:
+    def snippet_bounds(self) -> tuple[int, int] | None:
+        if self.snippet_state is not SnippetState.REPEATING or self._its_range_would_hold_mpv_on_one_frame:
             return None
-        return (self.loop_in_ms, self.loop_out_ms)
+        return (self.snippet_in_ms, self.snippet_out_ms)
 
     @property
     def _its_range_would_hold_mpv_on_one_frame(self) -> bool:
-        return self.loop_out_ms <= self.loop_in_ms
+        return self.snippet_out_ms <= self.snippet_in_ms
 
 
 __all__ = ["read_key_values"]
@@ -71,10 +73,10 @@ def read_main_funestra_status(path: Path, *, fallback: MainFunestraStatus | None
 def _main_funestra_status_from(values: dict) -> MainFunestraStatus:
     return MainFunestraStatus(
         **asdict(parse_status(values, default=_A_MAIN_FUNESTRA_WITH_NOTHING_TO_SAY)),
-        loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
+        snippet_state=read_mode(SnippetState, values.get("snippet_state", "").strip(), SnippetState.NORMAL),
         **scripted_fields(values),
-        loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
-        loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
+        snippet_in_ms=int(values.get("snippet_in_ms", "0").strip() or 0),
+        snippet_out_ms=int(values.get("snippet_out_ms", "0").strip() or 0),
         compilation=values.get("compilation", "").strip(),
         has_compilation=_status_bool(values, "has_compilation"),
         has_other_versions=_status_bool(values, "has_other_versions"),

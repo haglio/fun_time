@@ -61,7 +61,7 @@ video and lives nowhere but in the Funestra holding it, so each session publishe
 it and the arriving one is sent it back on the command file — and only when the
 video it was cut from is what the new list leads with, since otherwise
 those bounds would mark out a stretch of a video nobody chose. Both
-orchestrators ask `session_resume.resume_main_loop` for it, which decides that
+orchestrators ask `session_resume.resume_main_snippet` for it, which decides that
 for both.
 
 ## How the crossing runs

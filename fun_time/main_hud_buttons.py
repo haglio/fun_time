@@ -21,8 +21,10 @@ from funestra.hud_controls import (
 from funestra.hud_icons import shared_icon
 from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import ROW_LABEL_W, VALUE_W
-from funestra.modes import LengthMode, LoopState, MainMode
+from funestra.modes import LengthMode, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
+
+from main_funestra.snippet_controller import SnippetState
 
 from .content import genau_flick_noun
 from .crown import CROWN_ICON, Crown
@@ -46,7 +48,7 @@ class MainFunestraFacts:
     locked: bool = True
     f_mode: bool = False
     latest: bool | None = None
-    loop_state: LoopState = LoopState.NORMAL
+    snippet_state: SnippetState = SnippetState.NORMAL
     plays_vr: bool | None = None
     plays_flat: bool | None = None
     plays_portrait: bool = True
@@ -117,11 +119,11 @@ def _file_controls(facts: MainFunestraFacts) -> tuple[Button, ...]:
         Button("browse_library", OPEN_ICON, "Browse the library", group_break=True),
         Button("main_funestra_record_tap", RECORD_ICON,
                "Stop recording — mark the loop's out point"
-               if facts.loop_state is LoopState.RECORDING else
-               "Looping — press to drop the loop" if facts.loop_state is LoopState.LOOPING
+               if facts.snippet_state is SnippetState.RECORDING else
+               "Looping — press to drop the loop" if facts.snippet_state is SnippetState.REPEATING
                else "Record loop",
-               warn=facts.loop_state is LoopState.RECORDING,
-               hold=facts.loop_state is LoopState.LOOPING, group_break=True),
+               warn=facts.snippet_state is SnippetState.RECORDING,
+               hold=facts.snippet_state is SnippetState.REPEATING, group_break=True),
         Button("genaumacher_save", SAVE_ICON, "Save loop"),
     )
 

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from funestra.modes import LoopState
 from funestra.scripted_device import REWIND_MS
 
-from .loop_controller import LoopController
+from .snippet_controller import SnippetController, SnippetState
 
 _EOF_WRAP_START_MS = 250
 _EOF_MARGIN_MS = 100
@@ -15,7 +14,7 @@ def _nobody_floors_seeks(_in_ms: int | None) -> None:
     pass
 
 
-class LoopMachine:
+class SnippetMachine:
     def __init__(
         self,
         playback,
@@ -28,25 +27,25 @@ class LoopMachine:
         self._seek_to = seek_to
         self._take_the_device_over = take_the_device_over
         self._floor_seeks_at = floor_seeks_at
-        self._ctrl = LoopController(None)
+        self._ctrl = SnippetController(None)
         self._last_pos_ms = 0.0
 
     def open(self, funscript) -> None:
-        self._ctrl = LoopController(funscript)
+        self._ctrl = SnippetController(funscript)
         self._last_pos_ms = 0.0
         self._floor_seeks_at(None)
         self._playback.clear_ab_loop()
 
     @property
     def marking(self) -> bool:
-        return self._ctrl.state == LoopState.RECORDING
+        return self._ctrl.state == SnippetState.RECORDING
 
     @property
     def running(self) -> bool:
-        return self._ctrl.state == LoopState.LOOPING
+        return self._ctrl.state == SnippetState.REPEATING
 
     @property
-    def state(self) -> LoopState:
+    def state(self) -> SnippetState:
         return self._ctrl.state
 
     @property

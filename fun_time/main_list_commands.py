@@ -8,10 +8,11 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_ON, set_speed
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
-from funestra.modes import LengthMode, LoopState
+from funestra.modes import LengthMode
 from funestra.playback_rate import NORMAL_RATE
 
 from main_funestra.genau_verbs import genau_orientations
+from main_funestra.snippet_controller import SnippetState
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, ignored
 from .content import no_other_flicks
@@ -208,12 +209,12 @@ def main_funestra_at_defaults(
         return False
     if not kino_shows(state.main_mode):
         return True
-    return (not status.locked and status.loop_state is LoopState.NORMAL and status.speed == NORMAL_RATE
+    return (not status.locked and status.snippet_state is SnippetState.NORMAL and status.speed == NORMAL_RATE
             and not status.compilation)
 
 
 _MAIN_FUNESTRA_RESET_VERBS = (
-    MAIN_FUNESTRA_CMD_MAP["main_funestra_loop_cancel"],
+    MAIN_FUNESTRA_CMD_MAP["main_funestra_snippet_cancel"],
     MAIN_LOCK_COMMANDS["main_lock_off"],
     set_speed(NORMAL_RATE),
 )

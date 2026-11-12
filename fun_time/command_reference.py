@@ -517,7 +517,7 @@ _SECTIONS: tuple[_Section, ...] = (
                     "loop control — hold to start recording a loop, release to end "
                     "recording, and tap again to terminate a recorded loop",
                     ("R",),
-                    ("main_funestra_record_down", "main_funestra_record_up", "main_funestra_record_tap", "main_funestra_loop_cancel"),
+                    ("main_funestra_record_down", "main_funestra_record_up", "main_funestra_record_tap", "main_funestra_snippet_cancel"),
                 ),
                 _Row(
                     f"save loop — save loop to send to Genaumacher to produce a new Genau {_FLICK.one}",

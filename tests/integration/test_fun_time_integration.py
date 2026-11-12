@@ -14,7 +14,6 @@ from app_support.funscript import document, write
 from funestra.file_channel import append_command
 from funestra.funestra_controls import SEEK_STEP_MS
 from funestra.funestra_verbs import LOCK_OFF, RELOAD_PLAYLIST, SET_SPEED, play_file
-from funestra.modes import LoopState
 from funestra.playlist import PlaylistItem
 
 from fun_time.config import SatelliteChannel
@@ -35,6 +34,7 @@ from fun_time.win32 import (
 from fun_time.win32_process import is_process_alive
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 from main_funestra.genau import ROBOT_HAND
+from main_funestra.snippet_controller import SnippetState
 from tests.made_up_genau import made_up_genau, point_the_shared_settings_at
 
 from .integration_support import (
@@ -537,27 +537,27 @@ def test_fun_time_a_spoken_step_back_too_early_stays_put_and_a_step_with_room_re
         append_command(portrait.cmd_file, RELOAD_PLAYLIST)
 
 
-def test_fun_time_main_funestra_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
+def test_fun_time_main_funestra_record_snippet_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
     s = shared_integration_session
     _main_funestra_playing_in_kino_mode(s)
     with _main_funestra_held_still(s):
-        assert s.read_main_funestra_status().loop_state is LoopState.NORMAL
+        assert s.read_main_funestra_status().snippet_state is SnippetState.NORMAL
 
         s.write_dashboard_command("main_funestra_record_tap")
         s.wait_until(
-            lambda: s.read_main_funestra_status().loop_state is LoopState.RECORDING,
+            lambda: s.read_main_funestra_status().snippet_state is SnippetState.RECORDING,
             description="the Main Funestra to enter recording state",
         )
 
         s.write_dashboard_command("main_funestra_record_tap")
         s.wait_until(
-            lambda: s.read_main_funestra_status().loop_state is LoopState.LOOPING,
-            description="the Main Funestra to enter looping state",
+            lambda: s.read_main_funestra_status().snippet_state is SnippetState.REPEATING,
+            description="the Main Funestra to start repeating its snippet",
         )
 
-        s.write_dashboard_command("main_funestra_loop_cancel")
+        s.write_dashboard_command("main_funestra_snippet_cancel")
         s.wait_until(
-            lambda: s.read_main_funestra_status().loop_state is LoopState.NORMAL,
+            lambda: s.read_main_funestra_status().snippet_state is SnippetState.NORMAL,
             description="the Main Funestra to return to normal state",
         )
 

@@ -62,7 +62,7 @@ def main_hud_model(inputs: MainFunestraInputs) -> MainHudModel:
         locked=main_funestra.locked if video else genau.locked,
         f_mode=inputs.scripted_filter if video else inputs.genau_favorites_filter,
         latest=inputs.latest if video else inputs.genau_latest,
-        loop_state=main_funestra.loop_state,
+        snippet_state=main_funestra.snippet_state,
         plays_vr=inputs.plays_vr if video else inputs.genau_plays_vr,
         plays_flat=inputs.plays_flat if video else inputs.genau_plays_flat,
         plays_portrait=inputs.plays_portrait if video else inputs.genau_plays_portrait,

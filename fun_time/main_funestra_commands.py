@@ -42,7 +42,7 @@ MAIN_FUNESTRA_CMD_MAP = {
     "main_funestra_record_down": "RECORD_DOWN",
     "main_funestra_record_up": "RECORD_UP",
     "main_funestra_record_tap": "RECORD_TAP",
-    "main_funestra_loop_cancel": "LOOP_CANCEL",
+    "main_funestra_snippet_cancel": "SNIPPET_CANCEL",
     "main_funestra_cycle_version": "CYCLE_VERSION",
     "main_funestra_cycle_version_back": "CYCLE_VERSION_BACK",
     "main_funestra_compilation": "PLAY_COMPILATION",

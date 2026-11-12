@@ -20,7 +20,7 @@ from fun_time.shared_state import (
     SHARED_STATE_FILENAME,
     BridgeState,
     SatelliteState,
-    main_loop_bounds,
+    main_snippet_bounds,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -51,7 +51,7 @@ def test_a_write_that_meets_a_reader_holding_the_file_open_still_lands(tmp_path:
     assert read_shared_state(state_file).omni_paused is True
 
 
-def test_every_field_survives_the_round_trip_the_loop_makes_each_tick(tmp_path: Path):
+def test_every_field_survives_the_round_trip_the_snippet_makes_each_tick(tmp_path: Path):
     state_file = tmp_path / "shared_state.ini"
     state = shifted_state(BridgeState())
 
@@ -279,7 +279,7 @@ _EXPECTED_STATE_KEYS = {
     "main_speed": "1",
     "portrait_volume": "100", "landscape_volume": "100", "portrait_muted": "1",
     "landscape_muted": "1",
-    "main_locked": "1", "main_loop_video": "", "main_loop_bounds_ms": "",
+    "main_locked": "1", "main_snippet_video": "", "main_snippet_bounds_ms": "",
     "genau_speed": "50", "genau_amplitude": "100",
     "genau_center": "50", "genau_shape": "sine",
     "mic_muted": "0",
@@ -311,13 +311,13 @@ def test_a_number_a_hand_edit_spoiled_reads_as_that_fields_default(tmp_path):
     assert loaded.volume == BridgeState().volume
 
 
-def test_main_loop_bounds_read_back_off_the_remembered_value():
-    assert main_loop_bounds(BridgeState(main_loop_bounds_ms="1000 5000")) == (1000, 5000)
+def test_main_snippet_bounds_read_back_off_the_remembered_value():
+    assert main_snippet_bounds(BridgeState(main_snippet_bounds_ms="1000 5000")) == (1000, 5000)
 
 
-def test_main_loop_bounds_are_none_when_the_value_is_empty_or_hand_edited():
-    assert main_loop_bounds(BridgeState()) == (0, 0)
-    assert main_loop_bounds(BridgeState(main_loop_bounds_ms="soon")) == (0, 0)
+def test_main_snippet_bounds_are_none_when_the_value_is_empty_or_hand_edited():
+    assert main_snippet_bounds(BridgeState()) == (0, 0)
+    assert main_snippet_bounds(BridgeState(main_snippet_bounds_ms="soon")) == (0, 0)
 
 
 def test_a_file_from_before_a_satellite_had_one_mode_loads_and_drops_what_it_no_longer_keeps(

@@ -14,7 +14,7 @@ from funestra.playback_rate import NORMAL_RATE
 from funestra.playlist import read_playlist, write_playlist
 from funestra.robot_hand import RobotHandState, WaveformShape
 
-from main_funestra.loop_verbs import SET_LOOP
+from main_funestra.snippet_verbs import SET_SNIPPET
 
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_settings import FunestraReports, with_what_the_funestras_report
@@ -23,7 +23,7 @@ from .modes import same_file_to_windows
 from .shared_state import (
     BridgeState,
     SatelliteState,
-    main_loop_bounds,
+    main_snippet_bounds,
     migrate_shared_state,
     read_shared_state,
     write_shared_state,
@@ -142,13 +142,13 @@ def resume_what_lives_in_a_funestra(
     resume_genau(genau_cmd_file, carried)
 
 
-def resume_main_loop(main_funestra_cmd_file: Path, carried: BridgeState,
+def resume_main_snippet(main_funestra_cmd_file: Path, carried: BridgeState,
                      playlist_file: Path) -> None:
-    in_ms, out_ms = main_loop_bounds(carried)
-    was_looping = out_ms > in_ms
-    if was_looping and playlist_opens_on(playlist_file, carried.main_loop_video):
+    in_ms, out_ms = main_snippet_bounds(carried)
+    had_a_snippet = out_ms > in_ms
+    if had_a_snippet and playlist_opens_on(playlist_file, carried.main_snippet_video):
         append_command(Path(main_funestra_cmd_file),
-                       f"{SET_LOOP} {in_ms} {out_ms}")
+                       f"{SET_SNIPPET} {in_ms} {out_ms}")
 
 
 _OSR2_CONTROLS = (OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED)

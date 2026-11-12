@@ -111,7 +111,7 @@ def test_a_genau_status_silent_about_the_lock_reads_locked_as_genau_opens(tmp_pa
 def test_read_main_funestra_status_parses_has_funscript(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nloop_state=normal\npaused=0\n",
+        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nsnippet_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
@@ -163,7 +163,7 @@ def test_a_main_status_silent_about_the_lock_reads_locked_as_the_main_funestra_o
 def test_read_main_funestra_status_parses_position_and_duration(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nloop_state=normal\npaused=0\n",
+        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nsnippet_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
@@ -220,31 +220,31 @@ def test_read_genau_status_says_whether_the_flick_up_is_flipped(tmp_path: Path):
     assert read_genau_status(tmp_path / "missing.txt").flipped is False
 
 
-def test_read_main_funestra_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
+def test_read_main_funestra_status_parses_the_range_a_running_snippet_holds(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        "video=C:\\clip.mp4\nsnippet_state=repeating\nsnippet_in_ms=2000\nsnippet_out_ms=4000\n",
         encoding="utf-8",
     )
 
-    assert read_main_funestra_status(status_file).loop_bounds == (2000, 4000)
+    assert read_main_funestra_status(status_file).snippet_bounds == (2000, 4000)
 
 
 def test_the_empty_range_a_canceled_loop_goes_on_publishing_is_no_loop(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nloop_state=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
+        "video=C:\\clip.mp4\nsnippet_state=normal\nsnippet_in_ms=0\nsnippet_out_ms=0\n", encoding="utf-8",
     )
 
-    assert read_main_funestra_status(status_file).loop_bounds is None
-    assert read_main_funestra_status(tmp_path / "missing.txt").loop_bounds is None
+    assert read_main_funestra_status(status_file).snippet_bounds is None
+    assert read_main_funestra_status(tmp_path / "missing.txt").snippet_bounds is None
 
 
 def test_a_loop_an_older_main_funestra_published_without_its_range_is_no_loop(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
-    status_file.write_text("video=C:\\clip.mp4\nloop_state=looping\n", encoding="utf-8")
+    status_file.write_text("video=C:\\clip.mp4\nsnippet_state=repeating\n", encoding="utf-8")
 
-    assert read_main_funestra_status(status_file).loop_bounds is None
+    assert read_main_funestra_status(status_file).snippet_bounds is None
 
 
 def test_read_main_funestra_status_parses_what_a_reset_puts_back(tmp_path: Path):
@@ -347,18 +347,18 @@ def test_a_status_file_caught_half_written_is_not_yet_published(tmp_path: Path):
 def test_a_range_with_nothing_looping_is_no_loop(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:/clip.mp4\nloop_state=normal\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        "video=C:/clip.mp4\nsnippet_state=normal\nsnippet_in_ms=2000\nsnippet_out_ms=4000\n",
         encoding="utf-8",
     )
 
-    assert read_main_funestra_status(status_file).loop_bounds is None
+    assert read_main_funestra_status(status_file).snippet_bounds is None
 
 
 def test_a_looping_state_with_an_empty_range_is_no_loop(tmp_path: Path):
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:/clip.mp4\nloop_state=looping\nloop_in_ms=3000\nloop_out_ms=3000\n",
+        "video=C:/clip.mp4\nsnippet_state=repeating\nsnippet_in_ms=3000\nsnippet_out_ms=3000\n",
         encoding="utf-8",
     )
 
-    assert read_main_funestra_status(status_file).loop_bounds is None
+    assert read_main_funestra_status(status_file).snippet_bounds is None

@@ -428,10 +428,10 @@ class TestTheModeASessionComesBackIn:
         assert show_verb(MainMode.KINO) in queued["main"]
         assert show_verb(MainMode.GENAU) not in queued["main"]
 
-    def test_the_loop_is_queued_once_the_stocked_list_says_which_video_opens(self):
+    def test_the_snippet_is_queued_once_the_stocked_list_says_which_video_opens(self):
         source = inspect.getsource(windows_bridge_startup.carry_the_last_session_in)
 
-        assert source.index("open_the_main_list(") < source.index("resume_main_loop(")
+        assert source.index("open_the_main_list(") < source.index("resume_main_snippet(")
 
     def test_the_reveal_releases_the_funestras_the_mode_puts_to_work(self):
         (release,) = self._calls("run_vr_bridge", "release_the_funestras")

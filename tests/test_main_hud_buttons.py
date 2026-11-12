@@ -11,7 +11,7 @@ from funestra.hud_icons import (
 )
 from funestra.hud_title import F_MODE_LABEL
 from funestra.main_hud import GAP, GROUP_GAP, OSR2_DRIVING, hit_test, place_rows, tooltip_at
-from funestra.modes import LengthMode, LoopState, MainMode, Osr2State
+from funestra.modes import LengthMode, MainMode, Osr2State
 from funestra.satellite_hud import HudModel
 from funestra.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import icon_names
@@ -26,6 +26,7 @@ from fun_time.main_hud_buttons import (
     osr2_rows,
 )
 from fun_time.osr2_section import Osr2PartFacts, osr2_button, osr2_part
+from main_funestra.snippet_controller import SnippetState
 
 FLAT_ICON, VR_ICON = PROJECTION.first.mark, PROJECTION.second.mark
 CLIPS_ICON, FULL_ICON = LENGTH.first.mark, LENGTH.second.mark
@@ -91,7 +92,7 @@ class TestTransport:
         assert "genau_next_flick" in actions
         assert "genau_trash_flick" in actions
 
-    def test_genau_can_flip_the_flick_up_half_a_loop(self):
+    def test_genau_can_flip_the_flick_up_half_a_snippet(self):
         flip = _button(MainFunestraFacts(main_mode=MainMode.GENAU), "genau_flip_ends")
 
         assert shared_icon_name(flip.icon) == "flip_ends"
@@ -525,7 +526,7 @@ class TestState:
         assert _button(facts, "main_kino_activate").lit is True
         assert _button(facts, "genau_activate").lit is False
 
-    def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
+    def test_nothing_but_the_recording_and_its_snippet_takes_a_color_of_its_own(self):
         colored = [b.command for row in _every_row(MainFunestraFacts(main_mode=MainMode.GENAU, locked=True))
                    for b in row if b.warn or b.hold]
 
@@ -534,19 +535,19 @@ class TestState:
     def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
         assert _button(MainFunestraFacts(main_mode=MainMode.KINO, f_mode=True), "main_fmode").favorite is True
 
-    def test_the_record_button_tells_marking_from_looping(self):
+    def test_the_record_button_tells_marking_from_repeating(self):
         idle = _button(MainFunestraFacts(main_mode=MainMode.KINO), "main_funestra_record_tap")
-        marking = _button(MainFunestraFacts(main_mode=MainMode.KINO, loop_state=LoopState.RECORDING), "main_funestra_record_tap")
-        looping = _button(MainFunestraFacts(main_mode=MainMode.KINO, loop_state=LoopState.LOOPING), "main_funestra_record_tap")
+        marking = _button(MainFunestraFacts(main_mode=MainMode.KINO, snippet_state=SnippetState.RECORDING), "main_funestra_record_tap")
+        repeating = _button(MainFunestraFacts(main_mode=MainMode.KINO, snippet_state=SnippetState.REPEATING), "main_funestra_record_tap")
 
         assert (idle.warn, idle.hold) == (False, False)
         assert (marking.warn, marking.hold) == (True, False)
-        assert (looping.warn, looping.hold) == (False, True)
+        assert (repeating.warn, repeating.hold) == (False, True)
 
     def test_the_record_button_says_which_press_comes_next(self):
-        for loop_state, wanted in ((LoopState.NORMAL, "Record"), (LoopState.RECORDING, "out point"),
-                                   (LoopState.LOOPING, "drop the loop")):
-            assert wanted in _button(MainFunestraFacts(main_mode=MainMode.KINO, loop_state=loop_state),
+        for snippet_state, wanted in ((SnippetState.NORMAL, "Record"), (SnippetState.RECORDING, "out point"),
+                                   (SnippetState.REPEATING, "drop the loop")):
+            assert wanted in _button(MainFunestraFacts(main_mode=MainMode.KINO, snippet_state=snippet_state),
                                      "main_funestra_record_tap").tooltip
 
 
@@ -570,7 +571,7 @@ class TestLayout:
         assert video[4:] == ["browse_library", "main_funestra_record_tap", "genaumacher_save"]
         assert genau[4:] == ["browse_library"]
 
-    def test_the_save_is_named_for_the_loop_it_saves(self):
+    def test_the_save_is_named_for_the_snippet_it_saves(self):
         assert _button(MainFunestraFacts(main_mode=MainMode.KINO), "genaumacher_save").tooltip == "Save loop"
 
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):

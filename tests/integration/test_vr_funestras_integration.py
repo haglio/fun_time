@@ -12,7 +12,6 @@ import glfw
 import numpy as np
 import pytest
 from funestra.file_channel import append_command
-from funestra.modes import LoopState
 from OpenGL import GL, _configflags
 
 import fun_time_vr.funestras as vrp
@@ -34,7 +33,8 @@ from fun_time_vr.render import SceneRenderer
 from fun_time_vr.room import RoomLaunch
 from fun_time_vr.scheduling import ahead_of_background_work
 from fun_time_vr.wraps import immersive_wrap
-from main_funestra.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
+from main_funestra.snippet_controller import SnippetState
+from main_funestra.snippet_verbs import RECORD_TAP, SET_SNIPPET, SNIPPET_CANCEL
 
 from .integration_support import (
     ReadProbe,
@@ -488,32 +488,32 @@ def test_the_main_funestra_marks_and_runs_an_ab_loop_in_the_headset():
         wait_for(after_frames(lambda: published().position_ms),
                  desc="the video to start playing")
         held_at = held_still()
-        assert published().loop_state is LoopState.NORMAL
+        assert published().snippet_state is SnippetState.NORMAL
 
         append_command(cmd_file, RECORD_TAP)
-        wait_for(after_frames(lambda: published().loop_state is LoopState.RECORDING),
+        wait_for(after_frames(lambda: published().snippet_state is SnippetState.RECORDING),
                  desc="the mark to open")
-        assert published().loop_bounds is None, (
-            "a mark still open is not a loop the next session could be handed"
+        assert published().snippet_bounds is None, (
+            "a mark still open is not a snippet the next session could be handed"
         )
 
         append_command(cmd_file, RECORD_TAP)
-        wait_for(after_frames(lambda: published().loop_state is LoopState.LOOPING),
-                 desc="the loop to close and start")
-        bounds = published().loop_bounds
+        wait_for(after_frames(lambda: published().snippet_state is SnippetState.REPEATING),
+                 desc="the snippet to close and start")
+        bounds = published().snippet_bounds
         assert bounds is not None
-        assert bounds[0] == held_at, "the loop starts where the mark was made"
-        assert bounds[1] > bounds[0], "and runs long enough for mpv to loop it"
+        assert bounds[0] == held_at, "the snippet starts where the mark was made"
+        assert bounds[1] > bounds[0], "and runs long enough for mpv to repeat it"
 
-        append_command(cmd_file, LOOP_CANCEL)
-        wait_for(after_frames(lambda: published().loop_state is LoopState.NORMAL),
-                 desc="the loop to be dropped")
-        assert published().loop_bounds is None
+        append_command(cmd_file, SNIPPET_CANCEL)
+        wait_for(after_frames(lambda: published().snippet_state is SnippetState.NORMAL),
+                 desc="the snippet to be dropped")
+        assert published().snippet_bounds is None
 
-        append_command(cmd_file, f"{SET_LOOP} {held_at} {held_at + 2_000}")
-        wait_for(after_frames(lambda: published().loop_state is LoopState.LOOPING),
-                 desc="the loop the crossing handed over to start")
-        assert published().loop_bounds == (held_at, held_at + 2_000), (
+        append_command(cmd_file, f"{SET_SNIPPET} {held_at} {held_at + 2_000}")
+        wait_for(after_frames(lambda: published().snippet_state is SnippetState.REPEATING),
+                 desc="the snippet the crossing handed over to start")
+        assert published().snippet_bounds == (held_at, held_at + 2_000), (
             "finished bounds are asserted, not snapped again"
         )
     finally:

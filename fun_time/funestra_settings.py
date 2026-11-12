@@ -61,8 +61,8 @@ def with_what_the_funestras_report(state: BridgeState, reports: FunestraReports)
     if reports.main is not None:
         main = reports.main
         state = replace(state, main_speed=main.speed, main_locked=main.locked,
-                        main_loop_video=main.video if main.loop_bounds else "",
-                        main_loop_bounds_ms=" ".join(map(str, main.loop_bounds or ())))
+                        main_snippet_video=main.video if main.snippet_bounds else "",
+                        main_snippet_bounds_ms=" ".join(map(str, main.snippet_bounds or ())))
     for funestra, status in reports.satellites.items():
         if status is None:
             continue
