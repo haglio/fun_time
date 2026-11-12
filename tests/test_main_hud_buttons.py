@@ -546,7 +546,7 @@ class TestState:
 
     def test_the_record_button_says_which_press_comes_next(self):
         for snippet_state, wanted in ((SnippetState.NORMAL, "Record"), (SnippetState.RECORDING, "out point"),
-                                   (SnippetState.REPEATING, "drop the loop")):
+                                   (SnippetState.REPEATING, "drop it")):
             assert wanted in _button(MainFunestraFacts(main_mode=MainMode.KINO, snippet_state=snippet_state),
                                      "main_funestra_record_tap").tooltip
 
@@ -572,7 +572,7 @@ class TestLayout:
         assert genau[4:] == ["browse_library"]
 
     def test_the_save_is_named_for_the_snippet_it_saves(self):
-        assert _button(MainFunestraFacts(main_mode=MainMode.KINO), "genaumacher_save").tooltip == "Save loop"
+        assert _button(MainFunestraFacts(main_mode=MainMode.KINO), "genaumacher_save").tooltip == "Save snippet"
 
     def test_the_file_actions_stand_apart_from_the_crown_and_from_each_other(self):
         by_action = _placed(MainFunestraFacts(main_mode=MainMode.KINO))

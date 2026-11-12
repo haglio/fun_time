@@ -27,7 +27,7 @@ in either orchestrator:
 | Sound level and mute | yes |
 | The Main Funestra's mode (video / Genau) | yes |
 | The Main Funestra's video | yes, when the arriving session can play it |
-| The Main Funestra's A/B loop | yes, when the video carried — re-queued on the command file |
+| The Main Funestra's snippet | yes, when the video carried — re-queued on the command file |
 | The Main Funestra's playback rate | yes, re-queued on its command file |
 | The Main Funestra's hold on the video it is playing | yes, same |
 | Genau's speed, amplitude, center, shape, flick seconds, human-inspired motion and hold | yes, same |
@@ -56,7 +56,7 @@ It cannot always be kept. A VR master on the way back to the desktop is not in
 the desktop's library, because the desktop cannot play it; that crossing opens
 at the top of the new list. The log line says which of the two happened.
 
-The A/B loop follows the video, in both directions. It is a range inside one
+The snippet follows the video, in both directions. It is a range inside one
 video and lives nowhere but in the Funestra holding it, so each session publishes
 it and the arriving one is sent it back on the command file — and only when the
 video it was cut from is what the new list leads with, since otherwise

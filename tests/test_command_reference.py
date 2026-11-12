@@ -639,20 +639,20 @@ def test_genaus_flick_commands_are_the_main_funestras_genau_group_or_ride_a_shar
 
 def test_what_only_kino_answers_is_the_kino_group_or_rides_a_shared_funestras_row():
     versions = {"main_funestra_cycle_version", "main_funestra_cycle_version_back"}
-    loops = _group("Main Funestra", "Kino")
-    in_loops = {cmd for row in loops.rows for cmd in row.commands}
+    kino = _group("Main Funestra", "Kino")
+    in_kino = {cmd for row in kino.rows for cmd in row.commands}
     shared = {cmd for row in _funestras_section().rows for cmd in row.commands}
 
-    assert [row.description for row in loops.rows] == ["Kino mode", "loop control", "save loop"]
-    assert loops.rows[1].detail == (
-        "hold to start recording a loop, release to end recording, and tap again to "
-        "terminate a recorded loop")
-    assert loops.rows[2].detail == (
-        f"save loop to send to Genaumacher to produce a new Genau {genau_flick_noun().one}")
-    assert set(MAIN_FUNESTRA_CMD_MAP) - versions <= in_loops | shared
+    assert [row.description for row in kino.rows] == ["Kino mode", "snippet control", "save snippet"]
+    assert kino.rows[1].detail == (
+        "hold to start recording a snippet, release to end recording, and tap again to "
+        "terminate a recorded snippet")
+    assert kino.rows[2].detail == (
+        f"save snippet to send to Genaumacher to produce a new Genau {genau_flick_noun().one}")
+    assert set(MAIN_FUNESTRA_CMD_MAP) - versions <= in_kino | shared
     assert {"main_funestra_compilation", "main_funestra_end_compilation", "main_funestra_full_vid",
             "main_funestra_clip_jump"} <= shared
-    assert "genaumacher_save" in in_loops
+    assert "genaumacher_save" in in_kino
     assert versions <= set(_the_row_of("satellites_cycle_version").commands)
     assert not [row for row in _all_rows() if row.description == "save clip"]
 
@@ -710,11 +710,11 @@ def test_kino_mode_is_spoken_as_written_of_the_main_funestra():
     assert genau_rows[0].voice == ("genau", "genau mode")
 
 
-def test_loop_control_row_consolidates_record_and_cancel():
+def test_snippet_control_row_consolidates_record_and_cancel():
     rows = _all_rows()
-    loop_rows = [r for r in rows if "main_funestra_record_down" in r.commands]
-    assert loop_rows, "expected a loop control row"
-    row = loop_rows[0]
+    snippet_rows = [r for r in rows if "main_funestra_record_down" in r.commands]
+    assert snippet_rows, "expected a snippet control row"
+    row = snippet_rows[0]
     assert "R" in _keys(row)
     assert "record" in row.voice
     assert "loop" in row.voice
@@ -997,11 +997,11 @@ def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_incl
                 if row.description.startswith("included")]
 
 
-def test_the_loops_save_and_the_projection_are_said_as_the_rows_name_them():
+def test_the_snippets_save_and_the_projection_are_said_as_the_rows_name_them():
     flick = genau_flick_noun().one
     save, projection = _the_row_of("genaumacher_save"), _the_row_of("projection_cycle")
 
-    assert (save.description, save.voice) == ("save loop", (f"save {flick}", "save loop"))
+    assert (save.description, save.voice) == ("save snippet", (f"save {flick}", "save snippet"))
     assert projection.voice == ("cycle projection", "projection")
     assert "save clip" not in VOICE_COMMANDS
     assert "clip" not in VOICE_COMMANDS

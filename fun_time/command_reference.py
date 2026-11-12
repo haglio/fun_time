@@ -514,13 +514,13 @@ _SECTIONS: tuple[_Section, ...] = (
                     voice_display=("kino", "kino mode"),
                 ),
                 _Row(
-                    "loop control — hold to start recording a loop, release to end "
-                    "recording, and tap again to terminate a recorded loop",
+                    "snippet control — hold to start recording a snippet, release to end "
+                    "recording, and tap again to terminate a recorded snippet",
                     ("R",),
                     ("main_funestra_record_down", "main_funestra_record_up", "main_funestra_record_tap", "main_funestra_snippet_cancel"),
                 ),
                 _Row(
-                    f"save loop — save loop to send to Genaumacher to produce a new Genau {_FLICK.one}",
+                    f"save snippet — save snippet to send to Genaumacher to produce a new Genau {_FLICK.one}",
                     (";",),
                     ("genaumacher_save",),
                 ),
