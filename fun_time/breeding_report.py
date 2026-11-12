@@ -61,23 +61,21 @@ def build_breeding_rows(
     gallery: Gallery,
 ) -> list[BreedingRow]:
     rows = [row for path in video_paths
-            if (row := (_from_the_gallery(path, gallery) if is_ai_video(path)
-                        else _from_its_record(path, metadata_root))) is not None]
+            if (row := _ranked(path, _record_of(path, metadata_root, gallery))) is not None]
     rows.sort(key=lambda row: (-row.weight, -(row.completions + row.locks), row.skips, row.path))
     return rows
 
 
-def _from_the_gallery(path: str, gallery: Gallery) -> BreedingRow | None:
-    counts = gallery.watch_counts(path)
-    if counts is None:
-        return None
-    return BreedingRow(path=path, weight=watch_weights.weight_for(counts), **counts,
-                       orientation=_orientation_of(path), action="",
-                       seed=_norm_text(gallery.seed_of(path)), prompt=_norm_text(gallery.prompt_of(path)))
+def _record_of(path: str, metadata_root: str | Path | None, gallery: Gallery) -> dict:
+    if not is_ai_video(path):
+        return recorded_for(path, metadata_root)
+    record = gallery.record_of(path)
+    counts = record.get(watch_weights.WATCH_BLOCK, {})
+    never_watched = not any(counts.get(field) for field in watch_weights.COUNT_FIELDS)
+    return {} if never_watched else record
 
 
-def _from_its_record(path: str, metadata_root: str | Path | None) -> BreedingRow | None:
-    metadata = recorded_for(path, metadata_root)
+def _ranked(path: str, metadata: dict) -> BreedingRow | None:
     block = metadata.get(watch_weights.WATCH_BLOCK)
     if not isinstance(block, dict):
         return None

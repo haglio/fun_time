@@ -162,7 +162,7 @@ def _an_ai_video(tmp_path) -> Path:
 
 def test_a_lock_on_an_ai_video_regen_made_opens_regens_page_for_it(tmp_path):
     origenerator = made_up_origenerator(tmp_path, a_row("gen-1", "vid_00001_.mp4",
-                                                       positive_prompt="hi", seed=7))
+                                                       params={"positive_prompt": "hi"}))
     config = make_config(tmp_path, librarys_origenerator=origenerator)
     providers = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 

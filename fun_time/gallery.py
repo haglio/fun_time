@@ -5,18 +5,17 @@ import logging
 import sqlite3
 import subprocess
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from app_support import gallery_rows, haglio_settings, kino_folder, siblings
+from app_support.gallery_records import RECORD_COLUMNS, GalleryReading
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.watch_weights import COUNT_FIELDS
 
 logger = logging.getLogger(__name__)
 
 CONTRACT_FILE = "origenerator_gallery_contract.json"
-_COLUMNS = ("prompt_id", "output_files", "positive_prompt", "seed")
-_WATCH_COLUMNS = tuple(f"watch_{field}" for field in COUNT_FIELDS)
-_OPTIONAL = ("starred", "evolver_upscale", "web_url", *_WATCH_COLUMNS)
+_COLUMNS = ("prompt_id", "output_files")
+_OPTIONAL = (*(column for column in RECORD_COLUMNS if column not in _COLUMNS), "web_url")
 
 
 def ai_videos_of_the_library() -> list[Path]:
@@ -66,8 +65,7 @@ def the_librarys_gallery() -> Gallery:
 
 class Gallery:
     def __init__(self, rows: list[dict]) -> None:
-        self._rows = {row["prompt_id"]: row for row in rows}
-        self._row_of = gallery_rows.VideoRows(rows)
+        self._reading = GalleryReading(rows)
 
     @classmethod
     def read(cls, db_path: Path | None) -> Gallery:
@@ -81,7 +79,7 @@ class Gallery:
             return cls([])
 
     def _row(self, video: str | Path) -> dict:
-        return self._rows.get(self._row_of(video) or "", {})
+        return self._reading.row_of(video) or {}
 
     def is_starred(self, video: str | Path) -> bool:
         return bool(self._row(video).get("starred"))
@@ -89,15 +87,6 @@ class Gallery:
     def page_of(self, video: str | Path) -> str:
         return str(self._row(video).get("web_url") or "")
 
-    def prompt_of(self, video: str | Path) -> str:
-        return str(self._row(video).get("positive_prompt") or "")
-
-    def seed_of(self, video: str | Path) -> str:
-        return str(self._row(video).get("seed") or "")
-
-    def watch_counts(self, video: str | Path) -> dict[str, int] | None:
-        row = self._row(video)
-        if all(row.get(column) is None for column in _WATCH_COLUMNS):
-            return None
-        return {field: int(row.get(column) or 0)
-                for field, column in zip(COUNT_FIELDS, _WATCH_COLUMNS, strict=True)}
+    def record_of(self, video: str | Path) -> dict:
+        row = self._reading.row_of(video)
+        return {} if row is None else self._reading.record_of(row, where=PurePath(video))

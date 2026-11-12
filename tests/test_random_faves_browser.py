@@ -206,7 +206,7 @@ def _manifest(cfg_factory, tmp_path: Path, gallery: Gallery, providers=_PROVIDER
 
 def test_build_manifest_opens_no_tab_for_a_favorite_no_provider_made(cfg_factory, tmp_path: Path):
     _ai_video(tmp_path, "clip_00001__topaz.mp4", source="homemade")
-    gallery = Gallery([_starred("clip_00001_.mp4", positive_prompt="P")])
+    gallery = Gallery([_starred("clip_00001_.mp4", params={"positive_prompt": "P"})])
 
     _, targets = _manifest(cfg_factory, tmp_path, gallery)
 
@@ -215,7 +215,7 @@ def test_build_manifest_opens_no_tab_for_a_favorite_no_provider_made(cfg_factory
 
 def test_build_manifest_opens_another_sites_favorite_at_its_gallery(cfg_factory, tmp_path: Path):
     _ai_video(tmp_path, "abc_00001__topaz.mp4", source="provider2")
-    gallery = Gallery([_starred("abc_00001_.mp4", positive_prompt="P",
+    gallery = Gallery([_starred("abc_00001_.mp4", params={"positive_prompt": "P"},
                                 web_url="https://example.net/image/abc")])
     providers = (*_PROVIDERS, WebProvider(marker="provider2", gallery_url="https://example.net/image/{id}"))
 
@@ -235,7 +235,7 @@ def test_build_manifest_opens_a_favorite_with_no_recorded_prompt_at_its_gallery(
 
 def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_factory, tmp_path: Path):
     video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
-    gallery = Gallery([_starred("abc_00001_.mp4", positive_prompt="A PROMPT",
+    gallery = Gallery([_starred("abc_00001_.mp4", params={"positive_prompt": "A PROMPT"},
                                 web_url="https://example.com/image/abc")])
 
     _, targets = _manifest(cfg_factory, tmp_path, gallery)
@@ -248,7 +248,7 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
 
 def test_an_ai_video_the_gallery_has_not_starred_is_no_favorite(cfg_factory, tmp_path: Path):
     _ai_video(tmp_path, "abc_00001__topaz.mp4")
-    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", starred=0, positive_prompt="P")])
+    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", starred=0, params={"positive_prompt": "P"})])
 
     assert _manifest(cfg_factory, tmp_path, gallery)[1] == []
 
@@ -264,7 +264,7 @@ def test_a_lock_opens_the_tab_the_startup_browser_opens_for_that_favorite(
         cfg_factory, tmp_path: Path):
     video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
     origenerator = made_up_origenerator(tmp_path, _starred(
-        "abc_00001_.mp4", positive_prompt="A PROMPT", web_url="https://example.com/image/abc"))
+        "abc_00001_.mp4", params={"positive_prompt": "A PROMPT"}, web_url="https://example.com/image/abc"))
     project = load_config(_regen_cfg(cfg_factory, tmp_path))
     _, [at_startup] = build_manifest(project, _PROVIDERS,
                                      gallery=Gallery.read(gallery_database_in(origenerator)))
@@ -289,7 +289,7 @@ def test_build_manifest_plays_the_original_not_the_upscale(cfg_factory, tmp_path
     original = tmp_path / "videos" / "videos" / "2D" / "AI" / "1_sorted" / "provider" / "portrait" / "abc.mp4"
     original.parent.mkdir(parents=True, exist_ok=True)
     original.write_bytes(b"")
-    gallery = Gallery([_starred("abc.mp4", positive_prompt="P",
+    gallery = Gallery([_starred("abc.mp4", params={"positive_prompt": "P"},
                                 web_url="https://example.com/image/abc")])
 
     _, targets = _manifest(cfg_factory, tmp_path, gallery)
@@ -314,7 +314,7 @@ def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_fact
 def test_a_starred_ai_video_with_no_page_in_the_gallery_is_labeled_with_its_sites_page(
         cfg_factory, tmp_path: Path):
     _ai_video(tmp_path, "def_00001__topaz.mp4")
-    gallery = Gallery([_starred("def_00001_.mp4", positive_prompt="P")])
+    gallery = Gallery([_starred("def_00001_.mp4", params={"positive_prompt": "P"})])
 
     _, targets = _manifest(cfg_factory, tmp_path, gallery)
 

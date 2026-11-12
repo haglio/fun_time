@@ -14,7 +14,13 @@ from fun_time.gallery import (
     star_in_the_gallery,
     the_librarys_origenerator,
 )
-from tests.made_up_gallery import DATABASE, a_row, made_up_gallery, made_up_origenerator
+from tests.made_up_gallery import (
+    DATABASE,
+    a_row,
+    a_video_from_a_start_image,
+    made_up_gallery,
+    made_up_origenerator,
+)
 
 
 def _kino_copy(tmp_path: Path, name: str) -> Path:
@@ -24,13 +30,14 @@ def _kino_copy(tmp_path: Path, name: str) -> Path:
 def test_a_video_is_known_by_the_row_that_made_it(tmp_path):
     gallery = Gallery.read(made_up_gallery(
         tmp_path, a_row("gen-1", "alpha_00007_.mp4", starred=1, web_url="https://example.com/a",
-                        positive_prompt="made up words"),
+                        params={"positive_prompt": "made up words", "model": "Made Up"}),
         a_row("gen-2", "beta_00007_.mp4", starred=0)))
 
     starred = _kino_copy(tmp_path, "alpha_00007__topaz.mp4")
     assert gallery.is_starred(starred)
     assert gallery.page_of(starred) == "https://example.com/a"
-    assert gallery.prompt_of(starred) == "made up words"
+    assert {key: gallery.record_of(starred)["video"][key] for key in ("prompt", "model")} == {
+        "prompt": "made up words", "model": "Made Up"}
     assert not gallery.is_starred(_kino_copy(tmp_path, "beta_00007__topaz.mp4"))
 
 
@@ -38,8 +45,8 @@ def test_a_video_no_row_made_is_unstarred_with_no_page_or_prompt(tmp_path):
     gallery = Gallery.read(made_up_gallery(tmp_path, a_row("gen-1", "alpha_00007_.mp4", starred=1)))
 
     stranger = _kino_copy(tmp_path, "gamma_00001__topaz.mp4")
-    assert (gallery.is_starred(stranger), gallery.page_of(stranger), gallery.prompt_of(stranger)) \
-        == (False, "", "")
+    assert (gallery.is_starred(stranger), gallery.page_of(stranger), gallery.record_of(stranger)) \
+        == (False, "", {})
 
 
 def test_a_row_counts_what_was_watched_of_its_video(tmp_path):
@@ -47,9 +54,24 @@ def test_a_row_counts_what_was_watched_of_its_video(tmp_path):
         tmp_path, a_row("gen-1", "alpha_00007_.mp4", watch_completions=3, watch_locks=1),
         a_row("gen-2", "beta_00007_.mp4")))
 
-    assert gallery.watch_counts(_kino_copy(tmp_path, "alpha_00007__topaz.mp4")) == {
+    watched = gallery.record_of(_kino_copy(tmp_path, "alpha_00007__topaz.mp4"))["watch"]
+    assert {field: watched[field] for field in ("completions", "skips", "locks")} == {
         "completions": 3, "skips": 0, "locks": 1}
-    assert gallery.watch_counts(_kino_copy(tmp_path, "beta_00007__topaz.mp4")) is None
+
+
+def test_an_ai_video_made_from_a_start_image_carries_that_images_record(tmp_path):
+    rows = a_video_from_a_start_image(
+        "alpha_00007_.mp4", "frame one.png", video={"positive_prompt": "made up motion"},
+        image={"positive_prompt": "made up still", "negative_prompt": "made up not",
+               "seed": 42}, recipe_category="Made Up Act", shape="portrait")
+    gallery = Gallery.read(made_up_gallery(tmp_path, *rows))
+
+    record = gallery.record_of(_kino_copy(tmp_path, "alpha_00007__topaz.mp4"))
+
+    assert record["source_image"] == {"positive_prompt": "made up still",
+                                      "negative_prompt": "made up not", "seed": 42}
+    assert (record["video"]["prompt"], record["video"]["action"], record["video"]["orientation"]) \
+        == ("made up motion", "Made Up Act", "portrait")
 
 
 def test_an_older_gallery_without_the_optional_columns_still_reads(tmp_path):

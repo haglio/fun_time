@@ -13,7 +13,7 @@ from fun_time.regen import (
     build_regen_url,
     regen_url_for_video,
 )
-from tests.made_up_gallery import a_row
+from tests.made_up_gallery import a_row, a_video_from_a_start_image
 
 VIDEO_URL = "https://example.com/video"
 IMAGE_URL = "https://example.com/create"
@@ -137,20 +137,35 @@ def _regen_url(video: Path, gallery: Gallery, metadata_root: Path | None = None)
         image_url=IMAGE_URL, providers=_PROVIDERS)
 
 
-def test_an_ai_video_regenerates_from_the_prompt_and_seed_its_gallery_row_holds(tmp_path: Path):
+def test_an_ai_video_regenerates_from_the_record_its_gallery_row_makes(tmp_path: Path):
     video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
-    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", positive_prompt="MADE UP", seed=7)])
+    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", recipe_category="Alpha", params={
+        "positive_prompt": "MADE UP", "seed": 7, "model": "Made Up", "resolution": "544x816"})])
 
     url = _regen_url(video, gallery)
 
     assert url.startswith(VIDEO_URL + "#ft=")
     assert _decode(url) == {"kind": "video", "positive": "MADE UP", "negative": "",
-                            "settings": [["Seed", "7"]], "video_prompt": "", "video_settings": []}
+                            "settings": [["Model", "Made Up"], ["Action", "Alpha"],
+                                         ["Resolution", "544x816"], ["Seed", "7"]],
+                            "video_prompt": "", "video_settings": []}
+
+
+def test_an_ai_video_made_from_a_start_image_regenerates_from_that_image(tmp_path: Path):
+    video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
+    gallery = Gallery(list(a_video_from_a_start_image(
+        "abc_00001_.mp4", "frame one.png", video={"positive_prompt": "VIDEO PROMPT"},
+        image={"positive_prompt": "POSITIVE", "negative_prompt": "NEGATIVE", "model": "Made Up"})))
+
+    payload = _decode(_regen_url(video, gallery))
+
+    assert (payload["kind"], payload["positive"], payload["negative"], payload["video_prompt"]) == (
+        "image", "POSITIVE", "NEGATIVE", "VIDEO PROMPT")
 
 
 def test_an_ai_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
     video = _ai_video(tmp_path, "abc_00001__topaz.mp4", source="provider2")
-    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", positive_prompt="MADE UP")])
+    gallery = Gallery([a_row("gen-1", "abc_00001_.mp4", params={"positive_prompt": "MADE UP"})])
 
     assert _regen_url(video, gallery) == ""
 
@@ -158,7 +173,7 @@ def test_an_ai_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
 def test_an_ai_video_whose_row_holds_no_prompt_offers_no_regenerate_link(tmp_path: Path):
     video = _ai_video(tmp_path, "abc_00001__topaz.mp4")
 
-    assert _regen_url(video, Gallery([a_row("gen-1", "abc_00001_.mp4", seed=7)])) == ""
+    assert _regen_url(video, Gallery([a_row("gen-1", "abc_00001_.mp4", params={"seed": 7})])) == ""
 
 
 def test_an_ai_video_no_row_made_offers_no_regenerate_link(tmp_path: Path):
