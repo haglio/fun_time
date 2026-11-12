@@ -31,9 +31,12 @@ def _genaumacher_python() -> str:
     return sys.executable
 
 
-def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
+def _what_the_main_funestra_holds(config: BridgeConfig) -> tuple[str, list[str]]:
     status = read_main_funestra_status(config.main_funestra_status_file)
-    return status.video, status.position_ms / 1000
+    if status.snippet_bounds is None:
+        return status.video, ["--time", str(status.position_ms / 1000)]
+    in_ms, out_ms = status.snippet_bounds
+    return status.video, ["--time", str(in_ms / 1000), "--seconds", str((out_ms - in_ms) / 1000)]
 
 
 LOGGED_ALREADY_WITH_NOTHING_TO_FLASH = ""
@@ -42,7 +45,7 @@ _LEVEL_OF_A_FAILED_SAVES_ONLY_WORD = logging.ERROR
 
 
 def save_clip_session(config: BridgeConfig) -> str:
-    video_path, playback_time = _current_main_media(config)
+    video_path, where_in_it = _what_the_main_funestra_holds(config)
     if not video_path:
         logger.warning("genaumacher_save: no video playing on the Main Funestra")
         return LOGGED_ALREADY_WITH_NOTHING_TO_FLASH
@@ -51,7 +54,7 @@ def save_clip_session(config: BridgeConfig) -> str:
             [
                 _genaumacher_python(), "-m", "genaumacher.create_session",
                 "--video", video_path,
-                "--time", str(playback_time),
+                *where_in_it,
             ],
             capture_output=True,
             text=True,

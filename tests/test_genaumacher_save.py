@@ -54,6 +54,26 @@ def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tm
     assert "test" in message
 
 
+def test_a_save_while_a_snippet_repeats_sends_genaumacher_that_snippet(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.main_funestra_status_file.write_text(
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\nsnippet_state=repeating\n"
+        "snippet_in_ms=41000\nsnippet_out_ms=44500\npaused=0\n",
+        encoding="utf-8",
+    )
+
+    with patch("fun_time.genaumacher_save._genaumacher_project_dir", return_value=tmp_path), \
+         patch("fun_time.genaumacher_save._genaumacher_python", return_value="python"), \
+         patch("fun_time.genaumacher_save.subprocess") as mock_subprocess:
+        mock_subprocess.run.return_value.returncode = 0
+        mock_subprocess.run.return_value.stdout = r"C:\genaumacher\sessions\test.json"
+        save_clip_session(config)
+
+    cmd = mock_subprocess.run.call_args[0][0]
+    assert cmd[cmd.index("--time") + 1] == "41.0"
+    assert cmd[cmd.index("--seconds") + 1] == "3.5"
+
+
 def test_a_failed_save_says_nothing_but_its_log_line(tmp_path: Path):
     config = _make_config(tmp_path)
     config.main_funestra_status_file.write_text(

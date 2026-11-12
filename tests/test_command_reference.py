@@ -717,7 +717,7 @@ def test_snippet_control_row_consolidates_record_and_cancel():
     row = snippet_rows[0]
     assert "R" in _keys(row)
     assert "record" in row.voice
-    assert "loop" in row.voice
+    assert "snippet" in row.voice
     assert "main_funestra_snippet_cancel" in row.commands
 
 

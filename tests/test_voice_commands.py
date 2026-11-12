@@ -125,7 +125,7 @@ class TestVoiceCommands:
             "skip": "active_nudge_next",
             "back": "active_nudge_prev",
             "record": "main_funestra_record_down",
-            "loop": "main_funestra_record_up",
+            "snippet": "main_funestra_record_up",
             "end loop": "active_no_loop",
             "version": "main_funestra_cycle_version",
             "clips only": "main_funestra_length_clips",
@@ -369,10 +369,15 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["main version"] == VOICE_COMMANDS["version main"] == (
             "main_funestra_cycle_version")
 
-    def test_the_main_funestras_loop_is_ended_by_naming_it_as_a_satellites_is(self):
+    def test_the_main_funestras_snippet_is_dropped_by_naming_the_snippet(self):
+        for words in ("end snippet", "no snippet", "snippet off"):
+            assert VOICE_COMMANDS[words] == "main_funestra_snippet_cancel"
+
+    def test_no_loop_word_reaches_the_main_funestras_snippet(self):
         for words in ("end loop", "no loop", "loop off"):
-            assert VOICE_COMMANDS[f"main {words}"] == VOICE_COMMANDS[f"{words} main"] == (
-                "main_funestra_snippet_cancel")
+            assert f"main {words}" not in VOICE_COMMANDS
+            assert f"{words} main" not in VOICE_COMMANDS
+        assert "loop" not in VOICE_COMMANDS
 
     def test_the_lengths_are_said_like_the_shapes_as_what_is_included(self):
         assert VOICE_COMMANDS["clips only"] == "main_funestra_length_clips"
@@ -643,7 +648,7 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
     assert VOICE_COMMANDS["lock"] == "active_lock_on"
     assert VOICE_COMMANDS["action"] == "active_cycle_action"
     assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
-    assert VOICE_COMMANDS["loop"] == "main_funestra_record_up"
+    assert VOICE_COMMANDS["snippet"] == "main_funestra_record_up"
     assert VOICE_COMMANDS["no filter"] == "active_no_filter"
     assert VOICE_COMMANDS["filter off"] == "active_no_filter"
 
