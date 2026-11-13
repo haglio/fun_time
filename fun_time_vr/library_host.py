@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from app_support.frame_channel import FrameWriter
+from app_support.frame_channel import FrameLooks, FrameWriter
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command, consume_command_file
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
@@ -43,7 +43,6 @@ LISTING_FILENAME = "library_listing.json"
 
 _POLL_MS = 15
 _PARENT_CHECK_EVERY = 60
-_IDLE_LOOK_S = 0.1
 
 
 class HeadsetBrowse:
@@ -60,11 +59,9 @@ class HeadsetBrowse:
         self._frames = frames
         self._token = 0
         self._open_when_it_lands: str | None = None
-        self._sent: bytes | None = None
         self._pointer = QPoint()
         self._pressed: QWidget | None = None
-        self._asked = False
-        self._looked_at: float | None = None
+        self._looks = FrameLooks()
 
     def take_the_library(self, handles: Sequence[LibraryHandle]) -> None:
         # A Qt widget belongs to the thread that made it, and the read is a worker's.
@@ -98,7 +95,7 @@ class HeadsetBrowse:
         self.window = None
 
     def apply(self, line: str) -> None:
-        self._asked = True
+        self._looks.ask()
         kind, _, rest = line.partition(" ")
         if kind == OPEN:
             token, _, video = rest.partition(" ")
@@ -130,20 +127,15 @@ class HeadsetBrowse:
     def publish(self, now: float) -> None:
         if self.window is None or not self.window.isVisible():
             return
-        idle = not self._asked
-        if idle and self._looked_at is not None and now - self._looked_at < _IDLE_LOOK_S:
+        if not self._looks.due(now):
             return
-        self._asked = False
-        self._looked_at = now
         width, height, pixels = as_rgba_bytes(self.window.grab().toImage())
-        if pixels == self._sent:
-            return
-        self._frames.write(self._token, width, height, pixels)
-        self._sent = pixels
+        if self._looks.worth_sending(pixels):
+            self._frames.write(self._token, width, height, pixels)
 
     def _open(self, token: int, video: str) -> None:
         self._token = token
-        self._sent = None
+        self._looks.forget_what_was_sent()
         self.window.show()
         self.window.open_on(video or None)
 
