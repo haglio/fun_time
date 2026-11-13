@@ -56,10 +56,10 @@ from main_funestra.cli import kino_on, library_source, load_config, mode_memory,
 from main_funestra.contract import MainChannels
 from main_funestra.genau import (
     ROBOT_HAND,
+    EngineSeams,
     GenauChannels,
     GenauFlicks,
     GenauOutputs,
-    GenauSeams,
 )
 from main_funestra.kino import Kino
 from satellite.contract import SatelliteChannels
@@ -628,7 +628,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             tcode_sink=_osr2_slot(commands, ROBOT_HAND),
             messages=MessageWriter(Path(commands.main_funestra_notice_file)),
         ),
-        seams=GenauSeams(stop_event=stop),
+        seams=EngineSeams(stop_event=stop),
     )
     return users
 

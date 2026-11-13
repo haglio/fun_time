@@ -22,11 +22,11 @@ from fun_time.genau_config import GenauSettings
 from fun_time.inclusion_pairs import BOTH
 from fun_time.media_metadata import mark_favorite, metadata_path_for
 from main_funestra.genau import (
+    EngineSeams,
     Genau,
     GenauChannels,
     GenauFlicks,
     GenauOutputs,
-    GenauSeams,
 )
 from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 from tests.genau_fakes import (
@@ -134,7 +134,7 @@ class World:
             outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
                                  messages=self.messages,
                                  origenerator_commands=setup.origenerator_commands),
-            seams=GenauSeams(
+            seams=EngineSeams(
                 decode=lambda _path: _frames(),
                 start_thread=setup.start_thread,
                 clock=self.clock,

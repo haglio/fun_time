@@ -37,7 +37,7 @@ from fun_time_vr.headset_verbs import HeadsetVerbs
 from main_funestra import controls as main_funestra_controls
 from main_funestra import genau_verbs as genaus_verbs_on_the_main_funestra
 from main_funestra.clip_nav import ClipNav
-from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauSeams
+from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
 from main_funestra.kino import Kino, KinoLibrary
 from main_funestra.mode_memory import ModeMemory, RememberedMode
 from tests.dispatch_sweep import every_command, headset_config, sweep
@@ -156,7 +156,7 @@ def _genau_in_the_headset(tmp_path: Path) -> GenauInTheHeadset:
         channels=GenauChannels(command=state / "genau_cmd.txt", paused=state / "genau_paused.txt",
                                status=state / "genau_status.txt", drive=state / "genau_drive.txt"),
         outputs=GenauOutputs(notifier=FakeNotifier(), tcode_sink=FakeSink()),
-        seams=GenauSeams(
+        seams=EngineSeams(
             decode=lambda _flick: [np.zeros((8, 16, 3), dtype=np.uint8)],
             start_thread=every_thread_now_but_the_port_binding_udp_reader))
 

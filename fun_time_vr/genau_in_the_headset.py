@@ -10,17 +10,17 @@ from fun_time.genau_config import GenauSettings
 from fun_time.vr_videos import keep_shapes
 from main_funestra.genau import (
     STANDARD_SEAMS,
+    EngineSeams,
     Genau,
     GenauChannels,
     GenauFlicks,
     GenauOutputs,
-    GenauSeams,
 )
 
 
 class GenauInTheHeadset(Genau):
     def __init__(self, flicks: GenauFlicks, *, settings: GenauSettings, channels: GenauChannels,
-                 outputs: GenauOutputs, seams: GenauSeams = STANDARD_SEAMS) -> None:
+                 outputs: GenauOutputs, seams: EngineSeams = STANDARD_SEAMS) -> None:
         self._vr_dirs = (vr_flicks_in(Path(flicks.folder)),)
         self._flicks_dirs = (*self._vr_dirs, flat_flicks_in(Path(flicks.folder)))
         self._shapes = (True, True)
