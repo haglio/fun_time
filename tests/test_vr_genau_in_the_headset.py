@@ -21,7 +21,7 @@ from fun_time.genau_config import GenauSettings
 from fun_time.genau_engine import UDP_READER_THREAD
 from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
-from main_funestra.genau import GenauChannels, GenauFlicks, GenauOutputs, GenauSeams
+from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
 from main_funestra.genau_verbs import genau_f_mode
 from tests.genau_fakes import (
     FakeNotifier,
@@ -103,7 +103,7 @@ class World:
             channels=self.channels,
             outputs=GenauOutputs(notifier=self.notifier, tcode_sink=self.sink,
                                  messages=MessageWriter(self.notice_file)),
-            seams=GenauSeams(
+            seams=EngineSeams(
                 stop_event=self.stop,
                 decode=lambda _path: _frames(),
                 start_thread=setup.start_thread,

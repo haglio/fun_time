@@ -9,7 +9,6 @@ from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
 from funestra.broker_feed import BrokerFeed, UdpListener, udp_reader
-from funestra.file_channel import read_paused_state
 from funestra.flag import Flag
 from funestra.flick_advance import FlickAdvanceState
 from funestra.flick_cache import DecodeRequestState, FlickCacheStore
@@ -20,13 +19,14 @@ from funestra.flick_loader import FlickLoadController, FlickLoadParts
 from funestra.flick_renderer import FlickRenderController
 from funestra.flick_selection import FlickSelectionController, FlickSelectionParts
 from funestra.flick_sequence import FlickSequenceController
+from funestra.flicks_on_screen import FlicksOnScreen
 from funestra.funestra_verbs import LOCK_ON
 from funestra.genau_controls import GenauControls, apply_runtime_command
+from funestra.genau_files import GenauFiles
 from funestra.genau_refresh import GenauRefreshController
-from funestra.genau_refresh_parts import GenauRefreshParts
 from funestra.learned_motion import LearnedMotionState, load_default_model
 from funestra.robot_hand import RobotHandState, bpm_for_speed
-from funestra.robot_hand_beat import BeatEngine
+from funestra.robot_hand_beat import BeatEngine, BeatTuning
 from funestra.robot_hand_driver import RobotHandTCodeDriver
 
 from .inclusion_pairs import PROJECTION
@@ -182,26 +182,18 @@ def build_genau_engine(
         play_file=selection.play,
         flick_flip=FlickFlip(library.metadata_root, kept_elsewhere=library.flips),
     )
-    controller = GenauRefreshController(GenauRefreshParts(
-        controls=controls,
+    controller = GenauRefreshController(
+        controls,
+        FlicksOnScreen(loader, renderer, selection, host.notifier, host.set_loading_text),
         broker=broker,
-        loader=loader,
-        notifier=host.notifier,
-        renderer=renderer,
-        selection=selection,
-        command_file=Path(channels.command),
-        paused_file=Path(channels.paused),
-        beats_per_loop=settings.beats_per_loop,
-        bpm_smoothing=settings.bpm_smoothing,
-        sync_strength=settings.sync_strength,
-        set_loading_text=host.set_loading_text,
+        files=GenauFiles(Path(channels.command), Path(channels.paused), channels.status,
+                         Path(channels.drive)),
+        tuning=BeatTuning(settings.beats_per_loop, settings.bpm_smoothing,
+                          settings.sync_strength),
+        tcode_sender=driver,
         logger=log,
         now_source=clock,
-        read_paused_state=read_paused_state,
-        tcode_sender=driver,
-        status_file=channels.status,
-        drive_file=Path(channels.drive),
-    ))
+    )
 
     def holding_what_is_on_screen() -> None:
         apply_runtime_command(LOCK_ON, controls)

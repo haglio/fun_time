@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import logging
-import threading
-import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from app_support import favorites
 from app_support.kino_folder import is_ai_video
-from app_support.threading_utils import start_daemon_thread
-from funestra.flick_decode import load_flick_frames
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
 from funestra.main_hud import ModeHud
@@ -63,16 +58,7 @@ class GenauOutputs:
     origenerator_commands: Path | None = None
 
 
-@dataclass(frozen=True)
-class GenauSeams:
-    stop_event: threading.Event | None = None
-    decode: Callable[[Path], list] = load_flick_frames
-    start_thread: Any = start_daemon_thread
-    clock: Callable[[], float] = time.monotonic
-    log: logging.Logger = logger
-
-
-STANDARD_SEAMS = GenauSeams()
+STANDARD_SEAMS = EngineSeams(log=logger)
 
 
 class Genau:
@@ -83,7 +69,7 @@ class Genau:
         settings: GenauSettings,
         channels: GenauChannels,
         outputs: GenauOutputs,
-        seams: GenauSeams = STANDARD_SEAMS,
+        seams: EngineSeams = STANDARD_SEAMS,
     ) -> None:
         clock = seams.clock
         notifier = outputs.notifier
@@ -122,9 +108,7 @@ class Genau:
                 set_volume=self._the_apps_level_is_the_funestras,
                 tell_where_it_went=tell_origenerator_it_went(outputs.origenerator_commands),
             ),
-            EngineSeams(stop_event=seams.stop_event, decode=seams.decode,
-                        start_thread=seams.start_thread,
-                        clock=clock, log=seams.log),
+            seams,
         )
         if not kept:
             self._engine.narrow(self._scan)
