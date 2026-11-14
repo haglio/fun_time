@@ -7,7 +7,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from funestra.hud_icons import shared_icon
+from funestra.hud_kinds import crown_command
 
 from .mode_plan import kino_shows
 
@@ -17,16 +17,13 @@ if TYPE_CHECKING:
     from .shared_state import BridgeState
     from .window_layout import SecondaryMonitorRects
 
-CROWN_ICON = shared_icon("crown")
-
-
 class Crown(StrEnum):
     MAIN = "main"
     PORTRAIT = "portrait"
 
     @property
     def command(self) -> str:
-        return f"{self}_crown"
+        return crown_command(self)
 
 
 CROWNS = {crown.command: crown for crown in Crown}

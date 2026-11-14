@@ -87,7 +87,7 @@ def test_the_satellite_survives_drawing_the_published_hud(tmp_path):
     def publish(locked: bool) -> None:
         publisher.publish_text("portrait", hud_text(hosted_model(
             "portrait", HudModel(funestra="portrait", title="Stand-in slideshow", locked=locked),
-            SatelliteState(), in_vr=False, crowned=False, active=True)))
+            SatelliteState(), in_vr=False, crowned=False, active=True, osr2=None)))
 
     publish(locked=False)
 
