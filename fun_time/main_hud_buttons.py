@@ -20,6 +20,7 @@ from funestra.hud_controls import (
 )
 from funestra.hud_icons import shared_icon
 from funestra.hud_title import F_MODE_LABEL
+from funestra.inclusion_pair import Included, InclusionPair
 from funestra.main_hud import ROW_LABEL_W, VALUE_W
 from funestra.modes import LengthMode, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
@@ -34,8 +35,6 @@ from .inclusion_pairs import (
     LENGTH,
     ORIENTATION,
     PROJECTION,
-    Included,
-    InclusionPair,
     lengths_included,
 )
 from .mode_plan import kino_shows
