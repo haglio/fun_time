@@ -7,6 +7,7 @@ from app_support.osr2_device import Osr2Mode
 from funestra.drive_layout import MAX_INTENSITY
 from funestra.hud_button import Button
 from funestra.hud_icons import shared_icon
+from funestra.hud_kinds import HudFacts, HudKind, hud_rows
 from funestra.main_hud import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
@@ -23,7 +24,6 @@ from funestra.robot_hand import WaveformShape
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_funestra_hud import osr2_state
-from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows, osr2_rows
 from fun_time.osr2_section import Osr2PartFacts, osr2_button, osr2_part
 
 
@@ -88,8 +88,8 @@ class TestTheRowThatAimsTheDevice:
         assert len(faces) == len(WaveformShape)
 
     def test_rides_on_the_dashboard_s_part_never_on_the_main_hud(self):
-        slot = MainFunestraFacts(main_mode=MainMode.KINO)
-        console = [b.command for row in (*main_hud_rows(slot), *osr2_rows(slot)) for b in row]
+        console = [b.command for row in hud_rows(HudKind.MAIN, HudFacts(main_mode=MainMode.KINO))
+                   for b in row]
 
         assert "robot_hand_park" in _actions(_part())
         assert "robot_hand_park" not in console

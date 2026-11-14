@@ -8,10 +8,14 @@ from app_support import ports, state_files
 
 from .config import LayoutConfig, RegenConfig, SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
-from .main_funestra_hud import main_funestra_hud_path
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
+MAIN_FUNESTRA_HUD_FILENAME = "main_player_console.json"
 _SWITCHED_ON, _SWITCHED_OFF = "1", "0"
+
+
+def main_funestra_hud_path(state_dir: Path) -> Path:
+    return state_dir / MAIN_FUNESTRA_HUD_FILENAME
 
 
 def _as_written(switched_on: bool) -> str:

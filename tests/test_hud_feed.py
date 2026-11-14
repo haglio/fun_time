@@ -72,7 +72,7 @@ def dashboard(tmp_path) -> dict:
 
 def reset_button(published: dict) -> dict:
     return next(button for row in published["rows"] for button in row
-                if button["command"].endswith("reset"))
+                if button.get("command", "").endswith("reset"))
 
 
 def skip_ahead(published: dict) -> dict:
@@ -323,7 +323,7 @@ class TestHudPublishing:
         feed.publish(state)
 
         lock = next(button for row in console(tmp_path)["rows"] for button in row
-                    if button["command"] == "main_lock")
+                    if button.get("command") == "main_lock")
         assert "every 7s" in lock["tooltip"]
 
     def test_the_main_huds_lock_comes_off_the_showing_funestras_own_status_file(self, tmp_path):
@@ -333,7 +333,7 @@ class TestHudPublishing:
 
         def published(mode: str) -> bool:
             feed.publish(replace(state, main_mode=mode))
-            return console(tmp_path)["locked"]
+            return console(tmp_path)["facts"]["locked"]
 
         main_funestra.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
         genau.write_text("locked=1\n", encoding="utf-8")
@@ -351,7 +351,7 @@ class TestHudPublishing:
         def f_mode_lit(state: BridgeState) -> bool:
             feed.publish(state)
             return next(bool(button.get("lit")) for row in console(tmp_path)["rows"] for button in row
-                        if button["command"] == "main_fmode")
+                        if button.get("command") == "main_fmode")
 
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
         assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, main_scripted_filter=True)) is False
@@ -439,8 +439,10 @@ def _osr2_commands(model: HudModel) -> list[str]:
     return [button.command for row in model.osr2_rows for button in row]
 
 
-def _main_hud_osr2_commands(tmp_path) -> list[str]:
-    return [button.get("command", "") for row in console(tmp_path)["osr2_rows"] for button in row]
+def _main_hud_osr2_buttons(tmp_path) -> list[tuple[str, bool]]:
+    return [(button.command, button.lit) for row in parse_hud(
+        (tmp_path / "main_player_console.json").read_text(encoding="utf-8")).rows
+            for button in row if button.command.endswith("_take_osr2")]
 
 
 def _dashboard_osr2(tmp_path) -> MainHudModel:
@@ -526,9 +528,8 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
     def test_the_main_main_hud_has_it_to_begin_with_and_wears_its_button_lit(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState())
 
-        assert console(tmp_path)["has_osr2"] is True
-        (button, *_jump), = console(tmp_path)["osr2_rows"]
-        assert (button["command"], button.get("lit")) == ("main_take_osr2", True)
+        assert console(tmp_path)["facts"]["has_osr2"] is True
+        assert _main_hud_osr2_buttons(tmp_path) == [("main_take_osr2", True)]
         for funestra in ("portrait", "landscape"):
             assert _osr2_commands(_published(tmp_path, funestra)) == [f"{funestra}_take_osr2"]
             assert _published(tmp_path, funestra).osr2 == ""
@@ -536,8 +537,8 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
     def test_the_funestras_it_left_carry_the_button_that_takes_it(self, tmp_path):
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2))
 
-        assert console(tmp_path)["has_osr2"] is False
-        assert _main_hud_osr2_commands(tmp_path) == ["main_take_osr2"]
+        assert console(tmp_path)["facts"]["has_osr2"] is False
+        assert _main_hud_osr2_buttons(tmp_path) == [("main_take_osr2", False)]
         assert _osr2_commands(_published(tmp_path, "landscape")) == ["landscape_take_osr2"]
 
     def test_a_satellite_funestra_whose_video_is_scripted_says_its_funscript_has_the_osr2(self, tmp_path):
@@ -615,7 +616,7 @@ def test_the_main_huds_crown_goes_dark_once_the_app_gives_it_to_the_portrait_fun
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))
 
     crown = next(button for row in console(tmp_path)["rows"] for button in row
-                 if button["command"] == "main_crown")
+                 if button.get("command") == "main_crown")
     assert not crown.get("lit")
 
 
@@ -625,7 +626,7 @@ def test_the_portrait_huds_crown_is_lit_once_the_app_gives_it_the_crown(tmp_path
     feed.publish(BridgeState(crowned=Crown.PORTRAIT))
 
     crown = next(button for row in hud(tmp_path, "portrait")["rows"] for button in row
-                 if button["command"] == "portrait_crown")
+                 if button.get("command") == "portrait_crown")
     assert crown.get("lit")
 
 

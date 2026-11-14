@@ -82,7 +82,7 @@ class HudFeed:
                 active=_bare_words_reach(funestra, state)), device(funestra))))
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
-        self.publisher.publish_text("main_funestra", main_hud_text(main_hud_model(MainFunestraInputs(
+        self.publisher.publish_text("main_funestra", hud_text(main_hud_model(MainFunestraInputs(
             main_mode=state.main_mode,
             hud_corner=state.main_hud_corner,
             hud_edge=state.main_hud_edge,
@@ -110,6 +110,8 @@ class HudFeed:
             in_vr=self.config.vr_main_funestra,
             crowned=state.crowned is Crown.MAIN,
             has_osr2=with_the_osr2 is FunTimeFunestra.MAIN,
+            osr2_control=state.osr2_control,
+            paused=state.omni_paused,
         ))))
         self.publisher.publish_text(DASHBOARD_OSR2_PART, main_hud_text(osr2_part(
             with_the_osr2, Osr2PartFacts(
