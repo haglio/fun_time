@@ -9,14 +9,13 @@ from typing import Protocol
 from app_support.threading_utils import start_daemon_thread
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_ON, RELOAD_PLAYLIST, play_file
+from funestra.inclusion_pair import answer_to_a_narrowing
 
-from .event_log import SOURCE_MAIN, flash_message
+from .event_log import MESSAGE, SOURCE_MAIN, flash_message
 from .main_list import MainList, MainListSettings
 from .modes import scripted_item
 
 logger = logging.getLogger(__name__)
-
-NO_OTHER_VIDEOS = "Including no other videos"
 
 
 @dataclass(frozen=True)
@@ -32,15 +31,17 @@ class MainListBuild:
         written = self.main_list.write(self.settings, on_screen=self.on_screen,
                                        from_the_top=self.start_at_top)
         verbs = [RELOAD_PLAYLIST, *self.settings.flags_no_playlist_can_show]
-        if written.nothing_left:
+        answer = answer_to_a_narrowing(self.says, nothing_left=written.nothing_left,
+                                       things="videos")
+        if answer.holds_what_is_on_screen:
             verbs.append(LOCK_ON)
-            flash_message(logger, NO_OTHER_VIDEOS, source=SOURCE_MAIN, level=logging.WARNING)
         elif self.start_at_top:
             verbs.append(self._jump_onto_the_list_just_reloaded(written.videos[0]))
         for verb in verbs:
             append_command(Path(self.main_funestra_cmd_file), verb)
-        if self.says and not written.nothing_left:
-            flash_message(logger, self.says, source=SOURCE_MAIN)
+        if answer.says:
+            flash_message(logger, answer.says, source=SOURCE_MAIN,
+                          level=logging.WARNING if answer.warns else MESSAGE)
 
     def _jump_onto_the_list_just_reloaded(self, head: str) -> str:
         with_the_script_the_osr2_is_driven_from = scripted_item(head, self.main_list.metadata_root)

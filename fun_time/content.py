@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from app_support import haglio_settings
 from app_support.overlay import backfilled
+from funestra.inclusion_pair import including_no_other
 
 from .project_paths import PROJECT_DIR
 
@@ -48,7 +49,7 @@ def genau_flick_noun() -> Noun:
 
 
 def no_other_flicks() -> str:
-    return f"Including no other {genau_flick_noun().many}"
+    return including_no_other(genau_flick_noun().many)
 
 
 @dataclass(frozen=True)
