@@ -17,8 +17,9 @@ from funestra.main_hud import (
     osr2_controls,
     read_main_hud,
 )
-from funestra.main_hud_painter import MainHud, MainHudPainter, hud_xy
+from funestra.main_hud_painter import MainHud, hud_xy
 from funestra.modes import MainMode, Osr2State
+from funestra.osr2_part_painter import Osr2PartPainter
 from funestra.osr2_visualizer import DriveHud
 from funestra.robot_hand import WaveformShape
 
@@ -107,7 +108,7 @@ class TestTheWordTheSessionPublishesAndThePainterTogether:
         ))
         published = tmp_path / "dashboard_osr2.json"
         published.write_text(main_hud_text(part), encoding="utf-8")
-        painter = MainHudPainter(device_only=True)
+        painter = Osr2PartPainter()
         painter.rgba(MainHud(main_hud_model=read_main_hud(published), drive=DriveHud(
             speed=50, amplitude=60, center=50, waveform=tuple(0.5 for _ in range(80)))))
         return painter
