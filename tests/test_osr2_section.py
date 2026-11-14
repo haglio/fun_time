@@ -7,7 +7,7 @@ from app_support.osr2_device import Osr2Mode
 from funestra.drive_layout import MAX_INTENSITY
 from funestra.hud_button import Button
 from funestra.hud_icons import shared_icon
-from funestra.hud_kinds import HudFacts, HudKind, hud_rows
+from funestra.hud_kinds import HudFacts, HudKind, hud_rows, osr2_button
 from funestra.main_hud import (
     OSR2_CONTROL_BUTTONS,
     OSR2_DRIVING,
@@ -24,7 +24,7 @@ from funestra.robot_hand import WaveformShape
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_funestra_hud import osr2_state
-from fun_time.osr2_section import Osr2PartFacts, osr2_button, osr2_part
+from fun_time.osr2_section import Osr2PartFacts, osr2_part
 
 
 @dataclass(frozen=True)
@@ -160,13 +160,13 @@ class TestTheBroker:
 
 class TestTheOsr2Button:
     def test_is_lit_on_the_funestra_that_has_the_osr2_and_says_so(self):
-        button = osr2_button(FunTimeFunestra.PORTRAIT, has_it=True)
+        button = osr2_button(FunTimeFunestra.PORTRAIT.label, has_it=True)
 
         assert button.lit is True
         assert button.tooltip == "This Funestra has the OSR2 — it follows this Funestra's funscripts"
 
     def test_offers_the_osr2_on_every_other_funestra(self):
-        button = osr2_button(FunTimeFunestra.LANDSCAPE, has_it=False)
+        button = osr2_button(FunTimeFunestra.LANDSCAPE.label, has_it=False)
 
         assert (button.command, button.lit) == ("landscape_take_osr2", False)
         assert button.tooltip == "Take over the OSR2 — it follows this Funestra's funscripts"

@@ -19,7 +19,7 @@ from .funestra_status import (
     read_main_funestra_status,
 )
 from .gallery import the_gallery_in
-from .hud_transport import HudPublisher, hosted_model, worn
+from .hud_transport import HudPublisher, hosted_model
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
     genau_flick_shapes,
@@ -29,7 +29,6 @@ from .main_list_commands import (
 from .mode_plan import kino_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
-    DeviceBlock,
     Osr2PartFacts,
     funestra_with_the_osr2,
     osr2_part,
@@ -75,18 +74,14 @@ class HudFeed:
         osr2 = self._holders_osr2(with_the_osr2, state.main_mode, main_funestra,
                                   osr2_mode, osr2_trouble)
 
-        def device(funestra: FunTimeFunestra) -> DeviceBlock:
-            if funestra is not with_the_osr2:
-                return DeviceBlock.offered_to(funestra)
-            return DeviceBlock.held_by(funestra, osr2)
-
         for funestra in FunTimeFunestra.SATELLITES:
             tell_a_hosted_satellite_whose_the_osr2_is(self.config, self._osr2_told, funestra,
                                                       funestra is with_the_osr2)
-            self.publisher.publish_text(funestra.label, hud_text(worn(hosted_model(
+            self.publisher.publish_text(funestra.label, hud_text(hosted_model(
                 funestra.label, self._worn_hosted_hud(funestra), state.satellite(funestra),
                 in_vr=self.config.vr_main_funestra, crowned=state.crowned == funestra.label,
-                active=_bare_words_reach(funestra, state)), device(funestra))))
+                active=_bare_words_reach(funestra, state),
+                osr2=osr2 if funestra is with_the_osr2 else None)))
         main_shapes = main_video_shapes(state, self.config)
         genau_shapes = genau_flick_shapes(state, self.config)
         self.publisher.publish_text("main_funestra", hud_text(main_hud_model(MainFunestraInputs(

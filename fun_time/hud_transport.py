@@ -4,24 +4,30 @@ from dataclasses import replace
 from pathlib import Path
 
 from funestra.file_channel import publish_whole
+from funestra.hud_kinds import HudFacts, HudKind, osr2_button, window_buttons
+from funestra.modes import Osr2State
 from funestra.satellite_hud import HudModel
 
-from .osr2_section import DeviceBlock
-from .satellite_buttons import window_buttons
 from .shared_state import SatelliteState
 
 
-def worn(model: HudModel, device: DeviceBlock | None) -> HudModel:
-    return model if device is None else device.worn_by(model)
-
-
 def hosted_model(funestra: str, hosted: HudModel | None, held: SatelliteState, *,
-                 in_vr: bool, crowned: bool, active: bool) -> HudModel:
-    hud = hosted or HudModel(funestra=funestra)
-    own = window_buttons(funestra, in_vr=in_vr, crowned=crowned)
-    return replace(hud, funestra=funestra, active=active, hud_corner=held.hud_corner,
-                   hud_edge=held.hud_edge, hud_minimized=held.hud_minimized,
-                   rows=(*((own,) if own else ()), *hud.rows))
+                 in_vr: bool, crowned: bool, active: bool, osr2: Osr2State | None) -> HudModel:
+    hud = replace(hosted or HudModel(funestra=funestra), funestra=funestra, active=active,
+                  hud_corner=held.hud_corner, hud_edge=held.hud_edge,
+                  hud_minimized=held.hud_minimized, osr2=osr2 or "")
+    if hud.facts is None:
+        return _with_the_funestras_own_buttons(hud, in_vr=in_vr, crowned=crowned,
+                                               has_osr2=osr2 is not None)
+    return replace(hud, kind=HudKind.SATELLITE, osr2_rows=(), facts=replace(
+        hud.facts, funestra=funestra, crowned=crowned, has_osr2=osr2 is not None, in_vr=in_vr))
+
+
+def _with_the_funestras_own_buttons(hud: HudModel, *, in_vr: bool, crowned: bool,
+                                    has_osr2: bool) -> HudModel:
+    own = window_buttons(HudFacts(funestra=hud.funestra, in_vr=in_vr, crowned=crowned))
+    return replace(hud, rows=(*((own,) if own else ()), *hud.rows),
+                   osr2_rows=((osr2_button(hud.funestra, has_it=has_osr2),),))
 
 
 class HudPublisher:

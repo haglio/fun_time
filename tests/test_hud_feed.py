@@ -10,6 +10,7 @@ import pytest
 from app_support.osr2_device import Osr2Mode
 from app_support.testing import file_channel_clock_at
 from funestra.hud_button import Button
+from funestra.hud_kinds import HudFacts, HudKind, hud_rows, osr2_button
 from funestra.hud_placement import HudCorner
 from funestra.main_hud import OSR2_PARKED, MainHudModel, read_main_hud
 from funestra.modes import MainMode, Osr2State
@@ -23,7 +24,7 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import mark_favorite
-from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
+from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
 from tests.bridge_configs import made_up_bridge_config
 
@@ -114,6 +115,20 @@ class TestHudPublishing:
         assert [button.command for button in portrait.rows[0]] == [
             "portrait_minimize", "portrait_crown"]
         assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
+
+    def test_a_slideshow_the_hosted_app_publishes_wears_the_sessions_crown_and_osr2(self, tmp_path):
+        feed = make_feed(tmp_path, config=make_config(tmp_path))
+        (tmp_path / "origenerator_portrait_hud.json").write_text(hud_text(HudModel(
+            funestra="portrait", kind=HudKind.SLIDESHOW,
+            facts=HudFacts(funestra="portrait", hosted=True))), encoding="utf-8")
+
+        feed.publish(_hosted(BridgeState(crowned=Crown.PORTRAIT,
+                                         osr2_funestra=FunTimeFunestra.PORTRAIT)))
+
+        portrait = _published(tmp_path, "portrait")
+        assert portrait.kind is HudKind.SATELLITE
+        assert (portrait.facts.crowned, portrait.facts.has_osr2) == (True, True)
+        assert portrait.rows == hud_rows(HudKind.SATELLITE, portrait.facts)
 
     def test_core_hidden_behind_the_browser_shows_its_job_queue_on_the_satellites_hud(self, tmp_path):
         feed = make_feed(tmp_path, config=make_config(tmp_path))
@@ -541,7 +556,7 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         make_feed(tmp_path).publish(BridgeState(osr2_funestra=2, osr2_control=OSR2_PARKED))
 
         portrait = _published(tmp_path, "portrait")
-        assert portrait.osr2_rows == ((osr2_button(FunTimeFunestra.PORTRAIT, has_it=True),),)
+        assert portrait.osr2_rows == ((osr2_button(FunTimeFunestra.PORTRAIT.label, has_it=True),),)
         assert (portrait.osr2_controls, portrait.max_intensity) == ((), None)
 
     def test_the_main_main_hud_has_it_to_begin_with_and_wears_its_button_lit(self, tmp_path):
@@ -577,9 +592,9 @@ class TestTheOsr2SectionIsOnTheFunestraThatHasTheOsr2:
         feed.publish(_hosted(BridgeState(osr2_funestra=3)))
 
         assert _published(tmp_path, "landscape").osr2_rows == (
-            (osr2_button(FunTimeFunestra.LANDSCAPE, has_it=True),),)
+            (osr2_button(FunTimeFunestra.LANDSCAPE.label, has_it=True),),)
         assert _published(tmp_path, "portrait").osr2_rows == (
-            (osr2_button(FunTimeFunestra.PORTRAIT, has_it=False),),)
+            (osr2_button(FunTimeFunestra.PORTRAIT.label, has_it=False),),)
 
     def test_the_hosted_apps_skip_ahead_is_told_the_osr2_holder_once_per_change(self, tmp_path):
         feed = make_feed(tmp_path, config=make_config(tmp_path))

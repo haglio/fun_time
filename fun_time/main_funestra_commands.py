@@ -17,11 +17,11 @@ from funestra.funestra_verbs import (
     TOGGLE_LOCK,
 )
 from funestra.hud_controls import why_it_cannot_step
+from funestra.hud_kinds import VIDEO
 
 from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
 from .command_value import FUNESTRA_SOURCES
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_buttons import NOUN
 from .funestra_status import read_genau_status, read_main_funestra_status
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
@@ -75,7 +75,7 @@ def step_refused(funestra: FunTimeFunestra, verb: str, config: BridgeConfig) -> 
         status = read_main_funestra_status(config.main_funestra_status_file)
     else:
         status = read_satellite_status(config.satellite(funestra).status_file)
-    cannot = why_it_cannot_step(verb, status, NOUN)
+    cannot = why_it_cannot_step(verb, status, VIDEO)
     if cannot is None:
         return []
     return [WindowOp(op="message", key=cannot.capitalize(),
