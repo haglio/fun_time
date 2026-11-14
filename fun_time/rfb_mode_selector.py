@@ -5,7 +5,7 @@ from functools import cache
 
 from funestra.hud import SYMBOL_FONT, ButtonLook, draw_button, load_font, text_width
 from funestra.hud_button import FIT_THE_WORD, Button
-from funestra.satellite_hud import MODE_LABEL_PAD, button_row_rects
+from funestra.satellite_hud import WORD_PAD, button_row_rects
 from PIL import Image, ImageDraw
 from shared_ui.fonts import SIZE_BODY, SIZE_TINY
 from shared_ui.palette import BG_PRIMARY
@@ -42,7 +42,7 @@ def _icon_font():
 
 
 def place_selector(buttons: tuple[Button, ...], *, x: int, y: int) -> list[tuple[Rect, Button]]:
-    widths = [text_width(_word_font(), button.icon) + 2 * MODE_LABEL_PAD
+    widths = [text_width(_word_font(), button.icon) + 2 * WORD_PAD
               for button in buttons]
     return button_row_rects(x, y, buttons, widths)
 
