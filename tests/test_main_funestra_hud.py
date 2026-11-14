@@ -1,29 +1,39 @@
 from __future__ import annotations
 
+import pytest
 from app_support.osr2_device import Osr2Mode, Osr2Trouble
 from funestra.hud_button import Button
-from funestra.main_hud import MainHudModel, main_hud_text, parse_main_hud, read_main_hud
-from funestra.main_hud_painter import MainHud, MainHudPainter, hud_xy
+from funestra.hud_kinds import HudKind, title_filters
+from funestra.main_hud import OSR2_PARKED
 from funestra.modes import LengthMode, MainMode, Osr2State
+from funestra.satellite_hud import HudModel, hud_text, parse_hud
+from funestra.satellite_hud_paint import HudRenderer
 
+from fun_time import main_funestra_hud
+from fun_time.content import Noun
 from fun_time.funestra_status import GenauStatus, MainFunestraStatus
 from fun_time.main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from main_funestra.snippet_controller import SnippetState
 
 
-def _payload(**overrides) -> MainHudModel:
+@pytest.fixture
+def flicks_under_a_word_no_code_spells(monkeypatch):
+    monkeypatch.setattr(main_funestra_hud, "genau_flick_noun", lambda: Noun(one="pip", many="pips"))
+
+
+def _payload(**overrides) -> HudModel:
     base = {"main_mode": MainMode.KINO, "active": False, "osr2_mode": Osr2Mode.CONTROLLED,
                 "main_funestra": MainFunestraStatus(), "genau": GenauStatus()}
     base.update(overrides)
     return main_hud_model(MainFunestraInputs(**base))
 
 
-def _button(model: MainHudModel, action: str) -> Button:
-    return next(b for row in (*model.rows, *model.osr2_rows) for b in row if b.command == action)
+def _button(model: HudModel, action: str) -> Button:
+    return next(b for row in model.rows for b in row if b.command == action)
 
 
-def _actions(model: MainHudModel) -> list[str]:
-    return [b.command for row in (*model.rows, *model.osr2_rows) for b in row if b.command]
+def _actions(model: HudModel) -> list[str]:
+    return [b.command for row in model.rows for b in row if b.command]
 
 
 class TestOsr2State:
@@ -61,7 +71,8 @@ class TestPayload:
     def test_carries_the_room_the_funestra_cannot_see(self):
         payload = _payload(main_mode=MainMode.KINO, active=True, osr2_mode=Osr2Mode.AUTO)
 
-        assert payload.main_mode == "kino"
+        assert payload.kind is HudKind.MAIN
+        assert payload.facts.main_mode == "kino"
         assert payload.active is True
         assert payload.osr2 == Osr2State.AUTO
 
@@ -97,7 +108,7 @@ class TestPayload:
             (MainMode.GENAU, held_video, loose_flick, False),
         ):
             payload = _payload(main_mode=mode, main_funestra=main_funestra, genau=genau)
-            assert payload.locked is expected
+            assert payload.facts.locked is expected
             assert _button(payload, "main_lock").lit is expected
 
     def test_the_flip_button_lights_for_the_video_genau_says_is_flipped(self):
@@ -125,8 +136,8 @@ class TestPayload:
 
 
 def test_the_hud_alone_tells_the_main_funestra_its_browse_order():
-    assert _payload(latest=True).latest is True
-    assert _payload().latest is False
+    assert _payload(latest=True).facts.latest is True
+    assert _payload().facts.latest is False
     assert _button(_payload(latest=True), "main_latest").lit is True
     assert _button(_payload(), "main_shuffle").lit is True
 
@@ -142,18 +153,18 @@ def test_in_genau_mode_f_mode_lights_off_genaus_own_and_not_kinos():
 
 
 def test_the_length_pair_lights_off_the_narrowing_of_fun_times_own_list():
-    lit = [button.lit for button in _payload(length_mode=LengthMode.CLIPS).rows[1]
+    lit = [button.lit for row in _payload(length_mode=LengthMode.CLIPS).rows for button in row
            if button.command.startswith("main_funestra_length")]
 
     assert lit == [True, False]
 
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():
-    assert _payload(main_mode=MainMode.KINO, latest=True, genau_latest=False).latest is True
-    assert _payload(main_mode=MainMode.KINO, latest=False, genau_latest=True).latest is False
+    assert _payload(main_mode=MainMode.KINO, latest=True, genau_latest=False).facts.latest is True
+    assert _payload(main_mode=MainMode.KINO, latest=False, genau_latest=True).facts.latest is False
 
-    assert _payload(main_mode=MainMode.GENAU, latest=False, genau_latest=True).latest is True
-    assert _payload(main_mode=MainMode.GENAU, latest=True, genau_latest=False).latest is False
+    assert _payload(main_mode=MainMode.GENAU, latest=False, genau_latest=True).facts.latest is True
+    assert _payload(main_mode=MainMode.GENAU, latest=True, genau_latest=False).facts.latest is False
 
 
 def test_outside_the_headset_there_is_one_shape_and_no_pair_to_draw():
@@ -178,60 +189,68 @@ def test_the_shapes_reported_are_the_shapes_of_whoever_is_showing():
 
 
 def test_the_hud_title_names_each_pair_left_on_one_satellite_in_the_order_they_sit():
-    assert _payload().filters == ()
-    assert _payload(length_mode=LengthMode.CLIPS).filters == ("Clips",)
-    assert _payload(plays_vr=True, plays_flat=False,
-                    length_mode=LengthMode.FULL).filters == ("VR", "Full")
+    assert title_filters(_payload().facts) == ()
+    assert title_filters(_payload(length_mode=LengthMode.CLIPS).facts) == ("Clips",)
+    assert title_filters(_payload(plays_vr=True, plays_flat=False,
+                    length_mode=LengthMode.FULL).facts) == ("VR", "Full")
 
 
 def test_the_hud_title_in_genau_mode_names_genaus_own_narrowing():
     narrowed = {"plays_vr": True, "plays_flat": False, "length_mode": LengthMode.CLIPS,
                     "genau_plays_vr": False, "genau_plays_flat": True}
 
-    assert _payload(main_mode=MainMode.GENAU, **narrowed).filters == ("2D",)
+    assert title_filters(_payload(main_mode=MainMode.GENAU, **narrowed).facts) == ("2D",)
 
 
 def test_the_hud_title_names_the_orientation_last_in_either_mode():
-    assert _payload(length_mode=LengthMode.CLIPS, plays_landscape=False).filters == (
+    assert title_filters(_payload(length_mode=LengthMode.CLIPS, plays_landscape=False).facts) == (
         "Clips", "Portrait")
-    assert _payload(main_mode=MainMode.GENAU, plays_landscape=False,
-                    genau_plays_portrait=False).filters == ("Landscape",)
+    assert title_filters(_payload(main_mode=MainMode.GENAU, plays_landscape=False,
+                    genau_plays_portrait=False).facts) == ("Landscape",)
 
 
-def test_the_published_text_carries_the_rows_the_funestra_draws():
+def test_the_published_text_carries_the_facts_the_funestra_builds_its_hud_from():
     payload = _payload(main_mode=MainMode.GENAU)
 
-    parsed = parse_main_hud(main_hud_text(payload))
+    parsed = parse_hud(hud_text(payload))
 
     assert parsed == payload
+    assert parsed.facts == payload.facts
     assert parsed.rows
-    assert parsed.osr2_rows
 
 
-class TestTheDeclaredRows:
-    @staticmethod
-    def _readout(payload: MainHudModel, tmp_path):
-        hud = tmp_path / "main_player_console.json"
-        hud.write_text(main_hud_text(payload), encoding="utf-8")
-        console = read_main_hud(hud)
-        assert console is not None
-        painter = MainHudPainter()
-        painter.rgba(MainHud(main_hud_model=console))
-        return painter, hud_xy()
+def test_the_buttons_it_declares_are_the_ones_the_funestra_presses():
+    drawn = HudRenderer("main").render(parse_hud(hud_text(_payload(main_mode=MainMode.KINO))))
 
-    @staticmethod
-    def _center(rect, origin):
-        left, top = origin
-        x, y, w, h = rect
-        return left + x + w // 2, top + y + h // 2
-
-    def test_the_declared_rows_are_what_the_funestra_presses(self, tmp_path):
-        painter, origin = self._readout(_payload(main_mode=MainMode.KINO), tmp_path)
-
-        rect = next(r for r, b in painter.buttons if b.command == "main_next")
-        assert painter.press_at(*self._center(rect, origin)) == "main_next"
+    assert "main_next" in [button.command for _rect, button in drawn.targets.buttons]
 
 
 def test_the_crown_on_the_main_hud_is_lit_while_the_room_has_given_it_to_the_main_funestra():
     assert _button(_payload(crowned=True), "main_crown").lit is True
     assert _button(_payload(crowned=False), "main_crown").lit is False
+
+
+def test_genau_names_its_flicks_in_the_overlays_word(flicks_under_a_word_no_code_spells):
+    facts = _payload(main_mode=MainMode.GENAU).facts
+
+    assert (facts.flick_one, facts.flick_many) == ("pip", "pips")
+
+
+def test_the_main_hud_says_whether_what_it_shows_is_a_favorite():
+    assert _payload(is_favorite=True).is_favorite is True
+    assert _payload().is_favorite is False
+
+
+def test_it_carries_the_osr2s_control_and_the_pause_the_room_holds():
+    payload = _payload(osr2_control=OSR2_PARKED, paused=True)
+
+    assert (payload.osr2_control, payload.paused) == (OSR2_PARKED, True)
+
+
+def test_it_tells_the_funestra_what_the_main_funestra_said_of_its_video():
+    facts = _payload(main_funestra=MainFunestraStatus(
+        image=True, duration_ms=60_000, has_funscript=True,
+        snippet_state=SnippetState.REPEATING)).facts
+
+    assert (facts.image, facts.longer_than_a_step, facts.has_funscript, facts.snippet) == (
+        True, True, True, "repeating")

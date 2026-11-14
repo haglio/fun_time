@@ -25,11 +25,11 @@ from fun_time.funestra_deaths import FunestraDied, LaunchedFunestra
 from fun_time.funestra_status import (
     read_main_funestra_status,
 )
-from fun_time.main_funestra_hud import main_funestra_hud_path
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
     RandomFavesBrowserSettings,
+    main_funestra_hud_path,
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo

@@ -9,6 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 from funestra.drive_layout import MAX_INTENSITY
+from funestra.hud_kinds import HudFacts, HudKind, hud_rows, osr2_button, window_buttons
+from funestra.inclusion_pair import LENGTH, ORIENTATION, PROJECTION
 from funestra.main_hud import osr2_controls
 from funestra.modes import LengthMode, MainMode
 
@@ -22,9 +24,6 @@ from fun_time.command_dispatch import ROUTES, handles
 from fun_time.command_reference import build_reference_sections
 from fun_time.command_value import MAIN_EQUIVALENTS, Scope, parse_command
 from fun_time.filter_vocab import filter_voice_commands
-from fun_time.inclusion_pairs import LENGTH, ORIENTATION, PROJECTION
-from fun_time.main_hud_buttons import MainFunestraFacts, main_hud_rows
-from fun_time.satellite_buttons import window_buttons
 from fun_time.voice_commands import build_voice_commands
 from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from fun_time_vr.thumbs import PROJECTION_BACK
@@ -98,12 +97,11 @@ def _console_verbs_in_every_state() -> frozenset[str]:
         in itertools.product(MainMode, (False, True), (False, True), (False, True), (False, True),
                              LengthMode, ("", "Volume One"), ("", "scene", "clip"), (False, True),
                              (False, True))
-        for row in main_hud_rows(
-            MainFunestraFacts(main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
-                     plays_portrait=plays_portrait, plays_landscape=plays_landscape,
-                     length_mode=length_mode, compilation=compilation, has_compilation=True,
-                     jump_to=jump_to, has_osr2=has_osr2),
-            in_vr=in_vr)
+        for row in hud_rows(HudKind.MAIN, HudFacts(
+            main_mode=mode, latest=False, plays_vr=plays_vr, plays_flat=plays_flat,
+            plays_portrait=plays_portrait, plays_landscape=plays_landscape,
+            length_mode=length_mode, compilation=compilation, has_compilation=True,
+            jump_to=jump_to, has_osr2=has_osr2, in_vr=in_vr, flick_one="pip", flick_many="pips"))
         for button in row
     )
     brokers = (button.command for broker in (False, True) for button in osr2_controls(broker_running=broker))
@@ -115,7 +113,8 @@ def _satellite_verbs() -> frozenset[str]:
         button.command
         for funestra in ("portrait", "landscape")
         for crowned in (False, True)
-        for button in window_buttons(funestra, in_vr=False, crowned=crowned)
+        for button in (*window_buttons(HudFacts(funestra=funestra, crowned=crowned)),
+                       osr2_button(funestra, has_it=crowned))
     )
 
 
