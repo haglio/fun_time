@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app_support import favorites
+from app_support.kino_folder import is_ai_video
 from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, record_path
 from app_support.video_names import clip_title, version_group_of
 from funestra.flick_folder import SUPPORTED_VIDEO_EXTS
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS
+
+if TYPE_CHECKING:
+    from .gallery import Gallery
 
 
 def _library_holding(folder: Path) -> Path:
@@ -112,6 +117,13 @@ def recorded_for(
 ) -> dict:
     record = metadata_path_for(video_path, metadata_root, outlying_dirs=outlying_dirs)
     return {} if record is None else load_metadata(record)
+
+
+def record_of(item: str | Path, metadata_root: str | Path | None,
+              gallery: Callable[[], Gallery]) -> dict:
+    if is_ai_video(Path(item)):
+        return gallery().record_of(item)
+    return recorded_for(item, metadata_root)
 
 
 def favorite_recorded_in(record: Path) -> bool:

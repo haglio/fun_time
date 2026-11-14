@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from app_support import favorites
-from app_support.kino_folder import is_ai_video
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
 from funestra.inclusion_pair import BOTH, Included
@@ -28,7 +27,7 @@ from fun_time.genau_engine import (
     build_genau_engine,
 )
 from fun_time.inclusion_pairs import ORIENTATION
-from fun_time.media_metadata import recorded_for, recorded_orientation
+from fun_time.media_metadata import record_of, recorded_orientation
 from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
 
@@ -212,9 +211,7 @@ class Genau:
         return [flick for flick in flicks if favorites.is_favorite(self._record_of(flick))]
 
     def _record_of(self, flick: Path) -> dict:
-        if is_ai_video(flick):
-            return self._gallery.record_of(flick)
-        return recorded_for(flick, self._metadata_root)
+        return record_of(flick, self._metadata_root, lambda: self._gallery)
 
     def _rescan(self, recent: bool) -> list[Path]:
         self._recent = recent

@@ -5,7 +5,7 @@ from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
-from .gallery import Gallery, gallery_database_in, star_in_the_gallery
+from .gallery import Gallery, star_in_the_gallery, the_gallery_in
 from .media_metadata import mark_favorite, metadata_path_for
 from .random_faves_browser import FavEntry, target_for_fav, with_its_page
 from .rfb_mode import switch_the_rfb_mode
@@ -26,7 +26,7 @@ def a_lock_holds(item: str, state: BridgeState,
                  config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     if not item:
         return state, []
-    gallery = _the_gallery(config)
+    gallery = the_gallery_in(config.librarys_origenerator)
     favorite = with_its_page(item, gallery, load_web_providers())
     if is_ai_video(item):
         star_in_the_gallery(item, config.librarys_origenerator)
@@ -36,17 +36,13 @@ def a_lock_holds(item: str, state: BridgeState,
     return _where_more_of_it_is_made(favorite, state, config, gallery)
 
 
-def _the_gallery(config: BridgeConfig) -> Gallery:
-    return Gallery.read(gallery_database_in(config.librarys_origenerator))
-
-
 def a_hosted_lock_holds(item: str, state: BridgeState,
                         config: BridgeConfig) -> tuple[BridgeState, list[WindowOp]]:
     if is_ai_video(item):
         record_watch_event(watch_stats_path(config.state_dir), item, "lock")
     elif _has_a_record(item, config):
         return a_lock_holds(item, state, config)
-    gallery = _the_gallery(config)
+    gallery = the_gallery_in(config.librarys_origenerator)
     return _where_more_of_it_is_made(with_its_page(item, gallery, load_web_providers()),
                                      state, config, gallery)
 
