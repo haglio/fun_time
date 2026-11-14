@@ -4,9 +4,8 @@ from collections.abc import Collection
 from typing import Any
 
 from funestra.control_registry import Control, Verb, bind, look_up
+from funestra.inclusion_pair import BOTH, Included
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS, PORTRAIT
-
-from fun_time.inclusion_pairs import BOTH, Included
 
 SET_GENAU_F_MODE = "SET_GENAU_F_MODE"
 SET_GENAU_ORIENTATIONS = "SET_GENAU_ORIENTATIONS"

@@ -16,6 +16,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.win32 import process_started
 from funestra import broker
 from funestra.file_channel import append_command
+from funestra.inclusion_pair import BOTH, Included
 from funestra.robot_hand import FULL_INTENSITY
 
 from main_funestra.genau_verbs import orientation_words
@@ -30,7 +31,6 @@ from .fun_time_funestras import FunTimeFunestra
 from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
 from .hosted_contract import gallery_names_args, the_args_it_declares
-from .inclusion_pairs import BOTH, Included
 from .main_list import MainList, MainListSettings
 from .manifest import CommandFiles, LaunchManifest
 from .max_intensity import publish_max_intensity

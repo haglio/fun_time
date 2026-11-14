@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 from app_support.flick_folder import trash_folder_in
 from funestra.funestra import User
+from funestra.inclusion_pair import BOTH
 from funestra.main_hud import ModeHud
 from funestra.modes import MessageLevel
 
@@ -19,7 +20,6 @@ from fun_time.arrivals import LOOK_EVERY_S
 from fun_time.content import Noun
 from fun_time.gallery import Gallery
 from fun_time.genau_config import GenauSettings
-from fun_time.inclusion_pairs import BOTH
 from fun_time.media_metadata import mark_favorite, metadata_path_for
 from main_funestra.gallery_names import NO_GALLERY_NAMES, GalleryNames
 from main_funestra.genau import (

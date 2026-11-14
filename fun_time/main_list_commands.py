@@ -8,6 +8,7 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_ON, set_speed
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
+from funestra.inclusion_pair import Included, InclusionPair
 from funestra.modes import LengthMode
 from funestra.playback_rate import NORMAL_RATE
 
@@ -22,8 +23,6 @@ from .inclusion_pairs import (
     LENGTH,
     ORIENTATION,
     PROJECTION,
-    Included,
-    InclusionPair,
     length_mode,
     lengths_included,
 )
