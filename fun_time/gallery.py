@@ -68,7 +68,10 @@ def _ask_the_gallery(checkout: Path | None, verb: str, video: str | Path, on: bo
 
 
 def the_librarys_gallery() -> Gallery:
-    checkout = the_librarys_origenerator()
+    return the_gallery_in(the_librarys_origenerator())
+
+
+def the_gallery_in(checkout: Path | None) -> Gallery:
     return Gallery.read(gallery_database_in(checkout), checkout=checkout)
 
 

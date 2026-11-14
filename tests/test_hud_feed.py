@@ -22,6 +22,7 @@ from fun_time.dispatch_loop_setup import LOOP_TICK_S
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
+from fun_time.media_metadata import mark_favorite
 from fun_time.osr2_section import DASHBOARD_OSR2_PART, osr2_button, osr2_part_path
 from fun_time.shared_state import BridgeState, SatelliteState
 from tests.bridge_configs import made_up_bridge_config
@@ -314,6 +315,24 @@ class TestHudPublishing:
         broker, broker_part = published(broker_state)
         assert broker_is_up(broker_part)
         assert broker["osr2"] != "off"
+
+    @pytest.mark.parametrize(("main_mode", "status", "line"), [
+        (MainMode.KINO, "main_player_status.txt", "video"),
+        (MainMode.GENAU, "genau_status.txt", "flick"),
+    ], ids=["kino", "genau"])
+    def test_the_main_hud_stars_what_it_shows_while_that_is_a_favorite(
+            self, tmp_path, main_mode, status, line):
+        config = make_config(tmp_path, regen_metadata_root=tmp_path / "metadata")
+        feed, shown = make_feed(tmp_path, config=config), tmp_path / "videos" / "video one.mp4"
+        (tmp_path / status).write_text(f"{line}={shown}\n", encoding="utf-8")
+
+        feed.publish(BridgeState(main_mode=main_mode))
+        before = console(tmp_path)["is_favorite"]
+        mark_favorite(shown, config.regen_metadata_root, True)
+        (tmp_path / status).write_text(f"{line}={shown}\nlocked=0\n", encoding="utf-8")
+        feed.publish(BridgeState(main_mode=main_mode))
+
+        assert (before, console(tmp_path)["is_favorite"]) == (False, True)
 
     def test_the_main_huds_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState(main_mode=MainMode.GENAU)

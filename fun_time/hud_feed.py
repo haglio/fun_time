@@ -13,10 +13,12 @@ from .crown import Crown
 from .dispatch_loop_setup import LOOP_TICK_S
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import (
+    GenauStatus,
     MainFunestraStatus,
     read_genau_status,
     read_main_funestra_status,
 )
+from .gallery import the_gallery_in
 from .hud_transport import HudPublisher, hosted_model, worn
 from .main_funestra_hud import MainFunestraInputs, main_hud_model, osr2_state
 from .main_list_commands import (
@@ -24,6 +26,7 @@ from .main_list_commands import (
     main_funestra_at_defaults,
     main_video_shapes,
 )
+from .mode_plan import kino_shows
 from .osr2_section import (
     DASHBOARD_OSR2_PART,
     DeviceBlock,
@@ -34,6 +37,7 @@ from .osr2_section import (
 )
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
+from .shown_favorite import ShownFavorite
 
 PUBLISH_INTERVAL_S = 3 * LOOP_TICK_S
 
@@ -50,6 +54,9 @@ class HudFeed:
         self._hosted_huds: dict[FunTimeFunestra, HudModel | None] = {}
         self._last_worn_hosted: dict[FunTimeFunestra, HudModel | None] = {}
         self._osr2_told: dict[FunTimeFunestra, bool] = {}
+        self._shown_favorite = ShownFavorite(
+            metadata_root=config.regen_metadata_root,
+            gallery=lambda: the_gallery_in(config.librarys_origenerator))
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         if now - self._last_publish < PUBLISH_INTERVAL_S:
@@ -112,6 +119,7 @@ class HudFeed:
             has_osr2=with_the_osr2 is FunTimeFunestra.MAIN,
             osr2_control=state.osr2_control,
             paused=state.omni_paused,
+            is_favorite=self._main_funestra_shows_a_favorite(state.main_mode, main_funestra, genau),
         ))))
         self.publisher.publish_text(DASHBOARD_OSR2_PART, main_hud_text(osr2_part(
             with_the_osr2, Osr2PartFacts(
@@ -128,6 +136,13 @@ class HudFeed:
                               funscript_driving=main_funestra.funscript_driving, trouble=trouble)
         scripted = read_satellite_status(self.config.satellite(holder).status_file)
         return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
+
+    def _main_funestra_shows_a_favorite(self, main_mode: MainMode,
+                                        main_funestra: MainFunestraStatus,
+                                        genau: GenauStatus) -> bool:
+        if kino_shows(main_mode):
+            return self._shown_favorite.of(main_funestra.video, held=main_funestra.locked)
+        return self._shown_favorite.of(genau.flick, held=genau.locked)
 
     def _worn_hosted_hud(self, funestra: FunTimeFunestra) -> HudModel | None:
         worn = self._hosted_hud(funestra) or self._last_worn_hosted.get(funestra)
