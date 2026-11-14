@@ -8,7 +8,15 @@ from functools import partial
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import LOCK_ON, set_speed
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
-from funestra.inclusion_pair import Included, InclusionPair
+from funestra.inclusion_pair import (
+    LENGTH,
+    ORIENTATION,
+    PROJECTION,
+    Included,
+    InclusionPair,
+    length_mode,
+    lengths_included,
+)
 from funestra.modes import LengthMode
 from funestra.playback_rate import NORMAL_RATE
 
@@ -19,13 +27,6 @@ from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, 
 from .content import no_other_flicks
 from .event_log import MESSAGE, SOURCE_MAIN
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
-from .inclusion_pairs import (
-    LENGTH,
-    ORIENTATION,
-    PROJECTION,
-    length_mode,
-    lengths_included,
-)
 from .main_funestra_commands import MAIN_FUNESTRA_CMD_MAP, MAIN_LOCK_COMMANDS
 from .main_list import MainListSettings, new_shuffle_seed
 from .main_list_builds import MainListBuild

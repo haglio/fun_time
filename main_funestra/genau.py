@@ -8,7 +8,7 @@ from typing import Any
 from app_support import favorites
 from funestra.flick_folder import flat_flicks_in, scan_flicks, trash_folder_for
 from funestra.flick_overlay import FlickFrame
-from funestra.inclusion_pair import BOTH, Included
+from funestra.inclusion_pair import BOTH, ORIENTATION, Included
 from funestra.main_hud import ModeHud
 from funestra.messages import MessageWriter
 from funestra.modes import MessageLevel
@@ -26,7 +26,6 @@ from fun_time.genau_engine import (
     Narrow,
     build_genau_engine,
 )
-from fun_time.inclusion_pairs import ORIENTATION
 from fun_time.media_metadata import record_of, recorded_orientation
 from fun_time.modes import videos_in
 from fun_time.origenerator_trash import tell_origenerator_it_went
