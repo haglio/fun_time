@@ -24,12 +24,11 @@ from funestra.funestra_verbs import LOCK_ON
 from funestra.genau_controls import GenauControls, apply_runtime_command
 from funestra.genau_files import GenauFiles
 from funestra.genau_refresh import GenauRefreshController
+from funestra.inclusion_pair import PROJECTION
 from funestra.learned_motion import LearnedMotionState, load_default_model
 from funestra.robot_hand import RobotHandState, bpm_for_speed
 from funestra.robot_hand_beat import BeatEngine, BeatTuning
 from funestra.robot_hand_driver import RobotHandTCodeDriver
-
-from .inclusion_pairs import PROJECTION
 
 logger = logging.getLogger(__name__)
 
