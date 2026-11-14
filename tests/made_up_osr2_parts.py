@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from funestra.main_hud import OSR2_DRIVING, MainHudModel, main_hud_text, read_main_hud
-from funestra.main_hud_painter import MainHud, MainHudPainter
+from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode, Osr2State
+from funestra.osr2_part_painter import Osr2PartPainter
 from funestra.osr2_visualizer import DriveHud, publish_drive, read_drive
 
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -35,13 +36,13 @@ def handed_on(state_dir: Path, holder: FunTimeFunestra, readout: DriveHud) -> Dr
 
 
 def center_of(part: MainHudModel, command: str) -> tuple[int, int]:
-    painter = MainHudPainter(device_only=True)
+    painter = Osr2PartPainter()
     painter.rgba(MainHud(main_hud_model=part))
     x, y, width, height = next(rect for rect, button in painter.buttons if button.command == command)
     return x + width // 2, y + height // 2
 
 
 def band_of(part: MainHudModel, readout: DriveHud, axis: str) -> tuple[int, int, int, int]:
-    painter = MainHudPainter(device_only=True)
+    painter = Osr2PartPainter()
     painter.rgba(MainHud(main_hud_model=part, drive=readout))
     return next(track.rect for track in painter.tracks if track.axis == axis)

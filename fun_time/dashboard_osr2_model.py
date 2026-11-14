@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from funestra.main_hud import OSR2_DRIVING, MainHudModel, read_main_hud
-from funestra.main_hud_painter import MainHud, MainHudPainter
+from funestra.main_hud_painter import MainHud
 from funestra.modes import MainMode, Osr2State
+from funestra.osr2_part_painter import Osr2PartPainter
 from funestra.osr2_visualizer import DriveHud, read_drive
 from funestra.robot_hand import FULL_INTENSITY, WaveformShape
 
@@ -17,7 +18,7 @@ def room_for_a_whole_part() -> tuple[int, int]:
         main_mode=MainMode.KINO, osr2=Osr2State.ROBOT_HAND, control=OSR2_DRIVING, paused=False,
         learned=False, shape=WaveformShape.SINE.value, broker=True, max_intensity=FULL_INTENSITY,
     ))
-    return MainHudPainter(device_only=True).rgba(MainHud(main_hud_model=whole, drive=DriveHud()))[1]
+    return Osr2PartPainter().rgba(MainHud(main_hud_model=whole, drive=DriveHud()))[1]
 
 
 class Osr2PartReader:
