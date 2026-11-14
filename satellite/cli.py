@@ -4,43 +4,17 @@ import argparse
 import os
 from pathlib import Path
 
+from funestra.channel_manifest import add_channel_arguments
 from funestra.playlist import PlaylistItem, read_playlist
 
 from fun_time.win32_desktop import on_hidden_desktop
 
+from .contract import SATELLITE_CHANNELS
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="A Satellite Funestra of Fun Time")
-    p.add_argument("--playlist", type=Path, default=None,
-                   help="Video or image list to play, one per line; a funscript "
-                        "column after a TAB is ignored")
-    p.add_argument("--command-file", type=Path, default=None,
-                   help="Poll this file for orchestrator commands")
-    p.add_argument("--paused-file", type=Path, default=None,
-                   help="Flag file that owns the paused state when present")
-    p.add_argument("--status-file", type=Path, default=None,
-                   help="Publish playback status to this file")
-    p.add_argument("--notice-file", type=Path, default=None,
-                   help="Publish one-shot notices here for Fun Time to flash over "
-                        "this Funestra")
-    p.add_argument("--play-points-file", type=Path, default=None,
-                   help="Where this Funestra writes down the point each clip was "
-                        "left at, so playing one again picks up there")
-    p.add_argument("--hud-file", type=Path, default=None,
-                   help="Lock HUD fun_time publishes; drawn into the video")
-    p.add_argument("--drive-file", type=Path, default=None,
-                   help="The motion Genau publishes, drawn under the OSR2 line "
-                        "while this Funestra has the OSR2")
-    p.add_argument("--osr2-sender", default=None,
-                   help="The name this Funestra's funscript reaches the OSR2 under, "
-                        "through the broker's one slot, while it has the OSR2")
-    p.add_argument("--osr2-port", type=int, default=None)
-    p.add_argument("--osr2-readout-file", type=Path, default=None,
-                   help="Where this Funestra hands on the motion it composes while it "
-                        "has the OSR2, for the Dashboard to draw")
-    p.add_argument("--dashboard-cmd-file", type=Path, default=None,
-                   help="Where a click on the lock HUD, or on the item itself, "
-                        "posts its fun_time command")
+    add_channel_arguments(p, SATELLITE_CHANNELS)
     p.add_argument("--width", type=int, default=1200)
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)

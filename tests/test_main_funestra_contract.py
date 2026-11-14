@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from funestra.channel_manifest import channel_flag
+
 from fun_time.osr2_section import osr2_readout_path
 from main_funestra.cli import build_parser
 from main_funestra.contract import MainChannels
@@ -9,16 +11,16 @@ from main_funestra.contract import MainChannels
 
 def _args(*extra: str):
     return build_parser({}).parse_args([
-        "--playlist", "C:/state/main_player_playlist.tsv",
-        "--command-file", "C:/state/main_player_cmd.txt",
-        "--paused-file", "C:/state/main_player_paused.txt",
-        "--status-file", "C:/state/main_player_status.txt",
-        "--notice-file", "C:/state/main_player_notice.txt",
+        channel_flag("playlist"), "C:/state/main_player_playlist.tsv",
+        channel_flag("command"), "C:/state/main_player_cmd.txt",
+        channel_flag("paused"), "C:/state/main_player_paused.txt",
+        channel_flag("status"), "C:/state/main_player_status.txt",
+        channel_flag("notice"), "C:/state/main_player_notice.txt",
         "--state-dir", "C:/state",
-        "--console-file", "C:/state/main_player_console.json",
-        "--drive-file", "C:/state/genau_drive.txt",
-        "--dashboard-cmd-file", "C:/state/dashboard_cmd.txt",
-        "--osr2-port", "51000",
+        channel_flag("console"), "C:/state/main_player_console.json",
+        channel_flag("drive"), "C:/state/genau_drive.txt",
+        channel_flag("dashboard_cmd"), "C:/state/dashboard_cmd.txt",
+        channel_flag("osr2_port"), "51000",
         *extra,
     ])
 

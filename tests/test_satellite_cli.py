@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from funestra.channel_manifest import channel_flag
 from funestra.playlist import PlaylistItem
 
 from satellite.cli import audio_muted, build_parser, resolve_playlist
@@ -10,7 +11,7 @@ from satellite.cli import audio_muted, build_parser, resolve_playlist
 def test_resolve_playlist_reads_each_video_with_its_funscript(tmp_path):
     pl = tmp_path / "portrait.tsv"
     pl.write_text("a.mp4\nb.mp4\tb.funscript\n", encoding="utf-8")
-    args = build_parser().parse_args(["--playlist", str(pl)])
+    args = build_parser().parse_args([channel_flag("playlist"), str(pl)])
 
     assert resolve_playlist(args) == [
         PlaylistItem(Path("a.mp4")), PlaylistItem(Path("b.mp4"), Path("b.funscript"))]
@@ -33,19 +34,19 @@ def test_audio_muted_from_the_env_contract(monkeypatch):
 
 def test_parser_accepts_the_file_quartet_and_geometry(tmp_path):
     args = build_parser().parse_args([
-        "--playlist", str(tmp_path / "p.tsv"),
-        "--command-file", str(tmp_path / "cmd.txt"),
-        "--paused-file", str(tmp_path / "paused.txt"),
-        "--status-file", str(tmp_path / "status.txt"),
-        "--notice-file", str(tmp_path / "notice.txt"),
-        "--play-points-file", str(tmp_path / "points.json"),
+        channel_flag("playlist"), str(tmp_path / "p.tsv"),
+        channel_flag("command"), str(tmp_path / "cmd.txt"),
+        channel_flag("paused"), str(tmp_path / "paused.txt"),
+        channel_flag("status"), str(tmp_path / "status.txt"),
+        channel_flag("notice"), str(tmp_path / "notice.txt"),
+        channel_flag("play_points"), str(tmp_path / "points.json"),
         "--x", "2560", "--y", "0", "--width", "1440", "--height", "2500",
     ])
-    assert args.command_file == tmp_path / "cmd.txt"
-    assert args.paused_file == tmp_path / "paused.txt"
-    assert args.status_file == tmp_path / "status.txt"
-    assert args.notice_file == tmp_path / "notice.txt"
-    assert args.play_points_file == tmp_path / "points.json"
+    assert args.command == tmp_path / "cmd.txt"
+    assert args.paused == tmp_path / "paused.txt"
+    assert args.status == tmp_path / "status.txt"
+    assert args.notice == tmp_path / "notice.txt"
+    assert args.play_points == tmp_path / "points.json"
     assert (args.x, args.y, args.width, args.height) == (2560, 0, 1440, 2500)
 
 
@@ -60,16 +61,16 @@ def test_a_session_titles_a_satellite_through_the_flag():
 
 def test_parser_takes_the_hud_and_command_files():
     args = build_parser().parse_args(
-        ["--hud-file", "state/portrait_hud.json",
-         "--dashboard-cmd-file", "state/dashboard_cmd.txt"]
+        [channel_flag("hud"), "state/portrait_hud.json",
+         channel_flag("dashboard_cmd"), "state/dashboard_cmd.txt"]
     )
 
-    assert args.hud_file == Path("state/portrait_hud.json")
-    assert args.dashboard_cmd_file == Path("state/dashboard_cmd.txt")
+    assert args.hud == Path("state/portrait_hud.json")
+    assert args.dashboard_cmd == Path("state/dashboard_cmd.txt")
 
 
 def test_the_hud_files_are_optional():
     args = build_parser().parse_args([])
 
-    assert args.hud_file is None
-    assert args.dashboard_cmd_file is None
+    assert args.hud is None
+    assert args.dashboard_cmd is None

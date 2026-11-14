@@ -14,6 +14,7 @@ from urllib.request import url2pathname
 
 import pytest
 from app_support import osr2_hold
+from funestra.channel_manifest import channel_flag
 from funestra.modes import LengthMode, MainMode
 from funestra.playlist import read_playlist
 from funestra.robot_hand import FULL_INTENSITY
@@ -1013,7 +1014,8 @@ def test_the_launch_names_genaus_orientations_only_for_a_session_left_narrowed(t
 def test_the_main_funestra_is_handed_where_its_messages_are_read(tmp_path: Path):
     command = _launched_main_funestra(tmp_path, notice_file="a-state-dir/main_player_notice.txt")
 
-    assert command[command.index("--notice-file") + 1] == "a-state-dir/main_player_notice.txt"
+    assert Path(command[command.index(channel_flag("notice")) + 1]) == Path(
+        "a-state-dir/main_player_notice.txt")
 
 
 def test_what_the_main_funestra_says_as_it_dies_importing_is_what_the_alert_quotes(tmp_path: Path):
@@ -1439,22 +1441,24 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "main_funestra",
         "--config",
         "cfg.json",
-        "--playlist",
-        "state/main_player_playlist.tsv",
-        "--command-file",
-        "state/main_player_cmd.txt",
-        "--paused-file",
-        "state/main_player_paused.txt",
-        "--status-file",
-        "state/main_player_status.txt",
+        channel_flag("playlist"),
+        str(Path("state/main_player_playlist.tsv")),
+        channel_flag("command"),
+        str(Path("state/main_player_cmd.txt")),
+        channel_flag("paused"),
+        str(Path("state/main_player_paused.txt")),
+        channel_flag("status"),
+        str(Path("state/main_player_status.txt")),
+        channel_flag("console"),
+        str(Path("state/main_player_console.json")),
+        channel_flag("drive"),
+        str(Path(launch["m"].commands.genau_drive_file)),
+        channel_flag("dashboard_cmd"),
+        str(Path("state/dashboard_cmd.txt")),
+        channel_flag("osr2_port"),
+        "50599",
         "--state-dir",
         str(tmp_path),
-        "--console-file",
-        "state/main_player_console.json",
-        "--drive-file",
-        launch["m"].commands.genau_drive_file,
-        "--dashboard-cmd-file",
-        "state/dashboard_cmd.txt",
         "--x",
         "100",
         "--y",
@@ -1474,8 +1478,6 @@ def test_launching_the_main_funestra_starts_it_and_says_which_process_it_is(tmp_
         "a-state-dir/genau_status.txt",
         "--origenerator-command-file",
         launch["m"].commands.origenerator_cmd_file,
-        "--osr2-port",
-        "50599",
     ]
 
 
@@ -1690,12 +1692,12 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
         return cmd[cmd.index(flag) + 1]
 
     assert _val("--title") == "Portrait AI Funestra"
-    assert Path(_val("--playlist")) == Path("state/portrait_playlist.tsv")
-    assert Path(_val("--command-file")) == Path("state/portrait_cmd.txt")
-    assert Path(_val("--paused-file")) == Path("state/portrait_paused.txt")
-    assert Path(_val("--status-file")) == Path("state/portrait_status.txt")
-    assert Path(_val("--notice-file")) == Path("state/portrait_notice.txt")
-    assert Path(_val("--play-points-file")) == Path("state/portrait_play_points.json")
+    assert Path(_val(channel_flag("playlist"))) == Path("state/portrait_playlist.tsv")
+    assert Path(_val(channel_flag("command"))) == Path("state/portrait_cmd.txt")
+    assert Path(_val(channel_flag("paused"))) == Path("state/portrait_paused.txt")
+    assert Path(_val(channel_flag("status"))) == Path("state/portrait_status.txt")
+    assert Path(_val(channel_flag("notice"))) == Path("state/portrait_notice.txt")
+    assert Path(_val(channel_flag("play_points"))) == Path("state/portrait_play_points.json")
     assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
 
 
@@ -1768,15 +1770,15 @@ def test_build_satellite_launch_command_forwards_the_hud_files():
     cmd = _a_satellite_argv(hud=Path("state/portrait_hud.json"),
                             dashboard_cmd=Path("state/dashboard_cmd.txt"))
 
-    assert Path(cmd[cmd.index("--hud-file") + 1]) == Path("state/portrait_hud.json")
-    assert Path(cmd[cmd.index("--dashboard-cmd-file") + 1]) == Path("state/dashboard_cmd.txt")
+    assert Path(cmd[cmd.index(channel_flag("hud")) + 1]) == Path("state/portrait_hud.json")
+    assert Path(cmd[cmd.index(channel_flag("dashboard_cmd")) + 1]) == Path("state/dashboard_cmd.txt")
 
 
 def test_build_satellite_launch_command_omits_an_absent_hud():
     cmd = _a_satellite_argv(hud=None, dashboard_cmd=None)
 
-    assert "--hud-file" not in cmd
-    assert "--dashboard-cmd-file" not in cmd
+    assert channel_flag("hud") not in cmd
+    assert channel_flag("dashboard_cmd") not in cmd
 
 
 class TestNoChildIsLaunchedAsAnAnonymousPythonw:

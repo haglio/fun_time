@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pygame
 import pytest
+from funestra.channel_manifest import channel_flag
 from funestra.funestra_setup import FunestraSetup
 
 import satellite.app
@@ -93,10 +94,10 @@ class _OpensAFunestra:
 
 def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
                tile: bool = False, **extra: str):
-    argv = ["--playlist", str(tmp_path / "playlist.tsv"),
-            "--command-file", str(tmp_path / "cmd.txt"),
-            "--paused-file", str(tmp_path / "paused.txt"),
-            "--status-file", str(tmp_path / "status.txt"),
+    argv = [channel_flag("playlist"), str(tmp_path / "playlist.tsv"),
+            channel_flag("command"), str(tmp_path / "cmd.txt"),
+            channel_flag("paused"), str(tmp_path / "paused.txt"),
+            channel_flag("status"), str(tmp_path / "status.txt"),
             "--title", "Portrait AI Funestra"]
     if no_audio:
         argv.append("--no-audio")
@@ -241,7 +242,7 @@ def test_the_satellite_plays_ahead_of_background_work(tmp_path, monkeypatch, pla
 
     monkeypatch.setattr(satellite.app, "ahead_on_the_processor", ahead_on_the_processor)
 
-    assert satellite.app.main(["--playlist", str(playlist)]) == 0
+    assert satellite.app.main([channel_flag("playlist"), str(playlist)]) == 0
     assert plays == ["ahead", "plays", "back"]
 
 

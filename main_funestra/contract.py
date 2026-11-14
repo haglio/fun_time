@@ -3,12 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from funestra.channel_manifest import channel_argv, channels_from_args
 from funestra.funestra import Channels
 
 from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.osr2_section import osr2_readout_path
 
-from .cli import PLAY_POINTS, play_points_path
+from .cli import MAIN_FUNESTRAS_CHANNELS, PLAY_POINTS, play_points_path
 
 
 @dataclass(frozen=True)
@@ -16,17 +17,9 @@ class MainChannels(Channels):
     @classmethod
     def from_args(cls, args) -> MainChannels:
         return cls(
-            playlist=args.playlist,
-            command=args.command_file,
-            paused=args.paused_file,
-            status=args.status_file,
-            notice=args.notice_file,
+            **channels_from_args(args, MAIN_FUNESTRAS_CHANNELS),
             play_points=play_points_path(args),
-            console=args.console_file,
-            dashboard_cmd=args.dashboard_cmd_file,
-            drive=args.drive_file,
             osr2_sender=FunTimeFunestra.MAIN.label,
-            osr2_port=args.osr2_port,
             osr2_readout=(osr2_readout_path(args.state_dir, FunTimeFunestra.MAIN.label)
                           if args.state_dir else None),
         )
@@ -46,3 +39,6 @@ class MainChannels(Channels):
             drive=Path(commands.genau_drive_file),
             osr2_readout=osr2_readout_path(state_dir, FunTimeFunestra.MAIN.label),
         )
+
+    def to_argv(self) -> list[str]:
+        return channel_argv(self, MAIN_FUNESTRAS_CHANNELS)

@@ -3,25 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from funestra.channel_manifest import channel_argv, channels_from_args
 from funestra.funestra import Channels
 
 from fun_time.config import SatelliteChannel
 from fun_time.osr2_section import osr2_readout_path
 
-CHANNELS = (
-    ("playlist", "--playlist", "playlist"),
-    ("command", "--command-file", "cmd"),
-    ("paused", "--paused-file", "paused"),
-    ("status", "--status-file", "status"),
-    ("notice", "--notice-file", "notice"),
-    ("play_points", "--play-points-file", None),
-    ("hud", "--hud-file", "hud"),
-    ("dashboard_cmd", "--dashboard-cmd-file", None),
-    ("drive", "--drive-file", None),
-    ("osr2_sender", "--osr2-sender", None),
-    ("osr2_port", "--osr2-port", None),
-    ("osr2_readout", "--osr2-readout-file", None),
-)
+SATELLITE_CHANNELS = ("playlist", "command", "paused", "status", "notice", "play_points", "hud",
+                      "dashboard_cmd", "drive", "osr2_sender", "osr2_port", "osr2_readout")
+
+FILES_EACH_SATELLITE_HAS = {"playlist": "playlist", "command": "cmd", "paused": "paused",
+                             "status": "status", "notice": "notice", "hud": "hud"}
 
 PLACEMENT = (
     ("x", "--x"),
@@ -37,9 +29,7 @@ PLACEMENT = (
 
 def _argv(record, table) -> list[str]:
     words: list[str] = []
-    for field, flag, *_ in table:
-        if flag is None:
-            continue
+    for field, flag in table:
         value = getattr(record, field)
         if isinstance(value, bool):
             words += [flag] if value else []
@@ -52,20 +42,7 @@ def _argv(record, table) -> list[str]:
 class SatelliteChannels(Channels):
     @classmethod
     def from_args(cls, args) -> SatelliteChannels:
-        return cls(
-            playlist=args.playlist,
-            command=args.command_file,
-            paused=args.paused_file,
-            status=args.status_file,
-            notice=args.notice_file,
-            play_points=args.play_points_file,
-            hud=args.hud_file,
-            dashboard_cmd=args.dashboard_cmd_file,
-            drive=args.drive_file,
-            osr2_sender=args.osr2_sender,
-            osr2_port=args.osr2_port,
-            osr2_readout=args.osr2_readout_file,
-        )
+        return cls(**channels_from_args(args, SATELLITE_CHANNELS))
 
     @classmethod
     def from_channel(cls, channel: SatelliteChannel, commands, funestra: str, *,
@@ -78,11 +55,11 @@ class SatelliteChannels(Channels):
             osr2_port=int(commands.osr2_slot_port),
             osr2_readout=osr2_readout_path(Path(commands.state_dir), funestra),
             **{field: getattr(channel, f"{kind}_file")
-               for field, _flag, kind in CHANNELS if kind is not None},
+               for field, kind in FILES_EACH_SATELLITE_HAS.items()},
         )
 
     def to_argv(self) -> list[str]:
-        return _argv(self, CHANNELS)
+        return channel_argv(self, SATELLITE_CHANNELS)
 
 
 @dataclass(frozen=True)
