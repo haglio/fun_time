@@ -76,12 +76,12 @@ class TestGenauRunsOnItToo:
         assert given["settings"] == "GenauSettings.read(args.config)"
         assert outputs["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert outputs["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
-        assert outputs["messages"] == "MessageWriter(args.notice_file)"
+        assert outputs["messages"] == "MessageWriter(args.notice)"
         assert flicks["f_mode"] == "args.genau_f_mode"
         assert flicks["gallery"] == "the_librarys_gallery()"
         assert flicks["orientations"] == "orientations_from(args.genau_orientations)"
         assert channels == {"command": "args.genau_command_file", "paused": "args.genau_paused_file",
-                            "status": "args.genau_status_file", "drive": "args.drive_file"}
+                            "status": "args.genau_status_file", "drive": "args.drive"}
 
     def test_a_launch_naming_no_genau_files_runs_kino_alone(self):
         users = app._users(SimpleNamespace(genau_command_file=None), kino="kino")
@@ -93,7 +93,7 @@ class TestGenauRunsOnItToo:
             genau_command_file=Path("C:/example/state/genau_cmd.txt"),
             genau_paused_file=Path("C:/example/state/genau_paused.txt"),
             genau_status_file=Path("C:/example/state/genau_status.txt"),
-            drive_file=Path("C:/example/state/genau_drive.txt"),
+            drive=Path("C:/example/state/genau_drive.txt"),
         )
 
         users = app._users(args, kino="kino")

@@ -17,6 +17,7 @@ import pytest
 from app_support import ports
 from app_support.file_channel import write_flag
 from app_support.frame_channel import FrameWriter
+from funestra.channel_manifest import channel_flag
 from funestra.flick_overlay import (
     BACKDROP_OVERLAY_ID,
     FIRST_TILE_OVERLAY_ID,
@@ -395,7 +396,7 @@ def test_the_library_names_the_sessions_message_file_to_kino(tmp_path):
 
     library = funestras._TheLibrary(manifest, _A_SESSION, while_reading=lambda: None)
 
-    assert library.args.notice_file == Path(manifest.commands.main_funestra_notice_file)
+    assert library.args.notice == Path(manifest.commands.main_funestra_notice_file)
 
 
 def test_kino_in_the_headset_reads_the_gallery_names_where_the_desktops_kino_does(tmp_path):
@@ -423,10 +424,10 @@ def test_what_its_funscript_moves_say_goes_where_the_session_reads_the_main_fune
 
 def _every_file_a_main_funestras_command_line_can_name():
     parser = build_main_funestra_parser({})
-    argv = ["--osr2-port", "51000"]
+    argv = [channel_flag("osr2_port"), "51000"]
     for action in parser._actions:
         flag = next((option for option in action.option_strings if option.startswith("--")), "")
-        if flag.endswith("-file") or flag in ("--playlist", "--state-dir"):
+        if flag.endswith("-file") or flag in (channel_flag("playlist"), "--state-dir"):
             argv += [flag, f"C:/state/{action.dest}"]
     return parser.parse_args(argv)
 

@@ -19,6 +19,7 @@ from funestra.file_channel import append_command
 from funestra.inclusion_pair import BOTH, Included
 from funestra.robot_hand import FULL_INTENSITY
 
+from main_funestra.contract import MainChannels
 from main_funestra.genau_verbs import orientation_words
 from satellite.contract import SatelliteChannels, WindowPlacement
 
@@ -436,22 +437,9 @@ def launch_main_funestra(
         m.modules.main_funestra_module,
         "--config",
         str(m.runtime.config_path),
-        "--playlist",
-        str(commands.main_funestra_playlist_file),
-        "--command-file",
-        str(commands.main_funestra_cmd_file),
-        "--paused-file",
-        str(commands.main_funestra_paused_file),
-        "--status-file",
-        str(commands.main_funestra_status_file),
+        *_the_main_funestras_channels(commands).to_argv(),
         "--state-dir",
         str(state_dir),
-        "--console-file",
-        str(commands.main_funestra_console_file),
-        "--drive-file",
-        str(commands.genau_drive_file),
-        "--dashboard-cmd-file",
-        str(commands.dashboard_cmd_file),
         "--x",
         str(rect.x),
         "--y",
@@ -482,14 +470,17 @@ def launch_main_funestra(
         cmd += ["--genau-orientations", *orientation_words(genau.orientations)]
     cmd += ["--origenerator-command-file", str(commands.origenerator_cmd_file)]
     cmd += gallery_names_args(m.runtime.origenerator_dir)
-    if commands.main_funestra_notice_file:
-        cmd += ["--notice-file", str(commands.main_funestra_notice_file)]
-    if commands.osr2_slot_port:
-        cmd += ["--osr2-port", commands.osr2_slot_port]
     if m.regen.metadata_root.strip():
         cmd += ["--metadata-dir", m.regen.metadata_root.strip()]
     return _start_a_funestra(cmd, log_file=log_file,
                              sibling_checkouts=m.runtime.sibling_checkouts)
+
+
+def _the_main_funestras_channels(commands: CommandFiles) -> MainChannels:
+    channels = MainChannels.from_manifest(commands)
+    return replace(
+        channels, notice=channels.notice if commands.main_funestra_notice_file else None,
+        osr2_port=int(commands.osr2_slot_port) if commands.osr2_slot_port else None)
 
 
 def launch_audio_companion(m: LaunchManifest, *, audio_device: str | None = None) -> subprocess.Popen:

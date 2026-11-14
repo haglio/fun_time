@@ -8,6 +8,7 @@ from functools import partial
 from pathlib import Path
 
 from app_support import ports
+from funestra.channel_manifest import add_channel_arguments
 from funestra.messages import MessageWriter
 from funestra.play_points import play_points_filename
 from funestra.playlist import PlaylistItem, read_playlist
@@ -21,6 +22,9 @@ from .kino import Kino, KinoLibrary
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
+
+MAIN_FUNESTRAS_CHANNELS = ("playlist", "command", "paused", "status", "notice", "console",
+                           "drive", "dashboard_cmd", "osr2_port")
 
 
 def load_config(config_path: Path) -> dict:
@@ -45,29 +49,11 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--metadata-dir", type=Path, default=main_funestra.get("metadata_dir"),
                    help="Metadata sidecar root; when set, version families come "
                         "from Evolver's sidecars instead of clip names")
-    p.add_argument("--notice-file", type=Path, default=None,
-                   help="Where to publish one-shot notices for the Fun Time overlay")
-    p.add_argument("--playlist", type=Path, default=None,
-                   help="Video/funscript pair file: the selection Fun Time made")
+    add_channel_arguments(p, MAIN_FUNESTRAS_CHANNELS)
     p.add_argument("--width", type=int, default=1200)
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)
     p.add_argument("--y", type=int, default=None)
-    p.add_argument("--osr2-port", type=int, default=None,
-                   help="The broker's one slot for the OSR2, where it is not the broker's own")
-    p.add_argument("--command-file", type=Path, default=None,
-                   help="Poll this file for orchestrator commands")
-    p.add_argument("--paused-file", type=Path, default=None,
-                   help="Flag file that owns the paused state when present")
-    p.add_argument("--status-file", type=Path, default=None,
-                   help="Publish playback status to this file")
-    p.add_argument("--console-file", type=Path, default=None,
-                   help="Poll this file for the console Fun Time publishes")
-    p.add_argument("--drive-file", type=Path, default=None,
-                   help="Poll this file for the OSR2 readout Genau publishes")
-    p.add_argument("--dashboard-cmd-file", type=Path, default=None,
-                   help="Where a press on the console or the volume control posts "
-                        "its Fun Time command")
     p.add_argument("--origenerator-command-file", type=Path, default=None,
                    help="Where Genau tells the Origenerator this session hosts of each "
                         "flick it sent to Trash; left off, the flick waits there alone")
@@ -163,5 +149,5 @@ def kino_on(args, *, source: LibrarySource | None, memory: ModeMemory) -> Callab
         resolve_playlist=partial(resolve_playlist, args, source=source),
         gallery_names=GalleryNames(args.gallery_names_file))
     return partial(
-        Kino, library=library, messages=MessageWriter(args.notice_file), memory=memory,
+        Kino, library=library, messages=MessageWriter(args.notice), memory=memory,
         remembered=memory.read())

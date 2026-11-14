@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import MISSING, fields, replace
 from pathlib import Path
 
+from funestra.channel_manifest import channel_flag
 from funestra.funestra import Channels
 
 from fun_time.config import SatelliteChannel
@@ -11,8 +12,9 @@ from fun_time.manifest import CommandFiles
 from fun_time.osr2_section import osr2_readout_path
 from satellite.cli import build_parser
 from satellite.contract import (
-    CHANNELS,
+    FILES_EACH_SATELLITE_HAS,
     PLACEMENT,
+    SATELLITE_CHANNELS,
     SatelliteChannels,
     WindowPlacement,
 )
@@ -65,18 +67,18 @@ class TestTheRoundTrip:
     def test_a_channel_left_out_is_left_out_of_the_command_line(self):
         argv = SatelliteChannels(playlist=Path("p.tsv")).to_argv()
 
-        assert argv == ["--playlist", "p.tsv"]
+        assert argv == [channel_flag("playlist"), "p.tsv"]
 
 
 class TestNoDeclarationDriftsFromTheTables:
     def test_every_field_has_a_row_and_every_row_has_a_field(self):
-        assert tuple(field for field, _flag, _kind in CHANNELS) == tuple(
-            field.name for field in fields(SatelliteChannels) if field.name not in _NEVER_A_SATELLITES)
+        assert tuple(
+            field.name for field in fields(SatelliteChannels) if field.name not in _NEVER_A_SATELLITES) == SATELLITE_CHANNELS
         assert tuple(field for field, _flag in PLACEMENT) == tuple(
             field.name for field in fields(WindowPlacement))
 
     def test_every_channel_a_funestra_has_is_given_to_a_satellite_or_named_as_not(self):
-        given = {field for field, _flag, _kind in CHANNELS}
+        given = set(SATELLITE_CHANNELS)
 
         assert not given & _NEVER_A_SATELLITES
         assert given | _NEVER_A_SATELLITES == {field.name for field in fields(Channels)}
@@ -85,7 +87,7 @@ class TestNoDeclarationDriftsFromTheTables:
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
 
-        declared = {flag for _field, flag, _kind in CHANNELS if flag is not None}
+        declared = {channel_flag(field) for field in SATELLITE_CHANNELS}
         declared |= {flag for _field, flag in PLACEMENT}
 
         assert declared <= accepted, declared - accepted
@@ -93,7 +95,7 @@ class TestNoDeclarationDriftsFromTheTables:
     def test_the_satellite_accepts_nothing_a_record_cannot_carry(self):
         accepted = {action.option_strings[0]
                     for action in build_parser()._actions if action.option_strings}
-        declared = {flag for _field, flag, _kind in CHANNELS if flag is not None}
+        declared = {channel_flag(field) for field in SATELLITE_CHANNELS}
         declared |= {flag for _field, flag in PLACEMENT}
         assert accepted - declared - FLAGS_ARGPARSE_ADDS_ITSELF == (
             POLICIES_NEITHER_A_CHANNEL_NOR_A_PLACEMENT)
@@ -123,8 +125,7 @@ class TestReadOutOfTheManifest:
         portrait = self._of(FunTimeFunestra.PORTRAIT)
         landscape = self._of(FunTimeFunestra.LANDSCAPE)
 
-        own = [field for field, _flag, kind in CHANNELS if kind is not None]
-        for field in own:
+        for field in FILES_EACH_SATELLITE_HAS:
             assert getattr(portrait, field) != getattr(landscape, field), field
 
     def test_the_dashboard_s_command_file_is_the_session_s_one(self):

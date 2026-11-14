@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
+from funestra.channel_manifest import channel_flag
 
 from main_funestra.cli import (
     audio_muted,
@@ -23,7 +24,7 @@ class TestResolvePlaylist:
         vid = tmp_path / "a.mp4"
         vid.write_text("fake")
         playlist.write_text(f"{vid}\n", encoding="utf-8")
-        args = build_parser({}).parse_args(["--playlist", str(playlist)])
+        args = build_parser({}).parse_args([channel_flag("playlist"), str(playlist)])
 
         pairs = resolve_playlist(args)
 
@@ -36,7 +37,7 @@ class TestResolvePlaylist:
         a.write_text("x")
         b.write_text("x")
         playlist.write_text(f"{a}\n{b}\n", encoding="utf-8")
-        args = build_parser({}).parse_args(["--playlist", str(playlist)])
+        args = build_parser({}).parse_args([channel_flag("playlist"), str(playlist)])
 
         pairs = resolve_playlist(args)
 
@@ -52,7 +53,7 @@ class TestResolvePlaylist:
         playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(f"{original}\n{upscale}\n", encoding="utf-8")
         args = build_parser({}).parse_args([
-            "--playlist", str(playlist),
+            channel_flag("playlist"), str(playlist),
             "--videos-dir", str(vids),
         ])
         source = library_source(args)
@@ -84,7 +85,7 @@ class TestLibrarySource:
         playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(f"{vid}\n", encoding="utf-8")
         args = build_parser({}).parse_args([
-            "--playlist", str(playlist),
+            channel_flag("playlist"), str(playlist),
             "--videos-dir", str(vids),
         ])
         assert library_source(args) is not None
@@ -136,14 +137,14 @@ class TestAudioMuted:
 
 FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND = [
     "--config", "C:/example/fun_time_config.json",
-    "--playlist", "C:/example/state/main_player_playlist.tsv",
-    "--command-file", "C:/example/state/main_player_cmd.txt",
-    "--paused-file", "C:/example/state/main_player_paused.txt",
-    "--status-file", "C:/example/state/main_player_status.txt",
-    "--console-file", "C:/example/state/console.json",
-    "--drive-file", "C:/example/state/drive.txt",
-    "--dashboard-cmd-file", "C:/example/state/dashboard_cmd.txt",
-    "--notice-file", "C:/example/state/main_player_notice.txt",
+    channel_flag("playlist"), "C:/example/state/main_player_playlist.tsv",
+    channel_flag("command"), "C:/example/state/main_player_cmd.txt",
+    channel_flag("paused"), "C:/example/state/main_player_paused.txt",
+    channel_flag("status"), "C:/example/state/main_player_status.txt",
+    channel_flag("console"), "C:/example/state/console.json",
+    channel_flag("drive"), "C:/example/state/drive.txt",
+    channel_flag("dashboard_cmd"), "C:/example/state/dashboard_cmd.txt",
+    channel_flag("notice"), "C:/example/state/main_player_notice.txt",
     "--state-dir", "C:/example/state",
     "--x", "1920",
     "--y", "0",
@@ -166,13 +167,13 @@ FUN_TIME_ARGV_WRITTEN_OUT_BY_HAND = [
 LANDS_AS = {
     "config": Path("C:/example/fun_time_config.json"),
     "playlist": Path("C:/example/state/main_player_playlist.tsv"),
-    "command_file": Path("C:/example/state/main_player_cmd.txt"),
-    "paused_file": Path("C:/example/state/main_player_paused.txt"),
-    "status_file": Path("C:/example/state/main_player_status.txt"),
-    "console_file": Path("C:/example/state/console.json"),
-    "drive_file": Path("C:/example/state/drive.txt"),
-    "dashboard_cmd_file": Path("C:/example/state/dashboard_cmd.txt"),
-    "notice_file": Path("C:/example/state/main_player_notice.txt"),
+    "command": Path("C:/example/state/main_player_cmd.txt"),
+    "paused": Path("C:/example/state/main_player_paused.txt"),
+    "status": Path("C:/example/state/main_player_status.txt"),
+    "console": Path("C:/example/state/console.json"),
+    "drive": Path("C:/example/state/drive.txt"),
+    "dashboard_cmd": Path("C:/example/state/dashboard_cmd.txt"),
+    "notice": Path("C:/example/state/main_player_notice.txt"),
     "state_dir": Path("C:/example/state"),
     "metadata_dir": Path("C:/example/library/metadata"),
     "x": 1920,
@@ -218,7 +219,7 @@ class TestTheCommandLineFunTimeLaunchesMainFunestraWith:
 
 
 class TestTheRestOfTheFlags:
-    @pytest.mark.parametrize("option", ["taskbar_identity", "notice_file"])
+    @pytest.mark.parametrize("option", ["taskbar_identity", "notice"])
     def test_what_the_app_reads_as_a_plain_attribute_the_parser_always_defines(self, option):
         args = build_parser({}).parse_args([])
 
@@ -229,14 +230,14 @@ class TestTheRestOfTheFlags:
             "--videos-dir", str(tmp_path / "videos"),
             "--flicks-dir", str(tmp_path / "flicks"),
             "--state-dir", str(tmp_path / "state"),
-            "--notice-file", str(tmp_path / "notice.txt"),
+            channel_flag("notice"), str(tmp_path / "notice.txt"),
             "--no-audio",
         ])
 
         assert args.videos_dir == tmp_path / "videos"
         assert args.flicks_dir == tmp_path / "flicks"
         assert args.state_dir == tmp_path / "state"
-        assert args.notice_file == tmp_path / "notice.txt"
+        assert args.notice == tmp_path / "notice.txt"
         assert audio_muted(args) is True
 
 
@@ -246,21 +247,21 @@ EVERY_FLAG_ARGV = [
     "--flicks-dir", "C:/example/library/flicks",
     "--state-dir", "C:/example/state",
     "--metadata-dir", "C:/example/library/metadata",
-    "--notice-file", "C:/example/state/main_player_notice.txt",
+    channel_flag("notice"), "C:/example/state/main_player_notice.txt",
     "--origenerator-command-file", "C:/example/state/origenerator_cmd.txt",
     "--gallery-names-file", "C:/example/origenerator/state/gallery_names.json",
-    "--playlist", "C:/example/state/main_player_playlist.tsv",
+    channel_flag("playlist"), "C:/example/state/main_player_playlist.tsv",
     "--width", "1280",
     "--height", "1024",
     "--x", "1920",
     "--y", "0",
-    "--osr2-port", "51000",
-    "--command-file", "C:/example/state/main_player_cmd.txt",
-    "--paused-file", "C:/example/state/main_player_paused.txt",
-    "--status-file", "C:/example/state/main_player_status.txt",
-    "--console-file", "C:/example/state/console.json",
-    "--drive-file", "C:/example/state/drive.txt",
-    "--dashboard-cmd-file", "C:/example/state/dashboard_cmd.txt",
+    channel_flag("osr2_port"), "51000",
+    channel_flag("command"), "C:/example/state/main_player_cmd.txt",
+    channel_flag("paused"), "C:/example/state/main_player_paused.txt",
+    channel_flag("status"), "C:/example/state/main_player_status.txt",
+    channel_flag("console"), "C:/example/state/console.json",
+    channel_flag("drive"), "C:/example/state/drive.txt",
+    channel_flag("dashboard_cmd"), "C:/example/state/dashboard_cmd.txt",
     "--genau-command-file", "C:/example/state/genau_cmd.txt",
     "--genau-paused-file", "C:/example/state/genau_paused.txt",
     "--genau-status-file", "C:/example/state/genau_status.txt",
@@ -281,7 +282,7 @@ EVERY_FLAG_LANDS_AS = {
     "flicks_dir": Path("C:/example/library/flicks"),
     "state_dir": Path("C:/example/state"),
     "metadata_dir": Path("C:/example/library/metadata"),
-    "notice_file": Path("C:/example/state/main_player_notice.txt"),
+    "notice": Path("C:/example/state/main_player_notice.txt"),
     "origenerator_command_file": Path("C:/example/state/origenerator_cmd.txt"),
     "gallery_names_file": Path("C:/example/origenerator/state/gallery_names.json"),
     "playlist": Path("C:/example/state/main_player_playlist.tsv"),
@@ -290,12 +291,12 @@ EVERY_FLAG_LANDS_AS = {
     "x": 1920,
     "y": 0,
     "osr2_port": 51000,
-    "command_file": Path("C:/example/state/main_player_cmd.txt"),
-    "paused_file": Path("C:/example/state/main_player_paused.txt"),
-    "status_file": Path("C:/example/state/main_player_status.txt"),
-    "console_file": Path("C:/example/state/console.json"),
-    "drive_file": Path("C:/example/state/drive.txt"),
-    "dashboard_cmd_file": Path("C:/example/state/dashboard_cmd.txt"),
+    "command": Path("C:/example/state/main_player_cmd.txt"),
+    "paused": Path("C:/example/state/main_player_paused.txt"),
+    "status": Path("C:/example/state/main_player_status.txt"),
+    "console": Path("C:/example/state/console.json"),
+    "drive": Path("C:/example/state/drive.txt"),
+    "dashboard_cmd": Path("C:/example/state/dashboard_cmd.txt"),
     "genau_command_file": Path("C:/example/state/genau_cmd.txt"),
     "genau_paused_file": Path("C:/example/state/genau_paused.txt"),
     "genau_status_file": Path("C:/example/state/genau_status.txt"),
@@ -316,19 +317,19 @@ NO_FLAGS_LANDS_AS = {
     "flicks_dir": None,
     "state_dir": None,
     "metadata_dir": None,
-    "notice_file": None,
+    "notice": None,
     "playlist": None,
     "width": 1200,
     "height": 900,
     "x": None,
     "y": None,
     "osr2_port": None,
-    "command_file": None,
-    "paused_file": None,
-    "status_file": None,
-    "console_file": None,
-    "drive_file": None,
-    "dashboard_cmd_file": None,
+    "command": None,
+    "paused": None,
+    "status": None,
+    "console": None,
+    "drive": None,
+    "dashboard_cmd": None,
     "origenerator_command_file": None,
     "gallery_names_file": None,
     "genau_command_file": None,

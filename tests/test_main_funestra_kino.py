@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from funestra.channel_manifest import channel_flag
 from funestra.funestra import User
 from funestra.modes import MessageLevel
 from funestra.playback import Playback
@@ -234,8 +235,8 @@ class TestWhatItSays:
 class TestKinoOnTheLibrary:
     def _args(self, tmp_path):
         return build_parser({}).parse_args([
-            "--playlist", str(tmp_path / "main_player_playlist.tsv"),
-            "--state-dir", str(tmp_path), "--notice-file", str(tmp_path / "notice.json")])
+            channel_flag("playlist"), str(tmp_path / "main_player_playlist.tsv"),
+            "--state-dir", str(tmp_path), channel_flag("notice"), str(tmp_path / "notice.json")])
 
     def test_its_video_navigation_is_the_librarys_own_videos(self, tmp_path):
         world = World(tmp_path)
@@ -250,7 +251,7 @@ class TestKinoOnTheLibrary:
         published.write_text(json.dumps({world.first.stem.lower(): "3FA9C0D2 004"}),
                              encoding="utf-8")
         args = build_parser({}).parse_args([
-            "--playlist", str(tmp_path / "main_player_playlist.tsv"), "--state-dir", str(tmp_path),
+            channel_flag("playlist"), str(tmp_path / "main_player_playlist.tsv"), "--state-dir", str(tmp_path),
             "--gallery-names-file", str(published)])
 
         kino = kino_on(args, source=world.source, memory=world.memory)(world.playback)

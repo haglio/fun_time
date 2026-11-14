@@ -8,6 +8,7 @@ from pathlib import Path
 import pygame
 from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
+from funestra.channel_manifest import channel_flag
 from funestra.funestra import Funestra
 from funestra.funestra_priority import ahead_on_the_processor
 from funestra.funestra_setup import FunestraSetup
@@ -40,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     set_up_logging()
     args = build_parser().parse_args(argv)
     if args.playlist is None:
-        logger.error("No videos to play (need --playlist)")
+        logger.error("No videos to play (need %s)", channel_flag("playlist"))
         return 1
     with ahead_on_the_processor():
         return _run(args, resolve_playlist(args))

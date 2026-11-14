@@ -17,6 +17,7 @@ from app_support import ports
 from app_support.file_channel import read_flag
 from app_support.osr2_slot import Osr2Sender
 from app_support.threading_utils import start_daemon_thread
+from funestra.channel_manifest import channel_flag
 from funestra.file_channel import append_command
 from funestra.flick_folder import vr_flicks_in
 from funestra.funestra import Funestra
@@ -411,8 +412,10 @@ class _TheLibrary:
                  while_reading: Callable[[], None]) -> None:
         commands = manifest.commands
         config_path = Path(manifest.runtime.config_path)
-        argv = ["--config", str(config_path), "--playlist", commands.main_funestra_playlist_file,
-                "--state-dir", commands.state_dir, "--notice-file", commands.main_funestra_notice_file]
+        argv = ["--config", str(config_path),
+                channel_flag("playlist"), commands.main_funestra_playlist_file,
+                "--state-dir", commands.state_dir,
+                channel_flag("notice"), commands.main_funestra_notice_file]
         if vr.flicks_folder is not None:
             argv += ["--flicks-dir", str(vr.flicks_folder)]
         metadata_root = manifest.regen.metadata_folder

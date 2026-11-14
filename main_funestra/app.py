@@ -60,7 +60,7 @@ def _genau(args):
         return None
     channels = GenauChannels(
         command=args.genau_command_file, paused=args.genau_paused_file,
-        status=args.genau_status_file, drive=args.drive_file)
+        status=args.genau_status_file, drive=args.drive)
     return lambda _playback: Genau(
         GenauFlicks(
             folder=args.flicks_dir,
@@ -77,7 +77,7 @@ def _genau(args):
         outputs=GenauOutputs(
             notifier=GenauNotifier(args.notify_host, args.notify_port),
             tcode_sink=Osr2Sender(ROBOT_HAND, port=args.osr2_port),
-            messages=MessageWriter(args.notice_file),
+            messages=MessageWriter(args.notice),
             origenerator_commands=args.origenerator_command_file,
         ),
     )
