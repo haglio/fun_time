@@ -86,6 +86,7 @@ def main_hud_model(inputs: MainFunestraInputs) -> HudModel:
             jump_to=main_funestra.jump_to,
             nothing_to_reset=inputs.nothing_to_reset,
             flipped=genau.flipped,
+            favorite=inputs.is_favorite,
             in_vr=inputs.in_vr,
             crowned=inputs.crowned,
             has_osr2=inputs.has_osr2,
