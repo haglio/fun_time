@@ -173,6 +173,7 @@ class TestAWindowThatHasStoppedAnswering:
             with _user32_mocked() as mock:
                 mock.SetWindowPos.side_effect = block
                 mock.ShowWindow.side_effect = block
+                mock.SendMessageW.side_effect = block
                 yield
         finally:
             released.set()
@@ -196,6 +197,7 @@ class TestAWindowThatHasStoppedAnswering:
             minimize_window(111, activate_the_next_window=False)
             restore_window(111, activate=False)
             move_window(111, Rect(0, 0, 10, 10))
+            win32.set_the_icon_alt_tab_draws(111, "C:/example/fun_time.ico")
 
             assert time.monotonic() - started < self.WHAT_A_CALL_THAT_NEVER_GAVE_UP_WOULD_COST_S / 2
 

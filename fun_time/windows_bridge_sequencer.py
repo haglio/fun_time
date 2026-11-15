@@ -53,6 +53,7 @@ from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
     GenauStart,
+    dress_as_one_of_the_sessions_windows,
     launch_main_funestra,
     launch_ui_companions,
     start_core_session,
@@ -599,8 +600,7 @@ def _maybe_launch_random_faves_browser(
 
     rect = plan.random_faves_browser
     move_window(new_hwnd, rect, activate=not env.integration)
-
-
+    dress_as_one_of_the_sessions_windows(new_hwnd)
     logger.info("Random Faves Browser positioned")
     return new_hwnd
 
