@@ -396,15 +396,15 @@ class TestHudPublishing:
     ], ids=["kino", "genau"])
     def test_the_main_hud_offers_shapes_only_where_its_mode_has_vr_videos(
             self, tmp_path, state, vr_folders):
-        def shape_buttons(config) -> set[tuple[str, bool]]:
+        def shape_buttons(config) -> set[tuple[str, bool, bool]]:
             make_feed(tmp_path, config=config).publish(state)
-            return {(button["command"], bool(button.get("lit")))
+            return {(button["command"], bool(button.get("lit")), bool(button.get("dim")))
                     for row in console(tmp_path)["rows"] for button in row
                     if button.get("command", "").startswith("main_projection")}
 
-        assert shape_buttons(make_config(tmp_path)) == set()
+        assert {dim for _command, _lit, dim in shape_buttons(make_config(tmp_path))} == {True}
         assert shape_buttons(make_config(tmp_path, **{vr_folders: str(tmp_path / "vr")})) == {
-            ("main_projection_both", False), ("main_projection_none", True)}
+            ("main_projection_both", False, False), ("main_projection_none", True, False)}
 
     def test_the_main_huds_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
             self, tmp_path):
@@ -419,6 +419,17 @@ class TestHudPublishing:
         longer = [step.get("dim") for step in ten_second_steps(console(tmp_path))]
 
         assert (short, longer) == ([True, True], [None, None])
+
+    def test_genaus_reset_is_faded_while_genau_is_at_every_default(self, tmp_path):
+        feed = make_feed(tmp_path)
+
+        feed.publish(BridgeState(main_mode=MainMode.GENAU))
+        at_rest = reset_button(console(tmp_path))
+        feed.publish(BridgeState(main_mode=MainMode.GENAU, genau_latest=True))
+        narrowed = reset_button(console(tmp_path))
+
+        assert (at_rest["command"], at_rest["dim"], narrowed.get("dim")) == (
+            "genau_reset", True, None)
 
     def test_the_main_huds_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()

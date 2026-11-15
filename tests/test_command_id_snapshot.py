@@ -16,9 +16,11 @@ POSTED_OFF_ONE_SURFACE_ALONE = {
         "portrait_take_osr2",
     ),
     "the Main Funestra's HUD": (
+        "genau_reset",
         "main_lock",
         "main_minimize",
         "main_take_osr2",
+        "main_trash",
     ),
     "Genau's console, in funestra": (
         "robot_hand_speed_down",

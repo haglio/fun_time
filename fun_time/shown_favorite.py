@@ -4,10 +4,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from app_support import favorites
-
 from .gallery import Gallery
-from .media_metadata import record_of
+from .media_metadata import a_favorite
 
 RECHECK_S = 2.0
 
@@ -27,6 +25,6 @@ class ShownFavorite:
             return False
         now = self._clock()
         if self._read != (item, held) or now - self._read_at >= RECHECK_S:
-            self._favorite = favorites.is_favorite(record_of(item, self._metadata_root, self._gallery))
+            self._favorite = a_favorite(item, self._metadata_root, self._gallery)
             self._read, self._read_at = (item, held), now
         return self._favorite

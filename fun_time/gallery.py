@@ -49,6 +49,11 @@ def star_in_the_gallery(video: str | Path, checkout: Path | None, *,
     _ask_the_gallery(checkout, "favorite", video, True, popen=popen)
 
 
+def unstar_in_the_gallery(video: str | Path, checkout: Path | None, *,
+                          popen: Callable[..., object] = subprocess.Popen) -> None:
+    _ask_the_gallery(checkout, "favorite", video, False, popen=popen)
+
+
 def _ask_the_gallery(checkout: Path | None, verb: str, video: str | Path, on: bool, *,
                      popen: Callable[..., object]) -> None:
     command = _published_by(checkout).get("records_command")

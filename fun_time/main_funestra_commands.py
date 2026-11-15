@@ -21,8 +21,10 @@ from funestra.hud_kinds import VIDEO
 
 from .bridge_records import IN_GENAU_MODE, OUTSIDE_VR, BridgeConfig, Handler, Op, WindowOp, ignored
 from .command_value import FUNESTRA_SOURCES
+from .event_log import SOURCE_MAIN
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_genau_status, read_main_funestra_status
+from .lock import UNFAVORITED, unfavorited
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
 from .satellite_control import read_satellite_status
@@ -157,6 +159,16 @@ def _save_video(state: BridgeState, _config: BridgeConfig,
     return state, [WindowOp(op="save_clip")]
 
 
+def _trash_kinos_video(state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if not kino_shows(state.main_mode):
+        return ignored(state, IN_GENAU_MODE)
+    if not unfavorited(read_main_funestra_status(config.main_funestra_status_file).video, config):
+        return state, []
+    append_command(config.main_funestra_cmd_file, NEXT)
+    return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
+
+
 _MAIN_TRANSPORT = {"main_prev": PREV, "main_next": NEXT}
 
 SKIP_AHEAD = "main_funestra_funscript_jump"
@@ -172,4 +184,5 @@ HANDLERS: dict[str, Handler] = {
        for cmd, verb in MAIN_FUNESTRA_CMD_MAP.items() if cmd != SKIP_AHEAD},
     SKIP_AHEAD: _skip_ahead_on_the_main_funestra,
     "genaumacher_save": _save_video,
+    "main_trash": _trash_kinos_video,
 }

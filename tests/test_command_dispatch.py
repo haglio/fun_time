@@ -24,6 +24,7 @@ from fun_time.crown import Crown
 from fun_time.device_arbiter import TCODE_OFF
 from fun_time.event_log import FAVORITE, MESSAGE, SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.fun_time_funestras import FunTimeFunestra
+from fun_time.gallery import Gallery
 from fun_time.genaumacher_save import _genaumacher_project_dir
 from fun_time.hosted_words import routes_to_origenerator
 from fun_time.main_list import MainListSettings
@@ -39,9 +40,10 @@ from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
-from main_funestra.genau_verbs import genau_f_mode
+from main_funestra.genau_verbs import genau_f_mode, genau_orientations
 from tests.bridge_configs import made_up_bridge_config
 from tests.hosted_shows import publish_the_show
+from tests.made_up_gallery import a_row
 
 
 def _make_config(tmp_path: Path, *, vr_main_funestra: bool = False) -> BridgeConfig:
@@ -2791,3 +2793,103 @@ class TestALineInTheHostedAppsWordsSaidBare:
         named = BridgeState(rfb_mode=RfbMode.ORIGENERATOR, core_named_last=True)
 
         assert with_the_browser_in_its_place(named).core_named_last is False
+
+
+def _lines(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def test_genaus_trash_on_a_favorite_unfavorites_it_and_moves_on_leaving_it_in_place(tmp_path):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    flick = tmp_path / "flicks" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=True)
+    mark_favorite(flick, config.regen_metadata_root, True)
+
+    _state, ops = dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert not is_favorite(flick, config.regen_metadata_root)
+    assert _lines(config.genau_cmd_file) == ["NEXT"]
+    assert [(op.op, op.key) for op in ops] == [("message", "Unfavorited")]
+
+
+def test_genaus_trash_on_an_ai_favorite_takes_its_star_off_in_the_gallery(tmp_path):
+    config = _make_config(tmp_path)
+    flick = tmp_path / "genau" / "flicks" / "2D" / "AI" / "made up flick.mp4"
+    _show_on_genau(config, flick, locked=True)
+    starred = Gallery([a_row("gen one", flick.name, starred=1)])
+
+    with patch("fun_time.lock.the_gallery_in", return_value=starred), \
+            patch("fun_time.lock.unstar_in_the_gallery") as unstar:
+        dispatch_command("genau_trash_flick", _make_state(main_mode=MainMode.GENAU), config)
+
+    unstar.assert_called_once_with(str(flick), config.librarys_origenerator)
+    assert _lines(config.genau_cmd_file) == ["NEXT"]
+
+
+def test_kinos_trash_on_a_favorite_unfavorites_it_and_plays_the_next_video(tmp_path):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    video = tmp_path / "videos" / "video one.mp4"
+    _on_screen(config, str(video))
+    mark_favorite(video, config.regen_metadata_root, True)
+
+    _state, ops = dispatch_command("main_trash", _make_state(), config)
+
+    assert not is_favorite(video, config.regen_metadata_root)
+    assert _lines(config.main_funestra_cmd_file) == ["NEXT"]
+    assert [(op.op, op.key) for op in ops] == [("message", "Unfavorited")]
+
+
+def test_kinos_trash_pressed_while_the_main_funestra_shows_genau_touches_nothing(tmp_path):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    video = tmp_path / "videos" / "video one.mp4"
+    _on_screen(config, str(video))
+    mark_favorite(video, config.regen_metadata_root, True)
+
+    dispatch_command("main_trash", _make_state(main_mode=MainMode.GENAU), config)
+
+    assert is_favorite(video, config.regen_metadata_root)
+    assert _lines(config.main_funestra_cmd_file) == []
+    assert _lines(config.genau_cmd_file) == []
+
+
+_GENAU_OFF_ITS_DEFAULTS = {
+    "genau_plays_vr": False, "genau_plays_portrait": False, "genau_favorites_filter": True,
+    "genau_latest": True, "genau_flick_seconds": BridgeState().genau_flick_seconds + 4,
+}
+
+
+def test_genaus_reset_puts_every_setting_it_covers_back_to_how_genau_starts(tmp_path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU, **_GENAU_OFF_ITS_DEFAULTS)
+
+    reset, ops = dispatch_command("genau_reset", state, config)
+
+    assert {name: getattr(reset, name) for name in _GENAU_OFF_ITS_DEFAULTS} == {
+        name: getattr(BridgeState(), name) for name in _GENAU_OFF_ITS_DEFAULTS}
+    assert _lines(config.genau_cmd_file) == [
+        "SHAPES vr flat", "SHUFFLE", f"FLICK_SECONDS {BridgeState().genau_flick_seconds}"]
+    assert _lines(config.main_funestra_cmd_file) == [
+        genau_orientations((True, True)), genau_f_mode(False)]
+    assert [(op.op, op.key) for op in ops] == [("message", "Reset")]
+
+
+def test_genaus_reset_tells_genau_only_what_it_changed(tmp_path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("genau_reset", _make_state(main_mode=MainMode.GENAU, genau_latest=True), config)
+
+    assert _lines(config.genau_cmd_file) == ["SHUFFLE"]
+    assert _lines(config.main_funestra_cmd_file) == []
+
+
+def test_genaus_reset_with_everything_at_its_defaults_does_nothing(tmp_path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode=MainMode.GENAU)
+
+    reset, ops = dispatch_command("genau_reset", state, config)
+
+    assert (reset, ops) == (state, [])
+    assert _lines(config.genau_cmd_file) == []

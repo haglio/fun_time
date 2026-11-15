@@ -5,8 +5,8 @@ from funestra.file_channel import append_command
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .content import load_web_providers
-from .gallery import Gallery, star_in_the_gallery, the_gallery_in
-from .media_metadata import mark_favorite, metadata_path_for
+from .gallery import Gallery, star_in_the_gallery, the_gallery_in, unstar_in_the_gallery
+from .media_metadata import a_favorite, mark_favorite, metadata_path_for
 from .random_faves_browser import FavEntry, target_for_fav, with_its_page
 from .rfb_mode import switch_the_rfb_mode
 from .rfb_modes import RfbMode
@@ -15,6 +15,7 @@ from .shared_state import BridgeState
 from .watch_stats import record_watch_event, watch_stats_path
 
 SENT_TO_TRASH = "Sent to Trash"
+UNFAVORITED = "Unfavorited"
 _GO_TO = "GO_TO"
 
 
@@ -52,9 +53,15 @@ def _has_a_record(item: str, config: BridgeConfig) -> bool:
     return record is not None and record.is_file()
 
 
-def unfavorite(item: str, config: BridgeConfig) -> None:
-    if not is_ai_video(item):
+def unfavorited(item: str, config: BridgeConfig) -> bool:
+    if not item or not a_favorite(item, config.regen_metadata_root,
+                                  lambda: the_gallery_in(config.librarys_origenerator)):
+        return False
+    if is_ai_video(item):
+        unstar_in_the_gallery(item, config.librarys_origenerator)
+    else:
         mark_favorite(item, config.regen_metadata_root, False)
+    return True
 
 
 def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState, config: BridgeConfig,

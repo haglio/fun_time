@@ -32,10 +32,6 @@ def _button(model: HudModel, action: str) -> Button:
     return next(b for row in model.rows for b in row if b.command == action)
 
 
-def _actions(model: HudModel) -> list[str]:
-    return [b.command for row in model.rows for b in row if b.command]
-
-
 class TestOsr2State:
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
         for osr2_mode, expected in ((Osr2Mode.OFF, Osr2State.OFF),
@@ -167,11 +163,13 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     assert _payload(main_mode=MainMode.GENAU, latest=True, genau_latest=False).facts.latest is False
 
 
-def test_outside_the_headset_there_is_one_shape_and_no_pair_to_draw():
+def test_outside_the_headset_there_is_one_shape_and_its_pair_is_dimmed():
     one_shape_and_so_no_choice = {"plays_vr": None, "plays_flat": None}
+    shapes = [button for row in _payload(**one_shape_and_so_no_choice).rows for button in row
+              if button.command.startswith("main_projection")]
 
-    assert not any(a.startswith("main_projection")
-                   for a in _actions(_payload(**one_shape_and_so_no_choice)))
+    assert shapes
+    assert all(button.dim for button in shapes)
 
 
 def test_the_hud_says_which_shapes_of_video_the_browse_may_reach():

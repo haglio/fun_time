@@ -126,6 +126,11 @@ def record_of(item: str | Path, metadata_root: str | Path | None,
     return recorded_for(item, metadata_root)
 
 
+def a_favorite(item: str | Path, metadata_root: str | Path | None,
+               gallery: Callable[[], Gallery]) -> bool:
+    return favorites.is_favorite(record_of(item, metadata_root, gallery))
+
+
 def favorite_recorded_in(record: Path) -> bool:
     return favorites.is_favorite(load_metadata(record))
 
