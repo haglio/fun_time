@@ -2143,10 +2143,25 @@ class TestTheRandomFavesBrowsersPlace:
             ("hide_window", "origenerator"), ("restack_rfb", "")]
         assert _origenerator_cmds(config) == []
 
-    def test_asking_for_what_already_holds_the_place_moves_no_window(self, tmp_path):
+    def test_asking_for_the_browser_while_it_holds_the_place_brings_it_to_the_front(
+            self, tmp_path):
         config = _make_config(tmp_path)
         state, ops = dispatch_command("rfb_activate", _up(), config)
-        assert (state.rfb_mode, ops) == (RfbMode.RFB, [])
+        assert state.rfb_mode is RfbMode.RFB
+        assert [(op.op, op.key) for op in ops] == [
+            ("hide_window", "origenerator"), ("restack_rfb", "")]
+
+    def test_asking_for_origenerator_while_it_holds_the_place_brings_it_to_the_front(
+            self, tmp_path):
+        config = _make_config(tmp_path)
+        held, _ = dispatch_command("origenerator_activate", _up(), config)
+        state, ops = dispatch_command("origenerator_activate", held, config)
+        assert state.rfb_mode is RfbMode.ORIGENERATOR
+        assert [(op.op, op.key) for op in ops] == [
+            ("show_window", "origenerator"),
+            ("activate_window", "origenerator"),
+            ("restack_rfb", ""),
+        ]
 
     def test_a_hosted_app_still_booting_keeps_the_browser_in_its_place(self, tmp_path):
         config = _make_config(tmp_path)
