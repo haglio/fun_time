@@ -15,6 +15,7 @@ from funestra.funestra_verbs import (
     SEEK_BACK,
     SEEK_FWD,
     TOGGLE_LOCK,
+    TRASH,
 )
 from funestra.hud_controls import why_it_cannot_step
 from funestra.hud_kinds import VIDEO
@@ -24,8 +25,9 @@ from .command_value import FUNESTRA_SOURCES
 from .event_log import SOURCE_MAIN
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_status import read_genau_status, read_main_funestra_status
-from .lock import UNFAVORITED, unfavorited
+from .lock import SENT_TO_TRASH, UNFAVORITED, unfavorited
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
+from .origenerator_trash import trash_file_line
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
 from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
@@ -163,10 +165,17 @@ def _trash_kinos_video(state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not kino_shows(state.main_mode):
         return ignored(state, IN_GENAU_MODE)
-    if not unfavorited(read_main_funestra_status(config.main_funestra_status_file).video, config):
+    status = read_main_funestra_status(config.main_funestra_status_file)
+    if not status.video:
         return state, []
-    append_command(config.main_funestra_cmd_file, NEXT)
-    return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
+    if status.locked:
+        append_command(config.main_funestra_cmd_file, LOCK_OFF)
+    if unfavorited(status.video, config):
+        append_command(config.main_funestra_cmd_file, NEXT)
+        return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
+    append_command(config.main_funestra_cmd_file, TRASH)
+    append_command(config.origenerator_cmd_file, trash_file_line(status.video))
+    return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 
 _MAIN_TRANSPORT = {"main_prev": PREV, "main_next": NEXT}

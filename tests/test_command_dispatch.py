@@ -2831,7 +2831,7 @@ def test_kinos_trash_on_a_favorite_unfavorites_it_and_plays_the_next_video(tmp_p
     config = _make_config(tmp_path)
     config.regen_metadata_root = tmp_path / "metadata"
     video = tmp_path / "videos" / "video one.mp4"
-    _on_screen(config, str(video))
+    _on_screen(config, str(video), locked="0")
     mark_favorite(video, config.regen_metadata_root, True)
 
     _state, ops = dispatch_command("main_trash", _make_state(), config)
@@ -2895,3 +2895,38 @@ def test_genaus_reset_with_everything_at_its_defaults_does_nothing(tmp_path):
 
     assert (reset, ops) == (state, [])
     assert _lines(config.genau_cmd_file) == []
+
+
+def test_kinos_trash_on_a_video_that_is_no_favorite_sends_it_to_origenerators_trash_and_moves_on(
+        tmp_path):
+    config = _make_config(tmp_path)
+    video = tmp_path / "videos" / "video one.mp4"
+    _on_screen(config, str(video), locked="0")
+
+    _state, ops = dispatch_command("main_trash", _make_state(), config)
+
+    assert _lines(config.main_funestra_cmd_file) == ["TRASH"]
+    assert _lines(config.origenerator_cmd_file) == [f"TRASH_FILE|{video}"]
+    assert [(op.op, op.key) for op in ops] == [("message", "Sent to Trash")]
+
+
+@pytest.mark.parametrize("favorite", [False, True])
+def test_kinos_trash_lets_go_of_a_held_video_first_as_up_does(tmp_path, favorite):
+    config = _make_config(tmp_path)
+    config.regen_metadata_root = tmp_path / "metadata"
+    video = tmp_path / "videos" / "video one.mp4"
+    _on_screen(config, str(video), locked="1")
+    mark_favorite(video, config.regen_metadata_root, favorite)
+
+    dispatch_command("main_trash", _make_state(), config)
+
+    assert _lines(config.main_funestra_cmd_file)[0] == "LOCK_OFF"
+
+
+def test_kinos_trash_with_nothing_on_screen_does_nothing(tmp_path):
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command("main_trash", _make_state(), config)
+
+    assert (_lines(config.main_funestra_cmd_file), _lines(config.origenerator_cmd_file), ops) == (
+        [], [], [])
