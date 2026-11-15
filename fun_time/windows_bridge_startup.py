@@ -50,6 +50,7 @@ from .session_resume import (
     resume_what_lives_in_a_funestra,
 )
 from .shared_state import BridgeState, shared_state_path
+from .startup_steps import timed_step
 from .win32 import set_the_icon_alt_tab_draws
 from .win32_process import unix_seconds
 from .window_layout import WindowLayoutPlan, WindowRect
@@ -538,9 +539,12 @@ def launch_ui_companions(
     dashboard_log_file: str | Path | None,
     result_file: str | Path,
 ) -> None:
-    dashboard_pid = (_launch_the_dashboard(m, plan, manifest_path, dashboard_log_file)
-                     if m.dashboard_enabled else 0)
-    audio_proc = launch_audio_companion(m)
+    dashboard_pid = 0
+    if m.dashboard_enabled:
+        with timed_step(logger, "launching the dashboard"):
+            dashboard_pid = _launch_the_dashboard(m, plan, manifest_path, dashboard_log_file)
+    with timed_step(logger, "launching the sound companion"):
+        audio_proc = launch_audio_companion(m)
     _write_result_file(
         result_file,
         {
@@ -561,19 +565,20 @@ def launch_core_apps(
     program = child_program(m, m.modules.satellite_module)
 
     def _launch(launch: SatelliteLaunch, title: str, role: str, *, tiles: bool) -> int:
-        return launch_satellite(
-            program,
-            channels=replace(launch.channels, dashboard_cmd=m.commands.dashboard_cmd_file),
-            placement=WindowPlacement(
-                x=launch.rect.x, y=launch.rect.y,
-                width=launch.rect.width, height=launch.rect.height,
-                title=title,
-                taskbar_identity=the_sessions_taskbar_identity(),
-                icon=Path(_the_session_icon()),
-                tiles=tiles),
-            role=role,
-            log_file=launch.log_file,
-        )
+        with timed_step(logger, f"launching the {role} satellite"):
+            return launch_satellite(
+                program,
+                channels=replace(launch.channels, dashboard_cmd=m.commands.dashboard_cmd_file),
+                placement=WindowPlacement(
+                    x=launch.rect.x, y=launch.rect.y,
+                    width=launch.rect.width, height=launch.rect.height,
+                    title=title,
+                    taskbar_identity=the_sessions_taskbar_identity(),
+                    icon=Path(_the_session_icon()),
+                    tiles=tiles),
+                role=role,
+                log_file=launch.log_file,
+            )
 
     portrait_pid = _launch(portrait, SATELLITE_PORTRAIT_TITLE, "Portrait", tiles=True)
     landscape_pid = _launch(landscape, SATELLITE_LANDSCAPE_TITLE, "Landscape", tiles=False)

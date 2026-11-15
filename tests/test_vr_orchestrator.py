@@ -77,6 +77,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
+from fun_time.startup_steps import STEP_LINE
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from fun_time.windows_bridge_startup import open_the_main_list, the_main_list
@@ -1935,3 +1936,19 @@ def test_a_headset_launch_that_names_no_origenerator_stops_before_anything_start
 
     run_bridge.assert_not_called()
     assert alert.call_args.args == (NO_ORIGENERATOR_SET_UP,)
+
+
+def test_a_slow_headset_start_says_how_long_the_engine_check_took(config, caplog):
+    with caplog.at_level("INFO", logger="fun_time_vr.orchestrator"), \
+         patch.object(orchestrator, "load_config", return_value=config), \
+         patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+         patch.object(orchestrator, "install_exception_logging"), \
+         mutex_free(), \
+         patch("fun_time.session_handoff.subprocess.Popen"), \
+         patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+         patch.object(orchestrator, "no_origenerator_set_up", return_value=False), \
+         patch.object(orchestrator, "run_vr_bridge", return_value=0):
+        orchestrator.main([])
+
+    assert [record.args[0] for record in caplog.records
+            if record.msg == STEP_LINE] == ["checking the video engine"]

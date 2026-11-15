@@ -31,6 +31,7 @@ from .satellite_launch import SatelliteLaunch, satellite_feed
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
+from .startup_steps import timed_step
 from .win32 import (
     find_windows_by_class,
     move_window,
@@ -308,12 +309,15 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    origenerator_pid = _start_the_hosted_apps_long_boot(
-        m, plan=layout.plan, sibling_checkouts=m.runtime.sibling_checkouts, launched=launched)
-    main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
-        m, plan=layout.plan, state_dir=state_dir, launched=launched)
-    main_funestra_pid, main_funestra_status_file = _launch_the_main_funestra(
-        m, layout=layout, state_dir=state_dir, launched=launched)
+    with timed_step(logger, "starting Origenerator"):
+        origenerator_pid = _start_the_hosted_apps_long_boot(
+            m, plan=layout.plan, sibling_checkouts=m.runtime.sibling_checkouts, launched=launched)
+    with timed_step(logger, "launching the satellites"):
+        main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
+            m, plan=layout.plan, state_dir=state_dir, launched=launched)
+    with timed_step(logger, "launching the Main Funestra"):
+        main_funestra_pid, main_funestra_status_file = _launch_the_main_funestra(
+            m, layout=layout, state_dir=state_dir, launched=launched)
 
     return _CoreSession(
         main_mode=main_mode,
@@ -469,21 +473,25 @@ def _run_startup_phases(
 
     hwnds_by_window: dict[str, int] = {}
     if not hide_windows:
-        hwnds_by_window = _position_windows_now(plan, env=env)
+        with timed_step(logger, "placing the windows"):
+            hwnds_by_window = _position_windows_now(plan, env=env)
 
     progress.advance("browser")
-    rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
+    with timed_step(logger, "opening the Random Faves Browser"):
+        rfb_hwnd = _maybe_launch_random_faves_browser(m.random_faves_browser, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
 
     progress.advance("companions")
-    ui_pids = _launch_the_companions(
-        m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
+    with timed_step(logger, "launching the dashboard and the sound companion"):
+        ui_pids = _launch_the_companions(
+            m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
 
     raise_if_a_funestra_died(launched.funestras)
 
     if hide_windows:
-        hwnds_by_window = _settle_the_app_under_the_loading_screen(
-            m, core=core, plan=plan, launched=launched, progress=progress)
+        with timed_step(logger, "waiting for the windows under the loading screen"):
+            hwnds_by_window = _settle_the_app_under_the_loading_screen(
+                m, core=core, plan=plan, launched=launched, progress=progress)
 
     raise_if_a_funestra_died(launched.funestras)
 
