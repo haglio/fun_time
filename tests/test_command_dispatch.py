@@ -2858,6 +2858,7 @@ def test_kinos_trash_pressed_while_the_main_funestra_shows_genau_touches_nothing
 _GENAU_OFF_ITS_DEFAULTS = {
     "genau_plays_vr": False, "genau_plays_portrait": False, "genau_favorites_filter": True,
     "genau_latest": True, "genau_flick_seconds": BridgeState().genau_flick_seconds + 4,
+    "genau_locked": False,
 }
 
 
@@ -2870,7 +2871,8 @@ def test_genaus_reset_puts_every_setting_it_covers_back_to_how_genau_starts(tmp_
     assert {name: getattr(reset, name) for name in _GENAU_OFF_ITS_DEFAULTS} == {
         name: getattr(BridgeState(), name) for name in _GENAU_OFF_ITS_DEFAULTS}
     assert _lines(config.genau_cmd_file) == [
-        "SHAPES vr flat", "SHUFFLE", f"FLICK_SECONDS {BridgeState().genau_flick_seconds}"]
+        "SHAPES vr flat", "SHUFFLE", f"FLICK_SECONDS {BridgeState().genau_flick_seconds}",
+        "LOCK_ON"]
     assert _lines(config.main_funestra_cmd_file) == [
         genau_orientations((True, True)), genau_f_mode(False)]
     assert [(op.op, op.key) for op in ops] == [("message", "Reset")]

@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 
 from funestra.file_channel import append_command
-from funestra.funestra_verbs import LOCK_ON, set_speed
+from funestra.funestra_verbs import LOCK_OFF, LOCK_ON, set_speed
 from funestra.hud_title import LATEST_LABEL, SHUFFLE_LABEL
 from funestra.inclusion_pair import (
     LENGTH,
@@ -261,6 +261,8 @@ _GENAUS_SETTINGS = (
         config.genau_cmd_file, _GENAU_ORDER_CMD[held[0]])),
     _GenausSetting(("genau_flick_seconds",), lambda config, held: append_command(
         config.genau_cmd_file, f"{FLICK_SECONDS} {held[0]}")),
+    _GenausSetting(("genau_locked",), lambda config, held: append_command(
+        config.genau_cmd_file, LOCK_ON if held[0] else LOCK_OFF)),
 )
 
 
