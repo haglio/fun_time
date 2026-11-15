@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
+from app_support.local_time import when_words
+
 from fun_time.content import WebProvider
 from fun_time.gallery import Gallery
 from fun_time.media_metadata import metadata_path_for
@@ -99,6 +101,11 @@ def test_payload_for_video_only_targets_video_no_negative():
     assert payload["negative"] == ""
     assert payload["video_prompt"] == ""
     assert ["Action", "Side Epsilon"] in payload["settings"]
+
+
+def test_when_a_video_was_made_reads_in_local_time_with_its_day():
+    meta = {"video": {"prompt": "p", "created": "2026-03-13 20:15:00"}}
+    assert ["Created", when_words("2026-03-13 20:15:00")] in build_payload(meta)["settings"]
 
 
 def test_payload_skips_empty_setting_values():
