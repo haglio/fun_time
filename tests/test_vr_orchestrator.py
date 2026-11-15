@@ -19,7 +19,13 @@ import pytest
 from app_support.testing import mutex_free
 from funestra.modes import MainMode
 
-from fun_time import checkout_overrides, funestra_deaths, win32_taskbar, windows_bridge_startup
+from fun_time import (
+    checkout_overrides,
+    funestra_deaths,
+    session_ending,
+    win32_taskbar,
+    windows_bridge_startup,
+)
 from fun_time import orchestrator as desktop_orchestrator
 from fun_time.config import load_config
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -88,11 +94,12 @@ from fun_time_vr.loading_screen import (
     CLOSING_STATUS,
     SHUTDOWN_STALE_TIMEOUT_S,
     STARTUP_STALE_TIMEOUT_S,
+    VR_SHUTDOWN_PHASES,
     scene_ready_file,
 )
 from fun_time_vr.orchestrator import (
     VR_FUNESTRAS_MODULE,
-    _closing_screen,
+    _closing_screen_in_the_headset,
     _LoadingScreen,
     _release_vr_runtime,
     _wait_for_funestra,
@@ -362,16 +369,17 @@ class TestWaitForSessionEnd:
 
         assert self._ended_by(_FakeProc(), _FakeProc(), tmp_path) == "asked"
 
-    def test_no_hotkey_script_outlives_the_teardown_still_holding_the_keys_it_binds(self):
-        tree = ast.parse(_the_session_as_one_source())
-        (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
-            isinstance(c, ast.Call) and ast.unparse(c.func) == "wait_for_the_session_to_end"
-            for c in ast.walk(n))]
-        calls = [ast.unparse(c.func) for stmt in session.finalbody for c in ast.walk(stmt)
-                 if isinstance(c, ast.Call)]
+    @pytest.mark.parametrize("ending", [
+        lambda *_a, **_k: "asked", MagicMock(side_effect=KeyboardInterrupt)],
+        ids=["asked", "interrupted"])
+    def test_no_hotkey_script_outlives_the_teardown_still_holding_the_keys_it_binds(
+            self, config, ending):
+        torn_down: list = []
 
-        assert "stop_hotkey_script" in calls
-        assert calls.index("kill_recorded_child") < calls.index("stop_hotkey_script")
+        _end_a_vr_session(orchestrator, config, ended_by=ending, torn_down=torn_down)
+
+        assert torn_down[-2:] == ["hotkeys", "runtime"]
+        assert {101, A_LAUNCHED_APP.pid, 202} <= set(torn_down[:-2])
 
     def test_closing_the_headsets_only_window_ends_the_session(self, tmp_path):
         assert self._ended_by(_FakeProc(), _FakeProc(exits_after_polls=2), tmp_path) == "funestras"
@@ -1301,7 +1309,7 @@ class TestTheClosingScreen:
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         seen = []
 
-        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True) as shutdown:
+        with _closing_screen_in_the_headset(tmp_path, _AliveFunestra(), enabled=True) as shutdown:
             seen.append(parse_progress(
                 (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8")).message)
             shutdown.advance("funestras")
@@ -1313,7 +1321,7 @@ class TestTheClosingScreen:
     def test_it_says_what_esc_would_cancel(self, tmp_path):
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
 
-        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True,
+        with _closing_screen_in_the_headset(tmp_path, _AliveFunestra(), enabled=True,
                             esc_cancels="Press Esc to cancel closing Fun Time VR"):
             line = parse_progress(
                 (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8"))
@@ -1325,7 +1333,7 @@ class TestTheClosingScreen:
         stale.write_text("", encoding="utf-8")
         cleared = []
 
-        with _closing_screen(tmp_path, _AliveFunestra(alive=False), enabled=True):
+        with _closing_screen_in_the_headset(tmp_path, _AliveFunestra(alive=False), enabled=True):
             cleared.append(stale.exists())
 
         assert cleared == [False]
@@ -1350,7 +1358,7 @@ class TestTheClosingScreen:
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         heard: list[bool] = []
 
-        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True):
+        with _closing_screen_in_the_headset(tmp_path, _AliveFunestra(), enabled=True):
             heard.append(heard_from_again_once_stale(
                 tmp_path / SHUTDOWN_PROGRESS_FILENAME,
                 stale_after_s=SHUTDOWN_STALE_TIMEOUT_S, within_s=2.5))
@@ -1358,7 +1366,7 @@ class TestTheClosingScreen:
         assert heard == [False]
 
     def test_a_headset_cut_to_the_runtimes_environment_gets_no_closing_screen(self, tmp_path):
-        with _closing_screen(tmp_path, _AliveFunestra(alive=False), enabled=False) as shutdown:
+        with _closing_screen_in_the_headset(tmp_path, _AliveFunestra(alive=False), enabled=False) as shutdown:
             shutdown.advance("funestras")
 
             assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
@@ -1375,7 +1383,7 @@ class TestTheClosingScreen:
 
         _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "funestras",
                           launch_vr_funestras=MagicMock(return_value=died),
-                          _closing_screen=closing_screen)
+                          _closing_screen_in_the_headset=closing_screen)
 
         assert offered_to == [False]
 
@@ -1383,41 +1391,61 @@ class TestTheClosingScreen:
         said = _every_done_said(monkeypatch)
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
 
-        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True) as shutdown:
+        with _closing_screen_in_the_headset(tmp_path, _AliveFunestra(), enabled=True) as shutdown:
             shutdown.advance("funestras")
 
         assert said == []
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
 
-    def test_the_closing_line_is_there_before_the_funestra_is_asked_to_paint_it(
-            self, tmp_path, monkeypatch):
-        on_disk_when_asked: list[bool] = []
-        monkeypatch.setattr(
-            orchestrator, "wait_for_loading_screen_painted",
-            lambda _ready_file, **_k: on_disk_when_asked.append(
-                (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()) or True)
+    def test_the_ending_reports_every_step_the_headsets_closing_screen_shows_and_no_other(
+            self, config, monkeypatch):
+        reported: list[str] = []
+        real_announce = PhaseProgress.announce
 
-        with _closing_screen(tmp_path, _AliveFunestra(), enabled=True):
-            pass
+        def announce(progress, phase):
+            if progress._phases is VR_SHUTDOWN_PHASES:
+                reported.append(phase)
+            real_announce(progress, phase)
 
-        assert on_disk_when_asked == [True]
+        monkeypatch.setattr(PhaseProgress, "announce", announce)
 
-    def test_the_funestra_showing_the_closing_screen_is_the_last_child_killed(self):
-        tree = ast.parse(_the_session_as_one_source())
-        kills = [ast.unparse(n) for n in sorted(
-            (n for n in ast.walk(tree)
-             if isinstance(n, ast.Call) and ast.unparse(n.func) == "kill_recorded_child"),
-            key=lambda n: n.lineno)]
+        _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 
-        assert kills[-1] == "kill_recorded_child(launched.children['vr_funestras_pid'])"
-        assert "kill_recorded_child(launched.children['audio_pid'])" in kills
+        assert reported == [phase.key for phase in VR_SHUTDOWN_PHASES]
 
-    def test_everything_stops_and_the_osr2_is_held_before_either_loading_screen_goes_up(self):
-        calls = _call_lines_in_run_vr_bridge()
+    def test_the_funestra_showing_the_closing_screen_is_the_last_child_killed(self, config):
+        torn_down: list = []
 
-        assert "stop_everything" in calls, "the teardown never stops the room"
-        assert calls["stop_everything"] < calls["launch_transition_screen"]
-        assert calls["stop_everything"] < calls["_closing_screen"]
+        _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked",
+                          torn_down=torn_down)
+
+        assert torn_down == [101, A_LAUNCHED_APP.pid, 202, "hotkeys", "runtime"]
+
+    def test_everything_stops_and_the_osr2_is_held_before_either_loading_screen_goes_up(
+            self, config):
+        heard_when_up: list[tuple[str, str]] = []
+
+        def what_the_room_was_told(*_args, **_kwargs):
+            commands = LaunchManifest.read(
+                config.paths.state_dir / "windows_bridge_launch.ini").commands
+            heard_when_up.append((
+                Path(commands.main_funestra_paused_file).read_text(encoding="utf-8"),
+                Path(commands.genau_cmd_file).read_text(encoding="utf-8").split()[-1]))
+            return MagicMock()
+
+        real_closing_screen = orchestrator._closing_screen_in_the_headset
+
+        def closing_screen(*args, **kwargs):
+            what_the_room_was_told()
+            return real_closing_screen(*args, **kwargs)
+
+        _end_a_vr_session(
+            orchestrator, config, ended_by=_asked_to_cross(config),
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
+            launch_transition_screen=MagicMock(side_effect=what_the_room_was_told),
+            _closing_screen_in_the_headset=closing_screen)
+
+        assert heard_when_up == [("1", "PAUSE"), ("1", "PAUSE")]
 
 
 class TestWaitingForTheRoom:
@@ -1568,11 +1596,11 @@ def _launch_stand_ins(orchestrator, torn_down: list, *, startup=None, **override
 
 
 def _end_a_vr_session(
-    orchestrator, config, *, ended_by, runtime_was_running=True, **overrides,
+    orchestrator, config, *, ended_by, runtime_was_running=True, torn_down=None, **overrides,
 ) -> list[str]:
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
     offered: list[str] = []
-    real_closing_screen = orchestrator._closing_screen
+    real_closing_screen = orchestrator._closing_screen_in_the_headset
 
     def closing_screen(*args, **kwargs):
         offered.append(kwargs.get("esc_cancels", ""))
@@ -1582,15 +1610,14 @@ def _end_a_vr_session(
     funestras.poll.return_value = None
     stand_ins = {
         "launch_vr_funestras": MagicMock(return_value=funestras),
-        "wait_for_loading_screen_painted": MagicMock(return_value=True),
         "DispatchLoopRunner": MagicMock(),
         "start_voice_control": MagicMock(return_value=(None, None)),
         "wait_for_the_session_to_end": MagicMock(
             side_effect=lambda *a, **k: SessionEnd(ended_by(*a, **k), 0)),
-        "_closing_screen": closing_screen,
+        "_closing_screen_in_the_headset": closing_screen,
     }
     stand_ins.update(overrides)
-    with _launch_stand_ins(orchestrator, [], **stand_ins), \
+    with _launch_stand_ins(orchestrator, [] if torn_down is None else torn_down, **stand_ins), \
          patch.object(orchestrator.vr_runtime, "runtime_was_running",
                       return_value=runtime_was_running), \
          patch("fun_time_vr.orchestrator.subprocess.Popen"):
@@ -1802,11 +1829,11 @@ class TestOpeningAVrSession:
         named = replace(config, paths=replace(config.paths, sibling_checkouts=(sibling,)))
         way_back = MagicMock()
 
-        _end_a_vr_session(
-            orchestrator, named, ended_by=_asked_then_esc(named),
-            _wait_for_the_headset_hold=MagicMock(return_value=True),
-            launch_the_way_back_screen=way_back,
-        )
+        with patch.object(session_ending, "launch_the_way_back_screen", way_back):
+            _end_a_vr_session(
+                orchestrator, named, ended_by=_asked_then_esc(named),
+                _wait_for_the_headset_hold=MagicMock(return_value=True),
+            )
 
         assert way_back.call_args.kwargs["sibling_checkouts"] == str(sibling)
 

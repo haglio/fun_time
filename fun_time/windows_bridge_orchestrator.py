@@ -38,9 +38,7 @@ from .desktop_session import (
     RunningSession,
     SessionLaunch,
     StartupEnd,
-    hold_the_osr2,
     release_of,
-    silence_the_funestras,
 )
 from .event_log import (
     EVERYTHING_THE_DIAL_CAN_SHOW,
@@ -73,7 +71,6 @@ from .osr2_section import DASHBOARD_OSR2_PART, osr2_part_path
 from .overlay_progress import (
     ACTIVATING_ORIGENERATOR,
     CANCEL_CLOSING_FUN_TIME,
-    CANCEL_FILENAME,
     CANCEL_WORD,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -91,6 +88,15 @@ from .raising_the_loading_screen import OFF_THE_MONITORS_WAIT_S, RaisedLoadingSc
 from .rfb_modes import RfbMode
 from .rfb_slideshow import rfb_slideshow_on
 from .session_end import describe_session_end, session_end_marker_path, wait_for_the_session_to_end
+from .session_ending import (
+    SessionEnding,
+    TheControls,
+    closing_screen,
+    end_the_session,
+    esc_called_the_quit_off,
+    turn_back,
+    wait_for_the_closing_screen,
+)
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     DESKTOP,
@@ -100,11 +106,8 @@ from .session_handoff import (
     forget_the_kept_origenerator,
     keep_the_origenerator,
     kept_origenerator,
-    launch_the_way_back_screen,
     launch_transition_screen,
-    pending_handoff,
     release_the_headset,
-    request_handoff,
 )
 from .shared_state import read_shared_state, shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
@@ -298,66 +301,64 @@ def _shutdown_children(
                 kill_recorded_child(children[key])
 
 
-A_FRESH_TKINTER_PROCESS_IS_UP_WITHIN_S = 1.0
-SLACK_FOR_A_LOADED_MACHINE_S = 4.0
-CLOSING_SCREEN_READY_CEILING_S = (
-    A_FRESH_TKINTER_PROCESS_IS_UP_WITHIN_S + SLACK_FOR_A_LOADED_MACHINE_S)
+class _AClosingScreenOfItsOwn:
+    def __init__(self, progress_file: Path, *, sibling_checkouts: str,
+                 now: Callable[[], float]) -> None:
+        self._progress_file = progress_file
+        self._sibling_checkouts = sibling_checkouts
+        self._now = now
+        self._proc: subprocess.Popen | None = None
 
+    def raise_it(self) -> None:
+        self._proc = subprocess.Popen([
+            NAMER.named_exe(sys.executable, "ClosingScreen"),
+            "-m", "fun_time.closing_screen", str(self._progress_file),
+        ], **no_child_log(), **no_console_window(),
+            **sibling_checkouts_kwargs(self._sibling_checkouts))
+        tie_to_this_process(self._proc)
+        logger.info("Teardown loading screen launched (pid=%d)", self._proc.pid)
 
-def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen, *,
-                             now: Callable[[], float] = time.monotonic) -> None:
-    try:
-        wait_until(lambda: ready_file.exists() or proc.poll() is not None,
-                   timeout=CLOSING_SCREEN_READY_CEILING_S, interval=0.05, now=now)
-    except TimeoutError:
-        logger.warning(
-            "Closing screen not ready after %.1fs; closing anyway",
-            CLOSING_SCREEN_READY_CEILING_S,
-        )
-        return
-    if not ready_file.exists():
-        logger.warning("Closing screen exited before it was ready")
+    def still_up(self) -> bool:
+        return self._proc is not None and self._proc.poll() is None
+
+    def take_it_down(self, progress: PhaseProgress) -> None:
+        progress.finish()
+        proc = self._proc
+        try:
+            wait_until(lambda: proc.poll() is not None, timeout=OFF_THE_MONITORS_WAIT_S,
+                       now=self._now)
+        except TimeoutError:
+            proc.kill()
+            logger.warning("Closing screen did not exit, killed")
 
 
 @contextlib.contextmanager
-def _closing_screen(
+def _the_transition_screen_left_standing(
+    state_dir: Path, crossing: HandoffTarget, *, sibling_checkouts: str,
+    now: Callable[[], float],
+) -> Iterator[ProgressReporter]:
+    ready_file = ready_file_for(crossing_progress_path(state_dir))
+    ready_file.unlink(missing_ok=True)
+    proc = launch_transition_screen(state_dir, crossing, sibling_checkouts=sibling_checkouts)
+    logger.info("Teardown loading screen launched (pid=%d)", proc.pid)
+    wait_for_the_closing_screen(ready_file, lambda: proc.poll() is None, now=now)
+    yield NullProgress()
+    logger.info("Leaving the loading screen up for %s", crossing.app_name)
+
+
+def closing_screen_on_the_monitors(
     state_dir: Path, *, sibling_checkouts: str,
     crossing: HandoffTarget | None = None, esc_cancels: str = "",
     now: Callable[[], float] = time.monotonic,
-) -> Iterator[ProgressReporter]:
-    progress_file = (
-        crossing_progress_path(state_dir) if crossing is not None
-        else state_dir / SHUTDOWN_PROGRESS_FILENAME
-    )
-    ready_file = ready_file_for(progress_file)
-    ready_file.unlink(missing_ok=True)
+) -> contextlib.AbstractContextManager[ProgressReporter]:
     if crossing is not None:
-        progress: ProgressReporter = NullProgress()
-        proc = launch_transition_screen(state_dir, crossing, sibling_checkouts=sibling_checkouts)
-    else:
-        progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels)
-        progress.advance("controls")
-        proc = subprocess.Popen([
-            NAMER.named_exe(sys.executable, "ClosingScreen"),
-            "-m", "fun_time.closing_screen", str(progress_file),
-        ], **no_child_log(), **no_console_window(), **sibling_checkouts_kwargs(sibling_checkouts))
-        tie_to_this_process(proc)
-    logger.info("Teardown loading screen launched (pid=%d)", proc.pid)
-    _wait_for_closing_screen(ready_file, proc, now=now)
-    try:
-        yield progress
-    finally:
-        if crossing is None:
-            progress.finish()
-            try:
-                wait_until(lambda: proc.poll() is not None, timeout=OFF_THE_MONITORS_WAIT_S, now=now)
-            except TimeoutError:
-                proc.kill()
-                logger.warning("Closing screen did not exit, killed")
-            progress_file.unlink(missing_ok=True)
-            ready_file.unlink(missing_ok=True)
-        else:
-            logger.info("Leaving the loading screen up for %s", crossing.app_name)
+        return _the_transition_screen_left_standing(
+            state_dir, crossing, sibling_checkouts=sibling_checkouts, now=now)
+    progress_file = state_dir / SHUTDOWN_PROGRESS_FILENAME
+    return closing_screen(
+        progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels, now=now,
+        painter=_AClosingScreenOfItsOwn(
+            progress_file, sibling_checkouts=sibling_checkouts, now=now))
 
 
 _CANCELLED_EXIT_CODE = 0
@@ -416,11 +417,8 @@ def _take_down_the_startup(
         append_command(launched.release_origenerator_via, RELEASE)
     close_window(launched.rfb_hwnd)
     if back_to is not None:
-        logger.info("Going back to %s", back_to.app_name)
-        way_back = launch_the_way_back_screen(
-            state_dir, sibling_checkouts=launch.manifest.runtime.sibling_checkouts)
-        _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
-        request_handoff(state_dir, back_to, cancelable=False)
+        turn_back(state_dir, back_to, sibling_checkouts=launch.manifest.runtime.sibling_checkouts,
+                  wait_for_it=True)
     loading_screen.take_it_down()
     loading_screen.cancel_file.unlink(missing_ok=True)
     if back_to is None:
@@ -649,11 +647,6 @@ def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> Threading
     return server
 
 
-def _stop_serving_which_blocks_until_the_loop_returns(server: ThreadingHTTPServer) -> None:
-    server.shutdown()
-    server.server_close()
-
-
 @dataclass(frozen=True)
 class PreparedVoice:
     controller: Future[VoiceController]
@@ -854,21 +847,6 @@ def _start_the_dispatch_loop(dispatch_runner: DispatchLoopRunner) -> threading.T
     return dispatch_thread
 
 
-DISPATCH_LOOP_STOP_S = 1.0
-
-
-def stop_everything(manifest: LaunchManifest,
-                    dispatch: tuple[DispatchLoopRunner, threading.Thread]) -> None:
-    runner, loop = dispatch
-    runner.stop()
-    loop.join(timeout=DISPATCH_LOOP_STOP_S)
-    if loop.is_alive():
-        logger.warning("The dispatch loop was still busy %.1fs after the session ended",
-                       DISPATCH_LOOP_STOP_S)
-    silence_the_funestras(manifest)
-    hold_the_osr2(manifest.commands)
-
-
 @dataclass(frozen=True)
 class SessionOver:
     exit_code: int
@@ -914,47 +892,63 @@ def _take_the_session_down(
     asked: bool,
     show_overlays: bool,
 ) -> None:
-    state_dir = launch.state_dir
-    origenerator_cmd_file = launch.bridge_config.origenerator.cmd_file
-    sibling_checkouts = launch.manifest.runtime.sibling_checkouts
-    voice_controller, voice_thread = running.voice
-    dispatch_runner, _loop = running.dispatch
-    stop_everything(launch.manifest, running.dispatch)
-    crossing = pending_handoff(state_dir)
-    esc_cancels = (CANCEL_CLOSING_FUN_TIME
-                   if asked and show_overlays and crossing is None else "")
-    closing_screen = (
-        _closing_screen(state_dir, sibling_checkouts=sibling_checkouts,
-                        crossing=crossing, esc_cancels=esc_cancels)
-        if show_overlays else contextlib.nullcontext(NullProgress()))
-    with closing_screen as shutdown_progress:
-        if voice_controller is not None:
-            voice_controller.stop()
-        if voice_thread is not None:
-            voice_thread.join(timeout=2.0)
-        dispatch_runner.close()
-        if running.loopback_server is not None:
-            _stop_serving_which_blocks_until_the_loop_returns(running.loopback_server)
+    end_the_session(
+        SessionEnding(
+            state_dir=launch.state_dir, manifest=launch.manifest, controls=running.controls,
+            quit_hint=CANCEL_CLOSING_FUN_TIME if show_overlays else "",
+            esc_over_a_crossing=False),
+        _TheDesktopsEnding(launch, hotkeys, result, running.children,
+                           show_overlays=show_overlays),
+        asked=asked)
+
+
+@dataclass(frozen=True)
+class _TheDesktopsEnding:
+    launch: SessionLaunch
+    hotkeys: HotkeyScript
+    result: StartupResult
+    children: dict[str, ChildProcess]
+    show_overlays: bool
+
+    @property
+    def _state_dir(self) -> Path:
+        return self.launch.state_dir
+
+    @property
+    def _sibling_checkouts(self) -> str:
+        return self.launch.manifest.runtime.sibling_checkouts
+
+    def closing_screen(self, crossing: HandoffTarget | None, hint: str,
+                       ) -> contextlib.AbstractContextManager[ProgressReporter]:
+        if not self.show_overlays:
+            return contextlib.nullcontext(NullProgress())
+        return closing_screen_on_the_monitors(
+            self._state_dir, sibling_checkouts=self._sibling_checkouts,
+            crossing=crossing, esc_cancels=hint)
+
+    def end_the_children(self, shutdown: ProgressReporter, crossing: HandoffTarget | None,
+                         hint: str) -> None:
         logger.info("The session is over — shutting down child processes")
-        flag = state_dir / CANCEL_FILENAME
-        parking = crossing is not None or (
-            bool(esc_cancels) and what_the_flag_asks(flag) == CANCEL_WORD)
+        parking = crossing is not None or esc_called_the_quit_off(self._state_dir, crossing, hint)
+        taken_over = self.result.origenerator_taken_over
         _shutdown_children(
-            result.rfb_hwnd, running.children, shutdown_progress, state_dir=state_dir,
+            self.result.rfb_hwnd, self.children, shutdown, state_dir=self._state_dir,
             farewell=HostedAppFarewell(
-                command_file=(origenerator_cmd_file
-                              if parking or result.origenerator_taken_over else None),
-                keep=parking, taken_over=result.origenerator_taken_over),
+                command_file=(self.launch.bridge_config.origenerator.cmd_file
+                              if parking or taken_over else None),
+                keep=parking, taken_over=taken_over),
         )
-        if crossing is None:
-            stop_hotkey_script(hotkeys.proc, hotkeys.cmd_file)
-        if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
-            logger.info("Esc called the quit off; opening Fun Time again")
-            way_back = launch_the_way_back_screen(state_dir, sibling_checkouts=sibling_checkouts)
-            _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
-            request_handoff(state_dir, DESKTOP, cancelable=False)
+
+    def stop_the_keys(self) -> None:
+        stop_hotkey_script(self.hotkeys.proc, self.hotkeys.cmd_file)
+
+    def last_of_all(self, crossing: HandoffTarget | None, hint: str) -> None:
+        if esc_called_the_quit_off(self._state_dir, crossing, hint):
+            turn_back(self._state_dir, DESKTOP, sibling_checkouts=self._sibling_checkouts,
+                      wait_for_it=True)
         elif crossing is None:
-            let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
+            let_go_of_a_kept_origenerator(
+                self._state_dir, self.launch.bridge_config.origenerator.cmd_file)
 
 
 def _open_the_session(
@@ -988,8 +982,8 @@ def _open_the_session(
 
     dispatch_thread = _start_the_dispatch_loop(dispatch_runner)
     loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
-    return RunningSession(children, (voice_controller, voice_thread),
-                          (dispatch_runner, dispatch_thread), loopback_server)
+    return RunningSession(children, TheControls(
+        dispatch_runner, dispatch_thread, voice_controller, voice_thread, loopback_server))
 
 
 def run_session(
