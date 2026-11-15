@@ -33,7 +33,7 @@ from fun_time.win32 import (
     set_always_on_top,
     windows_obscuring,
 )
-from fun_time.windows_bridge_dispatch_loop import raise_a_browse_the_restack_left_underneath
+from fun_time.window_work import raise_a_browse_the_restack_left_underneath
 from tests.integration.integration_support import await_window, joined_within, wait_for
 from tests.mouse_events import a_double_click_as_the_mouse_sends_it
 

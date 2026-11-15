@@ -4,28 +4,15 @@ import logging
 from dataclasses import replace
 from pathlib import Path
 
-from fun_time.dispatch_loop_setup import Publishing, SessionFiles, SessionStart
 from fun_time.event_log import FAVORITE, MESSAGE
-from fun_time.fun_time_windows import ChildPids, FunTimeWindows
-from fun_time.funestra_messages import read_funestra_message
-from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
+from fun_time.funestra_messages import FunestraMessages, read_funestra_message
 from tests.bridge_configs import made_up_bridge_config
-from tests.fun_time_window_fakes import MAIN_FUNESTRA_PID
 
 
-def _runner(tmp_path: Path) -> DispatchLoopRunner:
+def _messages(tmp_path: Path) -> FunestraMessages:
     config = made_up_bridge_config(tmp_path)
-    config = replace(config, main_funestra=replace(
-        config.main_funestra, notice_file=tmp_path / "main_player_notice.txt"))
-    return DispatchLoopRunner(
-        config,
-        SessionFiles(
-            dashboard_cmd=tmp_path / "dashboard_cmd.txt",
-            shared_state=tmp_path / "shared_state.ini",
-            ahk_cmd=tmp_path / "ahk_cmd.txt"),
-        SessionStart(windows=FunTimeWindows(pids=ChildPids(main_funestra=MAIN_FUNESTRA_PID))),
-        Publishing(dashboard_enabled=False),
-    )
+    return FunestraMessages(replace(config, main_funestra=replace(
+        config.main_funestra, notice_file=tmp_path / "main_player_notice.txt")))
 
 
 def _write(path: Path, seq: int, level: str, message: str) -> None:
@@ -51,16 +38,16 @@ class TestReadFunestraNotice:
 
 class TestFlashFunestraNotices:
     def _loop(self, tmp_path):
-        return _runner(tmp_path)
+        return _messages(tmp_path)
 
     def test_flashes_once_then_stays_quiet(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
         _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
 
         with caplog.at_level(logging.DEBUG):
-            loop.messages.flash_new()
+            loop.flash_new()
             first = [r for r in caplog.records if "full video not available" in r.message]
-            loop.messages.flash_new()
+            loop.flash_new()
             again = [r for r in caplog.records if "full video not available" in r.message]
 
         assert len(first) == 1
@@ -71,11 +58,11 @@ class TestFlashFunestraNotices:
         loop = self._loop(tmp_path)
         with caplog.at_level(logging.DEBUG):
             _write(tmp_path / "main_player_notice.txt", 1, "favorite", "funscript jump")
-            loop.messages.flash_new()
+            loop.flash_new()
             _write(tmp_path / "main_player_notice.txt", 2, "message", "full video")
-            loop.messages.flash_new()
+            loop.flash_new()
             _write(tmp_path / "main_player_notice.txt", 3, "warning", "money shot not available")
-            loop.messages.flash_new()
+            loop.flash_new()
 
         by_message = {r.message: r.levelno for r in caplog.records}
         assert by_message["funscript jump"] == FAVORITE
@@ -86,9 +73,9 @@ class TestFlashFunestraNotices:
         loop = self._loop(tmp_path)
         _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
         with caplog.at_level(logging.DEBUG):
-            loop.messages.flash_new()
+            loop.flash_new()
             _write(tmp_path / "main_player_notice.txt", 2, "warning", "money shot not available")
-            loop.messages.flash_new()
+            loop.flash_new()
 
         assert any("money shot not available" in r.message for r in caplog.records)
 
@@ -98,8 +85,8 @@ class TestFlashFunestraNotices:
         _write(tmp_path / "landscape_notice.txt", 1, "favorite", "next funscripted")
 
         with caplog.at_level(logging.DEBUG):
-            loop.messages.flash_new()
-            loop.messages.flash_new()
+            loop.flash_new()
+            loop.flash_new()
 
         assert sorted((r.getMessage(), r.source, r.levelno) for r in caplog.records) == [
             ("next funscripted", "landscape", FAVORITE),
@@ -111,7 +98,7 @@ def test_a_message_from_a_previous_session_does_not_flash_on_open(tmp_path):
     _write(tmp_path / "main_player_notice.txt", 500, "warning", "stale from last time")
     _write(tmp_path / "portrait_notice.txt", 500, "warning", "stale on the side")
 
-    loop = _runner(tmp_path)
+    loop = _messages(tmp_path)
 
     seen: list[str] = []
     handler = logging.Handler()
@@ -119,7 +106,7 @@ def test_a_message_from_a_previous_session_does_not_flash_on_open(tmp_path):
     logger = logging.getLogger("fun_time.funestra_messages")
     logger.addHandler(handler)
     try:
-        loop.messages.flash_new()
+        loop.flash_new()
     finally:
         logger.removeHandler(handler)
 

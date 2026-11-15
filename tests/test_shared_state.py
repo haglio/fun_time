@@ -123,6 +123,7 @@ class TestSharedState:
 
 def test_the_state_file_sits_under_both_startup_and_the_dispatch_loop():
     both_write_it = ("fun_time.session_resume", "fun_time.windows_bridge_dispatch_loop",
+                     "fun_time.command_answering", "fun_time.loop_followers",
                      "fun_time.command_dispatch")
     probe = (
         "import sys, fun_time.shared_state; "

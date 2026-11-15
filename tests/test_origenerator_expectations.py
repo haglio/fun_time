@@ -5,9 +5,9 @@ import os
 
 import pytest
 
+from fun_time.command_answering import REQUEST_NEWS
 from fun_time.command_dispatch import handles
 from fun_time.hosted_contract import SAID_AT_FIELD, declared_flags
-from fun_time.windows_bridge_dispatch_loop import REQUEST_NEWS
 from tests.origenerator_contract import answers, published
 from tests.origenerator_expectations import PUBLISHED_FOR_ORIGENERATORS_SUITE, published_text
 
