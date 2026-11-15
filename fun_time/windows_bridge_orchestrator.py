@@ -146,12 +146,14 @@ from .windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from .windows_bridge_sequencer import (
+    SATELLITE_PLAY_TIMEOUT_S,
     StartupResult,
     StartupWindows,
     apply_startup_window_state,
     apply_topmost_bands,
     release_the_funestras,
     run_startup_sequence,
+    wait_for_the_satellites_drawing,
 )
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -814,8 +816,19 @@ def finish_under_the_loading_screen(
     progress: ProgressReporter,
 ) -> RfbMode:
     rfb_mode = activate_origenerator_under_the_loading_screen(runner, progress=progress)
+    wait_for_the_satellites_origenerator_took(runner, progress=progress)
     wait_for_voice_under_the_loading_screen(voice_controller, progress=progress)
     return rfb_mode
+
+
+def wait_for_the_satellites_origenerator_took(
+    runner: DispatchLoopRunner, *, progress: ProgressReporter,
+) -> None:
+    with progress.loading_screen_kept_up():
+        if not wait_for_the_satellites_drawing(
+                runner.satellites_status_files(), SATELLITE_PLAY_TIMEOUT_S):
+            logger.warning("A Satellite drew nothing within %.0fs of Origenerator taking it; "
+                           "opening Fun Time anyway", SATELLITE_PLAY_TIMEOUT_S)
 
 
 def _build_the_dispatch_loop(

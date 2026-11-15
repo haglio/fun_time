@@ -3179,6 +3179,44 @@ class TestTheRoomOpensOnceVoiceCommandsListen:
         progress.announce.assert_not_called()
 
 
+class TestTheSatellitesAreWaitedForOnceOrigeneratorHasThem:
+    def _finish(self, tmp_path, *, drawing: bool) -> list:
+        events: list = []
+        runner = SimpleNamespace(
+            opening=SimpleNamespace(activates=True),
+            activate_origenerator=lambda *, wait_for_the_app: events.append(
+                "Origenerator took the Satellites"),
+            answering=SimpleNamespace(state=SimpleNamespace(rfb_mode=RfbMode.RFB)),
+            satellites_status_files=lambda: [
+                tmp_path / "portrait_status.txt", tmp_path / "landscape_status.txt"],
+        )
+
+        def wait(status_files, _timeout_s):
+            events.append(("waited for", sorted(Path(file).name for file in status_files)))
+            return drawing
+
+        with patch.object(windows_bridge_orchestrator, "wait_for_the_satellites_drawing",
+                          side_effect=wait, create=True):
+            windows_bridge_orchestrator.finish_under_the_loading_screen(
+                runner, None, progress=NullProgress())
+        return events
+
+    def test_the_loading_screen_stays_up_until_the_satellites_origenerator_took_are_drawing(
+            self, tmp_path):
+        assert self._finish(tmp_path, drawing=True) == [
+            "Origenerator took the Satellites",
+            ("waited for", ["landscape_status.txt", "portrait_status.txt"]),
+        ], "a Satellite has nothing to draw until Origenerator hands it a list"
+
+    @pytest.mark.real_startup_waits
+    def test_a_satellite_that_never_draws_is_said_in_the_log_and_fun_time_opens_anyway(
+            self, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_orchestrator"):
+            self._finish(tmp_path, drawing=False)
+
+        assert "A Satellite drew nothing within 25s of Origenerator taking it" in caplog.text
+
+
 class TestARoomLeftInOrigeneratorMode:
     def _run(self, cfg_factory, tmp_path, *, the_app_answers: bool) -> list[str]:
         return self._session(cfg_factory, tmp_path, the_app_answers=the_app_answers)[0]

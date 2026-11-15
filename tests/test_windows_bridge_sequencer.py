@@ -59,10 +59,10 @@ from fun_time.windows_bridge_sequencer import (
     SATELLITE_PLAY_TIMEOUT_S,
     _maybe_launch_random_faves_browser,
     _resolve_satellite_hwnds,
-    _wait_for_funestras_drawing,
     _wait_for_main_funestra_loaded,
     release_the_funestras,
     run_startup_sequence,
+    wait_for_the_satellites_drawing,
 )
 from fun_time.windows_bridge_startup import GenauStart, HandedFunestra
 from tests.git_checkouts import a_worktree_of
@@ -1020,6 +1020,18 @@ class TestMainFunestraGatesTheReveal:
         assert seen["stale_at_launch"] is False, (
             "the wait would end at once on a video from a session that is over")
 
+    def test_the_launch_never_waits_for_satellites_origenerator_has_yet_to_hand_a_list(
+        self, cfg_factory, tmp_path,
+    ):
+        _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        def wait(*_args, **_kwargs):
+            raise AssertionError(
+                "a Satellite opens on an empty list, so this wait can only run out")
+
+        with _sequencer_stubs(wait_for_the_satellites_drawing={"side_effect": wait}):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
     def test_every_wait_for_the_funestras_and_their_windows_keeps_the_loading_screen_up(
         self, cfg_factory, tmp_path,
     ):
@@ -1035,14 +1047,13 @@ class TestMainFunestraGatesTheReveal:
         with _sequencer_stubs(
             wait_for_window_by_title={"side_effect": waits(88888)},
             _wait_for_main_funestra_loaded={"side_effect": waits(True)},
-            _wait_for_funestras_drawing={"side_effect": waits(True)},
         ):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path,
                 progress=progress, hide_windows=True,
             )
 
-        assert len(progress.waits_heard) >= 4
+        assert len(progress.waits_heard) >= 3
         assert all(progress.waits_heard), (
             "their worst cases add up past the loading screen's patience, "
             "which would take it down while Fun Time is still starting")
@@ -1187,7 +1198,7 @@ class TestResolveSatelliteHwnds:
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
 
 
-class TestWaitForFunestrasDrawing:
+class TestWaitForTheSatellitesDrawing:
     def test_the_wait_ends_under_a_clock_that_never_moves(self, tmp_path):
         status_file = tmp_path / "portrait_status.txt"
         status_file.write_text("position_ms=0\n", encoding="utf-8")
@@ -1200,9 +1211,23 @@ class TestWaitForFunestrasDrawing:
 
         with patch.object(windows_bridge_sequencer, "time",
                           SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)):
-            assert _wait_for_funestras_drawing([status_file], NullProgress()) is False
+            assert wait_for_the_satellites_drawing(
+                [status_file], SATELLITE_PLAY_TIMEOUT_S) is False
 
         assert len(slept) == polls
+
+    def test_a_satellite_showing_an_image_is_drawing_though_an_image_has_no_position(
+            self, tmp_path):
+        status_file = tmp_path / "portrait_status.txt"
+        status_file.write_text("position_ms=0\npicture=1\n", encoding="utf-8")
+
+        def sleep(_seconds):
+            raise AssertionError("waited for an image to play on, which it never does")
+
+        with patch.object(windows_bridge_sequencer, "time",
+                          SimpleNamespace(monotonic=lambda: 0.0, sleep=sleep)):
+            assert wait_for_the_satellites_drawing(
+                [status_file], SATELLITE_PLAY_TIMEOUT_S) is True
 
 
 class TestWaitForMainFunestraLoaded:

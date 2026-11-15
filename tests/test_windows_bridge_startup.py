@@ -565,6 +565,17 @@ def test_each_satellite_opens_on_an_empty_list_until_the_app_hands_it_its_slides
     assert not kept_aside.exists()
 
 
+def test_no_satellite_starts_on_the_status_the_last_session_left(tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(kwargs)
+
+    _run_start_core_session(kwargs)
+
+    for launch in (kwargs["portrait"], kwargs["landscape"]):
+        assert not Path(launch.channels.status).exists(), (
+            "the wait for this Satellite to draw would end at once on what it drew last session")
+
+
 def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
