@@ -223,8 +223,15 @@ def now() -> float:
 
 
 class Budget:
-    def __init__(self, seconds: float) -> None:
-        self._ends_at = now() + seconds
+    def __init__(self, seconds: float, *, wall: Callable[[], float] = time.monotonic) -> None:
+        self._began = now()
+        self._ends_at = self._began + seconds
+        self._wall = wall
+        self._wall_began = wall()
+
+    def spent(self) -> str:
+        return (f"{now() - self._began:.0f}s on the run's clock and "
+                f"{self._wall() - self._wall_began:.0f}s on the wall clock")
 
     def left(self) -> float:
         return max(0.0, self._ends_at - now())

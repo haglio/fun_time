@@ -272,6 +272,14 @@ def clock(monkeypatch, run_time):
     return fake
 
 
+def test_a_start_that_timed_out_says_how_long_it_waited_on_the_runs_clock_and_on_the_wall(
+        session, clock):
+    with pytest.raises(AssertionError) as timed_out:
+        session._wait_for_own_log("Session up", after=0, timeout=5.0)
+
+    assert "waited 5s on the run's clock and 0s on the wall clock" in str(timed_out.value)
+
+
 @pytest.mark.parametrize("wait", [
     lambda session: session.wait_until(lambda: False),
     lambda session: session.wait_for_log("never logged"),
