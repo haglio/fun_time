@@ -1917,7 +1917,8 @@ def test_a_press_heard_the_moment_the_listener_exists_is_not_lost(dashboard_app_
     monkeypatch.setattr(dashboard_app, "LoopbackInbox", _InboxThatHearsAPressAtOnce)
     window = build_dashboard_window(
         dashboard_app_config,
-        launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400))
+        launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400),
+        clock=HandDrivenClock())
     try:
         QApplication.processEvents()
 
