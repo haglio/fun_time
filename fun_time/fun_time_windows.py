@@ -18,6 +18,7 @@ from .win32 import (
     is_window_topmost,
     minimize_window,
     place_window,
+    raise_above_every_window_not_on_top,
     restore_window,
     set_always_on_top,
     window_process,
@@ -219,6 +220,9 @@ class FunTimeWindows:
 
     def restack_rfb_mode(self, rfb_mode: RfbMode, *, paused: bool = False) -> None:
         if paused:
+            holder = self.hwnd(ORIGENERATOR_WINDOW if rfb_mode is RfbMode.ORIGENERATOR else "rfb")
+            if holder:
+                raise_above_every_window_not_on_top(holder)
             return
         browser = self.hwnd("rfb")
         if browser:

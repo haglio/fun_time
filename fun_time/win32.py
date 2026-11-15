@@ -294,6 +294,13 @@ def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     _stack_after(hwnd, insert_after, what=f"set_always_on_top({hwnd}, {on_top})")
 
 
+def raise_above_every_window_not_on_top(hwnd: int) -> None:
+    # Windows places a window that leaves the topmost band above every window outside it, and
+    # changing the stacking needs no foreground rights, which taking focus would.
+    _stack_after(hwnd, HWND_TOPMOST, what=f"raise_above_every_window_not_on_top({hwnd})")
+    _stack_after(hwnd, HWND_NOTOPMOST, what=f"raise_above_every_window_not_on_top({hwnd})")
+
+
 def _stack_after(hwnd: int, insert_after, *, what: str) -> None:
     _without_hanging(
         _user32.SetWindowPos, hwnd, insert_after, 0, 0, 0, 0,
