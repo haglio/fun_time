@@ -22,7 +22,7 @@ from funestra.modes import MainMode
 from shared_ui.preview import Preview, window_title
 from shared_ui.testing import alert_shown
 
-from fun_time import closing_screen, windows_bridge_orchestrator
+from fun_time import closing_screen, session_ending, windows_bridge_orchestrator
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
 from fun_time.crown import Crown
@@ -66,6 +66,7 @@ from fun_time.overlay_progress import (
 from fun_time.raising_the_loading_screen import open_the_loading_screen
 from fun_time.rfb_modes import RfbMode
 from fun_time.session_end import SESSION_END_MARKER
+from fun_time.session_ending import TheControls, silence_the_funestras, stop_everything
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
     DESKTOP,
@@ -113,8 +114,6 @@ from fun_time.windows_bridge_orchestrator import (
     log_into_the_hotkey_scripts_log,
     run_session,
     seat_the_secondary_monitor,
-    silence_the_funestras,
-    stop_everything,
     stop_hotkey_script,
     wait_for_voice_under_the_loading_screen,
     write_pids_file,
@@ -1605,8 +1604,8 @@ class TestClosingScreenLifecycle:
         manifest = LaunchManifest.read(manifest_path)
         still_busy = MagicMock(**{"is_alive.return_value": True})
 
-        with caplog.at_level(logging.WARNING, logger=windows_bridge_orchestrator.__name__):
-            stop_everything(manifest, (MagicMock(), still_busy))
+        with caplog.at_level(logging.WARNING, logger=session_ending.__name__):
+            stop_everything(manifest, TheControls(MagicMock(), still_busy))
 
         commands = manifest.commands
         assert Path(commands.main_funestra_paused_file).read_text(encoding="utf-8") == "1"
@@ -1618,17 +1617,12 @@ class TestClosingScreenLifecycle:
         events: list[str] = []
         seen_when_killing: list[bool] = []
 
-        real_wait = windows_bridge_orchestrator._wait_for_closing_screen
+        ready_file = ready_file_for(tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME)
 
-        def recording_wait(ready_file, proc, **kwargs):
-            real_wait(ready_file, proc, **kwargs)
-            seen_when_killing.append(ready_file.exists())
+        _run_a_session(cfg_factory, tmp_path, SessionRun(
+            events=events, while_ending=lambda _pid: seen_when_killing.append(ready_file.exists())))
 
-        with patch.object(windows_bridge_orchestrator, "_wait_for_closing_screen",
-                          side_effect=recording_wait):
-            _run_a_session(cfg_factory, tmp_path, SessionRun(events=events))
-
-        assert seen_when_killing == [True]
+        assert set(seen_when_killing) == {True}
 
     def test_the_loading_screen_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path):
         events: list[str] = []
@@ -1797,8 +1791,8 @@ class TestWaitForClosingScreen:
         proc = MagicMock()
         proc.poll.return_value = None
 
-        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            windows_bridge_orchestrator._wait_for_closing_screen(ready_file, proc)
+        with caplog.at_level("WARNING", logger="fun_time.session_ending"):
+            session_ending.wait_for_the_closing_screen(ready_file, lambda: proc.poll() is None)
 
         assert not caplog.records
 
@@ -1806,24 +1800,22 @@ class TestWaitForClosingScreen:
         proc = MagicMock()
         proc.poll.return_value = 1
 
-        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            windows_bridge_orchestrator._wait_for_closing_screen(
-                tmp_path / "shutdown_ready.flag", proc
-            )
+        with caplog.at_level("WARNING", logger="fun_time.session_ending"):
+            session_ending.wait_for_the_closing_screen(
+                tmp_path / "shutdown_ready.flag", lambda: proc.poll() is None)
 
         assert "exited before it was ready" in caplog.text
 
     def test_gives_up_rather_than_wedge_the_teardown(self, tmp_path, caplog, monkeypatch):
         monkeypatch.setattr(
-            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_CEILING_S", 0.05
+            session_ending, "CLOSING_SCREEN_READY_CEILING_S", 0.05
         )
         proc = MagicMock()
         proc.poll.return_value = None
 
-        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            windows_bridge_orchestrator._wait_for_closing_screen(
-                tmp_path / "shutdown_ready.flag", proc
-            )
+        with caplog.at_level("WARNING", logger="fun_time.session_ending"):
+            session_ending.wait_for_the_closing_screen(
+                tmp_path / "shutdown_ready.flag", lambda: proc.poll() is None)
 
         assert "anyway" in caplog.text
 
@@ -1856,7 +1848,7 @@ def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosi
     screen = _AStarvedClosingScreen(state_dir / SHUTDOWN_PROGRESS_FILENAME)
     with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=screen), \
          patch("fun_time.windows_bridge_orchestrator.tie_to_this_process"), \
-         windows_bridge_orchestrator._closing_screen(
+         windows_bridge_orchestrator.closing_screen_on_the_monitors(
              state_dir, sibling_checkouts="", now=now):
         painted = ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
     return screen, painted
@@ -1866,7 +1858,7 @@ def _a_teardown_under_a_starved_screen(tmp_path, *, now) -> tuple[_AStarvedClosi
 class TestAClosingScreenStarvedOfProcessor:
     def test_is_given_its_time_to_paint_on_the_clock_it_is_handed(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            windows_bridge_orchestrator, "CLOSING_SCREEN_READY_CEILING_S", 0.05
+            session_ending, "CLOSING_SCREEN_READY_CEILING_S", 0.05
         )
 
         _screen, painted = _a_teardown_under_a_starved_screen(tmp_path, now=lambda: 0.0)

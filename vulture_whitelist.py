@@ -33,6 +33,12 @@ _.current_flick  # main_funestra.genau, off the engine
 _.playhead  # main_funestra.genau, off the engine
 _.time_on_screen  # main_funestra.genau, off the engine
 _.manifest_fields  # fun_time_vr.orchestrator carries Genau's settings into the manifest
+_.raise_it  # fun_time.session_ending's closing screen asks the headset's painter to start
+_.still_up  # fun_time.session_ending's closing screen waits while the headset can still paint
+_.take_it_down  # fun_time.session_ending's closing screen hands the headset's painter its end
+_.end_the_children  # fun_time.session_ending ends the headset's children with it
+_.stop_the_keys  # fun_time.session_ending stops the headset's hotkey script with it
+_.last_of_all  # fun_time.session_ending lets the headset release its runtime with it
 from_channel  # satellite.contract; fun_time_vr's Funestra and the sequencer
 from_manifest  # genau_config and main_funestra.contract; fun_time_vr's Funestras
 top_block  # main_funestra.kino; funestra's Funestra heads its HUD with it

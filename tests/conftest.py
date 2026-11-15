@@ -18,6 +18,7 @@ from fun_time import (
     loading_screen,
     orchestrator,
     raising_the_loading_screen,
+    session_ending,
     session_handoff,
     transition_screen,
     win32,
@@ -95,10 +96,11 @@ def _no_session_run_in_this_process_takes_his_loopback_port(monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
 
 
-_THE_HOLD_THE_ORCHESTRATOR_TIMES_WITHOUT_THE_LOOKUP = "CLOSING_SCREEN_READY_CEILING_S"
-_THE_BUDGET_A_TESTS_OWN_WAITER_WOULD_STILL_SPEND = "POST_LOADING_RESOLVE_TIMEOUT_S"
+_THE_HOLD_THE_ENDING_TIMES_WITHOUT_THE_LOOKUP = (session_ending, "CLOSING_SCREEN_READY_CEILING_S")
+_THE_BUDGET_A_TESTS_OWN_WAITER_WOULD_STILL_SPEND = (
+    windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S")
 _STARTUP_TIMEOUTS_OTHER_TESTS_PIN_AS_PRODUCTION_NUMBERS = (
-    _THE_HOLD_THE_ORCHESTRATOR_TIMES_WITHOUT_THE_LOOKUP,
+    _THE_HOLD_THE_ENDING_TIMES_WITHOUT_THE_LOOKUP,
     _THE_BUDGET_A_TESTS_OWN_WAITER_WOULD_STILL_SPEND,
 )
 
@@ -110,8 +112,8 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "wait_for_window_by_title",
                         lambda _title, **_kwargs: 0)
     monkeypatch.setattr(raising_the_loading_screen, "wait_for_window", lambda _find, _timeout_s: 0)
-    for timeout in _STARTUP_TIMEOUTS_OTHER_TESTS_PIN_AS_PRODUCTION_NUMBERS:
-        monkeypatch.setattr(windows_bridge_orchestrator, timeout, 0)
+    for module, timeout in _STARTUP_TIMEOUTS_OTHER_TESTS_PIN_AS_PRODUCTION_NUMBERS:
+        monkeypatch.setattr(module, timeout, 0)
 
 
 _SCREENS_OVER_EVERY_MONITOR = (loading_screen, transition_screen, closing_screen)

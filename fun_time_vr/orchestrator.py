@@ -69,7 +69,6 @@ from fun_time.overlay_progress import (
     PhaseProgress,
     ProgressReporter,
     StartupCancelled,
-    ready_file_for,
     what_the_flag_asks,
 )
 from fun_time.project_paths import HOTKEY_SCRIPT_NAME, PROJECT_DIR
@@ -81,19 +80,26 @@ from fun_time.session_end import (
     describe_session_end,
     wait_for_the_session_to_end,
 )
+from fun_time.session_ending import (
+    SessionEnding,
+    TheControls,
+    closing_screen,
+    end_the_session,
+    esc_called_the_quit_off,
+    turn_back,
+)
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
     DESKTOP,
     VR,
+    HandoffTarget,
     drop_transition_screen,
     forget_a_request_a_crash_left_behind,
     hand_over_if_asked,
     headset_is_held,
     hold_the_headset,
     keep_the_transition_screen,
-    launch_the_way_back_screen,
     launch_transition_screen,
-    pending_handoff,
     release_the_headset,
     request_handoff,
     say_the_crossing_is_cancelled,
@@ -107,7 +113,6 @@ from fun_time.single_instance import (
 )
 from fun_time.startup_steps import timed_step
 from fun_time.state_file_names import take_up_the_retired_state_file_names
-from fun_time.voice_control import VoiceController
 from fun_time.vr_videos import shapes_verb
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -117,7 +122,6 @@ from fun_time.windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from fun_time.windows_bridge_orchestrator import (
-    CLOSING_SCREEN_READY_CEILING_S,
     ChildProcess,
     PreparedVoice,
     clear_last_sessions_leftovers,
@@ -130,7 +134,6 @@ from fun_time.windows_bridge_orchestrator import (
     see_the_hosted_app_out,
     start_hud_priming,
     start_voice_control,
-    stop_everything,
     stop_hotkey_script,
     write_pids_file,
 )
@@ -146,7 +149,6 @@ from .loading_screen import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
     scene_ready_file,
-    wait_for_loading_screen_painted,
 )
 
 VR_STARTUP_MARKER_NAME = VR.ready_marker
@@ -305,29 +307,28 @@ def _cancel_vr_startup(
     return 0
 
 
-@contextlib.contextmanager
-def _closing_screen(
-    state_dir: Path, funestra: subprocess.Popen, *, enabled: bool, esc_cancels: str = "",
-) -> Iterator[ProgressReporter]:
-    if not enabled:
-        yield NullProgress()
-        return
+class _TheHeadsetPaintsIt:
+    def __init__(self, funestra: subprocess.Popen) -> None:
+        self._funestra = funestra
 
-    progress_file = state_dir / SHUTDOWN_PROGRESS_FILENAME
-    ready_file = ready_file_for(progress_file)
-    ready_file.unlink(missing_ok=True)
-    shutdown = PhaseProgress(progress_file, phases=VR_SHUTDOWN_PHASES, hint=esc_cancels)
-    shutdown.advance("controls")
-    wait_for_loading_screen_painted(
-        ready_file,
-        still_alive=lambda: funestra.poll() is None,
-        timeout_s=CLOSING_SCREEN_READY_CEILING_S,
-    )
-    try:
-        yield shutdown
-    finally:
-        progress_file.unlink(missing_ok=True)
-        ready_file.unlink(missing_ok=True)
+    def raise_it(self) -> None:
+        pass
+
+    def still_up(self) -> bool:
+        return self._funestra.poll() is None
+
+    def take_it_down(self, progress: PhaseProgress) -> None:
+        pass
+
+
+def _closing_screen_in_the_headset(
+    state_dir: Path, funestra: subprocess.Popen, *, enabled: bool, esc_cancels: str = "",
+) -> contextlib.AbstractContextManager[ProgressReporter]:
+    if not enabled:
+        return contextlib.nullcontext(NullProgress())
+    return closing_screen(
+        state_dir / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES, hint=esc_cancels,
+        painter=_TheHeadsetPaintsIt(funestra))
 
 
 @dataclass(frozen=True)
@@ -406,14 +407,6 @@ class _Launched:
             pid=pid, created_at=process_started(pid) or 0)
 
 
-@dataclass(frozen=True)
-class _Running:
-    dispatch_runner: DispatchLoopRunner
-    dispatch_thread: threading.Thread
-    voice_controller: VoiceController | None
-    voice_thread: threading.Thread | None
-
-
 def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -> int:
     launch = _prepare_the_launch(config, env, cancelable=cancelable)
     launched = _Launched()
@@ -442,7 +435,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         return _cancel_vr_startup(launch, launched, ahk_proc)
 
     try:
-        running = _open_the_room(launch, launched, carried, hud_publisher)
+        controls = _open_the_room(launch, launched, carried, hud_publisher)
     except OrigeneratorNeverCameUp:
         logger.error("Origenerator never finished starting; tearing down %d launched "
                      "child(ren)", len(launched.children))
@@ -456,7 +449,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         _take_down_the_launch(launch, launched, ahk_proc)
         drop_transition_screen(launch.state_dir)
         raise
-    return _hold_the_session(launch, launched, running, ahk_proc)
+    return _hold_the_session(launch, launched, controls, ahk_proc)
 
 
 def _resume_the_room(launch: _Launch) -> BridgeState:
@@ -523,7 +516,7 @@ def _no_windows_on_the_desktop() -> FunTimeWindows:
 
 def _open_the_room(
     launch: _Launch, launched: _Launched, carried: BridgeState, hud_publisher,
-) -> _Running:
+) -> TheControls:
     manifest, state_dir, progress = launch.manifest, launch.state_dir, launch.progress
     hosted = launched.hosted
     publishing_to_the_dashboard_in_the_room = Publishing(
@@ -554,11 +547,11 @@ def _open_the_room(
     dispatch_thread = threading.Thread(
         target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
-    return _Running(dispatch_runner, dispatch_thread, voice_controller, voice_thread)
+    return TheControls(dispatch_runner, dispatch_thread, voice_controller, voice_thread)
 
 
 def _hold_the_session(
-    launch: _Launch, launched: _Launched, running: _Running, ahk_proc: subprocess.Popen,
+    launch: _Launch, launched: _Launched, controls: TheControls, ahk_proc: subprocess.Popen,
 ) -> int:
     state_dir, funestra = launch.state_dir, launched.funestra
     parts = {key: child for key, child in launched.children.items() if key != "vr_funestras_pid"}
@@ -573,7 +566,7 @@ def _hold_the_session(
         logger.info("Interrupted -- shutting down")
         exit_code = 1
     finally:
-        _close_the_session(launch, launched, running, ahk_proc, asked=asked)
+        _close_the_session(launch, launched, controls, ahk_proc, asked=asked)
     if closed is not None:
         show_funestra_died_alert(part_closed_message(closed))
     return exit_code
@@ -596,63 +589,71 @@ def _the_sessions_end(
 
 
 def _close_the_session(
-    launch: _Launch, launched: _Launched, running: _Running, ahk_proc: subprocess.Popen, *,
+    launch: _Launch, launched: _Launched, controls: TheControls, ahk_proc: subprocess.Popen, *,
     asked: bool,
 ) -> None:
-    manifest, commands, state_dir = launch.manifest, launch.commands, launch.state_dir
-    funestra = launched.funestra
-    stop_everything(manifest, (running.dispatch_runner, running.dispatch_thread))
-    held = back_to_vr = False
-    if (crossing := pending_handoff(state_dir)) is not None:
-        launch_transition_screen(state_dir, crossing,
-                              sibling_checkouts=manifest.runtime.sibling_checkouts)
-    esc_cancels = (crossing.crossing_hint if crossing is not None
-                   else CANCEL_CLOSING_FUN_TIME_VR if asked else "")
-    the_funestra_can_still_draw_it = funestra.poll() is None
-    with _closing_screen(
-        state_dir, funestra, enabled=the_funestra_can_still_draw_it, esc_cancels=esc_cancels,
-    ) as shutdown:
+    end_the_session(
+        SessionEnding(
+            state_dir=launch.state_dir, manifest=launch.manifest, controls=controls,
+            quit_hint=CANCEL_CLOSING_FUN_TIME_VR, esc_over_a_crossing=True),
+        _TheHeadsetsEnding(launch, launched, ahk_proc),
+        asked=asked)
+
+
+@dataclass
+class _TheHeadsetsEnding:
+    launch: _Launch
+    launched: _Launched
+    ahk_proc: subprocess.Popen
+    held: bool = False
+    turned_back: bool = False
+
+    @contextlib.contextmanager
+    def closing_screen(self, crossing: HandoffTarget | None, hint: str,
+                       ) -> Iterator[ProgressReporter]:
+        state_dir, funestra = self.launch.state_dir, self.launched.funestra
         if crossing is not None:
-            hold_the_headset(state_dir, stop_runtime=not launched.runtime_was_up)
-        _stop_the_controls(running)
+            launch_transition_screen(
+                state_dir, crossing,
+                sibling_checkouts=self.launch.manifest.runtime.sibling_checkouts)
+        with _closing_screen_in_the_headset(
+            state_dir, funestra, enabled=funestra.poll() is None, esc_cancels=hint,
+        ) as shutdown:
+            if crossing is not None:
+                hold_the_headset(state_dir, stop_runtime=not self.launched.runtime_was_up)
+            yield shutdown
+
+    def end_the_children(self, shutdown: ProgressReporter, crossing: HandoffTarget | None,
+                         hint: str) -> None:
+        state_dir, children = self.launch.state_dir, self.launched.children
         shutdown.advance("companions")
         with shutdown.loading_screen_kept_up():
-            kill_recorded_child(launched.children["audio_pid"])
+            kill_recorded_child(children["audio_pid"])
         shutdown.advance("funestras")
-        back_to_vr = (crossing is None and esc_cancels != ""
-                      and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
-        if back_to_vr:
-            logger.info("Esc called the quit off; opening Fun Time VR again")
-            launch_the_way_back_screen(
-                state_dir, sibling_checkouts=manifest.runtime.sibling_checkouts,
-            )
-            request_handoff(state_dir, VR, cancelable=False)
+        self.turned_back = esc_called_the_quit_off(state_dir, crossing, hint)
+        if self.turned_back:
+            turn_back(state_dir, VR, sibling_checkouts=self.launch.manifest.runtime.sibling_checkouts,
+                      wait_for_it=False)
             hold_the_headset(state_dir, stop_runtime=False)
-        hosted_app = launched.children.get("origenerator_pid")
+        staying = crossing is not None or self.turned_back
+        hosted_app = children.get("origenerator_pid")
         if hosted_app is not None and not see_the_hosted_app_out(
-                state_dir, hosted_app, Path(commands.origenerator_cmd_file),
-                keep=crossing is not None or back_to_vr,
-                taken_over=launched.hosted_taken_over):
+                state_dir, hosted_app, Path(self.launch.commands.origenerator_cmd_file),
+                keep=staying, taken_over=self.launched.hosted_taken_over):
             with shutdown.loading_screen_kept_up():
                 kill_recorded_child(hosted_app)
-        held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
-            state_dir, funestra,
-        )
-        if not held:
+        self.held = staying and _wait_for_the_headset_hold(state_dir, self.launched.funestra)
+        if not self.held:
             with shutdown.loading_screen_kept_up():
-                kill_recorded_child(launched.children["vr_funestras_pid"])
-        if crossing is None:
-            stop_hotkey_script(ahk_proc, launch.ahk_cmd_file)
-    if not held and not back_to_vr:
-        _release_vr_runtime(launched.runtime_was_up, state_dir)
+                kill_recorded_child(children["vr_funestras_pid"])
 
+    def stop_the_keys(self) -> None:
+        stop_hotkey_script(self.ahk_proc, self.launch.ahk_cmd_file)
 
-def _stop_the_controls(running: _Running) -> None:
-    if running.voice_controller is not None:
-        running.voice_controller.stop()
-    if running.voice_thread is not None:
-        running.voice_thread.join(timeout=2.0)
-    running.dispatch_runner.close()
+    def last_of_all(self, crossing: HandoffTarget | None, hint: str) -> None:
+        if not self.held and not self.turned_back:
+            _release_vr_runtime(self.launched.runtime_was_up, self.launch.state_dir)
+
 
 def _wait_for_the_headset_hold(state_dir: Path, funestra: subprocess.Popen) -> bool:
     deadline = time.monotonic() + HEADSET_CLOSES_ITS_CHANNELS_TIMEOUT_S

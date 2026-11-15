@@ -48,7 +48,6 @@ from fun_time_vr.loading_screen import (
     SceneReady,
     paint_loading_screen,
     scene_ready_file,
-    wait_for_loading_screen_painted,
 )
 
 
@@ -120,11 +119,6 @@ class TestThePhases:
             phase.key for phase in VR_STARTUP_PHASES}
 
         assert {"browser", "windows"} <= the_desktops_alone
-
-    def test_no_shutdown_phase_the_orchestrator_reports_is_a_keyerror_in_the_headset(self):
-        reported = self._advanced_keys(r'\bshutdown\.advance\("([a-z_]+)"\)')
-
-        assert reported == {phase.key for phase in VR_SHUTDOWN_PHASES}
 
     def test_only_the_last_phase_claims_no_time(self):
         seconds = [phase.seconds for phase in VR_STARTUP_PHASES]
@@ -441,30 +435,6 @@ class TestGivingUp:
 class TestTheReadyFlag:
     def test_it_is_the_one_the_desktops_closing_screen_drops(self, tmp_path: Path):
         assert LoadingScreenWatcher(tmp_path).ready_file == tmp_path / SHUTDOWN_READY_FILENAME
-
-    def test_the_flag_landing_is_what_teardown_was_waiting_for(self, tmp_path: Path):
-        ready = tmp_path / SHUTDOWN_READY_FILENAME
-        ready.write_text("", encoding="utf-8")
-
-        assert wait_for_loading_screen_painted(
-            ready, still_alive=lambda: True, timeout_s=5.0, sleep=lambda _s: None)
-
-    def test_a_funestra_that_is_already_gone_is_not_waited_for(self, tmp_path: Path):
-        assert not wait_for_loading_screen_painted(
-            tmp_path / SHUTDOWN_READY_FILENAME,
-            still_alive=lambda: False, timeout_s=5.0, sleep=lambda _s: None,
-        )
-
-    def test_a_silent_funestra_is_given_up_on_at_the_deadline(self, tmp_path: Path):
-        clock = _Clock()
-
-        def sleep(seconds: float) -> None:
-            clock.now += seconds
-
-        assert not wait_for_loading_screen_painted(
-            tmp_path / SHUTDOWN_READY_FILENAME,
-            still_alive=lambda: True, timeout_s=1.0, clock=clock, sleep=sleep,
-        )
 
 
 class TestPainting:
