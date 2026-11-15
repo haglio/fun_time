@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from app_support.kino_folder import is_ai_video
+from app_support.local_time import when_words
 
 from .content import WebProvider, provider_that_made
 from .gallery import Gallery
@@ -32,7 +33,11 @@ _VIDEO_SETTINGS = [
 
 
 def _settings_pairs(block: dict, keys: list[tuple[str, str]]) -> list[list[str]]:
-    return [[label, str(block[key])] for label, key in keys if block.get(key)]
+    return [[label, _shown(key, str(block[key]))] for label, key in keys if block.get(key)]
+
+
+def _shown(key: str, value: str) -> str:
+    return when_words(value) if key == "created" else value
 
 
 def build_payload(metadata: dict) -> dict:
