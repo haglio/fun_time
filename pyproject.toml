@@ -87,7 +87,6 @@ not-unit-tested = [
     { path = "fun_time_vr/gl_contexts.py", because = "needs a graphics context" },
     { path = "fun_time_vr/render.py", because = "needs a graphics context" },
     { path = "fun_time_vr/app.py", because = "the headset's shell: needs a headset" },
-    { path = "fun_time_vr/vr_session.py", because = "needs a headset and a graphics context" },
     { path = "fun_time_vr/windows_sound.py", because = "sets Windows' default sound devices: a test would change the machine's" },
 ]
 

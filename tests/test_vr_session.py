@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import ast
-import inspect
 import logging
-import textwrap
 from types import SimpleNamespace
 
 import pytest
@@ -30,7 +27,16 @@ from fun_time_vr.view_tracking import (
     views_are_renderable,
     views_are_tracked,
 )
-from fun_time_vr.vr_session import SwapchainInfo, VRSession
+from fun_time_vr.vr_session import VRSession
+from tests.openxr_fakes import (
+    EYE_SIZE,
+    IMAGES_PER_SWAPCHAIN,
+    FakeOpenXR,
+    FakeSceneWindow,
+    address_of,
+    recentered,
+    state_changed,
+)
 
 
 def test_a_fully_tracked_view_is_renderable():
@@ -368,119 +374,281 @@ class TestControllerBindings:
         assert any("htc/vive" in p for p in profiles)
 
 
-def _call_lines_in(method) -> dict[str, int]:
-    return {ast.unparse(node.func): node.lineno
-            for node in ast.walk(ast.parse(textwrap.dedent(inspect.getsource(method))))
-            if isinstance(node, ast.Call)}
+def _a_session(*, journal=None, **runtime_kwargs):
+    journal = [] if journal is None else journal
+    runtime = FakeOpenXR(journal, **runtime_kwargs)
+    scene = FakeSceneWindow(journal)
+    return VRSession(runtime=runtime, scene=scene), runtime, scene
 
 
-def test_the_scene_window_wears_its_button_before_openxr_takes_the_thread():
-    showing_the_window = _call_lines_in(VRSession._init_glfw)
-    bringing_the_session_up = _call_lines_in(VRSession.__init__)
-
-    assert (showing_the_window["self._wear_the_sessions_taskbar_button"]
-            < showing_the_window["minimize_window"])
-    assert (bringing_the_session_up["self._init_glfw"]
-            < bringing_the_session_up["self._init_openxr"])
+def _the_bindings_each_profile_suggests() -> dict[str, list[tuple[str, str]]]:
+    return {profile: sorted((name, path) for name, paths in bindings.items() for path in paths)
+            for profile, bindings in CONTROLLER_BINDINGS.items()}
 
 
-class _SessionStateEvents:
-    def __init__(self, *states):
-        self._queue = list(states)
+class TestEnteringVR:
+    def test_the_scene_window_is_up_before_openxr_takes_the_thread(self):
+        journal: list[str] = []
+        _a_session(journal=journal)
 
-    def __call__(self, _instance):
-        if not self._queue:
-            raise xr.EventUnavailable
-        event = xr.EventDataSessionStateChanged(state=self._queue.pop(0))
-        event.type = xr.StructureType.EVENT_DATA_SESSION_STATE_CHANGED
-        return event
+        assert journal.index("open the scene window Fun Time VR") < journal.index("create Instance")
+
+    def test_the_runtime_is_asked_what_opengl_it_needs_before_the_session_is_made(self):
+        _session, runtime, _scene = _a_session()
+
+        assert (runtime.journal.index("ask what OpenGL it needs")
+                < runtime.journal.index("create Session"))
+
+    def test_each_eye_gets_a_swapchain_the_size_the_runtime_recommends(self):
+        session, _runtime, _scene = _a_session()
+
+        assert [(info.width, info.height, len(info.images)) for info in session.swapchains] == [
+            (*EYE_SIZE, IMAGES_PER_SWAPCHAIN)] * 2
+
+    def test_the_funestras_share_the_scene_windows_contexts(self):
+        session, _runtime, scene = _a_session()
+
+        assert session.shared_contexts() is scene.contexts
+
+    def test_a_bring_up_that_fails_part_way_leaves_nothing_for_the_retry(self):
+        journal: list[str] = []
+        with pytest.raises(xr.ResultException):
+            _a_session(journal=journal, refuses={"create Swapchain"})
+
+        runtime_left = [line for line in journal if line.startswith("destroy")]
+        assert runtime_left == ["destroy Space", "destroy Space", "destroy Space",
+                                "destroy Session", "destroy Instance"]
+        assert journal[-1] == "close the scene window"
+
+    def test_a_bring_up_whose_teardown_also_fails_still_says_why_it_failed(self):
+        with pytest.raises(xr.ResultException, match="create Swapchain"):
+            _a_session(refuses={"create Swapchain", "destroy Session"})
 
 
-def _a_session_off_a_headset(monkeypatch):
-    session = VRSession.__new__(VRSession)
-    session._instance = object()
-    session._session = object()
-    session._space = xr.Space()
-    views = TrackedViews()
-    session._views = views
-    session._views_to_draw = views.to_draw
-    session._period_logged = True
-    session.swapchains = [SwapchainInfo(xr.Swapchain(), 640, 480)]
-    calls: list[str] = []
-    quads = QuadSwapchains(make=lambda w, h: SwapchainInfo(xr.Swapchain(), w, h),
-                           destroy=lambda _handle: calls.append("destroyed"))
-    session._quads = quads
-    session._quads_frame_ended = quads.frame_ended
-    SessionStates.__init__(session, begin=session._begin_session, end=session._end_session)
-    monkeypatch.setattr(xr, "begin_session", lambda *_a, **_kw: calls.append("begin"))
-    monkeypatch.setattr(xr, "end_session", lambda *_a, **_kw: calls.append("end"))
-    return session, calls
+class TestTheControllerBindings:
+    def test_every_controller_the_family_meets_is_offered_its_bindings(self):
+        _session, runtime, _scene = _a_session()
+
+        assert runtime.suggested == _the_bindings_each_profile_suggests()
+
+    def test_a_controller_the_runtime_does_not_know_leaves_the_others_bound(self):
+        refused = "/interaction_profiles/htc/vive_controller"
+
+        _session, runtime, _scene = _a_session(refuses_profiles={refused})
+
+        expected = _the_bindings_each_profile_suggests()
+        del expected[refused]
+        assert runtime.suggested == expected
+        assert runtime.attached == [1]
+
+    def test_either_hand_aims_from_a_space_of_its_own(self):
+        _session, runtime, _scene = _a_session()
+
+        made_after_the_room = runtime.journal[runtime.journal.index("create ActionSet"):]
+        assert made_after_the_room.count("create Space") == 2
+
+    def test_a_runtime_that_will_not_take_the_controls_leaves_the_keys_and_voice(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="fun_time_vr.vr_session"):
+            session, _runtime, _scene = _a_session(refuses={"attach the controls"})
+
+        session.sync_controller(5)
+
+        assert session.hands == no_hands()
+        assert "the keys and voice still work" in caplog.text
+
+    def test_the_controllers_are_read_through_the_same_runtime(self):
+        session, _runtime, _scene = _a_session()
+
+        session.sync_controller(5)
+
+        assert session.hands == {LEFT: HandInput(), RIGHT: HandInput()}
 
 
-def test_what_the_runtime_reports_reaches_the_sessions_state(monkeypatch):
-    session, calls = _a_session_off_a_headset(monkeypatch)
-    monkeypatch.setattr(xr, "poll_event", _SessionStateEvents(
-        xr.SessionState.READY, xr.SessionState.FOCUSED))
-
+def _the_runtime_reports(session, runtime, *states):
+    runtime.events.extend(state_changed(state) for state in states)
     session.poll_events()
 
-    assert calls == ["begin"]
-    assert (session.session_ready, session.focused, session.running) == (True, True, True)
+
+def _sessions_begun_and_ended(runtime) -> list[str]:
+    return [line for line in runtime.journal if line in ("begin the session", "end the session")]
 
 
-def _the_layers_it_ends_a_frame_with(session, monkeypatch, views, **kwargs):
-    ended = []
-    monkeypatch.setattr(xr, "end_frame", lambda _session, info: ended.append(info))
+class TestTakingTheHeadsetOffAndOn:
+    def test_a_headset_put_on_begins_the_session_and_draws_for_the_wearer(self):
+        session, runtime, _scene = _a_session()
+
+        _the_runtime_reports(session, runtime, xr.SessionState.READY,
+                             xr.SessionState.SYNCHRONIZED, xr.SessionState.VISIBLE,
+                             xr.SessionState.FOCUSED)
+
+        assert _sessions_begun_and_ended(runtime) == ["begin the session"]
+        assert (session.session_ready, session.focused, session.draws_frames) == (True, True, True)
+
+    def test_a_headset_taken_off_ends_the_session_but_keeps_it_running(self):
+        session, runtime, _scene = _a_session()
+        _the_runtime_reports(session, runtime, xr.SessionState.READY, xr.SessionState.FOCUSED)
+
+        _the_runtime_reports(session, runtime, xr.SessionState.VISIBLE,
+                             xr.SessionState.SYNCHRONIZED, xr.SessionState.STOPPING)
+
+        assert _sessions_begun_and_ended(runtime) == ["begin the session", "end the session"]
+        assert (session.session_ready, session.focused, session.running) == (False, False, True)
+
+    def test_a_headset_put_back_on_begins_the_session_again(self):
+        session, runtime, _scene = _a_session()
+        _the_runtime_reports(session, runtime, xr.SessionState.READY, xr.SessionState.FOCUSED,
+                             xr.SessionState.STOPPING)
+
+        _the_runtime_reports(session, runtime, xr.SessionState.READY, xr.SessionState.FOCUSED)
+
+        assert _sessions_begun_and_ended(runtime) == [
+            "begin the session", "end the session", "begin the session"]
+        assert (session.session_ready, session.focused) == (True, True)
+
+    def test_a_headset_lost_to_the_runtime_stops_the_session(self):
+        session, runtime, _scene = _a_session()
+
+        _the_runtime_reports(session, runtime, xr.SessionState.READY,
+                             xr.SessionState.LOSS_PENDING)
+
+        assert session.running is False
+
+    def test_a_recenter_swaps_the_room_for_a_new_space_and_frees_the_old(self):
+        session, runtime, _scene = _a_session()
+        spaces_before = runtime.kinds_living().count("Space")
+        runtime.events.append(recentered())
+
+        session.poll_events()
+
+        assert runtime.journal[-2:] == ["create Space", "destroy Space"]
+        assert runtime.kinds_living().count("Space") == spaces_before
+
+
+class TestLeavingVR:
+    def test_closing_frees_everything_the_session_made(self):
+        session, runtime, _scene = _a_session()
+        session.ensure_quad_swapchain(0, 200, 100)
+
+        session.close()
+
+        assert runtime.kinds_living() == []
+
+    def test_closing_a_running_session_asks_it_to_exit_first(self):
+        session, runtime, _scene = _a_session()
+        _the_runtime_reports(session, runtime, xr.SessionState.READY, xr.SessionState.FOCUSED)
+
+        session.close()
+
+        closing = runtime.journal[runtime.journal.index("ask the session to exit"):]
+        assert closing[1:] == ["destroy Swapchain", "destroy Swapchain", "destroy Space",
+                               "destroy Space", "destroy Space", "destroy Session",
+                               "destroy Instance", "close the scene window"]
+
+    def test_a_session_the_runtime_has_already_ended_is_not_asked_to_exit(self):
+        session, runtime, _scene = _a_session()
+        _the_runtime_reports(session, runtime, xr.SessionState.READY, xr.SessionState.EXITING)
+
+        session.close()
+
+        assert "ask the session to exit" not in runtime.journal
+        assert runtime.kinds_living() == []
+
+    def test_a_runtime_that_refuses_the_exit_is_closed_all_the_same(self):
+        session, runtime, _scene = _a_session(refuses={"ask the session to exit"})
+        _the_runtime_reports(session, runtime, xr.SessionState.READY)
+
+        session.close()
+
+        assert runtime.kinds_living() == []
+
+
+def _a_session_drawing(**runtime_kwargs):
+    session, runtime, scene = _a_session(**runtime_kwargs)
+    _the_runtime_reports(session, runtime, xr.SessionState.READY, xr.SessionState.FOCUSED)
+    return session, runtime, scene
+
+
+def _the_layers_it_ends_a_frame_with(session, runtime, views, **kwargs):
     session.frame_end(7, views, **kwargs)
-    return ended[0].layer_count
+    return runtime.ended_frames[-1].layer_count
 
 
-def test_a_frame_with_views_ends_with_the_scene_on_the_headset(monkeypatch):
-    session, _calls = _a_session_off_a_headset(monkeypatch)
+def test_a_frame_with_views_ends_with_the_scene_on_the_headset():
+    session, runtime, _scene = _a_session_drawing()
 
-    assert _the_layers_it_ends_a_frame_with(session, monkeypatch, [xr.View()]) == 1
-
-
-def test_a_frame_with_no_views_ends_with_no_layers(monkeypatch):
-    session, _calls = _a_session_off_a_headset(monkeypatch)
-
-    assert _the_layers_it_ends_a_frame_with(session, monkeypatch, []) == 0
+    assert _the_layers_it_ends_a_frame_with(session, runtime, [xr.View()]) == 1
 
 
-def test_a_frame_with_a_quad_submits_it_and_lets_old_quads_retire(monkeypatch):
-    session, calls = _a_session_off_a_headset(monkeypatch)
-    session._quads.ensure(0, 100, 100)
-    session._quads.ensure(0, 200, 100)
+def test_a_frame_with_no_views_ends_with_no_layers():
+    session, runtime, _scene = _a_session_drawing()
+
+    assert _the_layers_it_ends_a_frame_with(session, runtime, []) == 0
+
+
+def test_a_frame_with_a_quad_submits_it_and_lets_old_quads_retire():
+    session, runtime, _scene = _a_session_drawing()
+    session.ensure_quad_swapchain(0, 100, 100)
+    session.ensure_quad_swapchain(0, 200, 100)
     quad = SimpleNamespace(swapchain_index=0, orientation=(0, 0, 0, 1), position=(0, 0, 0),
                            size=(1, 1))
+    swapchains_while_both_live = runtime.kinds_living().count("Swapchain")
 
     for _frame in range(RETIRE_AFTER_FRAMES):
         layers = _the_layers_it_ends_a_frame_with(
-            session, monkeypatch, [xr.View()], project=False, quads=[quad])
+            session, runtime, [xr.View()], project=False, quads=[quad])
 
     assert layers == 1
-    assert calls == ["destroyed"]
+    assert runtime.kinds_living().count("Swapchain") == swapchains_while_both_live - 1
 
 
-def _a_frame_starting(monkeypatch):
-    session, _calls = _a_session_off_a_headset(monkeypatch)
-    monkeypatch.setattr(xr, "wait_frame", lambda *_a: SimpleNamespace(
-        should_render=True, predicted_display_period=0, predicted_display_time=5))
-    monkeypatch.setattr(xr, "begin_frame", lambda *_a: None)
-    return session
-
-
-def test_a_frame_the_runtime_will_not_show_locates_no_views(monkeypatch):
-    session = _a_frame_starting(monkeypatch)
+def test_a_frame_the_runtime_will_not_show_locates_no_views():
+    session, _runtime, _scene = _a_session_drawing(should_render=False)
 
     assert session.frame_begin() == (False, 5, [])
 
 
-def test_a_frame_the_runtime_shows_draws_the_views_it_located(monkeypatch):
-    session = _a_frame_starting(monkeypatch)
-    session.heard(xr.SessionState.FOCUSED)
-    monkeypatch.setattr(xr, "locate_views", lambda *_a: (
-        SimpleNamespace(view_state_flags=_TRACKED), ("left", "right")))
+def test_a_frame_the_headset_is_not_showing_yet_locates_no_views():
+    session, _runtime, _scene = _a_session()
 
-    assert session.frame_begin() == (True, 5, ["left", "right"])
+    assert session.frame_begin() == (False, 5, [])
+
+
+def test_a_frame_the_runtime_shows_draws_the_views_it_located():
+    session, _runtime, _scene = _a_session_drawing()
+
+    should_render, display_time, views = session.frame_begin()
+
+    assert (should_render, display_time, len(views)) == (True, 5, 2)
     assert session.views_tracked is True
+
+
+def test_each_eye_is_drawn_into_the_image_the_runtime_handed_over_then_given_back():
+    session, runtime, scene = _a_session_drawing()
+    eye = session.swapchains[1]
+
+    session.bind_eye_framebuffer(1)
+    session.release_eye_framebuffer(1)
+
+    assert scene.drawn_into == [(eye.images[1], *EYE_SIZE)]
+    assert runtime.journal[-2:] == [
+        "done drawing", f"release an image of {address_of(eye.handle):#x}"]
+
+
+def test_a_quad_is_drawn_into_its_own_swapchains_image():
+    session, runtime, scene = _a_session_drawing()
+    session.ensure_quad_swapchain(0, 200, 100)
+    quad = session._quads[0]
+
+    session.bind_quad_framebuffer(0)
+    session.release_quad_framebuffer(0)
+
+    assert scene.drawn_into == [(quad.images[1], 200, 100)]
+    assert runtime.journal[-1] == f"release an image of {address_of(quad.handle):#x}"
+
+
+def test_the_scene_windows_close_box_is_heard():
+    session, _runtime, scene = _a_session()
+    scene.asked_to_close = True
+
+    assert session.window_close_requested() is True
+

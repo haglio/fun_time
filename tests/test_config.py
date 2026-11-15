@@ -507,7 +507,7 @@ class TestTheProjectsOwnPaths:
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
         wants = {
             "fun_time/process_identity.py": "PROJECT_ICON",
-            "fun_time_vr/vr_session.py": "PROJECT_VR_ICON",
+            "fun_time_vr/gl_contexts.py": "PROJECT_VR_ICON",
             "fun_time/overlay_window.py": "PROJECT_ICON",
             "fun_time/dashboard_app.py": "PROJECT_ICON",
         }
