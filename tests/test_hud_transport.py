@@ -84,6 +84,15 @@ def test_the_satellite_adds_no_button_of_its_own_to_funestras_list():
     assert satellite.osr2_rows == ()
 
 
+def test_the_satellite_s_facts_say_its_item_is_a_favorite_as_the_slideshow_published():
+    published = replace(_SLIDESHOW, is_favorite=True)
+
+    worn = hosted_model("portrait", published, SatelliteState(), in_vr=False, crowned=False,
+                        active=False, osr2=None)
+
+    assert (worn.facts.favorite, _satellite().facts.favorite) == (True, False)
+
+
 def test_the_satellite_answers_to_its_own_name_whatever_the_slideshow_called_itself():
     published = replace(_SLIDESHOW, funestra="landscape",
                         facts=replace(_SLIDESHOW.facts, funestra="landscape"))

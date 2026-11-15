@@ -239,6 +239,15 @@ def test_the_main_hud_says_whether_what_it_shows_is_a_favorite():
     assert _payload().is_favorite is False
 
 
+@pytest.mark.parametrize(("main_mode", "trash"), [
+    (MainMode.KINO, "main_trash"), (MainMode.GENAU, "genau_trash_flick")])
+def test_a_favorite_s_trash_is_drawn_as_unfavorite_in_either_mode(main_mode, trash):
+    favorite = _payload(main_mode=main_mode, is_favorite=True)
+
+    assert favorite.facts.favorite is True
+    assert _button(favorite, trash).icon != _button(_payload(main_mode=main_mode), trash).icon
+
+
 def test_it_carries_the_osr2s_control_and_the_pause_the_room_holds():
     payload = _payload(osr2_control=OSR2_PARKED, paused=True)
 

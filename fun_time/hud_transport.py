@@ -20,7 +20,8 @@ def hosted_model(funestra: str, hosted: HudModel | None, held: SatelliteState, *
         return _with_the_funestras_own_buttons(hud, in_vr=in_vr, crowned=crowned,
                                                has_osr2=osr2 is not None)
     return replace(hud, kind=HudKind.SATELLITE, osr2_rows=(), facts=replace(
-        hud.facts, funestra=funestra, crowned=crowned, has_osr2=osr2 is not None, in_vr=in_vr))
+        hud.facts, funestra=funestra, crowned=crowned, has_osr2=osr2 is not None, in_vr=in_vr,
+        favorite=hud.is_favorite))
 
 
 def _with_the_funestras_own_buttons(hud: HudModel, *, in_vr: bool, crowned: bool,
