@@ -5,13 +5,14 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from ctypes import wintypes
 from pathlib import Path
 
 import pytest
-from app_support.threading_utils import wait_until
 from app_support.win32_loader import load_dll
 
+from tests.child_reports import a_child_of_this_venv, text_written_to
 from tests.integration import session_lock
 from tests.integration.session_lock import (
     Place,
@@ -26,6 +27,17 @@ pytestmark = pytest.mark.skipif(
 
 def _unique_name() -> str:
     return rf"Global\fun_time_test_lock_{uuid.uuid4().hex}"
+
+
+_LOOKS_EVERY_S = 0.05
+
+
+def _seen(look: Callable[[], object], *, while_running: threading.Thread) -> bool:
+    while not look():
+        if not while_running.is_alive():
+            return bool(look())
+        time.sleep(_LOOKS_EVERY_S)
+    return True
 
 
 def test_held_lock_blocks_a_second_caller():
@@ -44,7 +56,7 @@ def test_held_lock_blocks_a_second_caller():
 
         thread = threading.Thread(target=worker)
         thread.start()
-        thread.join(timeout=5)
+        thread.join()
         assert result.get("acquired") is False
     finally:
         holder.close()
@@ -71,7 +83,7 @@ def test_release_lets_the_next_caller_acquire():
     thread.start()
     time.sleep(LONG_ENOUGH_FOR_THE_WORKER_TO_BE_WAITING_S)
     holder.release()
-    thread.join(timeout=5)
+    thread.join()
     holder.close()
     assert result.get("acquired") is True
 
@@ -92,12 +104,9 @@ def test_windows_hands_a_dead_holders_mutex_to_the_next_waiter(tmp_path):
     sentinel = tmp_path / "held.flag"
     root = str(Path(__file__).resolve().parents[1])
     code = _HOLD_UNTIL_KILLED.format(root=root, name=name, sentinel=str(sentinel))
-    holder_proc = subprocess.Popen([sys.executable, "-c", code], cwd=root)
+    holder_proc = a_child_of_this_venv(code, cwd=root)
     try:
-        deadline = time.time() + 10
-        while time.time() < deadline and not sentinel.exists():
-            time.sleep(0.05)
-        assert sentinel.exists(), "subprocess never acquired the lock"
+        text_written_to(sentinel, by=holder_proc)
 
         contender = SingleInstanceLock(name)
         try:
@@ -117,10 +126,8 @@ def test_a_run_waiting_its_turn_gets_the_lock_when_the_run_holding_it_dies(tmp_p
     name = _unique_name()
     sentinel = tmp_path / "held.flag"
     root = str(Path(__file__).resolve().parents[1])
-    holder_proc = subprocess.Popen(
-        [sys.executable, "-c",
-         _HOLD_UNTIL_KILLED.format(root=root, name=name, sentinel=str(sentinel))],
-        cwd=root)
+    holder_proc = a_child_of_this_venv(
+        _HOLD_UNTIL_KILLED.format(root=root, name=name, sentinel=str(sentinel)), cwd=root)
     entered = threading.Event()
     noticed = threading.Event()
 
@@ -131,19 +138,20 @@ def test_a_run_waiting_its_turn_gets_the_lock_when_the_run_holding_it_dies(tmp_p
 
     waiter = threading.Thread(target=run)
     try:
-        wait_until(sentinel.exists, timeout=30.0)
+        text_written_to(sentinel, by=holder_proc)
         waiter.start()
-        assert noticed.wait(timeout=10.0)
+        assert _seen(noticed.is_set, while_running=waiter)
 
         holder_proc.kill()
         holder_proc.wait(timeout=10)
 
-        assert entered.wait(timeout=10.0)
+        assert _seen(entered.is_set, while_running=waiter)
     finally:
         if holder_proc.poll() is None:
             holder_proc.kill()
             holder_proc.wait(timeout=10)
-        waiter.join(timeout=10)
+        if waiter.ident is not None:
+            waiter.join()
 
 
 def test_a_lane_numbers_from_0_again_once_every_run_has_left_it():
@@ -168,7 +176,7 @@ def test_a_run_is_never_starved_by_runs_that_joined_the_line_after_it():
 
     blocker.close()
     for run in runs:
-        run.join(timeout=10)
+        run.join()
 
     assert order == [str(number) for number in range(6)]
 
@@ -190,13 +198,13 @@ def test_hold_integration_lock_queues_until_free_then_releases():
 
     thread = threading.Thread(target=contender)
     thread.start()
-    wait_until(the_contender_says_it_is_waiting, timeout=10.0)
+    assert _seen(the_contender_says_it_is_waiting, while_running=thread)
     assert not entered.is_set()
 
     blocker.release()
     blocker.close()
-    assert entered.wait(timeout=5) is True
-    thread.join(timeout=5)
+    thread.join()
+    assert entered.is_set()
 
     after = SingleInstanceLock(name)
     try:
@@ -226,7 +234,7 @@ def _join_in_turn(name: str, order: list[str], runs: int, **kind) -> list[thread
     started = []
     for number in range(runs):
         run, waiting = _start_run(name, order, str(number), **kind)
-        assert waiting.wait(timeout=10), f"run {number} never started waiting"
+        assert _seen(waiting.is_set, while_running=run), f"run {number} never started waiting"
         started.append(run)
     return started
 
@@ -247,7 +255,7 @@ def _a_short_run_holding_the_line(name: str) -> tuple[threading.Thread, threadin
 
     holder = threading.Thread(target=hold, daemon=True)
     holder.start()
-    assert holding.wait(timeout=10)
+    assert _seen(holding.is_set, while_running=holder)
     return holder, may_leave
 
 
@@ -257,14 +265,14 @@ def test_a_full_run_lets_a_short_run_that_came_after_it_go_first():
     order: list[str] = []
     full, full_giving_way = _start_run(
         name, order, "full", once=lambda state: state.place is Place.GIVING_WAY_TO_SHORT_RUNS)
-    assert full_giving_way.wait(timeout=10)
+    assert _seen(full_giving_way.is_set, while_running=full)
     short, short_ahead = _start_run(name, order, "short", short=True,
                                     once=lambda state: state.place is Place.AHEAD_OF_FULL_RUNS)
-    assert short_ahead.wait(timeout=10)
+    assert _seen(short_ahead.is_set, while_running=short)
 
     blocker.close()
     for run in (full, short):
-        run.join(timeout=10)
+        run.join()
 
     assert order == ["short", "full"]
 
@@ -277,7 +285,7 @@ def test_short_runs_get_the_lock_in_the_order_they_started_waiting():
 
     blocker.close()
     for run in runs:
-        run.join(timeout=10)
+        run.join()
 
     assert order == [str(number) for number in range(4)]
 
@@ -313,7 +321,7 @@ def test_a_run_keeps_its_place_in_line_while_something_suspends_it(short):
 
     blocker.close()
     for run in runs:
-        run.join(timeout=10)
+        run.join()
 
     assert order == [str(number) for number in range(4)]
 
@@ -334,13 +342,13 @@ def test_a_run_says_it_is_waiting_only_once_it_has_its_place_in_line(monkeypatch
     blocker = _held_by_the_test(name)
     order: list[str] = []
     first, first_waiting = _start_run(name, order, "first", short=short)
-    assert first_waiting.wait(timeout=10)
+    assert _seen(first_waiting.is_set, while_running=first)
     second, second_waiting = _start_run(name, order, "second", short=short)
-    assert second_waiting.wait(timeout=10)
+    assert _seen(second_waiting.is_set, while_running=second)
 
     blocker.close()
     for run in (first, second):
-        run.join(timeout=10)
+        run.join()
 
     assert order == ["first", "second"]
 
@@ -351,13 +359,13 @@ def test_a_full_run_goes_first_once_short_runs_have_held_the_lock_as_long_as_it_
     order: list[str] = []
     full, full_goes_next = _start_run(name, order, "full", full_run_gives_way_s=0.2,
                                       once=lambda state: state.place is Place.GOING_NEXT)
-    assert full_goes_next.wait(timeout=10)
+    assert _seen(full_goes_next.is_set, while_running=full)
     short, short_waiting = _start_run(name, order, "second short", short=True)
-    assert short_waiting.wait(timeout=10)
+    assert _seen(short_waiting.is_set, while_running=short)
 
     first_short_may_leave.set()
     for run in (holder, full, short):
-        run.join(timeout=10)
+        run.join()
 
     assert order == ["full", "second short"]
 
@@ -368,17 +376,17 @@ def test_a_short_run_says_so_when_a_full_run_goes_before_it():
     order: list[str] = []
     full, full_goes_next = _start_run(name, order, "full", full_run_gives_way_s=0.2,
                                       once=lambda state: state.place is Place.GOING_NEXT)
-    assert full_goes_next.wait(timeout=10)
+    assert _seen(full_goes_next.is_set, while_running=full)
     short, short_behind_it = _start_run(
         name, order, "second short", short=True,
         once=lambda state: state.place is Place.AFTER_THE_FULL_RUN_GOING_NEXT)
 
     try:
-        assert short_behind_it.wait(timeout=10)
+        assert _seen(short_behind_it.is_set, while_running=short)
     finally:
         first_short_may_leave.set()
         for run in (holder, full, short):
-            run.join(timeout=10)
+            run.join()
 
 
 def test_a_full_run_counts_toward_giving_way_only_the_time_short_runs_hold_the_lock():
@@ -387,13 +395,13 @@ def test_a_full_run_counts_toward_giving_way_only_the_time_short_runs_hold_the_l
     order: list[str] = []
     full, full_waited_long = _start_run(name, order, "full", full_run_gives_way_s=0.2,
                                         once=lambda state: state.seconds > 1.0)
-    assert full_waited_long.wait(timeout=10)
+    assert _seen(full_waited_long.is_set, while_running=full)
     short, short_waiting = _start_run(name, order, "short", short=True)
-    assert short_waiting.wait(timeout=10)
+    assert _seen(short_waiting.is_set, while_running=short)
 
     another_full_run.close()
     for run in (full, short):
-        run.join(timeout=10)
+        run.join()
 
     assert order == ["short", "full"]
 
@@ -404,16 +412,16 @@ def test_a_full_run_counts_toward_giving_way_only_once_it_is_next_in_line():
     order: list[str] = []
     first_full, first_full_goes_next = _start_run(name, order, "first full", full_run_gives_way_s=0.2,
                                                   once=lambda state: state.place is Place.GOING_NEXT)
-    assert first_full_goes_next.wait(timeout=10)
+    assert _seen(first_full_goes_next.is_set, while_running=first_full)
     second_full, second_full_waited = _start_run(name, order, "second full", full_run_gives_way_s=0.2,
                                                  once=lambda state: state.seconds > 0.5)
-    assert second_full_waited.wait(timeout=10)
+    assert _seen(second_full_waited.is_set, while_running=second_full)
     short, short_waiting = _start_run(name, order, "second short", short=True)
-    assert short_waiting.wait(timeout=10)
+    assert _seen(short_waiting.is_set, while_running=short)
 
     first_short_may_leave.set()
     for run in (holder, first_full, second_full, short):
-        run.join(timeout=10)
+        run.join()
 
     assert order == ["first full", "second short", "second full"]
 
@@ -423,17 +431,17 @@ def test_only_the_full_run_next_in_line_makes_short_runs_wait_for_it():
     blocker = _held_by_the_test(name)
     order: list[str] = []
     first_full, first_full_waiting = _start_run(name, order, "first full")
-    assert first_full_waiting.wait(timeout=10)
+    assert _seen(first_full_waiting.is_set, while_running=first_full)
     second_full, second_full_behind = _start_run(
         name, order, "second full", full_run_gives_way_s=0,
         once=lambda state: state.place is Place.BEHIND_OTHER_FULL_RUNS)
-    assert second_full_behind.wait(timeout=10)
+    assert _seen(second_full_behind.is_set, while_running=second_full)
     short, short_waiting = _start_run(name, order, "short", short=True)
-    assert short_waiting.wait(timeout=10)
+    assert _seen(short_waiting.is_set, while_running=short)
 
     blocker.close()
     for run in (first_full, second_full, short):
-        run.join(timeout=10)
+        run.join()
 
     assert order == ["short", "first full", "second full"]
 
@@ -458,18 +466,17 @@ def test_a_run_that_dies_waiting_holds_no_other_run_back(tmp_path, dies, waits):
     sentinel = tmp_path / "waiting.flag"
     root = str(Path(__file__).resolve().parents[1])
     code = _WAIT_IN_LINE.format(root=root, name=name, short=dies == "short", sentinel=str(sentinel))
-    dying = subprocess.Popen([sys.executable, "-c", code], cwd=root,
-                             creationflags=subprocess.CREATE_NO_WINDOW)
+    dying = a_child_of_this_venv(code, cwd=root, creationflags=subprocess.CREATE_NO_WINDOW)
     try:
-        wait_until(sentinel.exists, timeout=60.0)
+        text_written_to(sentinel, by=dying)
     finally:
         dying.kill()
         dying.wait(timeout=10)
     order: list[str] = []
     survivor, survivor_waiting = _start_run(name, order, waits, short=waits == "short")
-    assert survivor_waiting.wait(timeout=10)
+    assert _seen(survivor_waiting.is_set, while_running=survivor)
 
     blocker.close()
-    survivor.join(timeout=10)
+    survivor.join()
 
     assert order == [waits]
