@@ -8,10 +8,8 @@ from funestra.hud_placement import HudCorner
 from .bridge_records import BridgeConfig, Route, SatelliteHandler, WindowOp
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_handover import slideshows_enhancement
 from .hud_transport import the_hosted_slideshow_is_locked
 from .lock import a_hosted_lock_holds
-from .mode_plan import EnhancementLevel
 from .osr2_commands import PLAYBACK_RATE_ACTS, percent_rate
 from .satellite_groups import lock_on_what_was_meant, send_satellite
 from .shared_state import BridgeState
@@ -78,11 +76,6 @@ def _speed(command: Command, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _enhancement(level: EnhancementLevel, funestra: FunTimeFunestra, state: BridgeState,
-                 config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return slideshows_enhancement(funestra, level, state, config)
-
-
 _PARKING_ITS_WINDOW = ("minimize",)
 _ITS_CROWN_AND_THE_OSR2 = ("crown", "take_osr2")
 _ITS_LOCK = ("lock", "lock_on", "lock_off", LOCK_HELD)
@@ -92,11 +85,10 @@ _WHERE_ITS_HUD_SITS = (
     *(f"hud_{corner}" for corner in HudCorner),
 )
 _ITS_SOUND = ("mute", "unmute", "volume_down", "volume_up")
-_ITS_ENHANCEMENT = tuple(f"enhancement_{level}" for level in EnhancementLevel)
 
 THE_FUNESTRAS_OWN = frozenset({
     *_PARKING_ITS_WINDOW, *_ITS_CROWN_AND_THE_OSR2, *_ITS_LOCK,
-    *_THE_RATE_IT_PLAYS_AT, *_WHERE_ITS_HUD_SITS, *_ITS_SOUND, *_ITS_ENHANCEMENT,
+    *_THE_RATE_IT_PLAYS_AT, *_WHERE_ITS_HUD_SITS, *_ITS_SOUND,
 })
 
 
@@ -105,7 +97,6 @@ SATELLITE_ACTIONS: dict[str, SatelliteHandler] = {
     "lock": _toggle_lock,
     "lock_on": partial(_lock_as_said, True),
     "lock_off": partial(_lock_as_said, False),
-    **{f"enhancement_{level}": partial(_enhancement, level) for level in EnhancementLevel},
 }
 
 SATELLITE_VALUED: dict[str, Route] = {

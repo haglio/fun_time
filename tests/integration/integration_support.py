@@ -53,7 +53,6 @@ from fun_time.media_metadata import is_favorite, mark_favorite
 from fun_time.modes import (
     build_mirrored_funscript_path,
     matching_funscript,
-    plays_in_f_mode,
 )
 from fun_time.monitors import MonitorRect
 from fun_time.process_identity import NAMER
@@ -946,10 +945,10 @@ def _link_primary_samples(real_config, dest_dir: Path, *, metadata_root: Path,
     candidates = [(candidate, source_root)
                   for source_root in real_config.paths.main_funestra_library_dirs
                   for candidate in library_videos([source_root])
-                  if plays_in_f_mode(str(candidate), machines_metadata_root)]
+                  if matching_funscript(str(candidate), machines_metadata_root) is not None]
     if not candidates:
         raise FileNotFoundError(
-            "Could not find a main-library video F-mode plays for integration config "
+            "Could not find a funscripted main-library video for integration config "
             "-- a session built without one would come up empty"
         )
     chosen = sample_library_videos(

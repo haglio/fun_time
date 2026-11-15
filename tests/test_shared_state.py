@@ -67,7 +67,7 @@ class TestSharedState:
             portrait=SatelliteState(hud_minimized=True),
             landscape=SatelliteState(volume=30),
             main_mode=MainMode.GENAU,
-            main_scripted_filter=True,
+            main_favorites_filter=True,
             omni_paused=True,
         )
 
@@ -258,7 +258,7 @@ _EXPECTED_STATE_KEYS = {
     "main_mode": "kino",
     "rfb_mode": "rfb",
     "origenerator_core_ready": "0",
-    "main_scripted_filter": "0",
+    "main_favorites_filter": "0",
     "main_hud_corner": "upper_left", "main_hud_edge": "lower", "main_hud_minimized": "0",
     "portrait_hud_corner": "upper_left", "landscape_hud_corner": "upper_left",
     "portrait_hud_edge": "lower", "landscape_hud_edge": "lower",
@@ -266,7 +266,7 @@ _EXPECTED_STATE_KEYS = {
     "omni_paused": "0",
     "main_latest": "0",
     "main_shuffle_seed": "0", "main_length_mode": "mixed",
-    "main_enhancement": "both",
+    "main_enhanced_filter": "0",
     "main_plays_vr": "1", "main_plays_flat": "1",
     "main_plays_portrait": "1", "main_plays_landscape": "1",
     "genau_latest": "0", "genau_plays_vr": "1", "genau_plays_flat": "1",

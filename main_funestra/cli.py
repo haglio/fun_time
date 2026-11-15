@@ -73,7 +73,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Browse Genau newest-first from the start")
     p.add_argument("--genau-orientations", nargs="*", choices=ORIENTATIONS, default=None,
                    help="The orientations Genau plays; absent is both")
-    p.add_argument("--genau-f-mode", action="store_true", default=False,
+    p.add_argument("--genau-favorites", action="store_true", default=False,
                    help="Browse only the favorites from the start")
     p.add_argument("--notify-host", default=audio_companion.get("host", "127.0.0.1"),
                    help="Where Genau tells the audio companion what is up")

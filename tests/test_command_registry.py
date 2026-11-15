@@ -243,7 +243,6 @@ def test_the_session_keeps_only_the_funestras_own_controls_on_a_satellite_the_ap
         "hud_minimize", "hud_restore", "hud_restore_at", "hud_left", "hud_right", "hud_up", "hud_down",
         "hud_upper_left", "hud_upper_right", "hud_lower_left", "hud_lower_right",
         "mute", "unmute", "volume_down", "volume_up",
-        "enhancement_enhanced", "enhancement_original", "enhancement_both",
     }
 
     assert own == satellite_commands.THE_FUNESTRAS_OWN

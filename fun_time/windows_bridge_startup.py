@@ -31,8 +31,9 @@ from .child_launch import no_child_log, open_child_log
 from .fun_time_funestras import FunTimeFunestra
 from .funestra_settings import reports_published_in
 from .funestra_status import read_main_funestra_status
+from .gallery import the_librarys_origenerator
 from .hosted_contract import gallery_names_args, the_args_it_declares
-from .main_list import MainList, MainListSettings
+from .main_list import MainList
 from .manifest import CommandFiles, LaunchManifest
 from .max_intensity import publish_max_intensity
 from .mode_plan import show_verb
@@ -209,8 +210,6 @@ def seed_startup_states(manifest: LaunchManifest, carried: BridgeState) -> None:
         volume=carried.volume,
         muted=carried.muted,
     )
-    for flag in MainListSettings.of(carried).flags_no_playlist_can_show:
-        append_command(main_funestra_cmd_file, flag)
     if carried.max_intensity < FULL_INTENSITY:
         publish_max_intensity(
             (genau_cmd_file, main_funestra_cmd_file,
@@ -289,7 +288,8 @@ def carry_the_last_session_in(
 
 def the_main_list(m: LaunchManifest, state_dir: Path) -> MainList:
     return MainList(sources=m.media.main_funestra_library_sources, state_dir=state_dir,
-                    vr_dirs=m.media.vr_library_dirs, metadata_root=m.regen.metadata_folder)
+                    vr_dirs=m.media.vr_library_dirs, metadata_root=m.regen.metadata_folder,
+                    origenerator=the_librarys_origenerator())
 
 
 def leave_a_park_for_the_brokers_next_tick(commands: CommandFiles) -> None:
@@ -339,7 +339,7 @@ def child_program(m: LaunchManifest, module: str) -> ChildProgram:
 class GenauStart:
     start_flick: str = ""
     latest: bool = False
-    f_mode: bool = False
+    favorites: bool = False
     orientations: Included = BOTH
 
 
@@ -465,8 +465,8 @@ def launch_main_funestra(
         cmd += ["--genau-start-flick", genau.start_flick]
     if genau.latest:
         cmd.append("--genau-latest")
-    if genau.f_mode:
-        cmd.append("--genau-f-mode")
+    if genau.favorites:
+        cmd.append("--genau-favorites")
     if genau.orientations != BOTH:
         cmd += ["--genau-orientations", *orientation_words(genau.orientations)]
     cmd += ["--origenerator-command-file", str(commands.origenerator_cmd_file)]

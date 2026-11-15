@@ -62,15 +62,6 @@ def recorded_orientation(payload: dict) -> str:
     return said if said in ORIENTATIONS else LANDSCAPE
 
 
-DURATION_FIELD = "duration_seconds"
-
-
-def recorded_duration_seconds(payload: dict) -> float | None:
-    video = payload.get("video")
-    seconds = video.get(DURATION_FIELD) if isinstance(video, dict) else None
-    return float(seconds) if isinstance(seconds, (int, float)) else None
-
-
 NUMBER_IN_A_DOWNLOADED_SET = re.compile(r"\(\d+\)")
 
 

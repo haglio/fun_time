@@ -68,7 +68,8 @@ class BridgeConfig:
     @property
     def main_list(self) -> MainList:
         return MainList(sources=self.main_sources, state_dir=self.state_dir,
-                        vr_dirs=self.vr_library_dirs, metadata_root=self.regen_metadata_root)
+                        vr_dirs=self.vr_library_dirs, metadata_root=self.regen_metadata_root,
+                        origenerator=self.librarys_origenerator)
 
     @property
     def broker_state(self) -> Path:

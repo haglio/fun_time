@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from funestra.control_registry import Control, Verb, bind, look_up
-from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
+from funestra.funestra_verbs import RELOAD_PLAYLIST
 
 from .snippet_verbs import RECORD_DOWN, RECORD_TAP, RECORD_UP, SET_SNIPPET, SNIPPET_CANCEL
 
@@ -80,11 +80,6 @@ def _end_compilation(controls: KinoControls, _value: str) -> bool:
     return True
 
 
-def _set_scripted_filter(controls: KinoControls, value: str) -> bool:
-    controls.modes.set_scripted_filter(value != "0")
-    return True
-
-
 def _play_compilation(controls: KinoControls, _value: str) -> bool:
     controls.jumps.play_compilation()
     return True
@@ -119,10 +114,6 @@ CONTROLS: tuple[Control, ...] = (
         ),
     ),
     Control(name="playlist", verbs=(Verb(RELOAD_PLAYLIST, _reload_playlist),)),
-    Control(
-        name="f_mode",
-        verbs=(Verb(SET_F_MODE, _set_scripted_filter, takes_a_value=True),),
-    ),
     Control(
         name="compilation",
         verbs=(

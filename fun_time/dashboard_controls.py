@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared_ui.palette import BLUE, GREEN, MAGENTA, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.palette import BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.spacing import BUTTON_ICON_INSET
 
 from fun_time.dashboard_actions import (
     ENTER_VR,
     EXIT_VR,
-    FMODE_TOGGLE,
+    FAVORITES_TOGGLE,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
@@ -40,7 +40,7 @@ def icon_side(rect: Rect) -> int:
 class BarState:
     omni_paused: bool = False
     voice_active: bool = False
-    f_mode: bool = False
+    favorites: bool = False
     in_vr: bool = False
     reference_open: bool = False
     nothing_to_reset: bool = False
@@ -57,7 +57,7 @@ class BarState:
         return cls(
             omni_paused=snapshot.omni_paused,
             voice_active=snapshot.voice_active,
-            f_mode=snapshot.f_mode,
+            favorites=snapshot.favorites,
             in_vr=snapshot.in_vr,
             reference_open=reference_open,
             nothing_to_reset=snapshot.nothing_to_reset,
@@ -75,8 +75,8 @@ def bar_controls(layout: DashboardBarLayout, state: BarState) -> tuple[BarContro
                    lit=BLUE if state.reference_open else None),
         BarControl(VOICE_TOGGLE, layout.microphone_button, "mic",
                    lit=BLUE if state.voice_active else None),
-        BarControl(FMODE_TOGGLE, layout.fmode_button, "fmode", ink=MAGENTA,
-                   lit=GREEN if state.f_mode else None),
+        BarControl(FAVORITES_TOGGLE, layout.favorites_button, "star",
+                   lit=GREEN if state.favorites else None),
         BarControl(RESET_ALL, layout.reset_all_button, "reset",
                    ink=TEXT_MUTED if state.nothing_to_reset else TEXT_PRIMARY,
                    dim=state.nothing_to_reset),

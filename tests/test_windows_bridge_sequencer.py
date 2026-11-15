@@ -477,7 +477,7 @@ class TestRunStartupSequence:
 
         assert stubs.launch_main_funestra.call_args.kwargs["genau"].latest is True
 
-    def test_genau_is_launched_in_the_f_mode_it_was_left_in_over_the_apps_favorites(
+    def test_genau_is_launched_with_the_favorites_it_was_left_with(
             self, cfg_factory, tmp_path):
         _cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         write_shared_state(shared_state_path(tmp_path), BridgeState(genau_favorites_filter=True))
@@ -487,7 +487,7 @@ class TestRunStartupSequence:
 
         given = stubs.launch_main_funestra.call_args
         manifest = LaunchManifest.read(manifest_path)
-        assert given.kwargs["genau"].f_mode is True
+        assert given.kwargs["genau"].favorites is True
         assert given.args[0].commands.main_funestra_notice_file == manifest.commands.main_funestra_notice_file
 
     def test_genau_is_launched_knowing_where_the_librarys_records_are(self, cfg_factory, tmp_path):

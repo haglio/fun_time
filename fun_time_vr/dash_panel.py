@@ -77,7 +77,7 @@ _DIMMED_BEHIND_THE_QUESTION = 140
 class DashState:
     omni_paused: bool = False
     voice_active: bool = False
-    f_mode: bool = False
+    favorites: bool = False
     reference_open: bool = False
     nothing_to_reset: bool = False
     verbosity: int = DEFAULT_UI_STATE.verbosity
@@ -91,7 +91,7 @@ class DashState:
     def controls(self) -> tuple[BarControl, ...]:
         return bar_controls(compute_dashboard_bar_layout(), BarState(
             omni_paused=self.omni_paused, voice_active=self.voice_active,
-            f_mode=self.f_mode, in_vr=True, reference_open=self.reference_open,
+            favorites=self.favorites, in_vr=True, reference_open=self.reference_open,
             nothing_to_reset=self.nothing_to_reset,
         ))
 
@@ -391,8 +391,8 @@ class DashPointer:
                 verbosity=self.state.verbosity, sources=self.state.sources))
 
     def session_state(self, *, omni_paused: bool, voice_active: bool,
-                      f_mode: bool = False, reference_open: bool = False,
+                      favorites: bool = False, reference_open: bool = False,
                       nothing_to_reset: bool = False) -> None:
         self.state = replace(self.state, omni_paused=omni_paused, voice_active=voice_active,
-                             f_mode=f_mode, reference_open=reference_open,
+                             favorites=favorites, reference_open=reference_open,
                              nothing_to_reset=nothing_to_reset)

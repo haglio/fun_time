@@ -34,7 +34,7 @@ from shared_ui.spacing import (
 from fun_time import preview_marker
 from fun_time.dashboard_actions import (
     EXIT_VR,
-    FMODE_TOGGLE,
+    FAVORITES_TOGGLE,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
@@ -300,7 +300,7 @@ class TestTheColumnBesideTheOsr2Part:
         actions = dash_actions()
         buttons = [actions[action] for action in (
             QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
-            FMODE_TOGGLE, RESET_ALL, EXIT_VR, VR_RESET)]
+            FAVORITES_TOGGLE, RESET_ALL, EXIT_VR, VR_RESET)]
 
         assert {rect.y for rect in buttons} == {bar.quit_button.y}
         assert all(actions[name].y >= bar.height for name in (VERBOSITY_DROPDOWN, *SOURCES))

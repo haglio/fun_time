@@ -6,7 +6,6 @@ from collections.abc import Iterable
 from . import (
     audio_commands,
     crown,
-    f_mode,
     genau_commands,
     hud_moves,
     main_funestra_commands,
@@ -16,6 +15,7 @@ from . import (
     omnipause,
     osr2_commands,
     satellite_commands,
+    special_collections,
 )
 from .bridge_records import (
     IN_KINO_MODE,
@@ -145,7 +145,7 @@ def _bound_once(domains: Iterable[object]) -> dict[tuple[Scope, str], Route]:
     return routes
 
 
-_DOMAINS = (satellite_commands, main_funestra_commands, main_list_commands, f_mode,
+_DOMAINS = (satellite_commands, main_funestra_commands, main_list_commands, special_collections,
             audio_commands, omnipause, mode_switches, osr2_commands, genau_commands, crown,
             hud_moves, max_intensity)
 

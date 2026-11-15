@@ -33,7 +33,6 @@ from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter, who_drives_the_osr2
 from .dispatch_loop_setup import SessionFiles
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
-from .f_mode import every_funestra_in_f_mode
 from .funestra_status import read_main_funestra_status
 from .genaumacher_save import save_and_say
 from .headset_power import the_headset_is_ready
@@ -48,6 +47,7 @@ from .session_end import mark_session_end
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_a_crossing
 from .shared_state import BridgeState, write_shared_state
+from .special_collections import Collection, every_funestra_keeps_only
 from .voice_commands import CommandLine
 from .voice_control import NOTHING_TO_ACCEPT, AppVoice
 from .watch_sampling import WatchSampler
@@ -195,7 +195,8 @@ class CommandAnswering:
                 DashboardSnapshot(
                     omni_paused=self.state.omni_paused,
                     voice_active=self.voice.active,
-                    f_mode=every_funestra_in_f_mode(self.state, self.config),
+                    favorites=every_funestra_keeps_only(self.state, self.config,
+                                                        Collection.FAVORITES),
                     in_vr=self.config.vr_main_funestra,
                     nothing_to_reset=app_at_defaults(
                         self.state, self.config,

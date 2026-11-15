@@ -7,12 +7,12 @@ from funestra.control_registry import Control, Verb, bind, look_up
 from funestra.inclusion_pair import BOTH, Included
 from shared_ui.orientation import LANDSCAPE, ORIENTATIONS, PORTRAIT
 
-SET_GENAU_F_MODE = "SET_GENAU_F_MODE"
+SET_GENAU_FAVORITES = "SET_GENAU_FAVORITES"
 SET_GENAU_ORIENTATIONS = "SET_GENAU_ORIENTATIONS"
 
 
-def genau_f_mode(on: bool) -> str:
-    return f"{SET_GENAU_F_MODE} {int(on)}"
+def genau_favorites(on: bool) -> str:
+    return f"{SET_GENAU_FAVORITES} {int(on)}"
 
 
 def orientation_words(included: Included) -> list[str]:
@@ -27,7 +27,7 @@ def genau_orientations(included: Included) -> str:
     return " ".join((SET_GENAU_ORIENTATIONS, *orientation_words(included)))
 
 
-def _set_f_mode(genau: Any, value: str) -> bool:
+def _set_favorites(genau: Any, value: str) -> bool:
     genau.keep_favorites(value != "0")
     return True
 
@@ -41,7 +41,8 @@ def _set_orientations(genau: Any, value: str) -> bool:
 
 
 VERBS = bind((
-    Control(name="f_mode", verbs=(Verb(SET_GENAU_F_MODE, _set_f_mode, takes_a_value=True),)),
+    Control(name="favorites",
+            verbs=(Verb(SET_GENAU_FAVORITES, _set_favorites, takes_a_value=True),)),
     Control(name="orientations",
             verbs=(Verb(SET_GENAU_ORIENTATIONS, _set_orientations, takes_a_value=True),)),
 ))

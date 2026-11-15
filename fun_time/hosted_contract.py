@@ -7,7 +7,6 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from funestra.file_channel import append_command
@@ -159,9 +158,4 @@ def said_to_core(words: str) -> str:
     return f"SAY:{words}"
 
 
-SAID_FOR_AN_ENHANCEMENT_LEVEL = MappingProxyType({
-    "enhanced": "enhanced only",
-    "original": "original only",
-    "both": "enhanced and original",
-})
 

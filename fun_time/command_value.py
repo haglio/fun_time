@@ -8,7 +8,6 @@ from funestra.hud_placement import HudCorner
 
 from .event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
-from .mode_plan import EnhancementLevel
 
 
 class Scope(StrEnum):
@@ -54,9 +53,8 @@ MAIN_EQUIVALENTS = MappingProxyType({
     "next_funscripted": "main_funestra_next_funscripted",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
-    "fmode": "main_fmode",
-    "fmode_on": "main_fmode_on",
-    "fmode_off": "main_fmode_off",
+    **{f"{collection}{side}": f"main_{collection}{side}"
+       for collection in ("favorites", "enhanced") for side in ("", "_on", "_off")},
     "reset": "main_reset",
     "trash": "genau_trash_flick",
     "latest": "main_latest",
@@ -64,7 +62,6 @@ MAIN_EQUIVALENTS = MappingProxyType({
     "hud_minimize": "main_hud_minimize",
     "hud_restore": "main_hud_restore",
     **{f"hud_{corner}": f"main_hud_{corner}" for corner in HudCorner},
-    **{f"enhancement_{level}": f"main_enhancement_{level}" for level in EnhancementLevel},
     "mute": "audio_mute",
     "unmute": "audio_unmute",
     "volume_down": "audio_volume_down",

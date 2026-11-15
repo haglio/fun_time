@@ -84,7 +84,7 @@ class TestTheVrReset:
 
 
 _SAID_INSTEAD_OF_A_WORD_VOSK_LACKS = {
-    "upscales": "enhanced only",
+    "upscales": "enhanced",
     "unpause": "un pause",
     "unpark": "un park",
     "funscript": "fun script",
@@ -139,9 +139,10 @@ class TestVoiceCommands:
             "cycle projection": "projection_cycle",
             "vr and two d": "main_projection_both",
             "two d and vr": "main_projection_both",
-            "fun scripts": "main_fmode_on",
-            "main fun scripts": "main_fmode_on",
-            "fun scripts main": "main_fmode_on",
+            "main favorites": "main_favorites_on",
+            "favorites off main": "main_favorites_off",
+            "main enhanced": "main_enhanced_on",
+            "enhanced off main": "main_enhanced_off",
             "slow down": "speed_down",
             "speed down": "speed_down",
             "speed up": "speed_up",
@@ -302,28 +303,15 @@ class TestVoiceCommands:
     def test_a_hosted_apps_phrase_is_aimed_like_the_grid(self):
         heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=(),
                                      origenerator_phrases=("experiments", "fix hands",
-                                                           "play slideshow", "favorites"))
-        for phrase in ("experiments", "fix hands", "play slideshow", "favorites"):
+                                                           "play slideshow"))
+        for phrase in ("experiments", "fix hands", "play slideshow"):
             said = phrase.replace(" ", "_")
             assert heard[phrase] == f"active_say_{said}"
             assert heard[f"portrait {phrase}"] == f"portrait_say_{said}"
             assert heard[f"{phrase} landscape"] == f"landscape_say_{said}"
             assert heard[f"satellites {phrase}"] == f"satellites_say_{said}"
             assert heard[f"{phrase} satellites"] == f"satellites_say_{said}"
-        assert VOICE_COMMANDS["favorites"] == "active_say_favorites"
-
-    def test_the_enhancement_level_is_said_as_the_shapes_are_of_any_funestra(self):
-        grid = {"enhanced only": "enhancement_enhanced", "original only": "enhancement_original",
-                "enhanced and original": "enhancement_both", "original and enhanced": "enhancement_both"}
-        for phrase, act in grid.items():
-            assert VOICE_COMMANDS[phrase] == f"active_{act}"
-            assert VOICE_COMMANDS[f"main {phrase}"] == VOICE_COMMANDS[f"{phrase} main"] == f"main_{act}"
-            assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_{act}"
-            assert VOICE_COMMANDS[f"{phrase} satellites"] == f"satellites_{act}"
-        heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=(),
-                                     origenerator_phrases=("enhanced only",))
-        assert heard["enhanced only"] == "active_enhancement_enhanced"
-        assert "filter enhanced" not in VOICE_COMMANDS
+        assert VOICE_COMMANDS["favorites"] == "active_favorites_on"
 
     def test_genau_alone_stays_the_mode_and_animates_a_picture_only_with_a_side_named(self):
         heard = build_voice_commands(filter_commands={}, clip_jump_phrases=(), flick_flip_phrases=(),
@@ -422,25 +410,31 @@ class TestVoiceCommands:
                 assert VOICE_COMMANDS[f"{satellite} {word}"] == target
                 assert VOICE_COMMANDS[f"{word} {satellite}"] == target
 
-    def test_f_mode_is_sayable_per_funestra_in_either_order(self):
-        for word, act in (("f mode", "fmode"),
-                          ("f mode on", "fmode_on"),
-                          ("f mode off", "fmode_off")):
-            for satellite in FUNESTRAS:
-                assert VOICE_COMMANDS[f"{satellite} {word}"] == f"{satellite}_{act}"
-                assert VOICE_COMMANDS[f"{word} {satellite}"] == f"{satellite}_{act}"
+    def test_favorites_and_enhanceds_are_sayable_per_funestra_in_either_order(self):
+        for collection in ("favorites", "enhanced"):
+            for word, act in ((collection, f"{collection}_on"),
+                              (f"{collection} on", f"{collection}_on"),
+                              (f"{collection} off", f"{collection}_off")):
+                for satellite in FUNESTRAS:
+                    assert VOICE_COMMANDS[f"{satellite} {word}"] == f"{satellite}_{act}"
+                    assert VOICE_COMMANDS[f"{word} {satellite}"] == f"{satellite}_{act}"
 
-    def test_bare_f_mode_reaches_the_active_funestra(self):
-        assert VOICE_COMMANDS["f mode"] == "active_fmode"
-        assert VOICE_COMMANDS["f mode on"] == "active_fmode_on"
-        assert VOICE_COMMANDS["f mode off"] == "active_fmode_off"
+    def test_the_bare_word_turns_it_on_and_off_turns_it_off_on_the_active_funestra(self):
+        for collection in ("favorites", "enhanced"):
+            assert VOICE_COMMANDS[collection] == f"active_{collection}_on"
+            assert VOICE_COMMANDS[f"{collection} on"] == f"active_{collection}_on"
+            assert VOICE_COMMANDS[f"{collection} off"] == f"active_{collection}_off"
 
-    def test_all_f_mode_is_the_whole_app_in_either_order(self):
-        for word, act in (("f mode", "fmode_toggle"),
-                          ("f mode on", "fmode_on"),
-                          ("f mode off", "fmode_off")):
-            assert VOICE_COMMANDS[f"all {word}"] == act
-            assert VOICE_COMMANDS[f"{word} all"] == act
+    def test_all_is_the_whole_app_in_either_order(self):
+        for collection in ("favorites", "enhanced"):
+            for word, act in ((collection, f"{collection}_on"),
+                              (f"{collection} off", f"{collection}_off")):
+                assert VOICE_COMMANDS[f"all {word}"] == act
+                assert VOICE_COMMANDS[f"{word} all"] == act
+
+    def test_the_words_for_the_old_switches_are_no_longer_heard(self):
+        assert not {"f mode", "f mode on", "f mode off", "all f mode", "fun scripts",
+                    "enhanced only", "original only", "enhanced and original"} & set(VOICE_COMMANDS)
 
     def test_cycle_verb_phrases_map_to_the_active_cycle(self):
         for phrase in ("cycle action", "next action", "change action",
@@ -479,7 +473,7 @@ class TestVoiceCommands:
                 assert f"{phrase} {satellite}" not in VOICE_COMMANDS
         assert VOICE_COMMANDS["lock"] == "active_lock_on"
         assert VOICE_COMMANDS["reset"] == "active_reset"
-        assert VOICE_COMMANDS["all f mode"] == "fmode_toggle"
+        assert VOICE_COMMANDS["all favorites"] == "favorites_on"
 
     def test_main_nav_phrases_both_orders(self):
         assert VOICE_COMMANDS["main next"] == "main_next"
@@ -526,7 +520,7 @@ class TestVoiceCommands:
 
     def test_satellites_is_the_word_for_the_pair_and_both_is_no_longer_heard(self):
         assert VOICE_COMMANDS["satellites next"] == VOICE_COMMANDS["next satellites"] == "satellites_next"
-        assert VOICE_COMMANDS["satellites f mode"] == "satellites_fmode"
+        assert VOICE_COMMANDS["satellites favorites"] == "satellites_favorites_on"
         assert VOICE_COMMANDS["satellites version"] == "satellites_cycle_version"
         assert VOICE_COMMANDS["satellites hud top left"] == "satellites_hud_upper_left"
         assert VOICE_COMMANDS["minimize satellites hud"] == "satellites_hud_minimize"

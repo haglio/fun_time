@@ -15,7 +15,7 @@ from urllib.request import url2pathname
 import pytest
 from app_support import osr2_hold
 from funestra.channel_manifest import channel_flag
-from funestra.modes import LengthMode, MainMode
+from funestra.modes import MainMode
 from funestra.playlist import read_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
@@ -294,7 +294,7 @@ def test_startup_seeds_the_main_funestra_several_verbs_and_loses_none(tmp_path: 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0"]
 
 
 def _main_funestra_verbs(tmp_path: Path) -> list[str]:
@@ -307,7 +307,7 @@ def test_seed_startup_states_gives_genau_the_window_for_a_genau_session(tmp_path
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["PAUSE", "SET_VOLUME 100 0"]
-    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW genau", "SET_VOLUME 100 0"]
 
 
 def test_seed_startup_states_holds_every_funestra_for_the_reveal(tmp_path: Path):
@@ -373,7 +373,7 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_funestra_verbs(tmp_path) == ["SHOW kino", "SET_VOLUME 100 0"]
 
 
 def test_players_that_launch_at_full_volume_are_told_the_level_it_was_left_at(tmp_path: Path):
@@ -416,14 +416,6 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
 
     assert read_volume(volume_file) == 0
     assert _main_funestra_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
-
-
-def test_seed_startup_states_queues_the_f_mode_behind_the_verbs_before_it(tmp_path: Path):
-    _seed_startup_states(tmp_path, main_scripted_filter=True,
-                         main_length_mode=LengthMode.CLIPS)
-
-    assert _main_funestra_verbs(tmp_path) == [
-        "SHOW kino", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -663,20 +655,19 @@ def test_start_core_session_opens_a_fresh_session_in_kino_mode(tmp_path: Path):
     assert _run_start_core_session(kwargs) == "kino"
 
 
-def test_start_core_session_reopens_the_main_funestra_in_the_f_mode_it_was_left_in(
+def test_start_core_session_reopens_the_main_funestra_with_the_favorites_it_was_left_with(
     tmp_path: Path,
 ):
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(main_scripted_filter=True))
+    write_shared_state(state_file, BridgeState(main_favorites_filter=True))
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert state.main_scripted_filter is True
-    assert "SET_F_MODE 1" in kwargs["main_funestra_cmd_file"].read_text(encoding="utf-8").splitlines()
+    assert state.main_favorites_filter is True
 
 
 def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path: Path):
@@ -706,17 +697,15 @@ def test_start_core_session_clears_an_omnipause_a_crashed_session_left_set(tmp_p
     assert replace(read_shared_state(state_file), main_shuffle_seed=0) == BridgeState()
 
 
-def test_start_core_session_drops_the_f_mode_of_a_main_list_that_comes_out_empty(
+def test_start_core_session_drops_the_favorites_of_a_main_list_that_comes_out_empty(
         tmp_path: Path):
     kwargs = _start_core_session_kwargs(tmp_path)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(main_scripted_filter=True))
+    write_shared_state(state_file, BridgeState(main_favorites_filter=True))
 
     _run_start_core_session(kwargs)
 
-    assert read_shared_state(state_file).main_scripted_filter is False
-    assert "SET_F_MODE 0" in kwargs["main_funestra_cmd_file"].read_text(
-        encoding="utf-8").splitlines()
+    assert read_shared_state(state_file).main_favorites_filter is False
 
 
 def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_in(
@@ -724,7 +713,7 @@ def test_start_core_session_builds_the_main_list_under_the_settings_it_was_left_
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     state_dir = kwargs["state_dir"]
-    left = BridgeState(main_scripted_filter=True, main_latest=True, main_shuffle_seed=7)
+    left = BridgeState(main_favorites_filter=True, main_latest=True, main_shuffle_seed=7)
     write_shared_state(shared_state_path(state_dir), left)
 
     with patch.object(MainList, "write", autospec=True,
@@ -896,7 +885,7 @@ _MANIFEST_FIELDS_OF_A_MAIN_FUNESTRA = {
     "origenerator_cmd_file": ("commands", "origenerator_cmd_file"),
 }
 _GENAU_STARTS = {"genau_start_flick": "start_flick", "genau_latest": "latest",
-                 "genau_f_mode": "f_mode", "genau_orientations": "orientations"}
+                 "genau_favorites": "favorites", "genau_orientations": "orientations"}
 
 
 def _a_main_funestra_launch(tmp_path: Path, **overrides) -> dict:
@@ -993,9 +982,9 @@ def test_the_launch_names_latest_only_for_a_session_left_browsing_it(tmp_path: P
     assert "--genau-latest" not in _launched_main_funestra(tmp_path, genau_latest=False)
 
 
-def test_the_launch_names_f_mode_only_for_a_session_left_in_it(tmp_path: Path):
-    assert "--genau-f-mode" in _launched_main_funestra(tmp_path, genau_f_mode=True)
-    assert "--genau-f-mode" not in _launched_main_funestra(tmp_path, genau_f_mode=False)
+def test_the_launch_names_favorites_only_for_a_session_left_with_them(tmp_path: Path):
+    assert "--genau-favorites" in _launched_main_funestra(tmp_path, genau_favorites=True)
+    assert "--genau-favorites" not in _launched_main_funestra(tmp_path, genau_favorites=False)
 
 
 def test_the_launch_names_genaus_orientations_only_for_a_session_left_narrowed(tmp_path: Path):

@@ -887,19 +887,21 @@ def test_the_main_funestras_draw_never_waits_on_a_video_it_lists(tmp_path, monke
     assert sorted(path.name for path in linked) == ["one.mp4", "two.mp4"]
 
 
-def test_the_main_funestras_draw_takes_only_the_videos_f_mode_plays(tmp_path, monkeypatch):
+def test_the_main_funestras_draw_takes_only_the_funscripted_videos(tmp_path, monkeypatch):
     library = tmp_path / "drawn" / "videos" / "videos"
     library.mkdir(parents=True)
     for name in ("played", "passed over"):
         (library / f"{name}.mp4").write_bytes(b"")
     machines_metadata_root = tmp_path / "drawn" / "videos" / "metadata"
+    script = tmp_path / "drawn" / "played.funscript"
+    script.write_text("{}", encoding="utf-8")
     judged_against = set()
 
-    def plays_in_f_mode(video, metadata_root):
+    def matching_funscript(video, metadata_root):
         judged_against.add(metadata_root)
-        return Path(video).stem == "played"
+        return str(script) if Path(video).stem == "played" else None
 
-    monkeypatch.setattr(integration_support, "plays_in_f_mode", plays_in_f_mode)
+    monkeypatch.setattr(integration_support, "matching_funscript", matching_funscript)
     room = tmp_path / "room" / "videos" / "videos"
     room.mkdir(parents=True)
 

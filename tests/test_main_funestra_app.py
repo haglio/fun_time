@@ -77,7 +77,7 @@ class TestGenauRunsOnItToo:
         assert outputs["notifier"] == "GenauNotifier(args.notify_host, args.notify_port)"
         assert outputs["tcode_sink"] == "Osr2Sender(ROBOT_HAND, port=args.osr2_port)"
         assert outputs["messages"] == "MessageWriter(args.notice)"
-        assert flicks["f_mode"] == "args.genau_f_mode"
+        assert flicks["favorites"] == "args.genau_favorites"
         assert flicks["gallery"] == "the_librarys_gallery()"
         assert flicks["orientations"] == "orientations_from(args.genau_orientations)"
         assert channels == {"command": "args.genau_command_file", "paused": "args.genau_paused_file",

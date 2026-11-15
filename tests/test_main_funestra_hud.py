@@ -138,14 +138,14 @@ def test_the_hud_alone_tells_the_main_funestra_its_browse_order():
     assert _button(_payload(), "main_shuffle").lit is True
 
 
-def test_f_mode_lights_off_what_the_orchestrator_holds():
-    assert _button(_payload(scripted_filter=True), "main_fmode").lit is True
-    assert _button(_payload(), "main_fmode").lit is False
+def test_favorites_lights_off_what_the_orchestrator_holds():
+    assert _button(_payload(favorites_filter=True), "main_favorites").lit is True
+    assert _button(_payload(), "main_favorites").lit is False
 
 
-def test_in_genau_mode_f_mode_lights_off_genaus_own_and_not_kinos():
-    assert _button(_payload(main_mode=MainMode.GENAU, genau_favorites_filter=True), "main_fmode").lit is True
-    assert _button(_payload(main_mode=MainMode.GENAU, scripted_filter=True), "main_fmode").lit is False
+def test_in_genau_mode_favorites_lights_off_genaus_own_and_not_kinos():
+    assert _button(_payload(main_mode=MainMode.GENAU, genau_favorites_filter=True), "main_favorites").lit is True
+    assert _button(_payload(main_mode=MainMode.GENAU, favorites_filter=True), "main_favorites").lit is False
 
 
 def test_the_length_pair_lights_off_the_narrowing_of_fun_times_own_list():

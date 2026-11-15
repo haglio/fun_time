@@ -2,18 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from funestra.file_channel import append_command
 from funestra.hud_button import Button
 from funestra.satellite_hud import parse_hud
 
-from .bridge_records import BridgeConfig, WindowOp
+from .bridge_records import BridgeConfig
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
-from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL, said_to_the_hosted_app
-from .mode_plan import EnhancementLevel
 
 if TYPE_CHECKING:
-    from .shared_state import BridgeState
+    pass
 
 HudStamp = tuple[int, int] | None
 
@@ -37,22 +34,14 @@ def _slideshows_button(channel: SatelliteChannel, verb: str) -> Button | None:
                  if button.command == f"{hud.funestra}_{verb}"), None)
 
 
-def show_f_mode(channel: SatelliteChannel) -> bool | None:
-    button = _slideshows_button(channel, "fmode")
+def shows_button_lit(channel: SatelliteChannel, verb: str) -> bool | None:
+    button = _slideshows_button(channel, verb)
     return None if button is None else button.lit
 
 
 def show_has_something_to_reset(channel: SatelliteChannel) -> bool:
     button = _slideshows_button(channel, "reset")
     return button is not None and not button.dim
-
-
-def slideshows_enhancement(
-    funestra: FunTimeFunestra, level: EnhancementLevel, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    append_command(config.origenerator.cmd_file, said_to_the_hosted_app(
-        funestra.label, SAID_FOR_AN_ENHANCEMENT_LEVEL[level]))
-    return state, []
 
 
 def _the_app_has_published_nothing_since(channel: SatelliteChannel, stamp: HudStamp) -> bool:

@@ -35,7 +35,8 @@ class TestTheSharedStateFile:
 
         state = read_shared_state(state_file)
         assert state.active_funestra == 3
-        assert state.main_scripted_filter is True
+        assert state.main_favorites_filter is False, (
+            "the old F-mode kept the well funscripted videos, so it never comes back as Favorites")
         assert (state.volume, state.muted) == (40, True)
 
     def test_the_mode_selector_under_the_log_keeps_its_mode_under_its_new_key(self, tmp_path: Path):
@@ -53,7 +54,7 @@ class TestTheSharedStateFile:
         migrate_shared_state(state_file)
 
         text = state_file.read_text(encoding="utf-8")
-        for old in ("active_side", "main_f_mode"):
+        for old in ("active_side",):
             assert old not in text, old
 
     def test_no_table_translates_a_dropped_mode_word(self, tmp_path: Path):
@@ -74,7 +75,7 @@ class TestTheSharedStateFile:
         state = read_shared_state(state_file)
 
         assert state.active_funestra == 1
-        assert state.main_scripted_filter is False
+        assert state.main_favorites_filter is False
 
     def test_a_satellites_mode_left_on_origenerator_comes_back_as_origenerator_in_the_browsers_place(
             self, tmp_path: Path):
@@ -111,6 +112,6 @@ class TestTheSharedStateFile:
 
         state = resume_shared_state(state_file)
 
-        assert state.main_scripted_filter is True
+        assert (state.volume, state.muted) == (40, True)
         assert "locked2" not in state_file.read_text(encoding="utf-8")
 

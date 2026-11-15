@@ -106,11 +106,11 @@ class TestResumeSharedState:
 
         assert remembered_values(state) == remembered_values(left)
 
-    def test_carries_the_main_funestras_f_mode_onto_the_resumed_session(self, tmp_path: Path):
+    def test_carries_the_main_funestras_favorites_onto_the_resumed_session(self, tmp_path: Path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(main_scripted_filter=True))
+        write_shared_state(state_file, BridgeState(main_favorites_filter=True))
 
-        assert resume_shared_state(state_file).main_scripted_filter is True
+        assert resume_shared_state(state_file).main_favorites_filter is True
 
 
     def test_carries_the_main_funestra_s_order(self, tmp_path: Path):
@@ -331,8 +331,7 @@ class TestWhatARestartBringsBackOfEachFunestra:
         "SPEED_DOWN": {"main_speed"}, "LOCK_ON": {"main_locked"},
         "LOCK_OFF": {"main_locked"}, "TOGGLE_LOCK": {"main_locked"},
         "SET_MAX_INTENSITY": {"max_intensity"}, "SET_VOLUME": {"volume", "muted"},
-        "SHOW": {"main_mode"},
-        "SET_F_MODE": {"main_scripted_filter"}}
+        "SHOW": {"main_mode"}}
     _NO_SETTING = frozenset({
         "NEXT", "PREV", "QUIT", "RELOAD_PLAYLIST", "SEEK_BACK", "SEEK_FWD", "TRASH", "SHOW_FRAME",
         "CLEAR_FRAME", "SET_PACE", "HOLD_PICTURE", "PLAY_FILE", "PLAY_NEXT", "NEXT_VERSION",
@@ -453,7 +452,7 @@ class TestResumeGenau:
         assert {field for fields in self._KEPT_IN_THE_APPS_STATE.values() for field in fields} <= set(
             RESUMED_FIELDS)
 
-    _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"f_mode": ("genau_favorites_filter",),
+    _KEPT_FOR_ITS_LAUNCH: ClassVar[dict] = {"favorites": ("genau_favorites_filter",),
                             "orientations": ("genau_plays_portrait", "genau_plays_landscape")}
 
     def test_every_verb_genau_answers_on_the_main_funestras_channel_comes_back_at_its_launch(self):

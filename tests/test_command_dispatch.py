@@ -4,14 +4,13 @@ import logging
 import time
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 from app_support import osr2_hold
 from funestra.file_channel import append_command
 from funestra.hud_placement import HudCorner, HudEdge
-from funestra.hud_title import F_MODE_LABEL
+from funestra.hud_title import FAVORITES_LABEL
 from funestra.main_hud import OSR2_CONTROL_BUTTONS, OSR2_DRIVING, OSR2_PARKED, OSR2_RETRACTED
 from funestra.modes import LengthMode, MainMode
 
@@ -34,13 +33,12 @@ from fun_time.media_metadata import (
     mark_favorite,
     metadata_path_for,
 )
-from fun_time.mode_plan import EnhancementLevel
 from fun_time.rfb_mode import with_the_browser_in_its_place
 from fun_time.rfb_modes import RfbMode
 from fun_time.satellite_groups import send_satellite
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS, build_voice_commands
-from main_funestra.genau_verbs import genau_f_mode, genau_orientations
+from main_funestra.genau_verbs import genau_favorites, genau_orientations
 from tests.bridge_configs import made_up_bridge_config
 from tests.hosted_shows import publish_the_show
 from tests.made_up_gallery import a_row
@@ -502,19 +500,19 @@ def test_primary_nav_sets_active_funestra_to_primary(tmp_path: Path):
         assert new_state.active_funestra == 1, command
 
 
-def test_a_bare_f_mode_follows_the_funestra_whose_f_mode_was_named_last(tmp_path: Path):
+def test_bare_favorites_follow_the_funestra_whose_favorites_were_named_last(tmp_path: Path):
     config = _make_config(tmp_path)
 
     for suffix in ("", "_on", "_off"):
-        bare = parse_command(f"active_fmode{suffix}")
+        bare = parse_command(f"active_favorites{suffix}")
         new_state, _ops = dispatch_command(
-            f"main_fmode{suffix}", _make_state(active_funestra=3), config)
+            f"main_favorites{suffix}", _make_state(active_funestra=3), config)
         assert new_state.active_funestra == 1, suffix
-        assert bare.aimed_at_the_active(new_state.active_funestra).text == f"main_fmode{suffix}"
+        assert bare.aimed_at_the_active(new_state.active_funestra).text == f"main_favorites{suffix}"
         new_state, _ops = dispatch_command(
-            f"portrait_fmode{suffix}", _make_state(active_funestra=1), config)
+            f"portrait_favorites{suffix}", _make_state(active_funestra=1), config)
         assert new_state.active_funestra == 2, suffix
-        assert bare.aimed_at_the_active(new_state.active_funestra).text == f"portrait_fmode{suffix}"
+        assert bare.aimed_at_the_active(new_state.active_funestra).text == f"portrait_favorites{suffix}"
 
 
 def test_naming_a_funestras_playback_speed_makes_it_the_active_one(tmp_path: Path):
@@ -595,98 +593,74 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
     assert config.main_funestra.paused_file.read_text(encoding="utf-8") == "0"
 
 
-def _fmode_result(**kwargs):
-    funestras = tuple(kwargs["funestras"])
-    enabled = kwargs["enabled"]
-    return type("R", (), {
-        "funestras": funestras,
-        "enabled": enabled,
-        "log_message": f"F-mode {'enabled' if enabled else 'disabled'}: "
-                       f"{', '.join(funestra.label for funestra in funestras)}",
-    })()
-
-
-def _dispatch_fmode(command: str, state: BridgeState, config: BridgeConfig):
-    with patch("fun_time.f_mode.apply_fmode", side_effect=_fmode_result) as mock_fmode:
-        new_state, ops = dispatch_command(command, state, config)
-    return new_state, ops, mock_fmode
-
-
-def test_the_main_funestra_named_goes_into_f_mode_alone(tmp_path: Path):
-    config = _make_config(tmp_path)
+def test_the_main_funestra_named_turns_its_own_favorites_on_alone(tmp_path: Path):
+    config, builds = _recording(_make_config(tmp_path))
     for funestra in FunTimeFunestra.SATELLITES:
-        publish_the_show(config, funestra, f_mode=False)
+        publish_the_show(config, funestra, favorites=False)
 
-    new_state, _ops, mock_fmode = _dispatch_fmode("main_fmode", _make_state(), config)
+    new_state, _ops = dispatch_command("main_favorites", _make_state(), config)
 
-    assert new_state.main_scripted_filter is True
-    assert mock_fmode.call_args.kwargs["funestras"] == (FunTimeFunestra.MAIN,)
+    assert new_state.main_favorites_filter is True
+    assert builds.asked[-1].settings.favorites is True
     assert _origenerator_cmds(config) == []
 
 
-def test_f_mode_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_path: Path):
-    config = _make_config(tmp_path)
+def test_favorites_on_genau_keeps_its_favorites_and_leaves_kinos_list_alone(tmp_path: Path):
+    config, builds = _recording(_make_config(tmp_path))
 
-    state, ops, mock_fmode = _dispatch_fmode("main_fmode", _make_state(main_mode=MainMode.GENAU), config)
+    state, ops = dispatch_command("main_favorites", _make_state(main_mode=MainMode.GENAU), config)
 
-    assert (state.genau_favorites_filter, state.main_scripted_filter) == (True, False)
-    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{genau_f_mode(True)}\n"
-    assert mock_fmode.call_args.kwargs["funestras"] == ()
-    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=SOURCE_MAIN, level=FAVORITE)]
-
-
-def test_f_mode_on_or_off_misheard_twice_still_lands_where_it_was_asked(tmp_path: Path):
-    config = _make_config(tmp_path)
-
-    stays_on, _ops, _mock = _dispatch_fmode(
-        "main_fmode_on", _make_state(main_scripted_filter=True), config)
-    stays_off, _ops, _mock = _dispatch_fmode(
-        "main_fmode_off", _make_state(main_scripted_filter=False), config)
-
-    assert stays_on.main_scripted_filter is True
-    assert stays_off.main_scripted_filter is False
+    assert (state.genau_favorites_filter, state.main_favorites_filter) == (True, False)
+    assert config.main_funestra.cmd_file.read_text(encoding="utf-8") == f"{genau_favorites(True)}\n"
+    assert builds.asked == []
+    assert ops == [WindowOp(op="message", key=f"{FAVORITES_LABEL} on", source=SOURCE_MAIN, level=FAVORITE)]
 
 
-def test_f_mode_on_said_twice_rebuilds_and_so_reshuffles_nothing(tmp_path: Path):
-    config = _make_config(tmp_path)
+def test_favorites_on_or_off_said_twice_still_lands_where_it_was_asked(tmp_path: Path):
+    config, builds = _recording(_make_config(tmp_path))
 
-    _state, _ops, mock_fmode = _dispatch_fmode(
-        "main_fmode_on", _make_state(main_scripted_filter=True), config)
+    stays_on, _ops = dispatch_command(
+        "main_favorites_on", _make_state(main_favorites_filter=True), config)
+    stays_off, _ops = dispatch_command(
+        "main_favorites_off", _make_state(main_favorites_filter=False), config)
 
-    assert mock_fmode.call_args.kwargs["funestras"] == ()
+    assert stays_on.main_favorites_filter is True
+    assert stays_off.main_favorites_filter is False
+    assert builds.asked == []
 
 
 @pytest.mark.parametrize(("way_in", "source"), [
-    ("fmode_toggle", "system"),
-    ("main_fmode", "main"),
+    ("favorites_toggle", "system"),
+    ("main_favorites", "main"),
 ])
-def test_key_hud_button_and_spoken_phrase_flash_the_same_f_mode_confirmation(
+def test_key_hud_button_and_spoken_phrase_flash_the_same_favorites_confirmation(
         tmp_path: Path, way_in: str, source: str):
-    config = _make_config(tmp_path)
+    config, _builds = _recording(_make_config(tmp_path))
 
-    _state, ops, _mock = _dispatch_fmode(way_in, _make_state(), config)
+    _state, ops = dispatch_command(way_in, _make_state(), config)
 
-    assert ops == [WindowOp(op="message", key=f"{F_MODE_LABEL} enabled", source=source,
+    assert ops == [WindowOp(op="message", key=f"{FAVORITES_LABEL} on", source=source,
                             level=FAVORITE)]
 
 
-def test_f_mode_off_is_neither_an_error_nor_a_favoriting_and_flashes_white(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_scripted_filter=True)
+def test_favorites_off_is_neither_an_error_nor_a_favoriting_and_flashes_white(tmp_path: Path):
+    config, _builds = _recording(_make_config(tmp_path))
 
-    _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
+    _state, ops = dispatch_command("favorites_toggle", _make_state(main_favorites_filter=True),
+                                   config)
 
     assert ops == [
-        WindowOp(op="message", key=f"{F_MODE_LABEL} disabled", source="system", level=MESSAGE),
+        WindowOp(op="message", key=f"{FAVORITES_LABEL} off", source="system", level=MESSAGE),
     ]
 
 
-def test_fmode_passes_the_metadata_root_for_group_collapse(tmp_path: Path):
-    config = replace(_make_config(tmp_path), regen_metadata_root=tmp_path / "metadata")
+def test_favorites_rebuilds_the_main_list_from_the_metadata_root(tmp_path: Path):
+    config, builds = _recording(replace(_make_config(tmp_path),
+                                        regen_metadata_root=tmp_path / "metadata"))
 
-    _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
+    dispatch_command("favorites_toggle", _make_state(), config)
 
-    assert mock_fmode.call_args.kwargs["main_build"].main_list.metadata_root == tmp_path / "metadata"
+    assert builds.asked[-1].main_list.metadata_root == tmp_path / "metadata"
 
 
 def test_a_video_a_lock_sends_to_a_satellite_screen_carries_its_funscript(tmp_path: Path):
@@ -1673,7 +1647,7 @@ def _recording(config: BridgeConfig) -> tuple[BridgeConfig, _BuildsRecorded]:
     ("main_shuffle", BridgeState(main_latest=True), {"latest": False, "start_at_top": True}),
     ("main_projection_vr", BridgeState(), {"start_at_top": False}),
     ("main_reset", BridgeState(main_latest=True), {"latest": False, "start_at_top": True}),
-    ("main_fmode_on", BridgeState(), {"scripted_filter": True}),
+    ("main_favorites_on", BridgeState(), {"favorites": True}),
 ])
 def test_every_main_list_rebuild_is_handed_to_the_sessions_builder(tmp_path, command, state, asked):
     config, builds = _recording(replace(_make_config(tmp_path), vr_library_dirs=str(tmp_path / "vr")))
@@ -1741,7 +1715,7 @@ def test_a_genau_reorder_does_not_make_the_next_main_rebuild_a_latest_one(tmp_pa
     state, _ops = dispatch_command("main_latest", _make_state(main_mode=MainMode.GENAU), config)
 
     assert (state.genau_latest, state.main_latest) == (True, False)
-    dispatch_command("main_fmode_on", replace(state, main_mode=MainMode.KINO), config)
+    dispatch_command("main_favorites_on", replace(state, main_mode=MainMode.KINO), config)
     assert builds.asked[-1].settings.latest is False
 
     state, _ops = dispatch_command("main_shuffle", state, config)
@@ -1992,7 +1966,7 @@ def test_main_reset_does_nothing_to_a_main_funestra_already_at_every_default(tmp
 
 
 @pytest.mark.parametrize("off_default", [
-    {"main_scripted_filter": True}, {"main_latest": True}, {"main_plays_flat": False},
+    {"main_favorites_filter": True}, {"main_latest": True}, {"main_plays_flat": False},
     {"main_length_mode": LengthMode.CLIPS},
 ])
 def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_top(
@@ -2002,7 +1976,7 @@ def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_t
     state, _ops = dispatch_command(
         "main_reset", _make_state(main_shuffle_seed=7, **off_default), config)
 
-    assert (state.main_scripted_filter, state.main_latest,
+    assert (state.main_favorites_filter, state.main_latest,
             state.main_plays_vr, state.main_plays_flat) == (False, False, True, True)
     assert state.main_shuffle_seed != 7
     assert [(build.settings, build.start_at_top) for build in builds.asked] == [
@@ -2041,9 +2015,9 @@ def test_main_reset_leaves_what_the_main_funestra_holds_alone_while_genau_owns_t
     config, _builds = _recording(_make_config(tmp_path))
 
     state, _ops = dispatch_command(
-        "main_reset", _make_state(main_mode=MainMode.GENAU, main_scripted_filter=True), config)
+        "main_reset", _make_state(main_mode=MainMode.GENAU, main_favorites_filter=True), config)
 
-    assert state.main_scripted_filter is False
+    assert state.main_favorites_filter is False
     assert not config.main_funestra.cmd_file.exists()
 
 
@@ -2232,7 +2206,7 @@ class TestOrigeneratorTransport:
         config = _make_config(tmp_path)
         state = _handed_over()
         presses = ("portrait_prev", "portrait_trash", "portrait_reset",
-                   "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
+                   "portrait_favorites", "portrait_enhanced", "portrait_seed_loop",
                    "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
                    "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop",
                    "portrait_clip_seconds_up", "landscape_clip_seconds_down",
@@ -2263,62 +2237,68 @@ class TestOrigeneratorTransport:
         assert _cmds(config, 2) == ["SPEED_UP"]
         assert minimize_ops
 
-    def test_the_apps_f_mode_turns_each_hosted_shows_own_f_mode_on(self, tmp_path):
-        config = _make_config(tmp_path)
+    def test_the_apps_favorites_turns_each_hosted_shows_own_favorites_on(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
         for funestra in FunTimeFunestra.SATELLITES:
-            publish_the_show(config, funestra, f_mode=False)
-        state = _handed_over()
+            publish_the_show(config, funestra, favorites=False)
 
-        with patch("fun_time.f_mode.apply_fmode") as fmode:
-            fmode.return_value = SimpleNamespace(funestras=(FunTimeFunestra.MAIN,), log_message="")
-            state, _ = dispatch_command("fmode_toggle", state, config)
+        state, _ = dispatch_command("favorites_toggle", _handed_over(), config)
 
-        assert fmode.call_args.kwargs["funestras"] == (FunTimeFunestra.MAIN,)
-        assert _origenerator_cmds(config) == ["portrait_fmode_on", "landscape_fmode_on"]
+        assert state.main_favorites_filter is True
+        assert builds.asked[-1].settings.favorites is True
+        assert _origenerator_cmds(config) == ["portrait_favorites_on", "landscape_favorites_on"]
 
-    def test_the_apps_f_mode_lifts_the_hosted_shows_once_every_funestra_is_in_it(self, tmp_path):
-        config = _make_config(tmp_path)
+    def test_the_apps_favorites_lifts_the_hosted_shows_once_every_funestra_keeps_only_them(
+            self, tmp_path):
+        config, _builds = _recording(_make_config(tmp_path))
         for funestra in FunTimeFunestra.SATELLITES:
-            publish_the_show(config, funestra, f_mode=True)
-        state = _handed_over(main_scripted_filter=True)
+            publish_the_show(config, funestra, favorites=True)
 
-        state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
+        state, _ops = dispatch_command("favorites_toggle",
+                                       _handed_over(main_favorites_filter=True), config)
 
-        assert mock_fmode.call_args.kwargs["funestras"] == (FunTimeFunestra.MAIN,)
-        assert state.main_scripted_filter is False
-        assert _origenerator_cmds(config) == ["portrait_fmode_off", "landscape_fmode_off"]
+        assert state.main_favorites_filter is False
+        assert _origenerator_cmds(config) == ["portrait_favorites_off", "landscape_favorites_off"]
 
-    def test_a_hosted_show_already_in_the_asked_for_f_mode_is_sent_nothing(self, tmp_path):
-        config = _make_config(tmp_path)
-        publish_the_show(config, FunTimeFunestra.PORTRAIT, f_mode=True)
-        publish_the_show(config, FunTimeFunestra.LANDSCAPE, f_mode=False)
+    def test_a_hosted_show_already_as_asked_is_sent_nothing(self, tmp_path):
+        config, _builds = _recording(_make_config(tmp_path))
+        publish_the_show(config, FunTimeFunestra.PORTRAIT, favorites=True)
+        publish_the_show(config, FunTimeFunestra.LANDSCAPE, favorites=False)
 
-        _dispatch_fmode("fmode_on", _handed_over(), config)
+        dispatch_command("favorites_on", _handed_over(), config)
 
-        assert _origenerator_cmds(config) == ["landscape_fmode_on"]
+        assert _origenerator_cmds(config) == ["landscape_favorites_on"]
 
-    def test_a_satellite_with_no_show_up_has_no_say_in_the_apps_f_mode(self, tmp_path):
-        config = _make_config(tmp_path)
-        publish_the_show(config, FunTimeFunestra.PORTRAIT, f_mode=True)
+    def test_a_satellite_with_no_show_up_has_no_say_in_the_apps_favorites(self, tmp_path):
+        config, _builds = _recording(_make_config(tmp_path))
+        publish_the_show(config, FunTimeFunestra.PORTRAIT, favorites=True)
         config.satellite(FunTimeFunestra.LANDSCAPE).origenerator_hud_file.write_text("", encoding="utf-8")
-        state = _handed_over(main_scripted_filter=True)
 
-        state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
+        state, _ops = dispatch_command("favorites_toggle",
+                                       _handed_over(main_favorites_filter=True), config)
 
-        assert state.main_scripted_filter is False
-        assert _origenerator_cmds(config) == ["portrait_fmode_off"]
+        assert state.main_favorites_filter is False
+        assert _origenerator_cmds(config) == ["portrait_favorites_off"]
+
+    def test_the_apps_enhanceds_reach_the_hosted_shows_and_kinos_list_alike(self, tmp_path):
+        config, builds = _recording(_make_config(tmp_path))
+        for funestra in FunTimeFunestra.SATELLITES:
+            publish_the_show(config, funestra, enhanced=False)
+
+        state, _ = dispatch_command("enhanced_on", _handed_over(), config)
+
+        assert state.main_enhanced_filter is True
+        assert builds.asked[-1].settings.enhanced is True
+        assert _origenerator_cmds(config) == ["portrait_enhanced_on", "landscape_enhanced_on"]
 
     def test_fun_time_hears_for_the_hosted_app_and_posts_it_the_words_to_match(self, tmp_path):
         config = _make_config(tmp_path)
         state = _handed_over()
-        for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
-                        "landscape_say_fix_teeth", "portrait_say_enhanced_only"):
+        for command in ("landscape_say_play_slideshow", "portrait_say_fix_teeth"):
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == [
-            "LANDSCAPE_SAY:favorites",
-            "PORTRAIT_SAY:play slideshow",
-            "LANDSCAPE_SAY:fix teeth",
-            "PORTRAIT_SAY:enhanced only",
+            "LANDSCAPE_SAY:play slideshow",
+            "PORTRAIT_SAY:fix teeth",
         ]
 
     def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
@@ -2588,57 +2568,49 @@ class TestNamingAFunestraAddressesIt:
         assert state.active_funestra == funestra
 
 
-class TestTheEnhancementLevel:
+class TestKinosEnhanceds:
     def test_the_main_funestra_narrows_its_list_and_says_so(self, tmp_path):
         config, builds = _recording(_make_config(tmp_path))
 
-        state, ops = dispatch_command("main_enhancement_enhanced", _make_state(), config)
+        state, ops = dispatch_command("main_enhanced_on", _make_state(), config)
 
-        assert state.main_enhancement is EnhancementLevel.ENHANCED
-        assert builds.asked[-1].settings.enhancement is EnhancementLevel.ENHANCED
-        assert ops == [WindowOp(op="message", key="Enhanced only", source="main", level=MESSAGE)]
+        assert state.main_enhanced_filter is True
+        assert builds.asked[-1].settings.enhanced is True
+        assert ops == [WindowOp(op="message", key="Enhanceds on", source="main", level=MESSAGE)]
 
-    def test_asking_the_main_funestra_for_the_level_it_plays_rebuilds_nothing(self, tmp_path):
+    def test_asking_for_what_it_already_plays_rebuilds_nothing(self, tmp_path):
         config, builds = _recording(_make_config(tmp_path))
 
-        _state, ops = dispatch_command("main_enhancement_both", _make_state(), config)
+        dispatch_command("main_enhanced_off", _make_state(), config)
 
-        assert ops == []
         assert builds.asked == []
 
-    def test_in_genau_mode_the_main_funestras_level_is_ignored(self, tmp_path):
+    def test_in_genau_mode_the_main_funestras_enhanceds_does_nothing(self, tmp_path):
         config, builds = _recording(_make_config(tmp_path))
 
-        state, ops = dispatch_command(
-            "main_enhancement_original", _make_state(main_mode=MainMode.GENAU), config)
+        state, _ops = dispatch_command("main_enhanced", _make_state(main_mode=MainMode.GENAU),
+                                       config)
 
-        assert ops == [WindowOp(op=Op.IGNORED, key="in Genau mode")]
-        assert state.main_enhancement is EnhancementLevel.BOTH
+        assert state.main_enhanced_filter is False
         assert builds.asked == []
+        assert not config.main_funestra.cmd_file.exists() or not config.main_funestra.cmd_file.read_text(
+            encoding="utf-8")
 
-    def test_a_reset_puts_the_main_funestras_level_back(self, tmp_path):
+    def test_a_reset_turns_the_main_funestras_enhanceds_off(self, tmp_path):
         config, builds = _recording(_make_config(tmp_path))
-        narrowed = _make_state(main_enhancement=EnhancementLevel.ORIGINAL)
 
-        state, _ops = dispatch_command("main_reset", narrowed, config)
+        state, _ops = dispatch_command("main_reset", _make_state(main_enhanced_filter=True), config)
 
-        assert state.main_enhancement is EnhancementLevel.BOTH
-        assert builds.asked[-1].settings.enhancement is EnhancementLevel.BOTH
+        assert state.main_enhanced_filter is False
+        assert builds.asked[-1].settings.enhanced is False
 
-
-    def test_said_to_a_satellite_each_level_is_said_to_the_hosted_app(
-            self, tmp_path):
+    def test_said_to_a_satellite_it_reaches_the_hosted_app_as_its_buttons_press(self, tmp_path):
         config = _make_config(tmp_path)
-        state = _handed_over()
 
-        state, _ops = dispatch_command("portrait_enhancement_enhanced", state, config)
-        state, _ops = dispatch_command("portrait_enhancement_both", state, config)
-        state, ops = dispatch_command("landscape_enhancement_original", state, config)
+        dispatch_command("portrait_enhanced_on", _handed_over(), config)
+        dispatch_command("landscape_enhanced_off", _handed_over(), config)
 
-        assert _origenerator_cmds(config) == [
-            "PORTRAIT_SAY:enhanced only", "PORTRAIT_SAY:enhanced and original",
-            "LANDSCAPE_SAY:original only"]
-        assert ops == []
+        assert _origenerator_cmds(config) == ["portrait_enhanced_on", "landscape_enhanced_off"]
 
 
 class TestAHudSaidToACorner:
@@ -2895,7 +2867,7 @@ def test_genaus_reset_puts_every_setting_it_covers_back_to_how_genau_starts(tmp_
         "SHAPES vr flat", "SHUFFLE", f"FLICK_SECONDS {BridgeState().genau_flick_seconds}",
         "LOCK_ON"]
     assert _lines(config.main_funestra.cmd_file) == [
-        genau_orientations((True, True)), genau_f_mode(False)]
+        genau_orientations((True, True)), genau_favorites(False)]
     assert [(op.op, op.key) for op in ops] == [("message", "Reset")]
 
 

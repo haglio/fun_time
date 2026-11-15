@@ -212,12 +212,12 @@ class TestResolveActiveSideCommand:
             assert [each.text for each in parse_command(f"satellites_{action}").each()] == [
                 f"portrait_{action}", f"landscape_{action}"]
 
-    def test_the_enhancement_level_follows_the_funestra_last_navigated(self):
-        for level in ("enhanced", "original", "both"):
-            assert parse_command(f"active_enhancement_{level}").aimed_at_the_active(1).text == f"main_enhancement_{level}"
-            assert parse_command(f"active_enhancement_{level}").aimed_at_the_active(2).text == f"portrait_enhancement_{level}"
-            assert [each.text for each in parse_command(f"satellites_enhancement_{level}").each()] == [
-                f"portrait_enhancement_{level}", f"landscape_enhancement_{level}"]
+    def test_enhanceds_follow_the_funestra_last_navigated(self):
+        for suffix in ("", "_on", "_off"):
+            assert parse_command(f"active_enhanced{suffix}").aimed_at_the_active(1).text == f"main_enhanced{suffix}"
+            assert parse_command(f"active_enhanced{suffix}").aimed_at_the_active(2).text == f"portrait_enhanced{suffix}"
+            assert [each.text for each in parse_command(f"satellites_enhanced{suffix}").each()] == [
+                f"portrait_enhanced{suffix}", f"landscape_enhanced{suffix}"]
 
     def test_a_hosted_apps_phrase_said_bare_reaches_the_satellite_last_navigated(self):
         assert parse_command("active_say_fix_face").aimed_at_the_active(2).text == "portrait_say_fix_face"
@@ -242,11 +242,11 @@ class TestResolveActiveSideCommand:
         assert parse_command("active_lock_on").aimed_at_the_active(2).text == "portrait_lock_on"
         assert parse_command("active_lock_off").aimed_at_the_active(3).text == "landscape_lock_off"
 
-    def test_a_bare_f_mode_reaches_whichever_funestra_is_active(self):
+    def test_bare_favorites_reach_whichever_funestra_is_active(self):
         for suffix in ("", "_on", "_off"):
-            assert parse_command(f"active_fmode{suffix}").aimed_at_the_active(1).text == f"main_fmode{suffix}"
-            assert parse_command(f"active_fmode{suffix}").aimed_at_the_active(2).text == f"portrait_fmode{suffix}"
-            assert parse_command(f"active_fmode{suffix}").aimed_at_the_active(3).text == f"landscape_fmode{suffix}"
+            assert parse_command(f"active_favorites{suffix}").aimed_at_the_active(1).text == f"main_favorites{suffix}"
+            assert parse_command(f"active_favorites{suffix}").aimed_at_the_active(2).text == f"portrait_favorites{suffix}"
+            assert parse_command(f"active_favorites{suffix}").aimed_at_the_active(3).text == f"landscape_favorites{suffix}"
 
     def test_a_bare_browse_order_reaches_whichever_funestra_is_active(self):
         for order in ("latest", "shuffle"):

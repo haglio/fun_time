@@ -20,7 +20,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
     return DashboardSnapshot(
         omni_paused=_read_bool(parser, "omnipause", "active"),
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
-        f_mode=_read_bool(parser, "fmode", "active"),
+        favorites=_read_bool(parser, "favorites", "active"),
         in_vr=_read_bool(parser, "session", "vr"),
         nothing_to_reset=_read_bool(parser, "reset", "nothing"),
         headset_ready=(not parser.has_section("headset")

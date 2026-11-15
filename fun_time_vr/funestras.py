@@ -624,7 +624,7 @@ def _users(manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *, k
             folder=vr.flicks_folder,
             start_flick=read_genau_status(Path(commands.genau_status_file)).flick or None,
             latest=resumed.genau_latest,
-            f_mode=resumed.genau_favorites_filter,
+            favorites=resumed.genau_favorites_filter,
             orientations=(resumed.genau_plays_portrait, resumed.genau_plays_landscape),
             metadata_root=manifest.regen.metadata_folder,
             gallery=the_librarys_gallery(),
@@ -987,7 +987,7 @@ class _DashUnit:
         self._pointer.session_state(
             omni_paused=snapshot is not None and snapshot.omni_paused,
             voice_active=snapshot is None or snapshot.voice_active,
-            f_mode=snapshot is not None and snapshot.f_mode,
+            favorites=snapshot is not None and snapshot.favorites,
             reference_open=read_flag(self._reference_flag, default=False),
             nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
         )

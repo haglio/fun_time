@@ -20,17 +20,17 @@ from funestra.inclusion_pair import (
 from funestra.modes import LengthMode
 from funestra.playback_rate import NORMAL_RATE
 
-from main_funestra.genau_verbs import genau_f_mode, genau_orientations
+from main_funestra.genau_verbs import genau_favorites, genau_orientations
 from main_funestra.snippet_controller import SnippetState
 
 from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Op, WindowOp, ignored
 from .content import no_other_flicks
-from .event_log import MESSAGE, SOURCE_MAIN
+from .event_log import SOURCE_MAIN
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
 from .main_funestra_commands import MAIN_FUNESTRA_CMD_MAP, MAIN_LOCK_COMMANDS
 from .main_list import MainListSettings, new_shuffle_seed
 from .main_list_builds import MainListBuild
-from .mode_plan import EnhancementLevel, kino_shows
+from .mode_plan import kino_shows
 from .modes import VideoShapes
 from .session_resume import FLICK_SECONDS
 from .shared_state import BridgeState
@@ -52,7 +52,7 @@ def _dispatch_main_reorder(
     if kino:
         state = replace(state, main_latest=recent,
                         main_shuffle_seed=state.main_shuffle_seed if recent else new_shuffle_seed())
-        _rebuild_the_main_list(state, config, start_at_top=True)
+        rebuild_the_main_list(state, config, start_at_top=True)
     else:
         state = replace(state, genau_latest=recent)
         append_command(config.genau.cmd_file, _GENAU_ORDER_CMD[recent])
@@ -61,7 +61,7 @@ def _dispatch_main_reorder(
     return state, [WindowOp(op="message", key=label, source=SOURCE_MAIN)]
 
 
-def _rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
+def rebuild_the_main_list(state: BridgeState, config: BridgeConfig, *,
                            start_at_top: bool = False, says: str = "") -> None:
     config.main_list_builds.build(MainListBuild(
         main_list=config.main_list, settings=MainListSettings.of(state),
@@ -167,7 +167,7 @@ def _dispatch_inclusion(
     logger.info("%s %s: %s", "Main Funestra" if on_the_main_funestra else "Genau",
                 inclusions.kinds, pair.flash(wanted) or "neither")
     if on_the_main_funestra:
-        _rebuild_the_main_list(state, config, says=pair.flash(wanted))
+        rebuild_the_main_list(state, config, says=pair.flash(wanted))
         return state, [WindowOp(op=Op.NARROWING_ANSWERS)]
     if not any(wanted):
         append_command(config.genau.cmd_file, LOCK_ON)
@@ -178,29 +178,10 @@ def _dispatch_inclusion(
 
 
 def _the_main_list_is_narrowed_or_ordered(state: BridgeState, config: BridgeConfig) -> bool:
-    return (state.main_scripted_filter or state.main_latest
+    return (state.main_favorites_filter or state.main_enhanced_filter or state.main_latest
             or main_video_shapes(state, config).narrows
             or state.main_length_mode is not LengthMode.MIXED
-            or state.main_enhancement is not EnhancementLevel.BOTH
             or not (state.main_plays_portrait and state.main_plays_landscape))
-
-
-_ENHANCEMENT_COMMANDS: dict[str, EnhancementLevel] = {
-    f"main_enhancement_{level}": level for level in EnhancementLevel
-}
-
-
-def _dispatch_enhancement(
-    level: EnhancementLevel, state: BridgeState, config: BridgeConfig
-) -> tuple[BridgeState, list[WindowOp]]:
-    if not kino_shows(state.main_mode):
-        return ignored(state, IN_GENAU_MODE)
-    if state.main_enhancement is level:
-        return state, []
-    state = replace(state, main_enhancement=level)
-    _rebuild_the_main_list(state, config)
-    logger.info("Main Funestra enhancement: %s", level)
-    return state, [WindowOp(op="message", key=level.flash, source=SOURCE_MAIN, level=MESSAGE)]
 
 
 def main_funestra_at_defaults(
@@ -230,7 +211,7 @@ def _dispatch_main_reset(
         return state, []
     if _the_main_list_is_narrowed_or_ordered(state, config) or status.compilation:
         state = MainListSettings(shuffle_seed=new_shuffle_seed()).into(state)
-        _rebuild_the_main_list(state, config, start_at_top=True)
+        rebuild_the_main_list(state, config, start_at_top=True)
     if kino_shows(state.main_mode):
         for verb in _MAIN_FUNESTRA_RESET_VERBS:
             append_command(config.main_funestra.cmd_file, verb)
@@ -256,7 +237,7 @@ _GENAUS_SETTINGS = (
     _GenausSetting(("genau_plays_flat", "genau_plays_vr"), _tell_genau_its_shapes),
     _GenausSetting(("genau_plays_portrait", "genau_plays_landscape"), _tell_genau_its_orientations),
     _GenausSetting(("genau_favorites_filter",), lambda config, held: append_command(
-        config.main_funestra.cmd_file, genau_f_mode(*held))),
+        config.main_funestra.cmd_file, genau_favorites(*held))),
     _GenausSetting(("genau_latest",), lambda config, held: append_command(
         config.genau.cmd_file, _GENAU_ORDER_CMD[held[0]])),
     _GenausSetting(("genau_flick_seconds",), lambda config, held: append_command(
@@ -297,11 +278,6 @@ def _include(pair: InclusionPair, wanted: Included, state: BridgeState, config: 
     return _dispatch_inclusion(pair, wanted, state, config)
 
 
-def _enhancement(level: EnhancementLevel, state: BridgeState, config: BridgeConfig,
-                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_enhancement(level, state, config)
-
-
 def _main_reset(state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_main_reset(state, config)
@@ -320,7 +296,6 @@ HANDLERS: dict[str, Handler] = {
     **{cmd: partial(_include, pair, wanted)
        for pair in (PROJECTION, LENGTH, ORIENTATION)
        for cmd, wanted in pair.asked.items()},
-    **{cmd: partial(_enhancement, level) for cmd, level in _ENHANCEMENT_COMMANDS.items()},
     MAIN_RESET: _main_reset,
     GENAU_RESET: _genau_reset,
 }
