@@ -26,14 +26,6 @@ class Modes:
         self._jumps = jumps
         self.versions = versions
         self._the_main_list = the_main_list
-        self._scripted_filter = False
-
-    @property
-    def scripted_filter(self) -> bool:
-        return self._scripted_filter
-
-    def set_scripted_filter(self, on: bool) -> None:
-        self._scripted_filter = on
 
     def end_compilation(self) -> None:
         self._jumps.end_compilation(self._the_main_list())
@@ -45,7 +37,6 @@ class Modes:
             compilation=self._jumps.compilation,
             position=self._playback.index + 1,
             total=len(self._playback.playlist),
-            scripted_filter=self.scripted_filter,
         )
 
     @property

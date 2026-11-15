@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from funestra.funestra_verbs import RELOAD_PLAYLIST, SET_F_MODE
+from funestra.funestra_verbs import RELOAD_PLAYLIST
 
 from main_funestra.controls import VERBS, KinoControls, apply_command
 from main_funestra.snippet_verbs import (
@@ -93,14 +93,6 @@ class TestTheLibrary:
 
         assert spies["modes"].calls == [("end_compilation",)]
 
-    def test_set_f_mode_says_the_flag_outright(self):
-        controls, spies = _controls()
-
-        assert apply_command(f"{SET_F_MODE} 1", controls) is True
-        assert apply_command(f"{SET_F_MODE} 0", controls) is True
-
-        assert spies["modes"].calls == [("set_scripted_filter", True), ("set_scripted_filter", False)]
-
     def test_the_three_ways_into_another_slice_of_the_library(self):
         controls, spies = _controls()
 
@@ -127,7 +119,6 @@ ACCEPTED_COMMANDS = [
     "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "SNIPPET_CANCEL", "SET_SNIPPET 1000 2000",
     "CYCLE_VERSION", "CYCLE_VERSION_BACK",
     "RELOAD_PLAYLIST", "END_COMPILATION",
-    "SET_F_MODE 1",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
 ]
 
@@ -145,7 +136,7 @@ class TestTheVerbsFunTimeCanSend:
 
         assert apply_command(command, controls) is False
 
-    @pytest.mark.parametrize("command", ["SET_SNIPPET", "SET_F_MODE"])
+    @pytest.mark.parametrize("command", ["SET_SNIPPET"])
     def test_a_verb_that_wants_a_value_is_refused_without_one(self, command):
         controls, _spies = _controls()
 

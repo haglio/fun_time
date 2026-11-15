@@ -221,7 +221,7 @@ class TestCollapsePlaylistVersions:
 
         assert result == [(Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript"))]
 
-    def test_a_list_f_mode_left_without_the_upscale_keeps_the_version_it_has(self):
+    def test_a_list_left_without_the_upscale_keeps_the_version_it_has(self):
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
         items = [PlaylistItem(Path("Richard.mp4"), Path("Richard.funscript"))]
 

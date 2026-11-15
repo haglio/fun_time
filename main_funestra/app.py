@@ -66,7 +66,7 @@ def _genau(args):
             folder=args.flicks_dir,
             start_flick=Path(args.genau_start_flick) if args.genau_start_flick else None,
             latest=args.genau_latest,
-            f_mode=args.genau_f_mode,
+            favorites=args.genau_favorites,
             orientations=orientations_from(args.genau_orientations),
             metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
             gallery=the_librarys_gallery(),

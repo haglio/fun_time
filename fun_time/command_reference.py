@@ -13,10 +13,9 @@ from shared_ui.reference import (
 from shared_ui.reference import reference_details as _details_of
 from shared_ui.reference import render_reference_html as _render
 
-from fun_time.command_value import say_command
 from fun_time.content import Noun, genau_flick_noun
 from fun_time.filter_vocab import Acts, display_forms, set_commands_for_scope
-from fun_time.voice_commands import FAVORITES_PHRASE, GENAU_SAID, VOICE_COMMANDS, friendly_voice
+from fun_time.voice_commands import GENAU_SAID, VOICE_COMMANDS, friendly_voice
 
 _DETAIL_DASH = " — "
 
@@ -157,11 +156,11 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
             _Group("Funestras", (
                 _Row(
-                    "F-mode all — spoken it needs the word \"all\", since bare \"f "
-                    "mode\" reaches the Funestra you last navigated; each Funestra also "
-                    "has its own, on its own HUD",
+                    "Favorites all — spoken it needs the word \"all\", since bare "
+                    "\"favorites\" reaches the Funestra you last navigated; each Funestra "
+                    "also has its own, on its own HUD",
                     ("F",),
-                    ("fmode_toggle", "fmode_on", "fmode_off"),
+                    ("favorites_toggle", "favorites_on", "favorites_off"),
                 ),
                 _Row(
                     "reset all — every Funestra back to its defaults at once, as "
@@ -368,15 +367,22 @@ _SECTIONS: tuple[_Section, ...] = (
             )),
             _Group("Playlist", (
                 _Row("latest — reload what it plays newest-first", commands=_every_funestra("latest")),
-                _Row("shuffle — reshuffle what it plays (cancels latest; keeps F-mode and the filter)",
+                _Row("shuffle — reshuffle what it plays (cancels latest; keeps Favorites, "
+                     "Enhanceds and the filter)",
                      commands=_every_funestra("shuffle")),
                 _Row(
-                    "F-mode — a satellite plays only the favorites, the Main Funestra "
-                    "only the well funscripted videos, and in Genau mode only the favorite "
-                    f"{_FLICK.many}; “favorites” says a satellite's, “funscripts” the Main "
-                    "Funestra's",
-                    commands=_every_funestra("fmode", "fmode_on", "fmode_off")
-                    + tuple(say_command(scope, FAVORITES_PHRASE) for scope in _SCOPES),
+                    "Favorites — play only the favorites: a satellite's, the Main Funestra's "
+                    f"videos, or in Genau mode its favorite {_FLICK.many}; \"favorites\" turns "
+                    "it on and \"favorites off\" turns it off",
+                    commands=(*_every_funestra("favorites", "favorites_on", "favorites_off"),
+                              "main_favorites"),
+                ),
+                _Row(
+                    "Enhanceds — play only what has an enhanced version, on a satellite or "
+                    "the Main Funestra in Kino mode; \"enhanced\" turns it on and "
+                    "\"enhanced off\" turns it off",
+                    commands=(*_every_funestra("enhanced", "enhanced_on", "enhanced_off", "main_enhanced"),
+                              "enhanced_on", "enhanced_off", "main_enhanced"),
                 ),
             )),
             _Group("Included video types", (
@@ -406,13 +412,6 @@ _SECTIONS: tuple[_Section, ...] = (
                               "main_orientation_both", "main_orientation_none"),
                     voice_display=("portrait only", "landscape only", "portrait and landscape",
                                    "landscape and portrait"),
-                ),
-                _Row(
-                    "included video types (enhancement) — \"enhanced only\" keeps "
-                    "what has an enhanced version, \"original only\" what has none, and "
-                    "\"enhanced and original\" everything",
-                    commands=_every_funestra("enhancement_enhanced", "enhancement_original",
-                                             "enhancement_both"),
                 ),
             )),
             _Group("Audio", (
@@ -463,9 +462,9 @@ _SECTIONS: tuple[_Section, ...] = (
             _Group("Other", (
                 _Row(
                     "reset — back to every default: no filter, no lock, no loop, no "
-                    "F-mode, normal speed, shuffled from the top; the Main Funestra's "
-                    "every length, shape, orientation and enhancement too (leaving "
-                    "any compilation)",
+                    "Favorites, no Enhanceds, normal speed, shuffled from the top; the Main "
+                    "Funestra's every length, shape and orientation too (leaving any "
+                    "compilation)",
                     commands=_every_funestra("reset"),
                 ),
                 _Row(

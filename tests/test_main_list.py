@@ -8,8 +8,6 @@ from funestra.modes import LengthMode
 
 from fun_time.main_list import MainList, MainListSettings, WrittenList
 from fun_time.media_metadata import metadata_path_for
-from fun_time.mode_plan import EnhancementLevel
-from fun_time.modes import build_generated_marker_path, build_mirrored_funscript_path
 from tests.drive_fakes import files_that_never_answer
 
 
@@ -23,14 +21,6 @@ def _videos(folder: Path, *names: str) -> list[Path]:
 
 def _the_list(tmp_path: Path, sources: str, **where) -> MainList:
     return MainList(sources=sources, state_dir=tmp_path / "state", **where)
-
-
-def _script(video: str, metadata_root: Path, *, last_ms: int) -> None:
-    script = Path(build_mirrored_funscript_path(video, metadata_root))
-    script.parent.mkdir(parents=True, exist_ok=True)
-    actions = [{"at": at, "pos": 100 * (index % 2)}
-               for index, at in enumerate(range(0, last_ms + 1, 500))]
-    script.write_text(json.dumps({"actions": actions}), encoding="utf-8")
 
 
 def _recorded_library(tmp_path, records: dict[str, dict | None]) -> tuple[MainList, dict[str, str]]:
@@ -47,135 +37,51 @@ def _recorded_library(tmp_path, records: dict[str, dict | None]) -> tuple[MainLi
     return _the_list(tmp_path, str(root), metadata_root=metadata_root), videos
 
 
-class TestTheEnhancementLevel:
+class TestEnhanceds:
     def _library(self, tmp_path: Path) -> tuple[MainList, dict[str, Path]]:
         root = tmp_path / "vids"
         scene, upscale, lone = _videos(root, "Jane Doe - scene one.mp4",
                                        "Jane Doe - scene one_topaz.mp4", "Jane Doe - scene two.mp4")
         return _the_list(tmp_path, str(root)), {"scene": scene, "upscale": upscale, "lone": lone}
 
-    def test_enhanced_only_keeps_the_family_that_has_an_upscale(self, tmp_path):
+    def test_on_it_keeps_the_family_that_has_an_upscale(self, tmp_path):
         the_list, videos = self._library(tmp_path)
 
-        kept = the_list.videos(MainListSettings(enhancement=EnhancementLevel.ENHANCED))
+        kept = the_list.videos(MainListSettings(enhanced=True))
 
         assert sorted(kept) == sorted([str(videos["scene"]), str(videos["upscale"])])
 
-    def test_original_only_keeps_the_family_that_has_none(self, tmp_path):
-        the_list, videos = self._library(tmp_path)
-
-        kept = the_list.videos(MainListSettings(enhancement=EnhancementLevel.ORIGINAL))
-
-        assert kept == [str(videos["lone"])]
-
-    def test_both_is_the_default_and_keeps_everything(self, tmp_path):
+    def test_off_is_the_default_and_keeps_everything(self, tmp_path):
         the_list, _videos = self._library(tmp_path)
 
-        assert MainListSettings().enhancement is EnhancementLevel.BOTH
+        assert MainListSettings().enhanced is False
         assert len(the_list.videos(MainListSettings())) == 3
 
 
-class TestFMode:
-    def test_both_have_scripts_and_only_the_hand_made_one_keeps_its_video(self, tmp_path):
-        root = tmp_path / "videos" / "videos" / "primary"
-        hand_scripted, bulk_scripted, _unscripted = _videos(root, "a.mp4", "b.mp4", "c.mp4")
-        scripts = tmp_path / "videos" / "scripts" / "scripts" / "primary"
-        scripts.mkdir(parents=True)
-        for video in (hand_scripted, bulk_scripted):
-            (scripts / f"{video.stem}.funscript").write_text("{}", encoding="utf-8")
-        left_by_the_bulk_run = Path(build_generated_marker_path(str(bulk_scripted)))
-        left_by_the_bulk_run.parent.mkdir(parents=True)
-        left_by_the_bulk_run.touch()
-
-        videos = _the_list(tmp_path, str(root)).videos(
-            MainListSettings(scripted_filter=True))
-
-        assert videos == [str(hand_scripted)]
-
-    def test_off_it_holds_every_video(self, tmp_path):
-        root = tmp_path / "vids"
-        _videos(root, "a.mp4", "b.mp4")
-
-        videos = _the_list(tmp_path, str(root)).videos(MainListSettings())
-
-        assert len(videos) == 2
-
-    def test_it_takes_scripted_videos_from_sub_folders_too(self, tmp_path):
-        root = tmp_path / "videos" / "videos" / "2D" / "non_AI"
-        top = root / "clip.mp4"
-        nested = root / "batch" / "portrait" / "nested_clip.mp4"
-        scripts = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "non_AI"
-        for video, script in ((top, scripts / "clip.funscript"),
-                              (nested, scripts / "batch" / "portrait" / "nested_clip.funscript")):
-            _videos(video.parent, video.name)
-            script.parent.mkdir(parents=True, exist_ok=True)
-            script.write_text("{}", encoding="utf-8")
-
-        videos = _the_list(tmp_path, str(root)).videos(
-            MainListSettings(scripted_filter=True))
-
-        assert set(videos) == {str(top), str(nested)}
-
-    def test_it_keeps_a_kept_video_whose_hand_written_script_is_in_the_library(self, tmp_path):
-        library = tmp_path / "library" / "videos"
-        kept_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
-        kept, _unscripted = _videos(kept_dir, "scene one.mp4", "scene two.mp4")
-        script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
-        script.parent.mkdir(parents=True)
-        script.write_text("{}", encoding="utf-8")
-
-        videos = _the_list(tmp_path, str(kept_dir), metadata_root=library / "metadata").videos(
-            MainListSettings(scripted_filter=True))
-
-        assert videos == [str(kept)]
-
-    def test_it_drops_a_video_whose_script_is_in_action_for_under_30_percent_of_it(self, tmp_path):
+class TestFavorites:
+    def test_on_it_keeps_only_the_videos_marked_a_favorite(self, tmp_path):
         the_list, videos = _recorded_library(tmp_path, {
-            "mostly scripted": {"video": {"duration_seconds": 100.0}},
-            "barely scripted": {"video": {"duration_seconds": 100.0}},
-        })
-        _script(videos["mostly scripted"], the_list.metadata_root, last_ms=60_000)
-        _script(videos["barely scripted"], the_list.metadata_root, last_ms=29_000)
+            "liked": {"favorite": True}, "passed over": {"favorite": False}, "never seen": None})
 
-        kept = the_list.videos(MainListSettings(scripted_filter=True))
+        kept = the_list.videos(MainListSettings(favorites=True))
 
-        assert kept == [videos["mostly scripted"]]
+        assert kept == [videos["liked"]]
 
-    def test_a_video_whose_script_is_in_action_for_exactly_30_percent_of_it_stays(self, tmp_path):
+    def test_off_is_the_default_and_keeps_everything(self, tmp_path):
+        the_list, _videos = _recorded_library(tmp_path, {
+            "liked": {"favorite": True}, "never seen": None})
+
+        assert MainListSettings().favorites is False
+        assert len(the_list.videos(MainListSettings())) == 2
+
+    def test_with_enhanceds_it_keeps_only_the_favorites_with_an_upscale(self, tmp_path):
         the_list, videos = _recorded_library(tmp_path, {
-            "just scripted enough": {"video": {"duration_seconds": 30.0}},
-        })
-        _script(videos["just scripted enough"], the_list.metadata_root, last_ms=9_000)
+            "Jane Doe - scene one": {"favorite": True}, "Jane Doe - scene one_topaz": None,
+            "Jane Doe - scene two": {"favorite": True}})
 
-        kept = the_list.videos(MainListSettings(scripted_filter=True))
+        kept = the_list.videos(MainListSettings(favorites=True, enhanced=True))
 
-        assert kept == [videos["just scripted enough"]]
-
-    def test_a_video_whose_running_time_nothing_records_stays(self, tmp_path):
-        the_list, videos = _recorded_library(tmp_path, {
-            "unmeasured": {"video": {"type": "full_length"}},
-            "garbled": {"video": {"duration_seconds": "long"}},
-        })
-        for video in videos.values():
-            _script(video, the_list.metadata_root, last_ms=1_000)
-
-        kept = the_list.videos(MainListSettings(scripted_filter=True))
-
-        assert sorted(kept) == sorted(videos.values())
-
-    def test_a_headset_video_is_judged_by_the_record_the_headset_finds_for_it(self, tmp_path):
-        metadata_root = tmp_path / "library" / "videos" / "metadata"
-        vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
-        (video,) = _videos(vr_dir, "scene one.mp4")
-        sidecar = metadata_path_for(video, metadata_root, outlying_dirs=[vr_dir])
-        sidecar.parent.mkdir(parents=True)
-        sidecar.write_text(json.dumps({"video": {"duration_seconds": 100.0}}), encoding="utf-8")
-        _script(str(video), metadata_root, last_ms=10_000)
-        the_list = _the_list(tmp_path, str(vr_dir), vr_dirs=str(vr_dir), metadata_root=metadata_root)
-
-        kept = the_list.videos(MainListSettings(scripted_filter=True))
-
-        assert kept == []
+        assert kept == [videos["Jane Doe - scene one"]]
 
 
 class TestShapes:

@@ -7,13 +7,10 @@ import pytest
 from funestra.main_hud import OSR2_DRIVING
 from funestra.modes import MainMode
 
-from fun_time.fun_time_funestras import FunTimeFunestra
 from fun_time.main_list import MainList, MainListSettings
 from fun_time.main_list_builds import BUILDS_HERE, MainListBuild
 from fun_time.omnipause import PausedFiles, apply_enter_omnipause, apply_leave_omnipause
 from fun_time.runtime_flow import (
-    FMODE_FUNESTRAS,
-    apply_fmode,
     apply_mode_switch,
 )
 
@@ -99,42 +96,6 @@ def test_a_mode_switch_queues_its_verb_behind_what_the_file_already_holds(flow_f
     assert _main_funestra_cmds(flow_files) == ["SET_VOLUME 1", "SHOW genau"]
 
 
-def test_toggle_fmode_rebuilds_and_reloads_the_main_funestras_list(tmp_path: Path):
-    primary_root = tmp_path / "videos" / "videos" / "primary"
-    primary_root.mkdir(parents=True)
-    (primary_root / "main.mp4").write_text("x", encoding="utf-8")
-    main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
-
-    result = apply_fmode(
-        funestras=FMODE_FUNESTRAS,
-        enabled=True,
-        main_build=MainListBuild(main_list=MainList(sources=str(primary_root), state_dir=tmp_path / "state"), settings=MainListSettings(), main_funestra_cmd_file=main_funestra_cmd_file),
-    )
-
-    assert (result.funestras, result.enabled) == ((FunTimeFunestra.MAIN,), True)
-    assert "RELOAD_PLAYLIST" in main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
-    assert (tmp_path / "state" / "main_player_playlist.tsv").exists()
-
-
-def test_f_mode_is_told_right_behind_the_reload(tmp_path: Path):
-    root = tmp_path / "videos" / "videos" / "primary"
-    root.mkdir(parents=True)
-    (root / "main.mp4").write_text("x", encoding="utf-8")
-    main_funestra_cmd_file = tmp_path / "main_player_cmd.txt"
-
-    def told(enabled: bool) -> list[str]:
-        main_funestra_cmd_file.unlink(missing_ok=True)
-        apply_fmode(
-            funestras=FMODE_FUNESTRAS,
-            enabled=enabled,
-            main_build=MainListBuild(main_list=MainList(sources=str(root), state_dir=tmp_path / "state"), settings=MainListSettings(), main_funestra_cmd_file=main_funestra_cmd_file),
-        )
-        return main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()
-
-    assert told(True)[:2] == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
-    assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
-
-
 def _the_verbs_of_a_build_started_at_the_top(tmp_path: Path) -> tuple[list[str], Path, Path]:
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
@@ -159,8 +120,8 @@ def _the_verbs_of_a_build_started_at_the_top(tmp_path: Path) -> tuple[list[str],
 def test_a_jump_to_the_top_goes_last_onto_the_list_just_reloaded(tmp_path: Path):
     verbs, new, _ = _the_verbs_of_a_build_started_at_the_top(tmp_path)
 
-    assert verbs[:2] == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
-    assert [verb.startswith(f"PLAY_FILE {new}") for verb in verbs] == [False, False, True]
+    assert verbs[:1] == ["RELOAD_PLAYLIST"]
+    assert [verb.startswith(f"PLAY_FILE {new}") for verb in verbs] == [False, True]
 
 
 def test_the_jump_names_the_script_the_main_funestra_drives_the_osr2_from(tmp_path: Path):

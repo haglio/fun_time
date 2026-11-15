@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from funestra.file_channel import append_command
@@ -11,7 +10,6 @@ from funestra.funestra_verbs import LOCK_OFF
 from .config import SatelliteChannel
 from .fun_time_funestras import FunTimeFunestra
 from .hosted_contract import OPEN_SLIDESHOW, said_about
-from .main_list_builds import BUILDS_HERE, MainListBuild, MainListBuilds
 from .mode_plan import build_mode_switch_plan
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 
@@ -29,16 +27,6 @@ def write_flag_file(path: str | Path, value: bool) -> None:
 class ModeSwitchFlowResult:
     next_mode: str
     is_transition: bool
-    log_message: str
-
-
-FMODE_FUNESTRAS = (FunTimeFunestra.MAIN, FunTimeFunestra.PORTRAIT, FunTimeFunestra.LANDSCAPE)
-
-
-@dataclass(frozen=True)
-class FModeFlowResult:
-    funestras: tuple[FunTimeFunestra, ...]
-    enabled: bool
     log_message: str
 
 
@@ -63,27 +51,6 @@ def apply_mode_switch(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,
         log_message=plan.log_message,
-    )
-
-
-def apply_fmode(
-    *,
-    funestras: Sequence[FunTimeFunestra],
-    enabled: bool,
-    main_build: MainListBuild,
-    main_builds: MainListBuilds = BUILDS_HERE,
-) -> FModeFlowResult:
-    named = (FunTimeFunestra.MAIN,) if FunTimeFunestra.MAIN in funestras else ()
-    if named:
-        main_builds.build(replace(
-            main_build, settings=replace(main_build.settings, scripted_filter=enabled)))
-    return FModeFlowResult(
-        funestras=named,
-        enabled=enabled,
-        log_message=(
-            f"F-mode {'enabled' if enabled else 'disabled'}: "
-            f"{', '.join(funestra.label for funestra in named) or 'nothing'}"
-        ),
     )
 
 

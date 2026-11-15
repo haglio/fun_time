@@ -114,12 +114,12 @@ def test_fun_time_omnipause_toggle_flow(shared_integration_session: FunTimeInteg
     shared_integration_session.wait_for_new_log("OmniPause: leaving")
 
 
-def test_fun_time_fmode_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode enabled: main")
+def test_fun_time_favorites_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
+    shared_integration_session.write_dashboard_command("favorites_toggle")
+    shared_integration_session.wait_for_new_log("Favorites on: main")
 
-    shared_integration_session.write_dashboard_command("fmode_toggle")
-    shared_integration_session.wait_for_new_log("F-mode disabled: main")
+    shared_integration_session.write_dashboard_command("favorites_toggle")
+    shared_integration_session.wait_for_new_log("Favorites off: main")
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):

@@ -5,11 +5,8 @@ from pathlib import Path
 
 from fun_time.media_metadata import is_favorite
 from fun_time.modes import (
-    build_generated_marker_path,
     build_mirrored_funscript_path,
     collect_video_files,
-    has_handcrafted_funscript,
-    has_matching_funscript,
     matching_funscript,
     rotated_onto,
     sort_paths_by_recency,
@@ -20,13 +17,6 @@ from tests.drive_fakes import files_that_never_answer
 
 def _lines(playlist: Path) -> list[str]:
     return playlist.read_text(encoding="utf-8").splitlines()
-
-
-def _mark_generated(video: Path) -> Path:
-    marker = Path(build_generated_marker_path(str(video)))
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.touch()
-    return marker
 
 
 def _touch_with_mtime(path: Path, mtime: float) -> None:
@@ -97,46 +87,7 @@ def test_a_video_outside_the_mirrored_tree_names_no_funscript():
     assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
 
 
-def test_a_video_in_the_library_needs_only_its_own_path_to_find_its_script(tmp_path: Path):
-    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
-    script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
-    script.parent.mkdir(parents=True)
-    script.write_text("script", encoding="utf-8")
-
-    assert has_handcrafted_funscript(str(video))
-    assert not has_handcrafted_funscript(r"C:\other\path\clip.mp4")
-
-
-def test_a_marked_script_still_drives_the_video_it_is_out_of_f_mode_for(tmp_path: Path):
-    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
-    script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
-    script.parent.mkdir(parents=True)
-    script.write_text("script", encoding="utf-8")
-    _mark_generated(video)
-
-    assert matching_funscript(str(video)) == str(script)
-    assert has_matching_funscript(str(video))
-    assert not has_handcrafted_funscript(str(video))
-
-
-def test_an_unmarked_library_keeps_the_f_mode_it_had(tmp_path: Path):
-    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
-    script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
-    script.parent.mkdir(parents=True)
-    script.write_text("script", encoding="utf-8")
-
-    assert has_handcrafted_funscript(str(video))
-
-
-def test_a_marker_without_a_script_is_not_f_modes_either(tmp_path: Path):
-    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
-    _mark_generated(video)
-
-    assert not has_handcrafted_funscript(str(video))
-
-
-def test_the_marker_path_is_empty_off_the_library(tmp_path: Path):
-    assert build_generated_marker_path(r"C:\other\path\clip.mp4") == ""
+def test_a_video_off_the_library_has_no_funscript(tmp_path: Path):
     assert matching_funscript(r"C:\other\path\clip.mp4") is None
 
 
@@ -148,22 +99,6 @@ def test_a_video_kept_off_the_librarys_drive_pairs_with_the_librarys_own_script(
     script.write_text("{}", encoding="utf-8")
 
     assert matching_funscript(str(kept), metadata_root=library / "metadata") == str(script)
-
-
-def test_a_kept_video_is_f_modes_unless_the_librarys_own_tree_marks_its_script(tmp_path: Path):
-    library = tmp_path / "library" / "videos"
-    kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "scene one.mp4"
-    script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
-    script.parent.mkdir(parents=True)
-    script.write_text("{}", encoding="utf-8")
-    metadata_root = library / "metadata"
-    assert has_handcrafted_funscript(str(kept), metadata_root=metadata_root)
-
-    marker = library / "scripts" / "generated" / "VR" / "finished" / "scene one.generated"
-    marker.parent.mkdir(parents=True)
-    marker.touch()
-
-    assert not has_handcrafted_funscript(str(kept), metadata_root=metadata_root)
 
 
 def test_a_satellite_screens_playlist_pairs_each_video_with_its_funscript(tmp_path: Path):

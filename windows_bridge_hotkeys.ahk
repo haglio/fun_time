@@ -103,7 +103,7 @@ Esc::PauseOrCancelStartup()
 Space::QueueCommand("enter_omnipause")
 Enter::QueueCommand("voice_accept")
 NumpadEnter::QueueCommand("voice_accept")
-$f::QueueCommand("fmode_toggle")
+$f::QueueCommand("favorites_toggle")
 b::QueueCommand("broker_panel")
 
 -::QueueCommand("main_nudge_prev")

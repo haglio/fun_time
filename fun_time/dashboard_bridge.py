@@ -10,7 +10,7 @@ from .rfb_modes import RfbMode
 class DashboardSnapshot:
     omni_paused: bool = False
     voice_active: bool = True
-    f_mode: bool = False
+    favorites: bool = False
     in_vr: bool = False
     nothing_to_reset: bool = False
     headset_ready: bool = True
@@ -25,8 +25,8 @@ def build_dashboard_snapshot_text(snapshot: DashboardSnapshot | None = None) -> 
         f"active={'1' if snapshot.omni_paused else '0'}\n"
         "[voice]\n"
         f"active={'1' if snapshot.voice_active else '0'}\n"
-        "[fmode]\n"
-        f"active={'1' if snapshot.f_mode else '0'}\n"
+        "[favorites]\n"
+        f"active={'1' if snapshot.favorites else '0'}\n"
         "[reset]\n"
         f"nothing={'1' if snapshot.nothing_to_reset else '0'}\n"
         "[session]\n"

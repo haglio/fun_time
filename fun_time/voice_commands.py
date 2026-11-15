@@ -12,7 +12,6 @@ from .content import Noun, genau_flick_noun, load_content
 from .crown import Crown
 from .dashboard_actions import ORIGENERATOR_ACTIVATE, RFB_ACTIVATE
 from .fun_time_funestras import FunTimeFunestra
-from .hosted_contract import SAID_FOR_AN_ENHANCEMENT_LEVEL
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,7 @@ GENAU_SAID: tuple[str, ...] = ("genau", "go now")
 RELIEF_SAID_IN_A_HURRY = "stop"
 _SATELLITE_NAMES = tuple(funestra.label for funestra in FunTimeFunestra.SATELLITES)
 _SATELLITE_WORDS = (*_SATELLITE_NAMES, "satellites")
-FAVORITES_PHRASE = "favorites"
+SPECIAL_COLLECTIONS = ("favorites", "enhanced")
 
 
 def _bare_or_named(commands: dict[str, str], words: str, action: str) -> None:
@@ -141,25 +140,12 @@ def _group_cycle_and_mode_phrases(commands: dict[str, str]) -> None:
         for _sound_word in _either_word:
             _bare_or_named(commands, _sound_word, _change)
 
-    _FMODE_PHRASES: dict[str, tuple[str, str]] = {
-        "f mode": ("fmode", "fmode_toggle"),
-        "f mode on": ("fmode_on", "fmode_on"),
-        "f mode off": ("fmode_off", "fmode_off"),
-    }
-    for _fmode_word, (_fmode_act, _fmode_all) in _FMODE_PHRASES.items():
-        _bare_or_named(commands, _fmode_word, _fmode_act)
-        commands.update(named_first_or_last("all", _fmode_word, _fmode_all))
-    commands["fun scripts"] = "main_fmode_on"
-    commands.update(named_first_or_last("main", "fun scripts", "main_fmode_on"))
+    for _collection in SPECIAL_COLLECTIONS:
+        for _said, _side in ((_collection, "_on"), (f"{_collection} on", "_on"),
+                             (f"{_collection} off", "_off")):
+            _bare_or_named(commands, _said, f"{_collection}{_side}")
+            commands.update(named_first_or_last("all", _said, f"{_collection}{_side}"))
     commands.update(named_first_or_last("all", "reset", "all_reset"))
-
-    _ENHANCEMENT_PHRASES: dict[str, str] = {
-        **{words: f"enhancement_{level}"
-           for level, words in SAID_FOR_AN_ENHANCEMENT_LEVEL.items()},
-        "original and enhanced": "enhancement_both",
-    }
-    for _phrase, _act in _ENHANCEMENT_PHRASES.items():
-        _bare_or_named(commands, _phrase, _act)
 
 
 def _number_phrases(commands: dict[str, str], flick: str) -> None:
@@ -373,11 +359,6 @@ def build_voice_commands(
     _group_cycle_and_mode_phrases(commands)
     _number_phrases(commands, flick)
     _speed_move_and_hud_phrases(commands)
-
-    for _satellite in _SATELLITE_WORDS:
-        commands.update(named_first_or_last(_satellite, FAVORITES_PHRASE,
-                                            say_command(_satellite, FAVORITES_PHRASE)))
-    commands[FAVORITES_PHRASE] = say_command("active", FAVORITES_PHRASE)
 
     _shadowed = set(filter_commands) & set(commands)
     if _shadowed:

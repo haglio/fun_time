@@ -17,7 +17,7 @@ from fun_time.rfb_modes import RfbMode
 
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     snapshot = DashboardSnapshot(
-        omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
+        omni_paused=True, voice_active=False, favorites=True, in_vr=True, nothing_to_reset=True,
         origenerator_core_ready=True, rfb_mode=RfbMode.ORIGENERATOR,
     )
     path = tmp_path / "dashboard_state.ini"
@@ -32,7 +32,7 @@ def test_the_snapshot_published_each_tick_carries_only_what_the_dashboard_reads(
     parser.read_string(build_dashboard_snapshot_text())
 
     assert set(parser.sections()) == {
-        "omnipause", "voice", "fmode", "reset", "session", "headset", "origenerator"}
+        "omnipause", "voice", "favorites", "reset", "session", "headset", "origenerator"}
 
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
@@ -43,7 +43,7 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "active=0\n"
         "[voice]\n"
         "active=1\n"
-        "[fmode]\n"
+        "[favorites]\n"
         "active=0\n"
         "[reset]\n"
         "nothing=0\n"

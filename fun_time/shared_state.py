@@ -16,7 +16,7 @@ from funestra.robot_hand import FULL_INTENSITY, RobotHandState
 from .audio_volume import MAX_VOLUME
 from .crown import Crown
 from .fun_time_funestras import FunTimeFunestra
-from .mode_plan import STARTUP_MAIN_MODE, EnhancementLevel
+from .mode_plan import STARTUP_MAIN_MODE
 from .polled_files import READER_HOLD_BUDGET_S, replace_despite_readers
 from .rfb_modes import RfbMode
 
@@ -43,7 +43,7 @@ class BridgeState:
     main_mode: MainMode = STARTUP_MAIN_MODE
     rfb_mode: RfbMode = RfbMode.RFB
     origenerator_core_ready: bool = False
-    main_scripted_filter: bool = False
+    main_favorites_filter: bool = False
     main_hud_corner: HudCorner = HudCorner.UPPER_LEFT
     main_hud_edge: HudEdge = HudEdge.LOWER
     main_hud_minimized: bool = False
@@ -51,7 +51,7 @@ class BridgeState:
     main_latest: bool = False
     main_shuffle_seed: int = 0
     main_length_mode: LengthMode = LengthMode.MIXED
-    main_enhancement: EnhancementLevel = EnhancementLevel.BOTH
+    main_enhanced_filter: bool = False
     main_plays_vr: bool = True
     main_plays_flat: bool = True
     main_plays_portrait: bool = True
@@ -174,7 +174,6 @@ def _read_back(written: str | None, default: bool | int | float | str) -> bool |
 
 _LAST_SESSIONS_KEYS = {
     "active_side": ("active_funestra",),
-    "main_f_mode": ("main_scripted_filter",),
     "active_player": ("active_funestra",),
     "osr2_player": ("osr2_funestra",),
     "satellites_mode": ("rfb_mode",),

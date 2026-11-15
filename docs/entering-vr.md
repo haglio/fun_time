@@ -23,7 +23,7 @@ in either orchestrator:
 |---|---|
 | What each Satellite plays | no — each opens on an empty list and plays what the hosted Origenerator gives it |
 | Each Satellite's HUD corner, edge and minimize, volume and mute | yes, via `resume_shared_state`; volume and mute re-queued on its command file |
-| The Main Funestra's F-mode and the other buttons its list is built from | yes, via `resume_shared_state` |
+| The Main Funestra's Favorites, Enhanceds and the other buttons its list is built from | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
 | The Main Funestra's mode (video / Genau) | yes |
 | The Main Funestra's video | yes, when the arriving session can play it |

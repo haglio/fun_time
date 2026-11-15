@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from enum import StrEnum
 
 from funestra.funestra_verbs import SHOW
 from funestra.modes import MainMode
@@ -57,20 +55,3 @@ def build_mode_switch_plan(
         log_message=f"Switched to {target_mode} mode",
     )
 
-
-class EnhancementLevel(StrEnum):
-    ENHANCED = "enhanced"
-    ORIGINAL = "original"
-    BOTH = "both"
-
-    @property
-    def flash(self) -> str:
-        return {EnhancementLevel.ENHANCED: "Enhanced only",
-                EnhancementLevel.ORIGINAL: "Original only",
-                EnhancementLevel.BOTH: "Enhanced + original"}[self]
-
-    def keep(self, paths: list[str], has_an_enhanced_version: Callable[[str], bool]) -> list[str]:
-        if self is EnhancementLevel.BOTH:
-            return list(paths)
-        wanted = self is EnhancementLevel.ENHANCED
-        return [path for path in paths if has_an_enhanced_version(path) == wanted]

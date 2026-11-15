@@ -73,7 +73,7 @@ class DashboardBarLayout:
     omnipause_button: Rect
     help_button: Rect
     microphone_button: Rect
-    fmode_button: Rect
+    favorites_button: Rect
     reset_all_button: Rect
     vr_button: Rect
     vr_reset_button: Rect
@@ -105,7 +105,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         x += BUTTON + GAP
 
     x += GROUP_GAP - GAP
-    fmode_button = Rect(x, PAD, BUTTON, BUTTON)
+    favorites_button = Rect(x, PAD, BUTTON, BUTTON)
     x += BUTTON + GAP
     reset_all_button = Rect(x, PAD, BUTTON, BUTTON)
     x += BUTTON + GROUP_GAP
@@ -121,7 +121,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         omnipause_button=buttons[1],
         help_button=buttons[2],
         microphone_button=buttons[3],
-        fmode_button=fmode_button,
+        favorites_button=favorites_button,
         reset_all_button=reset_all_button,
         vr_button=vr_button,
         vr_reset_button=vr_reset_button,

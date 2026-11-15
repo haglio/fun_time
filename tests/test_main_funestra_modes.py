@@ -92,20 +92,6 @@ class TestLeavingACompilationWithoutNamingALength:
         assert playback.restarts == 0
 
 
-class TestFunTimesOwnFilter:
-    def test_it_defaults_off_because_a_session_never_told_is_one_nothing_narrowed(self):
-        modes, _playback, _jumps = _modes()
-
-        assert modes.scripted_filter is False
-
-    def test_being_told_is_the_only_way_it_goes_on(self):
-        modes, _playback, _jumps = _modes()
-
-        modes.set_scripted_filter(True)
-
-        assert modes.scripted_filter is True
-
-
 class TestWhatTheConsoleIsToldToDraw:
     def test_it_names_the_video_and_the_place_in_the_playlist(self):
         modes, playback, _jumps = _modes()
@@ -125,13 +111,6 @@ class TestWhatTheConsoleIsToldToDraw:
         modes, _playback, _jumps = _modes(compilation="Vol6")
 
         assert modes.hud.compilation == "Vol6"
-
-    def test_fun_times_filter_is_said_outright_because_nothing_else_shows_it(self):
-        modes, _playback, _jumps = _modes()
-        modes.set_scripted_filter(True)
-
-        assert modes.hud.scripted_filter is True
-
 
 class TestTheFileNamedBesideAVideoWithVersions:
     DEFAULT = "Jane-Doe_720-q7Rk2w.mp4"

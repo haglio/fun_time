@@ -74,17 +74,13 @@ def test_the_orientation_the_portrait_and_landscape_buttons_read_is_promised():
         every_video_would_count_as_landscape)
 
 
-def test_the_running_time_f_mode_measures_a_funscript_against_is_promised():
-    assert media_metadata.DURATION_FIELD in _fields("video")
-
-
 def test_the_playback_weight_this_app_draws_by_is_promised():
     assert "weight" in _fields(watch_weights.WATCH_BLOCK)
 
 
-def test_the_favorite_f_mode_keeps_is_the_mark_evolver_promises():
+def test_the_favorite_mark_favorites_keeps_is_the_mark_evolver_promises():
     assert favorites.FAVORITE_KEY in _record()["top_level_keys"], (
-        "a favorite this app cannot read raises nothing: F-mode keeps no video "
+        "a favorite this app cannot read raises nothing: Favorites keeps no video "
         "and the HUD's star stays dark")
 
 

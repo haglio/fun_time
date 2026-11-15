@@ -29,7 +29,7 @@ from main_funestra.genau import (
     GenauFlicks,
     GenauOutputs,
 )
-from main_funestra.genau_verbs import genau_f_mode, genau_orientations
+from main_funestra.genau_verbs import genau_favorites, genau_orientations
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
@@ -75,7 +75,7 @@ class _CondemningInTheBackground:
 class WorldSetup:
     flicks: tuple = ("alpha one.mp4", "beta two.mp4", "gamma three.mp4")
     favorites: tuple = ()
-    f_mode: bool = False
+    favorites_only: bool = False
     start_flick: str | None = None
     latest: bool = False
     metadata_root: Path | None = None
@@ -123,7 +123,7 @@ class World:
                 folder=self.flicks_folder,
                 start_flick=setup.start_flick,
                 latest=setup.latest,
-                f_mode=setup.f_mode,
+                favorites=setup.favorites_only,
                 orientations=setup.orientations,
                 metadata_root=self.metadata_root,
                 gallery=Gallery([a_row(f"gen {name}", name, starred=int(name in setup.starred),
@@ -309,8 +309,8 @@ class TestWhatArrivesInItsFolder:
         assert (moved_on_to_out_of_sight, world.genau.top_block().video) == (
             "beta two", "delta four")
 
-    def test_in_f_mode_only_a_favorite_comes_up_next(self, tmp_path):
-        world = World(tmp_path, WorldSetup(latest=True, favorites=("alpha one.mp4", "beta two.mp4"), f_mode=True))
+    def test_with_favorites_only_a_favorite_comes_up_next(self, tmp_path):
+        world = World(tmp_path, WorldSetup(latest=True, favorites=("alpha one.mp4", "beta two.mp4"), favorites_only=True))
         world.genau.set_showing(True)
 
         (world.flat_dir / "delta four.mp4").write_bytes(b"flick")
@@ -365,7 +365,7 @@ class TestFMode:
         world = World(tmp_path, WorldSetup(kind="AI", starred=("beta two.mp4",),
                                            favorites=("gamma three.mp4",)))
 
-        world.genau.apply_command(genau_f_mode(True))
+        world.genau.apply_command(genau_favorites(True))
         world.send("NEXT")
 
         assert world.genau.top_block().video == "beta two"
@@ -374,7 +374,7 @@ class TestFMode:
         world = World(tmp_path)
         mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)
 
-        assert world.genau.apply_command(genau_f_mode(True)) is True
+        assert world.genau.apply_command(genau_favorites(True)) is True
         world.send("NEXT")
 
         assert world.genau.top_block().video == "gamma three"
@@ -382,21 +382,13 @@ class TestFMode:
     def test_off_it_brings_every_flick_back_and_keeps_the_one_on_screen(self, tmp_path):
         world = World(tmp_path)
         mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)
-        world.genau.apply_command(genau_f_mode(True))
+        world.genau.apply_command(genau_favorites(True))
 
-        world.genau.apply_command(genau_f_mode(False))
+        world.genau.apply_command(genau_favorites(False))
         assert world.genau.top_block().video == "gamma three"
         world.send("NEXT")
 
         assert world.genau.top_block().video == "alpha one"
-
-    def test_the_title_says_f_mode_while_it_is_on(self, tmp_path):
-        world = World(tmp_path)
-        mark_favorite(world.flat_dir / "gamma three.mp4", world.metadata_root, True)
-
-        world.genau.apply_command(genau_f_mode(True))
-
-        assert world.genau.top_block() == ModeHud(video="gamma three", scripted_filter=True)
 
     def test_with_no_favorites_it_holds_the_flick_on_screen_and_says_no_other_is_included(
             self, tmp_path, monkeypatch):
@@ -404,23 +396,23 @@ class TestFMode:
         world = World(tmp_path)
         world.send("LOCK_OFF")
 
-        world.genau.apply_command(genau_f_mode(True))
+        world.genau.apply_command(genau_favorites(True))
         world.tick()
 
         assert world.genau.top_block().video == "alpha one"
         assert world.status()["locked"] == "1"
         assert world.messages.said == [("Including no other pips", MessageLevel.WARNING)]
 
-    def test_it_opens_in_f_mode_when_the_room_kept_it_on(self, tmp_path):
-        world = World(tmp_path, WorldSetup(favorites=("beta two.mp4",), f_mode=True))
+    def test_it_opens_on_the_favorites_when_the_room_kept_them_on(self, tmp_path):
+        world = World(tmp_path, WorldSetup(favorites=("beta two.mp4",), favorites_only=True))
 
-        assert world.genau.top_block() == ModeHud(video="beta two", scripted_filter=True)
+        assert world.genau.top_block() == ModeHud(video="beta two")
 
-    def test_opening_in_f_mode_with_no_favorites_holds_the_first_flick_and_says_so(
+    def test_opening_on_the_favorites_with_none_holds_the_first_flick_and_says_so(
             self, tmp_path, monkeypatch):
         monkeypatch.setattr("fun_time.content.genau_flick_noun", lambda: Noun(one="pip", many="pips"))
 
-        world = World(tmp_path, WorldSetup(f_mode=True))
+        world = World(tmp_path, WorldSetup(favorites_only=True))
         world.tick()
 
         assert world.genau.top_block().video == "alpha one"
@@ -547,7 +539,7 @@ class TestTurnedAsAsked:
         assert set(self._shown(world)) == {"alpha one"}
 
     def test_the_favorites_it_keeps_are_the_ones_turned_as_asked(self, tmp_path):
-        world = self._world(tmp_path, WorldSetup(favorites=("alpha one.mp4", "beta two.mp4"), f_mode=True))
+        world = self._world(tmp_path, WorldSetup(favorites=("alpha one.mp4", "beta two.mp4"), favorites_only=True))
 
         world.genau.apply_command(genau_orientations((False, True)))
 

@@ -4,30 +4,30 @@ import hashlib
 import random
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+from functools import cache
 from pathlib import Path
 from types import MappingProxyType
 
 from app_support.video_names import stable_title, strip_processing_suffixes
-from funestra.funestra_verbs import SET_F_MODE
 from funestra.modes import LengthMode
 from funestra.video_groups import normalize_path_key
 from shared_ui.orientation import PORTRAIT
 
+from .gallery import Gallery, the_gallery_in
 from .media_metadata import (
     EXCERPT,
     FULL_LENGTH,
     SHORT,
+    a_favorite,
     recorded_for,
     recorded_orientation,
     video_type_of,
 )
-from .mode_plan import EnhancementLevel
 from .modes import (
     PLAYLIST_MAIN_FUNESTRA,
     VideoShapes,
     build_playlist_file_path,
     collect_video_files,
-    plays_in_f_mode,
     rotated_onto,
     same_file_to_windows,
     sort_paths_by_recency,
@@ -43,9 +43,9 @@ class MainListSettings:
     plays_flat: bool = True
     plays_portrait: bool = True
     plays_landscape: bool = True
-    scripted_filter: bool = False
+    favorites: bool = False
+    enhanced: bool = False
     length: LengthMode = LengthMode.MIXED
-    enhancement: EnhancementLevel = EnhancementLevel.BOTH
     latest: bool = False
     shuffle_seed: int = 0
 
@@ -54,21 +54,17 @@ class MainListSettings:
         return cls(plays_vr=state.main_plays_vr, plays_flat=state.main_plays_flat,
                    plays_portrait=state.main_plays_portrait,
                    plays_landscape=state.main_plays_landscape,
-                   scripted_filter=state.main_scripted_filter, length=state.main_length_mode,
-                   enhancement=state.main_enhancement,
+                   favorites=state.main_favorites_filter, enhanced=state.main_enhanced_filter,
+                   length=state.main_length_mode,
                    latest=state.main_latest, shuffle_seed=state.main_shuffle_seed)
 
     def into(self, state):
         return replace(state, main_plays_vr=self.plays_vr, main_plays_flat=self.plays_flat,
                        main_plays_portrait=self.plays_portrait,
                        main_plays_landscape=self.plays_landscape,
-                       main_scripted_filter=self.scripted_filter, main_length_mode=self.length,
-                       main_enhancement=self.enhancement,
+                       main_favorites_filter=self.favorites, main_enhanced_filter=self.enhanced,
+                       main_length_mode=self.length,
                        main_latest=self.latest, main_shuffle_seed=self.shuffle_seed)
-
-    @property
-    def flags_no_playlist_can_show(self) -> list[str]:
-        return [f"{SET_F_MODE} {int(self.scripted_filter)}"]
 
 
 _KINDS_OF_LENGTH = {
@@ -100,6 +96,10 @@ def _has_an_enhanced_version(every: list[str]) -> Callable[[str], bool]:
     return lambda video: enhanced[_family_of(video)]
 
 
+def _read_once(read: Callable[[], Gallery]) -> Callable[[], Gallery]:
+    return cache(read)
+
+
 def _shuffled(videos: list[str], seed: int) -> list[str]:
     def place(video: str) -> bytes:
         return hashlib.blake2b(f"{seed}:{normalize_path_key(video)}".encode(),
@@ -126,6 +126,7 @@ class MainList:
     state_dir: Path
     vr_dirs: str = ""
     metadata_root: Path | None = None
+    origenerator: Path | None = None
 
     @property
     def file(self) -> Path:
@@ -154,11 +155,13 @@ class MainList:
     def lets_through(self, videos: list[str], settings: MainListSettings) -> list[str]:
         kept = [video for video in self.shapes(settings).keep(videos)
                 if self._lets_through(video, settings)]
-        if settings.scripted_filter:
-            vr_roots = source_roots(self.vr_dirs)
-            kept = [video for video in kept
-                    if plays_in_f_mode(video, self.metadata_root, outlying_dirs=vr_roots)]
-        return settings.enhancement.keep(kept, _has_an_enhanced_version(videos))
+        if settings.favorites:
+            gallery = _read_once(lambda: the_gallery_in(self.origenerator))
+            kept = [video for video in kept if a_favorite(video, self.metadata_root, gallery)]
+        if settings.enhanced:
+            enhanced = _has_an_enhanced_version(videos)
+            kept = [video for video in kept if enhanced(video)]
+        return kept
 
     def videos(self, settings: MainListSettings, *, on_screen: str = "",
                from_the_top: bool = False) -> list[str]:

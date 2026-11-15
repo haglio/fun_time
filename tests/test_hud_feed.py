@@ -379,16 +379,16 @@ class TestHudPublishing:
         assert published("kino") is True
         assert published("genau") is False
 
-    def test_the_main_huds_f_mode_in_genau_mode_is_genaus_own(self, tmp_path):
+    def test_the_main_huds_favorites_in_genau_mode_are_genaus_own(self, tmp_path):
         feed = make_feed(tmp_path)
 
-        def f_mode_lit(state: BridgeState) -> bool:
+        def favorites_lit(state: BridgeState) -> bool:
             feed.publish(state)
             return next(bool(button.get("lit")) for row in console(tmp_path)["rows"] for button in row
-                        if button.get("command") == "main_fmode")
+                        if button.get("command") == "main_favorites")
 
-        assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
-        assert f_mode_lit(BridgeState(main_mode=MainMode.GENAU, main_scripted_filter=True)) is False
+        assert favorites_lit(BridgeState(main_mode=MainMode.GENAU, genau_favorites_filter=True)) is True
+        assert favorites_lit(BridgeState(main_mode=MainMode.GENAU, main_favorites_filter=True)) is False
 
     @pytest.mark.parametrize(("state", "vr_folders"), [
         (BridgeState(main_plays_vr=False), "vr_library_dirs"),

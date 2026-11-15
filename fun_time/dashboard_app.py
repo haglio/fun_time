@@ -57,7 +57,7 @@ from fun_time.dashboard_actions import (
     ENTER_OMNIPAUSE,
     ENTER_VR,
     EXIT_VR,
-    FMODE_TOGGLE,
+    FAVORITES_TOGGLE,
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
     OMNIMINIMIZE,
@@ -221,9 +221,9 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
-    FMODE_TOGGLE: "F-mode on every Funestra",
-    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no F-mode, "
-                "normal speed, shuffled from the top"),
+    FAVORITES_TOGGLE: "Favorites on every Funestra",
+    RESET_ALL: ("Reset every Funestra — no filter, no lock, no loop, no Favorites, "
+                "no Enhanceds, normal speed, shuffled from the top"),
     ENTER_VR: "Enter VR — end this session and open Fun Time VR",
     EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
 }

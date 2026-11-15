@@ -30,7 +30,7 @@ class MainListBuild:
     def run(self) -> None:
         written = self.main_list.write(self.settings, on_screen=self.on_screen,
                                        from_the_top=self.start_at_top)
-        verbs = [RELOAD_PLAYLIST, *self.settings.flags_no_playlist_can_show]
+        verbs = [RELOAD_PLAYLIST]
         answer = answer_to_a_narrowing(self.says, nothing_left=written.nothing_left,
                                        things="videos")
         if answer.holds_what_is_on_screen:

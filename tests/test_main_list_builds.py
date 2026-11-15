@@ -57,16 +57,6 @@ def test_a_latest_list_started_at_the_top_opens_on_the_newest_arrival(tmp_path):
     assert str(arrival) in build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[-1]
 
 
-def test_a_rebuild_tells_the_main_funestra_its_f_mode_on_the_write_the_reload_rides(tmp_path):
-    build = _main_list_build(tmp_path, MainListSettings(scripted_filter=True,
-                                                        length=LengthMode.CLIPS))
-
-    build.run()
-
-    assert build.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines()[:2] == [
-        "RELOAD_PLAYLIST", "SET_F_MODE 1"]
-
-
 def test_a_press_that_leaves_no_video_holds_the_one_on_screen_locked_and_says_so(tmp_path, caplog):
     on_screen, _other = _full_videos_for_want_of_a_record(
         tmp_path, "scene one.mp4", "scene two.mp4")

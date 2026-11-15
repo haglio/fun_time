@@ -42,7 +42,7 @@ from fun_time.config import VoiceControlConfig
 from fun_time.crown import Crown
 from fun_time.dashboard_actions import (
     ENTER_VR,
-    FMODE_TOGGLE,
+    FAVORITES_TOGGLE,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
@@ -218,22 +218,22 @@ def test_the_bar_carries_only_what_belongs_to_no_funestra():
 
     assert [action for action, _rect in scene.actions] == [
         QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
-        FMODE_TOGGLE, RESET_ALL, ENTER_VR,
+        FAVORITES_TOGGLE, RESET_ALL, ENTER_VR,
     ]
 
 
 def test_the_every_funestra_pair_and_the_crossing_each_stand_in_a_group_of_their_own():
     layout = compute_dashboard_bar_layout()
 
-    assert layout.fmode_button.x - (layout.microphone_button.x + layout.microphone_button.width) == GROUP_GAP
+    assert layout.favorites_button.x - (layout.microphone_button.x + layout.microphone_button.width) == GROUP_GAP
     assert (layout.vr_button.x
             - (layout.reset_all_button.x + layout.reset_all_button.width)) == GROUP_GAP
 
 
-def test_reset_all_stands_beside_f_mode_in_its_group():
+def test_reset_all_stands_beside_favorites_in_its_group():
     layout = compute_dashboard_bar_layout()
 
-    assert layout.reset_all_button.x - (layout.fmode_button.x + layout.fmode_button.width) == GAP
+    assert layout.reset_all_button.x - (layout.favorites_button.x + layout.favorites_button.width) == GAP
 
 
 def test_the_bars_reset_all_resets_every_funestra():
@@ -1291,11 +1291,11 @@ def test_the_pause_tooltip_names_the_act_the_press_will_take():
 def test_the_bar_wears_the_huds_button_edge_and_corner():
     layout = compute_dashboard_bar_layout()
     lit = {item.rect: item.outline
-           for item in _scene(_snapshot(voice_active=True, f_mode=True)).rects}
+           for item in _scene(_snapshot(voice_active=True, favorites=True)).rects}
 
     assert all(item.outline == TEXT_MUTED for item in _scene(_snapshot(omni_paused=True, voice_active=False)).rects)
     assert lit[layout.microphone_button] == BLUE
-    assert lit[layout.fmode_button] == GREEN
+    assert lit[layout.favorites_button] == GREEN
     assert lit[layout.quit_button] == TEXT_MUTED
     assert _BUTTON_RADIUS == BUTTON_RADIUS_HUD
 
@@ -1893,10 +1893,10 @@ def test_the_popups_frame_is_measured_only_after_it_is_shown(cfg_path: Path):
 
 def test_a_burst_of_presses_is_one_render(dashboard_window):
     with patch.object(dashboard_window, "_do_render") as render:
-        dashboard_window._apply_presses([VOICE_TOGGLE, FMODE_TOGGLE, RESET_ALL])
+        dashboard_window._apply_presses([VOICE_TOGGLE, FAVORITES_TOGGLE, RESET_ALL])
 
     render.assert_called_once()
-    assert dashboard_window._flash.lit() == {VOICE_TOGGLE, FMODE_TOGGLE, RESET_ALL}
+    assert dashboard_window._flash.lit() == {VOICE_TOGGLE, FAVORITES_TOGGLE, RESET_ALL}
 
 
 class _InboxThatHearsAPressAtOnce:

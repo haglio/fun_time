@@ -505,11 +505,11 @@ class TestGenauOnTheMainFunestra:
         assert built.fakes["GenauInTheHeadset"].call_args.args[0].latest is True
         assert not Path(built.manifest.commands.genau_cmd_file).exists()
 
-    def test_it_opens_in_the_f_mode_it_was_left_in_over_the_rooms_favorites(self, tmp_path):
+    def test_it_opens_with_the_favorites_it_was_left_with(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path,
                             resumed=BridgeState(genau_favorites_filter=True))
 
-        assert built.fakes["GenauInTheHeadset"].call_args.args[0].f_mode is True
+        assert built.fakes["GenauInTheHeadset"].call_args.args[0].favorites is True
 
     def test_its_robot_hand_reaches_the_osr2_through_the_brokers_slot(self, tmp_path):
         built = self._users(tmp_path, flicks_folder=tmp_path)

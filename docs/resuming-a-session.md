@@ -113,7 +113,7 @@ Satellite on an empty list, deletes any such file it finds as well.
 
 The Main Funestra plays one list, and `fun_time.main_list` is the one place it is
 built. It is built from the Main Funestra's buttons — 2D and VR, videos and full
-videos, F-mode, Latest or Shuffle — every time one of them is pressed and every
+videos, Favorites, Enhanceds, Latest or Shuffle — every time one of them is pressed and every
 time a session starts, and no session reads back the list the last one left: a
 kept list is one more thing that can disagree with the buttons, and with the
 session's own library, which is the VR library and the desktop's together, on

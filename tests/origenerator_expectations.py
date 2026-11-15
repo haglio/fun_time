@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from fun_time.bridge_records import BridgeConfig
@@ -72,7 +71,7 @@ def _the_lines_it_writes(on_the_monitors: BridgeConfig, in_a_headset: BridgeConf
     written = [
         *_written_in_a_sweep(on_the_monitors),
         *_written_in_a_sweep(in_a_headset),
-        *_written_by(on_the_monitors, _each_satellite_handed_to_the_app_at_startup, _the_apps_f_mode,
+        *_written_by(on_the_monitors, _each_satellite_handed_to_the_app_at_startup, _the_apps_special_collections,
                      _each_hosted_satellite_told_whether_it_has_the_osr2,
                      _a_hosted_lock_on_a_video_no_website_made, _a_taken_over_copy_handed_back,
                      _a_copy_parked_for_the_app_crossing_in),
@@ -121,12 +120,15 @@ def _each_hosted_satellite_told_whether_it_has_the_osr2(app: BridgeConfig) -> No
         feed.publish(replace(_both_shows_hosted(), osr2_funestra=funestra.value))
 
 
-def _the_apps_f_mode(app: BridgeConfig) -> None:
+def _the_apps_special_collections(app: BridgeConfig) -> None:
     for funestra in FunTimeFunestra.SATELLITES:
-        publish_the_show(app, funestra, f_mode=False)
-    with patch("fun_time.f_mode.apply_fmode",
-               return_value=SimpleNamespace(funestras=(), log_message="")):
-        dispatch_command("fmode_toggle", _both_shows_hosted(), app)
+        publish_the_show(app, funestra, favorites=False, enhanced=False)
+    with patch("fun_time.special_collections.rebuild_the_main_list"):
+        for command in ("favorites_on", "favorites_off", "enhanced_on", "enhanced_off"):
+            dispatch_command(command, _both_shows_hosted(), app)
+            for funestra in FunTimeFunestra.SATELLITES:
+                publish_the_show(app, funestra, favorites=command == "favorites_on",
+                                 enhanced=command == "enhanced_on")
 
 
 def _a_hosted_lock_on_a_video_no_website_made(app: BridgeConfig) -> None:

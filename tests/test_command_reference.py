@@ -269,7 +269,7 @@ def test_the_grid_carries_every_satellites_and_active_command():
         "satellites_cycle_action", "satellites_cycle_seed", "satellites_more_seeds", "satellites_wrong_action",
         "satellites_action_loop", "satellites_seed_loop", "satellites_no_loop", "satellites_lock_action",
         "satellites_latest", "satellites_shuffle", "satellites_no_filter", "satellites_reset",
-        "satellites_fmode", "satellites_fmode_on", "satellites_fmode_off",
+        "satellites_favorites_on", "satellites_favorites_off",
     } <= covered
     assert {
         "active_prev", "active_next", "active_trash",
@@ -278,7 +278,7 @@ def test_the_grid_carries_every_satellites_and_active_command():
         "active_action_loop", "active_seed_loop", "active_no_loop",
         "active_lock_action", "active_latest", "active_shuffle",
         "active_no_filter", "active_reset",
-        "active_fmode", "active_fmode_on", "active_fmode_off",
+        "active_favorites_on", "active_favorites_off",
     } <= covered
 
 
@@ -294,22 +294,19 @@ def test_the_bare_phrases_read_as_the_say_column():
         "active_cycle_action": "action",
         "active_cycle_seed": "seed",
         "active_wrong_action": "wrong action",
-        "active_fmode": "f mode",
+        "active_favorites_on": "favorites",
     }
     for cmd, phrase in expected.items():
         assert cmd in by_command, f"{cmd} missing from the satellite grid"
         assert phrase in by_command[cmd].voice
 
 
-def test_a_sides_favorites_are_an_alias_on_the_f_mode_row():
-    f_mode = next(r for r in _funestras_section().rows if "active_fmode" in r.commands)
+def test_favorites_and_enhanceds_each_have_one_row_saying_how_each_is_turned_off():
+    for collection in ("favorites", "enhanced"):
+        row = next(r for r in _funestras_section().rows if f"active_{collection}_on" in r.commands)
 
-    assert f_mode.voice == ("f mode", "f mode on", "f mode off", "funscripts", "favorites")
-    assert {"portrait_say_favorites", "landscape_say_favorites"} <= set(f_mode.commands)
-    assert not [r for r in _all_rows() if r.description == "favorites"]
-    assert "“favorites”" in f_mode.detail
-    assert "“funscripts”" in f_mode.detail
-    assert VOICE_COMMANDS["fun scripts"] == VOICE_COMMANDS["main fun scripts"] == "main_fmode_on"
+        assert row.voice[:3] == (collection, f"{collection} on", f"{collection} off")
+        assert f'"{collection} off" turns it off' in row.detail
 
 
 def test_the_shared_grid_carries_every_funestras_own_playback_speed():
@@ -788,7 +785,7 @@ def test_corrected_descriptions():
 
 
 _NAMES_AN_ACTION_MAY_OPEN_WITH = frozenset(
-    {"OmniPause", "F-mode", "VR", "Kino", "Genau", "Origenerator", "OSR2", "HUD", "Random"})
+    {"OmniPause", "Favorites", "Enhanceds", "VR", "Kino", "Genau", "Origenerator", "OSR2", "HUD", "Random"})
 
 
 def test_an_action_opens_lowercase_unless_it_opens_with_a_name():
@@ -803,7 +800,7 @@ def test_the_dashboard_section_lists_its_buttons_in_the_bars_order():
     assert [(group.title, [row.description for row in group.rows]) for group in dashboard.groups] == [
         ("", ["quit", "OmniPause / resume", "OmniPause", "relief OmniPause",
               "open / close this hotkeys & voice reference"]),
-        ("Funestras", ["F-mode all", "reset all"]),
+        ("Funestras", ["Favorites all", "reset all"]),
         ("Voice control", ["disable voice control",
                            "accept the last command voice was not sure enough of"]),
     ]
@@ -972,9 +969,9 @@ def test_the_main_funestras_own_rows_are_what_it_browses_then_kino_then_genau():
     assert [row.description for row in main.groups[0].rows] == ["open the browser"]
 
 
-def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_include():
+def test_the_included_lengths_and_shapes_are_said_as_what_they_include():
     included = _group("Funestras", "Included video types")
-    lengths, shapes, orientations, levels = included.rows
+    lengths, shapes, orientations = included.rows
 
     assert lengths.description == "included video types (duration)"
     assert lengths.voice == ("clips only", "full only", "clips and full", "full and clips")
@@ -986,13 +983,6 @@ def test_the_included_lengths_shapes_and_enhancements_are_said_as_what_they_incl
     assert orientations.description == "included video types (orientation)"
     assert orientations.voice == ("portrait only", "landscape only", "portrait and landscape",
                                   "landscape and portrait")
-    assert levels.description == "included video types (enhancement)"
-    assert levels.voice == ("enhanced only", "original only", "enhanced and original",
-                            "original and enhanced")
-    assert {"active_enhancement_enhanced", "portrait_enhancement_original",
-            "satellites_enhancement_both", "main_enhancement_enhanced"} <= set(levels.commands)
-    assert "Origenerator mode" not in levels.detail
-    assert levels.detail.endswith('"enhanced and original" everything')
     assert not [row for row in _section("Main Funestra").rows
                 if row.description.startswith("included")]
 
@@ -1366,12 +1356,12 @@ def test_the_reference_calls_a_funestras_hud_its_hud_and_never_its_panel():
     assert said == []
 
 
-def test_the_f_mode_row_says_what_the_main_funestra_keeps_in_each_mode():
+def test_the_favorites_row_says_what_the_main_funestra_keeps_in_each_mode():
     flick = genau_flick_noun()
-    f_mode = next(row for row in _all_rows() if "main_fmode" in row.commands)
+    favorites = next(row for row in _all_rows() if "main_favorites_on" in row.commands)
 
-    assert "only the well funscripted videos" in f_mode.detail
-    assert f"in Genau mode only the favorite {flick.many}" in f_mode.detail
+    assert "the Main Funestra's videos" in favorites.detail
+    assert f"in Genau mode its favorite {flick.many}" in favorites.detail
 
 
 def test_no_command_name_reaches_the_reference_on_either_screen():

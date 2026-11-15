@@ -37,7 +37,7 @@ def test_the_wire_format_is_the_filter_prefix_scope_and_slugged_query():
 
 
 def test_a_command_that_is_not_about_the_filter_is_left_alone():
-    for command in ("fmode_toggle", "portrait_next", "recency_order_refresh", "filterish", ""):
+    for command in ("favorites_toggle", "portrait_next", "recency_order_refresh", "filterish", ""):
         assert _decoded(command) is None
 
 

@@ -43,7 +43,7 @@ class GenauFlicks:
     folder: Path
     start_flick: Path | None = None
     latest: bool = False
-    f_mode: bool = False
+    favorites: bool = False
     orientations: Included = BOTH
     metadata_root: Path | None = None
     narrow: Narrow | None = None
@@ -77,7 +77,7 @@ class Genau:
         self._flicks_folder = Path(flicks.folder)
         self._settings = settings
         self._recent = flicks.latest
-        self._f_mode = flicks.f_mode
+        self._favorites = flicks.favorites
         self._orientations = flicks.orientations
         self._metadata_root = flicks.metadata_root
         self._gallery = flicks.gallery
@@ -122,7 +122,7 @@ class Genau:
         return answer_genaus_verb(command, self)
 
     def keep_favorites(self, on: bool) -> None:
-        self._f_mode = on
+        self._favorites = on
         self._engine.narrow(self._scan)
 
     def keep_orientations(self, orientations: Included) -> None:
@@ -146,7 +146,7 @@ class Genau:
     def top_block(self) -> ModeHud:
         flick = self._engine.current_flick
         name = "" if flick is None else self._gallery_names.of(flick) or flick.stem
-        return ModeHud(video=name, scripted_filter=self._f_mode)
+        return ModeHud(video=name)
 
     def set_showing(self, showing: bool) -> None:
         self._showing = showing
@@ -205,7 +205,7 @@ class Genau:
         return flicks
 
     def _favorites_of(self, flicks: list[Path]) -> list[Path]:
-        if not self._f_mode or self._metadata_root is None:
+        if not self._favorites or self._metadata_root is None:
             return flicks
         return [flick for flick in flicks if favorites.is_favorite(self._record_of(flick))]
 

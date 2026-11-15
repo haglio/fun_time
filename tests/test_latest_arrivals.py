@@ -79,18 +79,19 @@ class TestTheMainFunestraPlayingItsLatestList:
         assert held == []
         assert _queued(config.main_funestra.cmd_file) == [_next(newcomer)]
 
-    def test_in_f_mode_puts_up_only_a_video_someone_wrote_a_funscript_for(self, tmp_path):
+    def test_with_favorites_puts_up_only_a_video_marked_a_favorite(self, tmp_path):
         library = tmp_path / "library"
-        videos, scripts = library / "videos" / "videos", library / "videos" / "scripts" / "scripts"
-        arrivals, config = _watching(tmp_path, main_sources=str(videos),
-                                     regen_metadata_root=library / "videos" / "metadata")
-        scripted, _unscripted = _video(videos, "feature two.mp4"), _video(videos, "feature three.mp4")
-        script = Path(_video(scripts, "feature two.funscript"))
+        videos, metadata = library / "videos" / "videos", library / "videos" / "metadata"
+        arrivals, config = _watching(tmp_path, main_sources=str(videos), regen_metadata_root=metadata)
+        liked, _passed_over = _video(videos, "feature two.mp4"), _video(videos, "feature three.mp4")
+        sidecar = metadata_path_for(Path(liked), metadata)
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps({"favorite": True}), encoding="utf-8")
         arrivals.look()
 
-        arrivals.deliver(replace(MAIN_LATEST, main_scripted_filter=True))
+        arrivals.deliver(replace(MAIN_LATEST, main_favorites_filter=True))
 
-        assert _queued(config.main_funestra.cmd_file) == [_next(scripted, script)]
+        assert _queued(config.main_funestra.cmd_file) == [_next(liked)]
 
     def test_with_landscape_left_out_puts_up_only_a_portrait_video(self, tmp_path):
         library = tmp_path / "library"

@@ -22,7 +22,7 @@ from fun_time.genau_engine import UDP_READER_THREAD
 from fun_time.media_metadata import mark_favorite
 from fun_time_vr.genau_in_the_headset import GenauInTheHeadset
 from main_funestra.genau import EngineSeams, GenauChannels, GenauFlicks, GenauOutputs
-from main_funestra.genau_verbs import genau_f_mode
+from main_funestra.genau_verbs import genau_favorites
 from tests.genau_fakes import (
     FakeNotifier,
     FakeSink,
@@ -266,21 +266,12 @@ class TestFMode:
         mark_favorite(world.vr_dir / "beta_180.mp4", world.metadata_root, True)
         world.send("SHAPES flat")
 
-        world.genau.apply_command(genau_f_mode(True))
+        world.genau.apply_command(genau_favorites(True))
         world.genau.tick()
         assert world.on_screen() == world.flat_dir / "epsilon.mp4"
         world.send("NEXT")
 
         assert world.on_screen() == world.flat_dir / "epsilon.mp4"
-
-    def test_the_title_says_f_mode_while_it_is_on(self, tmp_path):
-        world = World(tmp_path)
-        mark_favorite(world.vr_dir / "alpha_180.mp4", world.metadata_root, True)
-
-        world.genau.apply_command(genau_f_mode(True))
-
-        assert world.genau.top_block() == ModeHud(video="alpha_180", scripted_filter=True)
-
 
 class TestWhatTheHudCallsTheFlick:
     def test_the_flick_on_screen_by_its_name(self, tmp_path):

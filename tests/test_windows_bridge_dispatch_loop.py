@@ -1109,7 +1109,7 @@ class TestWhatASpokenCommandFlashes:
     @pytest.mark.parametrize(("command", "said"), [
         ("portrait_more_seeds", "more seeds"),
         ("portrait_latest", "portrait latest"),
-        ("landscape_fmode", "landscape f mode"),
+        ("landscape_favorites", "landscape f mode"),
     ])
     def test_a_spoken_command_run_for_real_flashes_one_entry(self, tmp_path, command, said):
         flashed = self._run_for_real(tmp_path, command, said)
@@ -1191,8 +1191,8 @@ class TestWhatASpokenCommandFlashes:
             ("landscape next", "landscape", 25)]
 
     @pytest.mark.parametrize(("command", "said"), [
-        ("landscape_fmode_on", "landscape f mode on"),
-        ("active_fmode_on", "f mode on"),
+        ("landscape_favorites_on", "landscape f mode on"),
+        ("active_favorites_on", "f mode on"),
     ])
     def test_words_the_hosted_apps_show_takes_flash_what_was_heard(
         self, tmp_path, command, said,
@@ -2278,22 +2278,22 @@ class TestIdempotentVoiceCommands:
         mock_log.assert_called_once_with("post-enter", runner.answering.state)
 
 
-    def test_which_funestras_a_sided_fmode_names_is_left_to_the_dispatch(self, tmp_path):
+    def test_which_funestras_a_sided_favorites_names_is_left_to_the_dispatch(self, tmp_path):
         runner = make_runner(tmp_path)
         with patch.object(runner.answering, "dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("portrait_fmode_on", encoding="utf-8")
+            cmd_file.write_text("portrait_favorites_on", encoding="utf-8")
             runner.tick()
-        mock_d.assert_called_once_with(parse_command("portrait_fmode_on"), None, pressed_at=None)
+        mock_d.assert_called_once_with(parse_command("portrait_favorites_on"), None, pressed_at=None)
 
-    def test_satellites_fmode_reaches_the_f_mode_table_as_its_portrait_and_landscape_halves(self, tmp_path):
+    def test_satellites_favorites_reaches_the_dispatch_as_its_portrait_and_landscape_halves(self, tmp_path):
         runner = make_runner(tmp_path)
         with patch.object(runner.answering, "dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("satellites_fmode", encoding="utf-8")
+            cmd_file.write_text("satellites_favorites", encoding="utf-8")
             runner.tick()
         assert [call.args[0].text for call in mock_d.call_args_list] == [
-            "portrait_fmode", "landscape_fmode",
+            "portrait_favorites", "landscape_favorites",
         ]
 
 
@@ -2351,17 +2351,17 @@ class TestIdempotentVoiceCommands:
 
         assert load_dashboard_snapshot(runner.answering.config.dashboard_state_file).nothing_to_reset is True
 
-    def test_the_dashboards_f_mode_lights_off_the_hosted_shows_handed_over(
+    def test_the_dashboards_favorites_light_off_the_hosted_shows_handed_over(
         self, tmp_path,
     ):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
-        runner.answering.state = _handed_over(replace(runner.answering.state, main_scripted_filter=True))
+        runner.answering.state = _handed_over(replace(runner.answering.state, main_favorites_filter=True))
         for funestra in FunTimeFunestra.SATELLITES:
-            publish_the_show(runner.answering.config, funestra, f_mode=True)
+            publish_the_show(runner.answering.config, funestra, favorites=True)
 
         runner.answering.update_dashboard()
 
-        assert load_dashboard_snapshot(runner.answering.config.dashboard_state_file).f_mode is True
+        assert load_dashboard_snapshot(runner.answering.config.dashboard_state_file).favorites is True
 
 
     def test_save_video_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
