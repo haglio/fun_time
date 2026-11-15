@@ -448,7 +448,8 @@ def set_the_icon_alt_tab_draws(hwnd: int, icon_path: str | Path) -> None:
             handle = _user32.LoadImageW(
                 None, str(icon_path), IMAGE_ICON, side, side, LR_LOADFROMFILE)
             if handle:
-                _user32.SendMessageW(hwnd, WM_SETICON, which, handle)
+                _without_hanging(_user32.SendMessageW, hwnd, WM_SETICON, which, handle,
+                                 what=f"set_the_icon_alt_tab_draws({hwnd})")
     except OSError:
         logger.debug("Could not set the window icon", exc_info=True)
 

@@ -19,7 +19,7 @@ from funestra.playlist import read_playlist
 from funestra.robot_hand import FULL_INTENSITY
 from shared_ui.preview import Preview
 
-from fun_time import audio_commands, preview_marker
+from fun_time import audio_commands, preview_marker, windows_bridge_startup
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.child_launch import no_child_log
 from fun_time.fun_time_funestras import FunTimeFunestra
@@ -1299,6 +1299,20 @@ class TestEveryFunestraWearsFunTimesTaskbarIdentity:
 
         icons = [call.kwargs["placement"].icon for call in launched.call_args_list]
         assert [icon.parent for icon in icons] == [tmp_path / "inked"] * 2
+
+    def test_the_random_faves_browser_joins_the_sessions_button_wearing_its_letter(
+            self, monkeypatch):
+        monkeypatch.delenv(preview_marker.FLAG, raising=False)
+        dressed, worn = [], []
+        monkeypatch.setattr(preview_marker, "dress_window",
+                            lambda hwnd, app_id, app: dressed.append((hwnd, app_id)))
+        monkeypatch.setattr(windows_bridge_startup, "set_the_icon_alt_tab_draws",
+                            lambda hwnd, icon: worn.append((hwnd, Path(icon))))
+
+        windows_bridge_startup.dress_as_one_of_the_sessions_windows(4242)
+
+        assert dressed == [(4242, APP_USER_MODEL_ID)]
+        assert worn == [(4242, PROJECT_ICON)]
 
 
 class TestTheCheckoutsTheMainFunestraStartsWith:

@@ -50,6 +50,7 @@ from .session_resume import (
     resume_what_lives_in_a_funestra,
 )
 from .shared_state import BridgeState, shared_state_path
+from .win32 import set_the_icon_alt_tab_draws
 from .win32_process import unix_seconds
 from .window_layout import WindowLayoutPlan, WindowRect
 
@@ -69,6 +70,11 @@ def the_taskbar_identity_a_child_must_be_told() -> tuple[str, str]:
 
 def _the_session_icon() -> str:
     return str(preview_marker.icon_file(PROJECT_ICON, preview_marker.shown_as()))
+
+
+def dress_as_one_of_the_sessions_windows(hwnd: int) -> None:
+    preview_marker.dress_the_window(hwnd)
+    set_the_icon_alt_tab_draws(hwnd, _the_session_icon())
 
 
 def _write_result_file(result_file: str | Path, values: dict[str, int | str]) -> None:

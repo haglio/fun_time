@@ -1089,10 +1089,11 @@ class TestMaybeLaunchRandomFavesBrowser:
              patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_faves_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
-             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
+             patch("fun_time.windows_bridge_sequencer.move_window") as mock_move,              patch("fun_time.windows_bridge_sequencer.dress_as_one_of_the_sessions_windows") as dressed:
             rfb_hwnd = _maybe_launch_random_faves_browser(m, plan, env=SessionEnvironment())
 
         mock_move.assert_called_once_with(55555, browser_rect, activate=True)
+        dressed.assert_called_once_with(55555)
         assert rfb_hwnd == 55555
 
     def test_launches_the_urls_the_manifest_already_resolved(self):
@@ -1111,7 +1112,7 @@ class TestMaybeLaunchRandomFavesBrowser:
              patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_faves_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
-             patch("fun_time.windows_bridge_sequencer.move_window"):
+             patch("fun_time.windows_bridge_sequencer.move_window"),              patch("fun_time.windows_bridge_sequencer.dress_as_one_of_the_sessions_windows"):
             _maybe_launch_random_faves_browser(m, plan, env=SessionEnvironment())
 
         assert set(launch_kwargs) == {"shortcut"}
