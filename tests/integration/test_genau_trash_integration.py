@@ -35,7 +35,7 @@ def _condemned(trash: Path) -> list[Path]:
 
 
 def _genaus_flick(session: FunTimeIntegrationSession) -> str:
-    return read_genau_status(session.config.genau_status_file).flick
+    return read_genau_status(session.config.genau.status_file).flick
 
 
 def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_trash_says_so_in_genau_mode(
@@ -58,7 +58,7 @@ def test_genaus_keys_do_nothing_with_video_on_the_main_funestra_and_mark_trash_s
             session.write_dashboard_command(command)
         let_seconds_pass(GENAU_TAKES_A_VERB_WITHIN_S)
 
-        genau = read_genau_status(session.config.genau_status_file)
+        genau = read_genau_status(session.config.genau.status_file)
         assert (genau.flick, genau.locked, _condemned(trash)) == (flick_before, True, [])
 
         session.write_dashboard_command("genau_activate")

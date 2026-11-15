@@ -200,10 +200,10 @@ def test_the_loop_holds_genaus_image_out_of_a_park_while_the_osr2_is_quiet(tmp_p
     runner = make_runner(tmp_path)
 
     runner.arbiter.sync("genau", paused=False, control=OSR2_PARKED)
-    quiet = runner.config.genau_cmd_file.read_text(encoding="utf-8").split("\n")[:-1]
+    quiet = runner.config.genau.cmd_file.read_text(encoding="utf-8").split("\n")[:-1]
     (runner.config.broker_state / OSR2_SERIAL_RX).write_text(str(time.time()), encoding="utf-8")
     runner.arbiter.sync("genau", paused=False, control=OSR2_PARKED)
-    on = runner.config.genau_cmd_file.read_text(encoding="utf-8").split("\n")[len(quiet):-1]
+    on = runner.config.genau.cmd_file.read_text(encoding="utf-8").split("\n")[len(quiet):-1]
 
     assert "PARK" not in quiet
     assert on[-1] == "PARK"
@@ -1010,7 +1010,7 @@ class TestDispatchLoopRunner:
         record.parent.mkdir(parents=True)
         record.write_text(json.dumps({"video": {"action": "alpha"}}), encoding="utf-8")
         runner = make_runner(tmp_path, config=make_config(tmp_path, regen_metadata_root=metadata_root))
-        hosted_app = runner.config.origenerator_cmd_file
+        hosted_app = runner.config.origenerator.cmd_file
         runner.state = _handed_over(
             replace(runner.state, origenerator_core_ready=True), FunTimeFunestra.PORTRAIT)
         (tmp_path / "dashboard_cmd.txt").write_text(
@@ -1688,7 +1688,7 @@ class TestModeSwitchVisibility:
         assert runner.state.main_mode == {
             "genau_activate": "genau", "main_kino_activate": "kino",
         }[command]
-        return calls, runner.config.main_funestra_cmd_file.read_text(encoding="utf-8").split()
+        return calls, runner.config.main_funestra.cmd_file.read_text(encoding="utf-8").split()
 
     def test_genau_activate_tells_the_main_funestras_window_to_show_genau(self, tmp_path):
         calls, told = self._run_mode_switch(
@@ -1792,7 +1792,7 @@ class TestBrowseLibrary:
     def test_browses_from_the_folder_the_main_funestra_is_playing_in(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
-        runner.config.main_funestra_status_file.write_text(
+        runner.config.main_funestra.status_file.write_text(
             "video=C:/videos/big_batch/beta.mp4\n", encoding="utf-8",
         )
 
@@ -1863,7 +1863,7 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
             runner._handle_browse_library()
 
-        command = runner.config.main_funestra_cmd_file.read_text(encoding="utf-8")
+        command = runner.config.main_funestra.cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
     def test_sends_selected_file_to_main_funestra_in_kino_mode(self, tmp_path):
@@ -1877,14 +1877,14 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
 
-        assert runner.config.main_funestra_cmd_file.read_text(
+        assert runner.config.main_funestra.cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
 
     def test_genau_browses_its_videos_over_the_main_funestras_window_from_the_video_it_has_up(self, tmp_path):
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
-        runner.config.genau_status_file.write_text(
+        runner.config.genau.status_file.write_text(
             "flick=C:/library/genau/flicks/Scene One.mp4\n", encoding="utf-8")
 
         with patch.object(runner.windows, "remove_all_topmost"), \
@@ -1913,9 +1913,9 @@ class TestBrowseLibrary:
                    return_value=r"C:\library\genau\flicks\Scene One.mp4"):
             runner._handle_browse_library()
 
-        assert runner.config.genau_cmd_file.read_text(
+        assert runner.config.genau.cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\library\\genau\\flicks\\Scene One.mp4\n"
-        assert not runner.config.main_funestra_cmd_file.exists()
+        assert not runner.config.main_funestra.cmd_file.exists()
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1927,7 +1927,7 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
-        assert not runner.config.main_funestra_cmd_file.exists()
+        assert not runner.config.main_funestra.cmd_file.exists()
 
     def test_restores_topmost_after_the_pick(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -2417,7 +2417,7 @@ class TestIdempotentVoiceCommands:
 
     def test_the_snapshot_says_whether_every_funestra_has_nothing_to_reset(self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
-        runner.config.main_funestra_status_file.write_text(
+        runner.config.main_funestra.status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
         for funestra in FunTimeFunestra.SATELLITES:
             publish_the_show(runner.config, funestra, nothing_to_reset=True)
@@ -2443,7 +2443,7 @@ class TestIdempotentVoiceCommands:
     def test_a_slideshow_that_has_shown_no_hud_yet_leaves_the_reset_light_to_the_rest(
             self, tmp_path):
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(tmp_path))
-        runner.config.main_funestra_status_file.write_text(
+        runner.config.main_funestra.status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
 
         runner._update_dashboard()
@@ -2724,7 +2724,7 @@ class TestKinoModeFunscriptHandoff:
         with patch.object(runner.windows, "remove_all_topmost"):
             runner._handle_command("enter_omnipause")
 
-        verbs = runner.config.genau_cmd_file.read_text(encoding="utf-8").split()
+        verbs = runner.config.genau.cmd_file.read_text(encoding="utf-8").split()
         assert [verb for verb in verbs if verb in ("PAUSE", "RESUME")] == ["PAUSE"]
         assert ("PARK" in verbs) is device_on
 
@@ -3136,7 +3136,7 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
         state_file = tmp_path / "shared_state.ini"
         write_shared_state(state_file, BridgeState())
         runner = make_runner(tmp_path)
-        _publish_status(runner.config.main_funestra_status_file, speed=1.5)
+        _publish_status(runner.config.main_funestra.status_file, speed=1.5)
 
         runner.tick()
 
@@ -3147,9 +3147,9 @@ class TestTheRoomKeepsWhatItsFunestrasHold:
         remembered = replace(shifted_state(BridgeState()), rfb_mode=RfbMode.RFB)
         write_shared_state(state_file, remembered)
         runner = make_runner(tmp_path)
-        for status_file in (runner.config.main_funestra_status_file,
+        for status_file in (runner.config.main_funestra.status_file,
                             runner.config.portrait.status_file, runner.config.landscape.status_file,
-                            runner.config.genau_status_file, runner.config.genau_drive_file):
+                            runner.config.genau.status_file, runner.config.genau_drive_file):
             status_file.write_text("", encoding="utf-8")
 
         runner.tick()
@@ -3366,7 +3366,7 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
             main_funestra_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
             main_funestra_status_file=str(tmp_path / "somewhere" / "main_player_status.txt"))
 
-        assert build_bridge_config_from_manifest(manifest).main_funestra_notice_file == (
+        assert build_bridge_config_from_manifest(manifest).main_funestra.notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
 
     def test_each_satellites_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
@@ -3427,7 +3427,7 @@ SECONDARY_MONITOR = MonitorRect(2560, 0, 1440, 3440)
 
 def _seating_runner(tmp_path, cfg_path, *, main_video_portrait: bool) -> DispatchLoopRunner:
     config = make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         f"video=C:/fixtures/scene one.mp4\nportrait={int(main_video_portrait)}\n", encoding="utf-8")
     return make_runner(
         tmp_path, config=config,
@@ -3478,7 +3478,7 @@ def test_a_landscape_video_hands_most_of_the_secondary_monitor_back_to_the_portr
 def test_in_genau_mode_a_portrait_flick_gives_the_main_funestra_most_of_the_secondary_monitor(
         tmp_path, cfg_path):
     runner = _seating_runner(tmp_path, cfg_path, main_video_portrait=False)
-    runner.config.genau_status_file.write_text(
+    runner.config.genau.status_file.write_text(
         "flick=C:/fixtures/flick one.mp4\nportrait=1\n", encoding="utf-8")
     runner.state = replace(runner.state, main_mode=MainMode.GENAU)
     usual = {PORTRAIT_HWND: (2560, 0, 1440, 2500), MAIN_FUNESTRA_HWND: (2560, 2500, 1440, 940)}

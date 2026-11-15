@@ -246,7 +246,7 @@ def test_stop_survives_missing_bridge_pids(session):
 
 
 def test_a_timed_out_wait_says_when_each_funestra_last_published(session):
-    main_funestra_status = session.config.main_funestra_status_file
+    main_funestra_status = session.config.main_funestra.status_file
     main_funestra_status.parent.mkdir(parents=True, exist_ok=True)
     main_funestra_status.write_text("paused=0\n", encoding="utf-8")
     two_minutes_ago = time.time() - 120
@@ -939,8 +939,8 @@ def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
 
 
 def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch):
-    session.config.main_funestra_status_file.parent.mkdir(parents=True, exist_ok=True)
-    session.config.main_funestra_status_file.write_text("", encoding="utf-8")
+    session.config.main_funestra.status_file.parent.mkdir(parents=True, exist_ok=True)
+    session.config.main_funestra.status_file.write_text("", encoding="utf-8")
     refusals = iter([PermissionError(13, "Permission denied")])
 
     def read(path):

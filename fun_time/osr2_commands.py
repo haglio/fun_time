@@ -20,10 +20,9 @@ from .bridge_records import IN_GENAU_MODE, BridgeConfig, Handler, Route, WindowO
 from .broker_control import write_broker_command
 from .command_value import Command
 from .fun_time_funestras import FunTimeFunestra
-from .funestra_status import read_main_funestra_status
 from .mode_plan import kino_shows
 from .osr2_section import TAKE_OSR2_COMMANDS, funestra_with_the_osr2
-from .satellite_control import read_satellite_status
+from .satellite_control import read_scripted_status
 from .satellite_groups import send_satellite
 from .shared_state import BridgeState
 
@@ -66,11 +65,8 @@ def percent_rate(value: str) -> str | None:
 
 def _the_video_whose_clock_paces_the_osr2(holder: FunTimeFunestra,
                                           config: BridgeConfig) -> FunTimeFunestra | None:
-    if holder is FunTimeFunestra.MAIN:
-        scripted = read_main_funestra_status(config.main_funestra_status_file).funscript_driving
-    else:
-        scripted = read_satellite_status(config.satellite(holder).status_file).funscript_driving
-    return holder if scripted else None
+    scripted = read_scripted_status(holder, config.funestras[holder])
+    return holder if scripted.funscript_driving else None
 
 
 def _speed_target(state: BridgeState, config: BridgeConfig, *,
@@ -108,9 +104,9 @@ def _speed(main_funestra_cmd: str | None, genau_cmd: str | None, by_driver: bool
     if verb is None:
         return ignored(state, IN_GENAU_MODE)
     if target is None:
-        append_command(config.genau_cmd_file, verb)
+        append_command(config.genau.cmd_file, verb)
     elif target is FunTimeFunestra.MAIN:
-        append_command(config.main_funestra_cmd_file, verb)
+        append_command(config.main_funestra.cmd_file, verb)
     else:
         send_satellite(config, target, verb)
     return state, []

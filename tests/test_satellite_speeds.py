@@ -3,13 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.satellite_speeds import SatelliteSpeeds
+from tests.bridge_configs import made_up_bridge_config
 
 
 def _speeds(tmp_path: Path) -> SatelliteSpeeds:
-    return SatelliteSpeeds(
-        main_funestra_status_file=tmp_path / "main_player_status.txt",
-        satellite_cmd_files=(tmp_path / "portrait_cmd.txt", tmp_path / "landscape_cmd.txt"),
-    )
+    config = made_up_bridge_config(tmp_path)
+    return SatelliteSpeeds(main_funestra=config.main_funestra,
+                           satellites=config.satellites.values())
 
 
 def _main_plays_at(tmp_path: Path, rate: str) -> None:

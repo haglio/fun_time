@@ -29,7 +29,7 @@ from .lock import SENT_TO_TRASH, UNFAVORITED, unfavorited
 from .mode_plan import MAIN_GENAU_MODE, kino_shows
 from .origenerator_trash import trash_file_line
 from .osr2_commands import FUNSCRIPT_MOVES, skip_ahead_refused
-from .satellite_control import read_satellite_status
+from .satellite_control import read_scripted_status
 from .shared_state import BridgeState
 from .vr_main_funestra_verbs import VR_MAIN_FUNESTRA_VERBS
 
@@ -75,10 +75,7 @@ _PLAYHEAD_COMMANDS: dict[str, str] = {
 
 
 def step_refused(funestra: FunTimeFunestra, verb: str, config: BridgeConfig) -> list[WindowOp]:
-    if funestra is FunTimeFunestra.MAIN:
-        status = read_main_funestra_status(config.main_funestra_status_file)
-    else:
-        status = read_satellite_status(config.satellite(funestra).status_file)
+    status = read_scripted_status(funestra, config.funestras[funestra])
     cannot = why_it_cannot_step(verb, status, VIDEO)
     if cannot is None:
         return []
@@ -98,18 +95,18 @@ def _step_through(verb: str, state: BridgeState, config: BridgeConfig,
                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if refused := step_refused(FunTimeFunestra.MAIN, verb, config):
         return state, refused
-    append_command(config.main_funestra_cmd_file, verb)
+    append_command(config.main_funestra.cmd_file, verb)
     return state, []
 
 
 def _cmd_file_of_whatever_is_on_the_main_screen(state: BridgeState, config: BridgeConfig) -> Path:
-    return config.main_funestra_cmd_file if kino_shows(state.main_mode) else config.genau_cmd_file
+    return config.main_funestra.cmd_file if kino_shows(state.main_mode) else config.genau.cmd_file
 
 
 def _locked_as_whatever_is_on_the_main_screen_reports(state: BridgeState, config: BridgeConfig) -> bool:
     if kino_shows(state.main_mode):
-        return read_main_funestra_status(config.main_funestra_status_file).locked
-    return read_genau_status(config.genau_status_file).locked
+        return read_main_funestra_status(config.main_funestra.status_file).locked
+    return read_genau_status(config.genau.status_file).locked
 
 
 def _forward_to_whatever_is_on_the_main_funestra(
@@ -123,7 +120,7 @@ def _forward_to_main_funestra_on_screen(verb: str, state: BridgeState, config: B
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not kino_shows(state.main_mode):
         return ignored(state, IN_GENAU_MODE)
-    append_command(config.main_funestra_cmd_file, verb)
+    append_command(config.main_funestra.cmd_file, verb)
     if verb in _VERBS_THE_MAIN_FUNESTRA_ANSWERS and not config.vr_main_funestra:
         return state, [WindowOp(op="main_funestra_answers")]
     return state, []
@@ -141,7 +138,7 @@ def _forward_to_the_vr_main_funestra(verb: str, state: BridgeState, config: Brid
                                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not config.vr_main_funestra:
         return ignored(state, OUTSIDE_VR)
-    append_command(config.main_funestra_cmd_file, verb)
+    append_command(config.main_funestra.cmd_file, verb)
     return state, []
 
 
@@ -165,16 +162,16 @@ def _trash_kinos_video(state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not kino_shows(state.main_mode):
         return ignored(state, IN_GENAU_MODE)
-    status = read_main_funestra_status(config.main_funestra_status_file)
+    status = read_main_funestra_status(config.main_funestra.status_file)
     if not status.video:
         return state, []
     if status.locked:
-        append_command(config.main_funestra_cmd_file, LOCK_OFF)
+        append_command(config.main_funestra.cmd_file, LOCK_OFF)
     if unfavorited(status.video, config):
-        append_command(config.main_funestra_cmd_file, NEXT)
+        append_command(config.main_funestra.cmd_file, NEXT)
         return state, [WindowOp(op="message", key=UNFAVORITED, source=SOURCE_MAIN)]
-    append_command(config.main_funestra_cmd_file, TRASH)
-    append_command(config.origenerator_cmd_file, trash_file_line(status.video))
+    append_command(config.main_funestra.cmd_file, TRASH)
+    append_command(config.origenerator.cmd_file, trash_file_line(status.video))
     return state, [WindowOp(op="message", key=SENT_TO_TRASH, source=SOURCE_MAIN)]
 
 

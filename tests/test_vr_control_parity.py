@@ -197,7 +197,7 @@ class TestTheMainFunestra:
         window.answers("SPEED_DOWN")
 
         dispatch_command("main_reset", BridgeState(main_mode=MAIN_KINO_MODE), config)
-        for line in config.main_funestra_cmd_file.read_text(encoding="utf-8").splitlines():
+        for line in config.main_funestra.cmd_file.read_text(encoding="utf-8").splitlines():
             window.answers(line)
 
         playback = window.funestra.playback

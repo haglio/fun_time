@@ -287,7 +287,7 @@ class FunTimeIntegrationSession:
         return self.config.paths.trash_dir
 
     def read_main_funestra_status(self) -> MainFunestraStatus:
-        return published_status(read_main_funestra_status, self.config.main_funestra_status_file)
+        return published_status(read_main_funestra_status, self.config.main_funestra.status_file)
 
     def read_child_pids(self) -> dict[str, int]:
         return {key: child.pid for key, child in self.read_child_processes().items()}
@@ -446,7 +446,7 @@ class FunTimeIntegrationSession:
         return "; ".join(
             f"{name} {published_ago(status_file, now)}"
             for name, status_file in (
-                ("Main Funestra", self.config.main_funestra_status_file),
+                ("Main Funestra", self.config.main_funestra.status_file),
                 ("portrait", self.config.satellite(FunTimeFunestra.PORTRAIT).status_file),
                 ("landscape", self.config.satellite(FunTimeFunestra.LANDSCAPE).status_file)))
 

@@ -72,7 +72,7 @@ def test_a_portrait_video_on_the_crowned_main_funestra_trades_places_with_the_po
         main = await_window("Main Funestra", 10, exact=True)
         rects = partial(secondary_monitor_rects, SECONDARY_MONITOR, session.config.layout)
 
-        append_command(session.config.main_funestra_cmd_file, play_file(PlaylistItem(tall_video)))
+        append_command(session.config.main_funestra.cmd_file, play_file(PlaylistItem(tall_video)))
         crowned = rects(majority=Crown.MAIN)
         _wait_until_seated(session, main_funestra=(main, crowned.main),
                            portrait_funestra=(portrait, crowned.portrait))

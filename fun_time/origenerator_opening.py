@@ -34,14 +34,14 @@ class OrigeneratorOpening:
     def has_answered(self) -> bool:
         if self._is_up:
             return True
-        self._is_up = origenerator_has_published(self._config.origenerator_status_file)
+        self._is_up = origenerator_has_published(self._config.origenerator.status_file)
         if self._is_up:
             logger.info("Origenerator is up")
         return self._is_up
 
     def core_is_ready(self) -> bool:
         if not self._core_is_ready and self.has_answered():
-            self._core_is_ready = not origenerator_core_waits(self._config.origenerator_status_file)
+            self._core_is_ready = not origenerator_core_waits(self._config.origenerator.status_file)
             if self._core_is_ready:
                 logger.info("Origenerator Core is ready")
         return self._core_is_ready

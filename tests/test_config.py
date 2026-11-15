@@ -336,11 +336,11 @@ class TestProjectConfigProperties:
 
     def test_genau_cmd_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.genau_cmd_file == (tmp_path / "state" / "genau_cmd.txt").resolve()
+        assert cfg.genau.cmd_file == (tmp_path / "state" / "genau_cmd.txt").resolve()
 
     def test_genau_paused_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
-        assert cfg.genau_paused_file == (tmp_path / "state" / "genau_paused.txt").resolve()
+        assert cfg.genau.paused_file == (tmp_path / "state" / "genau_paused.txt").resolve()
 
     def test_audio_paused_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
@@ -457,9 +457,9 @@ class TestOrigeneratorPaths:
     def test_origenerator_channel_files_live_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
-        assert cfg.origenerator_cmd_file == state / "origenerator_cmd.txt"
-        assert cfg.origenerator_paused_file == state / "origenerator_paused.txt"
-        assert cfg.origenerator_status_file == state / "origenerator_status.txt"
+        assert cfg.origenerator.cmd_file == state / "origenerator_cmd.txt"
+        assert cfg.origenerator.paused_file == state / "origenerator_paused.txt"
+        assert cfg.origenerator.status_file == state / "origenerator_status.txt"
 
     def test_the_hosted_apps_window_is_handed_over_through_the_state_dir(self, cfg_path):
         cfg = load_config(cfg_path)

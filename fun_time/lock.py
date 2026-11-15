@@ -70,7 +70,7 @@ def _where_more_of_it_is_made(favorite: FavEntry, state: BridgeState, config: Br
     target = target_for_fav(favorite, config.regen, load_web_providers(), gallery)
     if not target.url:
         if state.origenerator_core_ready:
-            append_command(config.origenerator_cmd_file, go_to_line(item))
+            append_command(config.origenerator.cmd_file, go_to_line(item))
         return state, []
     ops: list[WindowOp] = []
     if state.rfb_mode is RfbMode.ORIGENERATOR:

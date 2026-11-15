@@ -66,11 +66,11 @@ class HudFeed:
     def publish(self, state: BridgeState) -> None:
         if self.publisher is None:
             return
-        genau = read_genau_status(self.config.genau_status_file)
+        genau = read_genau_status(self.config.genau.status_file)
         broker_running = broker.is_running(self.config.broker_state)
         osr2_mode, osr2_trouble = self.osr2_mode(), self.osr2_trouble()
         with_the_osr2 = funestra_with_the_osr2(state)
-        main_funestra = read_main_funestra_status(self.config.main_funestra_status_file)
+        main_funestra = read_main_funestra_status(self.config.main_funestra.status_file)
         osr2 = self._holders_osr2(with_the_osr2, state.main_mode, main_funestra,
                                   osr2_mode, osr2_trouble)
 
@@ -129,7 +129,7 @@ class HudFeed:
         if holder is FunTimeFunestra.MAIN:
             return osr2_state(main_mode=main_mode, osr2_mode=osr2_mode,
                               funscript_driving=main_funestra.funscript_driving, trouble=trouble)
-        scripted = read_satellite_status(self.config.satellite(holder).status_file)
+        scripted = read_satellite_status(self.config.satellites[holder].status_file)
         return Osr2State.of(osr2_mode, funscript_driving=scripted.funscript_driving, trouble=trouble)
 
     def _main_funestra_shows_a_favorite(self, main_mode: MainMode,

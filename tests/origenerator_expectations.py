@@ -108,7 +108,7 @@ def _written_by(app: BridgeConfig, *acts) -> list[str]:
 
 def _each_satellite_handed_to_the_app_at_startup(app: BridgeConfig) -> None:
     for funestra in FunTimeFunestra.SATELLITES:
-        hand_the_satellite_to_the_app(funestra, app.satellite(funestra), app.origenerator_cmd_file)
+        hand_the_satellite_to_the_app(funestra, app.satellite(funestra), app.origenerator.cmd_file)
 
 
 def _both_shows_hosted() -> BridgeState:
@@ -134,7 +134,7 @@ def _a_hosted_lock_on_a_video_no_website_made(app: BridgeConfig) -> None:
 
 
 def _a_taken_over_copy_handed_back(app: BridgeConfig) -> None:
-    see_the_hosted_app_out(app.state_dir, None, app.origenerator_cmd_file,
+    see_the_hosted_app_out(app.state_dir, None, app.origenerator.cmd_file,
                            keep=False, taken_over=True)
 
 
@@ -142,4 +142,4 @@ def _a_copy_parked_for_the_app_crossing_in(app: BridgeConfig) -> None:
     with patch("fun_time.windows_bridge_orchestrator.find_origenerators_window", return_value=1), \
          patch("fun_time.windows_bridge_orchestrator.hide_window"):
         see_the_hosted_app_out(app.state_dir, ChildProcess(pid=1, created_at=1),
-                               app.origenerator_cmd_file, keep=True, taken_over=False)
+                               app.origenerator.cmd_file, keep=True, taken_over=False)

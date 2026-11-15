@@ -25,13 +25,13 @@ class _TheMainFunestra:
 
     def plays_its_own_list(self) -> bool:
         return (kino_shows(self.state.main_mode)
-                and not read_main_funestra_status(self.config.main_funestra_status_file).compilation)
+                and not read_main_funestra_status(self.config.main_funestra.status_file).compilation)
 
     def lets_through(self, paths: list[str]) -> list[str]:
         return self.config.main_list.lets_through(paths, MainListSettings.of(self.state))
 
     def put_up_next(self, path: str) -> None:
-        append_command(self.config.main_funestra_cmd_file,
+        append_command(self.config.main_funestra.cmd_file,
                        play_next(scripted_item(path, self.config.regen_metadata_root)))
 
 

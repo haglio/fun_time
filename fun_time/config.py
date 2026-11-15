@@ -114,11 +114,16 @@ class VrConfig:
     compositor_layers: bool = False
 
 
-@dataclass(frozen=True)
-class SatelliteChannel:
+@dataclass(frozen=True, kw_only=True)
+class FunestraChannel:
     cmd_file: Path
     paused_file: Path
     status_file: Path
+    notice_file: Path | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class SatelliteChannel(FunestraChannel):
     playlist_file: Path
     notice_file: Path
     hud_file: Path
@@ -176,48 +181,30 @@ class ProjectConfig:
         return self.paths.broker_state_dir / state_files.BROKER_CMD
 
     @property
-    def genau_cmd_file(self) -> Path:
-        return self.paths.state_dir / state_files.GENAU_CMD
+    def genau(self) -> FunestraChannel:
+        state_dir = self.paths.state_dir
+        return FunestraChannel(cmd_file=state_dir / state_files.GENAU_CMD,
+                               paused_file=state_dir / state_files.GENAU_PAUSED,
+                               status_file=state_dir / state_files.GENAU_STATUS)
 
     @property
-    def genau_paused_file(self) -> Path:
-        return self.paths.state_dir / state_files.GENAU_PAUSED
-
-    @property
-    def genau_status_file(self) -> Path:
-        return self.paths.state_dir / state_files.GENAU_STATUS
-
-    @property
-    def main_funestra_cmd_file(self) -> Path:
-        return self.paths.state_dir / "main_player_cmd.txt"
-
-    @property
-    def main_funestra_paused_file(self) -> Path:
-        return self.paths.state_dir / "main_player_paused.txt"
-
-    @property
-    def main_funestra_status_file(self) -> Path:
-        return self.paths.state_dir / "main_player_status.txt"
-
-    @property
-    def main_funestra_notice_file(self) -> Path:
-        return self.paths.state_dir / "main_player_notice.txt"
+    def main_funestra(self) -> FunestraChannel:
+        state_dir = self.paths.state_dir
+        return FunestraChannel(cmd_file=state_dir / "main_player_cmd.txt",
+                               paused_file=state_dir / "main_player_paused.txt",
+                               status_file=state_dir / "main_player_status.txt",
+                               notice_file=state_dir / "main_player_notice.txt")
 
     @property
     def main_funestra_playlist_file(self) -> Path:
         return self.paths.state_dir / "main_player_playlist.tsv"
 
     @property
-    def origenerator_cmd_file(self) -> Path:
-        return self.paths.state_dir / "origenerator_cmd.txt"
-
-    @property
-    def origenerator_paused_file(self) -> Path:
-        return self.paths.state_dir / "origenerator_paused.txt"
-
-    @property
-    def origenerator_status_file(self) -> Path:
-        return self.paths.state_dir / "origenerator_status.txt"
+    def origenerator(self) -> FunestraChannel:
+        state_dir = self.paths.state_dir
+        return FunestraChannel(cmd_file=state_dir / "origenerator_cmd.txt",
+                               paused_file=state_dir / "origenerator_paused.txt",
+                               status_file=state_dir / "origenerator_status.txt")
 
     @property
     def origenerator_frames_file(self) -> Path:

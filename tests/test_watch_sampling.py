@@ -7,15 +7,12 @@ from funestra.video_groups import normalize_path_key
 from fun_time.command_value import parse_command
 from fun_time.watch_sampling import WatchSampler
 from fun_time.watch_stats import load_watch_stats
+from tests.bridge_configs import made_up_bridge_config
 
 
 def make_sampler(tmp_path: Path) -> WatchSampler:
-    return WatchSampler(
-        main_funestra_status_file=tmp_path / "main_player_status.txt",
-        satellite_status_files={2: tmp_path / "portrait_status.txt",
-                                3: tmp_path / "landscape_status.txt"},
-        stats_file=tmp_path / "watch_stats.json",
-    )
+    return WatchSampler(funestras=made_up_bridge_config(tmp_path).funestras,
+                        stats_file=tmp_path / "watch_stats.json")
 
 
 def _publish(path: Path, video, *, fraction: float, image: bool = False) -> None:
@@ -192,7 +189,7 @@ class TestTheMainFunestra:
 
 class TestBackDating:
     def _observe(self, sampler, satellite: str, video: str, *, at: float) -> None:
-        _publish(sampler.satellite_status_files[2 if satellite == "portrait" else 3],
+        _publish(sampler.stats_file.parent / f"{satellite}_status.txt",
                  video, fraction=0.1)
         sampler.sample_due(now=at, omni_paused=False)
 
@@ -210,7 +207,7 @@ class TestBackDating:
             room.mkdir()
             sampler = make_sampler(room)
             for tick in range(100):
-                _publish(sampler.satellite_status_files[2],
+                _publish(sampler.stats_file.parent / "portrait_status.txt",
                          "C:/clips/before.mp4" if tick < changed_at_tick else "C:/clips/after.mp4",
                          fraction=0.1)
                 sampler.sample_due(now=100.0 + tick / 20, omni_paused=False)
@@ -228,7 +225,7 @@ class TestBackDating:
 
     def test_a_satellite_showing_the_hosted_apps_images_is_back_dated_too(self, tmp_path):
         sampler = make_sampler(tmp_path)
-        status = sampler.satellite_status_files[2]
+        status = sampler.stats_file.parent / "portrait_status.txt"
         for at, image in ((100.0, "C:\\images\\meant.png"), (101.0, "C:\\images\\next.png")):
             status.write_text(f"video={image}\nposition_ms=0\nduration_ms=0\n", encoding="utf-8")
             sampler.sample_due(now=at, omni_paused=False)

@@ -146,7 +146,7 @@ def with_when_said(line: str, spoken_at: float | None, suffix: str) -> str:
 def written_for_the_hosted_app(lines: list[str], config: BridgeConfig,
                                spoken_at: float | None) -> list:
     for line in lines:
-        append_command(config.origenerator_cmd_file,
+        append_command(config.origenerator.cmd_file,
                        with_when_said(line, spoken_at, config.origenerator_said_at_suffix))
     return []
 

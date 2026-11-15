@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from app_support import state_files
 
-from .config import RegenConfig, SatelliteChannel
+from .config import FunestraChannel, RegenConfig, SatelliteChannel
 from .event_log import MESSAGE, SOURCE_SYSTEM
 from .fun_time_funestras import FunTimeFunestra
 from .loopback_server import LOOPBACK_PORT
@@ -28,20 +28,13 @@ class BridgeConfig:
     state_dir: Path
     main_sources: str
     broker_mode_file: Path
-    genau_cmd_file: Path
-    genau_paused_file: Path
-    genau_status_file: Path
+    main_funestra: FunestraChannel
+    genau: FunestraChannel
+    origenerator: FunestraChannel
     audio_paused_file: Path
     audio_volume_file: Path
-    main_funestra_cmd_file: Path
-    main_funestra_paused_file: Path
-    main_funestra_status_file: Path
     dashboard_state_file: Path
-    origenerator_cmd_file: Path
-    origenerator_paused_file: Path
-    origenerator_status_file: Path
     loopback_port: int = LOOPBACK_PORT
-    main_funestra_notice_file: Path | None = None
     vr_main_funestra: bool = False
     vr_library_dirs: str = ""
     genau_vr_flicks: str = ""
@@ -61,6 +54,14 @@ class BridgeConfig:
     def satellite(self, funestra: FunTimeFunestra) -> SatelliteChannel:
         return (self.portrait if FunTimeFunestra(funestra) is FunTimeFunestra.PORTRAIT
                 else self.landscape)
+
+    @property
+    def satellites(self) -> dict[FunTimeFunestra, SatelliteChannel]:
+        return {funestra: self.satellite(funestra) for funestra in FunTimeFunestra.SATELLITES}
+
+    @property
+    def funestras(self) -> dict[FunTimeFunestra, FunestraChannel]:
+        return {FunTimeFunestra.MAIN: self.main_funestra, **self.satellites}
 
     @property
     def main_list(self) -> MainList:

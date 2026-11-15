@@ -49,7 +49,7 @@ class TestTheMainFunestraPlayingItsLatestList:
 
         arrivals.deliver(MAIN_LATEST)
 
-        assert _queued(config.main_funestra_cmd_file) == [_next(newcomer)]
+        assert _queued(config.main_funestra.cmd_file) == [_next(newcomer)]
 
     def test_holds_what_arrives_while_genau_has_the_main_funestra(self, tmp_path):
         library = tmp_path / "videos"
@@ -58,26 +58,26 @@ class TestTheMainFunestraPlayingItsLatestList:
         arrivals.look()
 
         arrivals.deliver(replace(MAIN_LATEST, main_mode=MainMode.GENAU))
-        held = _queued(config.main_funestra_cmd_file)
+        held = _queued(config.main_funestra.cmd_file)
         arrivals.deliver(MAIN_LATEST)
 
         assert held == []
-        assert _queued(config.main_funestra_cmd_file) == [_next(newcomer)]
+        assert _queued(config.main_funestra.cmd_file) == [_next(newcomer)]
 
     def test_holds_what_arrives_while_a_compilation_plays(self, tmp_path):
         library = tmp_path / "videos"
         arrivals, config = _watching(tmp_path, main_sources=str(library))
         newcomer = _video(library, "feature two.mp4")
         arrivals.look()
-        config.main_funestra_status_file.write_text("compilation=Anthology One\n", encoding="utf-8")
+        config.main_funestra.status_file.write_text("compilation=Anthology One\n", encoding="utf-8")
 
         arrivals.deliver(MAIN_LATEST)
-        held = _queued(config.main_funestra_cmd_file)
-        config.main_funestra_status_file.write_text("compilation=\n", encoding="utf-8")
+        held = _queued(config.main_funestra.cmd_file)
+        config.main_funestra.status_file.write_text("compilation=\n", encoding="utf-8")
         arrivals.deliver(MAIN_LATEST)
 
         assert held == []
-        assert _queued(config.main_funestra_cmd_file) == [_next(newcomer)]
+        assert _queued(config.main_funestra.cmd_file) == [_next(newcomer)]
 
     def test_in_f_mode_puts_up_only_a_video_someone_wrote_a_funscript_for(self, tmp_path):
         library = tmp_path / "library"
@@ -90,7 +90,7 @@ class TestTheMainFunestraPlayingItsLatestList:
 
         arrivals.deliver(replace(MAIN_LATEST, main_scripted_filter=True))
 
-        assert _queued(config.main_funestra_cmd_file) == [_next(scripted, script)]
+        assert _queued(config.main_funestra.cmd_file) == [_next(scripted, script)]
 
     def test_with_landscape_left_out_puts_up_only_a_portrait_video(self, tmp_path):
         library = tmp_path / "library"
@@ -104,4 +104,4 @@ class TestTheMainFunestraPlayingItsLatestList:
 
         arrivals.deliver(replace(MAIN_LATEST, main_plays_landscape=False))
 
-        assert _queued(config.main_funestra_cmd_file) == [_next(portrait)]
+        assert _queued(config.main_funestra.cmd_file) == [_next(portrait)]

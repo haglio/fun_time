@@ -270,7 +270,7 @@ class TestControllerManifest:
         assert parser["portrait"]["playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
-        assert parser["commands"]["genau_paused_file"] == str(cfg.genau_paused_file)
+        assert parser["commands"]["genau_paused_file"] == str(cfg.genau.paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")
         assert parser["commands"]["dashboard_cmd_file"] == str(cfg.paths.state_dir / "dashboard_cmd.txt")

@@ -6,15 +6,12 @@ from pathlib import Path
 from funestra.modes import MessageLevel, read_mode
 
 from .bridge_records import BridgeConfig
+from .command_value import FUNESTRA_SOURCES
 from .event_log import (
     FAVORITE,
     MESSAGE,
-    SOURCE_LANDSCAPE,
-    SOURCE_MAIN,
-    SOURCE_PORTRAIT,
     flash_message,
 )
-from .fun_time_funestras import FunTimeFunestra
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +33,8 @@ def read_funestra_message(path) -> tuple[float, MessageLevel, str]:
 
 
 def notice_channels(config: BridgeConfig) -> dict[str, Path]:
-    channels = ((SOURCE_MAIN, config.main_funestra_notice_file),
-                *((source, config.satellite(funestra).notice_file)
-                  for source, funestra in ((SOURCE_PORTRAIT, FunTimeFunestra.PORTRAIT),
-                                           (SOURCE_LANDSCAPE, FunTimeFunestra.LANDSCAPE))))
-    return {source: path for source, path in channels if path is not None}
+    return {FUNESTRA_SOURCES[funestra]: channel.notice_file
+            for funestra, channel in config.funestras.items() if channel.notice_file is not None}
 
 
 class FunestraMessages:

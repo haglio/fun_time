@@ -36,8 +36,8 @@ def _dispatch_mode_switch(
         current_mode=state.main_mode,
         target_mode=target_mode,
         omni_paused=state.omni_paused,
-        main_funestra_paused_file=config.main_funestra_paused_file,
-        main_funestra_cmd_file=config.main_funestra_cmd_file,
+        main_funestra_paused_file=config.main_funestra.paused_file,
+        main_funestra_cmd_file=config.main_funestra.cmd_file,
     )
     state = replace(state, main_mode=result.next_mode)
     if result.is_transition:

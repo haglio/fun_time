@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from pathlib import Path
+from collections.abc import Iterable
 
 from funestra.file_channel import append_command
 from funestra.funestra_verbs import set_speed
 
+from .config import FunestraChannel
 from .funestra_status import MainFunestraStatus, read_main_funestra_status
 
 
 class SatelliteSpeeds:
-    def __init__(self, *, main_funestra_status_file: Path, satellite_cmd_files: Sequence[Path]) -> None:
-        self._main_funestra_status_file = main_funestra_status_file
-        self._satellite_cmd_files = tuple(satellite_cmd_files)
+    def __init__(self, *, main_funestra: FunestraChannel,
+                 satellites: Iterable[FunestraChannel]) -> None:
+        self._main_funestra_status_file = main_funestra.status_file
+        self._satellite_cmd_files = tuple(satellite.cmd_file for satellite in satellites)
         self._main_funestra: MainFunestraStatus | None = None
 
     def take_the_main_funestras_rate(self) -> None:

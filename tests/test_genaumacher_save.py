@@ -24,7 +24,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
 
 def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\nsnippet_state=normal\npaused=0\n",
         encoding="utf-8",
     )
@@ -56,7 +56,7 @@ def test_the_save_runs_genaumachers_venv_on_main_funestras_video_and_position(tm
 
 def test_a_save_while_a_snippet_repeats_sends_genaumacher_that_snippet(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\nsnippet_state=repeating\n"
         "snippet_in_ms=41000\nsnippet_out_ms=44500\npaused=0\n",
         encoding="utf-8",
@@ -76,7 +76,7 @@ def test_a_save_while_a_snippet_repeats_sends_genaumacher_that_snippet(tmp_path:
 
 def test_a_failed_save_says_nothing_but_its_log_line(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -96,7 +96,7 @@ def test_a_failed_save_says_nothing_but_its_log_line(tmp_path: Path):
 ])
 def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -121,7 +121,7 @@ def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
 
 def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -135,7 +135,7 @@ def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
 
 def test_a_bug_of_our_own_is_never_reported_as_genaumachers(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.main_funestra_status_file.write_text(
+    config.main_funestra.status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 

@@ -24,6 +24,7 @@ from .bridge_records import BridgeConfig, Op, WindowOp
 from .child_launch import no_child_log
 from .command_dispatch import app_at_defaults, dispatch_command
 from .command_value import Command, parse_command
+from .config import FunestraChannel
 from .crown import Seating
 from .dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -38,7 +39,7 @@ from .dashboard_actions import (
     RFB_ACTIVATE,
 )
 from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
-from .device_arbiter import DeviceArbiter, FunestraFiles, who_drives_the_osr2
+from .device_arbiter import DeviceArbiter, who_drives_the_osr2
 from .dispatch_loop_setup import LOOP_TICK_S, Publishing, SessionFiles, SessionStart
 from .event_log import MESSAGE, SOURCE_SYSTEM, flash_message
 from .f_mode import every_funestra_in_f_mode
@@ -143,8 +144,8 @@ class DispatchLoopRunner:
         )
         self.windows = start.windows
         self.seating = Seating(publishing.secondary_rects,
-                               main_funestra_status_file=config.main_funestra_status_file,
-                               genau_status_file=config.genau_status_file)
+                               main_funestra_status_file=config.main_funestra.status_file,
+                               genau_status_file=config.genau.status_file)
         self.dashboard_enabled = publishing.dashboard_enabled
         self.env = env
         self.hud = HudFeed(config=config, publisher=publishing.hud_publisher)
@@ -172,26 +173,13 @@ class DispatchLoopRunner:
         self._answers = 0
         self._ignored_because = ""
         self.hand_overs = HandOvers()
-        self.watch = WatchSampler(
-            main_funestra_status_file=config.main_funestra_status_file,
-            satellite_status_files={funestra: config.satellite(funestra).status_file
-                                    for funestra in FunTimeFunestra.SATELLITES},
-            stats_file=watch_stats_path(config.state_dir),
-        )
+        self.watch = WatchSampler(funestras=config.funestras,
+                                  stats_file=watch_stats_path(config.state_dir))
         self.arbiter = DeviceArbiter(
-            main_funestra=FunestraFiles(status_file=config.main_funestra_status_file,
-                                        cmd_file=config.main_funestra_cmd_file),
-            genau_cmd_file=config.genau_cmd_file,
-            device_on=lambda: osr2_device.switched_on(config.broker_state),
-            satellites={funestra: FunestraFiles(status_file=config.satellite(funestra).status_file,
-                                              cmd_file=config.satellite(funestra).cmd_file)
-                        for funestra in FunTimeFunestra.SATELLITES},
-        )
+            funestras=config.funestras, genau=config.genau,
+            device_on=lambda: osr2_device.switched_on(config.broker_state))
         self.satellite_speeds = SatelliteSpeeds(
-            main_funestra_status_file=config.main_funestra_status_file,
-            satellite_cmd_files=tuple(
-                config.satellite(funestra).cmd_file for funestra in FunTimeFunestra.SATELLITES),
-        )
+            main_funestra=config.main_funestra, satellites=config.satellites.values())
         self.lock_follower = LockFollower(what_the_main_funestra_holds(config))
         self.latest_arrivals = LatestArrivals(config)
 
@@ -202,7 +190,7 @@ class DispatchLoopRunner:
         self.hand_overs.expect(FunTimeFunestra.SATELLITES, self.config)
         for funestra in FunTimeFunestra.SATELLITES:
             hand_the_satellite_to_the_app(funestra, self.config.satellite(funestra),
-                                          self.config.origenerator_cmd_file)
+                                          self.config.origenerator.cmd_file)
         self._give_core_the_browsers_place_if_owed()
         if not wait_for_the_app(self._the_app_has_every_satellite):
             raise OrigeneratorNeverCameUp
@@ -369,7 +357,7 @@ class DispatchLoopRunner:
                     in_vr=self.config.vr_main_funestra,
                     nothing_to_reset=app_at_defaults(
                         self.state, self.config,
-                        read_main_funestra_status(self.config.main_funestra_status_file)),
+                        read_main_funestra_status(self.config.main_funestra.status_file)),
                     headset_ready=the_headset_is_ready(self.config.state_dir),
                     origenerator_core_ready=self.state.origenerator_core_ready,
                     rfb_mode=self.state.rfb_mode,
@@ -424,16 +412,16 @@ class DispatchLoopRunner:
                 self.config.python_exe,
                 BrowseOpening(
                     over=window_rect(where_the_pick_will_play) if where_the_pick_will_play else None,
-                    playing=(read_genau_status(self.config.genau_status_file).flick if genau
-                             else read_main_funestra_status(self.config.main_funestra_status_file).video),
+                    playing=(read_genau_status(self.config.genau.status_file).flick if genau
+                             else read_main_funestra_status(self.config.main_funestra.status_file).video),
                     flicks=genau,
                 ),
                 runner=self._run_browser,
             )
             if selected and genau:
-                append_command(self.config.genau_cmd_file, play_file(PlaylistItem(Path(selected))))
+                append_command(self.config.genau.cmd_file, play_file(PlaylistItem(Path(selected))))
             elif selected:
-                append_command(self.config.main_funestra_cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
+                append_command(self.config.main_funestra.cmd_file, play_file(scripted_item(selected, self.config.regen_metadata_root)))
         finally:
             if not omnipause_already_holds_them_down:
                 self.windows.restore_all_topmost(self.state.rfb_mode)
@@ -751,16 +739,22 @@ def build_bridge_config_from_manifest(
         genau_vr_flicks=manifest.media.genau_vr_flicks,
         python_exe=manifest.executables.python_exe,
         broker_mode_file=Path(commands.broker_mode_file),
-        genau_cmd_file=Path(commands.genau_cmd_file),
-        genau_paused_file=Path(commands.genau_paused_file),
-        genau_status_file=Path(commands.genau_status_file),
         audio_paused_file=Path(commands.audio_paused_file),
         audio_volume_file=Path(commands.audio_volume_file),
-        main_funestra_cmd_file=Path(commands.main_funestra_cmd_file),
-        main_funestra_paused_file=Path(commands.main_funestra_paused_file),
-        main_funestra_status_file=Path(commands.main_funestra_status_file),
-        main_funestra_notice_file=Path(commands.main_funestra_notice_file),
         dashboard_state_file=Path(commands.dashboard_state_file),
+        main_funestra=FunestraChannel(
+            cmd_file=Path(commands.main_funestra_cmd_file),
+            paused_file=Path(commands.main_funestra_paused_file),
+            status_file=Path(commands.main_funestra_status_file),
+            notice_file=Path(commands.main_funestra_notice_file)),
+        genau=FunestraChannel(
+            cmd_file=Path(commands.genau_cmd_file),
+            paused_file=Path(commands.genau_paused_file),
+            status_file=Path(commands.genau_status_file)),
+        origenerator=FunestraChannel(
+            cmd_file=Path(commands.origenerator_cmd_file),
+            paused_file=Path(commands.origenerator_paused_file),
+            status_file=Path(commands.origenerator_status_file)),
         broker_cmd_file=Path(commands.broker_cmd_file),
         broker_state_dir=Path(v) if (v := commands.broker_state_dir.strip()) else None,
         broker_tray_launcher=Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
@@ -769,8 +763,5 @@ def build_bridge_config_from_manifest(
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
         librarys_origenerator=the_librarys_origenerator(),
-        origenerator_cmd_file=Path(commands.origenerator_cmd_file),
         origenerator_said_at_suffix=said_at_suffix_of(manifest.runtime.origenerator_dir.strip()),
-        origenerator_paused_file=Path(commands.origenerator_paused_file),
-        origenerator_status_file=Path(commands.origenerator_status_file),
     )

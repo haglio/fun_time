@@ -362,7 +362,7 @@ class TestHudPublishing:
 
     def test_the_main_huds_lock_comes_off_the_showing_funestras_own_status_file(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
-        main_funestra = feed.config.main_funestra_status_file
+        main_funestra = feed.config.main_funestra.status_file
         genau = feed.config.state_dir / "genau_status.txt"
 
         def published(mode: str) -> bool:
@@ -409,7 +409,7 @@ class TestHudPublishing:
     def test_the_main_huds_ten_second_steps_are_dim_on_a_video_of_ten_seconds_or_shorter(
             self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
-        status = feed.config.main_funestra_status_file
+        status = feed.config.main_funestra.status_file
 
         status.write_text("video=C:/v/n.mp4\nduration_ms=9000\n", encoding="utf-8")
         feed.publish(state)
@@ -433,7 +433,7 @@ class TestHudPublishing:
 
     def test_the_main_huds_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
         feed, state = make_feed(tmp_path), BridgeState()
-        status = feed.config.main_funestra_status_file
+        status = feed.config.main_funestra.status_file
 
         status.write_text("video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n",
                           encoding="utf-8")
