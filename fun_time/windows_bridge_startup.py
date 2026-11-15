@@ -45,6 +45,7 @@ from .random_faves_browser_manifest import prepare_random_faves_browser_manifest
 from .runtime_flow import write_flag_file
 from .satellite_launch import SatelliteLaunch, for_funestra
 from .session_resume import (
+    drop_what_the_last_session_drew,
     empty_the_satellites_lists,
     open_the_main_list,
     resume_main_snippet,
@@ -275,6 +276,7 @@ def carry_the_last_session_in(
         shared_state_path(state_dir), last_reported=reports_published_in(
             state_dir, main_status_file=Path(commands.main_funestra_status_file),
             satellite_status_files={s.funestra: Path(s.channels.status) for s in satellites}))
+    drop_what_the_last_session_drew([Path(s.channels.status) for s in satellites])
     main_list = the_main_list(m, state_dir)
     carried = open_the_main_list(main_list, carried, state_file=shared_state_path(state_dir),
                                  on_screen=main_funestra_status.video)

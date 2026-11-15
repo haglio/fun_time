@@ -3,6 +3,7 @@ from __future__ import annotations
 import configparser
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -27,9 +28,10 @@ from .mode_plan import STARTUP_MAIN_MODE, kino_shows
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .rfb_modes import RfbMode
 from .runtime_flow import write_flag_file
-from .satellite_control import read_satellite_status
+from .satellite_control import SatelliteStatus, read_satellite_status
 from .satellite_launch import SatelliteLaunch, satellite_feed
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
+from .session_resume import drop_what_the_last_session_drew
 from .shared_state import BridgeState, read_shared_state, shared_state_path
 from .shortcuts import resolve_shortcut
 from .startup_steps import timed_step
@@ -263,10 +265,6 @@ def _launch_the_satellites(
     return main_mode, portrait_pid, landscape_pid
 
 
-def _drop_the_status_still_naming_last_sessions_video(status_file: Path) -> None:
-    status_file.unlink(missing_ok=True)
-
-
 def _launch_the_main_funestra(
     m: LaunchManifest,
     *,
@@ -280,7 +278,7 @@ def _launch_the_main_funestra(
     genau_flick = read_genau_status(Path(m.commands.genau_status_file)).flick
     state = read_shared_state(shared_state_path(state_dir)) or BridgeState()
     main_funestra_status_file = Path(m.commands.main_funestra_status_file)
-    _drop_the_status_still_naming_last_sessions_video(main_funestra_status_file)
+    drop_what_the_last_session_drew([main_funestra_status_file])
     main_funestra_log = _log_for_a_funestra_pythonw_gives_no_console(state_dir, "main_funestra")
     main_funestra_logs = logs_as_they_stand(main_funestra_log)
     main_funestra_pid = launch_main_funestra(
@@ -393,8 +391,7 @@ def _launch_the_companions(
     return ui_pids
 
 
-def _wait_for_the_app_to_be_drawing(
-    m: LaunchManifest,
+def _wait_for_the_main_funestra_to_be_drawing(
     *,
     main_funestra_status_file: Path,
     progress: ProgressReporter,
@@ -404,15 +401,6 @@ def _wait_for_the_app_to_be_drawing(
         logger.warning(
             "the Main Funestra reported no video within %.0fs; revealing over whatever it "
             "still has on screen", MAIN_FUNESTRA_LOAD_TIMEOUT_S,
-        )
-    if not _wait_for_funestras_drawing(
-        tuple(m.satellite(funestra).status_file for funestra in FunTimeFunestra.SATELLITES),
-        progress,
-        funestras=funestras,
-    ):
-        logger.warning(
-            "A satellite reported no frames within %.0fs; revealing anyway",
-            SATELLITE_PLAY_TIMEOUT_S,
         )
 
 
@@ -440,7 +428,6 @@ def _place_the_windows_under_the_loading_screen(
 
 
 def _settle_the_app_under_the_loading_screen(
-    m: LaunchManifest,
     *,
     core: _CoreSession,
     plan: WindowLayoutPlan,
@@ -450,8 +437,8 @@ def _settle_the_app_under_the_loading_screen(
     progress.advance("funestras")
     with progress.loading_screen_kept_up():
         portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-        _wait_for_the_app_to_be_drawing(
-            m, main_funestra_status_file=core.main_funestra_status_file, progress=progress,
+        _wait_for_the_main_funestra_to_be_drawing(
+            main_funestra_status_file=core.main_funestra_status_file, progress=progress,
             funestras=launched.funestras)
 
         progress.advance("windows")
@@ -504,7 +491,7 @@ def _run_startup_phases(
     if hide_windows:
         with timed_step(logger, "waiting for the windows under the loading screen"):
             hwnds_by_window = _settle_the_app_under_the_loading_screen(
-                m, core=core, plan=plan, launched=launched, progress=progress)
+                core=core, plan=plan, launched=launched, progress=progress)
 
     raise_if_a_funestra_died(launched.funestras)
 
@@ -548,20 +535,17 @@ SATELLITE_PLAY_TIMEOUT_S = 25.0
 _PLAY_POLL_S = 0.1
 
 
-def _wait_for_funestras_drawing(status_files, progress: ProgressReporter,
-                              timeout_s: float = SATELLITE_PLAY_TIMEOUT_S,
-                              *, funestras: list[LaunchedFunestra] = ()) -> bool:
-    files = [Path(path) for path in status_files if path]
-    if not files:
-        return True
+def wait_for_the_satellites_drawing(status_files: Sequence[Path], timeout_s: float) -> bool:
+    files = [Path(path) for path in status_files]
     for _ in _polls_counted_rather_than_clocked(timeout_s):
-        if progress.cancelled:
-            raise StartupCancelled()
-        raise_if_a_funestra_died(funestras)
-        if all(read_satellite_status(path).position_ms > 0 for path in files):
+        if all(_is_drawing(read_satellite_status(path)) for path in files):
             return True
         time.sleep(_PLAY_POLL_S)
     return False
+
+
+def _is_drawing(status: SatelliteStatus) -> bool:
+    return status.image or status.position_ms > 0
 
 
 def _polls_counted_rather_than_clocked(timeout_s: float) -> range:

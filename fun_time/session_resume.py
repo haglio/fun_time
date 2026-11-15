@@ -65,6 +65,11 @@ def empty_the_satellites_lists(playlist_files: Sequence[Path]) -> None:
         playlist_file.with_name(f"{playlist_file.stem}.kept.tsv").unlink(missing_ok=True)
 
 
+def drop_what_the_last_session_drew(status_files: Sequence[Path]) -> None:
+    for status_file in status_files:
+        Path(status_file).unlink(missing_ok=True)
+
+
 def open_the_main_list(main_list: MainList, carried: BridgeState, *, state_file: Path,
                        on_screen: str) -> BridgeState:
     videos = main_list.write(MainListSettings.of(carried), on_screen=on_screen).videos

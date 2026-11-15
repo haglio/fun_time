@@ -9,6 +9,7 @@ from funestra.hud_controls import reset_button
 from funestra.hud_icons import FAVORITES_ICON
 from funestra.hud_title import FAVORITES_LABEL
 from funestra.satellite_hud import HudModel, hud_text
+from funestra.status import FunestraStatus, status_fields
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.config import ProjectConfig
@@ -18,6 +19,13 @@ from fun_time.fun_time_funestras import FunTimeFunestra
 def take_the_satellite(config: BridgeConfig | ProjectConfig, funestra: FunTimeFunestra) -> None:
     publish_whole(config.satellite(funestra).origenerator_hud_file,
                   hud_text(HudModel(funestra=funestra.label, title="Stub slideshow")))
+    _the_satellite_draws_the_slideshows_first_image(config.satellite(funestra).status_file)
+
+
+def _the_satellite_draws_the_slideshows_first_image(status_file: Path) -> None:
+    status_file.parent.mkdir(parents=True, exist_ok=True)
+    publish_whole(status_file, "".join(
+        f"{key}={value}\n" for key, value in status_fields(FunestraStatus(image=True)).items()))
 
 
 def an_app_that_opens_each_slideshow_asked_of_it(config: BridgeConfig | ProjectConfig, heard: list[str]):
