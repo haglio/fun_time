@@ -180,7 +180,7 @@ class TestANewScreenIsRegisteredInOnePlace:
 
     def _kinds_of_screen(self) -> set[str]:
         return {name for name, thing in vars(funestras).items()
-                if isinstance(thing, type) and name.endswith("Unit")}
+                if isinstance(thing, type) and name.endswith("Unit") and thing is not room.RoomUnit}
 
     def _screen_names(self) -> set[str]:
         return {name for name, value in vars(layout).items()

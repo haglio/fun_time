@@ -173,7 +173,7 @@ from .reference_panel import (
     reference_size,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh
-from .room import Hanging, Hangs, RoomKeeping, RoomLaunch, RoomUnits
+from .room import Hanging, Hangs, Pumped, RoomLaunch, RoomUnit, Scrolls
 from .satellite_hud import HUD, hud_screen_name, screen_kind
 from .scene import (
     MAIN_WIDTH_DEG,
@@ -1628,7 +1628,7 @@ class _PumpFaults:
             )
 
 
-def _pump_channels(units: list, stop: threading.Event, perf: FramePerf,
+def _pump_channels(units: Sequence[Pumped], stop: threading.Event, perf: FramePerf,
                    hz: float = PUMP_HZ) -> None:
     # Two threads on one mpv is the design of funestra.mpv_gate.
     period = 1.0 / hz
@@ -1651,7 +1651,7 @@ def _scene_rotation(scene_yaw: float, tilt_deg: float) -> np.ndarray:
     return yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(math.radians(tilt_deg))
 
 
-def _close_channels(units: list, *, keep=None) -> None:
+def _close_channels(units: Sequence[Pumped], *, keep: Pumped | None = None) -> None:
     for unit in units:
         if unit is keep:
             continue
@@ -1684,7 +1684,8 @@ def _osr2_slot(commands, sender: str) -> _SaysWhenItFirstMoves:
     return _SaysWhenItFirstMoves(Osr2Sender(sender, port=int(commands.osr2_slot_port)), sender)
 
 
-def _still_blank(main_unit, satellites: Sequence, main_hud_unit) -> tuple[str, ...]:
+def _still_blank(main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit],
+                 main_hud_unit: _MainHudUnit) -> tuple[str, ...]:
     frames = [(main_unit.screen_name, main_unit.texture_on_the_screen)]
     frames += [(satellite.screen_name, satellite.target) for satellite in satellites]
     if main_hud_unit.in_the_room:
@@ -1693,7 +1694,7 @@ def _still_blank(main_unit, satellites: Sequence, main_hud_unit) -> tuple[str, .
 
 
 def _hands_for_the_funestras(
-    scrollable: Sequence, hands: Mapping[str, HandInput], *, elapsed_s: float,
+    scrollable: Sequence[Scrolls], hands: Mapping[str, HandInput], *, elapsed_s: float,
 ) -> Mapping[str, HandInput]:
     scrolling = next((unit for unit in scrollable if unit.takes_the_stick), None)
     if scrolling is None:
@@ -1705,26 +1706,30 @@ def _hands_for_the_funestras(
 
 class TheRoom:
     def __init__(
-        self, units: RoomUnits, keeping: RoomKeeping, *, pointing: _PointerDrawing,
-        loading_screen_watch: LoadingScreenWatch, stop: threading.Event,
+        self, *, main_unit: _MainUnit, satellites: Sequence[_SatelliteUnit], dash: _DashUnit,
+        main_hud_unit: _MainHudUnit, reference: _ReferenceUnit, library: _LibraryUnit,
+        flashed: _MessageUnit, gallery: _GalleryUnit, loading_screen: LoadingScreenUnit,
+        messages: MessageBoard, keeper: _LayoutKeeper, posts: _ControllerPosts,
+        pointing: _PointerDrawing, loading_screen_watch: LoadingScreenWatch,
+        stop: threading.Event,
     ) -> None:
-        main_unit, main_hud_unit = units.main_unit, units.main_hud_unit
         self.main_unit = main_unit
-        self.satellites = tuple(units.satellites)
+        self.satellites = tuple(satellites)
         self.main_hud_unit = main_hud_unit
-        self.library = units.library
-        self.reference = units.reference
-        self.gallery = units.gallery
-        self.loading_screen = units.loading_screen
-        self.keeper = keeping.keeper
-        self.posts = keeping.posts
+        self.loading_screen = loading_screen
+        self.scrollable: tuple[Scrolls, ...] = (library, gallery, reference)
+        self.keeper = keeper
+        self.posts = posts
         self.pointing = pointing
         self.loading_screen_watch = loading_screen_watch
         self.stop = stop
         self.workers: tuple[threading.Thread, ...] = ()
         self.wear = HeadsetWear()
-        self.units = units.in_order()
-        self.closing = [keeping.messages, *self.units, keeping.keeper, keeping.posts]
+        dash_then_the_hud_hanging_from_where_it_went = (dash, main_hud_unit)
+        self.units: list[RoomUnit] = [
+            main_unit, *self.satellites, *dash_then_the_hud_hanging_from_where_it_went,
+            reference, library, flashed, gallery, loading_screen]
+        self.closing: list[Pumped] = [messages, *self.units, keeper, posts]
         self.pumped = [one for one in self.closing if one is not main_unit]
         self.where = room.where_they_hang(self.units)
 
@@ -1798,22 +1803,18 @@ def hang_the_room(
         host=LibraryHost(manifest_path=manifest_path, state_dir=state_dir),
         genau_has_the_slot=lambda: not main_unit.owns_the_slot,
     )
-    units = RoomUnits(
+    return TheRoom(
         main_unit=main_unit, satellites=satellites, dash=dash, main_hud_unit=main_hud_unit,
         reference=_ReferenceUnit(dash, main_hud_unit, flag=reference_flag,
-                                 host=ReferencePagesHost(state_dir=state_dir)), library=library,
+                                 host=ReferencePagesHost(state_dir=state_dir)),
+        library=library,
         flashed=_MessageUnit(main_unit, messages),
         gallery=_GalleryUnit(remembered=remembered.placements, commands=commands,
                              shared_state_file=shared_state_path(state_dir)),
         loading_screen=loading_screen,
-    )
-    keeping = RoomKeeping(
         messages=messages,
         keeper=_LayoutKeeper(state_dir / LAYOUT_FILENAME, remembered),
         posts=_ControllerPosts(Path(commands.dashboard_cmd_file)),
-    )
-    return TheRoom(
-        units, keeping,
         pointing=_PointerDrawing(),
         loading_screen_watch=LoadingScreenWatch(loading_screen, SceneReady(scene_ready_file(state_dir))),
         stop=stop,
@@ -1894,7 +1895,7 @@ class Arrangement:
         dialing = main_unit.can_dial_the_wrap
         thumb = self._thumbs.frame(
             _hands_for_the_funestras(
-                (the_room.library, the_room.gallery, the_room.reference), hands, elapsed_s=elapsed_s),
+                the_room.scrollable, hands, elapsed_s=elapsed_s),
             self._pointer, elapsed_s=elapsed_s, dialing=dialing)
         the_room.posts.post(thumb.commands)
         if dialing:

@@ -2,10 +2,19 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from .pointer import Screen
+from .pointer import Frame, Screen
 from .stacking import Pane, Stacking
+
+if TYPE_CHECKING:
+    import threading
+
+    from fun_time.manifest import LaunchManifest
+
+    from .funestras import VrSettings
+    from .gl_contexts import SharedContexts
+    from .perf import FramePerf
 
 
 @dataclass(frozen=True)
@@ -21,38 +30,41 @@ class Hanging:
 
 @dataclass(frozen=True)
 class RoomLaunch:
-    manifest: Any
-    vr: Any
-    contexts: Any
-    perf: Any = None
+    manifest: LaunchManifest
+    vr: VrSettings
+    contexts: SharedContexts
+    perf: FramePerf | None = None
 
 
-@dataclass(frozen=True)
-class RoomUnits:
-    main_unit: Any
-    satellites: Sequence[Any]
-    dash: Any
-    main_hud_unit: Any
-    reference: Any
-    library: Any
-    flashed: Any
-    gallery: Any
-    loading_screen: Any
+@runtime_checkable
+class Pumped(Protocol):
+    def pump(self, stop: threading.Event, now: float) -> None: ...
 
-    def in_order(self) -> list:
-        dash_then_the_hud_hanging_from_where_it_went = (self.dash, self.main_hud_unit)
-        return [self.main_unit, *self.satellites, *dash_then_the_hud_hanging_from_where_it_went,
-                self.reference, self.library, self.flashed, self.gallery, self.loading_screen]
+    def close(self) -> None: ...
 
 
-@dataclass(frozen=True)
-class RoomKeeping:
-    messages: Any
-    keeper: Any
-    posts: Any
+@runtime_checkable
+class RoomUnit(Pumped, Protocol):
+    def hangings(self) -> tuple[Hanging, ...]: ...
+
+    def hangs_by(self) -> dict[str, Hangs]: ...
+
+    def put_back(self) -> None: ...
+
+    def point(self, frame: Frame) -> None: ...
+
+    def render_latest_frame(self) -> None: ...
 
 
-def what_hangs(room: Sequence) -> list[Hanging]:
+@runtime_checkable
+class Scrolls(RoomUnit, Protocol):
+    @property
+    def takes_the_stick(self) -> bool: ...
+
+    def scroll(self, notches: float) -> None: ...
+
+
+def what_hangs(room: Sequence[RoomUnit]) -> list[Hanging]:
     return [one for thing in room for one in thing.hangings()]
 
 
@@ -100,7 +112,7 @@ class Hangs:
         return name if self.kept_as is None else self.kept_as()
 
 
-def where_they_hang(room: Sequence) -> dict[str, Hangs]:
+def where_they_hang(room: Sequence[RoomUnit]) -> dict[str, Hangs]:
     where: dict[str, Hangs] = {}
     for thing in room:
         for name, hangs in thing.hangs_by().items():
