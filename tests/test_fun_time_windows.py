@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import partial
 from unittest.mock import patch
 
+import pytest
 from shared_ui.preview import Preview, window_title
 
 from fun_time.fun_time_windows import (
@@ -233,6 +234,15 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
         assert self._promotions(windows, "restack_rfb_mode",
                                 rfb_mode=RfbMode.ORIGENERATOR, paused=True) == []
+
+    @pytest.mark.parametrize(("rfb_mode", "holder"), [
+        (RfbMode.ORIGENERATOR, HOSTED_HWND), (RfbMode.RFB, RFB_HWND)])
+    def test_a_restack_while_paused_raises_what_holds_the_place_over_every_other_window(
+            self, rfb_mode, holder):
+        windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
+        with patch("fun_time.fun_time_windows.raise_above_every_window_not_on_top") as lift:
+            self._promotions(windows, "restack_rfb_mode", rfb_mode=rfb_mode, paused=True)
+        lift.assert_called_once_with(holder)
 
     def test_a_late_restore_finds_the_browser_already_out_of_the_band(self):
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
